@@ -1,8 +1,6 @@
 #!/usr/bin/python
 # -*- coding:UTF-8 -*-
-import asyncio
 from typing import Optional
-from asyncio import PriorityQueue, TimeoutError
 
 from crawlo.utils.pqueue import SpiderPriorityQueue
 

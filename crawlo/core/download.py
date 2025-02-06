@@ -1,13 +1,7 @@
 #!/usr/bin/python
 # -*- coding:UTF-8 -*-
-"""
-# @Time    :    2025-02-05 13:22
-# @Author  :   oscar
-# @Desc    :   None
-"""
 import random
 import asyncio
-import requests
 
 
 class Downloader:

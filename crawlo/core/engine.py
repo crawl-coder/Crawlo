@@ -9,17 +9,21 @@ from crawlo.exceptions import TransformTypeError, OutputError
 from crawlo.spider import Spider
 from crawlo.core.download import Downloader
 from crawlo.core.scheduler import Scheduler
+from crawlo.utils.log import get_logger
 
 
 class Engine(object):
 
     def __init__(self):
+        self.running = False
+        self.logger = get_logger(self.__class__.__name__)
         self.spider: Optional[Spider] = None
         self.downloader: Optional[Downloader] = None
         self.scheduler: Optional[Scheduler] = None
         self.start_requests: Optional[Generator] = None
 
     async def start_spider(self, spider):
+        self.running = True
         self.spider = spider
         self.scheduler = Scheduler()
         if hasattr(self.scheduler, 'open'):
@@ -34,7 +38,7 @@ class Engine(object):
         Crawl the spider
         :return:
         """
-        while True:
+        while self.running:
             if request := await self._get_next_request():
                 await self._crawl(request)
             try:
@@ -42,8 +46,12 @@ class Engine(object):
 
             except StopIteration:
                 self.start_requests = None
-            except Exception as e:
-                break
+            except Exception as exp:
+                if not await self._exit():
+                    continue
+                self.running = False
+                if self.start_requests is not None:
+                    self.logger.error(f"Error in crawling start_requests: {exp}")
             else:
                 # 请求入队
                 await self.enqueue_request(start_request)
@@ -90,10 +98,10 @@ class Engine(object):
                 await self.enqueue_request(spider_output)
             # 需要判断是不是数据，替换为Item
             else:
-                raise OutputError(f'{type(self.spider)} must return `Request` or `Item`')
+                raise OutputError(f'{type(self.spider)} must return `Request` or `Item`.')
 
     async def _exit(self):
-        if self.scheduler.idle() and self.downloader.idle() and self.task_manager.all_done() and self.processor.idle():
+        if self.scheduler.idle() and self.downloader.idle():
             return True
         else:
             return False
