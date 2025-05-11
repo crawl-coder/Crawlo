@@ -1,5 +1,7 @@
 #!/usr/bin/python
 # -*- coding:UTF-8 -*-
+import hashlib
+from copy import deepcopy
 from typing import Dict, Optional, Callable
 
 
@@ -28,6 +30,16 @@ class Request(object):
         self.priority = priority
         self.encoding = encoding
         self._meta = meta if meta is not None else {}
+
+    def copy(self):
+        return deepcopy(self)
+
+    def fingerprint(self) -> str:
+        data = f"{self.url}{self.method}{self.body or b''}".encode()
+        return hashlib.sha256(data).hexdigest()
+
+    def set_meta(self, key: str, value: str):
+        self._meta[key] = value
 
     @property
     def meta(self):

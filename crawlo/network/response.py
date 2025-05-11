@@ -3,8 +3,9 @@
 import re
 import ujson
 from typing import Dict
-from urllib.parse import urljoin as _urljoin
 from parsel import Selector
+from http.cookies import SimpleCookie
+from urllib.parse import urljoin as _urljoin
 
 from crawlo import Request
 from crawlo.exceptions import DecodeError
@@ -17,7 +18,7 @@ class Response(object):
             url: str,
             *,
             headers: Dict,
-            body: bytes = b'',
+            body: bytes = b"",
             method: str = 'GET',
             request: Request = None,
             status_code: int = 200,
@@ -65,6 +66,24 @@ class Response(object):
         if self._selector is None:
             self._selector = Selector(self.text)
         return self._selector.xpath(xpath_str)
+
+    def css(self, css_str):
+        if self._selector is None:
+            self._selector = Selector(self.text)
+        return self._selector.css(css_str)
+
+    def re_search(self, pattern, flags=re.DOTALL):
+        return re.search(pattern, self.text, flags=flags)
+
+    def re_findall(self, pattern, flags=re.DOTALL):
+        return re.findall(pattern, self.text, flags=flags)
+
+    def get_cookies(self):
+        cookie_headers = self.headers.getlist('Set-Cookie') or []
+        cookies = SimpleCookie()
+        for header in cookie_headers:
+            cookies.load(header)
+        return {k: v.value for k, v in cookies.items()}
 
     @property
     def meta(self):

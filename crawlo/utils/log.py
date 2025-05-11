@@ -18,7 +18,6 @@ class LoggerManager(object):
 
     @classmethod
     def get_logger(cls, name: str = 'default', level=None, log_format: str = LOG_FORMAT):
-        #
         key = (name, level)
 
         def gen_logger():
