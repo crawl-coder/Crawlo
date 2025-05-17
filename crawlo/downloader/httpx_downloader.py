@@ -15,12 +15,8 @@ class HttpXDownloader(DownloaderBase):
 
     def open(self):
         super().open()
-        self._timeout = Timeout(timeout=self.crawler.settings.get_int("DOWNLOAD_TIMEOUT"))
-
-    async def fetch(self, request) -> Optional[Response]:
-        async with self._active(request):
-            response = await self.download(request)
-            return response
+        timeout = self.crawler.settings.get_int("DOWNLOAD_TIMEOUT")
+        self._timeout = Timeout(timeout=timeout)
 
     async def download(self, request) -> Optional[Response]:
         try:
@@ -35,11 +31,9 @@ class HttpXDownloader(DownloaderBase):
                     data=request.body
                 )
                 body = await response.aread()
-        except Exception as e:
-            self.logger.error(f"Error downloading {request}: {e}")
-            return None
-        else:
-            self.crawler.stats.inc_value('response_received_count')
+        except Exception as exp:
+            self.logger.error(f"Error downloading {request}: {exp}")
+            raise exp
 
         return self.structure_response(request=request, response=response, body=body)
 

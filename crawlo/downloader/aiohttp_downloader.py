@@ -35,11 +35,6 @@ class AioHttpDownloader(DownloaderBase):
                 connector=self.connector, timeout=self._timeout, trace_configs=[self.trace_config]
             )
 
-    async def fetch(self, request) -> Optional[Response]:
-        async with self._active(request):
-            response = await self.download(request)
-            return response
-
     async def download(self, request) -> Optional[Response]:
         try:
             if self._use_session:
@@ -52,11 +47,9 @@ class AioHttpDownloader(DownloaderBase):
                 ) as session:
                     response = await self.send_request(session, request)
                     body = await response.content.read()
-        except Exception as e:
-            self.logger.error(f"Error downloading {request}: {e}")
-            return None
-        else:
-            self.crawler.stats.inc_value('response_received_count')
+        except Exception as exp:
+            self.logger.error(f"Error downloading {request}: {exp}")
+            raise exp
 
         return self.structure_response(request=request, response=response, body=body)
 

@@ -12,7 +12,8 @@ from crawlo.utils.log import get_logger
 from crawlo.task_manager import TaskManager
 from crawlo.utils.project import load_class
 from crawlo.downloader import DownloaderBase
-from crawlo.exceptions import TransformTypeError, OutputError
+from crawlo.utils.func_tools import transform
+from crawlo.exceptions import OutputError
 
 
 class Engine(object):
@@ -105,7 +106,7 @@ class Engine(object):
                 if iscoroutine(_outputs):
                     await _outputs
                 else:
-                    return self.transform(_outputs)
+                    return transform(_outputs)
 
         _response = await self.downloader.fetch(request)
         if _response is None:
@@ -134,19 +135,6 @@ class Engine(object):
         if self.scheduler.idle() and self.downloader.idle() and self.task_manager.all_done() and self.processor.idle():
             return True
         return False
-
-    @staticmethod
-    async def transform(funcs):
-        if isgenerator(funcs):
-            for f in funcs:
-                yield f
-        elif isasyncgen(funcs):
-            async for f in funcs:
-                yield f
-        else:
-            raise TransformTypeError(
-                f'callback return type error: {type(funcs)} must be `generator` or `async generator`'
-            )
 
     async def close_spider(self):
         await asyncio.gather(*self.task_manager.current_task)

@@ -7,6 +7,7 @@ from contextlib import asynccontextmanager
 
 from crawlo import Response, Request
 from crawlo.utils.log import get_logger
+from crawlo.middleware.middleware_manager import MiddlewareManager
 
 
 class ActivateRequestManager:
@@ -44,6 +45,7 @@ class DownloaderBase(metaclass=DownloaderMeta):
     def __init__(self, crawler):
         self.crawler = crawler
         self._active = ActivateRequestManager()
+        self.middleware: Optional[MiddlewareManager] = None
         self.logger = get_logger(self.__class__.__name__, crawler.settings.get("LOG_LEVEL"))
 
     @classmethod
@@ -51,12 +53,15 @@ class DownloaderBase(metaclass=DownloaderMeta):
         return cls(*args, **kwargs)
 
     def open(self) -> None:
-        self.logger.info(f"{self.crawler.spider} <downloader class：{type(self).__name__}>"
-                         f"<concurrency：{self.crawler.settings.get_int('CONCURRENCY')}>")
+        self.logger.info(
+            f"{self.crawler.spider} <downloader class：{type(self).__name__}>"
+            f"<concurrency：{self.crawler.settings.get_int('CONCURRENCY')}>"
+        )
+        self.middleware = MiddlewareManager.create_instance(self.crawler)
 
     async def fetch(self, request) -> Optional[Response]:
         async with self._active(request):
-            response = await self.download(request)
+            response = await self.middleware.download(request)
             return response
 
     @abstractmethod

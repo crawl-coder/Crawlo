@@ -3,6 +3,9 @@
 import os
 import sys
 from importlib import import_module
+from inspect import iscoroutinefunction
+from typing import Callable
+
 from crawlo.settings.setting_manager import SettingManager
 
 
@@ -46,3 +49,10 @@ def load_class(_path):
     except AttributeError:
         raise NameError(f"Module {module_name!r} has no class named {class_name!r}")
     return cls
+
+
+async def common_call(func: Callable, *args, **kwargs):
+    if iscoroutinefunction(func):
+        return await func(*args, **kwargs)
+    else:
+        return func(*args, **kwargs)
