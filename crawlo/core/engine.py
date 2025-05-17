@@ -19,6 +19,7 @@ class Engine(object):
 
     def __init__(self, crawler):
         self.running = False
+        self.normal = True
         self.crawler = crawler
         self.settings = crawler.settings
         self.spider: Optional[Spider] = None
@@ -30,7 +31,7 @@ class Engine(object):
 
         self.logger = get_logger(name=self.__class__.__name__)
 
-    def _get_downloader(self):
+    def _get_downloader_cls(self):
         downloader_cls = load_class(self.settings.get('DOWNLOADER'))
         if not issubclass(downloader_cls, DownloaderBase):
             raise TypeError(f'Downloader {downloader_cls.__name__} is not subclass of DownloaderBase.')
@@ -41,11 +42,11 @@ class Engine(object):
         self.logger.info(f"CrawlO started. (project name : {self.settings.get('PROJECT_NAME')})")
         self.spider = spider
 
-        self.scheduler = Scheduler()
+        self.scheduler = Scheduler(self.crawler)
         if hasattr(self.scheduler, 'open'):
             self.scheduler.open()
 
-        downloader_cls = self._get_downloader()
+        downloader_cls = self._get_downloader_cls()
         self.downloader = downloader_cls(self.crawler)
         if hasattr(self.downloader, 'open'):
             self.downloader.open()
@@ -83,6 +84,7 @@ class Engine(object):
 
     async def _open_spider(self):
         crawling = asyncio.create_task(self.crawl())
+        asyncio.create_task(self.scheduler.interval_log(self.settings.get_int('INTERVAL')))
         await crawling
 
     async def _crawl(self, request):
@@ -147,4 +149,7 @@ class Engine(object):
             )
 
     async def close_spider(self):
+        await asyncio.gather(*self.task_manager.current_task)
         await self.downloader.close()
+        if self.normal:
+            await self.crawler.close()

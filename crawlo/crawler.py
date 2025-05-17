@@ -1,13 +1,19 @@
 #!/usr/bin/python
 # -*- coding:UTF-8 -*
+import signal
 import asyncio
 from typing import Type, Final, Set, Optional
 
 from crawlo.spider import Spider
 from crawlo.core.engine import Engine
+from crawlo.stats_collector import StatsCollector
 from crawlo.exceptions import SpiderTypeError
 from crawlo.settings.setting_manager import SettingManager
+from crawlo.utils.log import get_logger
 from crawlo.utils.project import merge_settings
+from crawlo.utils.date_tools import now
+
+logger = get_logger(__name__)
 
 
 class Crawler:
@@ -16,11 +22,13 @@ class Crawler:
         self.spider_cls = spider_cls
         self.spider: Optional[Spider] = None
         self.engine: Optional[Engine] = None
+        self.stats: Optional[StatsCollector] = None
         self.settings: SettingManager = settings.copy()
 
     async def crawl(self):
         self.spider = self._create_spider()
         self.engine = self._create_engine()
+        self.stats = self._create_stats()
 
         await self.engine.start_spider(self.spider)
 
@@ -32,9 +40,17 @@ class Crawler:
     def _create_engine(self) -> Engine:
         engine = Engine(self)
         return engine
-    
+
+    def _create_stats(self) -> StatsCollector:
+        stats = StatsCollector(self)
+        stats['start_time'] = now()
+        return stats
+
     def _set_spider(self, spider):
         merge_settings(spider, self.settings)
+
+    async def close(self, reason='finished') -> None:
+        self.stats.close_spider(spider_name=self.spider, reason=reason)
 
 
 class CrawlerProcess:
@@ -43,6 +59,8 @@ class CrawlerProcess:
         self.crawlers: Final[Set] = set()
         self._active_spiders: Final[Set] = set()
         self.settings = settings
+
+        signal.signal(signal.SIGINT, self._shutdown)
 
     async def crawl(self, spider: Type[Spider]):
         crawler: Crawler = self._create_crawler(spider)
@@ -62,3 +80,10 @@ class CrawlerProcess:
             raise SpiderTypeError(f"{type(self)}.crawl args: String is not supported.")
         crawler: Crawler = Crawler(spider_cls, self.settings)
         return crawler
+
+    def _shutdown(self, _signum, _frame):
+        for crawler in self.crawlers:
+            crawler.engine.running = False
+            crawler.engine.normal = False
+            crawler.stats.close_spider(crawler.spider, 'Ctrl C')
+        logger.warning(f'spiders received: `Ctrl C` signal, closed.')

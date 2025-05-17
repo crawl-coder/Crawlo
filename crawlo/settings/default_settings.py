@@ -4,6 +4,7 @@
 CONCURRENCY = 8
 # 下载超时时长
 DOWNLOAD_TIMEOUT = 60
+INTERVAL = 3
 # ssl 验证
 VERIFY_SSL = True
 # 是否使用同一个session
