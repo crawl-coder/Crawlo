@@ -10,7 +10,7 @@ from crawlo.utils.log import get_logger
 from crawlo.utils.project import load_class
 from crawlo.middleware import BaseMiddleware
 from crawlo.utils.project import common_call
-from crawlo.exceptions import MiddlewareInitError, InvalidOutputError, RequestMethodError
+from crawlo.exceptions import MiddlewareInitError, InvalidOutputError, RequestMethodError, IgnoreRequestError
 
 
 class MiddlewareManager:
@@ -72,6 +72,10 @@ class MiddlewareManager:
             response = await self._process_request(request)
         except KeyError:
             raise RequestMethodError(f"{request.method.lower()} is not supported")
+        except IgnoreRequestError as exp:
+            self.logger.info(f'{request} ignored.')
+            self._stats.inc_value('request_ignore_count')
+            response = await self._process_exception(request, exp)
         except Exception as exp:
             self._stats.inc_value(f'download_error/{exp.__class__.__name__}')
             response = await self._process_exception(request, exp)
