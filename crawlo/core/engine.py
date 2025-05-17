@@ -13,7 +13,8 @@ from crawlo.task_manager import TaskManager
 from crawlo.utils.project import load_class
 from crawlo.downloader import DownloaderBase
 from crawlo.utils.func_tools import transform
-from crawlo.exceptions import OutputError
+from crawlo.exceptions import OutputError, TransformTypeError
+from crawlo.event import spider_opened, spider_error
 
 
 class Engine(object):
@@ -84,6 +85,7 @@ class Engine(object):
             await self.close_spider()
 
     async def _open_spider(self):
+        asyncio.create_task(self.crawler.subscriber.notify(spider_opened))
         crawling = asyncio.create_task(self.crawl())
         asyncio.create_task(self.scheduler.interval_log(self.settings.get_int('INTERVAL')))
         await crawling
@@ -128,6 +130,11 @@ class Engine(object):
         async for spider_output in outputs:
             if isinstance(spider_output, (Request, Item)):
                 await self.processor.enqueue(spider_output)
+            elif isinstance(spider_output, Exception):
+                asyncio.create_task(
+                    self.crawler.subscriber.notify(spider_error, spider_output, self.spider)
+                )
+                raise spider_output
             else:
                 raise OutputError(f'{type(self.spider)} must return `Request` or `Item`.')
 

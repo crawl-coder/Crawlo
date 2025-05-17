@@ -6,12 +6,14 @@ from typing import Type, Final, Set, Optional
 
 from crawlo.spider import Spider
 from crawlo.core.engine import Engine
+from crawlo.subscriber import Subscriber
 from crawlo.stats_collector import StatsCollector
 from crawlo.exceptions import SpiderTypeError
 from crawlo.settings.setting_manager import SettingManager
 from crawlo.utils.log import get_logger
 from crawlo.utils.project import merge_settings
 from crawlo.utils.date_tools import now
+from crawlo.event import spider_opened, spider_closed
 
 logger = get_logger(__name__)
 
@@ -23,14 +25,20 @@ class Crawler:
         self.spider: Optional[Spider] = None
         self.engine: Optional[Engine] = None
         self.stats: Optional[StatsCollector] = None
+        self.subscriber: Optional[Subscriber] = None
         self.settings: SettingManager = settings.copy()
 
     async def crawl(self):
+        self.subscriber = self._create_subscriber()
         self.spider = self._create_spider()
         self.engine = self._create_engine()
         self.stats = self._create_stats()
 
         await self.engine.start_spider(self.spider)
+
+    @staticmethod
+    def _create_subscriber():
+        return Subscriber()
 
     def _create_spider(self) -> Spider:
         spider = self.spider_cls.create_instance(self)
@@ -47,9 +55,12 @@ class Crawler:
         return stats
 
     def _set_spider(self, spider):
+        self.subscriber.subscribe(spider.spider_opened, event=spider_opened)
+        self.subscriber.subscribe(spider.spider_closed, event=spider_closed)
         merge_settings(spider, self.settings)
 
     async def close(self, reason='finished') -> None:
+        asyncio.create_task(self.subscriber.notify(spider_closed))
         self.stats.close_spider(spider_name=self.spider, reason=reason)
 
 

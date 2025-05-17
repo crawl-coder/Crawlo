@@ -41,8 +41,12 @@ class PipelineInitError(Exception):
 
 
 class IgnoreRequestError(Exception):
-    pass
+    def __init__(self, msg):
+        self.msg = msg
+        super(IgnoreRequestError, self).__init__(msg)
 
 
 class ItemDiscard(Exception):
-    pass
+    def __init__(self, msg):
+        self.msg = msg
+        super(ItemDiscard, self).__init__(msg)

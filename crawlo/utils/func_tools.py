@@ -6,14 +6,17 @@ from crawlo.exceptions import TransformTypeError
 
 
 async def transform(func: Callable):
-    if isgenerator(func):
-        for f in func:
-            yield f
-    elif isasyncgen(func):
-        async for f in func:
-            yield f
-    else:
-        raise TransformTypeError(
-            f'callback return type error: {type(func)} must be `generator` or `async generator`'
-        )
+    try:
+        if isgenerator(func):
+            for f in func:
+                yield f
+        elif isasyncgen(func):
+            async for f in func:
+                yield f
+        else:
+            raise TransformTypeError(
+                f'callback return type error: {type(func)} must be `generator` or `async generator`'
+            )
+    except Exception as exp:
+        yield exp
 

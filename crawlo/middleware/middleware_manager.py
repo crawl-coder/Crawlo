@@ -2,14 +2,16 @@
 # -*- coding:UTF-8 -*-
 from pprint import pformat
 from types import MethodType
-from typing import List, Dict, Callable, Optional
+from asyncio import create_task
 from collections import defaultdict
+from typing import List, Dict, Callable, Optional
 
 from crawlo import Request, Response
 from crawlo.utils.log import get_logger
 from crawlo.utils.project import load_class
 from crawlo.middleware import BaseMiddleware
 from crawlo.utils.project import common_call
+from crawlo.event import ignore_request, response_received
 from crawlo.exceptions import MiddlewareInitError, InvalidOutputError, RequestMethodError, IgnoreRequestError
 
 
@@ -41,7 +43,15 @@ class MiddlewareManager:
 
     async def _process_response(self, request: Request, response: Response):
         for method in reversed(self.methods['process_response']):
-            response = await common_call(method, request, response, self.crawler.spider)
+            try:
+                response = await common_call(method, request, response, self.crawler.spider)
+            except IgnoreRequestError as exp:
+                create_task(self.crawler.subscriber.notify(ignore_request, exp, request, self.crawler.spider))
+                self.logger.info(f'{request} ignored.')
+                self._stats.inc_value('request_ignore_count')
+                reason = exp.msg
+                if reason:
+                    self._stats.inc_value(f'request_ignore_count/{reason}')
             if isinstance(response, Request):
                 return response
             if isinstance(response, Response):
@@ -73,13 +83,18 @@ class MiddlewareManager:
         except KeyError:
             raise RequestMethodError(f"{request.method.lower()} is not supported")
         except IgnoreRequestError as exp:
+            create_task(self.crawler.subscriber.notify(ignore_request, exp, request, self.crawler.spider))
             self.logger.info(f'{request} ignored.')
             self._stats.inc_value('request_ignore_count')
+            reason = exp.msg
+            if reason:
+                self._stats.inc_value(f'request_ignore_count/{reason}')
             response = await self._process_exception(request, exp)
         except Exception as exp:
             self._stats.inc_value(f'download_error/{exp.__class__.__name__}')
             response = await self._process_exception(request, exp)
         else:
+            create_task(self.crawler.subscriber.notify(response_received, response, self.crawler.spider))
             self.crawler.stats.inc_value('response_received_count')
         if isinstance(response, Response):
             response = await self._process_response(request, response)

@@ -4,6 +4,7 @@ import asyncio
 from typing import Optional
 
 from crawlo.utils.log import get_logger
+from crawlo.event import request_scheduled
 from crawlo.utils.pqueue import SpiderPriorityQueue
 
 
@@ -25,6 +26,7 @@ class Scheduler:
 
     async def enqueue_request(self, request):
         await self.request_queue.put(request)
+        asyncio.create_task(self.crawler.subscriber.notify(request_scheduled, request, self.crawler.spider))
         self.crawler.stats.inc_value('request_scheduler_count')
 
     async def interval_log(self, interval):

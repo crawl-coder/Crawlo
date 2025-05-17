@@ -26,5 +26,11 @@ class Spider(object):
     def parse(self, response):
         raise NotImplementedError
 
+    async def spider_opened(self):
+        pass
+
+    async def spider_closed(self):
+        pass
+
     def __str__(self):
         return self.__class__.__name__
