@@ -12,7 +12,8 @@ from crawlo.utils.project import load_class
 from crawlo.middleware import BaseMiddleware
 from crawlo.utils.project import common_call
 from crawlo.event import ignore_request, response_received
-from crawlo.exceptions import MiddlewareInitError, InvalidOutputError, RequestMethodError, IgnoreRequestError
+from crawlo.exceptions import MiddlewareInitError, InvalidOutputError, RequestMethodError, IgnoreRequestError, \
+    NotConfiguredError
 
 
 class MiddlewareManager:
@@ -47,11 +48,11 @@ class MiddlewareManager:
                 response = await common_call(method, request, response, self.crawler.spider)
             except IgnoreRequestError as exp:
                 create_task(self.crawler.subscriber.notify(ignore_request, exp, request, self.crawler.spider))
-                self.logger.info(f'{request} ignored.')
-                self._stats.inc_value('request_ignore_count')
-                reason = exp.msg
-                if reason:
-                    self._stats.inc_value(f'request_ignore_count/{reason}')
+                # self.logger.info(f'{request} ignored.')
+                # self._stats.inc_value('request_ignore_count')
+                # reason = exp.msg
+                # if reason:
+                #     self._stats.inc_value(f'request_ignore_count/{reason}')
             if isinstance(response, Request):
                 return response
             if isinstance(response, Response):
@@ -84,18 +85,13 @@ class MiddlewareManager:
             raise RequestMethodError(f"{request.method.lower()} is not supported")
         except IgnoreRequestError as exp:
             create_task(self.crawler.subscriber.notify(ignore_request, exp, request, self.crawler.spider))
-            self.logger.info(f'{request} ignored.')
-            self._stats.inc_value('request_ignore_count')
-            reason = exp.msg
-            if reason:
-                self._stats.inc_value(f'request_ignore_count/{reason}')
             response = await self._process_exception(request, exp)
         except Exception as exp:
             self._stats.inc_value(f'download_error/{exp.__class__.__name__}')
             response = await self._process_exception(request, exp)
         else:
             create_task(self.crawler.subscriber.notify(response_received, response, self.crawler.spider))
-            self.crawler.stats.inc_value('response_received_count')
+            # self.crawler.stats.inc_value('response_received_count')
         if isinstance(response, Response):
             response = await self._process_response(request, response)
         if isinstance(response, Request):
@@ -118,9 +114,12 @@ class MiddlewareManager:
             raise MiddlewareInitError(
                 f"Middleware init failed, must inherit from `BaseMiddleware` or have a `create_instance` method"
             )
-        instance = middleware_cls.create_instance(self.crawler)
-        self.middlewares.append(instance)
-        return True
+        try:
+            instance = middleware_cls.create_instance(self.crawler)
+            self.middlewares.append(instance)
+            return True
+        except NotConfiguredError:
+            return False
 
     def _add_method(self):
         for middleware in self.middlewares:

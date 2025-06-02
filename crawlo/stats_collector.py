@@ -14,6 +14,7 @@ class StatsCollector(object):
 
     def __init__(self, crawler):
         self.crawler = crawler
+        self._dump = self.crawler.settings.get_bool('STATS_DUMP')
         self._stats = {}
         self.logger = get_logger(self.__class__.__name__, "INFO")
 
@@ -33,10 +34,9 @@ class StatsCollector(object):
         self._stats.clear()
 
     def close_spider(self, spider_name, reason):
-        self._stats['end_time'] = now()
         self._stats['reason'] = reason
-        self._stats['cost_time(s)'] = date_delta(start=self._stats.get('start_time'), end=self._stats.get('end_time'))
-        self.logger.info(f'{spider_name} stats: \n{pformat(self._stats)}')
+        if self._dump:
+            self.logger.info(f'{spider_name} stats: \n{pformat(self._stats)}')
 
     def __getitem__(self, item):
         return self._stats[item]

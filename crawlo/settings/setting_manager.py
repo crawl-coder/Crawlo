@@ -1,5 +1,6 @@
 #!/usr/bin/python
 # -*- coding: UTF-8 -*-
+import json
 from copy import deepcopy
 from importlib import import_module
 from collections.abc import MutableMapping
@@ -49,6 +50,15 @@ class SettingManager(MutableMapping):
             return list(values)
         except TypeError:
             return [values]
+
+    def get_dict(self, key, default=None):
+        value = self.get(key, default or {})
+        if isinstance(value, str):
+            value = json.loads(value)
+        try:
+            return dict(value)
+        except TypeError:
+            return value
 
     def set(self, key, value):
         self.attributes[key] = value

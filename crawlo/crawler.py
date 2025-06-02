@@ -7,13 +7,14 @@ from typing import Type, Final, Set, Optional
 from crawlo.spider import Spider
 from crawlo.core.engine import Engine
 from crawlo.subscriber import Subscriber
-from crawlo.stats_collector import StatsCollector
-from crawlo.exceptions import SpiderTypeError
-from crawlo.settings.setting_manager import SettingManager
+
 from crawlo.utils.log import get_logger
+from crawlo.extension import ExtensionManager
+from crawlo.exceptions import SpiderTypeError
 from crawlo.utils.project import merge_settings
-from crawlo.utils.date_tools import now
+from crawlo.stats_collector import StatsCollector
 from crawlo.event import spider_opened, spider_closed
+from crawlo.settings.setting_manager import SettingManager
 
 logger = get_logger(__name__)
 
@@ -26,6 +27,7 @@ class Crawler:
         self.engine: Optional[Engine] = None
         self.stats: Optional[StatsCollector] = None
         self.subscriber: Optional[Subscriber] = None
+        self.extension: Optional[ExtensionManager] = None
         self.settings: SettingManager = settings.copy()
 
     async def crawl(self):
@@ -33,6 +35,7 @@ class Crawler:
         self.spider = self._create_spider()
         self.engine = self._create_engine()
         self.stats = self._create_stats()
+        self.extension = self._create_extension()
 
         await self.engine.start_spider(self.spider)
 
@@ -47,12 +50,16 @@ class Crawler:
 
     def _create_engine(self) -> Engine:
         engine = Engine(self)
+        engine.engine_start()
         return engine
 
     def _create_stats(self) -> StatsCollector:
         stats = StatsCollector(self)
-        stats['start_time'] = now()
         return stats
+
+    def _create_extension(self) -> ExtensionManager:
+        extension = ExtensionManager.create_instance(self)
+        return extension
 
     def _set_spider(self, spider):
         self.subscriber.subscribe(spider.spider_opened, event=spider_opened)
@@ -60,7 +67,7 @@ class Crawler:
         merge_settings(spider, self.settings)
 
     async def close(self, reason='finished') -> None:
-        asyncio.create_task(self.subscriber.notify(spider_closed))
+        await asyncio.create_task(self.subscriber.notify(spider_closed))
         self.stats.close_spider(spider_name=self.spider, reason=reason)
 
 

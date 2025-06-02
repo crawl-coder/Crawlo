@@ -50,3 +50,15 @@ class ItemDiscard(Exception):
     def __init__(self, msg):
         self.msg = msg
         super(ItemDiscard, self).__init__(msg)
+
+
+class NotConfiguredError(Exception):
+    pass
+
+
+class ExtensionInitError(Exception):
+    pass
+
+
+class ReceiverTypeError(Exception):
+    pass

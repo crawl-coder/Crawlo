@@ -23,7 +23,7 @@ class Request(object):
     ):
         self.url = url
         self.callback = callback
-        self.headers = headers
+        self.headers = headers if headers else {}
         self.body = body
         self.method = method
         self.cookies = cookies
