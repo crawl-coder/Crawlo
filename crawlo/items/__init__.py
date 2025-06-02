@@ -13,9 +13,12 @@ class ItemMeta(ABCMeta):
     """
     def __new__(mcs, name, bases, attrs):
         field = {}
+        cls_attr = {}
         for k, v in attrs.items():
             if isinstance(v, Field):
                 field[k] = v
+            else:
+                cls_attr[k] = v
         cls_instance = super().__new__(mcs, name, bases, attrs)
         cls_instance.FIELDS = field
         return cls_instance

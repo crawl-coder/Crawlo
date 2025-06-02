@@ -1,16 +1,21 @@
 #!/usr/bin/python
 # -*- coding:UTF-8 -*-
 from asyncio import Queue
-from typing import Union
+from typing import Union, Optional
 
 from crawlo import Request, Item
+from crawlo.pipeline.pipeline_manager import PipelineManager
 
 
 class Processor(object):
 
     def __init__(self, crawler):
-        self.queue: Queue = Queue()
         self.crawler = crawler
+        self.queue: Queue = Queue()
+        self.pipelines: Optional[PipelineManager] = None
+
+    def open(self):
+        self.pipelines = PipelineManager.create_instance(self.crawler)
 
     async def process(self):
         while not self.idle():
@@ -22,8 +27,7 @@ class Processor(object):
                 await self._process_item(result)
 
     async def _process_item(self, item):
-        self.crawler.stats.inc_value('item_successful_count')
-        print(f'data: {item}')
+        await self.pipelines.process_item(item=item)
 
     async def enqueue(self, output: Union[Request, Item]):
         await self.queue.put(output)

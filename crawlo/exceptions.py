@@ -28,15 +28,15 @@ class MiddlewareInitError(Exception):
     pass
 
 
+class PipelineInitError(Exception):
+    pass
+
+
 class InvalidOutputError(Exception):
     pass
 
 
 class RequestMethodError(Exception):
-    pass
-
-
-class PipelineInitError(Exception):
     pass
 
 
