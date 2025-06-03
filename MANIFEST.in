@@ -1,0 +1,11 @@
+include README.md
+include LICENSE
+
+include crawlo/requirements.txt
+include crawlo/VERSION
+
+recursive-include crawlo/utils/js *
+recursive-include crawlo/templates *
+recursive-include tests *
+
+global-exclude __pycache__ *.py[cod]
