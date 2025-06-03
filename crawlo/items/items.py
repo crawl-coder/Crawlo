@@ -21,13 +21,44 @@ class Item(MutableMapping, metaclass=ItemMeta):
 
         self._values: Dict[str, Any] = {}
 
+        # 初始化字段，默认值填充
+        for field_name, field_obj in self.FIELDS.items():
+            if field_obj.default is not None:
+                self._values[field_name] = field_obj.default
+
+        # 覆盖默认值或设置新值
+        for key, value in kwargs.items():
+            self[key] = value
+
     def __getitem__(self, item: str) -> Any:
         return self._values[item]
+
+    # def __setitem__(self, key: str, value: Any) -> None:
+    #     if key not in self.FIELDS:
+    #         raise KeyError(f"{self.__class__.__name__} 不包含字段：{key}")
+    #     self._values[key] = value
 
     def __setitem__(self, key: str, value: Any) -> None:
         if key not in self.FIELDS:
             raise KeyError(f"{self.__class__.__name__} 不包含字段：{key}")
-        self._values[key] = value
+
+        field = self.FIELDS[key]
+        try:
+            validated_value = field.validate(value, field_name=key)
+            self._values[key] = validated_value
+        except Exception as e:
+            error_lines = [
+                "",
+                "【字段校验失败】",
+                f"字段名称: {key}",
+                f"数据类型: {type(value)}",
+                f"原始值:   {repr(value)}",
+                f"是否允许空值: {field.nullable}",
+                f"错误原因: {str(e)}",
+                ""
+            ]
+            detailed_error = "\n".join(error_lines)
+            raise type(e)(detailed_error) from e
 
     def __delitem__(self, key: str) -> None:
         del self._values[key]
@@ -78,11 +109,11 @@ class Item(MutableMapping, metaclass=ItemMeta):
 
 if __name__ == '__main__':
     class TestItem(Item):
-        url = Field()
-        title = Field()
+        url = Field(nullable=False, field_type=str, max_length=100)
+        title = Field(default="无标题", field_type=str)
 
     test_item = TestItem()
     test_item['title'] = '百度首页'
-    test_item['url'] = 'http://example.com'
+    test_item['url'] = 'hhh'
     # test_item.title = 'fffff'
-    print(test_item.title)
+    print(test_item)

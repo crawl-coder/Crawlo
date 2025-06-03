@@ -5,7 +5,7 @@ from crawlo.spider import Spider
 from crawlo.utils.log import get_logger
 
 
-class DebugPipeline:
+class ConsolePipeline:
 
     def __init__(self, logger):
         self.logger = logger
