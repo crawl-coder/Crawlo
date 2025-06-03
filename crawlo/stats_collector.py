@@ -7,7 +7,6 @@
 """
 from pprint import pformat
 from crawlo.utils.log import get_logger
-from crawlo.utils.date_tools import date_delta, now
 
 
 class StatsCollector(object):

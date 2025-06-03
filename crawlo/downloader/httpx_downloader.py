@@ -21,7 +21,7 @@ class HttpXDownloader(DownloaderBase):
     async def download(self, request) -> Optional[Response]:
         try:
             proxies = None
-            async with AsyncClient(timeout=self._timeout, proxies=proxies) as client:
+            async with AsyncClient(timeout=self._timeout, proxy=proxies) as client:
                 self.logger.debug(f"request downloading: {request.url}，method: {request.method}")
                 response = await client.request(
                     url=request.url,

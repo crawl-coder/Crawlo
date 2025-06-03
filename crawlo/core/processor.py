@@ -4,7 +4,7 @@ from asyncio import Queue
 from typing import Union, Optional
 
 from crawlo import Request, Item
-from crawlo.pipeline.pipeline_manager import PipelineManager
+from crawlo.pipelines.pipeline_manager import PipelineManager
 
 
 class Processor(object):
