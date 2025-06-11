@@ -176,5 +176,6 @@ if __name__ == '__main__':
     print(parse_relative_time("1个月前"))
     print(parse_relative_time("10天前"))
     print(parse_relative_time("2024年1月1日"))
+    print(parse_relative_time('2025年5月30日'))
 
 

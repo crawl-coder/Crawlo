@@ -2,7 +2,10 @@
 # -*- coding:UTF-8 -*-
 import hashlib
 from copy import deepcopy
-from typing import Dict, Optional, Callable
+from w3lib.url import safe_url_string
+from typing import Dict, Optional, Callable, Union
+
+from crawlo.utils.url import escape_ajax
 
 
 class Request(object):
@@ -25,7 +28,7 @@ class Request(object):
         self.callback = callback
         self.headers = headers if headers else {}
         self.body = body
-        self.method = method
+        self.method = str(method).upper()
         self.cookies = cookies
         self.priority = priority
         self.encoding = encoding
@@ -40,6 +43,20 @@ class Request(object):
 
     def set_meta(self, key: str, value: str):
         self._meta[key] = value
+
+    def _set_url(self, url: str) -> None:
+        if not isinstance(url, str):
+            raise TypeError(f"Request url must be str, got {type(url).__name__}")
+
+        s = safe_url_string(url, self.encoding)
+        self._url = escape_ajax(s)
+
+        if (
+            "://" not in self._url
+            and not self._url.startswith("about:")
+            and not self._url.startswith("data:")
+        ):
+            raise ValueError(f"Missing scheme in request url: {self._url}")
 
     @property
     def meta(self):
