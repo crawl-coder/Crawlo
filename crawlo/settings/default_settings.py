@@ -2,7 +2,6 @@
 # -*- coding:UTF-8 -*-
 
 VERSION = 1.0
-
 # 并发数
 CONCURRENCY = 8
 
@@ -37,3 +36,29 @@ LOG_LEVEL = 'DEBUG'
 DOWNLOADER = "crawlo.downloader.aiohttp_downloader.AioHttpDownloader"  # HttpXDownloader
 
 EXTENSIONS = []
+
+# --------------------------------------------------- 公共MySQL配置 -----------------------------------------------------
+MYSQL_HOST = '127.0.0.1'
+MYSQL_PORT = 3306
+MYSQL_USER = 'scrapy_user'
+MYSQL_PASSWORD = 'your_password'
+MYSQL_DB = 'scrapy_data'
+MYSQL_TABLE = 'crawled_data'  # 可选，默认使用spider名称
+
+# asyncmy专属配置
+MYSQL_POOL_MIN = 5  # 连接池最小连接数
+MYSQL_POOL_MAX = 20  # 连接池最大连接数
+
+# --------------------------------------------------- MongoDB 基础配置 -----------------------------------------------------
+MONGO_URI = 'mongodb://user:password@host:27017'
+MONGO_DATABASE = 'scrapy_data'
+MONGO_COLLECTION = 'crawled_items'  # 可选，默认使用spider名称
+
+# 连接池优化配置（仅方案二需要）
+MONGO_MAX_POOL_SIZE = 200  # 最大连接数
+MONGO_MIN_POOL_SIZE = 20  # 最小保持连接数
+
+# 启用管道
+PIPELINES = [
+    'crawlo.pipelines.console_pipeline.ConsolePipeline',
+]

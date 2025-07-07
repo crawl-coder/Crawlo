@@ -11,7 +11,6 @@ import dateparser
 from datetime import datetime, timedelta
 from dateutil.relativedelta import relativedelta
 
-
 # 常见时间格式列表
 COMMON_FORMATS = [
     "%Y-%m-%d %H:%M:%S",
@@ -22,13 +21,13 @@ COMMON_FORMATS = [
     "%Y/%m/%d",
     "%d-%m-%Y",
     "%d/%m/%Y",
-    "%b %d, %Y",          # Jan 01, 2023
-    "%B %d, %Y",          # January 01, 2023
-    "%Y年%m月%d日",       # 2023年01月01日
+    "%b %d, %Y",  # Jan 01, 2023
+    "%B %d, %Y",  # January 01, 2023
+    "%Y年%m月%d日",  # 2023年01月01日
     "%Y年%m月%d日 %H时%M分%S秒",  # 2023年01月01日 12时30分45秒
-    "%a %b %d %H:%M:%S %Y",     # Wed Jan 01 12:00:00 2020
-    "%a, %d %b %Y %H:%M:%S",    # Wed, 01 Jan 2020 12:00:00
-    "%Y-%m-%dT%H:%M:%S.%f",    # ✅ 新增：ISO 8601 格式（带毫秒）
+    "%a %b %d %H:%M:%S %Y",  # Wed Jan 01 12:00:00 2020
+    "%a, %d %b %Y %H:%M:%S",  # Wed, 01 Jan 2020 12:00:00
+    "%Y-%m-%dT%H:%M:%S.%f",  # ✅ 新增：ISO 8601 格式（带毫秒）
 ]
 
 
@@ -89,6 +88,7 @@ def time_diff(start: TimeType, end: TimeType, fmt: str = None, unit='seconds', a
     :param auto_parse: 是否自动尝试解析任意格式的字符串（推荐开启）
     :return: 差值整数（根据 unit 返回），失败返回 None
     """
+
     def ensure_datetime(t):
         if isinstance(t, datetime):
             return t
@@ -160,13 +160,13 @@ def is_leap_year(year):
     """判断是否是闰年"""
     return (year % 4 == 0 and year % 100 != 0) or (year % 400 == 0)
 
+
 def parse_relative_time(time_str: str) -> str:
     """
     解析相对时间字符串（如 "3分钟前"、"昨天"）为 datetime 对象。
     """
     dt = dateparser.parse(time_str)
     return dt.isoformat()
-
 
 
 if __name__ == '__main__':
@@ -177,5 +177,3 @@ if __name__ == '__main__':
     print(parse_relative_time("10天前"))
     print(parse_relative_time("2024年1月1日"))
     print(parse_relative_time('2025年5月30日'))
-
-
