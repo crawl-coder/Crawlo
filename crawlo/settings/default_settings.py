@@ -1,6 +1,9 @@
 #!/usr/bin/python
 # -*- coding:UTF-8 -*-
+# 默认项目名称
+import os
 
+PROJECT_NAME = 'crawlo'
 VERSION = 1.0
 # 并发数
 CONCURRENCY = 8
@@ -62,3 +65,17 @@ MONGO_MIN_POOL_SIZE = 20  # 最小保持连接数
 PIPELINES = [
     'crawlo.pipelines.console_pipeline.ConsolePipeline',
 ]
+
+# filter
+REQUEST_DIR = '.'
+FILTER_DEBUG = True
+FILTER_CLASS = 'crawlo.filters.memory_filter.MemoryFileFilter'
+
+# redis filter
+SAVE_FP = False
+DECODE_RESPONSES = True
+REDIS_KEY = 'request_fingerprint'
+REDIS_HOST = os.getenv('REDIS_HOST', '127.0.0.1')
+REDIS_PASSWORD = os.getenv('REDIS_PASSWORD', 'oscar&0503')
+REDIS_PORT = os.getenv('REDIS_PORT', 6379)
+REDIS_URL = f'redis://:{REDIS_PASSWORD or ""}@{REDIS_HOST}:{REDIS_PORT}/0'

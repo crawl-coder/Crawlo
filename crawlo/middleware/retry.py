@@ -77,6 +77,7 @@ class RetryMiddleware(object):
             retry_times += 1
             self.logger.info(f"{spider} {request} {reason} retrying {retry_times} time...")
             request.meta['retry_times'] = retry_times
+            request.dont_retry = True
             self.stats.inc_value("retry_count")
             return request
         else:

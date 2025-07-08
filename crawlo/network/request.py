@@ -16,12 +16,13 @@ class Request(object):
             *,
             callback: Optional[Callable] = None,
             headers: Optional[Dict[str, str]] = None,
-            body: Optional[bytes] = None,
+            body: Optional[Dict] = None,
             method: Optional[str] = 'GET',
             cookies: Optional[Dict[str, str]] = None,
             priority: int = 0,
             encoding: Optional[str] = 'UTF-8',
-            meta: Optional[Dict[str, str]] = None
+            meta: Optional[Dict[str, str]] = None,
+            dont_filter: bool = False
 
     ):
         self.url = url
@@ -32,6 +33,7 @@ class Request(object):
         self.cookies = cookies
         self.priority = priority
         self.encoding = encoding
+        self.dont_filter = dont_filter
         self._meta = meta if meta is not None else {}
 
     def copy(self):
