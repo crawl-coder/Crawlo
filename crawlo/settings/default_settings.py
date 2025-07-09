@@ -46,11 +46,15 @@ MYSQL_PORT = 3306
 MYSQL_USER = 'scrapy_user'
 MYSQL_PASSWORD = 'your_password'
 MYSQL_DB = 'scrapy_data'
-MYSQL_TABLE = 'crawled_data'  # 可选，默认使用spider名称
+MYSQL_TABLE = 'crawled_data'
 
 # asyncmy专属配置
 MYSQL_POOL_MIN = 5  # 连接池最小连接数
 MYSQL_POOL_MAX = 20  # 连接池最大连接数
+MYSQL_ECHO = False
+
+# 批量插入大小
+MYSQL_BATCH_SIZE = 100
 
 # --------------------------------------------------- MongoDB 基础配置 -----------------------------------------------------
 MONGO_URI = 'mongodb://user:password@host:27017'

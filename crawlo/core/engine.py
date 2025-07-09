@@ -1,19 +1,19 @@
 #!/usr/bin/python
 # -*- coding:UTF-8 -*-
 import asyncio
+from inspect import iscoroutine
 from typing import Optional, Generator, Callable
-from inspect import iscoroutine, isgenerator, isasyncgen
 
 from crawlo import Request, Item
 from crawlo.spider import Spider
+from crawlo.utils.log import get_logger
+from crawlo.exceptions import OutputError
 from crawlo.core.scheduler import Scheduler
 from crawlo.core.processor import Processor
-from crawlo.utils.log import get_logger
 from crawlo.task_manager import TaskManager
 from crawlo.utils.project import load_class
 from crawlo.downloader import DownloaderBase
 from crawlo.utils.func_tools import transform
-from crawlo.exceptions import OutputError, TransformTypeError
 from crawlo.event import spider_opened, spider_error, request_scheduled
 
 
