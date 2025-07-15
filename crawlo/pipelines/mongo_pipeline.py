@@ -26,7 +26,7 @@ class MongoPipeline:
         crawler.subscriber.subscribe(self.spider_closed, event='spider_closed')
 
     @classmethod
-    def create_instance(cls, crawler):
+    def from_crawler(cls, crawler):
         return cls(crawler)
 
     async def _ensure_connection(self):

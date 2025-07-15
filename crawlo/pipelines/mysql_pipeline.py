@@ -17,13 +17,17 @@ class AsyncmyMySQLPipeline:
         self._pool_lock = asyncio.Lock()
         self._pool_initialized = False
         self.pool = None
-        self.table_name = self.settings.get('MYSQL_TABLE', self.crawler.spider.name)
+        self.table_name = (
+                self.settings.get('MYSQL_TABLE') or
+                getattr(crawler.spider, 'mysql_table', None) or
+                f"{crawler.spider.name}_items"
+        )
 
         # 注册关闭事件
         crawler.subscriber.subscribe(self.spider_closed, event='spider_closed')
 
     @classmethod
-    def create_instance(cls, crawler):
+    def from_crawler(cls, crawler):
         return cls(crawler)
 
     async def _ensure_pool(self):
@@ -98,9 +102,10 @@ class AiomysqlMySQLPipeline:
         self._pool_lock = asyncio.Lock()
         self._pool_initialized = False
         self.pool = None
-        self.table_name = self.settings.get(
-            'MYSQL_TABLE',
-            f"{self.crawler.spider.name}_items"
+        self.table_name = (
+                self.settings.get('MYSQL_TABLE') or
+                getattr(crawler.spider, 'mysql_table', None) or
+                f"{crawler.spider.name}_items"
         )
 
         crawler.subscriber.subscribe(self.spider_closed, event='spider_closed')

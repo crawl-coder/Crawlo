@@ -15,7 +15,7 @@ class Processor(object):
         self.pipelines: Optional[PipelineManager] = None
 
     def open(self):
-        self.pipelines = PipelineManager.create_instance(self.crawler)
+        self.pipelines = PipelineManager.from_crawler(self.crawler)
 
     async def process(self):
         while not self.idle():

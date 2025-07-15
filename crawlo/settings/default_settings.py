@@ -73,7 +73,7 @@ PIPELINES = [
 # filter
 REQUEST_DIR = '.'
 FILTER_DEBUG = True
-FILTER_CLASS = 'crawlo.filters.memory_filter.MemoryFileFilter'
+FILTER_CLASS = 'crawlo.filters.memory_filter.MemoryFilter'
 
 # redis filter
 SAVE_FP = False
