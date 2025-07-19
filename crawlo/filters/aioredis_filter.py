@@ -1,5 +1,7 @@
 #!/usr/bin/python
 # -*- coding:UTF-8 -*-
+from typing import Optional
+
 import aioredis
 
 from crawlo import Request
@@ -18,7 +20,7 @@ class AioRedisFilter(BaseFilter):
             stats: dict,
             debug: bool,
             log_level: str,
-            save_fp: bool
+            cleanup_fp: bool = False
     ):
         """
         初始化过滤器
@@ -37,7 +39,7 @@ class AioRedisFilter(BaseFilter):
 
         self.redis_key = redis_key  # Redis存储键（如："project:request_fingerprints"）
         self.redis = client  # Redis异步客户端
-        self.save_fp = save_fp  # 是否持久化指纹数据
+        self.cleanup_fp = cleanup_fp  # 是否持久化指纹数据
 
     @classmethod
     def create_instance(cls, crawler) -> 'BaseFilter':
@@ -61,7 +63,7 @@ class AioRedisFilter(BaseFilter):
             redis_key=f"{crawler.settings.get('PROJECT_NAME')}:{crawler.settings.get('REDIS_KEY', 'request_fingerprints')}",
             client=redis_client,
             stats=crawler.stats,
-            save_fp=crawler.settings.get_bool('SAVE_FP', False),
+            cleanup_fp=crawler.settings.get_bool('CLEANUP_FP', False),
             debug=crawler.settings.get_bool('FILTER_DEBUG', False),
             log_level=crawler.settings.get('LOG_LEVEL', 'INFO')
         )
@@ -100,21 +102,29 @@ class AioRedisFilter(BaseFilter):
             self.logger.error(f"指纹添加失败: {str(e)}")
             raise
 
-    async def closed(self) -> None:
-        """爬虫关闭时的清理操作"""
-        if not self.save_fp:
+    async def closed(self, reason: Optional[str] = None) -> None:
+        """
+        爬虫关闭时的处理（兼容Scrapy的关闭逻辑）
+
+        参数:
+            reason: 爬虫关闭原因（Scrapy标准参数）
+        """
+        if self.cleanup_fp:  # 仅在配置明确要求时清理
             try:
-                # 删除整个指纹集合
-                deleted_count = await self.redis.delete(self.redis_key)
+                deleted = await self.redis.delete(self.redis_key)
                 self.logger.info(
-                    f"已清理Redis键 '{self.redis_key}' -> "
-                    f"删除 {deleted_count} 条记录"
+                    f"Cleaned {deleted} fingerprints from {self.redis_key} "
+                    f"(reason: {reason or 'manual'})"
                 )
             except aioredis.RedisError as e:
-                self.logger.error(
-                    f"清理Redis键失败 '{self.redis_key}': {str(e)}"
-                )
+                self.logger.warning(f"Cleanup failed: {e}")
             finally:
-                # 确保连接资源释放
-                await self.redis.close()
-                await self.redis.connection_pool.disconnect()
+                await self._close_redis()
+
+    async def _close_redis(self) -> None:
+        """安全关闭Redis连接"""
+        try:
+            await self.redis.close()
+            await self.redis.connection_pool.disconnect()
+        except Exception as e:
+            self.logger.warning(f"Redis close error: {e}")

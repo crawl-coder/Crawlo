@@ -27,6 +27,10 @@ IGNORE_HTTP_CODES = [403, 404]
 RETRY_HTTP_CODES = [408, 429, 500, 502, 503, 504, 522, 524]
 # 允许通过的状态码
 ALLOWED_CODES = []
+# 请求优先级设置
+RETRY_PRIORITY = -1
+#
+DEPTH_PRIORITY = 1
 
 STATS_DUMP = True
 # ssl 验证
@@ -76,7 +80,7 @@ FILTER_DEBUG = True
 FILTER_CLASS = 'crawlo.filters.memory_filter.MemoryFilter'
 
 # redis filter
-SAVE_FP = False
+CLEANUP_FP = False
 DECODE_RESPONSES = True
 REDIS_KEY = 'request_fingerprint'
 REDIS_HOST = os.getenv('REDIS_HOST', '127.0.0.1')

@@ -5,9 +5,8 @@
 # @Author  :   crawl-coder
 # @Desc    :   时间工具
 """
-from typing import Optional, Union
-
 import dateparser
+from typing import Optional, Union
 from datetime import datetime, timedelta
 from dateutil.relativedelta import relativedelta
 
@@ -43,11 +42,10 @@ def normalize_time(time_str: str) -> Optional[datetime]:
             return datetime.strptime(time_str, fmt)
         except ValueError:
             continue
-    # 可选：改为 raise ValueError("无法解析时间字符串")
-    return None
+    raise ValueError(f"无法解析时间字符串：{time_str}")
 
 
-def get_current_time(fmt=None):
+def get_current_time(fmt: str = '%Y-%m-%d %H:%M:%S'):
     """
     获取当前时间，根据是否传入格式化参数决定返回类型
     :param fmt: 格式化字符串，如 "%Y-%m-%d %H:%M:%S"

@@ -77,3 +77,9 @@ def request_fingerprint(
 
     return hash_func.hexdigest()
 
+
+def set_request(request: Request, priority: int) -> None:
+    request.meta['depth'] = request.meta.setdefault('depth', 0) + 1
+    if priority:
+        request.priority -= request.meta['depth'] * priority
+
