@@ -45,7 +45,6 @@ class Scheduler:
             self.dupe_filter.log_stats(request)
             return False
         set_request(request, self.priority)
-        print(request.priority, request.callback, )
         await self.request_queue.put(request)
         return True
 
