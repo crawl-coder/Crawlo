@@ -97,7 +97,7 @@ class CrawlerProcess:
             spiders = [spiders]
 
         if len(spiders) == 1:
-            logger.info(f"启动单个爬虫: {spiders[0].__name__}")
+            logger.info(f"启动爬虫: {spiders[0].__name__}")
         else:
             logger.info(f"启动{len(spiders)}个爬虫，分批处理中")
 
