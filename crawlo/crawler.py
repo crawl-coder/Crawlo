@@ -92,13 +92,21 @@ class CrawlerProcess:
         if not spiders:
             raise ValueError("至少需要提供一个爬虫类")
 
+        # 统一转换为列表
         if isinstance(spiders, type) and issubclass(spiders, Spider):
             spiders = [spiders]
+        elif isinstance(spiders, (list, tuple)):
+            spiders = list(spiders)
+        else:
+            raise TypeError("spiders 必须是爬虫类或爬虫类列表/元组")
+
+        # 按爬虫类名首字母排序（升序）
+        spiders.sort(key=lambda x: x.__name__.lower())
 
         if len(spiders) == 1:
             logger.info(f"启动爬虫: {spiders[0].__name__}")
         else:
-            logger.info(f"启动{len(spiders)}个爬虫，分批处理中")
+            logger.info(f"启动{len(spiders)}个爬虫，按名称排序后分批处理中")
 
         batches = [spiders[i:i + self.batch_size] for i in range(0, len(spiders), self.batch_size)]
 
