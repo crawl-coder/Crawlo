@@ -6,16 +6,15 @@ from typing import Type, Final, Set, Optional
 
 from crawlo.spider import Spider
 from crawlo.core.engine import Engine
-from crawlo.subscriber import Subscriber
-from crawlo.utils.concurrency_manager import calculate_optimal_concurrency
-
 from crawlo.utils.log import get_logger
+from crawlo.subscriber import Subscriber
 from crawlo.extension import ExtensionManager
 from crawlo.exceptions import SpiderTypeError
-from crawlo.utils.project import merge_settings, get_settings
 from crawlo.stats_collector import StatsCollector
 from crawlo.event import spider_opened, spider_closed
 from crawlo.settings.setting_manager import SettingManager
+from crawlo.utils.project import merge_settings, get_settings
+from crawlo.utils.concurrency_manager import calculate_optimal_concurrency
 
 logger = get_logger(__name__)
 
