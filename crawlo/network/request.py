@@ -65,6 +65,7 @@ class Request:
         auth: Optional[tuple] = None,
         verify: bool = True,
         flags: Optional[List[str]] = None,
+        encoding: str = 'utf-8'
     ):
         """
         初始化请求对象。
@@ -107,7 +108,7 @@ class Request:
         self.flags = flags or []
 
         # 默认编码
-        self.encoding = 'utf-8'
+        self.encoding = encoding
 
         # 优先使用 json_body 参数
         if json_body is not None:

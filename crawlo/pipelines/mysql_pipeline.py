@@ -61,8 +61,8 @@ class AsyncmyMySQLPipeline:
         spider_name = getattr(spider, 'name', 'unknown')  # 获取爬虫名称
         try:
             await self._ensure_pool()
-
-            sql = make_insert_sql(table=self.table_name, data=[item], **kwargs)
+            item_dict = dict(item)
+            sql = make_insert_sql(table=self.table_name, data=item_dict, **kwargs)
 
             rowcount = await self._execute_sql(sql=sql)
             if rowcount > 1:
@@ -102,7 +102,6 @@ class AsyncmyMySQLPipeline:
                     await conn.rollback()
                     self.crawler.stats.inc_value('mysql/insert_failed')
                     raise ItemDiscard(f"MySQL插入失败: {e}")
-
 
     async def spider_closed(self):
         """关闭爬虫时清理资源"""
