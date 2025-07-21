@@ -5,6 +5,7 @@ from typing import Optional
 from asyncmy import create_pool
 from crawlo.utils.log import get_logger
 from crawlo.exceptions import ItemDiscard
+from crawlo.utils.tools import make_insert_sql, logger
 
 
 class AsyncmyMySQLPipeline:
@@ -54,35 +55,54 @@ class AsyncmyMySQLPipeline:
                     self.logger.error(f"MySQL连接池初始化失败: {e}")
                     raise
 
-    async def process_item(self, item, spider) -> Optional[dict]:
+    async def process_item(self, item, spider, kwargs=None) -> Optional[dict]:
         """处理item的核心方法"""
+        kwargs = kwargs or {}
+        spider_name = getattr(spider, 'name', 'unknown')  # 获取爬虫名称
         try:
             await self._ensure_pool()
 
-            item_dict = dict(item)
-            columns = ', '.join([f'`{k}`' for k in item_dict.keys()])
-            placeholders = ', '.join(['%s'] * len(item_dict))
+            sql = make_insert_sql(table=self.table_name, data=[item], **kwargs)
 
-            async with self.pool.acquire() as conn:
-                async with conn.cursor() as cursor:
-                    try:
-                        await cursor.execute(
-                            f"INSERT INTO `{self.table_name}` ({columns}) VALUES ({placeholders})",
-                            list(item_dict.values())
-                        )
-                        await conn.commit()
-                        self.crawler.stats.inc_value('mysql/insert_success')
-                    except Exception as e:
-                        await conn.rollback()
-                        self.crawler.stats.inc_value('mysql/insert_failed')
-                        self.logger.error(f"MySQL插入失败: {e}")
-                        raise ItemDiscard(f"MySQL插入失败: {e}")
+            rowcount = await self._execute_sql(sql=sql)
+            if rowcount > 1:
+                self.logger.info(
+                    f"爬虫 {spider_name} 成功插入 {rowcount} 条记录到表 {self.table_name}"
+                )
+            elif rowcount == 1:
+                self.logger.debug(
+                    f"爬虫 {spider_name} 成功插入单条记录到表 {self.table_name}"
+                )
+            else:
+                self.logger.warning(
+                    f"爬虫 {spider_name}: SQL执行成功但未插入新记录 - {sql[:100]}..."
+                )
 
             return item
 
         except Exception as e:
             self.logger.error(f"处理item时发生错误: {e}")
             raise ItemDiscard(f"处理失败: {e}")
+
+    async def _execute_sql(self, sql: str, values: list = None) -> int:
+        """执行SQL语句并处理结果"""
+        async with self.pool.acquire() as conn:
+            async with conn.cursor() as cursor:
+                try:
+                    # 根据是否有参数值选择不同的执行方法
+                    if values is not None:
+                        rowcount = await cursor.execute(sql, values)
+                    else:
+                        rowcount = await cursor.execute(sql)
+
+                    await conn.commit()
+                    self.crawler.stats.inc_value('mysql/insert_success')
+                    return rowcount
+                except Exception as e:
+                    await conn.rollback()
+                    self.crawler.stats.inc_value('mysql/insert_failed')
+                    raise ItemDiscard(f"MySQL插入失败: {e}")
+
 
     async def spider_closed(self):
         """关闭爬虫时清理资源"""
