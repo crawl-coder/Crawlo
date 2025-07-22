@@ -1,20 +1,20 @@
 #!/usr/bin/python
 # -*- coding:UTF-8 -*-
 import asyncio
+from inspect import iscoroutine
 from typing import Optional, Generator, Callable
-from inspect import iscoroutine, isgenerator, isasyncgen
 
 from crawlo import Request, Item
 from crawlo.spider import Spider
+from crawlo.utils.log import get_logger
+from crawlo.exceptions import OutputError
 from crawlo.core.scheduler import Scheduler
 from crawlo.core.processor import Processor
-from crawlo.utils.log import get_logger
 from crawlo.task_manager import TaskManager
 from crawlo.utils.project import load_class
 from crawlo.downloader import DownloaderBase
 from crawlo.utils.func_tools import transform
-from crawlo.exceptions import OutputError, TransformTypeError
-from crawlo.event import spider_opened, spider_error
+from crawlo.event import spider_opened, spider_error, request_scheduled
 
 
 class Engine(object):
@@ -49,7 +49,7 @@ class Engine(object):
     async def start_spider(self, spider):
         self.spider = spider
 
-        self.scheduler = Scheduler(self.crawler)
+        self.scheduler = Scheduler.create_instance(self.crawler)
         if hasattr(self.scheduler, 'open'):
             self.scheduler.open()
 
@@ -115,7 +115,7 @@ class Engine(object):
                 if iscoroutine(_outputs):
                     await _outputs
                 else:
-                    return transform(_outputs)
+                    return transform(_outputs, _response)
 
         _response = await self.downloader.fetch(request)
         if _response is None:
@@ -128,7 +128,8 @@ class Engine(object):
 
     async def _schedule_request(self, request):
         # TODO 去重
-        await self.scheduler.enqueue_request(request)
+        if await self.scheduler.enqueue_request(request):
+            asyncio.create_task(self.crawler.subscriber.notify(request_scheduled, request, self.crawler.spider))
 
     async def _get_next_request(self):
         return await self.scheduler.next_request()
@@ -152,6 +153,7 @@ class Engine(object):
 
     async def close_spider(self):
         await asyncio.gather(*self.task_manager.current_task)
+        await self.scheduler.close()
         await self.downloader.close()
         if self.normal:
             await self.crawler.close()

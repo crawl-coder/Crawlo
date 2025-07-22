@@ -36,12 +36,14 @@ class RetryMiddleware(object):
             ignore_http_codes: List,
             max_retry_times: int,
             retry_exceptions: List,
-            stats: StatsCollector
+            stats: StatsCollector,
+            retry_priority: int
     ):
         self.retry_http_codes = retry_http_codes
         self.ignore_http_codes = ignore_http_codes
         self.max_retry_times = max_retry_times
         self.retry_exceptions = tuple(retry_exceptions + _retry_exceptions)
+        self.retry_priority = retry_priority
         self.stats = stats
         self.logger = get_logger(self.__class__.__name__)
 
@@ -52,7 +54,8 @@ class RetryMiddleware(object):
             ignore_http_codes=crawler.settings.get_list('IGNORE_HTTP_CODES'),
             max_retry_times=crawler.settings.get_int('MAX_RETRY_TIMES'),
             retry_exceptions=crawler.settings.get_list('RETRY_EXCEPTIONS'),
-            stats=crawler.stats
+            stats=crawler.stats,
+            retry_priority=crawler.settings.get_int('RETRY_PRIORITY')
         )
         return o
 
@@ -77,6 +80,8 @@ class RetryMiddleware(object):
             retry_times += 1
             self.logger.info(f"{spider} {request} {reason} retrying {retry_times} time...")
             request.meta['retry_times'] = retry_times
+            request.dont_retry = True
+            request.retry_priority = request.priority + self.retry_priority
             self.stats.inc_value("retry_count")
             return request
         else:

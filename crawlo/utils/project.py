@@ -17,8 +17,9 @@ def _get_closest(path='.'):
 def _init_env():
     closest = _get_closest()
     if closest:
-        project_dir = os.path.dirname(closest)
-        sys.path.append(project_dir)
+        sys.path.append(closest)
+        # project_dir = os.path.dirname(closest)
+        # sys.path.append(project_dir)
 
 
 def get_settings(settings='settings'):
