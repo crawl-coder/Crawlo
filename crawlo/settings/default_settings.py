@@ -42,8 +42,6 @@ LOG_LEVEL = 'DEBUG'
 # 选择下载器
 DOWNLOADER = "crawlo.downloader.aiohttp_downloader.AioHttpDownloader"  # HttpXDownloader
 
-EXTENSIONS = []
-
 # --------------------------------------------------- 公共MySQL配置 -----------------------------------------------------
 MYSQL_HOST = '127.0.0.1'
 MYSQL_PORT = 3306
@@ -72,6 +70,12 @@ MONGO_MIN_POOL_SIZE = 20  # 最小保持连接数
 # 启用管道
 PIPELINES = [
     'crawlo.pipelines.console_pipeline.ConsolePipeline',
+]
+
+
+EXTENSIONS = [
+    'crawlo.extension.log_interval.LogIntervalExtension',
+    'crawlo.extension.log_stats.LogStats'
 ]
 
 # filter

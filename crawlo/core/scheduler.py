@@ -13,8 +13,6 @@ class Scheduler:
         self.crawler = crawler
         self.request_queue: Optional[SpiderPriorityQueue] = None
 
-        # self.item_count = 0
-        # self.response_count = 0
         self.logger = get_logger(name=self.__class__.__name__, level=log_level)
         self.stats = stats
         self.dupe_filter = dupe_filter

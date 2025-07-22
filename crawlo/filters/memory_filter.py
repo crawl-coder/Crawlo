@@ -94,7 +94,6 @@ class MemoryFilter(BaseFilter):
         self.fingerprints.clear()
         self._dupe_count = 0
         self._unique_count = 0
-        self.logger.info("已清空内存过滤器")
 
     def close(self) -> None:
         """关闭过滤器（清理资源）"""

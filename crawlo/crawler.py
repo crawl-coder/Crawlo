@@ -45,6 +45,26 @@ class Crawler:
 
     def _create_spider(self) -> Spider:
         spider = self.spider_cls.create_instance(self)
+
+        # --- 关键属性检查 ---
+        # 1. 检查 name
+        if not getattr(spider, 'name', None):
+            raise AttributeError(f"Spider class '{self.spider_cls.__name__}' must have a 'name' attribute.")
+
+        # 2. 检查 start_requests 是否可调用
+        if not callable(getattr(spider, 'start_requests', None)):
+            raise AttributeError(f"Spider '{spider.name}' must have a callable 'start_requests' method.")
+
+        # 3. 检查 start_urls 类型
+        start_urls = getattr(spider, 'start_urls', [])
+        if isinstance(start_urls, str):
+            raise TypeError(f"'{spider.name}.start_urls' must be a list or tuple, not a string.")
+
+        # --- 日志提示 ---
+        # 提醒用户定义 parse 方法
+        if not callable(getattr(spider, 'parse', None)):
+            logger.warning(f"Spider '{spider.name}' lacks a 'parse' method. Ensure all Requests have callbacks.")
+
         self._set_spider(spider)
         return spider
 
@@ -68,7 +88,7 @@ class Crawler:
 
     async def close(self, reason='finished') -> None:
         await asyncio.create_task(self.subscriber.notify(spider_closed))
-        self.stats.close_spider(spider_name=self.spider, reason=reason)
+        self.stats.close_spider(spider=self.spider, reason=reason)
 
 
 class CrawlerProcess:
