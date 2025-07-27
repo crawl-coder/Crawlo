@@ -84,7 +84,8 @@ FILTER_DEBUG = True
 FILTER_CLASS = 'crawlo.filters.memory_filter.MemoryFilter'
 
 # redis filter
-CLEANUP_FP = False
+REDIS_TTL = 0
+CLEANUP_FP = 0
 DECODE_RESPONSES = True
 REDIS_KEY = 'request_fingerprint'
 REDIS_HOST = os.getenv('REDIS_HOST', '127.0.0.1')
