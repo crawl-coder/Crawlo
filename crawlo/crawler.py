@@ -105,7 +105,7 @@ class CrawlerProcess:
         self.semaphore = asyncio.Semaphore(self.max_concurrency)
 
         signal.signal(signal.SIGINT, self._shutdown)
-        logger.info(f"初始化爬虫处理进程，最大并发数: {self.max_concurrency}")
+        logger.debug(f"初始化爬虫处理进程，最大并发数: {self.max_concurrency}")
 
     async def crawl(self, spiders):
         """支持单个或多个爬虫的批量处理，优化日志输出"""
@@ -160,7 +160,7 @@ class CrawlerProcess:
     async def start(self):
         """启动所有爬虫任务"""
         if self._active_spiders:
-            logger.info(f"启动 {len(self._active_spiders)} 个爬虫任务，并发限制: {self.max_concurrency}")
+            logger.info(f"启动 {len(self._active_spiders)} 个爬虫任务，计算得知当前设备最大并发限制: {self.max_concurrency}")
             await asyncio.gather(*self._active_spiders)
 
     def _create_crawler(self, spider_cls) -> Crawler:
