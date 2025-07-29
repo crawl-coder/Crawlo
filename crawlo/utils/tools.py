@@ -1,6 +1,7 @@
 import json
 import re
-from pprint import pformat
+import pprint
+from typing import Any, Union
 from datetime import date, time, datetime
 
 from crawlo.utils.log import get_logger
@@ -274,30 +275,56 @@ def get_json(json_str):
         return {}
 
 
-def dumps_json(data, indent=4, sort_keys=False):
+def dumps_json(
+    data: Union[str, dict, list, Any],
+    indent: int = 4,
+    sort_keys: bool = False,
+    ensure_ascii: bool = False,
+    skip_keys: bool = True,
+    default_repr: bool = False,
+) -> str:
     """
-    @summary: 格式化json 用于打印
-    ---------
-    @param data: json格式的字符串或json对象
-    @param indent:
-    @param sort_keys:
-    ---------
-    @result: 格式化后的字符串
+    格式化 JSON 数据用于打印或日志输出。
+
+    支持：
+      - 输入为 JSON 字符串（自动解析）
+      - 非标准 JSON（如单引号，使用 get_json 兼容）
+      - 自动处理不可序列化类型（如 datetime、ObjectId 等）
+      - 失败时降级为 `pprint.pformat`
+
+    @param data: JSON 对象或 JSON 字符串
+    @param indent: 缩进空格数，默认 4
+    @param sort_keys: 是否对字典键排序
+    @param ensure_ascii: 是否转义非 ASCII 字符（False 表示保留中文等）
+    @param skip_keys: 是否跳过不支持的键类型
+    @param default_repr: 出错时是否直接使用 repr 降级（否则用 pformat）
+    @return: 格式化后的字符串
     """
     try:
+        # 步骤1：如果是字符串，尝试解析为 JSON 对象
         if isinstance(data, str):
+            if not data.strip():
+                return '""'
             data = get_json(data)
 
-        data = json.dumps(
+        # 步骤2：使用 json.dumps 格式化，支持 default=str 处理常见对象
+        formatted = json.dumps(
             data,
-            ensure_ascii=False,
+            ensure_ascii=ensure_ascii,
             indent=indent,
-            skipkeys=True,
+            skipkeys=skip_keys,
             sort_keys=sort_keys,
-            default=str,
+            default=str,  # 自动将无法序列化的对象转为 str (如 datetime)
         )
+        return formatted
 
-    except Exception as e:
-        data = pformat(data)
-
-    return data
+    except (UnicodeDecodeError, ValueError, TypeError, OverflowError) as e:
+        # JSON 处理失败时降级
+        try:
+            # 使用 pprint 格式化任意 Python 对象
+            return pprint.pformat(data, indent=indent, width=80, compact=True)
+        except Exception:
+            # 最终 fallback
+            if default_repr:
+                return repr(data)
+            return f"<无法序列化的对象: {type(data).__name__}>"

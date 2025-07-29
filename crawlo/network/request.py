@@ -45,7 +45,6 @@ class Request:
         'auth',
         'verify',
         'flags',
-        # 保留高层参数用于 copy()
         '_json_body',
         '_form_data'
     )

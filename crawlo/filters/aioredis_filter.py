@@ -1,7 +1,7 @@
 #!/usr/bin/python
 # -*- coding:UTF-8 -*-
-from typing import Optional
 import aioredis
+from typing import Optional
 from crawlo import Request
 from crawlo.filters import BaseFilter
 from crawlo.utils.log import get_logger
@@ -19,7 +19,7 @@ class AioRedisFilter(BaseFilter):
             debug: bool,
             log_level: str,
             cleanup_fp: bool = False,
-            ttl: Optional[int] = None  # None表示持久化，>0表示过期时间(秒)
+            ttl: Optional[int] = None
     ):
         """初始化过滤器"""
         self.logger = get_logger(self.__class__.__name__, log_level)

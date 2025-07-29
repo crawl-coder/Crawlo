@@ -2,9 +2,9 @@
 # -*- coding:UTF-8 -*-
 import re
 import ujson
-from typing import Dict, Any, List, Optional
-from parsel import Selector, SelectorList
 from http.cookies import SimpleCookie
+from parsel import Selector, SelectorList
+from typing import Dict, Any, List, Optional
 from urllib.parse import urljoin as _urljoin
 
 from crawlo import Request
