@@ -2,9 +2,9 @@
 # -*- coding:UTF-8 -*-
 import re
 import ujson
-from typing import Dict, Any, List, Optional
-from parsel import Selector, SelectorList
 from http.cookies import SimpleCookie
+from parsel import Selector, SelectorList
+from typing import Dict, Any, List, Optional
 from urllib.parse import urljoin as _urljoin
 
 from crawlo import Request
@@ -34,6 +34,7 @@ class Response:
         self.status_code = status_code
         self.encoding = self.request.encoding if self.request else None
         self._text_cache = None
+        self._json_cache = None
         self._selector_instance = None  # 修改变量名，避免与 @property 冲突
 
     @property
@@ -66,7 +67,10 @@ class Response:
 
     def json(self) -> Any:
         """将响应文本解析为 JSON 对象。"""
-        return ujson.loads(self.text)
+        if self._json_cache:
+            return self._json_cache
+        self._json_cache = ujson.loads(self.text)
+        return self._json_cache
 
     def urljoin(self, url: str) -> str:
         """拼接 URL，自动处理相对路径。"""

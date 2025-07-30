@@ -42,8 +42,6 @@ LOG_LEVEL = 'DEBUG'
 # 选择下载器
 DOWNLOADER = "crawlo.downloader.aiohttp_downloader.AioHttpDownloader"  # HttpXDownloader
 
-EXTENSIONS = []
-
 # --------------------------------------------------- 公共MySQL配置 -----------------------------------------------------
 MYSQL_HOST = '127.0.0.1'
 MYSQL_PORT = 3306
@@ -53,6 +51,7 @@ MYSQL_DB = 'scrapy_data'
 MYSQL_TABLE = 'crawled_data'
 
 # asyncmy专属配置
+MYSQL_FLUSH_INTERVAL = 5
 MYSQL_POOL_MIN = 5  # 连接池最小连接数
 MYSQL_POOL_MAX = 20  # 连接池最大连接数
 MYSQL_ECHO = False
@@ -65,7 +64,7 @@ MONGO_URI = 'mongodb://user:password@host:27017'
 MONGO_DATABASE = 'scrapy_data'
 MONGO_COLLECTION = 'crawled_items'  # 可选，默认使用spider名称
 
-# 连接池优化配置（仅方案二需要）
+# 连接池优化配置
 MONGO_MAX_POOL_SIZE = 200  # 最大连接数
 MONGO_MIN_POOL_SIZE = 20  # 最小保持连接数
 
@@ -74,13 +73,20 @@ PIPELINES = [
     'crawlo.pipelines.console_pipeline.ConsolePipeline',
 ]
 
+
+EXTENSIONS = [
+    'crawlo.extension.log_interval.LogIntervalExtension',
+    'crawlo.extension.log_stats.LogStats'
+]
+
 # filter
 REQUEST_DIR = '.'
-FILTER_DEBUG = True
 FILTER_CLASS = 'crawlo.filters.memory_filter.MemoryFilter'
 
 # redis filter
-CLEANUP_FP = False
+REDIS_TTL = 0 # 0 or None 表示持久化，>0表示过期时间(秒)
+CLEANUP_FP = 0
+FILTER_DEBUG = True # 程序结束时是否删除过redis滤器中的指纹
 DECODE_RESPONSES = True
 REDIS_KEY = 'request_fingerprint'
 REDIS_HOST = os.getenv('REDIS_HOST', '127.0.0.1')

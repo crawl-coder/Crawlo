@@ -32,8 +32,20 @@ class StatsCollector(object):
     def clear_stats(self):
         self._stats.clear()
 
-    def close_spider(self, spider_name, reason):
+    def close_spider(self, spider, reason):
         self._stats['reason'] = reason
+
+        # 首选：使用 spider.name
+        # 次选：使用实例的类名
+        # 最后：使用一个完全未知的占位符
+        spider_name = (
+                getattr(spider, 'name', None) or
+                spider.__class__.__name__ or
+                '<Unknown>'
+        )
+
+        self._stats['spider_name'] = spider_name
+
         if self._dump:
             self.logger.info(f'{spider_name} stats: \n{pformat(self._stats)}')
 

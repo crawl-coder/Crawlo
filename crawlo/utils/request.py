@@ -13,20 +13,57 @@ from w3lib.url import canonicalize_url
 from crawlo import Request
 
 
-def to_bytes(data: Any, encoding='utf-8') -> bytes:
+def to_bytes(data: Any, encoding: str = 'utf-8') -> bytes:
     """
     将各种类型统一转换为 bytes。
-    支持 str, bytes, dict, None 及其他可转为字符串的类型。
+
+    Args:
+        data: 要转换的数据，支持 str, bytes, dict, int, float, bool, None 等类型
+        encoding: 字符串编码格式，默认为 'utf-8'
+
+    Returns:
+        bytes: 转换后的字节数据
+
+    Raises:
+        TypeError: 当数据类型无法转换时
+        UnicodeEncodeError: 当编码失败时
+        ValueError: 当 JSON 序列化失败时
+
+    Examples:
+        >>> to_bytes("hello")
+        b'hello'
+        >>> to_bytes({"key": "value"})
+        b'{"key": "value"}'
+        >>> to_bytes(123)
+        b'123'
+        >>> to_bytes(None)
+        b'null'
     """
-    if isinstance(data, bytes):
-        return data
-    if isinstance(data, str):
-        return data.encode(encoding)
-    if isinstance(data, dict):
-        return json.dumps(data, sort_keys=True, ensure_ascii=False).encode(encoding)
-    if data is None:
-        return b''
-    return str(data).encode(encoding)
+    # 预检查编码参数
+    if not isinstance(encoding, str):
+        raise TypeError(f"encoding must be str, not {type(encoding).__name__}")
+
+    try:
+        if isinstance(data, bytes):
+            return data
+        elif isinstance(data, str):
+            return data.encode(encoding)
+        elif isinstance(data, dict):
+            return json.dumps(data, sort_keys=True, ensure_ascii=False, separators=(',', ':')).encode(encoding)
+        elif isinstance(data, (int, float, bool)):
+            return str(data).encode(encoding)
+        elif data is None:
+            return b'null'
+        elif hasattr(data, '__str__'):
+            # 处理其他可转换为字符串的对象
+            return str(data).encode(encoding)
+        else:
+            raise TypeError(
+                f"`data` must be str, dict, bytes, int, float, bool, or None, "
+                f"not {type(data).__name__}"
+            )
+    except (UnicodeEncodeError, ValueError) as e:
+        raise type(e)(f"Failed to convert {type(data).__name__} to bytes: {str(e)}") from e
 
 
 def request_fingerprint(
