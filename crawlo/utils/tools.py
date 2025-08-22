@@ -6,7 +6,6 @@ from datetime import date, time, datetime
 
 from crawlo.utils.log import get_logger
 
-
 logger = get_logger(__name__)
 
 
@@ -195,8 +194,6 @@ def format_sql_value(value):
         raise TypeError(f"Unsupported value type: {type(value)}, value: {value}")
 
 
-
-
 def list2str(datas):
     """
     列表转字符串
@@ -207,7 +204,9 @@ def list2str(datas):
     data_str = re.sub(r",\)$", ")", data_str)
     return data_str
 
+
 _REGEXPS = {}
+
 
 def get_info(html, regexps, allow_repeat=True, fetch_one=False, split=None):
     regexps = isinstance(regexps, str) and [regexps] or regexps
@@ -276,12 +275,12 @@ def get_json(json_str):
 
 
 def dumps_json(
-    data: Union[str, dict, list, Any],
-    indent: int = 4,
-    sort_keys: bool = False,
-    ensure_ascii: bool = False,
-    skip_keys: bool = True,
-    default_repr: bool = False,
+        data: Union[str, dict, list, Any],
+        indent: int = 4,
+        sort_keys: bool = False,
+        ensure_ascii: bool = False,
+        skip_keys: bool = True,
+        default_repr: bool = False,
 ) -> str:
     """
     格式化 JSON 数据用于打印或日志输出。

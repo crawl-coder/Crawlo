@@ -195,27 +195,33 @@ class TimeUtils:
             return None
         return dt.isoformat()
 
+
 # =======================对外接口=======================
 
 def parse_time(time_input: TimeType, default: Optional[datetime] = None) -> Optional[datetime]:
     """解析时间字符串或对象"""
     return TimeUtils.parse(time_input, default=default)
 
+
 def format_time(dt: TimeType, fmt: str = "%Y-%m-%d %H:%M:%S") -> Optional[str]:
     """格式化时间"""
     return TimeUtils.format(dt, fmt)
+
 
 def time_diff(start: TimeType, end: TimeType, unit: TimeUnit = "seconds") -> Optional[int]:
     """计算时间差"""
     return TimeUtils.diff(start, end, unit)
 
+
 def to_timestamp(dt: TimeType) -> Optional[float]:
     """转时间戳"""
     return TimeUtils.to_timestamp(dt)
 
-def from_timestamp(ts: float) -> Optional[datetime]:
+
+def to_datetime(ts: float) -> Optional[datetime]:
     """从时间戳转 datetime"""
     return TimeUtils.from_timestamp(ts)
+
 
 def now(fmt: Optional[str] = None) -> Union[datetime, str]:
     """获取当前时间"""
