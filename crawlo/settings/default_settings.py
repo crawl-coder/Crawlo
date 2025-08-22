@@ -93,3 +93,4 @@ REDIS_HOST = os.getenv('REDIS_HOST', '127.0.0.1')
 REDIS_PASSWORD = os.getenv('REDIS_PASSWORD', 'oscar&0503')
 REDIS_PORT = os.getenv('REDIS_PORT', 6379)
 REDIS_URL = f'redis://:{REDIS_PASSWORD or ""}@{REDIS_HOST}:{REDIS_PORT}/0'
+print(REDIS_URL)
