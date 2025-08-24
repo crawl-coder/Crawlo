@@ -143,47 +143,37 @@ LOG_LEVEL = 'DEBUG'
 STATS_DUMP = True
 
 # ============================== IP 代理配置 ==============================
-# 是否启用代理中间件
 PROXY_ENABLED = True
-
-# 静态代理列表
-PROXIES = [
-    # 'http://127.0.0.1:1080',
-    # 'socks5://user:pass@proxy.example.com:1080'
+# 使用 API 提供者
+PROXY_PROVIDERS = [
+    {
+        'class': 'crawlo.proxy.providers.APIProxyProvider',
+        'config': {
+            'url': 'https://your-proxy-api.com/v1/proxies',
+            'method': 'GET',
+            'timeout': 10.0
+        }
+    }
 ]
 
-# 代理规则 (按域名匹配)
-PROXY_RULES = {
-    # 'api.example.com': 'http://special-proxy:8080'
-}
+# 代理选择策略：使用最少的代理（避免单 IP 过载）
+PROXY_SELECTION_STRATEGY = 'least_used'
 
-# --- 动态代理池 ---
-# 代理池 API 地址
-PROXY_POOL_API = ''  # 'http://proxy-api.com/proxies'
-# 代理池 API 认证信息 (用户名, 密码)
-PROXY_POOL_AUTH = None  # ('username', 'password')
-# 代理池更新间隔 (秒)
-PROXY_POOL_UPDATE_INTERVAL = 300
+# 请求延迟：0.5~1.5 秒，避免请求过快
+PROXY_REQUEST_DELAY_ENABLED = True
+PROXY_REQUEST_DELAY = 1.0
 
-# --- 代理健康检查 ---
-# 是否启用健康检查
+# 健康检查
 PROXY_HEALTH_CHECK_ENABLED = True
-# 健康检查间隔 (秒)
-PROXY_HEALTH_CHECK_INTERVAL = 300
-# 代理失败后的冷却时间 (秒)
-PROXY_COOLDOWN_PERIOD = 600
+PROXY_HEALTH_CHECK_INTERVAL = 10  # 每 5 分钟检查一次
 
-# --- 代理失败与重试 ---
-# 代理最大失败次数
-PROXY_MAX_FAILURES = 3
-# 请求因代理失败的最大重试次数
-PROXY_MAX_RETRY_COUNT = 3
+# 代理池更新
+PROXY_POOL_UPDATE_INTERVAL = 5  # 每 5 分钟从 API 拉取新代理
 
-# --- 代理请求行为 ---
-# 代理请求间的固定延迟 (秒)
-PROXY_REQUEST_DELAY = 0.0
-# 是否启用代理请求延迟
-PROXY_REQUEST_DELAY_ENABLED = False
+# 失败处理
+PROXY_MAX_FAILURES = 3  # 失败 3 次后禁用代理
+PROXY_COOLDOWN_PERIOD = 600  # 禁用 10 分钟后恢复
+PROXY_MAX_RETRY_COUNT = 2  # 每个请求最多重试 2 次
 
 # ============================== Curl-Cffi 下载器特有配置 ==============================
 # 浏览器指纹模拟类型
