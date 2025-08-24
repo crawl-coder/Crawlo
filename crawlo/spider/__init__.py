@@ -1,13 +1,18 @@
 #!/usr/bin/python
 # -*- coding:UTF-8 -*-
-from crawlo import Request
+from ..network.request import Request
+from ..utils.log import get_logger
 
 
 class Spider(object):
-    def __init__(self):
+    name = None
+
+    def __init__(self, name=None, **kwargs):
         if not hasattr(self, 'start_urls'):
             self.start_urls = []
         self.crawler = None
+        self.name = name or self.name
+        self.logger = get_logger(self.name or self.__class__.__name__)
 
     @classmethod
     def create_instance(cls, crawler):

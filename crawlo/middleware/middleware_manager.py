@@ -48,11 +48,6 @@ class MiddlewareManager:
                 response = await common_call(method, request, response, self.crawler.spider)
             except IgnoreRequestError as exp:
                 create_task(self.crawler.subscriber.notify(ignore_request, exp, request, self.crawler.spider))
-                # self.logger.info(f'{request} ignored.')
-                # self._stats.inc_value('request_ignore_count')
-                # reason = exp.msg
-                # if reason:
-                #     self._stats.inc_value(f'request_ignore_count/{reason}')
             if isinstance(response, Request):
                 return response
             if isinstance(response, Response):

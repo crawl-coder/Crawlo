@@ -112,6 +112,17 @@ FILTER_DEBUG = True
 # Redis 读取时是否解码为字符串
 DECODE_RESPONSES = True
 
+# ============================== 中间件配置 ==============================
+MIDDLEWARES = [
+    'crawlo.middleware.download_delay.DownloadDelayMiddleware',
+    'crawlo.middleware.default_header.DefaultHeaderMiddleware',
+    'crawlo.proxy.ProxyMiddleware',
+    'crawlo.middleware.response_filter.ResponseFilterMiddleware',
+    'crawlo.middleware.retry.RetryMiddleware',
+    'crawlo.middleware.response_code.ResponseCodeMiddleware',
+    'crawlo.middleware.request_ignore.RequestIgnoreMiddleware',
+]
+
 # ============================== 扩展组件配置 ==============================
 # 启用的数据处理管道
 PIPELINES = [

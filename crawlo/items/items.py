@@ -33,7 +33,6 @@ class Item(MutableMapping, metaclass=ItemMeta):
     def __getitem__(self, item: str) -> Any:
         return self._values[item]
 
-
     def __setitem__(self, key: str, value: Any) -> None:
         if key not in self.FIELDS:
             raise KeyError(f"{self.__class__.__name__} 不包含字段：{key}")
@@ -107,6 +106,7 @@ if __name__ == '__main__':
     class TestItem(Item):
         url = Field(nullable=False, field_type=str, max_length=100)
         title = Field(default="无标题", field_type=str)
+
 
     test_item = TestItem()
     test_item['title'] = '百度首页'
