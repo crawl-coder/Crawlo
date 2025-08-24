@@ -143,7 +143,7 @@ LOG_LEVEL = 'DEBUG'
 STATS_DUMP = True
 
 # ============================== IP 代理配置 ==============================
-PROXY_ENABLED = True
+PROXY_ENABLED = False
 # 使用 API 提供者
 PROXY_PROVIDERS = [
     {
