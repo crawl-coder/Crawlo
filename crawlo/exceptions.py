@@ -62,3 +62,8 @@ class ExtensionInitError(Exception):
 
 class ReceiverTypeError(Exception):
     pass
+
+
+class SpiderCreationError(Exception):
+    """爬虫实例化失败异常"""
+    pass
