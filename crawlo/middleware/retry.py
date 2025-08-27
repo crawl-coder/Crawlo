@@ -82,7 +82,7 @@ class RetryMiddleware(object):
             request.meta['retry_times'] = retry_times
             # request.dont_retry = True
             request.meta['dont_retry'] = True
-            request.retry_priority = request.priority + self.retry_priority
+            request.priority = request.priority + self.retry_priority
             self.stats.inc_value("retry_count")
             return request
         else:

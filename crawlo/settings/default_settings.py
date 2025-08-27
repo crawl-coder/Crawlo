@@ -9,8 +9,9 @@ VERSION = 1.0
 
 # ============================== 网络请求配置 (通用) ==============================
 # 指定使用的下载器
-DOWNLOADER = "crawlo.downloader.aiohttp_downloader.AioHttpDownloader"
+# DOWNLOADER = "crawlo.downloader.aiohttp_downloader.AioHttpDownloader"
 # DOWNLOADER = "crawlo.downloader.cffi_downloader.CurlCffiDownloader"  # 使用 curl-cffi 下载器
+DOWNLOADER = "crawlo.downloader.httpx_downloader.HttpXDownloader"
 
 # 下载超时时间 (秒)
 DOWNLOAD_TIMEOUT = 60
@@ -23,7 +24,7 @@ USE_SESSION = True
 
 # --- 请求延迟 ---
 # 固定请求延迟 (秒)
-DOWNLOAD_DELAY = 0
+DOWNLOAD_DELAY = 0.5
 # 随机延迟范围系数 (例如 0.75-1.25 倍基础延迟)
 RANDOM_RANGE = (0.75, 1.25)
 # 是否启用随机化延迟
@@ -31,7 +32,7 @@ RANDOMNESS = True  # aiohttp 使用, curl-cffi 也兼容
 
 # --- 重试策略 ---
 # 最大重试次数
-MAX_RETRY_TIMES = 2
+MAX_RETRY_TIMES = 3
 # 重试请求的优先级调整
 RETRY_PRIORITY = -1
 # 需要重试的 HTTP 状态码
@@ -114,13 +115,16 @@ DECODE_RESPONSES = True
 
 # ============================== 中间件配置 ==============================
 MIDDLEWARES = [
-    'crawlo.middleware.download_delay.DownloadDelayMiddleware',
-    'crawlo.middleware.default_header.DefaultHeaderMiddleware',
-    'crawlo.proxy.ProxyMiddleware',
-    'crawlo.middleware.response_filter.ResponseFilterMiddleware',
-    'crawlo.middleware.retry.RetryMiddleware',
-    'crawlo.middleware.response_code.ResponseCodeMiddleware',
-    'crawlo.middleware.request_ignore.RequestIgnoreMiddleware',
+    # --- 请求预处理阶段 ---
+    'crawlo.middleware.request_ignore.RequestIgnoreMiddleware',  # 1. 优先忽略无效请求
+    'crawlo.middleware.download_delay.DownloadDelayMiddleware',  # 2. 下载延迟（控制频率）
+    'crawlo.middleware.default_header.DefaultHeaderMiddleware',  # 3. 设置默认请求头
+    'crawlo.middleware.proxy.ProxyMiddleware',  # 4. 设置代理（在发送前）
+
+    # --- 响应处理阶段 ---
+    'crawlo.middleware.retry.RetryMiddleware',  # 5. 重试失败请求（可换代理）
+    'crawlo.middleware.response_code.ResponseCodeMiddleware',  # 6. 处理状态码（如 404、500）
+    'crawlo.middleware.response_filter.ResponseFilterMiddleware',  # 7. 响应内容过滤（最后处理）
 ]
 
 # ============================== 扩展组件配置 ==============================
@@ -143,37 +147,22 @@ LOG_LEVEL = 'DEBUG'
 STATS_DUMP = True
 
 # ============================== IP 代理配置 ==============================
-PROXY_ENABLED = False
-# 使用 API 提供者
-PROXY_PROVIDERS = [
-    {
-        'class': 'crawlo.proxy.providers.APIProxyProvider',
-        'config': {
-            'url': 'https://your-proxy-api.com/v1/proxies',
-            'method': 'GET',
-            'timeout': 10.0
-        }
-    }
-]
+PROXY_ENABLED = True
 
-# 代理选择策略：使用最少的代理（避免单 IP 过载）
-PROXY_SELECTION_STRATEGY = 'least_used'
+# 代理API的URL地址（必填）
+PROXY_API_URL = "https://api.proxyprovider.com/get"
 
-# 请求延迟：0.5~1.5 秒，避免请求过快
-PROXY_REQUEST_DELAY_ENABLED = True
-PROXY_REQUEST_DELAY = 1.0
+# 代理提取方式：支持字符串路径（如 'proxy' 或 'data.proxy.http'）或自定义函数
+# 如果返回的是嵌套结构，例如 {"proxy": {"http": "...", "https": "..."}}
+PROXY_EXTRACTOR = "proxy"  # 可改为其他字段路径，如 "data.result.proxy"
 
-# 健康检查
-PROXY_HEALTH_CHECK_ENABLED = True
-PROXY_HEALTH_CHECK_INTERVAL = 10  # 每 5 分钟检查一次
+# 代理刷新间隔（秒），避免频繁请求API
+PROXY_REFRESH_INTERVAL = 60
 
-# 代理池更新
-PROXY_POOL_UPDATE_INTERVAL = 5  # 每 5 分钟从 API 拉取新代理
+# 请求代理API的超时时间（秒）
+PROXY_API_TIMEOUT = 10
 
-# 失败处理
-PROXY_MAX_FAILURES = 3  # 失败 3 次后禁用代理
-PROXY_COOLDOWN_PERIOD = 600  # 禁用 10 分钟后恢复
-PROXY_MAX_RETRY_COUNT = 2  # 每个请求最多重试 2 次
+
 
 # ============================== Curl-Cffi 下载器特有配置 ==============================
 # 浏览器指纹模拟类型

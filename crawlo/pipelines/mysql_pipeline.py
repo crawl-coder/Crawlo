@@ -5,7 +5,7 @@ from typing import Optional
 from asyncmy import create_pool
 from crawlo.utils.log import get_logger
 from crawlo.exceptions import ItemDiscard
-from crawlo.utils.tools import make_insert_sql, logger
+from crawlo.utils.db_helper import make_insert_sql, logger
 
 
 class AsyncmyMySQLPipeline:
