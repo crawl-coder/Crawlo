@@ -6,7 +6,7 @@ from httpx import AsyncClient, Timeout, Limits
 
 from crawlo import Response
 from crawlo.downloader import DownloaderBase
-from crawlo.utils.log import get_logger # 确保导入 get_logger
+from crawlo.utils.log import get_logger
 
 # 尝试导入 httpx 异常，用于更精确地捕获
 try:
@@ -18,7 +18,6 @@ except ImportError:
         from httpcore import ConnectError
         from httpx import TimeoutException, NetworkError, HTTPStatusError
     except ImportError:
-        # Fallback to base exceptions if specific imports fail
         ConnectError = httpx.ConnectError
         TimeoutException = httpx.TimeoutException
         NetworkError = httpx.NetworkError
