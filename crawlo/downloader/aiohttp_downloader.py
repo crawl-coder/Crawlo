@@ -1,15 +1,19 @@
 #!/usr/bin/python
 # -*- coding: UTF-8 -*-
+from yarl import URL
 from typing import Optional
 from aiohttp import (
     ClientSession,
     TCPConnector,
     ClientTimeout,
     TraceConfig,
-    ClientResponse, ClientError,
+    ClientResponse,
+    ClientError,
+    BasicAuth,
 )
 
 from crawlo import Response
+from crawlo.utils.log import get_logger
 from crawlo.downloader import DownloaderBase
 
 
@@ -19,6 +23,7 @@ class AioHttpDownloader(DownloaderBase):
     - 基于持久化 ClientSession
     - 智能识别 Request 的高层语义（json_body/form_data）
     - 支持 GET/POST/PUT/DELETE 等方法
+    - 支持中间件设置的 IP 代理（HTTP/HTTPS）
     - 内存安全防护
     """
 
@@ -26,6 +31,7 @@ class AioHttpDownloader(DownloaderBase):
         super().__init__(crawler)
         self.session: Optional[ClientSession] = None
         self.max_download_size: int = 0
+        self.logger = get_logger(self.__class__.__name__, crawler.settings.get("LOG_LEVEL"))
 
     def open(self):
         super().open()
@@ -93,7 +99,9 @@ class AioHttpDownloader(DownloaderBase):
     async def _send_request(session: ClientSession, request) -> ClientResponse:
         """
         根据请求方法和高层语义智能发送请求。
-        利用 aiohttp 内建方法（.get/.post 等），避免重复代码。
+        支持中间件设置的 proxy，兼容以下格式：
+            - str: "http://user:pass@host:port"
+            - dict: {"http": "...", "https": "..."} （自动取 http 或 https 字段）
         """
         method = request.method.lower()
         if not hasattr(session, method):
@@ -105,18 +113,48 @@ class AioHttpDownloader(DownloaderBase):
         kwargs = {
             "headers": request.headers,
             "cookies": request.cookies,
-            "proxy": request.proxy,
             "allow_redirects": request.allow_redirects,
         }
 
-        # 关键优化：如果原始请求使用了 json_body，则使用 json= 参数
+        # === 处理代理（proxy）===
+        proxy = getattr(request, "proxy", None)
+        proxy_auth = None
+
+        if proxy:
+            # 兼容字典格式：{"http": "http://...", "https": "http://..."}
+            if isinstance(proxy, dict):
+                # 优先使用 https，否则用 http
+                proxy = proxy.get("https") or proxy.get("http")
+
+            if not isinstance(proxy, (str, URL)):
+                raise ValueError(f"proxy must be str or URL, got {type(proxy)}")
+
+            try:
+                proxy_url = URL(proxy)
+                if proxy_url.scheme not in ("http", "https"):
+                    raise ValueError(f"Unsupported proxy scheme: {proxy_url.scheme}, only HTTP/HTTPS supported.")
+
+                # 提取认证信息
+                if proxy_url.user and proxy_url.password:
+                    proxy_auth = BasicAuth(proxy_url.user, proxy_url.password)
+                    # 去掉用户密码的 URL
+                    proxy = str(proxy_url.with_user(None))
+                else:
+                    proxy = str(proxy_url)
+
+                kwargs["proxy"] = proxy
+                if proxy_auth:
+                    kwargs["proxy_auth"] = proxy_auth
+
+            except Exception as e:
+                raise ValueError(f"Invalid proxy URL: {proxy}") from e
+
+        # === 处理请求体 ===
         if hasattr(request, "_json_body") and request._json_body is not None:
-            kwargs["json"] = request._json_body  # 让 aiohttp 自动处理序列化 + Content-Type
+            kwargs["json"] = request._json_body
         elif isinstance(request.body, (dict, list)):
-            # 兼容直接传 body=dict 的旧写法
             kwargs["json"] = request.body
         else:
-            # 其他情况（表单、bytes、str）走 data=
             if request.body is not None:
                 kwargs["data"] = request.body
 
@@ -136,11 +174,12 @@ class AioHttpDownloader(DownloaderBase):
     # --- 请求追踪日志 ---
     async def _on_request_start(self, session, trace_config_ctx, params):
         """请求开始时的回调。"""
-        self.logger.debug(f"Requesting: {params.method} {params.url}")
+        proxy = getattr(params, "proxy", None)
+        proxy_info = f" via {proxy}" if proxy else ""
+        self.logger.debug(f"Requesting: {params.method} {params.url}{proxy_info}")
 
     async def _on_request_end(self, session, trace_config_ctx, params):
         """请求成功结束时的回调。"""
-        # 正确方式：直接从 params 获取响应对象
         response = params.response
         self.logger.debug(
             f"Finished: {params.method} {params.url} with status {response.status}"
@@ -148,7 +187,6 @@ class AioHttpDownloader(DownloaderBase):
 
     async def _on_request_exception(self, session, trace_config_ctx, params):
         """请求发生异常时的回调。"""
-        # 正确方式：通过 .exception 属性获取异常
         exc = trace_config_ctx.exception
         self.logger.warning(
             f"Failed: {params.method} {params.url} with exception {type(exc).__name__}: {exc}"

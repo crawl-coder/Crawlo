@@ -9,9 +9,9 @@ VERSION = 1.0
 
 # ============================== 网络请求配置 (通用) ==============================
 # 指定使用的下载器
-# DOWNLOADER = "crawlo.downloader.aiohttp_downloader.AioHttpDownloader"
+DOWNLOADER = "crawlo.downloader.aiohttp_downloader.AioHttpDownloader"
 # DOWNLOADER = "crawlo.downloader.cffi_downloader.CurlCffiDownloader"  # 使用 curl-cffi 下载器
-DOWNLOADER = "crawlo.downloader.httpx_downloader.HttpXDownloader"
+# DOWNLOADER = "crawlo.downloader.httpx_downloader.HttpXDownloader"
 
 # 下载超时时间 (秒)
 DOWNLOAD_TIMEOUT = 60
