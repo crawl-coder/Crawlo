@@ -5,9 +5,10 @@ crawlo.items 包
 ===============
 提供 Item 和 Field 类用于数据定义和验证。
 """
-from .fields import Field
 from .items import Item
+from .fields import Field
 from .base import ItemMeta
+
 from crawlo.exceptions import ItemInitError, ItemAttributeError
 
 __all__ = [
