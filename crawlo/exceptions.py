@@ -52,6 +52,10 @@ class ItemDiscard(Exception):
         super(ItemDiscard, self).__init__(msg)
 
 
+class NotConfigured(Exception):
+    pass
+
+
 class NotConfiguredError(Exception):
     pass
 

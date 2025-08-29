@@ -1,9 +1,8 @@
 #!/usr/bin/python
 # -*- coding: UTF-8 -*-
-
+# ============================== 核心配置 ==============================
 import os
 
-# ============================== 核心配置 ==============================
 PROJECT_NAME = 'crawlo'
 VERSION = 1.0
 
@@ -137,14 +136,18 @@ PIPELINES = [
 # 启用的扩展组件
 EXTENSIONS = [
     'crawlo.extension.log_interval.LogIntervalExtension',
-    'crawlo.extension.log_stats.LogStats'
+    'crawlo.extension.log_stats.LogStats',
+    'crawlo.extension.logging_extension.CustomLoggerExtension'
 ]
 
 # ============================== 监控日志配置 ==============================
 # 日志级别
-LOG_LEVEL = 'DEBUG'
+LOG_LEVEL = 'INFO'
 # 是否周期性输出统计信息
 STATS_DUMP = True
+LOG_FILE = f'logs/{PROJECT_NAME}.log'
+LOG_FORMAT = '%(asctime)s - [%(name)s] - %(levelname)s： %(message)s'
+LOG_ENCODING = 'utf-8'
 
 # ============================== IP 代理配置 ==============================
 PROXY_ENABLED = True

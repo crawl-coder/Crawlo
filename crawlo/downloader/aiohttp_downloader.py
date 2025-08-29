@@ -187,7 +187,7 @@ class AioHttpDownloader(DownloaderBase):
 
     async def _on_request_exception(self, session, trace_config_ctx, params):
         """请求发生异常时的回调。"""
-        exc = trace_config_ctx.exception
+        exc = params.exception
         self.logger.warning(
             f"Failed: {params.method} {params.url} with exception {type(exc).__name__}: {exc}"
         )
