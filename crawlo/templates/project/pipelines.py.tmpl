@@ -1,0 +1,64 @@
+# -*- coding: UTF-8 -*-
+"""
+{{project_name}}.pipelines
+==========================
+数据管道，用于处理 Spider 返回的 Item。
+例如：清理、验证、去重、保存到数据库等。
+"""
+
+class PrintItemPipeline:
+    """
+    一个简单的管道，用于打印 Item。
+    """
+
+    def process_item(self, item, spider):
+        print(f"Pipeline received item: {dict(item)}")
+        return item
+
+
+class DuplicatesPipeline:
+    """
+    一个去重管道示例。
+    """
+    def __init__(self):
+        self.seen = set()
+
+    def process_item(self, item, spider):
+        identifier = item.get('id') or item.get('url')
+        if identifier in self.seen:
+            spider.logger.debug(f"Duplicate item found: {identifier}")
+            raise DropItem(f"Duplicate item: {identifier}")
+        self.seen.add(identifier)
+        return item
+
+
+# class MySQLPipeline:
+#     """
+#     将 Item 保存到 MySQL 的管道示例。
+#     """
+#     def __init__(self, mysql_uri, mysql_user, mysql_password, mysql_db):
+#         self.mysql_uri = mysql_uri
+#         self.mysql_user = mysql_user
+#         self.mysql_password = mysql_password
+#         self.mysql_db = mysql_db
+#         self.connection = None
+#
+#     @classmethod
+#     def from_settings(cls, settings):
+#         return cls(
+#             mysql_uri=settings.get('MYSQL_HOST'),
+#             mysql_user=settings.get('MYSQL_USER'),
+#             mysql_password=settings.get('MYSQL_PASSWORD'),
+#             mysql_db=settings.get('MYSQL_DB')
+#         )
+#
+#     def open_spider(self, spider):
+#         self.connection = pymysql.connect(...)
+#
+#     def close_spider(self, spider):
+#         if self.connection:
+#             self.connection.close()
+#
+#     def process_item(self, item, spider):
+#         # 执行 SQL 插入
+#         return item

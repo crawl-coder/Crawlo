@@ -1,0 +1,76 @@
+# -*- coding: UTF-8 -*-
+"""
+{{project_name}}.middlewares
+============================
+自定义中间件，用于在请求/响应/异常处理过程中插入自定义逻辑。
+"""
+
+# 示例：下载器中间件
+class CustomDownloaderMiddleware:
+    """
+    下载器中间件示例。
+    """
+
+    def process_request(self, request, spider):
+        """
+        在请求被下载器执行前调用。
+        """
+        # request.headers['User-Agent'] = 'Custom UA'
+        # return None  # 继续处理
+        # return request  # 修改并返回
+        # return Response(...)  # 返回一个响应，停止下载
+        pass
+
+    def process_response(self, request, response, spider):
+        """
+        在响应被 Spider 处理前调用。
+        """
+        # return response  # 继续处理
+        # return request  # 重试请求
+        pass
+
+    def process_exception(self, request, exception, spider):
+        """
+        在下载或处理过程中发生异常时调用。
+        """
+        # return None  # 继续抛出异常
+        # return request  # 重试
+        # return Response(...) # 返回一个响应
+        pass
+
+
+# 示例：Spider 中间件
+class CustomSpiderMiddleware:
+    """
+    Spider 中间件示例。
+    """
+
+    def process_spider_input(self, response, spider):
+        """
+        在 Spider 的 parse 方法被调用前调用。
+        """
+        # 可以用来验证响应
+        pass
+
+    def process_spider_output(self, response, result, spider):
+        """
+        在 Spider 的 parse 方法返回结果后调用。
+        """
+        # 可以用来过滤或修改结果
+        # for item in result:
+        #     yield item
+        pass
+
+    def process_spider_exception(self, response, exception, spider):
+        """
+        在 Spider 的 parse 方法抛出异常时调用。
+        """
+        pass
+
+    def process_start_requests(self, start_requests, spider):
+        """
+        在 Spider 的 start_requests 生成器被消费时调用。
+        """
+        # for request in start_requests:
+        #     yield request
+        pass

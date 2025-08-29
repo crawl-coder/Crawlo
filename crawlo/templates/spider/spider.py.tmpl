@@ -1,0 +1,32 @@
+# -*- coding: UTF-8 -*-
+"""
+{{project_name}}.spiders.{{spider_name}}
+=======================================
+由 `crawlo genspider` 命令生成的爬虫。
+"""
+
+from crawlo.spider import Spider
+
+
+class {{class_name}}(Spider):
+    """
+    爬虫：{{spider_name}}
+    """
+    name = '{{spider_name}}'
+    allowed_domains = ['{{domain}}']
+    start_urls = ['https://{{domain}}/']
+
+    def parse(self, response):
+        """
+        解析响应的主方法。
+        """
+        # TODO: 在这里编写你的解析逻辑
+
+        # 示例：提取数据
+        # item = {{item_class}}()
+        # item['title'] = response.xpath('//title/text()').get()
+        # yield item
+
+        # 示例：提取链接并跟进
+        # for href in response.xpath('//a/@href').getall():
+        #     yield response.follow(href, callback=self.parse)

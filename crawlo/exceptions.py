@@ -71,3 +71,8 @@ class ReceiverTypeError(Exception):
 class SpiderCreationError(Exception):
     """爬虫实例化失败异常"""
     pass
+
+
+class ItemValidationError(Exception):
+    """Item 字段验证错误"""
+    pass
