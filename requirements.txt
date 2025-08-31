@@ -5,6 +5,7 @@ asyncmy==0.2.10
 cssselect==1.2.0
 dateparser==1.2.2
 httpx[http2]==0.27.0
+curl-cffi==0.13.0
 lxml==5.2.1
 motor==3.7.0
 parsel==1.9.1
@@ -24,3 +25,4 @@ psutil~=7.0.0
 playwright~=1.52.0
 anyio~=4.3.0
 httpcore~=1.0.5
+funboost~=49.6

@@ -1,7 +1,7 @@
 #!/usr/bin/python
 # -*- coding:UTF-8 -*-
 from crawlo import event
-from crawlo.utils.date_tools import get_current_time, time_diff_seconds
+from crawlo.utils.date_tools import now, time_diff
 
 
 class LogStats(object):
@@ -22,11 +22,11 @@ class LogStats(object):
         return o
 
     async def spider_opened(self):
-        self._stats['start_time'] = get_current_time(fmt='%Y-%m-%d %H:%M:%S')
+        self._stats['start_time'] = now(fmt='%Y-%m-%d %H:%M:%S')
 
     async def spider_closed(self):
-        self._stats['end_time'] = get_current_time(fmt='%Y-%m-%d %H:%M:%S')
-        self._stats['cost_time(s)'] = time_diff_seconds(start_time=self._stats['start_time'], end_time=self._stats['end_time'])
+        self._stats['end_time'] = now(fmt='%Y-%m-%d %H:%M:%S')
+        self._stats['cost_time(s)'] = time_diff(start=self._stats['start_time'], end=self._stats['end_time'])
 
     async def item_successful(self, _item, _spider):
         self._stats.inc_value('item_successful_count')

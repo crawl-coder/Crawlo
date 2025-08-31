@@ -52,6 +52,10 @@ class ItemDiscard(Exception):
         super(ItemDiscard, self).__init__(msg)
 
 
+class NotConfigured(Exception):
+    pass
+
+
 class NotConfiguredError(Exception):
     pass
 
@@ -61,4 +65,14 @@ class ExtensionInitError(Exception):
 
 
 class ReceiverTypeError(Exception):
+    pass
+
+
+class SpiderCreationError(Exception):
+    """爬虫实例化失败异常"""
+    pass
+
+
+class ItemValidationError(Exception):
+    """Item 字段验证错误"""
     pass
