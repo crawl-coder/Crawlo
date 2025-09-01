@@ -17,8 +17,8 @@ PROJECT_NAME = 'crawlo'
 # ============================== 网络请求配置 ==============================
 
 # 下载器选择（三选一）
-DOWNLOADER = "crawlo.downloader.aiohttp_downloader.AioHttpDownloader"
-# DOWNLOADER = "crawlo.downloader.cffi_downloader.CurlCffiDownloader"  # 支持浏览器指纹
+# DOWNLOADER = "crawlo.downloader.aiohttp_downloader.AioHttpDownloader"
+DOWNLOADER = "crawlo.downloader.cffi_downloader.CurlCffiDownloader"  # 支持浏览器指纹
 # DOWNLOADER = "crawlo.downloader.httpx_downloader.HttpXDownloader"
 
 # 请求超时与安全
@@ -135,7 +135,7 @@ LOG_ENCODING = 'utf-8'
 
 # ============================== 代理配置 ==============================
 
-PROXY_ENABLED = False                       # 是否启用代理
+PROXY_ENABLED = True                       # 是否启用代理
 PROXY_API_URL = "https://api.proxyprovider.com/get"  # 代理获取接口（请替换为真实地址）
 
 # 代理提取方式（支持字段路径或函数）
