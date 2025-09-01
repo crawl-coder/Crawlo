@@ -9,12 +9,10 @@
 - 支持通过环境变量覆盖部分敏感配置（如 Redis、MySQL 密码等）。
 - 可根据需求启用/禁用组件（如 MySQL、Redis、Proxy 等）。
 """
-
 import os
 
 # ============================== 核心信息 ==============================
 PROJECT_NAME = 'crawlo'
-VERSION = 1.0
 
 # ============================== 网络请求配置 ==============================
 
@@ -24,13 +22,13 @@ DOWNLOADER = "crawlo.downloader.aiohttp_downloader.AioHttpDownloader"
 # DOWNLOADER = "crawlo.downloader.httpx_downloader.HttpXDownloader"
 
 # 请求超时与安全
-DOWNLOAD_TIMEOUT = 60          # 下载超时时间（秒）
+DOWNLOAD_TIMEOUT = 30          # 下载超时时间（秒）
 VERIFY_SSL = True              # 是否验证 SSL 证书
 USE_SESSION = True             # 是否使用持久化会话（aiohttp 特有）
 
 # 请求延迟控制
-DOWNLOAD_DELAY = 0.5           # 基础延迟（秒）
-RANDOM_RANGE = (0.75, 1.25)    # 随机延迟系数范围（如 0.75~1.25 倍）
+DOWNLOAD_DELAY = 1.0          # 基础延迟（秒）
+RANDOM_RANGE = (0.8, 1.2)    # 随机延迟系数范围
 RANDOMNESS = True              # 是否启用随机延迟
 
 # 重试策略
@@ -41,7 +39,7 @@ IGNORE_HTTP_CODES = [403, 404] # 直接标记成功、不重试的状态码
 ALLOWED_CODES = []             # 允许的状态码（空表示不限制）
 
 # 连接与响应大小限制
-CONNECTION_POOL_LIMIT = 100    # 最大并发连接数（连接池大小）
+CONNECTION_POOL_LIMIT = 50    # 最大并发连接数（连接池大小）
 DOWNLOAD_MAXSIZE = 10 * 1024 * 1024   # 最大响应体大小（10MB）
 DOWNLOAD_WARN_SIZE = 1024 * 1024      # 响应体警告阈值（1MB）
 DOWNLOAD_RETRY_TIMES = MAX_RETRY_TIMES  # 下载器内部重试次数（复用全局）
