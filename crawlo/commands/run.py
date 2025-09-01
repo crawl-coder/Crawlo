@@ -1,106 +1,153 @@
+#!/usr/bin/python
+# -*- coding: UTF-8 -*-
 """
-命令行入口：crawlo run <spider_name>
-用于运行指定名称的爬虫。
+# @Time    : 2025-08-31 22:36
+# @Author  : crawl-coder
+# @Desc    : 命令行入口：crawlo run <spider_name>|all，用于运行指定爬虫。
 """
-
+import sys
 import asyncio
-from pathlib import Path
 import configparser
+from pathlib import Path
+from importlib import import_module
 
 from crawlo.crawler import CrawlerProcess
-from crawlo.utils.project import get_settings
 from crawlo.utils.log import get_logger
+from crawlo.utils.project import get_settings
+from crawlo.commands.stats import record_stats  # 自动记录 stats
 
 logger = get_logger(__name__)
 
 
+def get_project_root():
+    """
+    向上查找 crawlo.cfg 来确定项目根目录
+    """
+    current = Path.cwd()
+
+    for _ in range(10):
+        cfg = current / "crawlo.cfg"
+        if cfg.exists():
+            return current
+
+        if current == current.parent:
+            break
+        current = current.parent
+
+    return None
+
+
 def main(args):
     """
-    运行指定爬虫的主函数
+    主函数：运行指定爬虫
     用法:
         crawlo run <spider_name>
         crawlo run all
     """
     if len(args) < 1:
-        print("Usage: crawlo run <spider_name>|all")
-        print("Examples:")
-        print("  crawlo run baidu")
-        print("  crawlo run all")
+        print("❌ Usage: crawlo run <spider_name>|all")
+        print("💡 Examples:")
+        print("   crawlo run baidu")
+        print("   crawlo run all")
         return 1
 
     spider_arg = args[0]
 
     try:
-        # 1. 获取项目根目录
-        project_root = get_settings().get('PROJECT_ROOT')
+        # 1. 查找项目根目录
+        project_root = get_project_root()
         if not project_root:
-            print("❌ Error: Cannot determine project root.")
+            print("❌ Error: Cannot find 'crawlo.cfg'. Are you in a crawlo project?")
+            print("💡 Tip: Run this command inside your project directory.")
             return 1
 
-        if str(project_root) not in sys.path:
-            sys.path.insert(0, str(project_root))
+        project_root_str = str(project_root)
+        if project_root_str not in sys.path:
+            sys.path.insert(0, project_root_str)
 
-        # 2. 读取 crawlo.cfg 获取项目包名
-        cfg_file = project_root / 'crawlo.cfg'
+        # 2. 读取 crawlo.cfg 获取 settings 模块
+        cfg_file = project_root / "crawlo.cfg"
         if not cfg_file.exists():
             print(f"❌ Error: crawlo.cfg not found in {project_root}")
             return 1
 
         config = configparser.ConfigParser()
-        config.read(cfg_file, encoding='utf-8')
+        config.read(cfg_file, encoding="utf-8")
 
-        if not config.has_section('settings') or not config.has_option('settings', 'default'):
+        if not config.has_section("settings") or not config.has_option("settings", "default"):
             print("❌ Error: Missing [settings] section or 'default' option in crawlo.cfg")
             return 1
 
-        settings_module = config.get('settings', 'default')
-        project_package = settings_module.split('.')[0]
+        settings_module = config.get("settings", "default")
+        project_package = settings_module.split(".")[0]
 
-        # 3. 创建 CrawlerProcess 并自动发现爬虫模块
+        # 3. 确保项目包可导入
+        try:
+            import_module(project_package)
+        except ImportError as e:
+            print(f"❌ Failed to import project package '{project_package}': {e}")
+            return 1
+
+        # 4. 加载 settings 和爬虫模块
+        settings = get_settings()  # 此时已安全
         spider_modules = [f"{project_package}.spiders"]
-        settings = get_settings()
         process = CrawlerProcess(settings=settings, spider_modules=spider_modules)
 
-        # === 新增：支持 'all' ===
+        # === 情况1：运行所有爬虫 ===
         if spider_arg.lower() == "all":
             spider_names = process.get_spider_names()
             if not spider_names:
-                print("❌ No spiders found. Make sure spiders are defined and imported.")
+                print("❌ No spiders found.")
+                print("💡 Make sure:")
+                print("   • Spiders are defined in 'spiders/'")
+                print("   • They have a `name` attribute")
+                print("   • Modules are imported (e.g. via __init__.py)")
                 return 1
 
-            print(f"🚀 Starting ALL {len(spider_names)} spiders:")
+            print(f"🚀 Starting ALL {len(spider_names)} spider(s):")
+            print("-" * 60)
             for name in sorted(spider_names):
                 cls = process.get_spider_class(name)
-                print(f"   🕷️  {name} ({cls.__name__})")
-            print("-" * 50)
+                print(f"🕷️  {name:<20} {cls.__name__}")
+            print("-" * 60)
 
-            # 启动所有爬虫
+            # 注册 stats 记录（每个爬虫结束时保存）
+            for crawler in process.crawlers:
+                crawler.signals.connect(record_stats, signal="spider_closed")
+
+            # 并行运行所有爬虫（可改为串行：for name in ... await process.crawl(name)）
             asyncio.run(process.crawl(spider_names))
+            print("✅ All spiders completed.")
             return 0
 
-        # === 原有：启动单个爬虫 ===
+        # === 情况2：运行单个爬虫 ===
         spider_name = spider_arg
         if not process.is_spider_registered(spider_name):
-            print(f"❌ Error: Spider with name '{spider_name}' not found.")
-            available_names = process.get_spider_names()
-            if available_names:
+            print(f"❌ Spider '{spider_name}' not found.")
+            available = process.get_spider_names()
+            if available:
                 print("💡 Available spiders:")
-                for name in sorted(available_names):
+                for name in sorted(available):
                     cls = process.get_spider_class(name)
-                    print(f"   - {name} (class: {cls.__name__})")
+                    print(f"   • {name} ({cls.__name__})")
             else:
-                print("💡 No spiders found. Make sure your spider classes are defined and imported.")
+                print("💡 No spiders found. Check your spiders module.")
             return 1
 
         spider_class = process.get_spider_class(spider_name)
 
         # 打印启动信息
         print(f"🚀 Starting spider: {spider_name}")
-        print(f"📁 Project: {project_package}")
-        print(f"🕷️  Class: {spider_class.__name__}")
+        print(f"📦 Project: {project_package}")
+        print(f"CppClass: {spider_class.__name__}")
+        print(f"📄 Module: {spider_class.__module__}")
         print("-" * 50)
 
-        # 启动爬虫
+        # 注册 stats 记录
+        for crawler in process.crawlers:
+            crawler.signals.connect(record_stats, signal="spider_closed")
+
+        # 运行爬虫
         asyncio.run(process.crawl(spider_name))
 
         print("-" * 50)
@@ -111,71 +158,14 @@ def main(args):
         print("\n⚠️  Spider interrupted by user.")
         return 1
     except Exception as e:
-        print(f"❌ Error running spider: {e}")
-        import traceback
-        traceback.print_exc()
+        print(f"❌ Unexpected error: {e}")
+        logger.exception("Exception during 'crawlo run'")
         return 1
 
 
-def list_available_spiders(project_package: str):
+if __name__ == "__main__":
     """
-    列出指定项目包中所有可用的爬虫（用于调试或命令行扩展）
+    支持直接运行：
+        python -m crawlo.commands.run spider_name
     """
-    try:
-        # 临时创建一个 CrawlerProcess 来发现爬虫
-        process = CrawlerProcess(spider_modules=[f"{project_package}.spiders"])
-        available_names = process.get_spider_names()
-
-        if not available_names:
-            print("   No spiders found. Make sure:")
-            print("   - spiders/ 目录存在")
-            print("   - 爬虫类继承 Spider 且定义了 name")
-            print("   - 模块被导入（可通过 __init__.py 触发）")
-            return
-
-        print(f"Found {len(available_names)} spider(s):")
-        for name in sorted(available_names):
-            cls = process.get_spider_class(name)
-            module = cls.__module__.replace(project_package + ".", "")
-            print(f"   - {name} ({cls.__name__} @ {module})")
-    except Exception as e:
-        print(f"❌ Failed to list spiders: {e}")
-        import traceback
-        traceback.print_exc()
-
-
-def run_spider_by_name(spider_name: str, project_package: str = None):
-    """
-    在代码中直接运行某个爬虫（需提供 project_package）
-    """
-    if project_package is None:
-        # 尝试从配置读取
-        cfg_file = Path('crawlo.cfg')
-        if cfg_file.exists():
-            config = configparser.ConfigParser()
-            config.read(cfg_file, encoding='utf-8')
-            if config.has_option('settings', 'default'):
-                project_package = config.get('settings', 'default').split('.')[0]
-
-    if not project_package:
-        print("❌ Error: project_package is required.")
-        return 1
-
-    # 添加项目路径
-    project_root = get_settings().get('PROJECT_ROOT')
-    if project_root and str(project_root) not in sys.path:
-        sys.path.insert(0, str(project_root))
-
-    # 复用 main 函数逻辑
-    args = [spider_name]
-    return main(args)
-
-
-if __name__ == '__main__':
-    """
-    允许直接运行：
-        python -m crawlo.commands.run <spider_name>
-    """
-    import sys
-
     sys.exit(main(sys.argv[1:]))
