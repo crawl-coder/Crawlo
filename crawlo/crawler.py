@@ -19,6 +19,8 @@ logger = get_logger(__name__)
 
 
 class Crawler:
+    """单个爬虫运行实例，绑定 Spider 与引擎"""
+
     def __init__(self, spider_cls: Type[Spider], settings: SettingManager):
         self.spider_cls = spider_cls
         self.spider: Optional[Spider] = None
@@ -31,6 +33,7 @@ class Crawler:
         self._close_lock = asyncio.Lock()
 
     async def crawl(self):
+        """启动爬虫核心流程"""
         self.subscriber = self._create_subscriber()
         self.spider = self._create_spider()
         self.engine = self._create_engine()
@@ -86,9 +89,19 @@ class Crawler:
             await self.subscriber.notify(spider_closed)
             if self.stats and self.spider:
                 self.stats.close_spider(spider=self.spider, reason=reason)
+                from crawlo.commands.stats import record_stats
+                record_stats(self)
 
 
 class CrawlerProcess:
+    """
+    爬虫进程管理器，支持：
+    - 自动发现爬虫模块
+    - 通过 name 或类启动爬虫
+    - 并发控制
+    - 优雅关闭
+    """
+
     def __init__(
         self,
         settings: Optional[SettingManager] = None,
@@ -103,7 +116,7 @@ class CrawlerProcess:
         if spider_modules:
             self.auto_discover(spider_modules)
 
-        # 获取当前注册表快照
+        # 使用全局注册表的快照（避免后续导入影响）
         self._spider_registry: Dict[str, Type[Spider]] = get_global_spider_registry()
 
         self.max_concurrency: int = (
@@ -113,13 +126,13 @@ class CrawlerProcess:
         )
         self.semaphore = asyncio.Semaphore(self.max_concurrency)
 
+        # 注册信号量
         signal.signal(signal.SIGINT, self._shutdown)
         signal.signal(signal.SIGTERM, self._shutdown)
         logger.info(f"CrawlerProcess 初始化完成，最大并行爬虫数: {self.max_concurrency}")
 
-    @staticmethod
-    def auto_discover(modules: List[str]):
-        """自动导入模块，触发爬虫类注册"""
+    def auto_discover(self, modules: List[str]):
+        """自动导入模块，触发 Spider 类定义和注册"""
         import importlib
         import pkgutil
         for module_name in modules:
@@ -134,6 +147,20 @@ class CrawlerProcess:
             except Exception as e:
                 logger.error(f"扫描模块 {module_name} 失败: {e}", exc_info=True)
 
+    # === 公共只读接口：避免直接访问 _spider_registry ===
+
+    def get_spider_names(self) -> List[str]:
+        """获取所有已注册的爬虫名称"""
+        return list(self._spider_registry.keys())
+
+    def get_spider_class(self, name: str) -> Optional[Type[Spider]]:
+        """根据 name 获取爬虫类"""
+        return self._spider_registry.get(name)
+
+    def is_spider_registered(self, name: str) -> bool:
+        """检查某个 name 是否已注册"""
+        return name in self._spider_registry
+
     async def crawl(self, spiders: Union[Type[Spider], str, List[Union[Type[Spider], str]]]):
         """启动一个或多个爬虫"""
         spider_classes_to_run = self._resolve_spiders_to_run(spiders)
@@ -146,13 +173,13 @@ class CrawlerProcess:
         spider_classes_to_run.sort(key=lambda cls: cls.__name__.lower())
         logger.info(f"启动 {total} 个爬虫.")
 
-        # 创建任务
+        # 流式启动
         tasks = [
             asyncio.create_task(self._run_spider_with_limit(spider_cls, index + 1, total))
             for index, spider_cls in enumerate(spider_classes_to_run)
         ]
 
-        # 等待完成
+        # 等待完成（失败不中断）
         results = await asyncio.gather(*tasks, return_exceptions=True)
         failed = [i for i, r in enumerate(results) if isinstance(r, Exception)]
         if failed:
@@ -162,7 +189,7 @@ class CrawlerProcess:
         self,
         spiders_input: Union[Type[Spider], str, List[Union[Type[Spider], str]]]
     ) -> List[Type[Spider]]:
-        """将输入解析为爬虫类列表"""
+        """解析输入为爬虫类列表"""
         inputs = self._normalize_inputs(spiders_input)
         seen_spider_names: Set[str] = set()
         spider_classes: List[Type[Spider]] = []
@@ -179,8 +206,7 @@ class CrawlerProcess:
 
         return spider_classes
 
-    @staticmethod
-    def _normalize_inputs(spiders_input) -> List[Union[Type[Spider], str]]:
+    def _normalize_inputs(self, spiders_input) -> List[Union[Type[Spider], str]]:
         """标准化输入为列表"""
         if isinstance(spiders_input, (type, str)):
             return [spiders_input]
@@ -196,7 +222,7 @@ class CrawlerProcess:
         elif isinstance(item, str):
             spider_cls = self._spider_registry.get(item)
             if not spider_cls:
-                raise ValueError(f"未找到名为 '{item}' 的爬虫。请检查 name 是否正确或类是否已定义。")
+                raise ValueError(f"未找到名为 '{item}' 的爬虫。")
             return spider_cls
         else:
             raise TypeError(f"无效类型 {type(item)}。必须是 Spider 类或字符串 name。")

@@ -20,7 +20,7 @@ ujson==5.9.0
 urllib3==2.5.0
 w3lib==2.1.2
 
-
+prompt_toolkit~=3.0.52
 psutil~=7.0.0
 playwright~=1.52.0
 anyio~=4.3.0

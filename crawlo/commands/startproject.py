@@ -1,5 +1,3 @@
-# crawlo/commands/startproject.py
-import os
 import shutil
 from pathlib import Path
 

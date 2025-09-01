@@ -1,9 +1,13 @@
-# crawlo/commands/__init__.py
-# 定义可用的命令
+#!/usr/bin/python
+# -*- coding:UTF-8 -*-
+
 _commands = {
     'startproject': 'crawlo.commands.startproject',
     'genspider': 'crawlo.commands.genspider',
     'run': 'crawlo.commands.run',
+    'check': 'crawlo.commands.check',
+    'list': 'crawlo.commands.list',
+    'stats': 'crawlo.commands.stats'
 }
 
 def get_commands():
