@@ -12,7 +12,7 @@ from .extension import ExtensionManager
 from .stats_collector import StatsCollector
 from .event import spider_opened, spider_closed
 from .settings.setting_manager import SettingManager
-from .utils.project import merge_settings, get_settings
+from crawlo.project import merge_settings, get_settings
 
 
 logger = get_logger(__name__)
@@ -131,7 +131,8 @@ class CrawlerProcess:
         signal.signal(signal.SIGTERM, self._shutdown)
         logger.info(f"CrawlerProcess 初始化完成，最大并行爬虫数: {self.max_concurrency}")
 
-    def auto_discover(self, modules: List[str]):
+    @staticmethod
+    def auto_discover(modules: List[str]):
         """自动导入模块，触发 Spider 类定义和注册"""
         import importlib
         import pkgutil
@@ -206,7 +207,8 @@ class CrawlerProcess:
 
         return spider_classes
 
-    def _normalize_inputs(self, spiders_input) -> List[Union[Type[Spider], str]]:
+    @staticmethod
+    def _normalize_inputs(spiders_input) -> List[Union[Type[Spider], str]]:
         """标准化输入为列表"""
         if isinstance(spiders_input, (type, str)):
             return [spiders_input]

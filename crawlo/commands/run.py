@@ -13,7 +13,7 @@ from importlib import import_module
 
 from crawlo.crawler import CrawlerProcess
 from crawlo.utils.log import get_logger
-from crawlo.utils.project import get_settings
+from crawlo.project import get_settings
 from crawlo.commands.stats import record_stats  # 自动记录 stats
 
 logger = get_logger(__name__)
