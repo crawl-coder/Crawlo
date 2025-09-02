@@ -45,39 +45,31 @@ class CurlCffiDownloader(DownloaderBase):
         self.max_download_size = self.crawler.settings.get_int("DOWNLOAD_MAXSIZE", 10 * 1024 * 1024)  # 10MB
         self.download_warn_size = self.crawler.settings.get_int("DOWNLOAD_WARN_SIZE", 1024 * 1024)  # 1MB
         self.download_delay = self.crawler.settings.get_float("DOWNLOAD_DELAY", 0)
-        # 兼容旧的 RANDOMNESS 配置
         self.randomize_delay = self.crawler.settings.get_bool("RANDOMIZE_DOWNLOAD_DELAY",
                                                               self.crawler.settings.get_bool("RANDOMNESS", False))
         self.default_headers = self.crawler.settings.get_dict("DEFAULT_REQUEST_HEADERS", {})
 
         # --- 浏览器指纹模拟配置 ---
-        # 1. 读取用户自定义的浏览器版本映射
         user_browser_map = self.crawler.settings.get_dict("CURL_BROWSER_VERSION_MAP", {})
-        # 2. 定义代码中的默认浏览器版本映射
         default_browser_map = self._get_default_browser_map()
-        # 3. 合并配置：用户配置优先级更高
         effective_browser_map = {**default_browser_map, **user_browser_map}
 
-        # 4. 读取用户选择的浏览器类型 (键)
         raw_browser_type_str = self.crawler.settings.get("CURL_BROWSER_TYPE", "chrome")
-
-        # 5. 使用合并后的映射进行规范化
-        #    如果 raw_browser_type_str 在映射中，则使用映射的值
-        #    如果不在映射中（例如用户直接指定了具体版本 "chrome136"），则使用原始字符串
         self.browser_type_str = effective_browser_map.get(raw_browser_type_str.lower(), raw_browser_type_str)
 
         # 创建会话配置
         session_config = {
             "timeout": timeout_secs,
             "verify": verify_ssl,
-            "max_clients": pool_size,  # Use max_clients for pool size
-            "impersonate": self.browser_type_str,  # Add impersonate
+            "max_clients": pool_size,
+            "impersonate": self.browser_type_str,
         }
 
         # 创建全局 session
         self.session = AsyncSession(**session_config)
 
-        self.logger.debug(f"CurlCffiDownloader 初始化完成，浏览器指纹模拟: {self.browser_type_str}")
+        self.logger.info(f"CurlCffiDownloader 初始化完成 | 浏览器模拟: {self.browser_type_str} | "
+                         f"并发: {pool_size} | 延迟: {self.download_delay}s")
 
     @staticmethod
     def _get_default_browser_map() -> Dict[str, str]:
@@ -87,18 +79,14 @@ class CurlCffiDownloader(DownloaderBase):
             "edge": "edge101",
             "safari": "safari184",
             "firefox": "firefox135",
-            # 可根据 curl-cffi 支持的版本添加更多
         }
 
     async def download(self, request) -> Optional[Response]:
         if not self.session:
             raise RuntimeError("CurlCffiDownloader 会话未打开")
 
-        # 请求延迟控制
         await self._apply_download_delay()
 
-        # 本地重试机制
-        # 复用现有的 MAX_RETRY_TIMES 配置
         max_retries = self.crawler.settings.get_int("DOWNLOAD_RETRY_TIMES",
                                                     self.crawler.settings.get_int("MAX_RETRY_TIMES", 1))
         last_exception = None
@@ -107,16 +95,15 @@ class CurlCffiDownloader(DownloaderBase):
             request_id = id(request)
             self._active_requests.add(request_id)
             try:
-                # 尝试执行请求
                 result = await self._execute_request(request)
-                return result  # 成功，返回响应
+                return result
 
             except (CurlError, asyncio.TimeoutError) as e:
                 last_exception = e
                 if attempt < max_retries:
                     retry_delay = 2 ** attempt
                     self.logger.warning(
-                        f"第 {attempt + 1}/{max_retries} 次重试 {request.url}，等待 {retry_delay} 秒，原因: {type(e).__name__}")
+                        f"第 {attempt + 1}/{max_retries} 次重试 {request.url}，等待 {retry_delay}s，原因: {type(e).__name__}")
                     await asyncio.sleep(retry_delay)
                 else:
                     self.logger.error(
@@ -124,36 +111,29 @@ class CurlCffiDownloader(DownloaderBase):
             except Exception as e:
                 last_exception = e
                 self.logger.critical(f"请求 {request.url} 发生未预期错误: {e}", exc_info=True)
-                # 对于未预期错误，可能不希望重试
-                break  # Or handle differently based on error type
+                break  # 不可恢复错误，不再重试
             finally:
                 self._active_requests.discard(request_id)
 
-        # If loop finishes without returning, it means all retries failed or an unretriable error occurred
         if last_exception:
             raise last_exception
-        # This line should ideally not be reached if exceptions are handled correctly above
         raise RuntimeError(f"下载 {request.url} 失败，已重试或发生不可重试错误")
 
     async def _apply_download_delay(self):
         """应用下载延迟"""
         if self.download_delay > 0:
             current_time = time.time()
-            if hasattr(self, '_last_request_time'):  # Check if attribute exists
-                elapsed = current_time - self._last_request_time
-            else:
-                elapsed = self.download_delay + 1  # Ensure delay is applied if _last_request_time is not set yet
+            elapsed = current_time - getattr(self, '_last_request_time', float('inf'))
 
             if elapsed < self.download_delay:
                 delay = self.download_delay - elapsed
                 if self.randomize_delay:
-                    # 兼容旧的 RANDOM_RANGE 配置
                     range_tuple = self.crawler.settings.get("RANDOM_RANGE", (0.75, 1.25))
                     if isinstance(range_tuple, (list, tuple)) and len(range_tuple) == 2:
                         delay *= random.uniform(range_tuple[0], range_tuple[1])
                     else:
-                        delay *= random.uniform(0.5, 1.5)  # Fallback
-                await asyncio.sleep(max(0, int(delay)))  # Ensure non-negative sleep
+                        delay *= random.uniform(0.5, 1.5)
+                await asyncio.sleep(max(0.0, delay))
             self._last_request_time = time.time()
 
     async def _execute_request(self, request) -> Response:
@@ -161,22 +141,18 @@ class CurlCffiDownloader(DownloaderBase):
         if not self.session:
             raise RuntimeError("会话未初始化")
 
-        # 构造请求参数
         kwargs = self._build_request_kwargs(request)
-
-        # 发送请求
         method = request.method.lower()
+
         if not hasattr(self.session, method):
             raise ValueError(f"不支持的 HTTP 方法: {request.method}")
 
         method_func = getattr(self.session, method)
 
-        # *** 核心修正：直接 await 方法调用 ***
         try:
             response = await method_func(request.url, **kwargs)
         except Exception as e:
-            # Re-raise to let the calling function handle retries
-            raise
+            raise  # 由外层处理重试
 
         # 检查 Content-Length
         content_length = response.headers.get("Content-Length")
@@ -184,63 +160,52 @@ class CurlCffiDownloader(DownloaderBase):
             try:
                 cl = int(content_length)
                 if cl > self.max_download_size:
-                    raise OverflowError(
-                        f"响应过大 (基于 Content-Length): {cl} > {self.max_download_size}")
+                    raise OverflowError(f"响应过大 (Content-Length): {cl} > {self.max_download_size}")
             except ValueError:
-                self.logger.warning(f"无效的 Content-Length 头部值: {content_length}")
+                self.logger.warning(f"无效的 Content-Length 头部: {content_length}")
 
-        # 获取响应体 (curl-cffi 中 response.content 通常是 bytes)
-        # *** 核心修正：直接使用 response.content ***
         body = response.content
-
-        # 再次检查实际大小 (以防 Content-Length 不准确或缺失)
         actual_size = len(body)
+
         if actual_size > self.max_download_size:
             raise OverflowError(f"响应体过大: {actual_size} > {self.max_download_size}")
 
-        # 警告大小检查
         if actual_size > self.download_warn_size:
             self.logger.warning(f"响应体较大: {actual_size} 字节，来自 {request.url}")
 
         return self._structure_response(request, response, body)
 
     def _build_request_kwargs(self, request) -> Dict[str, Any]:
-        """构造curl-cffi请求参数"""
-        # 合并默认 headers 和请求 headers
-        # 确保 request.headers 是一个字典或类似对象
+        """构造curl-cffi请求参数（支持 str 和 dict 格式 proxy）"""
         request_headers = getattr(request, 'headers', {}) or {}
         headers = {**self.default_headers, **request_headers}
 
         kwargs = {
             "headers": headers,
-            "cookies": getattr(request, 'cookies', {}) or {},  # Safely get cookies
-            "allow_redirects": getattr(request, 'allow_redirects', True),  # Safely get allow_redirects
+            "cookies": getattr(request, 'cookies', {}) or {},
+            "allow_redirects": getattr(request, 'allow_redirects', True),
         }
 
-        # 代理设置
-        # curl-cffi 通常使用 proxies 参数，接受字典 {'http': '...', 'https': '...'}
-        if hasattr(request, 'proxy') and request.proxy:
-            # 简单处理，假设 proxy URL 适用于 http 和 https
-            # 你可能需要根据 request.url.scheme 来决定使用哪个
-            if request.proxy.startswith(('http://', 'https://')):
-                kwargs["proxies"] = {"http": request.proxy, "https": request.proxy}
+        # 处理代理（兼容 str 和 dict）
+        proxy = getattr(request, 'proxy', None)
+        if proxy is not None:
+            if isinstance(proxy, str):
+                if proxy.startswith(('http://', 'https://', 'socks5://', 'socks4://')):
+                    kwargs["proxies"] = {"http": proxy, "https": proxy}
+                else:
+                    self.logger.warning(f"代理协议未知，尝试直接使用: {proxy}")
+                    kwargs["proxies"] = {"http": proxy, "https": proxy}
+            elif isinstance(proxy, dict):
+                kwargs["proxies"] = proxy
             else:
-                # Handle other proxy types if needed (e.g., socks)
-                # For now, just pass it and let curl-cffi potentially handle it or log a warning
-                self.logger.warning(
-                    f"代理格式可能需要为 curl-cffi 调整: {request.proxy}。按原样传递。")
-                kwargs["proxy"] = request.proxy  # Try the simpler 'proxy' kwarg if 'proxies' doesn't work
+                self.logger.error(f"不支持的 proxy 类型: {type(proxy)}，值: {proxy}")
 
-        # 智能处理请求体
-        # 优先使用 _json_body (如果框架有此约定)
+        # 请求体处理
         if hasattr(request, "_json_body") and request._json_body is not None:
             kwargs["json"] = request._json_body
-        # 其次检查 body 是否为 dict/list (兼容直接传 body=dict 的旧写法)
         elif isinstance(getattr(request, 'body', None), (dict, list)):
             kwargs["json"] = request.body
-        # 最后处理其他类型的 body (str, bytes, etc.)
         elif getattr(request, 'body', None) is not None:
-            # curl-cffi 通常可以处理 str 和 bytes
             kwargs["data"] = request.body
 
         return kwargs
@@ -270,7 +235,7 @@ class CurlCffiDownloader(DownloaderBase):
 
     def idle(self) -> bool:
         """检查是否空闲"""
-        return len(self._active_requests) == 0  # Check active requests
+        return len(self._active_requests) == 0
 
     def __len__(self) -> int:
         """返回活跃请求数"""

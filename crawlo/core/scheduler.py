@@ -5,7 +5,7 @@ from typing import Optional, Callable
 from crawlo.utils.log import get_logger
 from crawlo.utils.request import set_request
 from crawlo.utils.pqueue import SpiderPriorityQueue
-from crawlo.utils.project import load_class, common_call
+from crawlo.project import load_class, common_call
 
 
 class Scheduler:

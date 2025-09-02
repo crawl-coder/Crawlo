@@ -223,7 +223,7 @@ class ProxyMiddleware:
         proxy = await self._get_cached_proxy()
         if proxy:
             request.proxy = proxy
-            self.logger.debug(f"分配代理 → {proxy} | {request.url}")
+            self.logger.info(f"分配代理 → {proxy} | {request.url}")
         else:
             self.logger.warning(f"未获取到代理，请求直连: {request.url}")
 
