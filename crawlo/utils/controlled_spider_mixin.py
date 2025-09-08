@@ -221,6 +221,59 @@ class AsyncControlledRequestMixin:
         self._monitoring_task = None
         self._stop_generation = False
     
+    def _original_start_requests(self) -> Generator[Request, None, None]:
+        """
+        子类应该实现这个方法，提供原始的请求生成逻辑
+        
+        示例：
+        def _original_start_requests(self):
+            for i in range(50000):  # 5万个请求
+                yield Request(url=f"https://example.com/page/{i}")
+        """
+        raise NotImplementedError(
+            "子类必须实现 _original_start_requests() 方法，"
+            "或者确保原始的 start_requests() 方法存在"
+        )
+    
+    def _get_original_requests(self) -> Generator[Request, None, None]:
+        """尝试获取原始请求（向后兼容）"""
+        # 这里可以尝试调用父类的 start_requests 或其他方式
+        # 具体实现取决于你的需求
+        return iter([])  # 默认返回空生成器
+    
+    def _should_pause_generation(self) -> bool:
+        """判断是否应该暂停请求生成"""
+        # 检查队列大小（如果可以访问scheduler的话）
+        if hasattr(self, 'crawler') and self.crawler:
+            engine = getattr(self.crawler, 'engine', None)
+            if engine and engine.scheduler:
+                queue_size = len(engine.scheduler)
+                if queue_size > 200:  # 背压阈值
+                    return True
+        
+        # 检查任务管理器负载
+        if hasattr(self, 'crawler') and self.crawler:
+            engine = getattr(self.crawler, 'engine', None)
+            if engine and engine.task_manager:
+                current_tasks = len(engine.task_manager.current_task)
+                concurrency = getattr(engine.task_manager, 'semaphore', None)
+                if concurrency and hasattr(concurrency, '_initial_value'):
+                    max_concurrency = concurrency._initial_value
+                    # 如果当前任务数接近最大并发数，暂停生成
+                    if current_tasks >= max_concurrency * 0.8:  # 80% 阈值
+                        return True
+        
+        return False
+    
+    def _process_request_before_yield(self, request: Request) -> Optional[Request]:
+        """
+        在 yield 请求前进行处理
+        子类可以重写这个方法来添加自定义逻辑
+        
+        返回 None 表示跳过这个请求
+        """
+        return request
+    
     async def start_requests_async(self) -> Generator[Request, None, None]:
         """异步版本的受控请求生成"""
         # 初始化信号量
@@ -239,12 +292,14 @@ class AsyncControlledRequestMixin:
                 batch.append(request)
                 
                 if len(batch) >= 50:  # 批次大小
-                    yield from await self._process_async_batch(batch)
+                    async for request in self._process_async_batch(batch):
+                        yield request
                     batch = []
             
             # 处理剩余请求
             if batch:
-                yield from await self._process_async_batch(batch)
+                async for request in self._process_async_batch(batch):
+                    yield request
         
         finally:
             # 清理
@@ -298,7 +353,7 @@ class AsyncControlledRequestMixin:
 
 # 使用示例和文档
 USAGE_EXAMPLE = '''
-# 使用示例：
+# 同步版本使用示例：
 
 class MyControlledSpider(Spider, ControlledRequestMixin):
     name = 'controlled_spider'
@@ -326,11 +381,60 @@ class MyControlledSpider(Spider, ControlledRequestMixin):
         # 解析逻辑
         yield {"url": response.url}
 
+# 异步版本使用示例：
+
+class MyAsyncControlledSpider(Spider, AsyncControlledRequestMixin):
+    name = 'async_controlled_spider'
+    
+    def __init__(self):
+        Spider.__init__(self)
+        AsyncControlledRequestMixin.__init__(self)
+        
+        # 配置异步控制参数
+        self.max_concurrent_generations = 15
+        self.queue_monitor_interval = 0.5
+    
+    def _original_start_requests(self):
+        """提供原始的大量请求"""
+        categories = ['tech', 'finance', 'sports']
+        for category in categories:
+            for page in range(1, 10000):  # 每个分类1万页
+                yield Request(
+                    url=f"https://news-site.com/{category}?page={page}",
+                    meta={'category': category}
+                )
+    
+    def _process_request_before_yield(self, request):
+        """异步版本的请求预处理"""
+        # 根据分类设置优先级
+        category = request.meta.get('category', '')
+        if category == 'tech':
+            request.priority = 10
+        return request
+    
+    async def parse(self, response):
+        # 异步解析逻辑
+        yield {
+            "url": response.url,
+            "category": response.meta['category']
+        }
+
 # 使用时：
 from crawlo.crawler import CrawlerProcess
+from crawlo.config import CrawloConfig
 
-process = CrawlerProcess()
-process.settings.set('CONCURRENCY', 16)  # 设置并发数
+# 同步版本
+config = CrawloConfig.standalone(concurrency=16)
+process = CrawlerProcess(config)
 process.crawl(MyControlledSpider)
 process.start()
+
+# 异步版本
+async_config = CrawloConfig.standalone(
+    concurrency=30,
+    downloader='httpx'  # 推荐使用支持异步的下载器
+)
+async_process = CrawlerProcess(async_config)
+async_process.crawl(MyAsyncControlledSpider)
+async_process.start()
 '''
