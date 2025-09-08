@@ -26,6 +26,7 @@ except ImportError:
 # 定义我们认为是网络问题，应该触发降级的异常
 NETWORK_EXCEPTIONS = (ConnectError, TimeoutException, NetworkError)
 
+
 class HttpXDownloader(DownloaderBase):
     """
     基于 httpx 的高性能异步下载器
@@ -66,15 +67,15 @@ class HttpXDownloader(DownloaderBase):
         self._client_timeout = Timeout(
             connect=10.0,  # 建立连接超时
             read=timeout_total - 10.0 if timeout_total > 10 else timeout_total / 2,  # 读取数据超时
-            write=10.0,   # 发送数据超时
-            pool=1.0      # 从连接池获取连接的超时
+            write=10.0,  # 发送数据超时
+            pool=1.0  # 从连接池获取连接的超时
         )
         self._client_limits = Limits(
             max_connections=pool_limit,
             max_keepalive_connections=pool_per_host
         )
         self._client_verify = self.crawler.settings.get_bool("VERIFY_SSL", True)
-        self._client_http2 = True # 启用 HTTP/2 支持
+        self._client_http2 = True  # 启用 HTTP/2 支持
         # ----------------------------
 
         # 创建持久化客户端 (不在此处设置全局代理)
@@ -102,7 +103,7 @@ class HttpXDownloader(DownloaderBase):
         # --- 1. 确定要使用的 client 实例 ---
         effective_client = self._client  # 默认使用共享的主 client
         temp_client = None  # 用于可能创建的临时 client
-        used_proxy = None # 记录当前尝试使用的代理
+        used_proxy = None  # 记录当前尝试使用的代理
 
         try:
             # --- 2. 构造发送参数 (不包含 proxy/proxies) ---
@@ -123,7 +124,7 @@ class HttpXDownloader(DownloaderBase):
                 kwargs["content"] = request.body  # 使用 content 而不是 data
 
             # --- 3. 处理代理 ---
-            httpx_proxy_config = None # 用于初始化临时 client 的代理配置
+            httpx_proxy_config = None  # 用于初始化临时 client 的代理配置
             if request.proxy:
                 # 根据 request.proxy 的类型准备 httpx 的 proxy 参数
                 if isinstance(request.proxy, str):
@@ -156,14 +157,15 @@ class HttpXDownloader(DownloaderBase):
                             limits=self._client_limits,
                             verify=self._client_verify,
                             http2=self._client_http2,
-                            follow_redirects=True, # 确保继承
-                            proxy=httpx_proxy_config, # 设置代理
+                            follow_redirects=True,  # 确保继承
+                            proxy=httpx_proxy_config,  # 设置代理
                         )
                         effective_client = temp_client
-                        used_proxy = httpx_proxy_config # 记录使用的代理
+                        used_proxy = httpx_proxy_config  # 记录使用的代理
                         self.logger.debug(f"Using temporary client with proxy: {httpx_proxy_config} for {request.url}")
                     except Exception as e:
-                        self.logger.error(f"Failed to create temporary client with proxy {httpx_proxy_config} for {request.url}: {e}")
+                        self.logger.error(
+                            f"Failed to create temporary client with proxy {httpx_proxy_config} for {request.url}: {e}")
                         # 出错则回退到使用主 client（无代理）
                         # 可以选择抛出异常或继续
                         # raise # 如果希望代理失败导致请求失败，取消注释
@@ -181,7 +183,7 @@ class HttpXDownloader(DownloaderBase):
                     )
                     # 关闭失败的临时客户端
                     await temp_client.aclose()
-                    temp_client = None # 防止 finally 再次关闭
+                    temp_client = None  # 防止 finally 再次关闭
 
                     # 切换到主客户端（直连）
                     effective_client = self._client
@@ -223,7 +225,7 @@ class HttpXDownloader(DownloaderBase):
             try:
                 error_body = await e.response.aread()
             except Exception:
-                error_body = b"" # 如果读取错误响应体失败，则为空
+                error_body = b""  # 如果读取错误响应体失败，则为空
             return self.structure_response(request=request, response=e.response, body=error_body)
         except Exception as e:
             self.logger.critical(f"Unexpected error for {request.url}: {e}", exc_info=True)
@@ -244,7 +246,7 @@ class HttpXDownloader(DownloaderBase):
         return Response(
             url=str(response.url),  # httpx 的 URL 是对象，需转字符串
             headers=dict(response.headers),
-            status_code=response.status_code, # 注意：使用 status_code
+            status_code=response.status_code,  # 注意：使用 status_code
             body=body,
             request=request
         )

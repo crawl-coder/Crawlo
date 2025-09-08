@@ -32,14 +32,14 @@ class Response:
     """
 
     def __init__(
-        self,
-        url: str,
-        *,
-        headers: Dict[str, Any] = None,
-        body: bytes = b"",
-        method: str = 'GET',
-        request: 'Request' = None,  # 使用字符串注解避免循环导入
-        status_code: int = 200,
+            self,
+            url: str,
+            *,
+            headers: Dict[str, Any] = None,
+            body: bytes = b"",
+            method: str = 'GET',
+            request: 'Request' = None,  # 使用字符串注解避免循环导入
+            status_code: int = 200,
     ):
         # 基本属性
         self.url = url
@@ -48,15 +48,15 @@ class Response:
         self.method = method.upper()
         self.request = request
         self.status_code = status_code
-        
+
         # 编码处理
         self.encoding = self._determine_encoding()
-        
+
         # 缓存属性
         self._text_cache = None
         self._json_cache = None
         self._selector_instance = None
-        
+
         # 状态标记
         self._is_success = 200 <= status_code < 300
         self._is_redirect = 300 <= status_code < 400
@@ -68,14 +68,14 @@ class Response:
         # 1. 优先使用 request 的编码
         if self.request and self.request.encoding:
             return self.request.encoding
-        
+
         # 2. 从 Content-Type 头中检测
         content_type = self.headers.get("content-type", "") or self.headers.get("Content-Type", "")
         if content_type:
             charset_match = re.search(r"charset=([w-]+)", content_type, re.I)
             if charset_match:
                 return charset_match.group(1).lower()
-        
+
         # 3. 从 HTML meta 标签中检测(仅对HTML内容)
         if b'<html' in self.body[:1024].lower():
             # 查找 <meta charset="xxx"> 或 <meta http-equiv="Content-Type" content="...charset=xxx">
@@ -86,16 +86,17 @@ class Response:
                 charset_match = re.search(r'<meta[^>]+charset=["\']?([\w-]+)', html_text, re.I)
                 if charset_match:
                     return charset_match.group(1).lower()
-                
+
                 # <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
                 content_match = re.search(r'<meta[^>]+content=["\'][^"\'>]*charset=([\w-]+)', html_text, re.I)
                 if content_match:
                     return content_match.group(1).lower()
             except Exception:
                 pass
-        
+
         # 4. 默认使用 utf-8
         return 'utf-8'
+
     @property
     def text(self) -> str:
         """将响应体(body)以正确的编码解码为字符串，并缓存结果。"""
@@ -115,7 +116,7 @@ class Response:
         if 'gb2312' not in encodings_to_try:
             encodings_to_try.append('gb2312')
         encodings_to_try.append('latin1')  # 最后的回退选项
-        
+
         for encoding in encodings_to_try:
             if not encoding:
                 continue
@@ -124,7 +125,7 @@ class Response:
                 return self._text_cache
             except (UnicodeDecodeError, LookupError):
                 continue
-        
+
         # 所有编码都失败，使用容错解码
         try:
             self._text_cache = self.body.decode('utf-8', errors='replace')
@@ -136,37 +137,38 @@ class Response:
     def is_success(self) -> bool:
         """检查响应是否成功 (2xx)"""
         return self._is_success
-    
+
     @property
     def is_redirect(self) -> bool:
         """检查响应是否为重定向 (3xx)"""
         return self._is_redirect
-    
+
     @property
     def is_client_error(self) -> bool:
         """检查响应是否为客户端错误 (4xx)"""
         return self._is_client_error
-    
+
     @property
     def is_server_error(self) -> bool:
         """检查响应是否为服务器错误 (5xx)"""
         return self._is_server_error
-    
+
     @property
     def content_type(self) -> str:
         """获取响应的 Content-Type"""
         return self.headers.get('content-type', '') or self.headers.get('Content-Type', '')
-    
+
     @property
     def content_length(self) -> Optional[int]:
         """获取响应的 Content-Length"""
         length = self.headers.get('content-length') or self.headers.get('Content-Length')
         return int(length) if length else None
+
     def json(self, default: Any = None) -> Any:
         """将响应文本解析为 JSON 对象。"""
         if self._json_cache is not None:
             return self._json_cache
-        
+
         try:
             self._json_cache = ujson.loads(self.text)
             return self._json_cache

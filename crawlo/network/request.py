@@ -16,7 +16,6 @@ from w3lib.url import safe_url_string
 from typing import Dict, Optional, Callable, Union, Any, TypeVar, List
 
 from crawlo.utils.url import escape_ajax
-from crawlo.utils.log import get_logger
 
 
 _Request = TypeVar("_Request", bound="Request")
@@ -176,7 +175,8 @@ class Request:
         self.dont_filter = dont_filter
         self._set_url(url)
 
-    def _safe_deepcopy_meta(self, meta: Dict[str, Any]) -> Dict[str, Any]:
+    @staticmethod
+    def _safe_deepcopy_meta(meta: Dict[str, Any]) -> Dict[str, Any]:
         """安全地 deepcopy meta，移除 logger 后再复制"""
         import logging
         
