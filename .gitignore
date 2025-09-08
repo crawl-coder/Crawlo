@@ -10,7 +10,6 @@ __pycache__/
 # Distribution / packaging
 .Python
 build/
-examples/
 develop-eggs/
 dist/
 downloads/
