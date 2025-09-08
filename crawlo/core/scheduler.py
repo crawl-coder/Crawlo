@@ -34,21 +34,25 @@ class Scheduler:
 
     async def open(self):
         """初始化调度器和队列"""
-        # 创建队列配置
-        queue_config = QueueConfig.from_settings(self.crawler.settings)
-        
-        # 创建队列管理器
-        self.queue_manager = QueueManager(queue_config)
-        
-        # 初始化队列
-        success = await self.queue_manager.initialize()
-        if not success:
-            raise RuntimeError("队列初始化失败")
-        
-        # 输出队列状态
-        status = self.queue_manager.get_status()
-        self.logger.info(f'队列类型: {status["type"]}, 状态: {status["health"]}')
-        self.logger.info(f'requesting filter: {self.dupe_filter}')
+        try:
+            # 创建队列配置
+            queue_config = QueueConfig.from_settings(self.crawler.settings)
+            
+            # 创建队列管理器
+            self.queue_manager = QueueManager(queue_config)
+            
+            # 初始化队列
+            success = await self.queue_manager.initialize()
+            if not success:
+                raise RuntimeError("队列初始化失败")
+            
+            # 输出队列状态
+            status = self.queue_manager.get_status()
+            self.logger.info(f'队列类型: {status["type"]}, 状态: {status["health"]}')
+            self.logger.info(f'requesting filter: {self.dupe_filter}')
+        except Exception as e:
+            self.logger.error(f"❌ 调度器初始化失败: {e}")
+            raise
 
     async def next_request(self):
         """获取下一个请求"""

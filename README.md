@@ -33,6 +33,44 @@
 
 ---
 
+## 🌐 语言选择 / Language
+
+- [中文文档 (默认)](#中文文档)
+- [English Documentation](#english-documentation)
+
+---
+
+## 📚 中文文档
+
+详细的框架文档现已可用，提供中英文双语版本，默认使用中文：
+
+### 快速入门
+- [快速入门指南](docs/quick_start_guide_zh.md) - 快速上手 Crawlo
+- [框架完整文档](docs/crawlo_framework_documentation_zh.md) - 框架所有特性的综合指南
+- [API 参考](docs/api_reference_zh.md) - 所有类和方法的详细文档
+
+### 高级主题
+- [分布式爬取教程](docs/distributed_crawling_tutorial_zh.md) - 分布式爬取的完整指南
+- [配置最佳实践](docs/configuration_best_practices_zh.md) - 配置 Crawlo 项目的指南
+- [示例项目](examples/) - 真实项目的完整示例
+
+---
+
+## 📚 English Documentation
+
+Comprehensive framework documentation is now available in both Chinese and English, with Chinese as the default:
+
+### Getting Started
+- [Quick Start Guide](docs/quick_start_guide.md) - Get up and running with Crawlo quickly
+- [Framework Documentation](docs/crawlo_framework_documentation.md) - Comprehensive guide to all framework features
+- [API Reference](docs/api_reference.md) - Detailed documentation of all classes and methods
+
+### Advanced Topics
+- [Distributed Crawling Tutorial](docs/distributed_crawling_tutorial.md) - Complete guide to setting up distributed crawling
+- [Configuration Best Practices](docs/configuration_best_practices.md) - Guidelines for configuring Crawlo projects
+
+---
+
 ## 🚀 快速开始
 
 ### 1. 安装框架

@@ -1,7 +1,7 @@
 #!/usr/bin/python
 # -*- coding:UTF-8 -*-
 from typing import List
-from asyncio.exceptions import TimeoutError
+import asyncio
 
 try:
     from anyio import EndOfStream
@@ -49,7 +49,7 @@ from crawlo.stats_collector import StatsCollector
 _retry_exceptions = [
     EndOfStream,
     ReadError,
-    TimeoutError,
+    asyncio.TimeoutError,
     ConnectError,
     ReadTimeout,
     ClientConnectorError,

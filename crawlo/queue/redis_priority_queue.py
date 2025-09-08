@@ -3,6 +3,8 @@ import time
 import asyncio
 from typing import Optional
 import redis.asyncio as aioredis
+import traceback
+import os
 
 from crawlo import Request
 from crawlo.utils.log import get_logger
@@ -19,7 +21,7 @@ class RedisPriorityQueue:
 
     def __init__(
             self,
-            redis_url: str = "redis://localhost:6379/0",
+            redis_url: str = None,
             queue_name: str = "crawlo:requests",
             processing_queue: str = "crawlo:processing",
             failed_queue: str = "crawlo:failed",
@@ -27,6 +29,18 @@ class RedisPriorityQueue:
             timeout: int = 300,  # 任务处理超时时间（秒）
             max_connections: int = 10,  # 连接池大小
     ):
+        # 如果没有提供 redis_url，则从环境变量构造
+        if redis_url is None:
+            redis_host = os.getenv('REDIS_HOST', 'localhost')
+            redis_port = os.getenv('REDIS_PORT', '6379')
+            redis_db = os.getenv('REDIS_DB', '0')
+            redis_password = os.getenv('REDIS_PASSWORD', '')
+            
+            if redis_password:
+                redis_url = f"redis://:{redis_password}@{redis_host}:{redis_port}/{redis_db}"
+            else:
+                redis_url = f"redis://{redis_host}:{redis_port}/{redis_db}"
+        
         self.redis_url = redis_url
         self.queue_name = queue_name
         self.processing_queue = processing_queue
@@ -59,6 +73,7 @@ class RedisPriorityQueue:
                     return self._redis
                 except Exception as e:
                     logger.warning(f"⚠️ Redis 连接失败 (尝试 {attempt + 1}/{max_retries}): {e}")
+                    logger.warning(f"详细错误信息:\n{traceback.format_exc()}")
                     if attempt < max_retries - 1:
                         await asyncio.sleep(delay)
                     else:
@@ -70,8 +85,8 @@ class RedisPriorityQueue:
             await self.connect()
         try:
             await self._redis.ping()
-        except Exception:
-            logger.warning("🔄 Redis 连接失效，尝试重连...")
+        except Exception as e:
+            logger.warning(f"🔄 Redis 连接失效，尝试重连...: {e}")
             self._redis = None
             await self.connect()
 
@@ -95,6 +110,7 @@ class RedisPriorityQueue:
             return result[0] > 0
         except Exception as e:
             logger.error(f"❌ 放入队列失败: {e}")
+            logger.error(f"详细错误信息:\n{traceback.format_exc()}")
             return False
 
     async def get(self, timeout: float = 5.0) -> Optional[Request]:
@@ -134,6 +150,7 @@ class RedisPriorityQueue:
 
             except Exception as e:
                 logger.error(f"❌ 获取队列任务失败: {e}")
+                logger.error(f"详细错误信息:\n{traceback.format_exc()}")
                 return None
 
     async def ack(self, request: Request):

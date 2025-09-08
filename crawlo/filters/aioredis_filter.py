@@ -11,8 +11,8 @@ Redis 过滤器实现
 - 高性能: 使用 Redis pipeline 优化
 - 容错设计: 网络异常自动重试
 """
+import redis.asyncio as aioredis
 from typing import Optional
-from redis import asyncio as aioredis
 from crawlo.filters import BaseFilter
 from crawlo.utils.log import get_logger
 from crawlo.utils.request import request_fingerprint

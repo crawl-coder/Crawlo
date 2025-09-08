@@ -117,11 +117,12 @@ FILTER_CLASS = 'crawlo.filters.memory_filter.MemoryFilter'
 REDIS_HOST = os.getenv('REDIS_HOST', '127.0.0.1')
 REDIS_PORT = int(os.getenv('REDIS_PORT', 6379))
 REDIS_PASSWORD = os.getenv('REDIS_PASSWORD', '')  # 默认无密码
+REDIS_DB = int(os.getenv('REDIS_DB', 0))  # Redis 数据库编号，默认为 0
 # 🔧 根据是否有密码生成不同的 URL 格式
 if REDIS_PASSWORD:
-    REDIS_URL = f'redis://:{REDIS_PASSWORD}@{REDIS_HOST}:{REDIS_PORT}/0'
+    REDIS_URL = f'redis://:{REDIS_PASSWORD}@{REDIS_HOST}:{REDIS_PORT}/{REDIS_DB}'
 else:
-    REDIS_URL = f'redis://{REDIS_HOST}:{REDIS_PORT}/0'
+    REDIS_URL = f'redis://{REDIS_HOST}:{REDIS_PORT}/{REDIS_DB}'
 REDIS_KEY = 'request_fingerprint'  # Redis 中存储指纹的键名
 REDIS_TTL = 0  # 指纹过期时间（0 表示永不过期）
 CLEANUP_FP = 0  # 程序结束时是否清理指纹（0=不清理）

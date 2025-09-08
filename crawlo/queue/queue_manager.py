@@ -7,6 +7,8 @@
 from typing import Optional, Dict, Any, Union
 from enum import Enum
 import asyncio
+import traceback
+import os
 
 from crawlo.utils.log import get_logger
 from crawlo.utils.request_serializer import RequestSerializer
@@ -106,7 +108,9 @@ class QueueManager:
             return True
             
         except Exception as e:
+            # 记录详细的错误信息和堆栈跟踪
             self.logger.error(f"❌ 队列初始化失败: {e}")
+            self.logger.error(f"详细错误信息:\n{traceback.format_exc()}")
             self._health_status = "error"
             return False
     
