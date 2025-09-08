@@ -1,0 +1,248 @@
+# -*- coding: UTF-8 -*-
+"""
+{{project_name}} 项目配置文件
+=============================
+基于 Crawlo 框架的爬虫项目配置。
+
+🎯 快速开始：
+
+# 方式1：使用默认单机模式（推荐）
+from crawlo.crawler import CrawlerProcess
+process = CrawlerProcess()  # 无需任何配置
+
+# 方式2：使用配置工厂
+from crawlo.config import CrawloConfig
+config = CrawloConfig.standalone()  # 单机模式
+config = CrawloConfig.distributed(redis_host='192.168.1.100')  # 分布式模式
+process = CrawlerProcess(settings=config.to_dict())
+
+# 方式3：使用环境变量
+from crawlo.config import CrawloConfig
+config = CrawloConfig.from_env()  # 从环境变量读取
+"""
+import os
+from crawlo.config import CrawloConfig
+
+# ============================== 项目基本信息 ==============================
+PROJECT_NAME = '{{project_name}}'
+VERSION = '1.0.0'
+
+# ============================== 运行模式选择 ==============================
+
+# 🎯 选择一种配置方式：
+
+# 方式1：使用配置工厂（推荐）
+# 单机模式（默认）
+CONFIG = CrawloConfig.standalone(
+    concurrency=8,
+    download_delay=1.0
+)
+
+# 分布式模式（去掉注释并修改 Redis 地址）
+# CONFIG = CrawloConfig.distributed(
+#     redis_host='127.0.0.1',
+#     redis_password='your_password',  # 如果有密码
+#     project_name='{{project_name}}',
+#     concurrency=16,
+#     download_delay=1.0
+# )
+
+# 自动检测模式
+# CONFIG = CrawloConfig.auto(concurrency=12)
+
+# 方式2：从环境变量读取（适合部署）
+# CONFIG = CrawloConfig.from_env()
+
+# 方式3：使用预设配置
+# from crawlo.config import Presets
+# CONFIG = Presets.development()  # 开发环境
+# CONFIG = Presets.production()   # 生产环境
+
+# 获取最终配置
+locals().update(CONFIG.to_dict())
+
+# ============================== 网络请求配置 ==============================
+
+# 下载器选择（推荐使用 CurlCffi，支持浏览器指纹模拟）
+DOWNLOADER = "crawlo.downloader.cffi_downloader.CurlCffiDownloader"  # 支持浏览器指纹
+# DOWNLOADER = "crawlo.downloader.aiohttp_downloader.AioHttpDownloader"  # 轻量级选择
+# DOWNLOADER = "crawlo.downloader.httpx_downloader.HttpXDownloader"     # HTTP/2 支持
+
+# 请求超时与安全
+DOWNLOAD_TIMEOUT = 30
+VERIFY_SSL = True
+USE_SESSION = True
+
+# 请求延迟控制（防反爬）
+DOWNLOAD_DELAY = 1.0
+RANDOM_RANGE = (0.8, 1.2)
+RANDOMNESS = True
+
+# 重试策略
+MAX_RETRY_TIMES = 3
+RETRY_PRIORITY = -1
+RETRY_HTTP_CODES = [408, 429, 500, 502, 503, 504, 522, 524]
+IGNORE_HTTP_CODES = [403, 404]
+ALLOWED_CODES = []
+
+# 连接池配置
+CONNECTION_POOL_LIMIT = 50
+DOWNLOAD_MAXSIZE = 10 * 1024 * 1024    # 10MB
+DOWNLOAD_WARN_SIZE = 1024 * 1024       # 1MB
+
+# ============================== 并发与调度配置 ==============================
+CONCURRENCY = 8
+INTERVAL = 5
+DEPTH_PRIORITY = 1
+MAX_RUNNING_SPIDERS = 3
+
+# ============================== 队列配置（支持分布式） ==============================
+
+# 队列类型：'auto'（自动选择）, 'memory'（内存队列）, 'redis'（分布式队列）
+QUEUE_TYPE = 'auto'
+SCHEDULER_MAX_QUEUE_SIZE = 2000
+SCHEDULER_QUEUE_NAME = f'{{project_name}}:requests'
+QUEUE_MAX_RETRIES = 3
+QUEUE_TIMEOUT = 300
+
+# 大规模爬取优化
+LARGE_SCALE_BATCH_SIZE = 1000
+LARGE_SCALE_CHECKPOINT_INTERVAL = 5000
+LARGE_SCALE_MAX_MEMORY_USAGE = 500
+
+# ============================== 数据存储配置 ==============================
+
+# --- MySQL 配置 ---
+MYSQL_HOST = os.getenv('MYSQL_HOST', '127.0.0.1')
+MYSQL_PORT = int(os.getenv('MYSQL_PORT', 3306))
+MYSQL_USER = os.getenv('MYSQL_USER', 'root')
+MYSQL_PASSWORD = os.getenv('MYSQL_PASSWORD', '123456')
+MYSQL_DB = os.getenv('MYSQL_DB', '{{project_name}}')
+MYSQL_TABLE = '{{project_name}}_data'
+MYSQL_BATCH_SIZE = 100
+
+# MySQL 连接池
+MYSQL_FLUSH_INTERVAL = 5
+MYSQL_POOL_MIN = 5
+MYSQL_POOL_MAX = 20
+MYSQL_ECHO = False
+
+# --- MongoDB 配置 ---
+MONGO_URI = os.getenv('MONGO_URI', 'mongodb://localhost:27017')
+MONGO_DATABASE = f'{{project_name}}_db'
+MONGO_COLLECTION = '{{project_name}}_items'
+MONGO_MAX_POOL_SIZE = 200
+MONGO_MIN_POOL_SIZE = 20
+
+# ============================== 去重过滤配置 ==============================
+
+REQUEST_DIR = '.'
+
+# 去重过滤器（推荐分布式项目使用 Redis 过滤器）
+FILTER_CLASS = 'crawlo.filters.memory_filter.MemoryFilter'
+# FILTER_CLASS = 'crawlo.filters.aioredis_filter.AioRedisFilter'  # 分布式去重
+
+# --- Redis 配置（用于分布式去重和队列） ---
+REDIS_HOST = os.getenv('REDIS_HOST', '127.0.0.1')
+REDIS_PORT = int(os.getenv('REDIS_PORT', 6379))
+REDIS_PASSWORD = os.getenv('REDIS_PASSWORD', '')
+
+# 根据是否有密码生成 URL
+if REDIS_PASSWORD:
+    REDIS_URL = f'redis://:{REDIS_PASSWORD}@{REDIS_HOST}:{REDIS_PORT}/0'
+else:
+    REDIS_URL = f'redis://{REDIS_HOST}:{REDIS_PORT}/0'
+
+REDIS_KEY = f'{{project_name}}:fingerprint'
+REDIS_TTL = 0
+CLEANUP_FP = 0
+FILTER_DEBUG = True
+DECODE_RESPONSES = True
+
+# ============================== 中间件配置 ==============================
+
+MIDDLEWARES = [
+    # === 请求预处理阶段 ===
+    'crawlo.middleware.request_ignore.RequestIgnoreMiddleware',
+    'crawlo.middleware.download_delay.DownloadDelayMiddleware',
+    'crawlo.middleware.default_header.DefaultHeaderMiddleware',
+    'crawlo.middleware.proxy.ProxyMiddleware',
+    
+    # === 响应处理阶段 ===
+    'crawlo.middleware.retry.RetryMiddleware',
+    'crawlo.middleware.response_code.ResponseCodeMiddleware',
+    'crawlo.middleware.response_filter.ResponseFilterMiddleware',
+]
+
+# ============================== 数据管道配置 ==============================
+
+PIPELINES = [
+    'crawlo.pipelines.console_pipeline.ConsolePipeline',
+    # '{{project_name}}.pipelines.DatabasePipeline',        # 自定义数据库管道
+    # 'crawlo.pipelines.mysql_pipeline.AsyncmyMySQLPipeline',  # MySQL 存储
+    # 'crawlo.pipelines.mongo_pipeline.MongoPipeline',      # MongoDB 存储
+]
+
+# ============================== 扩展组件 ==============================
+
+EXTENSIONS = [
+    'crawlo.extension.log_interval.LogIntervalExtension',
+    'crawlo.extension.log_stats.LogStats',
+    'crawlo.extension.logging_extension.CustomLoggerExtension',
+]
+
+# ============================== 日志配置 ==============================
+
+LOG_LEVEL = 'INFO'
+STATS_DUMP = True
+LOG_FILE = f'logs/{{project_name}}.log'
+LOG_FORMAT = '%(asctime)s - [%(name)s] - %(levelname)s： %(message)s'
+LOG_ENCODING = 'utf-8'
+
+# ============================== 代理配置 ==============================
+
+PROXY_ENABLED = False
+PROXY_API_URL = ""  # 请填入真实的代理API地址
+PROXY_EXTRACTOR = "proxy"
+PROXY_REFRESH_INTERVAL = 60
+PROXY_API_TIMEOUT = 10
+
+# ============================== 浏览器指纹配置 ==============================
+
+# CurlCffi 下载器专用配置
+CURL_BROWSER_TYPE = "chrome"
+CURL_BROWSER_VERSION_MAP = {
+    "chrome": "chrome136",
+    "edge": "edge101",
+    "safari": "safari184",
+    "firefox": "firefox135",
+}
+
+# 默认请求头
+DEFAULT_REQUEST_HEADERS = {
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 '
+                  '(KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36',
+    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+    'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
+    'Accept-Encoding': 'gzip, deflate, br',
+    'Connection': 'keep-alive',
+    'Upgrade-Insecure-Requests': '1',
+}
+
+# ============================== 开发与调试 ==============================
+
+# 开发模式配置
+DEBUG = False
+TESTING = False
+
+# 性能监控
+ENABLE_PERFORMANCE_MONITORING = True
+MEMORY_USAGE_WARNING_THRESHOLD = 500  # MB
+
+# ============================== 自定义配置区域 ==============================
+# 在此处添加项目特定的配置项
+
+# 示例：目标网站特定配置
+# TARGET_DOMAIN = '{{domain}}'
+# MAX_PAGES_PER_DOMAIN = 10000
+# CUSTOM_RATE_LIMIT = 1.5

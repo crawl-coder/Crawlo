@@ -1,0 +1,336 @@
+# -*- coding: UTF-8 -*-
+"""
+{{project_name}}.pipelines
+==========================
+数据管道，用于处理 Spider 返回的 Item。
+例如：清理、验证、去重、保存到数据库等。
+
+支持异步并发处理和多种存储后端。
+"""
+
+import json
+import asyncio
+from typing import Dict, Any
+from datetime import datetime
+from crawlo.exceptions import DropItem
+from crawlo.utils.log import get_logger
+
+
+class ValidationPipeline:
+    """
+    数据验证管道。
+    
+    验证必要字段是否存在，过滤无效数据。
+    """
+    
+    def __init__(self):
+        self.logger = get_logger(self.__class__.__name__)
+        # 必要字段列表（根据实际需要修改）
+        self.required_fields = ['title', 'url']
+    
+    def process_item(self, item, spider):
+        """验证数据项。"""
+        # 检查必要字段
+        for field in self.required_fields:
+            if not item.get(field):
+                raise DropItem(f"缺少必要字段: {field}")
+        
+        # 数据清理
+        if 'title' in item:
+            item['title'] = str(item['title']).strip()
+        
+        # 添加时间戳
+        item['crawled_at'] = datetime.now().isoformat()
+        
+        self.logger.debug(f"数据验证通过: {item.get('url', 'Unknown URL')}")
+        return item
+
+
+class PrintItemPipeline:
+    """
+    简单的打印管道，用于调试。
+    """
+    
+    def __init__(self):
+        self.logger = get_logger(self.__class__.__name__)
+        self.item_count = 0
+
+    def process_item(self, item, spider):
+        """打印数据项。"""
+        self.item_count += 1
+        self.logger.info(f"[第{self.item_count}个数据] {json.dumps(dict(item), ensure_ascii=False, indent=2)}")
+        return item
+
+
+class DuplicatesPipeline:
+    """
+    去重管道。
+    
+    基于指定字段进行去重，防止重复数据。
+    """
+    
+    def __init__(self):
+        self.logger = get_logger(self.__class__.__name__)
+        self.seen = set()
+        # 去重字段（可以是 'url', 'id', 或其他唯一标识）
+        self.duplicate_field = 'url'
+        self.drop_count = 0
+
+    def process_item(self, item, spider):
+        """检查并去除重复数据。"""
+        identifier = item.get(self.duplicate_field)
+        
+        if not identifier:
+            self.logger.warning(f"数据项缺少去重字段 '{self.duplicate_field}'，跳过去重检查")
+            return item
+        
+        if identifier in self.seen:
+            self.drop_count += 1
+            self.logger.debug(f"发现重复数据: {identifier} (已过滤{self.drop_count}个)")
+            raise DropItem(f"重复数据: {identifier}")
+        
+        self.seen.add(identifier)
+        return item
+    
+    def close_spider(self, spider):
+        """爬虫结束时输出统计信息。"""
+        self.logger.info(f"去重管道统计: 已过滤{self.drop_count}个重复数据，唯一数据{len(self.seen)}个")
+
+
+class JsonFilesPipeline:
+    """
+    JSON 文件存储管道。
+    
+    将每个数据项保存为单独的 JSON 文件。
+    """
+    
+    def __init__(self, output_dir='output'):
+        self.logger = get_logger(self.__class__.__name__)
+        self.output_dir = output_dir
+        self.file_count = 0
+    
+    @classmethod
+    def from_crawler(cls, crawler):
+        """从爬虫配置创建管道实例。"""
+        output_dir = crawler.settings.get('JSON_OUTPUT_DIR', 'output')
+        return cls(output_dir=output_dir)
+    
+    def open_spider(self, spider):
+        """爬虫启动时创建输出目录。"""
+        import os
+        os.makedirs(self.output_dir, exist_ok=True)
+        self.logger.info(f"JSON 文件将保存到: {self.output_dir}")
+    
+    def process_item(self, item, spider):
+        """将数据项保存为 JSON 文件。"""
+        self.file_count += 1
+        filename = f"{spider.name}_{self.file_count:06d}.json"
+        filepath = f"{self.output_dir}/{filename}"
+        
+        with open(filepath, 'w', encoding='utf-8') as f:
+            json.dump(dict(item), f, ensure_ascii=False, indent=2)
+        
+        self.logger.debug(f"已保存: {filepath}")
+        return item
+
+
+class DatabasePipeline:
+    """
+    数据库存储管道示例。
+    
+    支持 MySQL 和 MongoDB，可根据需要选择。
+    """
+    
+    def __init__(self, database_type='mysql'):
+        self.logger = get_logger(self.__class__.__name__)
+        self.database_type = database_type
+        self.connection = None
+        self.batch_items = []
+        self.batch_size = 100  # 批量写入大小
+    
+    @classmethod
+    def from_crawler(cls, crawler):
+        """从爬虫配置创建管道实例。"""
+        db_type = crawler.settings.get('DATABASE_TYPE', 'mysql')
+        return cls(database_type=db_type)
+    
+    async def open_spider(self, spider):
+        """爬虫启动时连接数据库。"""
+        if self.database_type == 'mysql':
+            await self._connect_mysql(spider)
+        elif self.database_type == 'mongodb':
+            await self._connect_mongodb(spider)
+        else:
+            raise ValueError(f"不支持的数据库类型: {self.database_type}")
+    
+    async def _connect_mysql(self, spider):
+        """连接 MySQL 数据库。"""
+        try:
+            import aiomysql
+            
+            settings = spider.crawler.settings
+            self.connection = await aiomysql.connect(
+                host=settings.get('MYSQL_HOST', '127.0.0.1'),
+                port=settings.get('MYSQL_PORT', 3306),
+                user=settings.get('MYSQL_USER', 'root'),
+                password=settings.get('MYSQL_PASSWORD', ''),
+                db=settings.get('MYSQL_DB', '{{project_name}}'),
+                charset='utf8mb4',
+                autocommit=True
+            )
+            
+            # 创建表（如果不存在）
+            await self._create_mysql_table(spider)
+            self.logger.info("已连接到 MySQL 数据库")
+            
+        except ImportError:
+            self.logger.error("缺少 aiomysql 依赖，请安装: pip install aiomysql")
+            raise
+        except Exception as e:
+            self.logger.error(f"MySQL 连接失败: {e}")
+            raise
+    
+    async def _connect_mongodb(self, spider):
+        """连接 MongoDB 数据库。"""
+        try:
+            from motor.motor_asyncio import AsyncIOMotorClient
+            
+            settings = spider.crawler.settings
+            mongo_uri = settings.get('MONGO_URI', 'mongodb://localhost:27017')
+            
+            self.connection = AsyncIOMotorClient(mongo_uri)
+            self.database = self.connection[settings.get('MONGO_DATABASE', '{{project_name}}_db')]
+            self.collection = self.database[settings.get('MONGO_COLLECTION', '{{project_name}}_items')]
+            
+            self.logger.info("已连接到 MongoDB 数据库")
+            
+        except ImportError:
+            self.logger.error("缺少 motor 依赖，请安装: pip install motor")
+            raise
+        except Exception as e:
+            self.logger.error(f"MongoDB 连接失败: {e}")
+            raise
+    
+    async def _create_mysql_table(self, spider):
+        """创建 MySQL 表结构。"""
+        table_name = spider.crawler.settings.get('MYSQL_TABLE', '{{project_name}}_data')
+        
+        create_sql = f"""
+        CREATE TABLE IF NOT EXISTS `{table_name}` (
+            `id` bigint AUTO_INCREMENT PRIMARY KEY,
+            `title` varchar(500) DEFAULT NULL,
+            `url` varchar(1000) NOT NULL,
+            `content` text DEFAULT NULL,
+            `crawled_at` datetime DEFAULT CURRENT_TIMESTAMP,
+            `spider_name` varchar(100) DEFAULT NULL,
+            `extra_data` json DEFAULT NULL,
+            UNIQUE KEY `unique_url` (`url`(255)),
+            INDEX `idx_spider_name` (`spider_name`),
+            INDEX `idx_crawled_at` (`crawled_at`)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+        """
+        
+        async with self.connection.cursor() as cursor:
+            await cursor.execute(create_sql)
+            self.logger.info(f"表 '{table_name}' 准备就绪")
+    
+    async def process_item(self, item, spider):
+        """处理数据项（批量存储）。"""
+        self.batch_items.append(dict(item))
+        
+        # 批量存储
+        if len(self.batch_items) >= self.batch_size:
+            await self._save_batch(spider)
+        
+        return item
+    
+    async def _save_batch(self, spider):
+        """批量保存数据。"""
+        if not self.batch_items:
+            return
+        
+        try:
+            if self.database_type == 'mysql':
+                await self._save_to_mysql(spider)
+            elif self.database_type == 'mongodb':
+                await self._save_to_mongodb(spider)
+            
+            self.logger.info(f"批量保存 {len(self.batch_items)} 条数据")
+            self.batch_items.clear()
+            
+        except Exception as e:
+            self.logger.error(f"批量保存失败: {e}")
+            # 可以选择重试或记录失败数据
+    
+    async def _save_to_mysql(self, spider):
+        """保存到 MySQL。"""
+        table_name = spider.crawler.settings.get('MYSQL_TABLE', '{{project_name}}_data')
+        
+        insert_sql = f"""
+        INSERT INTO `{table_name}` 
+        (`title`, `url`, `content`, `spider_name`, `extra_data`)
+        VALUES (%s, %s, %s, %s, %s)
+        ON DUPLICATE KEY UPDATE
+        `title` = VALUES(`title`),
+        `content` = VALUES(`content`),
+        `crawled_at` = CURRENT_TIMESTAMP
+        """
+        
+        async with self.connection.cursor() as cursor:
+            batch_data = []
+            for item in self.batch_items:
+                # 提取标准字段
+                title = item.get('title', '')[:500]  # 限制长度
+                url = item.get('url', '')
+                content = item.get('content', '')
+                
+                # 其他字段作为 JSON 存储
+                extra_fields = {k: v for k, v in item.items() 
+                              if k not in ['title', 'url', 'content']}
+                extra_data = json.dumps(extra_fields, ensure_ascii=False) if extra_fields else None
+                
+                batch_data.append((title, url, content, spider.name, extra_data))
+            
+            await cursor.executemany(insert_sql, batch_data)
+    
+    async def _save_to_mongodb(self, spider):
+        """保存到 MongoDB。"""
+        # 为每个数据项添加 spider_name
+        for item in self.batch_items:
+            item['spider_name'] = spider.name
+        
+        # 批量插入
+        await self.collection.insert_many(self.batch_items)
+    
+    async def close_spider(self, spider):
+        """爬虫结束时保存剩余数据并关闭连接。"""
+        # 保存剩余数据
+        if self.batch_items:
+            await self._save_batch(spider)
+        
+        # 关闭连接
+        if self.connection:
+            if self.database_type == 'mysql':
+                self.connection.close()
+            elif self.database_type == 'mongodb':
+                self.connection.close()
+            
+            self.logger.info("数据库连接已关闭")
+
+
+# ======================== 使用说明 ========================
+# 
+# 在 settings.py 中启用管道：
+# PIPELINES = [
+#     '{{project_name}}.pipelines.ValidationPipeline',      # 数据验证
+#     '{{project_name}}.pipelines.DuplicatesPipeline',       # 去重过滤
+#     '{{project_name}}.pipelines.PrintItemPipeline',        # 打印输出（调试）
+#     '{{project_name}}.pipelines.JsonFilesPipeline',        # JSON 文件存储
+#     '{{project_name}}.pipelines.DatabasePipeline',         # 数据库存储
+# ]
+# 
+# 相关配置：
+# JSON_OUTPUT_DIR = 'output'          # JSON 文件输出目录
+# DATABASE_TYPE = 'mysql'             # 数据库类型: mysql/mongodb
+# MYSQL_TABLE = '{{project_name}}_data'  # MySQL 表名
+# ======================== 使用说明 ========================

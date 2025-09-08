@@ -1,0 +1,87 @@
+# -*- coding: UTF-8 -*-
+"""
+{{project_name}}.middlewares
+============================
+自定义中间件，用于在请求/响应/异常处理过程中插入自定义逻辑。
+"""
+
+import random
+from crawlo import Request, Response
+from crawlo.utils.log import get_logger
+from crawlo.exceptions import IgnoreRequest
+
+
+class RandomUserAgentMiddleware:
+    """随机 User-Agent 中间件。"""
+    
+    def __init__(self):
+        self.logger = get_logger(self.__class__.__name__)
+        self.user_agents = [
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36',
+            'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36',
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:135.0) Gecko/20100101 Firefox/135.0',
+            'Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:135.0) Gecko/20100101 Firefox/135.0',
+        ]
+    
+    def process_request(self, request, spider):
+        if 'User-Agent' not in request.headers:
+            ua = random.choice(self.user_agents)
+            request.headers['User-Agent'] = ua
+        return None
+
+
+class CustomDownloaderMiddleware:
+    """自定义下载器中间件示例。"""
+
+    def __init__(self):
+        self.logger = get_logger(self.__class__.__name__)
+
+    def process_request(self, request, spider):
+        """在请求被下载器执行前调用。"""
+        # 示例：添加自定义请求头
+        # request.headers['Custom-Header'] = 'Custom-Value'
+        # 示例：设置代理
+        # request.meta['proxy'] = 'http://proxy.example.com:8080'
+        return None
+
+    def process_response(self, request, response, spider):
+        """在响应被 Spider 处理前调用。"""
+        # 示例：检查响应状态
+        if response.status_code == 403:
+            self.logger.warning(f"访问被拒绝: {request.url}")
+        return response
+
+    def process_exception(self, request, exception, spider):
+        """在下载或处理过程中发生异常时调用。"""
+        self.logger.error(f"请求异常: {request.url} - {exception}")
+        return None
+
+
+class CustomSpiderMiddleware:
+    """
+Spider 中间件示例。
+    """
+
+    def __init__(self):
+        self.logger = get_logger(self.__class__.__name__)
+
+    def process_spider_input(self, response, spider):
+        """在 Spider 的 parse 方法被调用前调用。"""
+        # 可以用来验证响应
+        pass
+
+    def process_spider_output(self, response, result, spider):
+        """在 Spider 的 parse 方法返回结果后调用。"""
+        # 可以用来过滤或修改结果
+        for item in result:
+            yield item
+
+    def process_spider_exception(self, response, exception, spider):
+        """在 Spider 的 parse 方法抛出异常时调用。"""
+        self.logger.error(f"Spider 异常: {response.url} - {exception}")
+        pass
+
+    def process_start_requests(self, start_requests, spider):
+        """在 Spider 的 start_requests 生成器被消费时调用。"""
+        for request in start_requests:
+            yield request
