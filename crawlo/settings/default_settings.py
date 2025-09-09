@@ -178,7 +178,7 @@ EXTENSIONS = [
     'crawlo.extension.log_interval.LogIntervalExtension',  # 定时日志
     'crawlo.extension.log_stats.LogStats',  # 统计信息
     'crawlo.extension.logging_extension.CustomLoggerExtension',  # 自定义日志
-    'crawlo.extension.memory_monitor.MemoryMonitorExtension',  # 内存监控
+    # 'crawlo.extension.memory_monitor.MemoryMonitorExtension',  # 内存监控
     # 'crawlo.extension.request_recorder.RequestRecorderExtension',  # 请求记录
     # 'crawlo.extension.performance_profiler.PerformanceProfilerExtension',  # 性能分析
     # 'crawlo.extension.health_check.HealthCheckExtension',  # 健康检查

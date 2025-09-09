@@ -52,3 +52,19 @@ PIPELINES = [
 # ============================== 日志 ==============================
 LOG_LEVEL = 'INFO'
 LOG_FILE = f'logs/{PROJECT_NAME}.log'
+
+REDIS_URL = f'redis://r-2zer2v9lrdl75a694s:tianmai_2018@r-2zer2v9lrdl75a694spd.redis.rds.aliyuncs.com:6379/7'
+
+# ============================== 扩展组件 ==============================
+EXTENSIONS = [
+    'crawlo.extension.log_interval.LogIntervalExtension',
+    'crawlo.extension.log_stats.LogStats',
+    'crawlo.extension.logging_extension.CustomLoggerExtension',
+    'crawlo.extension.memory_monitor.MemoryMonitorExtension',  # 启用内存监控
+]
+
+# ============================== 内存监控配置 ==============================
+MEMORY_MONITOR_ENABLED = True  # 启用内存监控
+MEMORY_MONITOR_INTERVAL = 60  # 内存检查间隔（秒）
+MEMORY_WARNING_THRESHOLD = 80.0  # 内存使用警告阈值（百分比）
+MEMORY_CRITICAL_THRESHOLD = 90.0  # 内存使用严重阈值（百分比）

@@ -34,6 +34,7 @@ class Scheduler:
 
     async def open(self):
         """初始化调度器和队列"""
+        self.logger.info("开始初始化调度器...")
         try:
             # 创建队列配置
             queue_config = QueueConfig.from_settings(self.crawler.settings)
@@ -42,6 +43,7 @@ class Scheduler:
             self.queue_manager = QueueManager(queue_config)
             
             # 初始化队列
+            self.logger.info("开始初始化队列管理器...")
             success = await self.queue_manager.initialize()
             if not success:
                 raise RuntimeError("队列初始化失败")
@@ -50,6 +52,7 @@ class Scheduler:
             status = self.queue_manager.get_status()
             self.logger.info(f'队列类型: {status["type"]}, 状态: {status["health"]}')
             self.logger.info(f'requesting filter: {self.dupe_filter}')
+            self.logger.info("调度器初始化完成")
         except Exception as e:
             self.logger.error(f"❌ 调度器初始化失败: {e}")
             raise
@@ -106,61 +109,3 @@ class Scheduler:
             return 0
         # 返回同步的近似值，实际大小需要异步获取
         return 0 if self.queue_manager.empty() else 1
-
-# #!/usr/bin/python
-# # -*- coding:UTF-8 -*-
-# from typing import Optional, Callable
-#
-# from crawlo.utils.log import get_logger
-# from crawlo.utils.request import set_request
-# from crawlo.utils.pqueue import SpiderPriorityQueue
-# from crawlo.project import load_class, common_call
-#
-#
-# class Scheduler:
-#     def __init__(self, crawler, dupe_filter, stats, log_level, priority):
-#         self.crawler = crawler
-#         self.request_queue: Optional[SpiderPriorityQueue] = None
-#
-#         self.logger = get_logger(name=self.__class__.__name__, level=log_level)
-#         self.stats = stats
-#         self.dupe_filter = dupe_filter
-#         self.priority = priority
-#
-#     @classmethod
-#     def create_instance(cls, crawler):
-#         filter_cls = load_class(crawler.settings.get('FILTER_CLASS'))
-#         o = cls(
-#             crawler=crawler,
-#             dupe_filter=filter_cls.create_instance(crawler),
-#             stats=crawler.stats,
-#             log_level=crawler.settings.get('LOG_LEVEL'),
-#             priority=crawler.settings.get('DEPTH_PRIORITY')
-#         )
-#         return o
-#
-#     def open(self):
-#         self.request_queue = SpiderPriorityQueue()
-#         self.logger.info(f'requesting filter: {self.dupe_filter}')
-#
-#     async def next_request(self):
-#         request = await self.request_queue.get()
-#         return request
-#
-#     async def enqueue_request(self, request):
-#         if not request.dont_filter and await common_call(self.dupe_filter.requested, request):
-#             self.dupe_filter.log_stats(request)
-#             return False
-#         set_request(request, self.priority)
-#         await self.request_queue.put(request)
-#         return True
-#
-#     def idle(self) -> bool:
-#         return len(self) == 0
-#
-#     async def close(self):
-#         if isinstance(closed := getattr(self.dupe_filter, 'closed', None), Callable):
-#             await closed()
-#
-#     def __len__(self):
-#         return self.request_queue.qsize()

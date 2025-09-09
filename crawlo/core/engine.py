@@ -69,7 +69,7 @@ class Engine(object):
         downloader_cls = self._get_downloader_cls()
         self.downloader = downloader_cls(self.crawler)
         if hasattr(self.downloader, 'open'):
-            self.downloader.open()
+            await self.downloader.open()
 
         self.processor = Processor(self.crawler)
         if hasattr(self.processor, 'open'):
