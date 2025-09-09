@@ -140,39 +140,3 @@ class {{class_name}}(Spider):
         # }
         
         pass
-
-    def parse_error(self, failure):
-        """
-        处理请求失败的方法（可选）。
-        
-        当请求失败时会被调用。
-        """
-        self.logger.error(f'请求失败: {failure.request.url} - {failure.value}')
-        
-        # 可以选择重试或记录失败信息
-        # yield {
-        #     'error_url': failure.request.url,
-        #     'error_message': str(failure.value),
-        #     'error_type': failure.type.__name__,
-        # }
-
-    def spider_opened(self, spider):
-        """
-        爬虫启动时的回调方法（可选）。
-        """
-        self.logger.info(f'爬虫 {spider.name} 已启动')
-        
-        # 初始化操作，例如连接数据库、加载配置等
-        # self.database = self.connect_database()
-        # self.cookies = self.load_cookies()
-
-    def spider_closed(self, spider, reason):
-        """
-        爬虫关闭时的回调方法（可选）。
-        """
-        self.logger.info(f'爬虫 {spider.name} 已关闭，原因: {reason}')
-        
-        # 清理操作，例如关闭数据库连接、保存状态等
-        # if hasattr(self, 'database'):
-        #     self.database.close()
-        # self.save_cookies()
