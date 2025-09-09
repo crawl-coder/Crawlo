@@ -90,6 +90,7 @@ MYSQL_PASSWORD = '123456'
 MYSQL_DB = 'crawl'
 MYSQL_TABLE = 'crawlo'
 MYSQL_BATCH_SIZE = 100  # 批量插入条数
+MYSQL_USE_BATCH = False  # 是否启用批量插入
 
 # MySQL 连接池
 MYSQL_FLUSH_INTERVAL = 5  # 缓存刷新间隔（秒）
@@ -103,6 +104,8 @@ MONGO_DATABASE = 'scrapy_data'
 MONGO_COLLECTION = 'crawled_items'
 MONGO_MAX_POOL_SIZE = 200
 MONGO_MIN_POOL_SIZE = 20
+MONGO_BATCH_SIZE = 100  # 批量插入条数
+MONGO_USE_BATCH = False  # 是否启用批量插入
 
 # ============================== 去重过滤配置 ==============================
 

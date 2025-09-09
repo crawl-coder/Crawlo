@@ -120,6 +120,7 @@ MYSQL_PASSWORD = os.getenv('MYSQL_PASSWORD', '123456')
 MYSQL_DB = os.getenv('MYSQL_DB', '{{project_name}}')
 MYSQL_TABLE = '{{project_name}}_data'
 MYSQL_BATCH_SIZE = 100
+MYSQL_USE_BATCH = False  # 是否启用批量插入
 
 # MySQL 连接池
 MYSQL_FLUSH_INTERVAL = 5
@@ -129,10 +130,12 @@ MYSQL_ECHO = False
 
 # --- MongoDB 配置 ---
 MONGO_URI = os.getenv('MONGO_URI', 'mongodb://localhost:27017')
-MONGO_DATABASE = f'{{project_name}}_db'
+MONGO_DATABASE = '{{project_name}}_db'
 MONGO_COLLECTION = '{{project_name}}_items'
 MONGO_MAX_POOL_SIZE = 200
 MONGO_MIN_POOL_SIZE = 20
+MONGO_BATCH_SIZE = 100  # 批量插入条数
+MONGO_USE_BATCH = False  # 是否启用批量插入
 
 # ============================== 去重过滤配置 ==============================
 
