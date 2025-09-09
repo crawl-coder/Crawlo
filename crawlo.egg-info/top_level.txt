@@ -1,3 +1,0 @@
-crawlo
-examples
-tests
