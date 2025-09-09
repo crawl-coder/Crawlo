@@ -1,10 +1,10 @@
 #!/usr/bin/python
 # -*- coding:UTF-8 -*-
-import asyncio
-import cProfile
-import pstats
 import io
 import os
+import pstats
+import asyncio
+import cProfile
 from typing import Any, Optional
 
 from crawlo.utils.log import get_logger

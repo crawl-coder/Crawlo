@@ -1,12 +1,12 @@
 #!/usr/bin/python
 # -*- coding:UTF-8 -*-
-import json
 import os
+import json
 from typing import Any
 from datetime import datetime
 
-from crawlo.utils.log import get_logger
 from crawlo import event
+from crawlo.utils.log import get_logger
 
 
 class RequestRecorderExtension:
