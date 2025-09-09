@@ -33,7 +33,6 @@ class TelecomLicenseItem(Item):
     
     # 分布式特有字段
     id = Field(description="数据唯一ID")
-    fingerprint = Field(description="数据指纹（去重用）")
     crawl_time = Field(description="抓取时间")
     crawl_node = Field(description="爬取节点")
     data_version = Field(description="数据版本")

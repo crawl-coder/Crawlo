@@ -6,6 +6,18 @@
 
 ```
 examples/
+├── api_data_collection/             # API数据采集示例（列表页模式）
+│   ├── crawlo.cfg                   # 项目配置文件
+│   ├── run.py                       # 启动脚本
+│   ├── logs/                        # 日志目录
+│   └── api_data_collection/
+│       ├── __init__.py
+│       ├── settings.py              # 分布式配置
+│       ├── items.py                 # 数据结构定义
+│       └── spiders/
+│           ├── __init__.py
+│           └── api_data.py          # 爬虫实现（列表页模式）
+│
 ├── telecom_licenses_standalone/     # 单机版示例（使用crawlo startproject创建）
 │   ├── crawlo.cfg                   # 项目配置文件
 │   ├── run.py                       # 启动脚本
@@ -50,6 +62,12 @@ examples/
 - **数据规模**: 约26,405页数据
 - **数据清洗**: 自动移除HTML标签和格式化
 
+### 分布式模式对比
+本目录包含了 Crawlo 框架支持的两种主要分布式爬虫模式：
+
+1. **列表页直接获取数据模式**：参见 [api_data_collection](api_data_collection/) 示例
+2. **传统列表-详情页模式**：参见 [telecom_licenses_distributed](telecom_licenses_distributed/) 示例
+
 ### 数据字段映射
 根据框架默认配置规范定义数据结构：
 
@@ -66,6 +84,50 @@ examples/
 | remarks | 备注 | articleField09 |
 | certificate_status | 证书状态 | articleField10 |
 | origin | 原产地 | articleField11 |
+
+## 🚀 快速开始
+
+### API数据采集示例 (api_data_collection)
+
+此示例演示了列表页直接获取数据的分布式爬虫模式，适用于API返回完整数据的场景。
+
+#### 1. 进入项目目录
+```bash
+cd examples/api_data_collection
+```
+
+#### 2. 检查 Redis 连接
+```bash
+python run.py api_data --check-redis
+```
+
+#### 3. 启动分布式爬虫
+
+**单机多进程:**
+```bash
+# 终端1
+python run.py api_data
+
+# 终端2 (同时运行)
+python run.py api_data --concurrency 32
+```
+
+**多机分布式:**
+```bash
+# 机器A (Redis服务器)
+python run.py api_data
+
+# 机器B
+python run.py api_data --redis-host 192.168.1.100 --concurrency 32
+
+# 机器C
+python run.py api_data --redis-host 192.168.1.100 --concurrency 24
+```
+
+### 详细文档
+有关这两种分布式模式的详细信息，请参阅：
+- [分布式模式详解（中文）](../docs/distributed_crawling_patterns_zh.md)
+- [Distributed Patterns (English)](../docs/distributed_crawling_patterns.md)
 
 ## 🚀 快速开始
 

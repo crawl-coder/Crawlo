@@ -53,15 +53,27 @@ markdown_extensions:
 
 # Navigation
 nav:
-  - 首页: index_zh.md
-  - 快速入门:
+  - Home: 
+      - index.md
+      - index_zh.md
+  - Getting Started:
+      - Quick Start Guide: quick_start_guide.md
       - 快速入门指南: quick_start_guide_zh.md
+      - Framework Documentation: crawlo_framework_documentation.md
       - 框架完整文档: crawlo_framework_documentation_zh.md
-  - 核心功能:
+  - Core Features:
+      - API Reference: api_reference.md
       - API 参考: api_reference_zh.md
+      - Distributed Crawling Tutorial: distributed_crawling_tutorial.md
       - 分布式爬取教程: distributed_crawling_tutorial_zh.md
+      - Distributed Patterns: distributed_crawling_patterns.md
+      - 分布式模式详解: distributed_crawling_patterns_zh.md
+      - Configuration Best Practices: configuration_best_practices.md
       - 配置最佳实践: configuration_best_practices_zh.md
-  - 示例项目: 
+  - Examples:
+      - Overview: ../examples/README.md
       - 项目概述: ../examples/README.md
+      - Standalone Example: ../examples/telecom_licenses_standalone/README.md
       - 单机版示例: ../examples/telecom_licenses_standalone/README.md
+      - Distributed Example: ../examples/telecom_licenses_distributed/README.md
       - 分布式示例: ../examples/telecom_licenses_distributed/README.md

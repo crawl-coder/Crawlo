@@ -18,6 +18,15 @@ Crawlo provides:
 - **High-Performance Architecture**: Built on `asyncio`, supports multiple downloaders (aiohttp, httpx, curl-cffi), and includes intelligent middleware for deduplication, retries, and proxy support
 - **Monitoring and Management**: Real-time statistics, structured logging, health checks, and performance analysis tools
 
+## Distributed Crawling Patterns
+
+Crawlo supports two main distributed crawling patterns:
+
+1. **List-Only Data Retrieval**: For APIs or list pages that directly return complete data
+2. **Traditional List-Detail Pattern**: For scenarios requiring detail page parsing
+
+For detailed information about these patterns, see [Distributed Patterns](distributed_crawling_patterns.md).
+
 ## Getting Started
 
 To get started with Crawlo, read the [Quick Start Guide](quick_start_guide.md) which will walk you through creating your first project and running your first spider.

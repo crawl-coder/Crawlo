@@ -86,19 +86,25 @@ class TelecomDeviceSpider(Spider):
         return f"{hostname}-{pid}-{timestamp}"
     
     def start_requests(self):
-        """从第一页开始，逐页发起请求"""
+        """生成所有页面的请求，让多个节点可以并行处理"""
         logger.info(f"🌐 分布式节点 {self.node_id} 开始生成请求")
         
-        yield Request(
-            url=self.base_api_url,
-            method='POST',
-            headers=HEADERS,
-            cookies=COOKIES,
-            body=json.dumps(self.data),
-            callback=self.parse,
-            meta={'page': 1, 'node_id': self.node_id},
-            dont_filter=True
-        )
+        # 生成所有页面的请求
+        for page in range(self.start_page, self.end_page + 1):
+            page_data = self.data.copy()
+            page_data['currentPage'] = page
+            
+            yield Request(
+                url=self.base_api_url,
+                method='POST',
+                headers=HEADERS,
+                cookies=COOKIES,
+                body=json.dumps(page_data),
+                callback=self.parse,
+                meta={'page': page, 'node_id': self.node_id},
+                # 在分布式环境中，启用去重机制避免重复请求
+                dont_filter=False
+            )
     
     def parse(self, response):
         """
@@ -155,27 +161,9 @@ class TelecomDeviceSpider(Spider):
                 item['crawl_node'] = node_id
                 item['data_version'] = '1.0'
                 item['id'] = self._generate_unique_id(item)
-                item['fingerprint'] = self._generate_fingerprint(item)
                 
                 yield item
-            
-            # --- 自动翻页逻辑 ---
-            # 检查是否还有下一页
-            if page < self.end_page:
-                next_page = page + 1
-                self.data['currentPage'] = next_page
-                logger.debug(f"[节点 {node_id}] 准备爬取下一页: {next_page}")
-                yield Request(
-                    url=self.base_api_url,
-                    method='POST',
-                    headers=HEADERS,
-                    cookies=COOKIES,
-                    body=json.dumps(self.data),
-                    callback=self.parse,
-                    meta={'page': next_page, 'node_id': node_id},
-                    dont_filter=True
-                )
-        
+                
         except Exception as e:
             logger.error(f"[节点 {node_id}] 解析第 {page} 页响应失败: {e}", exc_info=True)
     
@@ -185,18 +173,6 @@ class TelecomDeviceSpider(Spider):
         article_id = item.get('article_id', '')
         unique_string = f"{license_number}_{article_id}"
         return hashlib.md5(unique_string.encode()).hexdigest()
-    
-    def _generate_fingerprint(self, item):
-        """生成数据指纹用于分布式去重"""
-        key_fields = [
-            item.get('license_number', ''),
-            item.get('device_name', ''),
-            item.get('device_model', ''),
-            item.get('manufacturer', ''),
-            item.get('article_id', '')
-        ]
-        fingerprint_string = '|'.join(key_fields)
-        return hashlib.sha256(fingerprint_string.encode()).hexdigest()
     
     @staticmethod
     def clean_item(item: dict) -> dict:
