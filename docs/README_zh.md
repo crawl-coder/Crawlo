@@ -9,7 +9,9 @@
 3. [API 参考](api_reference_zh.md) - 所有类和方法的详细文档
 4. [分布式爬取教程](distributed_crawling_tutorial_zh.md) - 分布式爬取的完整指南
 5. [配置最佳实践](configuration_best_practices_zh.md) - 配置 Crawlo 项目的指南
-6. [示例](../examples/) - 展示如何使用 Crawlo 的真实示例
+6. [去重管道指南](deduplication_pipelines_guide.md) - 所有去重管道的详细指南
+7. [去重配置说明](deduplication_configuration_zh.md) - 如何为不同模式配置去重
+8. [示例](../examples/) - 展示如何使用 Crawlo 的真实示例
 
 ## 概述
 
@@ -33,6 +35,8 @@ Crawlo 提供：
 有关分布式爬取的完整指南，请参阅[分布式爬取教程](distributed_crawling_tutorial_zh.md)。
 
 有关配置项目的指南，请参阅[配置最佳实践](configuration_best_practices_zh.md)。
+
+有关去重管道的信息，请参阅[去重管道指南](deduplication_pipelines_guide.md)和[去重配置说明](deduplication_configuration_zh.md)。
 
 ## 示例
 

@@ -76,3 +76,7 @@ class SpiderCreationError(Exception):
 class ItemValidationError(Exception):
     """Item 字段验证错误"""
     pass
+
+
+class DropItem(Exception):
+    pass

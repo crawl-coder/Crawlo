@@ -20,6 +20,10 @@ api_data_collection/
     ├── __init__.py
     ├── settings.py              # 分布式配置
     ├── items.py                 # 数据结构定义
+    ├── pipelines.py             # 数据处理管道
+    ├── redis_pipelines.py       # 基于Redis的去重管道
+    ├── bloom_pipelines.py       # 基于布隆过滤器的管道
+    ├── db_pipelines.py          # 基于数据库的管道
     └── spiders/
         ├── __init__.py
         └── api_data.py         # 爬虫实现（列表页模式）
@@ -50,6 +54,35 @@ def start_requests(self):
             dont_filter=False  # 启用去重
         )
 ```
+
+## 🔍 去重机制
+
+Crawlo 框架提供了两种层面的去重机制：
+
+### 1. 请求层面去重（框架内置）
+- **目的**：防止重复发送网络请求
+- **实现**：由 Crawlo 框架自动处理（AioRedisFilter）
+- **配置**：
+  ```python
+  DUPEFILTER_CLASS = 'crawlo.filters.aioredis_filter.AioRedisFilter'
+  SCHEDULER = 'crawlo.scheduler.redis_scheduler.RedisScheduler'
+  ```
+
+### 2. 数据项层面去重（基于管道）
+- **目的**：防止保存重复的数据项
+- **实现**：在 `pipelines.py`、`redis_pipelines.py` 等自定义管道中实现
+- **使用**：在 `settings.py` 中取消注释所需的管道
+
+### 核心区别
+
+| 方面 | AioRedisFilter | RedisDeduplicationPipeline |
+|------|----------------|---------------------------|
+| **层面** | 请求层面 | 数据项层面 |
+| **时机** | 请求发送前 | 数据保存前 |
+| **依据** | 请求指纹（URL、方法、参数等） | 数据内容（字段值） |
+| **位置** | 框架核心 | 用户自定义管道 |
+
+有关详细对比，请参阅 [filter_vs_pipeline_comparison.md](filter_vs_pipeline_comparison.md)。
 
 ## 🚀 运行爬虫
 

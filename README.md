@@ -52,6 +52,8 @@
 ### 高级主题
 - [分布式爬取教程](docs/distributed_crawling_tutorial_zh.md) - 分布式爬取的完整指南
 - [配置最佳实践](docs/configuration_best_practices_zh.md) - 配置 Crawlo 项目的指南
+- [去重管道指南](docs/deduplication_pipelines_guide.md) - 所有去重管道的详细指南
+- [去重配置说明](docs/deduplication_configuration_zh.md) - 如何为不同模式配置去重
 - [示例项目](examples/) - 真实项目的完整示例
 
 ---
@@ -68,6 +70,8 @@ Comprehensive framework documentation is now available in both Chinese and Engli
 ### Advanced Topics
 - [Distributed Crawling Tutorial](docs/distributed_crawling_tutorial.md) - Complete guide to setting up distributed crawling
 - [Configuration Best Practices](docs/configuration_best_practices.md) - Guidelines for configuring Crawlo projects
+- [Deduplication Pipelines Guide](docs/deduplication_pipelines_guide.md) - Detailed guide to all deduplication pipelines
+- [Deduplication Configuration](docs/deduplication_configuration.md) - How to configure deduplication for different modes
 
 ---
 
@@ -392,6 +396,27 @@ PIPELINES = [
     'crawlo.pipelines.mongo_pipeline.MongoPoolPipeline',         # MongoDB 连接池版本
 ]
 ```
+
+### 智能去重配置
+
+Crawlo 框架根据运行模式自动选择合适的去重管道：
+
+- **单机模式**：默认使用内存去重管道 ([MemoryDedupPipeline](file://d:/dowell/projects/Crawlo/crawlo/pipelines/memory_dedup_pipeline.py#L25-L115))
+- **分布式模式**：默认使用 Redis 去重管道 ([RedisDedupPipeline](file://d:/dowell/projects/Crawlo/crawlo/pipelines/redis_dedup_pipeline.py#L33-L162))
+
+用户也可以手动指定其他去重管道：
+
+```python
+# settings.py
+ITEM_PIPELINES = {
+    'crawlo.pipelines.BloomDedupPipeline': 100,  # 使用Bloom Filter去重
+    'crawlo.pipelines.ConsolePipeline': 300,
+}
+```
+
+更多去重配置信息请参阅：
+- [去重管道指南](docs/deduplication_pipelines_guide.md)
+- [去重配置说明](docs/deduplication_configuration_zh.md)
 
 ---
 

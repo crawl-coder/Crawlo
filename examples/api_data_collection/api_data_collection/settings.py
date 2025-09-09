@@ -79,10 +79,33 @@ MIDDLEWARES = [
     'crawlo.middleware.response_filter.ResponseFilterMiddleware',
 ]
 
+# 使用内存去重（适用于单节点）
 PIPELINES = [
-    'crawlo.pipelines.console_pipeline.ConsolePipeline',
+    'api_data_collection.pipelines.DeduplicationPipeline',  # 数据项去重
+    'api_data_collection.pipelines.ConsolePipeline',  # 控制台输出
     # 'crawlo.pipelines.mysql_pipeline.AsyncmyMySQLPipeline',  # 可选：数据库存储
 ]
+
+# 使用 Redis 去重（适用于分布式）
+# PIPELINES = [
+#     'api_data_collection.redis_pipelines.RedisDeduplicationPipeline',  # 分布式数据项去重
+#     'api_data_collection.pipelines.ConsolePipeline',  # 控制台输出
+#     # 'crawlo.pipelines.mysql_pipeline.AsyncmyMySQLPipeline',  # 可选：数据库存储
+# ]
+
+# 使用 Bloom Filter 去重（适用于大规模数据）
+# PIPELINES = [
+#     'api_data_collection.bloom_pipelines.BloomDeduplicationPipeline',  # 高效数据项去重
+#     'api_data_collection.pipelines.ConsolePipeline',  # 控制台输出
+#     # 'crawlo.pipelines.mysql_pipeline.AsyncmyMySQLPipeline',  # 可选：数据库存储
+# ]
+
+# 使用数据库去重（适用于需要持久化去重信息）
+# PIPELINES = [
+#     'api_data_collection.db_pipelines.DatabaseDeduplicationPipeline',  # 数据库去重
+#     'api_data_collection.pipelines.ConsolePipeline',  # 控制台输出
+#     # 'crawlo.pipelines.mysql_pipeline.AsyncmyMySQLPipeline',  # 可选：数据库存储
+# ]
 
 # ============================== 日志配置 ==============================
 LOG_LEVEL = 'INFO'

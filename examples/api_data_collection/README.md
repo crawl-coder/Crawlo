@@ -20,6 +20,10 @@ api_data_collection/
     ├── __init__.py
     ├── settings.py              # Distributed configuration
     ├── items.py                 # Data structure definition
+    ├── pipelines.py             # Data processing pipelines
+    ├── redis_pipelines.py       # Redis-based deduplication pipeline
+    ├── bloom_pipelines.py       # Bloom filter-based pipeline
+    ├── db_pipelines.py          # Database-based pipeline
     └── spiders/
         ├── __init__.py
         └── api_data.py         # Spider implementation (list-only pattern)
@@ -50,6 +54,35 @@ def start_requests(self):
             dont_filter=False  # Enable deduplication
         )
 ```
+
+## 🔍 Deduplication Mechanisms
+
+Crawlo framework provides two levels of deduplication:
+
+### 1. Request-Level Deduplication (Built-in)
+- **Purpose**: Prevent duplicate network requests
+- **Implementation**: Automatically handled by Crawlo framework (AioRedisFilter)
+- **Configuration**: 
+  ```python
+  DUPEFILTER_CLASS = 'crawlo.filters.aioredis_filter.AioRedisFilter'
+  SCHEDULER = 'crawlo.scheduler.redis_scheduler.RedisScheduler'
+  ```
+
+### 2. Item-Level Deduplication (Pipeline-based)
+- **Purpose**: Prevent duplicate data items from being saved
+- **Implementation**: Custom pipelines in `pipelines.py`, `redis_pipelines.py`, etc.
+- **Usage**: Uncomment desired pipeline in `settings.py`
+
+### Key Differences
+
+| Aspect | AioRedisFilter | RedisDeduplicationPipeline |
+|--------|----------------|---------------------------|
+| **Level** | Request-level | Item-level |
+| **Timing** | Before request | Before saving data |
+| **Based on** | Request fingerprint (URL, method, params) | Data content (item fields) |
+| **Location** | Framework core | User-defined pipeline |
+
+For detailed comparison, see [filter_vs_pipeline_comparison.md](filter_vs_pipeline_comparison.md).
 
 ## 🚀 Running the Spider
 

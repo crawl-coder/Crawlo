@@ -9,7 +9,9 @@ Welcome to the Crawlo framework documentation. Crawlo is a modern, high-performa
 3. [API Reference](api_reference.md) - Detailed documentation of all classes and methods
 4. [Distributed Crawling Tutorial](distributed_crawling_tutorial.md) - Complete guide to setting up distributed crawling
 5. [Configuration Best Practices](configuration_best_practices.md) - Guidelines for configuring Crawlo projects
-6. [Examples](../examples/) - Real-world examples showing how to use Crawlo
+6. [Deduplication Pipelines Guide](deduplication_pipelines_guide.md) - Detailed guide to all deduplication pipelines
+7. [Deduplication Configuration](deduplication_configuration.md) - How to configure deduplication for different modes
+8. [Examples](../examples/) - Real-world examples showing how to use Crawlo
 
 ## Overview
 
@@ -33,6 +35,8 @@ For detailed information about specific classes and methods, refer to the [API R
 For a complete guide to distributed crawling, see the [Distributed Crawling Tutorial](distributed_crawling_tutorial.md).
 
 For guidelines on configuring your projects, see [Configuration Best Practices](configuration_best_practices.md).
+
+For information about deduplication pipelines, see [Deduplication Pipelines Guide](deduplication_pipelines_guide.md) and [Deduplication Configuration](deduplication_configuration.md).
 
 ## Examples
 

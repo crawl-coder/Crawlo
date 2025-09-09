@@ -109,6 +109,16 @@ MONGO_MIN_POOL_SIZE = 20
 # 请求指纹存储目录（文件过滤器使用）
 REQUEST_DIR = '.'
 
+# 根据运行模式自动选择去重管道
+# 单机模式默认使用内存去重管道
+# 分布式模式默认使用Redis去重管道
+if RUN_MODE == 'distributed':
+    # 分布式模式下默认使用Redis去重管道
+    DEFAULT_DEDUP_PIPELINE = 'crawlo.pipelines.RedisDedupPipeline'
+else:
+    # 单机模式下默认使用内存去重管道
+    DEFAULT_DEDUP_PIPELINE = 'crawlo.pipelines.MemoryDedupPipeline'
+
 # 去重过滤器类（二选一）
 FILTER_CLASS = 'crawlo.filters.memory_filter.MemoryFilter'
 # FILTER_CLASS = 'crawlo.filters.aioredis_filter.AioRedisFilter' # 分布式去重
@@ -151,6 +161,14 @@ PIPELINES = [
     'crawlo.pipelines.console_pipeline.ConsolePipeline',  # 控制台输出
     # 'crawlo.pipelines.mysql_pipeline.AsyncmyMySQLPipeline',     # MySQL 存储（可选）
 ]
+
+# 根据运行模式自动配置默认去重管道
+if RUN_MODE == 'distributed':
+    # 分布式模式下添加Redis去重管道
+    PIPELINES.insert(0, DEFAULT_DEDUP_PIPELINE)
+else:
+    # 单机模式下添加内存去重管道
+    PIPELINES.insert(0, DEFAULT_DEDUP_PIPELINE)
 
 # 扩展组件（监控与日志）
 EXTENSIONS = [
