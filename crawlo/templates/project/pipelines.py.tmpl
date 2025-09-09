@@ -329,6 +329,12 @@ class DatabasePipeline:
 #     '{{project_name}}.pipelines.DatabasePipeline',         # 数据库存储
 # ]
 # 
+# Crawlo 框架提供了多种内置的去重管道：
+# 1. crawlo.pipelines.MemoryDedupPipeline    - 内存去重（单机模式默认）
+# 2. crawlo.pipelines.RedisDedupPipeline     - Redis去重（分布式模式默认）
+# 3. crawlo.pipelines.BloomDedupPipeline     - Bloom Filter去重（大规模数据）
+# 4. crawlo.pipelines.DatabaseDedupPipeline  - 数据库去重（持久化）
+# 
 # 相关配置：
 # JSON_OUTPUT_DIR = 'output'          # JSON 文件输出目录
 # DATABASE_TYPE = 'mysql'             # 数据库类型: mysql/mongodb

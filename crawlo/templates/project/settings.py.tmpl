@@ -177,6 +177,9 @@ MIDDLEWARES = [
 # ============================== 数据管道配置 ==============================
 
 PIPELINES = [
+    # 根据运行模式自动选择默认去重管道
+    # 单机模式：crawlo.pipelines.MemoryDedupPipeline
+    # 分布式模式：crawlo.pipelines.RedisDedupPipeline
     'crawlo.pipelines.console_pipeline.ConsolePipeline',
     # '{{project_name}}.pipelines.DatabasePipeline',        # 自定义数据库管道
     # 'crawlo.pipelines.mysql_pipeline.AsyncmyMySQLPipeline',  # MySQL 存储
