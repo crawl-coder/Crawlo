@@ -258,16 +258,16 @@ config = CrawloConfig.from_env()
 
 ```bash
 # 进入单机版示例
-cd examples/miit_spider_standalone
+cd examples/telecom_licenses_standalone
 
 # 零配置运行（使用默认 httpx 下载器）
-python run.py miit_device
+python run.py telecom_device
 
 # 开发环境配置
-python run.py miit_device --env development --concurrency 4
+python run.py telecom_device --env development --concurrency 4
 
 # 调试模式（详细日志）
-python run.py miit_device --debug
+python run.py telecom_device --debug
 
 # 自定义下载器（在项目 settings.py 中配置）
 # DOWNLOADER_TYPE = 'aiohttp'    # 高性能下载器
@@ -283,24 +283,29 @@ python run.py miit_device --debug
 
 ```bash
 # 进入分布式示例
-cd examples/miit_spider_distributed
+cd examples/telecom_licenses_distributed
 
 # 启动 Redis
 redis-server
 
 # 启动分布式爬虫（使用默认 aiohttp 下载器）
-python run.py miit_device --distributed
+python run.py telecom_device --distributed
 
 # 高并发分布式模式
-python run.py miit_device --distributed --concurrency 30
+python run.py telecom_device --distributed --concurrency 30
 
 # 多节点部署
-cd examples/miit_spider_distributed
-./deploy_distributed.sh node-1 20
-./deploy_distributed.sh node-2 25
+# 机器A (Redis服务器)
+python run.py telecom_device
+
+# 机器B
+python run.py telecom_device --redis-host 192.168.1.100 --concurrency 16
+
+# 机器C
+python run.py telecom_device --redis-host 192.168.1.100 --concurrency 24
 
 # 环境变量配置
-NODE_ID=node-1 REDIS_HOST=192.168.1.100 python run.py miit_device --distributed
+NODE_ID=node-1 REDIS_HOST=192.168.1.100 python run.py telecom_device --distributed
 ```
 
 **特点**：
@@ -310,8 +315,8 @@ NODE_ID=node-1 REDIS_HOST=192.168.1.100 python run.py miit_device --distributed
 
 ### 📚 详细教程
 
-- **[单机版爬虫教程](examples/tutorials/单机版爬虫教程.md)**：从创建到运行的完整流程
-- **[分布式爬虫教程](examples/tutorials/分布式爬虫教程.md)**：分布式架构和部署方案
+- **[单机版示例说明](examples/telecom_licenses_standalone/)**：从创建到运行的完整流程
+- **[分布式版示例说明](examples/telecom_licenses_distributed/)**：分布式架构和部署方案
 - **[examples/README.md](examples/README.md)**：完整示例说明
 
 ---

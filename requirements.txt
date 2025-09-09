@@ -24,3 +24,6 @@ httpcore~=1.0.5
 rich>=13.0.0
 astor>=0.8.0
 watchdog>=3.0.0
+
+# Documentation dependencies
+mkdocs-material>=9.0.0

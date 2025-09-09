@@ -1,0 +1,67 @@
+site_name: Crawlo Documentation
+site_url: https://crawlo.readthedocs.io/
+site_author: crawl-coder
+site_description: Crawlo is a modern, high-performance Python asynchronous web scraping framework.
+
+# Repository
+repo_name: crawl-coder/Crawlo
+repo_url: https://github.com/crawl-coder/Crawlo
+
+# Copyright
+copyright: Copyright &copy; 2025 crawl-coder
+
+# Configuration
+theme:
+  name: material
+  language: zh
+  palette:
+    - scheme: default
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/toggle-switch-off-outline
+        name: Switch to dark mode
+    - scheme: slate
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/toggle-switch
+        name: Switch to light mode
+  features:
+    - navigation.instant
+    - navigation.tabs
+    - navigation.sections
+    - navigation.expand
+    - navigation.indexes
+    - search.highlight
+    - search.share
+
+# Plugins
+plugins:
+  - search
+
+# Customization
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/crawl-coder/Crawlo
+
+# Extensions
+markdown_extensions:
+  - pymdownx.highlight
+  - pymdownx.superfences
+
+# Navigation
+nav:
+  - 首页: index_zh.md
+  - 快速入门:
+      - 快速入门指南: quick_start_guide_zh.md
+      - 框架完整文档: crawlo_framework_documentation_zh.md
+  - 核心功能:
+      - API 参考: api_reference_zh.md
+      - 分布式爬取教程: distributed_crawling_tutorial_zh.md
+      - 配置最佳实践: configuration_best_practices_zh.md
+  - 示例项目: 
+      - 项目概述: ../examples/README.md
+      - 单机版示例: ../examples/telecom_licenses_standalone/README.md
+      - 分布式示例: ../examples/telecom_licenses_distributed/README.md
