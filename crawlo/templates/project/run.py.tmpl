@@ -10,6 +10,7 @@
     python run.py spider_name                     # 单机模式运行
     python run.py spider_name --distributed       # 分布式模式运行
     python run.py spider_name --env production    # 使用预设配置
+    python run.py all                             # 运行所有爬虫
 
 🔧 高级选项:
     python run.py spider_name --dry-run           # 干运行（不执行实际爬取）
@@ -50,6 +51,7 @@ def create_parser():
   python run.py my_spider --distributed      # 分布式模式
   python run.py my_spider --env production   # 生产环境配置
   python run.py spider1 spider2              # 运行多个爬虫
+  python run.py all                          # 运行所有爬虫
   python run.py my_spider --dry-run          # 测试模式
         """
     )
@@ -58,7 +60,7 @@ def create_parser():
     parser.add_argument(
         'spiders', 
         nargs='*',
-        help='要运行的爬虫名称（可指定多个）'
+        help='要运行的爬虫名称（可指定多个，"all"表示运行所有爬虫）'
     )
     
     # 运行模式选择
@@ -212,12 +214,23 @@ async def main():
         # 应用配置并启动
         process = CrawlerProcess(settings=config.to_dict())
         
-        # TODO: 在这里添加你的爬虫导入
-        # from {{project_name}}.spiders.example_spider import ExampleSpider
-        # spider_classes = {'example_spider': ExampleSpider}
-        
-        # 运行指定爬虫
-        await process.crawl(args.spiders)
+        # 检查是否要运行所有爬虫
+        if 'all' in [s.lower() for s in args.spiders]:
+            # 获取所有已注册的爬虫名称
+            spider_names = process.get_spider_names()
+            if not spider_names:
+                print("❌ 未找到任何爬虫")
+                print("💡 请确保:")
+                print("  • 爬虫定义在 'spiders/' 目录中")
+                print("  • 爬虫类有 'name' 属性")
+                return 1
+            
+            print(f"📋 找到 {len(spider_names)} 个爬虫: {', '.join(spider_names)}")
+            # 运行所有爬虫
+            await process.crawl(spider_names)
+        else:
+            # 运行指定爬虫
+            await process.crawl(args.spiders)
         
         print("\n✅ 所有爬虫执行完成")
         
