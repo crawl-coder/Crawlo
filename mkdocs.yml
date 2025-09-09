@@ -1,46 +1,106 @@
 site_name: Crawlo Documentation
 site_url: https://crawlo.readthedocs.io/
-site_author: crawl-coder
-site_description: Crawlo is a modern, high-performance Python asynchronous web scraping framework.
+site_description: An asynchronous distributed web crawling framework
+site_author: Crawlo Team
 
-# Repository
-repo_name: crawl-coder/Crawlo
 repo_url: https://github.com/crawl-coder/Crawlo
+edit_uri: ""
 
-# Copyright
-copyright: Copyright &copy; 2025 crawl-coder
-
-# Configuration
 theme:
   name: material
   language: zh
   palette:
     - scheme: default
-      primary: indigo
-      accent: indigo
       toggle:
-        icon: material/toggle-switch-off-outline
+        icon: material/brightness-7
         name: Switch to dark mode
     - scheme: slate
-      primary: indigo
-      accent: indigo
       toggle:
-        icon: material/toggle-switch
+        icon: material/brightness-4
         name: Switch to light mode
   features:
-    - navigation.instant
     - navigation.tabs
     - navigation.sections
-    - navigation.expand
-    - navigation.indexes
+    - toc.integrate
+    - navigation.top
+    - search.suggest
     - search.highlight
-    - search.share
+    - content.tabs.link
+    - content.code.annotation
+    - content.code.copy
 
-# Plugins
+nav:
+  - 首页: 
+    - 简介: README.md
+    - 快速开始: quick_start.md
+    - 核心概念: concepts.md
+  - 开发指南:
+    - 项目结构: project_structure.md
+    - 配置系统: configuration.md
+    - 爬虫开发: spider_development.md
+    - 中间件: middleware.md
+    - 管道: pipelines.md
+    - 扩展组件: extensions.md  # 新增扩展组件文档
+    - 过滤器: filters.md
+    - 下载器: downloaders.md
+    - 调度器: scheduler.md
+    - 队列: queues.md
+  - 高级主题:
+    - 分布式爬取: distributed_crawling.md
+    - 性能优化: performance.md
+    - 调试技巧: debugging.md
+    - 部署指南: deployment.md
+  - API 参考:
+    - crawlo: api/crawlo.md
+    - crawlo.crawler: api/crawlo.crawler.md
+    - crawlo.spider: api/crawlo.spider.md
+    - crawlo.request: api/crawlo.request.md
+    - crawlo.response: api/crawlo.response.md
+    - crawlo.items: api/crawlo.items.md
+    - crawlo.pipelines: api/crawlo.pipelines.md
+    - crawlo.middleware: api/crawlo.middleware.md
+    - crawlo.extensions: api/crawlo.extensions.md
+    - crawlo.filters: api/crawlo.filters.md
+    - crawlo.downloader: api/crawlo.downloader.md
+    - crawlo.scheduler: api/crawlo.scheduler.md
+    - crawlo.queues: api/crawlo.queues.md
+    - crawlo.utils: api/crawlo.utils.md
+
 plugins:
   - search
+  - i18n:
+      docs_structure: suffix
+      languages:
+        - locale: zh
+          default: true
+          name: 中文
+          build: true
+        - locale: en
+          name: English
+          build: true
+          nav_translations:
+            首页: Home
+            简介: Introduction
+            快速开始: Quick Start
+            核心概念: Core Concepts
+            开发指南: Development Guide
+            项目结构: Project Structure
+            配置系统: Configuration System
+            爬虫开发: Spider Development
+            中间件: Middleware
+            管道: Pipelines
+            扩展组件: Extensions
+            过滤器: Filters
+            下载器: Downloaders
+            调度器: Scheduler
+            队列: Queues
+            高级主题: Advanced Topics
+            分布式爬取: Distributed Crawling
+            性能优化: Performance Optimization
+            调试技巧: Debugging Tips
+            部署指南: Deployment Guide
+            API 参考: API Reference
 
-# Customization
 extra:
   social:
     - icon: fontawesome/brands/github
@@ -50,30 +110,3 @@ extra:
 markdown_extensions:
   - pymdownx.highlight
   - pymdownx.superfences
-
-# Navigation
-nav:
-  - Home: 
-      - index.md
-      - index_zh.md
-  - Getting Started:
-      - Quick Start Guide: quick_start_guide.md
-      - 快速入门指南: quick_start_guide_zh.md
-      - Framework Documentation: crawlo_framework_documentation.md
-      - 框架完整文档: crawlo_framework_documentation_zh.md
-  - Core Features:
-      - API Reference: api_reference.md
-      - API 参考: api_reference_zh.md
-      - Distributed Crawling Tutorial: distributed_crawling_tutorial.md
-      - 分布式爬取教程: distributed_crawling_tutorial_zh.md
-      - Distributed Patterns: distributed_crawling_patterns.md
-      - 分布式模式详解: distributed_crawling_patterns_zh.md
-      - Configuration Best Practices: configuration_best_practices.md
-      - 配置最佳实践: configuration_best_practices_zh.md
-  - Examples:
-      - Overview: ../examples/README.md
-      - 项目概述: ../examples/README.md
-      - Standalone Example: ../examples/telecom_licenses_standalone/README.md
-      - 单机版示例: ../examples/telecom_licenses_standalone/README.md
-      - Distributed Example: ../examples/telecom_licenses_distributed/README.md
-      - 分布式示例: ../examples/telecom_licenses_distributed/README.md

@@ -175,7 +175,38 @@ EXTENSIONS = [
     'crawlo.extension.log_interval.LogIntervalExtension',  # 定时日志
     'crawlo.extension.log_stats.LogStats',  # 统计信息
     'crawlo.extension.logging_extension.CustomLoggerExtension',  # 自定义日志
+    'crawlo.extension.memory_monitor.MemoryMonitorExtension',  # 内存监控
+    # 'crawlo.extension.request_recorder.RequestRecorderExtension',  # 请求记录
+    # 'crawlo.extension.performance_profiler.PerformanceProfilerExtension',  # 性能分析
+    # 'crawlo.extension.health_check.HealthCheckExtension',  # 健康检查
 ]
+
+# ============================== 日志与监控 ==============================
+
+LOG_LEVEL = 'INFO'  # 日志级别: DEBUG/INFO/WARNING/ERROR
+STATS_DUMP = True  # 是否周期性输出统计信息
+
+# ============================== 扩展配置 ==============================
+
+# 内存监控扩展配置
+MEMORY_MONITOR_ENABLED = False  # 是否启用内存监控
+MEMORY_MONITOR_INTERVAL = 60  # 内存检查间隔（秒）
+MEMORY_WARNING_THRESHOLD = 80.0  # 内存使用警告阈值（百分比）
+MEMORY_CRITICAL_THRESHOLD = 90.0  # 内存使用严重阈值（百分比）
+
+# 请求记录扩展配置
+REQUEST_RECORDER_ENABLED = False  # 是否启用请求记录
+REQUEST_RECORDER_OUTPUT_DIR = 'requests_log'  # 请求记录输出目录
+REQUEST_RECORDER_MAX_FILE_SIZE = 10 * 1024 * 1024  # 单个记录文件最大大小（字节）
+
+# 性能分析扩展配置
+PERFORMANCE_PROFILER_ENABLED = False  # 是否启用性能分析
+PERFORMANCE_PROFILER_OUTPUT_DIR = 'profiling'  # 性能分析输出目录
+PERFORMANCE_PROFILER_INTERVAL = 300  # 定期保存分析结果间隔（秒）
+
+# 健康检查扩展配置
+HEALTH_CHECK_ENABLED = True  # 是否启用健康检查
+HEALTH_CHECK_INTERVAL = 60  # 健康检查间隔（秒）
 
 # ============================== 日志与监控 ==============================
 
