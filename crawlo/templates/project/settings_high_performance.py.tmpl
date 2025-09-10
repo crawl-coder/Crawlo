@@ -1,0 +1,152 @@
+# -*- coding: UTF-8 -*-
+"""
+{{project_name}} 项目配置文件（高性能版）
+=============================
+基于 Crawlo 框架的高性能爬虫项目配置。
+针对大规模、高并发场景优化。
+"""
+
+import os
+from crawlo.config import CrawloConfig
+
+# ============================== 项目基本信息 ==============================
+PROJECT_NAME = '{{project_name}}'
+VERSION = '1.0.0'
+
+# ============================== 高性能配置 ==============================
+# 使用配置工厂创建高性能配置
+CONFIG = CrawloConfig.presets().large_scale(
+    redis_host=os.getenv('REDIS_HOST', '127.0.0.1'),
+    project_name='{{project_name}}'
+)
+
+# 获取配置
+locals().update(CONFIG.to_dict())
+
+# ============================== 网络请求配置 ==============================
+DOWNLOADER = "crawlo.downloader.cffi_downloader.CurlCffiDownloader"
+DOWNLOAD_TIMEOUT = 30
+VERIFY_SSL = True
+USE_SESSION = True
+
+# ============================== 高并发配置 ==============================
+CONCURRENCY = 32
+MAX_RUNNING_SPIDERS = 10
+DOWNLOAD_DELAY = 0.5
+RANDOMNESS = True
+RANDOM_RANGE = (0.8, 1.2)
+
+# ============================== 连接池配置 ==============================
+CONNECTION_POOL_LIMIT = 100
+CONNECTION_POOL_LIMIT_PER_HOST = 50
+
+# ============================== 重试配置 ==============================
+MAX_RETRY_TIMES = 5
+RETRY_HTTP_CODES = [408, 429, 500, 502, 503, 504, 522, 524]
+IGNORE_HTTP_CODES = [403, 404]
+
+# ============================== 队列配置 ==============================
+SCHEDULER_MAX_QUEUE_SIZE = 10000
+SCHEDULER_QUEUE_NAME = f'crawlo:{{project_name}}:queue:requests'
+QUEUE_MAX_RETRIES = 5
+QUEUE_TIMEOUT = 300
+LARGE_SCALE_BATCH_SIZE = 2000
+LARGE_SCALE_CHECKPOINT_INTERVAL = 5000
+
+# ============================== Redis 配置 ==============================
+REDIS_HOST = os.getenv('REDIS_HOST', '127.0.0.1')
+REDIS_PORT = int(os.getenv('REDIS_PORT', 6379))
+REDIS_PASSWORD = os.getenv('REDIS_PASSWORD', '')
+REDIS_DB = int(os.getenv('REDIS_DB', 0))
+
+# 根据是否有密码生成 URL
+if REDIS_PASSWORD:
+    REDIS_URL = f'redis://:{REDIS_PASSWORD}@{REDIS_HOST}:{REDIS_PORT}/{REDIS_DB}'
+else:
+    REDIS_URL = f'redis://{REDIS_HOST}:{REDIS_PORT}/{REDIS_DB}'
+
+# ============================== 数据存储配置 ==============================
+# MySQL 配置
+MYSQL_HOST = os.getenv('MYSQL_HOST', '127.0.0.1')
+MYSQL_PORT = int(os.getenv('MYSQL_PORT', 3306))
+MYSQL_USER = os.getenv('MYSQL_USER', 'root')
+MYSQL_PASSWORD = os.getenv('MYSQL_PASSWORD', '123456')
+MYSQL_DB = os.getenv('MYSQL_DB', '{{project_name}}')
+MYSQL_TABLE = '{{project_name}}_data'
+MYSQL_BATCH_SIZE = 200
+MYSQL_USE_BATCH = True
+MYSQL_POOL_MIN = 10
+MYSQL_POOL_MAX = 50
+
+# MongoDB 配置
+MONGO_URI = os.getenv('MONGO_URI', 'mongodb://localhost:27017')
+MONGO_DATABASE = '{{project_name}}_db'
+MONGO_COLLECTION = '{{project_name}}_items'
+MONGO_BATCH_SIZE = 200
+MONGO_USE_BATCH = True
+MONGO_MAX_POOL_SIZE = 300
+MONGO_MIN_POOL_SIZE = 50
+
+# ============================== 去重配置 ==============================
+REDIS_TTL = 0
+CLEANUP_FP = 0
+FILTER_DEBUG = False  # 生产环境关闭调试日志
+
+# ============================== 中间件与管道 ==============================
+MIDDLEWARES = [
+    'crawlo.middleware.request_ignore.RequestIgnoreMiddleware',
+    'crawlo.middleware.download_delay.DownloadDelayMiddleware',
+    'crawlo.middleware.default_header.DefaultHeaderMiddleware',
+    'crawlo.middleware.proxy.ProxyMiddleware',
+    'crawlo.middleware.retry.RetryMiddleware',
+    'crawlo.middleware.response_code.ResponseCodeMiddleware',
+    'crawlo.middleware.response_filter.ResponseFilterMiddleware',
+]
+
+PIPELINES = [
+    'crawlo.pipelines.console_pipeline.ConsolePipeline',
+    # '{{project_name}}.pipelines.DatabasePipeline',
+    # 'crawlo.pipelines.mysql_pipeline.AsyncmyMySQLPipeline',
+    # 'crawlo.pipelines.mongo_pipeline.MongoPipeline',
+]
+
+# ============================== 扩展组件 ==============================
+EXTENSIONS = [
+    'crawlo.extension.log_interval.LogIntervalExtension',
+    'crawlo.extension.log_stats.LogStats',
+    'crawlo.extension.logging_extension.CustomLoggerExtension',
+    # 'crawlo.extension.memory_monitor.MemoryMonitorExtension',
+    # 'crawlo.extension.request_recorder.RequestRecorderExtension',
+    # 'crawlo.extension.performance_profiler.PerformanceProfilerExtension',
+]
+
+# ============================== 日志配置 ==============================
+LOG_LEVEL = 'INFO'
+LOG_FILE = f'logs/{{project_name}}.log'
+STATS_DUMP = True
+
+# ============================== 代理配置 ==============================
+PROXY_ENABLED = False
+PROXY_API_URL = ""
+PROXY_EXTRACTOR = "proxy"
+PROXY_REFRESH_INTERVAL = 30
+PROXY_API_TIMEOUT = 5
+
+# ============================== 浏览器指纹配置 ==============================
+CURL_BROWSER_TYPE = "chrome"
+CURL_BROWSER_VERSION_MAP = {
+    "chrome": "chrome136",
+    "edge": "edge101",
+    "safari": "safari184",
+    "firefox": "firefox135",
+}
+
+# ============================== 下载器优化配置 ==============================
+HTTPX_HTTP2 = True
+HTTPX_FOLLOW_REDIRECTS = True
+AIOHTTP_AUTO_DECOMPRESS = True
+CONNECTION_TTL_DNS_CACHE = 300
+CONNECTION_KEEPALIVE_TIMEOUT = 15
+
+# ============================== 自定义配置 ==============================
+# 在此处添加项目特定的配置项
