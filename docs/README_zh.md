@@ -12,6 +12,10 @@
 6. [去重管道指南](deduplication_pipelines_guide.md) - 所有去重管道的详细指南
 7. [去重配置说明](deduplication_configuration_zh.md) - 如何为不同模式配置去重
 8. [示例](../examples/) - 展示如何使用 Crawlo 的真实示例
+9. [日期处理工具](date_tools_zh.md) - 用于爬虫的日期解析和格式化工具
+10. [数据清洗工具](cleaners_zh.md) - 用于爬虫的数据清洗和格式化工具
+11. [工具包](tools_zh.md) - 爬虫的综合工具包
+12. [高级工具](advanced_tools_zh.md) - 用于复杂爬取场景的高级工具
 
 ## 概述
 

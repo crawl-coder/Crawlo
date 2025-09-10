@@ -7,13 +7,17 @@
 """
 import dateparser
 from typing import Optional, Union, Literal
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from dateutil.relativedelta import relativedelta
+import pytz
+from pytz import timezone as pytz_timezone
 
 # 支持的单位类型
 TimeUnit = Literal["seconds", "minutes", "hours", "days"]
 # 时间输入类型
 TimeType = Union[str, datetime]
+# 时区类型
+TimezoneType = Union[str, timezone, pytz_timezone]
 
 # 常见时间格式列表（作为 dateparser 的后备方案）
 COMMON_FORMATS = [
@@ -195,6 +199,43 @@ class TimeUtils:
             return None
         return dt.isoformat()
 
+    @classmethod
+    def to_timezone(cls, dt: TimeType, tz: TimezoneType) -> Optional[datetime]:
+        """将时间转换为指定时区"""
+        dt = cls.parse(dt)
+        if dt is None:
+            return None
+        
+        try:
+            if isinstance(tz, str):
+                tz = pytz_timezone(tz)
+            return dt.astimezone(tz)
+        except Exception:
+            return None
+
+    @classmethod
+    def to_utc(cls, dt: TimeType) -> Optional[datetime]:
+        """将时间转换为 UTC 时区"""
+        return cls.to_timezone(dt, pytz.UTC)
+
+    @classmethod
+    def to_local(cls, dt: TimeType) -> Optional[datetime]:
+        """将时间转换为本地时区"""
+        return cls.to_timezone(dt, pytz.timezone("Asia/Shanghai"))
+
+    @classmethod
+    def from_timestamp_with_tz(cls, ts: float, tz: TimezoneType = None) -> Optional[datetime]:
+        """从时间戳创建 datetime，并可选择指定时区"""
+        try:
+            dt = datetime.fromtimestamp(ts)
+            if tz:
+                if isinstance(tz, str):
+                    tz = pytz_timezone(tz)
+                dt = dt.replace(tzinfo=tz)
+            return dt
+        except Exception:
+            return None
+
 
 # =======================对外接口=======================
 
@@ -226,6 +267,22 @@ def to_datetime(ts: float) -> Optional[datetime]:
 def now(fmt: Optional[str] = None) -> Union[datetime, str]:
     """获取当前时间"""
     return TimeUtils.now(fmt)
+
+def to_timezone(dt: TimeType, tz: TimezoneType) -> Optional[datetime]:
+    """将时间转换为指定时区"""
+    return TimeUtils.to_timezone(dt, tz)
+
+def to_utc(dt: TimeType) -> Optional[datetime]:
+    """将时间转换为 UTC 时区"""
+    return TimeUtils.to_utc(dt)
+
+def to_local(dt: TimeType) -> Optional[datetime]:
+    """将时间转换为本地时区"""
+    return TimeUtils.to_local(dt)
+
+def from_timestamp_with_tz(ts: float, tz: TimezoneType = None) -> Optional[datetime]:
+    """从时间戳创建 datetime，并可选择指定时区"""
+    return TimeUtils.from_timestamp_with_tz(ts, tz)
 
 
 if __name__ == '__main__':

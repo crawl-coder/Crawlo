@@ -76,7 +76,9 @@ class Request:
         'verify',
         'flags',
         '_json_body',
-        '_form_data'
+        '_form_data',
+        'use_dynamic_loader',
+        'dynamic_loader_options'
     )
 
     def __init__(
@@ -99,7 +101,10 @@ class Request:
         auth: Optional[tuple] = None,
         verify: bool = True,
         flags: Optional[List[str]] = None,
-        encoding: str = 'utf-8'
+        encoding: str = 'utf-8',
+        # 动态加载相关参数
+        use_dynamic_loader: bool = False,
+        dynamic_loader_options: Optional[Dict[str, Any]] = None
     ):
         """
         初始化请求对象。
@@ -145,6 +150,10 @@ class Request:
         # 保存高层语义参数（用于 copy）
         self._json_body = json_body
         self._form_data = form_data
+        
+        # 动态加载相关属性
+        self.use_dynamic_loader = use_dynamic_loader
+        self.dynamic_loader_options = dynamic_loader_options or {}
 
         # 构建 body
         if json_body is not None:
@@ -228,7 +237,9 @@ class Request:
             auth=self.auth,
             verify=self.verify,
             flags=self.flags.copy(),
-            encoding=self.encoding
+            encoding=self.encoding,
+            use_dynamic_loader=self.use_dynamic_loader,
+            dynamic_loader_options=deepcopy(self.dynamic_loader_options)
         )
 
     def set_meta(self, key: str, value: Any) -> 'Request':
@@ -266,6 +277,22 @@ class Request:
         """移除标记，支持链式调用。"""
         if flag in self.flags:
             self.flags.remove(flag)
+        return self
+    
+    def set_dynamic_loader(self, use_dynamic: bool = True, options: Optional[Dict[str, Any]] = None) -> 'Request':
+        """设置使用动态加载器，支持链式调用。"""
+        self.use_dynamic_loader = use_dynamic
+        if options:
+            self.dynamic_loader_options = options
+        # 同时在meta中设置标记，供混合下载器使用
+        self._meta['use_dynamic_loader'] = use_dynamic
+        return self
+    
+    def set_protocol_loader(self) -> 'Request':
+        """强制使用协议加载器，支持链式调用。"""
+        self.use_dynamic_loader = False
+        self._meta['use_dynamic_loader'] = False
+        self._meta['use_protocol_loader'] = True
         return self
 
     def _set_url(self, url: str) -> None:

@@ -210,6 +210,11 @@ class CurlCffiDownloader(DownloaderBase):
             else:
                 self.logger.error(f"不支持的 proxy 类型: {type(proxy)}，值: {proxy}")
 
+        # 处理通过meta传递的代理认证信息
+        proxy_auth_header = request.headers.get("Proxy-Authorization") or request.meta.get("proxy_auth_header")
+        if proxy_auth_header:
+            kwargs["headers"]["Proxy-Authorization"] = proxy_auth_header
+
         # 请求体处理
         if hasattr(request, "_json_body") and request._json_body is not None:
             kwargs["json"] = request._json_body

@@ -196,50 +196,139 @@ class Response:
         """使用 CSS 选择器查询文档。"""
         return self._selector.css(query)
 
-    def xpath_text(self, query: str) -> str:
-        """使用 XPath 提取并返回纯文本。"""
-        fragments = self.xpath(f"{query}//text()").getall()
-        return " ".join(text.strip() for text in fragments if text.strip())
+    def _is_xpath(self, query: str) -> bool:
+        """判断查询语句是否为XPath"""
+        return query.startswith(('/', '//', './'))
 
-    def css_text(self, query: str) -> str:
-        """使用 CSS 选择器提取并返回纯文本。"""
-        fragments = self.css(f"{query} ::text").getall()
-        return " ".join(text.strip() for text in fragments if text.strip())
-
-    def get_text(self, xpath_or_css: str, join_str: str = " ") -> str:
+    def _extract_text_from_elements(self, elements: SelectorList, join_str: str = " ") -> str:
         """
-        获取指定节点的纯文本(自动拼接子节点文本)
+        从元素列表中提取文本并拼接
+        
+        :param elements: SelectorList元素列表
+        :param join_str: 文本拼接分隔符
+        :return: 拼接后的文本
+        """
+        texts = []
+        for element in elements:
+            # 获取元素的所有文本节点
+            if hasattr(element, 'xpath'):
+                element_texts = element.xpath('.//text()').getall()
+            else:
+                element_texts = [str(element)]
+            # 清理并添加非空文本
+            for text in element_texts:
+                cleaned = text.strip()
+                if cleaned:
+                    texts.append(cleaned)
+        return join_str.join(texts)
+
+    def extract_text(self, xpath_or_css: str, join_str: str = " ", default: str = '') -> str:
+        """
+        提取单个元素的文本内容，支持CSS和XPath选择器
 
         参数:
             xpath_or_css: XPath或CSS选择器
             join_str: 文本拼接分隔符(默认为空格)
+            default: 默认返回值，当未找到元素时返回
 
         返回:
             拼接后的纯文本字符串
         """
-        elements = self.xpath(xpath_or_css) if xpath_or_css.startswith(('/', '//', './')) else self.css(xpath_or_css)
-        texts = elements.xpath('.//text()').getall()
-        return join_str.join(text.strip() for text in texts if text.strip())
+        try:
+            elements = self.xpath(xpath_or_css) if self._is_xpath(xpath_or_css) else self.css(xpath_or_css)
+            if not elements:
+                return default
+            return self._extract_text_from_elements(elements, join_str)
+        except Exception:
+            return default
 
-    def get_all_text(self, xpath_or_css: str, join_str: str = " ") -> List[str]:
+    def extract_texts(self, xpath_or_css: str, join_str: str = " ", default: List[str] = None) -> List[str]:
         """
-        获取多个节点的纯文本列表
+        提取多个元素的文本内容列表，支持CSS和XPath选择器
 
         参数:
             xpath_or_css: XPath或CSS选择器
             join_str: 单个节点内文本拼接分隔符
+            default: 默认返回值，当未找到元素时返回
 
         返回:
             纯文本列表(每个元素对应一个节点的文本)
         """
-        elements = self.xpath(xpath_or_css) if xpath_or_css.startswith(('/', '//', './')) else self.css(xpath_or_css)
-        result = []
-        for element in elements:
-            texts = element.xpath('.//text()').getall()
-            clean_text = join_str.join(text.strip() for text in texts if text.strip())
-            if clean_text:
-                result.append(clean_text)
-        return result
+        if default is None:
+            default = []
+            
+        try:
+            elements = self.xpath(xpath_or_css) if self._is_xpath(xpath_or_css) else self.css(xpath_or_css)
+            if not elements:
+                return default
+                
+            result = []
+            for element in elements:
+                # 对每个元素提取文本
+                if hasattr(element, 'xpath'):
+                    texts = element.xpath('.//text()').getall()
+                else:
+                    texts = [str(element)]
+                    
+                # 清理文本并拼接
+                clean_texts = [text.strip() for text in texts if text.strip()]
+                if clean_texts:
+                    result.append(join_str.join(clean_texts))
+                    
+            return result if result else default
+        except Exception:
+            return default
+
+    def extract_attr(self, xpath_or_css: str, attr_name: str, default: Any = None) -> Any:
+        """
+        提取单个元素的属性值，支持CSS和XPath选择器
+
+        参数:
+            xpath_or_css: XPath或CSS选择器
+            attr_name: 属性名称
+            default: 默认返回值
+
+        返回:
+            属性值或默认值
+        """
+        try:
+            elements = self.xpath(xpath_or_css) if self._is_xpath(xpath_or_css) else self.css(xpath_or_css)
+            if not elements:
+                return default
+            return elements.attrib.get(attr_name, default)
+        except Exception:
+            return default
+
+    def extract_attrs(self, xpath_or_css: str, attr_name: str, default: List[Any] = None) -> List[Any]:
+        """
+        提取多个元素的属性值列表，支持CSS和XPath选择器
+
+        参数:
+            xpath_or_css: XPath或CSS选择器
+            attr_name: 属性名称
+            default: 默认返回值
+
+        返回:
+            属性值列表
+        """
+        if default is None:
+            default = []
+            
+        try:
+            elements = self.xpath(xpath_or_css) if self._is_xpath(xpath_or_css) else self.css(xpath_or_css)
+            if not elements:
+                return default
+                
+            result = []
+            for element in elements:
+                if hasattr(element, 'attrib'):
+                    attr_value = element.attrib.get(attr_name)
+                    if attr_value is not None:
+                        result.append(attr_value)
+                        
+            return result if result else default
+        except Exception:
+            return default
 
     def re_search(self, pattern: str, flags: int = re.DOTALL) -> Optional[re.Match]:
         """在响应文本上执行正则表达式搜索。"""

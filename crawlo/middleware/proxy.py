@@ -173,7 +173,7 @@ class ProxyMiddleware:
             if isinstance(result, str) and result.strip():
                 return result.strip()
             elif isinstance(result, dict):
-                cleaned = {k: v.strip() for k, v in result.items() if v and isinstance(v, str)}
+                cleaned = {k: v.strip() if isinstance(v, str) else v for k, v in result.items()}
                 return cleaned if cleaned else None
             return None
         except Exception as e:
@@ -225,7 +225,31 @@ class ProxyMiddleware:
 
         proxy = await self._get_cached_proxy()
         if proxy:
-            request.proxy = proxy
+            # 处理带认证的代理URL
+            if isinstance(proxy, str) and "@" in proxy and "://" in proxy:
+                # 解析带认证的代理URL
+                parsed = urlparse(proxy)
+                if parsed.username and parsed.password:
+                    # 对于AioHttp下载器，需要特殊处理认证信息
+                    downloader_type = spider.crawler.settings.get("DOWNLOADER_TYPE", "aiohttp")
+                    if downloader_type == "aiohttp":
+                        # 将认证信息存储在meta中，由下载器处理
+                        request.meta["proxy_auth"] = {
+                            "username": parsed.username,
+                            "password": parsed.password
+                        }
+                        # 清理URL中的认证信息
+                        clean_proxy = f"{parsed.scheme}://{parsed.hostname}"
+                        if parsed.port:
+                            clean_proxy += f":{parsed.port}"
+                        request.proxy = clean_proxy
+                    else:
+                        # 其他下载器可以直接使用带认证的URL
+                        request.proxy = proxy
+                else:
+                    request.proxy = proxy
+            else:
+                request.proxy = proxy
             self.logger.info(f"分配代理 → {proxy} | {request.url}")
         else:
             self.logger.warning(f"未获取到代理，请求直连: {request.url}")

@@ -12,6 +12,10 @@ Welcome to the Crawlo framework documentation. Crawlo is a modern, high-performa
 6. [Deduplication Pipelines Guide](deduplication_pipelines_guide.md) - Detailed guide to all deduplication pipelines
 7. [Deduplication Configuration](deduplication_configuration.md) - How to configure deduplication for different modes
 8. [Examples](../examples/) - Real-world examples showing how to use Crawlo
+9. [Date Tools](date_tools.md) - Date parsing and formatting utilities for crawlers
+10. [Data Cleaning Tools](cleaners.md) - Data cleaning and formatting utilities for crawlers
+11. [Tools Package](tools.md) - Comprehensive tools package for crawlers
+12. [Advanced Tools](advanced_tools.md) - Advanced tools for complex scraping scenarios
 
 ## Overview
 

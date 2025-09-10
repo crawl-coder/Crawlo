@@ -27,6 +27,16 @@ Crawlo 支持两种主要的分布式爬虫模式：
 
 有关这些模式的详细信息，请参阅[分布式模式详解](distributed_crawling_patterns_zh.md)。
 
+## 下载器
+
+Crawlo 提供多种高性能下载器来处理不同类型的网页内容：
+
+- **协议下载器**：用于静态内容（AioHttp、HttpX、CurlCffi）
+- **动态下载器**：用于 JavaScript 渲染内容（Selenium、Playwright）
+- **混合下载器**：根据内容类型智能选择下载器
+
+有关下载器的详细信息，请参阅[下载器全面技术使用教程](downloaders_comprehensive_guide_zh.md)。
+
 ## 快速开始
 
 要开始使用 Crawlo，请阅读[快速入门指南](quick_start_guide_zh.md)，它将引导您创建第一个项目并运行第一个爬虫。

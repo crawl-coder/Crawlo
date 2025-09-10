@@ -209,6 +209,21 @@ try:
 except ImportError:
     HttpXDownloader = None
 
+try:
+    from .selenium_downloader import SeleniumDownloader
+except ImportError:
+    SeleniumDownloader = None
+
+try:
+    from .playwright_downloader import PlaywrightDownloader
+except ImportError:
+    PlaywrightDownloader = None
+
+try:
+    from .hybrid_downloader import HybridDownloader
+except ImportError:
+    HybridDownloader = None
+
 # 导出所有可用的类
 __all__ = [
     'DownloaderBase',
@@ -223,6 +238,12 @@ if CurlCffiDownloader:
     __all__.append('CurlCffiDownloader')
 if HttpXDownloader:
     __all__.append('HttpXDownloader')
+if SeleniumDownloader:
+    __all__.append('SeleniumDownloader')
+if PlaywrightDownloader:
+    __all__.append('PlaywrightDownloader')
+if HybridDownloader:
+    __all__.append('HybridDownloader')
 
 # 提供便捷的下载器映射
 DOWNLOADER_MAP = {
@@ -230,6 +251,9 @@ DOWNLOADER_MAP = {
     'httpx': HttpXDownloader, 
     'curl_cffi': CurlCffiDownloader,
     'cffi': CurlCffiDownloader,  # 别名
+    'selenium': SeleniumDownloader,
+    'playwright': PlaywrightDownloader,
+    'hybrid': HybridDownloader,
 }
 
 # 过滤掉不可用的下载器

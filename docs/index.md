@@ -27,6 +27,16 @@ Crawlo supports two main distributed crawling patterns:
 
 For detailed information about these patterns, see [Distributed Patterns](distributed_crawling_patterns.md).
 
+## Downloaders
+
+Crawlo provides multiple high-performance downloaders to handle different types of web content:
+
+- **Protocol Downloaders**: For static content (AioHttp, HttpX, CurlCffi)
+- **Dynamic Downloaders**: For JavaScript-rendered content (Selenium, Playwright)
+- **Hybrid Downloader**: Intelligent selection based on content type
+
+For detailed information about downloaders, see the [Downloaders Comprehensive Guide](downloaders_comprehensive_guide.md).
+
 ## Getting Started
 
 To get started with Crawlo, read the [Quick Start Guide](quick_start_guide.md) which will walk you through creating your first project and running your first spider.

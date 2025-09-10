@@ -162,6 +162,14 @@ class AioHttpDownloader(DownloaderBase):
             except Exception as e:
                 raise ValueError(f"Invalid proxy URL: {proxy}") from e
 
+        # 处理通过meta传递的代理认证信息
+        meta_proxy_auth = request.meta.get("proxy_auth")
+        if meta_proxy_auth and isinstance(meta_proxy_auth, dict):
+            username = meta_proxy_auth.get("username")
+            password = meta_proxy_auth.get("password")
+            if username and password:
+                kwargs["proxy_auth"] = BasicAuth(username, password)
+
         # === 处理请求体 ===
         if hasattr(request, "_json_body") and request._json_body is not None:
             kwargs["json"] = request._json_body

@@ -179,6 +179,35 @@ HTTPX_FOLLOW_REDIRECTS = True  # 是否自动跟随重定向
 AIOHTTP_AUTO_DECOMPRESS = True  # 是否自动解压响应
 AIOHTTP_FORCE_CLOSE = False  # 是否强制关闭连接
 
+# ============================== Selenium 下载器配置 ==============================
+
+# Selenium 基础配置
+SELENIUM_BROWSER_TYPE = "chrome"  # 浏览器类型: chrome, firefox, edge
+SELENIUM_HEADLESS = True  # 是否无头模式
+SELENIUM_TIMEOUT = 30  # 超时时间（秒）
+SELENIUM_LOAD_TIMEOUT = 10  # 页面加载超时时间（秒）
+SELENIUM_WINDOW_WIDTH = 1920  # 窗口宽度
+SELENIUM_WINDOW_HEIGHT = 1080  # 窗口高度
+SELENIUM_WAIT_FOR_ELEMENT = None  # 等待特定元素选择器
+SELENIUM_ENABLE_JS = True  # 是否启用JavaScript
+SELENIUM_PROXY = None  # 代理设置
+SELENIUM_SINGLE_BROWSER_MODE = True  # 单浏览器多标签页模式
+SELENIUM_MAX_TABS_PER_BROWSER = 10  # 单浏览器最大标签页数量
+
+# ============================== Playwright 下载器配置 ==============================
+
+# Playwright 基础配置
+PLAYWRIGHT_BROWSER_TYPE = "chromium"  # 浏览器类型: chromium, firefox, webkit
+PLAYWRIGHT_HEADLESS = True  # 是否无头模式
+PLAYWRIGHT_TIMEOUT = 30000  # 超时时间（毫秒）
+PLAYWRIGHT_LOAD_TIMEOUT = 10000  # 页面加载超时时间（毫秒）
+PLAYWRIGHT_VIEWPORT_WIDTH = 1920  # 视口宽度
+PLAYWRIGHT_VIEWPORT_HEIGHT = 1080  # 视口高度
+PLAYWRIGHT_WAIT_FOR_ELEMENT = None  # 等待特定元素选择器
+PLAYWRIGHT_PROXY = None  # 代理设置
+PLAYWRIGHT_SINGLE_BROWSER_MODE = True  # 单浏览器多标签页模式
+PLAYWRIGHT_MAX_PAGES_PER_BROWSER = 10  # 单浏览器最大页面数量
+
 # 通用优化配置
 CONNECTION_TTL_DNS_CACHE = 300  # DNS缓存TTL（秒）
 CONNECTION_KEEPALIVE_TIMEOUT = 15  # Keep-Alive超时（秒）
