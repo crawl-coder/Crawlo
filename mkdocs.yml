@@ -31,61 +31,40 @@ theme:
 
 nav:
   - 首页: 
-    - 简介: index.md
-    - 快速开始: getting_started/quick_start.md
-    - 安装指南: getting_started/installation.md
-  - 核心概念:
-    - 框架架构: core_concepts/framework_architecture.md
-    - 运行模式: core_concepts/execution_modes.md
-    - 项目结构: core_concepts/project_structure.md
-    - 配置系统: core_concepts/configuration_system.md
+    - 简介: README.md
+    - 快速开始: quick_start.md
+    - 核心概念: concepts.md
   - 开发指南:
-    - 爬虫开发: development_guide/spider_development.md
-    - 数据项定义: development_guide/item_definitions.md
-    - 请求和响应: development_guide/requests_responses.md
-    - 中间件: development_guide/middleware.md
-    - 管道: development_guide/pipelines.md
-    - 扩展组件: development_guide/extensions.md
-    - 过滤器: development_guide/filters.md
-    - 下载器: development_guide/downloaders.md
-    - 调度器: development_guide/scheduler.md
-    - 队列: development_guide/queues.md
+    - 项目结构: project_structure.md
+    - 配置系统: configuration.md
+    - 爬虫开发: spider_development.md
+    - 中间件: middleware.md
+    - 管道: pipelines.md
+    - 扩展组件: extensions.md  # 新增扩展组件文档
+    - 过滤器: filters.md
+    - 下载器: downloaders.md
+    - 调度器: scheduler.md
+    - 队列: queues.md
   - 高级主题:
-    - 分布式爬取: 
-      - 分布式机制: advanced_topics/distributed_crawling/mechanism.md
-      - 分布式模式: advanced_topics/distributed_crawling/patterns.md
-      - 分布式教程: advanced_topics/distributed_crawling/tutorial.md
-    - 性能优化: advanced_topics/performance.md
-    - 调试技巧: advanced_topics/debugging.md
-    - 部署指南: advanced_topics/deployment.md
-    - 环境变量: advanced_topics/environment_variables.md
-    - Redis Key 命名规范: advanced_topics/redis_key_naming.md
-  - 配置参考:
-    - 配置最佳实践: configuration_reference/best_practices.md
-    - 去重配置: configuration_reference/deduplication.md
-    - 去重管道指南: configuration_reference/deduplication_pipelines.md
+    - 分布式爬取: distributed_crawling.md
+    - 性能优化: performance.md
+    - 调试技巧: debugging.md
+    - 部署指南: deployment.md
   - API 参考:
-    - 核心 API: api_reference/core.md
-    - 爬虫 API: api_reference/spider.md
-    - 网络 API: api_reference/network.md
-    - 队列 API: api_reference/queue.md
-    - 过滤器 API: api_reference/filter.md
-    - 中间件 API: api_reference/middleware.md
-    - 管道 API: api_reference/pipeline.md
-    - 扩展 API: api_reference/extension.md
-    - 工具 API: api_reference/utility.md
-  - 示例项目:
-    - 单机爬虫示例: examples/standalone.md
-    - 分布式爬虫示例: examples/distributed.md
-  - 故障排除:
-    - 常见问题: troubleshooting/faq.md
-    - 错误处理: troubleshooting/error_handling.md
-    - 性能问题: troubleshooting/performance_issues.md
-  - 贡献指南:
-    - 开发环境设置: contribution/development_setup.md
-    - 代码规范: contribution/code_standards.md
-    - 测试指南: contribution/testing.md
-    - 文档贡献: contribution/documentation.md
+    - crawlo: api/crawlo.md
+    - crawlo.crawler: api/crawlo.crawler.md
+    - crawlo.spider: api/crawlo.spider.md
+    - crawlo.request: api/crawlo.request.md
+    - crawlo.response: api/crawlo.response.md
+    - crawlo.items: api/crawlo.items.md
+    - crawlo.pipelines: api/crawlo.pipelines.md
+    - crawlo.middleware: api/crawlo.middleware.md
+    - crawlo.extensions: api/crawlo.extensions.md
+    - crawlo.filters: api/crawlo.filters.md
+    - crawlo.downloader: api/crawlo.downloader.md
+    - crawlo.scheduler: api/crawlo.scheduler.md
+    - crawlo.queues: api/crawlo.queues.md
+    - crawlo.utils: api/crawlo.utils.md
 
 plugins:
   - search
@@ -103,16 +82,11 @@ plugins:
             首页: Home
             简介: Introduction
             快速开始: Quick Start
-            安装指南: Installation Guide
             核心概念: Core Concepts
-            框架架构: Framework Architecture
-            运行模式: Execution Modes
+            开发指南: Development Guide
             项目结构: Project Structure
             配置系统: Configuration System
-            开发指南: Development Guide
             爬虫开发: Spider Development
-            数据项定义: Item Definitions
-            请求和响应: Requests and Responses
             中间件: Middleware
             管道: Pipelines
             扩展组件: Extensions
@@ -122,40 +96,10 @@ plugins:
             队列: Queues
             高级主题: Advanced Topics
             分布式爬取: Distributed Crawling
-            分布式机制: Distributed Mechanism
-            分布式模式: Distributed Patterns
-            分布式教程: Distributed Tutorial
             性能优化: Performance Optimization
             调试技巧: Debugging Tips
             部署指南: Deployment Guide
-            环境变量: Environment Variables
-            Redis Key 命名规范: Redis Key Naming Convention
-            配置参考: Configuration Reference
-            配置最佳实践: Configuration Best Practices
-            去重配置: Deduplication Configuration
-            去重管道指南: Deduplication Pipelines Guide
             API 参考: API Reference
-            核心 API: Core API
-            爬虫 API: Spider API
-            网络 API: Network API
-            队列 API: Queue API
-            过滤器 API: Filter API
-            中间件 API: Middleware API
-            管道 API: Pipeline API
-            扩展 API: Extension API
-            工具 API: Utility API
-            示例项目: Example Projects
-            单机爬虫示例: Standalone Examples
-            分布式爬虫示例: Distributed Examples
-            故障排除: Troubleshooting
-            常见问题: FAQ
-            错误处理: Error Handling
-            性能问题: Performance Issues
-            贡献指南: Contribution Guide
-            开发环境设置: Development Environment Setup
-            代码规范: Code Standards
-            测试指南: Testing Guide
-            文档贡献: Documentation Contribution
 
 extra:
   social:

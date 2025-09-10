@@ -179,10 +179,8 @@ python run.py list_detail --concurrency 12
 REDIS_HOST = '127.0.0.1'
 REDIS_PORT = 6379
 REDIS_DB = 2
-SCHEDULER_QUEUE_NAME = 'crawlo:my_spider:queue:requests'  # Use unified naming convention
-# Redis key configuration has been moved to individual components with unified naming convention
-# crawlo:{PROJECT_NAME}:filter:fingerprint (request deduplication)
-# crawlo:{PROJECT_NAME}:item:fingerprint (item deduplication)
+SCHEDULER_QUEUE_NAME = 'my_spider:requests'
+REDIS_KEY = 'my_spider:fingerprint'
 ```
 
 ### Performance Tuning
@@ -199,10 +197,10 @@ RETRY_HTTP_CODES = [500, 502, 503, 504]
 ### Check Queue Status
 ```bash
 # Check request queue length
-redis-cli llen crawlo:my_spider:queue:requests
+redis-cli llen my_spider:requests
 
 # Check deduplication set size
-redis-cli scard crawlo:my_spider:filter:fingerprint
+redis-cli scard my_spider:fingerprint
 ```
 
 ### Log Monitoring

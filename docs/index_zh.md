@@ -4,8 +4,8 @@
 
 ## 语言选择
 
-- [English Documentation](index.md)
-- [中文文档](index_zh.md)
+- [English Documentation](README.md)
+- [中文文档](README_zh.md)
 
 ## 概述
 
@@ -18,17 +18,20 @@ Crawlo 提供：
 - **高性能架构**：基于 `asyncio` 构建，支持多种下载器（aiohttp、httpx、curl-cffi），并包含智能中间件用于去重、重试和代理支持
 - **监控和管理**：实时统计、结构化日志记录、健康检查和性能分析工具
 
-## 文档结构
+## 分布式爬虫模式
 
-1. [入门指南](getting_started/) - 快速上手 Crawlo
-2. [核心概念](core_concepts/) - 基本概念和架构
-3. [开发指南](development_guide/) - 使用 Crawlo 开发的综合指南
-4. [高级主题](advanced_topics/) - 高级特性和技术
-5. [配置参考](configuration_reference/) - 详细的配置选项
-6. [API 参考](api_reference/) - 完整的 API 文档
-7. [示例](examples/) - 真实示例
-8. [故障排除](troubleshooting/) - 常见问题和解决方案
-9. [贡献指南](contribution/) - 如何为 Crawlo 做贡献
+Crawlo 支持两种主要的分布式爬虫模式：
+
+1. **列表页直接获取数据模式**：适用于 API 或列表页直接返回完整数据的情况
+2. **传统列表-详情页模式**：适用于需要解析详情页获取完整数据的情况
+
+有关这些模式的详细信息，请参阅[分布式模式详解](distributed_crawling_patterns_zh.md)。
+
+## 快速开始
+
+要开始使用 Crawlo，请阅读[快速入门指南](quick_start_guide_zh.md)，它将引导您创建第一个项目并运行第一个爬虫。
+
+有关框架特性和功能的更多详细信息，请参阅[框架文档](crawlo_framework_documentation_zh.md)。
 
 ## 支持
 
