@@ -78,8 +78,8 @@ class RedisDedupPipeline:
         
         return cls(
             redis_host=settings.get('REDIS_HOST', 'localhost'),
-            redis_port=settings.getint('REDIS_PORT', 6379),
-            redis_db=settings.getint('REDIS_DB', 0),
+            redis_port=settings.get_int('REDIS_PORT', 6379),
+            redis_db=settings.get_int('REDIS_DB', 0),
             redis_password=settings.get('REDIS_PASSWORD') or None,
             redis_key=redis_key,
             log_level=settings.get('LOG_LEVEL', 'INFO')

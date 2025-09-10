@@ -179,8 +179,10 @@ python run.py list_detail --concurrency 12
 REDIS_HOST = '127.0.0.1'
 REDIS_PORT = 6379
 REDIS_DB = 2
-SCHEDULER_QUEUE_NAME = 'my_spider:requests'
-REDIS_KEY = 'my_spider:fingerprint'
+SCHEDULER_QUEUE_NAME = 'crawlo:my_spider:queue:requests'  # 使用统一命名规范
+# Redis key配置已移至各组件中，使用统一的命名规范
+# crawlo:{PROJECT_NAME}:filter:fingerprint (请求去重)
+# crawlo:{PROJECT_NAME}:item:fingerprint (数据项去重)
 ```
 
 ### 性能调优
@@ -197,10 +199,7 @@ RETRY_HTTP_CODES = [500, 502, 503, 504]
 ### 查看队列状态
 ```bash
 # 查看请求队列长度
-redis-cli llen my_spider:requests
-
-# 查看去重集合大小
-redis-cli scard my_spider:fingerprint
+redis-cli llen crawlo:my_spider:queue:requests
 ```
 
 ### 日志监控

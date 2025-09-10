@@ -22,14 +22,14 @@ def test_template_project_redis_key():
     # 创建临时目录
     with tempfile.TemporaryDirectory() as temp_dir:
         try:
-            # 切换到临时目录
+            # 在原始工作目录中创建项目，然后移动到临时目录
             original_cwd = os.getcwd()
-            os.chdir(temp_dir)
             
-            # 创建测试项目
+            # 创建测试项目（在原始工作目录中）
             print("   1. 创建测试项目...")
+            cmd_path = os.path.join(original_cwd, "crawlo", "commands", "startproject.py")
             result = subprocess.run([
-                sys.executable, "-m", "crawlo.commands.startproject", "test_project"
+                sys.executable, cmd_path, "test_project"
             ], cwd=original_cwd, capture_output=True, text=True)
             
             if result.returncode != 0:
@@ -39,11 +39,16 @@ def test_template_project_redis_key():
             print("      ✅ 项目创建成功")
             
             # 检查生成的文件
-            project_dir = Path(temp_dir) / "test_project"
+            project_dir = Path(original_cwd) / "test_project"
             if not project_dir.exists():
                 print("❌ 项目目录未创建")
                 return False
                 
+            # 移动项目到临时目录
+            target_dir = Path(temp_dir) / "test_project"
+            shutil.move(str(project_dir), str(target_dir))
+            project_dir = target_dir
+            
             settings_file = project_dir / "test_project" / "settings.py"
             if not settings_file.exists():
                 print("❌ settings.py文件未创建")
@@ -89,8 +94,15 @@ def test_template_project_redis_key():
             
         except Exception as e:
             print(f"❌ 测试过程中发生错误: {e}")
+            import traceback
+            traceback.print_exc()
             return False
         finally:
+            # 清理创建的项目目录
+            project_dir = Path(original_cwd) / "test_project"
+            if project_dir.exists():
+                shutil.rmtree(str(project_dir), ignore_errors=True)
+            
             # 恢复原始工作目录
             os.chdir(original_cwd)
 

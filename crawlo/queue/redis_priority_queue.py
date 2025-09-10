@@ -45,11 +45,27 @@ class RedisPriorityQueue:
         self.redis_url = redis_url
         self.module_name = module_name  # 保存 module_name
         
-        # 使用统一的Redis key命名规范
-        # 统一使用传入的module_name参数，而不是从环境变量获取
-        self.queue_name = f"crawlo:{module_name}:queue:requests"  # 使用统一命名规范
-        self.processing_queue = f"crawlo:{module_name}:queue:processing"  # 使用统一命名规范
-        self.failed_queue = f"crawlo:{module_name}:queue:failed"  # 使用统一命名规范
+        # 使用传入的 queue_name
+        self.queue_name = queue_name
+        
+        # 如果未提供 processing_queue 和 failed_queue，则根据 queue_name 自动生成
+        if processing_queue == "crawlo:processing":  # 默认值
+            # 从 queue_name 生成 processing_queue 名称
+            if ":queue:requests" in queue_name:
+                self.processing_queue = queue_name.replace(":queue:requests", ":queue:processing")
+            else:
+                self.processing_queue = f"{queue_name}:processing"
+        else:
+            self.processing_queue = processing_queue
+            
+        if failed_queue == "crawlo:failed":  # 默认值
+            # 从 queue_name 生成 failed_queue 名称
+            if ":queue:requests" in queue_name:
+                self.failed_queue = queue_name.replace(":queue:requests", ":queue:failed")
+            else:
+                self.failed_queue = f"{queue_name}:failed"
+        else:
+            self.failed_queue = failed_queue
         
         self.max_retries = max_retries
         self.timeout = timeout

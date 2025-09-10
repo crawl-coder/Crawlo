@@ -89,26 +89,35 @@ ALLOWED_CODES = []
 CONNECTION_POOL_LIMIT = 50
 DOWNLOAD_MAXSIZE = 10 * 1024 * 1024    # 10MB
 DOWNLOAD_WARN_SIZE = 1024 * 1024       # 1MB
+DOWNLOAD_RETRY_TIMES = MAX_RETRY_TIMES  # 下载器内部重试次数（复用全局）
+
+# 下载统计配置
+DOWNLOADER_STATS = True  # 是否启用下载器统计功能
+DOWNLOAD_STATS = True  # 是否记录下载时间和大小统计
 
 # ============================== 并发与调度配置 ==============================
+
 CONCURRENCY = 8
 INTERVAL = 5
 DEPTH_PRIORITY = 1
 MAX_RUNNING_SPIDERS = 3
+
+# 运行模式选择：'standalone'(单机), 'distributed'(分布式), 'auto'(自动检测)
+RUN_MODE = 'standalone'  # 默认单机模式，简单易用
 
 # ============================== 队列配置（支持分布式） ==============================
 
 # 队列类型：'auto'（自动选择）, 'memory'（内存队列）, 'redis'（分布式队列）
 QUEUE_TYPE = 'auto'
 SCHEDULER_MAX_QUEUE_SIZE = 2000
-SCHEDULER_QUEUE_NAME = f'{{project_name}}:requests'
+SCHEDULER_QUEUE_NAME = f'crawlo:{{project_name}}:queue:requests'  # 使用统一命名规范
 QUEUE_MAX_RETRIES = 3
 QUEUE_TIMEOUT = 300
 
 # 大规模爬取优化
-LARGE_SCALE_BATCH_SIZE = 1000
-LARGE_SCALE_CHECKPOINT_INTERVAL = 5000
-LARGE_SCALE_MAX_MEMORY_USAGE = 500
+LARGE_SCALE_BATCH_SIZE = 1000  # 批处理大小
+LARGE_SCALE_CHECKPOINT_INTERVAL = 5000  # 进度保存间隔
+LARGE_SCALE_MAX_MEMORY_USAGE = 500  # 最大内存使用量（MB）
 
 # ============================== 数据存储配置 ==============================
 
@@ -135,6 +144,16 @@ MONGO_USE_BATCH = False  # 是否启用批量插入
 
 REQUEST_DIR = '.'
 
+# 根据运行模式自动选择去重管道
+# 单机模式默认使用内存去重管道
+# 分布式模式默认使用Redis去重管道
+if RUN_MODE == 'distributed':
+    # 分布式模式下默认使用Redis去重管道
+    DEFAULT_DEDUP_PIPELINE = 'crawlo.pipelines.RedisDedupPipeline'
+else:
+    # 单机模式下默认使用内存去重管道
+    DEFAULT_DEDUP_PIPELINE = 'crawlo.pipelines.MemoryDedupPipeline'
+
 # 去重过滤器（推荐分布式项目使用 Redis 过滤器）
 FILTER_CLASS = 'crawlo.filters.memory_filter.MemoryFilter'
 # FILTER_CLASS = 'crawlo.filters.aioredis_filter.AioRedisFilter'  # 分布式去重
@@ -153,6 +172,9 @@ else:
 # Redis key配置已移至各组件中，使用统一的命名规范
 # crawlo:{project_name}:filter:fingerprint (请求去重)
 # crawlo:{project_name}:item:fingerprint (数据项去重)
+# crawlo:{project_name}:queue:requests (请求队列)
+# crawlo:{project_name}:queue:processing (处理中队列)
+# crawlo:{project_name}:queue:failed (失败队列)
 
 REDIS_TTL = 0
 CLEANUP_FP = 0
@@ -176,15 +198,21 @@ MIDDLEWARES = [
 
 # ============================== 数据管道配置 ==============================
 
+# 数据处理管道（启用的存储方式）
 PIPELINES = [
-    # 根据运行模式自动选择默认去重管道
-    # 单机模式：crawlo.pipelines.MemoryDedupPipeline
-    # 分布式模式：crawlo.pipelines.RedisDedupPipeline
     'crawlo.pipelines.console_pipeline.ConsolePipeline',
     # '{{project_name}}.pipelines.DatabasePipeline',        # 自定义数据库管道
     # 'crawlo.pipelines.mysql_pipeline.AsyncmyMySQLPipeline',  # MySQL 存储
     # 'crawlo.pipelines.mongo_pipeline.MongoPipeline',      # MongoDB 存储
 ]
+
+# 根据运行模式自动配置默认去重管道
+if RUN_MODE == 'distributed':
+    # 分布式模式下添加Redis去重管道
+    PIPELINES.insert(0, DEFAULT_DEDUP_PIPELINE)
+else:
+    # 单机模式下添加内存去重管道
+    PIPELINES.insert(0, DEFAULT_DEDUP_PIPELINE)
 
 # ============================== 扩展组件 ==============================
 
@@ -257,6 +285,28 @@ DEFAULT_REQUEST_HEADERS = {
     'Connection': 'keep-alive',
     'Upgrade-Insecure-Requests': '1',
 }
+
+# ============================== 下载器优化配置 ==============================
+
+# 下载器健康检查
+DOWNLOADER_HEALTH_CHECK = True  # 是否启用下载器健康检查
+HEALTH_CHECK_INTERVAL = 60  # 健康检查间隔（秒）
+
+# 请求统计配置
+REQUEST_STATS_ENABLED = True  # 是否启用请求统计
+STATS_RESET_ON_START = False  # 启动时是否重置统计
+
+# HttpX 下载器专用配置
+HTTPX_HTTP2 = True  # 是否启用HTTP/2支持
+HTTPX_FOLLOW_REDIRECTS = True  # 是否自动跟随重定向
+
+# AioHttp 下载器专用配置
+AIOHTTP_AUTO_DECOMPRESS = True  # 是否自动解压响应
+AIOHTTP_FORCE_CLOSE = False  # 是否强制关闭连接
+
+# 通用优化配置
+CONNECTION_TTL_DNS_CACHE = 300  # DNS缓存TTL（秒）
+CONNECTION_KEEPALIVE_TIMEOUT = 15  # Keep-Alive超时（秒）
 
 # ============================== 开发与调试 ==============================
 

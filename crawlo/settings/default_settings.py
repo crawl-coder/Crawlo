@@ -71,7 +71,7 @@ RUN_MODE = 'standalone'  # 默认单机模式，简单易用
 # 队列类型选择：'memory'(内存), 'redis'(分布式), 'auto'(自动选择)
 QUEUE_TYPE = 'memory'  # 默认内存队列，无需外部依赖
 SCHEDULER_MAX_QUEUE_SIZE = 2000  # 调度器队列最大容量
-SCHEDULER_QUEUE_NAME = 'crawlo:requests'  # Redis 队列名称
+SCHEDULER_QUEUE_NAME = 'crawlo:requests'  # Redis 队列名称 (默认值，实际使用时会根据项目名生成)
 QUEUE_MAX_RETRIES = 3  # 队列操作最大重试次数
 QUEUE_TIMEOUT = 300  # 队列操作超时时间（秒）
 
@@ -138,7 +138,13 @@ else:
     REDIS_URL = f'redis://{REDIS_HOST}:{REDIS_PORT}/{REDIS_DB}'
 
 # 统一的Redis key命名规范配置
-REDIS_KEY_PREFIX = "crawlo"
+# REDIS_KEY_PREFIX 已移至各组件中，使用统一的命名规范
+# crawlo:{PROJECT_NAME}:filter:fingerprint (请求去重)
+# crawlo:{PROJECT_NAME}:item:fingerprint (数据项去重)
+# crawlo:{PROJECT_NAME}:queue:requests (请求队列)
+# crawlo:{PROJECT_NAME}:queue:processing (处理中队列)
+# crawlo:{PROJECT_NAME}:queue:failed (失败队列)
+
 REDIS_TTL = 0  # 指纹过期时间（0 表示永不过期）
 CLEANUP_FP = 0  # 程序结束时是否清理指纹（0=不清理）
 FILTER_DEBUG = True  # 是否开启去重调试日志
@@ -185,33 +191,6 @@ EXTENSIONS = [
     # 'crawlo.extension.performance_profiler.PerformanceProfilerExtension',  # 性能分析
     # 'crawlo.extension.health_check.HealthCheckExtension',  # 健康检查
 ]
-
-# ============================== 日志与监控 ==============================
-
-LOG_LEVEL = 'INFO'  # 日志级别: DEBUG/INFO/WARNING/ERROR
-STATS_DUMP = True  # 是否周期性输出统计信息
-
-# ============================== 扩展配置 ==============================
-
-# 内存监控扩展配置
-MEMORY_MONITOR_ENABLED = False  # 是否启用内存监控
-MEMORY_MONITOR_INTERVAL = 60  # 内存检查间隔（秒）
-MEMORY_WARNING_THRESHOLD = 80.0  # 内存使用警告阈值（百分比）
-MEMORY_CRITICAL_THRESHOLD = 90.0  # 内存使用严重阈值（百分比）
-
-# 请求记录扩展配置
-REQUEST_RECORDER_ENABLED = False  # 是否启用请求记录
-REQUEST_RECORDER_OUTPUT_DIR = 'requests_log'  # 请求记录输出目录
-REQUEST_RECORDER_MAX_FILE_SIZE = 10 * 1024 * 1024  # 单个记录文件最大大小（字节）
-
-# 性能分析扩展配置
-PERFORMANCE_PROFILER_ENABLED = False  # 是否启用性能分析
-PERFORMANCE_PROFILER_OUTPUT_DIR = 'profiling'  # 性能分析输出目录
-PERFORMANCE_PROFILER_INTERVAL = 300  # 定期保存分析结果间隔（秒）
-
-# 健康检查扩展配置
-HEALTH_CHECK_ENABLED = True  # 是否启用健康检查
-HEALTH_CHECK_INTERVAL = 60  # 健康检查间隔（秒）
 
 # ============================== 日志与监控 ==============================
 

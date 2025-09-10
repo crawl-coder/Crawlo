@@ -46,7 +46,7 @@ def test_template_content():
         print("      ✅ 包含数据项去重的Redis key命名规范注释")
         
         # 检查是否保留了队列名称配置
-        queue_config = "SCHEDULER_QUEUE_NAME = f'{{project_name}}:requests'"
+        queue_config = "SCHEDULER_QUEUE_NAME = f'crawlo:{{project_name}}:queue:requests'"
         if queue_config not in content:
             print("❌ 缺少队列名称配置")
             return False

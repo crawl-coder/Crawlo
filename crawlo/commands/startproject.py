@@ -7,18 +7,62 @@
 """
 import shutil
 import re
+import sys
+import os
 from pathlib import Path
-from rich.console import Console
-from rich.panel import Panel
-from rich.text import Text
 
-from .utils import show_error_panel, show_success_panel
+# 添加项目根目录到路径，以便能够导入utils模块
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
 
-# 初始化 rich 控制台
-console = Console()
+try:
+    from rich.console import Console
+    from rich.panel import Panel
+    from rich.text import Text
+    RICH_AVAILABLE = True
+except ImportError:
+    RICH_AVAILABLE = False
+
+try:
+    from .utils import show_error_panel, show_success_panel
+    UTILS_AVAILABLE = True
+except ImportError:
+    # 如果相对导入失败，尝试绝对导入
+    try:
+        from crawlo.commands.utils import show_error_panel, show_success_panel
+        UTILS_AVAILABLE = True
+    except ImportError:
+        UTILS_AVAILABLE = False
+
+# 初始化 rich 控制台（如果可用）
+if RICH_AVAILABLE:
+    console = Console()
+else:
+    # 简单的控制台输出替代
+    class Console:
+        def print(self, text):
+            print(text)
+    console = Console()
 
 TEMPLATES_DIR = Path(__file__).parent.parent / 'templates'
 
+
+def show_error_panel(title, content):
+    """显示错误面板的简单实现"""
+    if RICH_AVAILABLE:
+        from rich.panel import Panel
+        console.print(Panel(content, title=title, border_style="red"))
+    else:
+        print(f"❌ {title}")
+        print(content)
+
+def show_success_panel(title, content):
+    """显示成功面板的简单实现"""
+    if RICH_AVAILABLE:
+        from rich.panel import Panel
+        console.print(Panel(content, title=title, border_style="green"))
+    else:
+        print(f"✅ {title}")
+        print(content)
 
 def _render_template(tmpl_path, context):
     """读取模板文件，替换 {{key}} 为 context 中的值"""
@@ -194,3 +238,8 @@ def main(args):
             shutil.rmtree(project_dir, ignore_errors=True)
             console.print("[red]:cross_mark: Cleaned up partially created project.[/red]")
         return 1
+
+if __name__ == "__main__":
+    import sys
+    exit_code = main(sys.argv[1:])
+    sys.exit(exit_code)
