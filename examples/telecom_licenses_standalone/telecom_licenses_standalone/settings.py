@@ -60,7 +60,7 @@ EXTENSIONS = [
     'crawlo.extension.log_interval.LogIntervalExtension',
     'crawlo.extension.log_stats.LogStats',
     'crawlo.extension.logging_extension.CustomLoggerExtension',
-    'crawlo.extension.memory_monitor.MemoryMonitorExtension',  # 启用内存监控
+    # 'crawlo.extension.memory_monitor.MemoryMonitorExtension',  # 启用内存监控
 ]
 
 # ============================== 内存监控配置 ==============================

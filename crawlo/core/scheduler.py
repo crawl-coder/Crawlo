@@ -5,6 +5,7 @@ from typing import Optional, Callable
 from crawlo.utils.log import get_logger
 from crawlo.utils.request import set_request
 from crawlo.utils.request_serializer import RequestSerializer
+from crawlo.utils.error_handler import ErrorHandler
 from crawlo.queue.queue_manager import QueueManager, QueueConfig
 from crawlo.project import load_class, common_call
 
@@ -16,6 +17,7 @@ class Scheduler:
         self.request_serializer = RequestSerializer()  # 专门处理序列化
 
         self.logger = get_logger(name=self.__class__.__name__, level=log_level)
+        self.error_handler = ErrorHandler(self.__class__.__name__, log_level)
         self.stats = stats
         self.dupe_filter = dupe_filter
         self.priority = priority
@@ -55,6 +57,7 @@ class Scheduler:
             self.logger.info("调度器初始化完成")
         except Exception as e:
             self.logger.error(f"❌ 调度器初始化失败: {e}")
+            self.logger.debug(f"详细错误信息:\n{traceback.format_exc()}")
             raise
 
     async def next_request(self):
@@ -62,14 +65,22 @@ class Scheduler:
         if not self.queue_manager:
             return None
             
-        request = await self.queue_manager.get()
-        
-        # 恢复 callback（从 Redis 队列取出时）
-        if request:
-            spider = getattr(self.crawler, 'spider', None)
-            request = self.request_serializer.restore_after_deserialization(request, spider)
+        try:
+            request = await self.queue_manager.get()
             
-        return request
+            # 恢复 callback（从 Redis 队列取出时）
+            if request:
+                spider = getattr(self.crawler, 'spider', None)
+                request = self.request_serializer.restore_after_deserialization(request, spider)
+            
+            return request
+        except Exception as e:
+            self.error_handler.handle_error(
+                e, 
+                context="获取下一个请求失败", 
+                raise_error=False
+            )
+            return None
 
     async def enqueue_request(self, request):
         """将请求加入队列"""
@@ -83,13 +94,21 @@ class Scheduler:
 
         set_request(request, self.priority)
         
-        # 使用统一的队列接口
-        success = await self.queue_manager.put(request, priority=getattr(request, 'priority', 0))
-        
-        if success:
-            self.logger.debug(f"✅ 请求入队成功: {request.url}")
-        
-        return success
+        try:
+            # 使用统一的队列接口
+            success = await self.queue_manager.put(request, priority=getattr(request, 'priority', 0))
+            
+            if success:
+                self.logger.debug(f"✅ 请求入队成功: {request.url}")
+            
+            return success
+        except Exception as e:
+            self.error_handler.handle_error(
+                e, 
+                context="请求入队失败", 
+                raise_error=False
+            )
+            return False
 
     def idle(self) -> bool:
         """检查队列是否为空"""
@@ -97,11 +116,18 @@ class Scheduler:
 
     async def close(self):
         """关闭调度器"""
-        if isinstance(closed := getattr(self.dupe_filter, 'closed', None), Callable):
-            await closed()
-        
-        if self.queue_manager:
-            await self.queue_manager.close()
+        try:
+            if isinstance(closed := getattr(self.dupe_filter, 'closed', None), Callable):
+                await closed()
+            
+            if self.queue_manager:
+                await self.queue_manager.close()
+        except Exception as e:
+            self.error_handler.handle_error(
+                e, 
+                context="关闭调度器失败", 
+                raise_error=False
+            )
 
     def __len__(self):
         """获取队列大小"""

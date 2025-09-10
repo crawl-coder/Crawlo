@@ -10,6 +10,7 @@ import re
 import sys
 import os
 from pathlib import Path
+from typing import Optional
 
 # 添加项目根目录到路径，以便能够导入utils模块
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
@@ -18,6 +19,7 @@ try:
     from rich.console import Console
     from rich.panel import Panel
     from rich.text import Text
+    from rich.table import Table
     RICH_AVAILABLE = True
 except ImportError:
     RICH_AVAILABLE = False
@@ -44,6 +46,15 @@ else:
     console = Console()
 
 TEMPLATES_DIR = Path(__file__).parent.parent / 'templates'
+
+# 可用的模板类型
+TEMPLATE_TYPES = {
+    'default': '默认模板 - 通用配置，适合大多数项目',
+    'simple': '简化模板 - 最小配置，适合快速开始',
+    'distributed': '分布式模板 - 针对分布式爬取优化',
+    'high-performance': '高性能模板 - 针对大规模高并发优化',
+    'gentle': '温和模板 - 低负载配置，对目标网站友好'
+}
 
 
 def show_error_panel(title, content):
@@ -73,7 +84,7 @@ def _render_template(tmpl_path, context):
     return content
 
 
-def _copytree_with_templates(src, dst, context):
+def _copytree_with_templates(src, dst, context, template_type='default'):
     """
     递归复制目录，将 .tmpl 文件渲染后复制（去除 .tmpl 后缀），其他文件直接复制。
     """
@@ -89,7 +100,19 @@ def _copytree_with_templates(src, dst, context):
             dst_item.mkdir(parents=True, exist_ok=True)
         else:
             if item.suffix == '.tmpl':
-                rendered_content = _render_template(item, context)
+                # 处理特定模板类型的设置文件
+                if item.name == 'settings.py.tmpl' and template_type != 'default':
+                    # 使用特定模板类型的设置文件
+                    template_file_name = f'settings_{template_type}.py.tmpl'
+                    template_file_path = src_path / template_file_name
+                    if template_file_path.exists():
+                        rendered_content = _render_template(template_file_path, context)
+                    else:
+                        # 如果特定模板不存在，使用默认模板
+                        rendered_content = _render_template(item, context)
+                else:
+                    rendered_content = _render_template(item, context)
+                
                 final_dst = dst_item.with_suffix('')
                 final_dst.parent.mkdir(parents=True, exist_ok=True)
                 with open(final_dst, 'w', encoding='utf-8') as f:
@@ -144,16 +167,44 @@ def validate_project_name(project_name: str) -> tuple[bool, str]:
     return True, ""
 
 
+def show_template_options():
+    """显示可用的模板选项"""
+    if RICH_AVAILABLE:
+        table = Table(title="可用模板类型", show_header=True, header_style="bold magenta")
+        table.add_column("模板类型", style="cyan", no_wrap=True)
+        table.add_column("描述", style="green")
+        
+        for template_type, description in TEMPLATE_TYPES.items():
+            table.add_row(template_type, description)
+        
+        console.print(table)
+    else:
+        print("可用模板类型:")
+        for template_type, description in TEMPLATE_TYPES.items():
+            print(f"  {template_type}: {description}")
+
+
 def main(args):
-    if len(args) != 1:
-        console.print("[bold red]Error:[/bold red] Usage: [blue]crawlo startproject[/blue] <project_name>")
+    if len(args) < 1 or len(args) > 2:
+        console.print("[bold red]Error:[/bold red] Usage: [blue]crawlo startproject[/blue] <project_name> [template_type]")
         console.print("💡 Examples:")
         console.print("   [blue]crawlo startproject[/blue] my_spider_project")
-        console.print("   [blue]crawlo startproject[/blue] news_crawler")
-        console.print("   [blue]crawlo startproject[/blue] ecommerce_spider")
+        console.print("   [blue]crawlo startproject[/blue] news_crawler simple")
+        console.print("   [blue]crawlo startproject[/blue] ecommerce_spider distributed")
+        show_template_options()
         return 1
 
     project_name = args[0]
+    template_type = args[1] if len(args) > 1 else 'default'
+    
+    # 验证模板类型
+    if template_type not in TEMPLATE_TYPES:
+        show_error_panel(
+            "Invalid Template Type",
+            f"Template type '[cyan]{template_type}[/cyan]' is not supported.\n"
+        )
+        show_template_options()
+        return 1
     
     # 验证项目名称
     is_valid, error_msg = validate_project_name(project_name)
@@ -198,7 +249,7 @@ def main(args):
 
         # 3. 复制并渲染项目包内容
         package_dir = project_dir / project_name
-        _copytree_with_templates(template_dir, package_dir, context)
+        _copytree_with_templates(template_dir, package_dir, context, template_type)
         console.print(f":white_check_mark: Created project package: [green]{package_dir}[/green]")
 
         # 4. 创建 logs 目录
@@ -212,6 +263,10 @@ def main(args):
         # 成功面板
         success_text = Text.from_markup(f"Project '[bold cyan]{project_name}[/bold cyan]' created successfully!")
         console.print(Panel(success_text, title=":rocket: Success", border_style="green", padding=(1, 2)))
+        
+        # 显示使用的模板类型
+        if template_type != 'default':
+            console.print(f":information: 使用模板类型: [bold blue]{template_type}[/bold blue] - {TEMPLATE_TYPES[template_type]}")
 
         # 下一步操作提示（对齐美观 + 语法高亮）
         next_steps = f"""

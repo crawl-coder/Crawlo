@@ -5,6 +5,7 @@ import psutil
 from typing import Any, Optional
 
 from crawlo.utils.log import get_logger
+from crawlo.utils.error_handler import ErrorHandler
 from crawlo.event import spider_opened, spider_closed
 
 
@@ -19,6 +20,7 @@ class MemoryMonitorExtension:
         self.process = psutil.Process()
         self.settings = crawler.settings
         self.logger = get_logger(self.__class__.__name__, crawler.settings.get('LOG_LEVEL'))
+        self.error_handler = ErrorHandler(self.__class__.__name__, crawler.settings.get('LOG_LEVEL'))
         
         # 获取配置参数
         self.interval = self.settings.get_int('MEMORY_MONITOR_INTERVAL', 60)  # 默认60秒检查一次
@@ -39,22 +41,36 @@ class MemoryMonitorExtension:
 
     async def spider_opened(self) -> None:
         """爬虫启动时开始监控"""
-        self.task = asyncio.create_task(self._monitor_loop())
-        self.logger.info(
-            f"Memory monitor started. Interval: {self.interval}s, "
-            f"Warning threshold: {self.warning_threshold}%, Critical threshold: {self.critical_threshold}%"
-        )
+        try:
+            self.task = asyncio.create_task(self._monitor_loop())
+            self.logger.info(
+                f"Memory monitor started. Interval: {self.interval}s, "
+                f"Warning threshold: {self.warning_threshold}%, Critical threshold: {self.critical_threshold}%"
+            )
+        except Exception as e:
+            self.error_handler.handle_error(
+                e, 
+                context="启动内存监控失败", 
+                raise_error=False
+            )
 
     async def spider_closed(self) -> None:
         """爬虫关闭时停止监控"""
-        if self.task:
-            self.task.cancel()
-            try:
-                await self.task
-            except asyncio.CancelledError:
-                pass
-            self.task = None
-            self.logger.info("Memory monitor stopped.")
+        try:
+            if self.task:
+                self.task.cancel()
+                try:
+                    await self.task
+                except asyncio.CancelledError:
+                    pass
+                self.task = None
+                self.logger.info("Memory monitor stopped.")
+        except Exception as e:
+            self.error_handler.handle_error(
+                e, 
+                context="停止内存监控失败", 
+                raise_error=False
+            )
 
     async def _monitor_loop(self) -> None:
         """内存监控循环"""

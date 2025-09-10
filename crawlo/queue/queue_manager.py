@@ -12,6 +12,7 @@ import os
 
 from crawlo.utils.log import get_logger
 from crawlo.utils.request_serializer import RequestSerializer
+from crawlo.utils.error_handler import ErrorHandler
 from crawlo.queue.pqueue import SpiderPriorityQueue
 from crawlo import Request
 
@@ -87,6 +88,7 @@ class QueueManager:
     def __init__(self, config: QueueConfig):
         self.config = config
         self.logger = get_logger(self.__class__.__name__)
+        self.error_handler = ErrorHandler(self.__class__.__name__)
         self.request_serializer = RequestSerializer()
         self._queue = None
         self._queue_semaphore = None
@@ -110,7 +112,7 @@ class QueueManager:
         except Exception as e:
             # 记录详细的错误信息和堆栈跟踪
             self.logger.error(f"❌ 队列初始化失败: {e}")
-            self.logger.error(f"详细错误信息:\n{traceback.format_exc()}")
+            self.logger.debug(f"详细错误信息:\n{traceback.format_exc()}")
             self._health_status = "error"
             return False
     

@@ -16,6 +16,7 @@ from typing import Optional
 from crawlo.filters import BaseFilter
 from crawlo.utils.log import get_logger
 from crawlo.utils.request import request_fingerprint
+from crawlo.utils.redis_connection_pool import get_redis_pool
 
 
 class AioRedisFilter(BaseFilter):
@@ -48,7 +49,7 @@ class AioRedisFilter(BaseFilter):
         初始化Redis过滤器
         
         :param redis_key: Redis中存储指纹的键名
-        :param client: Redis客户端实例
+        :param client: Redis客户端实例（可以为None，稍后初始化）
         :param stats: 统计信息存储
         :param debug: 是否启用调试模式
         :param log_level: 日志级别
@@ -62,6 +63,9 @@ class AioRedisFilter(BaseFilter):
         self.redis = client
         self.cleanup_fp = cleanup_fp
         self.ttl = ttl
+        
+        # 保存连接池引用（用于延迟初始化）
+        self._redis_pool = None
         
         # 性能计数器
         self._redis_operations = 0
@@ -80,20 +84,29 @@ class AioRedisFilter(BaseFilter):
             ttl = max(0, int(ttl_setting)) if ttl_setting > 0 else None
 
         try:
-            redis_client = aioredis.from_url(
+            # 使用优化的连接池
+            redis_pool = get_redis_pool(
                 redis_url,
-                decode_responses=decode_responses,
                 max_connections=20,
+                socket_connect_timeout=5,
+                socket_timeout=30,
+                health_check_interval=30,
+                retry_on_timeout=True,
+                decode_responses=decode_responses,
                 encoding='utf-8'
             )
+            
+            # 注意：这里不应该使用 await，因为 create_instance 不是异步方法
+            # 我们将在实际使用时获取连接
+            redis_client = None  # 延迟初始化
         except Exception as e:
-            raise RuntimeError(f"Redis连接失败: {redis_url} - {str(e)}")
+            raise RuntimeError(f"Redis连接池初始化失败: {redis_url} - {str(e)}")
 
         # 使用统一的Redis key命名规范: crawlo:{project_name}:filter:fingerprint
         project_name = crawler.settings.get('PROJECT_NAME', 'default')
         redis_key = f"crawlo:{project_name}:filter:fingerprint"
 
-        return cls(
+        instance = cls(
             redis_key=redis_key,
             client=redis_client,
             stats=crawler.stats,
@@ -102,6 +115,16 @@ class AioRedisFilter(BaseFilter):
             debug=crawler.settings.get_bool('FILTER_DEBUG', False),
             log_level=crawler.settings.get('LOG_LEVEL', 'INFO')
         )
+        
+        # 保存连接池引用，以便在需要时获取连接
+        instance._redis_pool = redis_pool
+        return instance
+
+    async def _get_redis_client(self):
+        """获取Redis客户端实例（延迟初始化）"""
+        if self.redis is None and self._redis_pool is not None:
+            self.redis = await self._redis_pool.get_connection()
+        return self.redis
 
     async def requested(self, request) -> bool:
         """
@@ -111,6 +134,9 @@ class AioRedisFilter(BaseFilter):
         :return: True 表示重复，False 表示新请求
         """
         try:
+            # 确保Redis客户端已初始化
+            await self._get_redis_client()
+            
             fp = str(request_fingerprint(request))
             self._redis_operations += 1
 
@@ -145,6 +171,9 @@ class AioRedisFilter(BaseFilter):
         :return: 是否成功添加（True 表示新添加，False 表示已存在）
         """
         try:
+            # 确保Redis客户端已初始化
+            await self._get_redis_client()
+            
             fp = str(fp)
             
             # 使用 pipeline 优化性能
@@ -182,6 +211,9 @@ class AioRedisFilter(BaseFilter):
     async def get_stats(self) -> dict:
         """获取过滤器详细统计信息"""
         try:
+            # 确保Redis客户端已初始化
+            await self._get_redis_client()
+            
             count = await self.redis.scard(self.redis_key)
             
             # 获取TTL信息
@@ -216,6 +248,9 @@ class AioRedisFilter(BaseFilter):
     async def clear_all(self) -> int:
         """清空所有指纹数据"""
         try:
+            # 确保Redis客户端已初始化
+            await self._get_redis_client()
+            
             deleted = await self.redis.delete(self.redis_key)
             self.logger.info(f"已清除指纹数: {deleted}")
             return deleted
@@ -226,6 +261,9 @@ class AioRedisFilter(BaseFilter):
     async def closed(self, reason: Optional[str] = None) -> None:
         """爬虫关闭时的清理操作"""
         try:
+            # 确保Redis客户端已初始化
+            await self._get_redis_client()
+            
             if self.cleanup_fp:
                 deleted = await self.redis.delete(self.redis_key)
                 self.logger.info(f"爬虫关闭清理: 已删除{deleted}个指纹")
@@ -238,9 +276,5 @@ class AioRedisFilter(BaseFilter):
 
     async def _close_redis(self) -> None:
         """安全关闭Redis连接"""
-        try:
-            if hasattr(self.redis, 'close'):
-                await self.redis.close()
-                self.logger.debug("Redis连接已关闭")
-        except Exception as e:
-            self.logger.warning(f"Redis关闭时出错：{e}")
+        # 连接池会自动管理连接，这里不需要显式关闭
+        self.logger.debug("Redis连接已释放")

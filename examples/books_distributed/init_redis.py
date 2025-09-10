@@ -19,7 +19,7 @@ def initialize_redis_queue():
     redis_port = 6379
     redis_db = 4
     redis_password = 'Oscar&0503'  # Local Redis password
-    redis_key = 'books:start_urls'
+    redis_key = 'crawlo:books_distributed:queue:requests'  # 使用统一命名规范
     
     try:
         # Connect to Redis

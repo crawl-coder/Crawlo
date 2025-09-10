@@ -23,6 +23,7 @@ from typing import Dict, Any, Optional, Union
 import os
 from crawlo.mode_manager import ModeManager, standalone_mode, distributed_mode, auto_mode, from_env
 from crawlo.utils.log import get_logger
+from crawlo.config_validator import validate_config
 
 
 class CrawloConfig:
@@ -31,6 +32,19 @@ class CrawloConfig:
     def __init__(self, settings: Dict[str, Any]):
         self.settings = settings
         self.logger = get_logger(self.__class__.__name__)
+        # 验证配置
+        self._validate_settings()
+    
+    def _validate_settings(self):
+        """验证配置"""
+        is_valid, errors, warnings = validate_config(self.settings)
+        if not is_valid:
+            error_msg = "配置验证失败:\n" + "\n".join([f"  - {error}" for error in errors])
+            raise ValueError(error_msg)
+        
+        if warnings:
+            warning_msg = "配置警告:\n" + "\n".join([f"  - {warning}" for warning in warnings])
+            self.logger.warning(warning_msg)
     
     def get(self, key: str, default: Any = None) -> Any:
         """获取配置项"""
@@ -99,6 +113,22 @@ class CrawloConfig:
         
         print("=" * 50)
         return self
+    
+    def validate(self) -> bool:
+        """验证当前配置"""
+        is_valid, errors, warnings = validate_config(self.settings)
+        if not is_valid:
+            print("配置验证失败:")
+            for error in errors:
+                print(f"  - {error}")
+            return False
+        
+        if warnings:
+            print("配置警告:")
+            for warning in warnings:
+                print(f"  - {warning}")
+        
+        return True
     
     # ==================== 静态工厂方法 ====================
     

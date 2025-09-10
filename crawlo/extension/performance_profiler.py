@@ -8,6 +8,7 @@ import cProfile
 from typing import Any, Optional
 
 from crawlo.utils.log import get_logger
+from crawlo.utils.error_handler import ErrorHandler
 from crawlo.event import spider_opened, spider_closed
 
 
@@ -20,6 +21,7 @@ class PerformanceProfilerExtension:
     def __init__(self, crawler: Any):
         self.settings = crawler.settings
         self.logger = get_logger(self.__class__.__name__, crawler.settings.get('LOG_LEVEL'))
+        self.error_handler = ErrorHandler(self.__class__.__name__, crawler.settings.get('LOG_LEVEL'))
         
         # 获取配置参数
         self.enabled = self.settings.get_bool('PERFORMANCE_PROFILER_ENABLED', False)
@@ -51,33 +53,47 @@ class PerformanceProfilerExtension:
         if not self.enabled:
             return
             
-        self.profiler = cProfile.Profile()
-        self.profiler.enable()
-        
-        # 启动定期保存分析结果的任务
-        self.task = asyncio.create_task(self._periodic_save())
-        
-        self.logger.info("Performance profiler started.")
+        try:
+            self.profiler = cProfile.Profile()
+            self.profiler.enable()
+            
+            # 启动定期保存分析结果的任务
+            self.task = asyncio.create_task(self._periodic_save())
+            
+            self.logger.info("Performance profiler started.")
+        except Exception as e:
+            self.error_handler.handle_error(
+                e, 
+                context="启动性能分析器失败", 
+                raise_error=False
+            )
 
     async def spider_closed(self) -> None:
         """爬虫关闭时停止性能分析并保存结果"""
         if not self.enabled or not self.profiler:
             return
             
-        # 停止定期保存任务
-        if self.task:
-            self.task.cancel()
-            try:
-                await self.task
-            except asyncio.CancelledError:
-                pass
-        
-        # 停止分析器并保存最终结果
-        self.profiler.disable()
-        
-        # 保存分析结果
-        await self._save_profile("final")
-        self.logger.info("Performance profiler stopped and results saved.")
+        try:
+            # 停止定期保存任务
+            if self.task:
+                self.task.cancel()
+                try:
+                    await self.task
+                except asyncio.CancelledError:
+                    pass
+            
+            # 停止分析器并保存最终结果
+            self.profiler.disable()
+            
+            # 保存分析结果
+            await self._save_profile("final")
+            self.logger.info("Performance profiler stopped and results saved.")
+        except Exception as e:
+            self.error_handler.handle_error(
+                e, 
+                context="停止性能分析器失败", 
+                raise_error=False
+            )
 
     async def _periodic_save(self) -> None:
         """定期保存分析结果"""

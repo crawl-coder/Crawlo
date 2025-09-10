@@ -42,7 +42,7 @@ MAX_RUNNING_SPIDERS = 5
 # Scheduler configuration
 SCHEDULER = 'crawlo.core.scheduler.Scheduler'
 SCHEDULER_MAX_QUEUE_SIZE = 5000
-SCHEDULER_QUEUE_NAME = 'books:requests'
+SCHEDULER_QUEUE_NAME = 'crawlo:books_distributed:queue:requests'  # 使用统一命名规范
 
 # ============================== Data storage ==============================
 MYSQL_HOST = '127.0.0.1'

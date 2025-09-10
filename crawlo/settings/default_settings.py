@@ -1,136 +1,60 @@
 #!/usr/bin/python
-# -*- coding: UTF-8 -*-
+# -*- coding:UTF-8 -*-
 """
-==================================
-         Crawlo 项目配置文件
-==================================
-说明：
-- 所有配置项均已按功能模块分类。
-- 支持通过环境变量覆盖部分敏感配置（如 Redis、MySQL 密码等）。
-- 可根据需求启用/禁用组件（如 MySQL、Redis、Proxy 等）。
+默认配置文件
+包含 Crawlo 框架的所有默认设置项
 """
 import os
 
-# ============================== 核心信息 ==============================
-PROJECT_NAME = 'crawlo'
+# 添加环境变量配置工具导入
+from crawlo.utils.env_config import get_redis_config, get_runtime_config
 
-# ============================== 网络请求配置 ==============================
+# ============================== 项目基础配置 ==============================
 
-# 下载器选择（支持三种方式）
-# 方式1: 直接指定类路径
-DOWNLOADER = "crawlo.downloader.aiohttp_downloader.AioHttpDownloader"
-# DOWNLOADER = "crawlo.downloader.cffi_downloader.CurlCffiDownloader"  # 支持浏览器指纹
-# DOWNLOADER = "crawlo.downloader.httpx_downloader.HttpXDownloader"    # 支持HTTP/2
+# 项目名称（用于日志、Redis Key 等标识）
+PROJECT_NAME = get_runtime_config()['PROJECT_NAME']
 
-# 方式2: 使用简化名称（推荐）
-# DOWNLOADER_TYPE = 'aiohttp'     # 可选: aiohttp, httpx, curl_cffi, cffi
+# 框架版本
+VERSION = 1.0
 
-# 方式3: 在Spider中动态选择
-# 可以在Spider类中设置 custom_settings = {'DOWNLOADER_TYPE': 'httpx'}
+# 运行模式：standalone/distributed/auto
+RUN_MODE = get_runtime_config()['CRAWLO_MODE']
 
-# 请求超时与安全
-DOWNLOAD_TIMEOUT = 30  # 下载超时时间（秒）
-VERIFY_SSL = True  # 是否验证 SSL 证书
-USE_SESSION = True  # 是否使用持久化会话（aiohttp 特有）
+# 并发数配置
+CONCURRENCY = get_runtime_config()['CONCURRENCY']
 
-# 请求延迟控制
-DOWNLOAD_DELAY = 1.0  # 基础延迟（秒）
-RANDOM_RANGE = (0.8, 1.2)  # 随机延迟系数范围
-RANDOMNESS = True  # 是否启用随机延迟
+# ============================== 爬虫核心配置 ==============================
 
-# 重试策略
-MAX_RETRY_TIMES = 3  # 最大重试次数
-RETRY_PRIORITY = -1  # 重试请求的优先级调整
-RETRY_HTTP_CODES = [408, 429, 500, 502, 503, 504, 522, 524]  # 触发重试的状态码
-IGNORE_HTTP_CODES = [403, 404]  # 直接标记成功、不重试的状态码
-ALLOWED_CODES = []  # 允许的状态码（空表示不限制）
+# 请求延迟（秒）
+DOWNLOAD_DELAY = 1
 
-# 连接与响应大小限制
-CONNECTION_POOL_LIMIT = 50  # 最大并发连接数（连接池大小）
-CONNECTION_POOL_LIMIT_PER_HOST = 20  # 每个主机的连接池大小
-DOWNLOAD_MAXSIZE = 10 * 1024 * 1024  # 最大响应体大小（10MB）
-DOWNLOAD_WARN_SIZE = 1024 * 1024  # 响应体警告阈值（1MB）
-DOWNLOAD_RETRY_TIMES = MAX_RETRY_TIMES  # 下载器内部重试次数（复用全局）
+# 深度优先级（负数表示深度优先，正数表示广度优先）
+DEPTH_PRIORITY = 1
 
-# 下载统计配置
-DOWNLOADER_STATS = True  # 是否启用下载器统计功能
-DOWNLOAD_STATS = True  # 是否记录下载时间和大小统计
+# 调度器队列最大大小
+SCHEDULER_MAX_QUEUE_SIZE = 1000
 
-# ============================== 并发与调度 ==============================
+# 调度器队列名称（遵循统一命名规范）
+SCHEDULER_QUEUE_NAME = f"crawlo:{PROJECT_NAME}:queue:requests"
 
-CONCURRENCY = 8  # 单个爬虫的并发请求数
-INTERVAL = 5  # 日志统计输出间隔（秒）
-DEPTH_PRIORITY = 1  # 深度优先策略优先级
-MAX_RUNNING_SPIDERS = 3  # 最大同时运行的爬虫数
+# 队列类型：memory/redis/auto
+QUEUE_TYPE = 'auto'
 
-# ============================== 队列配置 ==============================
+# 默认去重管道（根据运行模式自动选择）
+DEFAULT_DEDUP_PIPELINE = 'crawlo.pipelines.redis_dedup_pipeline.RedisDedupPipeline'
 
-# 🎯 运行模式选择：'standalone'(单机), 'distributed'(分布式), 'auto'(自动检测)
-RUN_MODE = 'standalone'  # 默认单机模式，简单易用
-
-# 队列类型选择：'memory'(内存), 'redis'(分布式), 'auto'(自动选择)
-QUEUE_TYPE = 'memory'  # 默认内存队列，无需外部依赖
-SCHEDULER_MAX_QUEUE_SIZE = 2000  # 调度器队列最大容量
-SCHEDULER_QUEUE_NAME = 'crawlo:requests'  # Redis 队列名称 (默认值，实际使用时会根据项目名生成)
-QUEUE_MAX_RETRIES = 3  # 队列操作最大重试次数
-QUEUE_TIMEOUT = 300  # 队列操作超时时间（秒）
-
-# 大规模爬取优化配置
-LARGE_SCALE_BATCH_SIZE = 1000  # 批处理大小
-LARGE_SCALE_CHECKPOINT_INTERVAL = 5000  # 进度保存间隔
-LARGE_SCALE_MAX_MEMORY_USAGE = 500  # 最大内存使用量（MB）
-
-# ============================== 数据存储配置 ==============================
-
-# --- MySQL 配置 ---
-MYSQL_HOST = '127.0.0.1'
-MYSQL_PORT = 3306
-MYSQL_USER = 'root'
-MYSQL_PASSWORD = '123456'
-MYSQL_DB = 'crawl'
-MYSQL_TABLE = 'crawlo'
-MYSQL_BATCH_SIZE = 100  # 批量插入条数
-MYSQL_USE_BATCH = False  # 是否启用批量插入
-
-# MySQL 连接池
-MYSQL_FLUSH_INTERVAL = 5  # 缓存刷新间隔（秒）
-MYSQL_POOL_MIN = 5
-MYSQL_POOL_MAX = 20
-MYSQL_ECHO = False  # 是否打印 SQL 日志
-
-# --- MongoDB 配置 ---
-MONGO_URI = 'mongodb://user:password@host:27017'
-MONGO_DATABASE = 'scrapy_data'
-MONGO_COLLECTION = 'crawled_items'
-MONGO_MAX_POOL_SIZE = 200
-MONGO_MIN_POOL_SIZE = 20
-MONGO_BATCH_SIZE = 100  # 批量插入条数
-MONGO_USE_BATCH = False  # 是否启用批量插入
-
-# ============================== 去重过滤配置 ==============================
-
-# 请求指纹存储目录（文件过滤器使用）
-REQUEST_DIR = '.'
-
-# 根据运行模式自动选择去重管道
-# 单机模式默认使用内存去重管道
-# 分布式模式默认使用Redis去重管道
-if RUN_MODE == 'distributed':
-    # 分布式模式下默认使用Redis去重管道
-    DEFAULT_DEDUP_PIPELINE = 'crawlo.pipelines.RedisDedupPipeline'
-else:
-    # 单机模式下默认使用内存去重管道
-    DEFAULT_DEDUP_PIPELINE = 'crawlo.pipelines.MemoryDedupPipeline'
-
-# 去重过滤器类（二选一）
+# 请求去重过滤器
 FILTER_CLASS = 'crawlo.filters.memory_filter.MemoryFilter'
 # FILTER_CLASS = 'crawlo.filters.aioredis_filter.AioRedisFilter' # 分布式去重
 
 # --- Redis 过滤器配置 ---
-REDIS_HOST = os.getenv('REDIS_HOST', '127.0.0.1')
-REDIS_PORT = int(os.getenv('REDIS_PORT', 6379))
-REDIS_PASSWORD = os.getenv('REDIS_PASSWORD', '')  # 默认无密码
-REDIS_DB = int(os.getenv('REDIS_DB', 0))  # Redis 数据库编号，默认为 0
+# 使用环境变量配置工具获取 Redis 配置
+redis_config = get_redis_config()
+REDIS_HOST = redis_config['REDIS_HOST']
+REDIS_PORT = redis_config['REDIS_PORT']
+REDIS_PASSWORD = redis_config['REDIS_PASSWORD']
+REDIS_DB = redis_config['REDIS_DB']
+
 # 🔧 根据是否有密码生成不同的 URL 格式
 if REDIS_PASSWORD:
     REDIS_URL = f'redis://:{REDIS_PASSWORD}@{REDIS_HOST}:{REDIS_PORT}/{REDIS_DB}'

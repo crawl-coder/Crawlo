@@ -42,7 +42,7 @@ MAX_RUNNING_SPIDERS = 5
 # 调度器配置
 SCHEDULER = 'crawlo.scheduler.redis_scheduler.RedisScheduler'
 SCHEDULER_MAX_QUEUE_SIZE = 10000
-SCHEDULER_QUEUE_NAME = 'api_data:requests'
+SCHEDULER_QUEUE_NAME = 'crawlo:api_data_collection:queue:requests'  # 使用统一命名规范
 
 # ============================== 数据存储 ==============================
 MYSQL_HOST = '127.0.0.1'

@@ -139,7 +139,7 @@ class Crawler:
 
     async def crawl(self):
         """
-        启动爬虫核心流程（增强版）
+        启动爬虫核心流程
         
         包含以下阶段:
         1. 初始化阶段: 创建所有组件
@@ -391,7 +391,7 @@ class Crawler:
 
 class CrawlerProcess:
     """
-    爬虫进程管理器（增强版）
+    爬虫进程管理器
     
     支持功能:
     - 多爬虫并发调度和资源管理
@@ -586,7 +586,7 @@ class CrawlerProcess:
 
     async def crawl(self, spiders: Union[Type[Spider], str, List[Union[Type[Spider], str]]]):
         """
-        启动一个或多个爬虫（增强版）
+        启动一个或多个爬虫
         
         增强功能:
         - 智能并发控制
@@ -856,7 +856,7 @@ class CrawlerProcess:
 
     def _shutdown(self, _signum, _frame):
         """
-        优雅关闭信号处理（增强版）
+        优雅关闭信号处理
         
         提供更好的关闭体验和资源清理
         """
@@ -881,7 +881,7 @@ class CrawlerProcess:
 
     async def _wait_for_shutdown(self):
         """
-        等待所有活跃任务完成（增强版）
+        等待所有活跃任务完成
         
         提供更好的关闭时间控制和进度反馈
         """
@@ -935,7 +935,7 @@ class CrawlerProcess:
     @classmethod
     def _get_default_settings(cls) -> SettingManager:
         """
-        加载默认配置（增强版）
+        加载默认配置
         
         提供更好的错误处理和降级策略
         """
