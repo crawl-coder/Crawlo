@@ -58,10 +58,10 @@ FILTER_CLASS = 'crawlo.filters.aioredis_filter.AioRedisFilter'
 
 
 # Redis configuration
-REDIS_HOST = '43.139.14.225'
+REDIS_HOST = '127.0.0.1'
 REDIS_PORT = 6379
-REDIS_PASSWORD = 'Oscar0503'  # Leave empty if no password
-REDIS_DB = 0  # Redis database number
+REDIS_PASSWORD = ''  # Leave empty if no password
+REDIS_DB = 4  # Redis database number
 # If Redis requires authentication, set REDIS_URL with password
 REDIS_URL = f'redis://:{REDIS_PASSWORD}@{REDIS_HOST}:{REDIS_PORT}/{REDIS_DB}'
 # REDIS_URL = f'redis://{REDIS_HOST}:{REDIS_PORT}/{REDIS_DB}'

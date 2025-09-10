@@ -47,7 +47,7 @@ class BooksSpider(Spider):
         
         # Use more start URLs to get more data
         start_urls = []
-        for i in range(1, 10):  # Pages 1-10
+        for i in range(1, 51):  # Pages 1-10
             start_urls.append(f'http://books.toscrape.com/catalogue/page-{i}.html')
         
         logger.info(f"Using {len(start_urls)} start URLs")
