@@ -122,12 +122,6 @@ MYSQL_TABLE = '{{project_name}}_data'
 MYSQL_BATCH_SIZE = 100
 MYSQL_USE_BATCH = False  # 是否启用批量插入
 
-# MySQL 连接池
-MYSQL_FLUSH_INTERVAL = 5
-MYSQL_POOL_MIN = 5
-MYSQL_POOL_MAX = 20
-MYSQL_ECHO = False
-
 # --- MongoDB 配置 ---
 MONGO_URI = os.getenv('MONGO_URI', 'mongodb://localhost:27017')
 MONGO_DATABASE = '{{project_name}}_db'
@@ -156,7 +150,10 @@ if REDIS_PASSWORD:
 else:
     REDIS_URL = f'redis://{REDIS_HOST}:{REDIS_PORT}/0'
 
-REDIS_KEY = f'{{project_name}}:fingerprint'
+# Redis key配置已移至各组件中，使用统一的命名规范
+# crawlo:{project_name}:filter:fingerprint (请求去重)
+# crawlo:{project_name}:item:fingerprint (数据项去重)
+
 REDIS_TTL = 0
 CLEANUP_FP = 0
 FILTER_DEBUG = True

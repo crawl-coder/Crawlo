@@ -13,7 +13,7 @@ from crawlo.exceptions import DropItem
 class RedisDeduplicationPipeline:
     """基于 Redis 的分布式数据项去重管道"""
     
-    def __init__(self, redis_host='localhost', redis_port=6379, redis_db=2, redis_password=None):
+    def __init__(self, redis_host='localhost', redis_port=6379, redis_db=2, redis_password=None, redis_key="api_data:item_fingerprint"):
         """
         初始化 Redis 连接
         
@@ -24,6 +24,7 @@ class RedisDeduplicationPipeline:
         :param redis_port: Redis 端口
         :param redis_db: Redis 数据库编号
         :param redis_password: Redis 密码
+        :param redis_key: Redis键名
         """
         self.redis_client = redis.Redis(
             host=redis_host,
@@ -32,9 +33,8 @@ class RedisDeduplicationPipeline:
             password=redis_password,
             decode_responses=True
         )
-        # 使用专门的键来存储数据项指纹
-        # 注意：这与框架内置的请求去重使用不同的 Redis 键
-        self.redis_key = "api_data:item_fingerprints"
+        # 使用统一的Redis key命名规范
+        self.redis_key = redis_key
     
     @classmethod
     def from_settings(cls, settings):
@@ -43,11 +43,16 @@ class RedisDeduplicationPipeline:
         :param settings: 设置对象
         :return: 管道实例
         """
+        # 使用统一的Redis key命名规范: crawlo:{project_name}:item:fingerprint
+        project_name = settings.get('PROJECT_NAME', 'api_data_collection')
+        redis_key = f"crawlo:{project_name}:item:fingerprint"
+        
         return cls(
             redis_host=settings.get('REDIS_HOST', 'localhost'),
             redis_port=settings.get('REDIS_PORT', 6379),
             redis_db=settings.get('REDIS_DB', 2),
-            redis_password=settings.get('REDIS_PASSWORD') or None
+            redis_password=settings.get('REDIS_PASSWORD') or None,
+            redis_key=redis_key
         )
     
     def process_item(self, item, spider):

@@ -62,7 +62,10 @@ REDIS_PORT = 6379
 REDIS_PASSWORD = ''  # 如果没有密码则留空
 REDIS_DB = 3  # Redis 数据库编号
 REDIS_URL = f'redis://{REDIS_HOST}:{REDIS_PORT}/{REDIS_DB}'
-REDIS_KEY = 'api_data:fingerprint'
+
+# Redis key配置已移至AioRedisFilter中，使用统一的命名规范
+# crawlo:{PROJECT_NAME}:filter:fingerprint
+
 REDIS_TTL = 0  # 指纹永不过期
 CLEANUP_FP = 0  # 程序结束时不清理指纹
 FILTER_DEBUG = True

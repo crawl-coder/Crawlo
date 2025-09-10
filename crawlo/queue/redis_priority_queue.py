@@ -16,7 +16,7 @@ logger = get_logger(__name__)
 
 class RedisPriorityQueue:
     """
-    基于 Redis 的分布式异步优先级队列（生产级优化版）
+    基于 Redis 的分布式异步优先级队列
     """
 
     def __init__(
@@ -28,6 +28,7 @@ class RedisPriorityQueue:
             max_retries: int = 3,
             timeout: int = 300,  # 任务处理超时时间（秒）
             max_connections: int = 10,  # 连接池大小
+            module_name: str = "default"  # 添加 module_name 参数
     ):
         # 如果没有提供 redis_url，则从环境变量构造
         if redis_url is None:
@@ -35,16 +36,21 @@ class RedisPriorityQueue:
             redis_port = os.getenv('REDIS_PORT', '6379')
             redis_db = os.getenv('REDIS_DB', '0')
             redis_password = os.getenv('REDIS_PASSWORD', '')
-            
+
             if redis_password:
                 redis_url = f"redis://:{redis_password}@{redis_host}:{redis_port}/{redis_db}"
             else:
                 redis_url = f"redis://{redis_host}:{redis_port}/{redis_db}"
-        
+
         self.redis_url = redis_url
-        self.queue_name = queue_name
-        self.processing_queue = processing_queue
-        self.failed_queue = failed_queue
+        self.module_name = module_name  # 保存 module_name
+        
+        # 使用统一的Redis key命名规范
+        # 统一使用传入的module_name参数，而不是从环境变量获取
+        self.queue_name = f"crawlo:{module_name}:queue:requests"  # 使用统一命名规范
+        self.processing_queue = f"crawlo:{module_name}:queue:processing"  # 使用统一命名规范
+        self.failed_queue = f"crawlo:{module_name}:queue:failed"  # 使用统一命名规范
+        
         self.max_retries = max_retries
         self.timeout = timeout
         self.max_connections = max_connections
@@ -69,15 +75,15 @@ class RedisPriorityQueue:
                     )
                     # 测试连接
                     await self._redis.ping()
-                    logger.info("✅ Redis 连接成功")
+                    logger.info(f"✅ Redis 连接成功 (Module: {self.module_name})")
                     return self._redis
                 except Exception as e:
-                    logger.warning(f"⚠️ Redis 连接失败 (尝试 {attempt + 1}/{max_retries}): {e}")
+                    logger.warning(f"⚠️ Redis 连接失败 (尝试 {attempt + 1}/{max_retries}, Module: {self.module_name}): {e}")
                     logger.warning(f"详细错误信息:\n{traceback.format_exc()}")
                     if attempt < max_retries - 1:
                         await asyncio.sleep(delay)
                     else:
-                        raise ConnectionError(f"❌ 无法连接 Redis: {e}")
+                        raise ConnectionError(f"❌ 无法连接 Redis (Module: {self.module_name}): {e}")
 
     async def _ensure_connection(self):
         """确保连接有效"""
@@ -86,7 +92,7 @@ class RedisPriorityQueue:
         try:
             await self._redis.ping()
         except Exception as e:
-            logger.warning(f"🔄 Redis 连接失效，尝试重连...: {e}")
+            logger.warning(f"🔄 Redis 连接失效 (Module: {self.module_name})，尝试重连...: {e}")
             self._redis = None
             await self.connect()
 
@@ -106,10 +112,10 @@ class RedisPriorityQueue:
             result = await pipe.execute()
             
             if result[0] > 0:
-                logger.debug(f"✅ 成功入队: {request.url}")
+                logger.debug(f"✅ 成功入队 (Module: {self.module_name}): {request.url}")
             return result[0] > 0
         except Exception as e:
-            logger.error(f"❌ 放入队列失败: {e}")
+            logger.error(f"❌ 放入队列失败 (Module: {self.module_name}): {e}")
             logger.error(f"详细错误信息:\n{traceback.format_exc()}")
             return False
 
@@ -149,7 +155,7 @@ class RedisPriorityQueue:
                 await asyncio.sleep(0.1)
 
             except Exception as e:
-                logger.error(f"❌ 获取队列任务失败: {e}")
+                logger.error(f"❌ 获取队列任务失败 (Module: {self.module_name}): {e}")
                 logger.error(f"详细错误信息:\n{traceback.format_exc()}")
                 return None
 
@@ -181,7 +187,7 @@ class RedisPriorityQueue:
 
         if retries <= self.max_retries:
             await self.put(request, priority=request.priority + 1)
-            logger.info(f"🔁 任务重试 [{retries}/{self.max_retries}]: {request.url}")
+            logger.info(f"🔁 任务重试 [{retries}/{self.max_retries}] (Module: {self.module_name}): {request.url}")
         else:
             failed_data = {
                 "url": request.url,
@@ -191,11 +197,11 @@ class RedisPriorityQueue:
                 "request_pickle": pickle.dumps(request).hex(),  # 可选：保存完整请求
             }
             await self._redis.lpush(self.failed_queue, pickle.dumps(failed_data))
-            logger.error(f"❌ 任务彻底失败 [{retries}次]: {request.url}")
+            logger.error(f"❌ 任务彻底失败 [{retries}次] (Module: {self.module_name}): {request.url}")
 
     def _get_request_key(self, request: Request) -> str:
         """生成请求唯一键"""
-        return f"url:{hash(request.url)}"
+        return f"{self.module_name}:url:{hash(request.url)}"
 
     async def qsize(self) -> int:
         """获取队列大小"""

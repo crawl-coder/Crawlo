@@ -89,8 +89,12 @@ class AioRedisFilter(BaseFilter):
         except Exception as e:
             raise RuntimeError(f"Redis连接失败: {redis_url} - {str(e)}")
 
+        # 使用统一的Redis key命名规范: crawlo:{project_name}:filter:fingerprint
+        project_name = crawler.settings.get('PROJECT_NAME', 'default')
+        redis_key = f"crawlo:{project_name}:filter:fingerprint"
+
         return cls(
-            redis_key=f"{crawler.settings.get('PROJECT_NAME', 'default')}:{crawler.settings.get('REDIS_KEY', 'request_fingerprints')}",
+            redis_key=redis_key,
             client=redis_client,
             stats=crawler.stats,
             cleanup_fp=crawler.settings.get_bool('CLEANUP_FP', False),

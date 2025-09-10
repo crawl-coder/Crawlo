@@ -72,12 +72,16 @@ class RedisDedupPipeline:
         """从爬虫配置创建管道实例"""
         settings = crawler.settings
         
+        # 使用统一的Redis key命名规范: crawlo:{project_name}:item:fingerprint
+        project_name = settings.get('PROJECT_NAME', 'default')
+        redis_key = f"crawlo:{project_name}:item:fingerprint"
+        
         return cls(
             redis_host=settings.get('REDIS_HOST', 'localhost'),
             redis_port=settings.getint('REDIS_PORT', 6379),
             redis_db=settings.getint('REDIS_DB', 0),
             redis_password=settings.get('REDIS_PASSWORD') or None,
-            redis_key=settings.get('REDIS_DEDUP_KEY', 'crawlo:item_fingerprints'),
+            redis_key=redis_key,
             log_level=settings.get('LOG_LEVEL', 'INFO')
         )
 

@@ -65,7 +65,10 @@ REDIS_DB = 4  # Redis database number
 # If Redis requires authentication, set REDIS_URL with password
 REDIS_URL = f'redis://:{REDIS_PASSWORD}@{REDIS_HOST}:{REDIS_PORT}/{REDIS_DB}'
 # REDIS_URL = f'redis://{REDIS_HOST}:{REDIS_PORT}/{REDIS_DB}'
-REDIS_KEY = 'books:fingerprint'
+
+# Redis key配置已移至AioRedisFilter中，使用统一的命名规范
+# crawlo:{PROJECT_NAME}:filter:fingerprint
+
 REDIS_TTL = 0  # Fingerprints never expire
 CLEANUP_FP = 0  # Do not clean fingerprints when program ends
 FILTER_DEBUG = True

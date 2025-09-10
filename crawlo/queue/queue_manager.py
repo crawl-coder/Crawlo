@@ -259,11 +259,22 @@ class QueueManager:
     async def _create_queue(self, queue_type: QueueType):
         """创建队列实例"""
         if queue_type == QueueType.REDIS:
+            # 从队列名称中提取项目名称，用于module_name
+            # 例如：crawlo:books_distributed:queue:requests -> books_distributed
+            project_name = "default"
+            if ':' in self.config.queue_name:
+                parts = self.config.queue_name.split(':')
+                if len(parts) >= 2:
+                    project_name = parts[1]  # 取第二个部分作为项目名称
+            else:
+                project_name = self.config.queue_name or "default"
+            
             queue = RedisPriorityQueue(
                 redis_url=self.config.redis_url,
                 queue_name=self.config.queue_name,
                 max_retries=self.config.max_retries,
-                timeout=self.config.timeout
+                timeout=self.config.timeout,
+                module_name=project_name  # 传递项目名称作为module_name
             )
             # 不需要立即连接，使用 lazy connect
             return queue

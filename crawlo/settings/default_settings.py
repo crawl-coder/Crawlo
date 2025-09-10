@@ -136,7 +136,9 @@ if REDIS_PASSWORD:
     REDIS_URL = f'redis://:{REDIS_PASSWORD}@{REDIS_HOST}:{REDIS_PORT}/{REDIS_DB}'
 else:
     REDIS_URL = f'redis://{REDIS_HOST}:{REDIS_PORT}/{REDIS_DB}'
-REDIS_KEY = 'request_fingerprint'  # Redis 中存储指纹的键名
+
+# 统一的Redis key命名规范配置
+REDIS_KEY_PREFIX = "crawlo"
 REDIS_TTL = 0  # 指纹过期时间（0 表示永不过期）
 CLEANUP_FP = 0  # 程序结束时是否清理指纹（0=不清理）
 FILTER_DEBUG = True  # 是否开启去重调试日志

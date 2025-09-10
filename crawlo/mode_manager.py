@@ -64,7 +64,8 @@ class ModeManager:
             'REDIS_PASSWORD': redis_password,
             'REDIS_URL': redis_url,
             'SCHEDULER_QUEUE_NAME': f'{project_name}:requests',
-            'REDIS_KEY': f'{project_name}:fingerprint',
+            # Redis key配置已移至各组件中，使用统一的命名规范
+            # crawlo:{project_name}:filter:fingerprint (请求去重)
             'CONCURRENCY': 16,
             'MAX_RUNNING_SPIDERS': 1,
             'DOWNLOAD_DELAY': 1.0,
