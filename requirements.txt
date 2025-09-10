@@ -24,5 +24,7 @@ rich>=13.0.0
 astor>=0.8.0
 watchdog>=3.0.0
 psutil>=7.0.0
+selenium>=4.35.0
+playwright>=1.55.0
 # Documentation dependencies
 mkdocs-material>=9.0.0
