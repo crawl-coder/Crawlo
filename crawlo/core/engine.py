@@ -79,16 +79,25 @@ class Engine(object):
 
         self.scheduler = Scheduler.create_instance(self.crawler)
         if hasattr(self.scheduler, 'open'):
-            await self.scheduler.open()
+            if asyncio.iscoroutinefunction(self.scheduler.open):
+                await self.scheduler.open()
+            else:
+                self.scheduler.open()
 
         downloader_cls = self._get_downloader_cls()
         self.downloader = downloader_cls(self.crawler)
         if hasattr(self.downloader, 'open'):
-            await self.downloader.open()
+            if asyncio.iscoroutinefunction(self.downloader.open):
+                await self.downloader.open()
+            else:
+                self.downloader.open()
 
         self.processor = Processor(self.crawler)
         if hasattr(self.processor, 'open'):
-            self.processor.open()
+            if asyncio.iscoroutinefunction(self.processor.open):
+                await self.processor.open()
+            else:
+                self.processor.open()
 
         self.start_requests = iter(spider.start_requests())
         await self._open_spider()

@@ -28,6 +28,10 @@ CONCURRENCY = get_runtime_config()['CONCURRENCY']
 # 请求延迟（秒）
 DOWNLOAD_DELAY = 1
 
+# 随机延迟配置
+RANDOMNESS = False  # 是否启用随机延迟
+RANDOM_RANGE = [0.5, 1.5]  # 随机延迟范围因子，实际延迟 = DOWNLOAD_DELAY * RANDOM_RANGE[0] 到 DOWNLOAD_DELAY * RANDOM_RANGE[1]
+
 # 深度优先级（负数表示深度优先，正数表示广度优先）
 DEPTH_PRIORITY = 1
 
