@@ -82,7 +82,7 @@ Crawlo 框架提供了两种层面的去重机制：
 | **依据** | 请求指纹（URL、方法、参数等） | 数据内容（字段值） |
 | **位置** | 框架核心 | 用户自定义管道 |
 
-有关详细对比，请参阅 [filter_vs_pipeline_comparison.md](filter_vs_pipeline_comparison.md)。
+有关详细对比，请参阅 [filter_vs_pipeline_comparison_detailed.md](filter_vs_pipeline_comparison_detailed.md)。
 
 ## 🚀 运行爬虫
 
@@ -120,4 +120,4 @@ python run.py api_data --concurrency 24
 - 大量数据采集场景
 - 详情页不提供额外价值的情况
 
-对于需要解析详情页的场景，请参阅 [telecom_licenses_distributed](../telecom_licenses_distributed/) 示例。
+对于需要解析详情页的场景，请参阅 [telecom_licenses_distributed](https://github.com/crawl-coder/Crawlo/tree/master/examples/telecom_licenses_distributed) 示例。

@@ -82,7 +82,7 @@ Crawlo framework provides two levels of deduplication:
 | **Based on** | Request fingerprint (URL, method, params) | Data content (item fields) |
 | **Location** | Framework core | User-defined pipeline |
 
-For detailed comparison, see [filter_vs_pipeline_comparison.md](filter_vs_pipeline_comparison.md).
+For detailed comparison, see [filter_vs_pipeline_comparison_detailed.md](filter_vs_pipeline_comparison_detailed.md).
 
 ## 🚀 Running the Spider
 
@@ -120,4 +120,4 @@ This pattern is ideal for:
 - High-volume data collection scenarios
 - Cases where detail pages don't provide additional value
 
-For scenarios requiring detail page parsing, see the [telecom_licenses_distributed](../telecom_licenses_distributed/) example.
+For scenarios requiring detail page parsing, see the [telecom_licenses_distributed](https://github.com/crawl-coder/Crawlo/tree/master/examples/telecom_licenses_distributed) example.
