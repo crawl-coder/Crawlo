@@ -57,6 +57,7 @@ class ModeManager:
             redis_url = f'redis://{redis_host}:{redis_port}/0'
         
         return {
+            'PROJECT_NAME': project_name,  # 添加项目名称到配置中
             'QUEUE_TYPE': 'redis',
             'FILTER_CLASS': 'crawlo.filters.aioredis_filter.AioRedisFilter',
             'REDIS_HOST': redis_host,

@@ -1,17 +1,16 @@
+import asyncio
 import pickle
 import time
-import asyncio
-from typing import Optional
-import redis.asyncio as aioredis
 import traceback
-import os
+from typing import Optional
+
+import redis.asyncio as aioredis
 
 from crawlo import Request
-from crawlo.utils.log import get_logger
-from crawlo.utils.request_serializer import RequestSerializer
 from crawlo.utils.error_handler import ErrorHandler
+from crawlo.utils.log import get_logger
 from crawlo.utils.redis_connection_pool import get_redis_pool, OptimizedRedisConnectionPool
-
+from crawlo.utils.request_serializer import RequestSerializer
 
 logger = get_logger(__name__)
 error_handler = ErrorHandler(__name__)

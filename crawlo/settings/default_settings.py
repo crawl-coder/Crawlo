@@ -25,6 +25,9 @@ CONCURRENCY = get_runtime_config()['CONCURRENCY']
 
 # ============================== 爬虫核心配置 ==============================
 
+# 默认下载器
+DOWNLOADER = 'crawlo.downloader.aiohttp_downloader.AioHttpDownloader'
+
 # 请求延迟（秒）
 DOWNLOAD_DELAY = 1
 
