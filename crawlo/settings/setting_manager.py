@@ -98,3 +98,26 @@ class SettingManager(MutableMapping):
 
     def copy(self):
         return deepcopy(self)
+
+    def __deepcopy__(self, memo):
+        """
+        自定义深度复制方法，避免复制logger等不可pickle的对象
+        """
+        # 创建一个新的实例
+        cls = self.__class__
+        new_instance = cls.__new__(cls)
+        
+        # 复制attributes字典，但排除不可pickle的对象
+        new_attributes = {}
+        for key, value in self.attributes.items():
+            try:
+                # 尝试深度复制值
+                new_attributes[key] = deepcopy(value, memo)
+            except Exception:
+                # 如果复制失败，保留原始引用（对于logger等对象）
+                new_attributes[key] = value
+        
+        # 设置新实例的attributes
+        new_instance.attributes = new_attributes
+        
+        return new_instance

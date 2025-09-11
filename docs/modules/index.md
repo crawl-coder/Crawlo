@@ -24,6 +24,10 @@
 ### 核心组件
 
 - [核心模块](core/index.md) - Crawlo的核心，包含引擎、调度器和处理器
+  - [引擎](core/engine.md) - 编排爬取过程的核心引擎
+  - [调度器](core/scheduler.md) - 管理请求队列和去重
+  - [处理器](core/processor.md) - 处理响应和提取数据项
+  - [startproject 命令](core/cli_startproject.md) - 项目初始化命令
 - [下载器模块](downloader/index.md) - 用于获取内容的HTTP客户端实现
 - [中间件模块](middleware/index.md) - 请求/响应处理组件
 - [管道模块](pipeline/index.md) - 数据处理和存储组件

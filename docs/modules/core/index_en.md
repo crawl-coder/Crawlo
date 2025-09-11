@@ -6,6 +6,7 @@ The core module is the heart of the Crawlo framework, providing the fundamental 
 - [Engine](engine_en.md) - The core engine that orchestrates the crawling process
 - [Scheduler](scheduler_en.md) - Manages request queues and deduplication
 - [Processor](processor_en.md) - Handles response processing and item extraction
+- [startproject Command](cli_startproject_en.md) - Project initialization command
 
 ## Overview
 

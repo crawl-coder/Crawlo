@@ -10,7 +10,7 @@ import re
 import sys
 import os
 from pathlib import Path
-from typing import Optional
+from typing import Optional, List
 
 # 添加项目根目录到路径，以便能够导入utils模块
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
@@ -56,6 +56,19 @@ TEMPLATE_TYPES = {
     'gentle': '温和模板 - 低负载配置，对目标网站友好'
 }
 
+# 可选的模块组件
+OPTIONAL_MODULES = {
+    'mysql': 'MySQL数据库支持',
+    'mongodb': 'MongoDB数据库支持',
+    'redis': 'Redis支持（分布式队列和去重）',
+    'proxy': '代理支持',
+    'monitoring': '监控和性能分析',
+    'dedup': '去重功能',
+    'httpx': 'HttpX下载器',
+    'aiohttp': 'AioHttp下载器',
+    'curl': 'CurlCffi下载器'
+}
+
 
 def show_error_panel(title, content):
     """显示错误面板的简单实现"""
@@ -84,9 +97,10 @@ def _render_template(tmpl_path, context):
     return content
 
 
-def _copytree_with_templates(src, dst, context, template_type='default'):
+def _copytree_with_templates(src, dst, context, template_type='default', modules: List[str] = None):
     """
     递归复制目录，将 .tmpl 文件渲染后复制（去除 .tmpl 后缀），其他文件直接复制。
+    支持选择性模块复制。
     """
     src_path = Path(src)
     dst_path = Path(dst)
@@ -96,29 +110,96 @@ def _copytree_with_templates(src, dst, context, template_type='default'):
         rel_path = item.relative_to(src_path)
         dst_item = dst_path / rel_path
 
+        # 检查是否应该包含此文件（基于模块选择）
+        if not _should_include_file(rel_path, modules):
+            continue
+
         if item.is_dir():
             dst_item.mkdir(parents=True, exist_ok=True)
         else:
             if item.suffix == '.tmpl':
+                rendered_content = None
                 # 处理特定模板类型的设置文件
-                if item.name == 'settings.py.tmpl' and template_type != 'default':
-                    # 使用特定模板类型的设置文件
-                    template_file_name = f'settings_{template_type}.py.tmpl'
-                    template_file_path = src_path / template_file_name
-                    if template_file_path.exists():
-                        rendered_content = _render_template(template_file_path, context)
+                if item.name == 'settings.py.tmpl':
+                    # 对于设置文件，根据模板类型选择相应的内容模板
+                    if template_type != 'default':
+                        # 使用特定模板类型的设置文件
+                        template_file_name = f'settings_{template_type}.py.tmpl'
+                        template_file_path = src_path / template_file_name
+                        if template_file_path.exists():
+                            rendered_content = _render_template(template_file_path, context)
+                        else:
+                            # 如果特定模板不存在，使用默认模板
+                            rendered_content = _render_template(item, context)
                     else:
-                        # 如果特定模板不存在，使用默认模板
+                        # 使用默认模板
                         rendered_content = _render_template(item, context)
+                # 跳过其他以 settings_ 开头的模板文件，避免重复处理
+                elif item.name.startswith('settings_') and item.name.endswith('.py.tmpl'):
+                    continue
                 else:
                     rendered_content = _render_template(item, context)
                 
-                final_dst = dst_item.with_suffix('')
+                # 确保设置文件始终命名为 settings.py
+                if item.name == 'settings.py.tmpl':
+                    # 特殊处理设置模板文件，统一生成为 settings.py
+                    final_dst = dst_item.parent / 'settings.py'
+                else:
+                    final_dst = dst_item.with_suffix('')
+                    
                 final_dst.parent.mkdir(parents=True, exist_ok=True)
                 with open(final_dst, 'w', encoding='utf-8') as f:
                     f.write(rendered_content)
             else:
                 shutil.copy2(item, dst_item)
+
+
+def _should_include_file(rel_path, modules: List[str]) -> bool:
+    """
+    根据选择的模块决定是否包含文件
+    """
+    if modules is None:
+        # 如果没有指定模块，则包含所有文件
+        return True
+    
+    # 基础文件始终包含
+    basic_files = [
+        '__init__.py.tmpl',
+        'settings.py.tmpl',
+        'spiders/__init__.py.tmpl',
+        'items.py.tmpl',
+        'middlewares.py.tmpl',
+        'run.py.tmpl'
+    ]
+    
+    path_str = str(rel_path).replace('\\', '/')
+    
+    # 始终包含基础文件
+    if path_str in basic_files:
+        return True
+    
+    # 根据模块选择包含特定文件
+    if 'mysql' in modules and 'mysql' in path_str:
+        return True
+    if 'mongodb' in modules and 'mongo' in path_str:
+        return True
+    if 'redis' in modules and 'redis' in path_str:
+        return True
+    if 'proxy' in modules and 'proxy' in path_str:
+        return True
+    if 'monitoring' in modules and ('monitor' in path_str or 'stats' in path_str):
+        return True
+    if 'dedup' in modules and 'dedup' in path_str:
+        return True
+    if 'httpx' in modules and 'httpx' in path_str:
+        return True
+    if 'aiohttp' in modules and 'aiohttp' in path_str:
+        return True
+    if 'curl' in modules and 'cffi' in path_str:
+        return True
+    
+    # 默认不包含特定模块文件
+    return False
 
 
 def validate_project_name(project_name: str) -> tuple[bool, str]:
@@ -184,18 +265,52 @@ def show_template_options():
             print(f"  {template_type}: {description}")
 
 
+def show_module_options():
+    """显示可用的模块选项"""
+    if RICH_AVAILABLE:
+        table = Table(title="可选模块组件", show_header=True, header_style="bold magenta")
+        table.add_column("模块", style="cyan", no_wrap=True)
+        table.add_column("描述", style="green")
+        
+        for module, description in OPTIONAL_MODULES.items():
+            table.add_row(module, description)
+        
+        console.print(table)
+    else:
+        print("可选模块组件:")
+        for module, description in OPTIONAL_MODULES.items():
+            print(f"  {module}: {description}")
+
+
 def main(args):
-    if len(args) < 1 or len(args) > 2:
-        console.print("[bold red]Error:[/bold red] Usage: [blue]crawlo startproject[/blue] <project_name> [template_type]")
+    if len(args) < 1:
+        console.print("[bold red]Error:[/bold red] Usage: [blue]crawlo startproject[/blue] <project_name> [template_type] [--modules module1,module2]")
         console.print("💡 Examples:")
         console.print("   [blue]crawlo startproject[/blue] my_spider_project")
         console.print("   [blue]crawlo startproject[/blue] news_crawler simple")
-        console.print("   [blue]crawlo startproject[/blue] ecommerce_spider distributed")
+        console.print("   [blue]crawlo startproject[/blue] ecommerce_spider distributed --modules mysql,proxy")
         show_template_options()
+        show_module_options()
         return 1
 
+    # 解析参数
     project_name = args[0]
-    template_type = args[1] if len(args) > 1 else 'default'
+    template_type = 'default'
+    modules = None
+    
+    # 解析可选参数
+    if len(args) > 1:
+        for i, arg in enumerate(args[1:], 1):
+            if arg.startswith('--modules='):
+                modules_str = arg.split('=', 1)[1]
+                modules = [m.strip() for m in modules_str.split(',') if m.strip()]
+            elif arg.startswith('--modules'):
+                # 处理 --modules module1,module2 格式
+                if i + 1 < len(args):
+                    modules_str = args[i + 1]
+                    modules = [m.strip() for m in modules_str.split(',') if m.strip()]
+            elif not arg.startswith('--') and arg in TEMPLATE_TYPES:
+                template_type = arg
     
     # 验证模板类型
     if template_type not in TEMPLATE_TYPES:
@@ -249,7 +364,7 @@ def main(args):
 
         # 3. 复制并渲染项目包内容
         package_dir = project_dir / project_name
-        _copytree_with_templates(template_dir, package_dir, context, template_type)
+        _copytree_with_templates(template_dir, package_dir, context, template_type, modules)
         console.print(f":white_check_mark: Created project package: [green]{package_dir}[/green]")
 
         # 4. 创建 logs 目录
@@ -267,6 +382,10 @@ def main(args):
         # 显示使用的模板类型
         if template_type != 'default':
             console.print(f":information: 使用模板类型: [bold blue]{template_type}[/bold blue] - {TEMPLATE_TYPES[template_type]}")
+        
+        # 显示选择的模块
+        if modules:
+            console.print(f":information: 选择的模块: [bold blue]{', '.join(modules)}[/bold blue]")
 
         # 下一步操作提示（对齐美观 + 语法高亮）
         next_steps = f"""

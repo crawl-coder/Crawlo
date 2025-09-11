@@ -6,6 +6,7 @@
 - [引擎](engine.md) - 编排爬取过程的核心引擎
 - [调度器](scheduler.md) - 管理请求队列和去重
 - [处理器](processor.md) - 处理响应和提取数据项
+- [startproject 命令](cli_startproject.md) - 项目初始化命令
 
 ## 概述
 
