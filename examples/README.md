@@ -126,8 +126,9 @@ python run.py api_data --redis-host 192.168.1.100 --concurrency 24
 
 ### 详细文档
 有关这两种分布式模式的详细信息，请参阅：
-- [分布式模式详解（中文）](../docs/distributed_crawling_patterns_zh.md)
-- [Distributed Patterns (English)](../docs/distributed_crawling_patterns.md)
+- [分布式爬取](../docs/modules/index.md)
+- [队列模块](../docs/modules/queue/index.md)
+- [过滤器模块](../docs/modules/filter/index.md)
 
 ## 🚀 快速开始
 
@@ -343,4 +344,4 @@ python -c "from telecom_licenses_standalone import settings; print(settings.CONC
 
 ---
 
-**注意**: 本示例严格按照Crawlo框架标准流程创建，展示了从零开始使用框架命令构建完整爬虫项目的最佳实践。
+**注意**: 本示例严格按照Crawlo框架标准流程创建，展示了从零开始使用框架命令构建完整爬虫项目的最佳实践.

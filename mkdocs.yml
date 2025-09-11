@@ -32,24 +32,92 @@ theme:
 nav:
   - 首页: 
     - 简介: README.md
-    - 快速开始: quick_start.md
-    - 核心概念: concepts.md
-  - 开发指南:
-    - 项目结构: project_structure.md
-    - 配置系统: configuration.md
-    - 爬虫开发: spider_development.md
-    - 中间件: middleware.md
-    - 管道: pipelines.md
-    - 扩展组件: extensions.md  # 新增扩展组件文档
-    - 过滤器: filters.md
-    - 下载器: downloaders.md
-    - 调度器: scheduler.md
-    - 队列: queues.md
-  - 高级主题:
-    - 分布式爬取: distributed_crawling.md
-    - 性能优化: performance.md
-    - 调试技巧: debugging.md
-    - 部署指南: deployment.md
+  - 模块文档:
+    - 首页: 
+      - 中文: docs/modules/index.md
+      - English: docs/modules/index_en.md
+    - 核心模块 (Core): 
+      - 概述: 
+        - 中文: docs/modules/core/index.md
+        - English: docs/modules/core/index_en.md
+      - 引擎 (Engine): 
+        - 中文: docs/modules/core/engine.md
+        - English: docs/modules/core/engine_en.md
+      - 调度器 (Scheduler): 
+        - 中文: docs/modules/core/scheduler.md
+        - English: docs/modules/core/scheduler_en.md
+      - 处理器 (Processor): 
+        - 中文: docs/modules/core/processor.md
+        - English: docs/modules/core/processor_en.md
+    - 下载器模块 (Downloader):
+      - 概述: 
+        - 中文: docs/modules/downloader/index.md
+        - English: docs/modules/downloader/index_en.md
+      - AioHttpDownloader: 
+        - 中文: docs/modules/downloader/aiohttp.md
+        - English: docs/modules/downloader/aiohttp_en.md
+      - HttpXDownloader: 
+        - 中文: docs/modules/downloader/httpx.md
+        - English: docs/modules/downloader/httpx_en.md
+      - CurlCffiDownloader: 
+        - 中文: docs/modules/downloader/curl_cffi.md
+        - English: docs/modules/downloader/curl_cffi_en.md
+    - 中间件模块 (Middleware):
+      - 概述: 
+        - 中文: docs/modules/middleware/index.md
+        - English: docs/modules/middleware/index_en.md
+      - MiddlewareManager: 
+        - 中文: docs/modules/middleware/manager.md
+        - English: docs/modules/middleware/manager_en.md
+      - 内置中间件: 
+        - 中文: docs/modules/middleware/built_in.md
+        - English: docs/modules/middleware/built_in_en.md
+    - 管道模块 (Pipeline):
+      - 概述: 
+        - 中文: docs/modules/pipeline/index.md
+        - English: docs/modules/pipeline/index_en.md
+      - PipelineManager: 
+        - 中文: docs/modules/pipeline/manager.md
+        - English: docs/modules/pipeline/manager_en.md
+      - 内置管道: 
+        - 中文: docs/modules/pipeline/built_in.md
+        - English: docs/modules/pipeline/built_in_en.md
+    - 队列模块 (Queue):
+      - 概述: 
+        - 中文: docs/modules/queue/index.md
+        - English: docs/modules/queue/index_en.md
+      - QueueManager: 
+        - 中文: docs/modules/queue/manager.md
+        - English: docs/modules/queue/manager_en.md
+      - 内存队列: 
+        - 中文: docs/modules/queue/memory.md
+        - English: docs/modules/queue/memory_en.md
+      - Redis队列: 
+        - 中文: docs/modules/queue/redis.md
+        - English: docs/modules/queue/redis_en.md
+    - 过滤器模块 (Filter):
+      - 概述: 
+        - 中文: docs/modules/filter/index.md
+        - English: docs/modules/filter/index_en.md
+      - BaseFilter: 
+        - 中文: docs/modules/filter/base.md
+        - English: docs/modules/filter/base_en.md
+      - 内存过滤器: 
+        - 中文: docs/modules/filter/memory.md
+        - English: docs/modules/filter/memory_en.md
+      - Redis过滤器: 
+        - 中文: docs/modules/filter/redis.md
+        - English: docs/modules/filter/redis_en.md
+    - 扩展模块 (Extension):
+      - 概述: 
+        - 中文: docs/modules/extension/index.md
+        - English: docs/modules/extension/index_en.md
+      - ExtensionManager: 
+        - 中文: docs/modules/extension/manager.md
+        - English: docs/modules/extension/manager_en.md
+      - 内置扩展: 
+        - 中文: docs/modules/extension/built_in.md
+        - English: docs/modules/extension/built_in_en.md
   - API 参考:
     - crawlo: api/crawlo.md
     - crawlo.crawler: api/crawlo.crawler.md
@@ -81,24 +149,34 @@ plugins:
           nav_translations:
             首页: Home
             简介: Introduction
-            快速开始: Quick Start
-            核心概念: Core Concepts
-            开发指南: Development Guide
-            项目结构: Project Structure
-            配置系统: Configuration System
-            爬虫开发: Spider Development
-            中间件: Middleware
-            管道: Pipelines
-            扩展组件: Extensions
-            过滤器: Filters
-            下载器: Downloaders
-            调度器: Scheduler
-            队列: Queues
-            高级主题: Advanced Topics
-            分布式爬取: Distributed Crawling
-            性能优化: Performance Optimization
-            调试技巧: Debugging Tips
-            部署指南: Deployment Guide
+            模块文档: Module Documentation
+            首页: Home
+            核心模块 (Core): Core Module
+            引擎 (Engine): Engine
+            调度器 (Scheduler): Scheduler
+            处理器 (Processor): Processor
+            下载器模块 (Downloader): Downloader Module
+            概述: Overview
+            AioHttpDownloader: AioHttpDownloader
+            HttpXDownloader: HttpXDownloader
+            CurlCffiDownloader: CurlCffiDownloader
+            中间件模块 (Middleware): Middleware Module
+            MiddlewareManager: MiddlewareManager
+            内置中间件: Built-in Middlewares
+            管道模块 (Pipeline): Pipeline Module
+            PipelineManager: PipelineManager
+            内置管道: Built-in Pipelines
+            队列模块 (Queue): Queue Module
+            QueueManager: QueueManager
+            内存队列: Memory Queue
+            Redis队列: Redis Queue
+            过滤器模块 (Filter): Filter Module
+            BaseFilter: BaseFilter
+            内存过滤器: Memory Filter
+            Redis过滤器: Redis Filter
+            扩展模块 (Extension): Extension Module
+            ExtensionManager: ExtensionManager
+            内置扩展: Built-in Extensions
             API 参考: API Reference
 
 extra:

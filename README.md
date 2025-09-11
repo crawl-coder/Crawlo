@@ -337,12 +337,10 @@ crawlo crawl myspider --concurrency=32 --delay=0.5
 
 完整的文档请访问 [Crawlo Documentation](https://crawlo.readthedocs.io/)
 
-- [快速开始指南](docs/quick_start.md)
-- [框架文档](docs/crawlo_framework_documentation.md)
+- [快速开始指南](docs/modules/index.md)
+- [模块化文档](docs/modules/index.md)
 - [API参考](docs/api_reference.md)
-- [分布式爬取教程](docs/distributed_crawling_tutorial.md)
 - [配置最佳实践](docs/configuration_best_practices.md)
-- [扩展组件](docs/extensions.md)
 
 ## 🤝 贡献
 
