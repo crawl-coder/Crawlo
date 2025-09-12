@@ -45,10 +45,16 @@ class RedisPriorityQueue:
         if queue_name is None:
             self.queue_name = f"crawlo:{module_name}:queue:requests"
         else:
-            # 如果提供了 queue_name，但不符合规范格式，则转换为规范格式
-            if not queue_name.startswith("crawlo:"):
+            # 如果提供了 queue_name，确保符合命名规范
+            # 处理可能的重复前缀问题
+            if queue_name.startswith("crawlo:crawlo:"):
+                # 修复双重 crawlo 前缀
+                self.queue_name = queue_name.replace("crawlo:crawlo:", "crawlo:", 1)
+            elif not queue_name.startswith("crawlo:"):
+                # 如果没有 crawlo 前缀，添加它
                 self.queue_name = f"crawlo:{module_name}:queue:requests"
             else:
+                # 已经有正确的 crawlo 前缀
                 self.queue_name = queue_name
         
         # 如果未提供 processing_queue，则根据 queue_name 自动生成

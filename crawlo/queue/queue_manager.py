@@ -267,7 +267,21 @@ class QueueManager:
             if ':' in self.config.queue_name:
                 parts = self.config.queue_name.split(':')
                 if len(parts) >= 2:
-                    project_name = parts[1]  # 取第二个部分作为项目名称
+                    # 处理可能的双重 crawlo 前缀
+                    if parts[0] == "crawlo" and parts[1] == "crawlo":
+                        # 双重 crawlo 前缀，取第三个部分作为项目名称
+                        if len(parts) >= 3:
+                            project_name = parts[2]
+                        else:
+                            project_name = "default"
+                    elif parts[0] == "crawlo":
+                        # 正常的 crawlo 前缀，取第二个部分作为项目名称
+                        project_name = parts[1]
+                    else:
+                        # 没有 crawlo 前缀，使用第一个部分作为项目名称
+                        project_name = parts[0]
+                else:
+                    project_name = self.config.queue_name or "default"
             else:
                 project_name = self.config.queue_name or "default"
             
