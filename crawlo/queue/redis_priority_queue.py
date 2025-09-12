@@ -81,14 +81,16 @@ class RedisPriorityQueue:
 
             for attempt in range(max_retries):
                 try:
-                    # 使用优化的连接池
+                    # 使用优化的连接池，确保 decode_responses=False 以避免编码问题
                     self._redis_pool = get_redis_pool(
                         self.redis_url,
                         max_connections=self.max_connections,
                         socket_connect_timeout=5,
                         socket_timeout=30,
                         health_check_interval=30,
-                        retry_on_timeout=True
+                        retry_on_timeout=True,
+                        decode_responses=False,  # 确保不自动解码响应
+                        encoding='utf-8'
                     )
                     
                     self._redis = await self._redis_pool.get_connection()
@@ -170,7 +172,12 @@ class RedisPriorityQueue:
                     pipe.hdel(f"{self.queue_name}:data", key)
                     await pipe.execute()
 
-                    return pickle.loads(serialized)
+                    # 确保使用正确的解码方式
+                    try:
+                        return pickle.loads(serialized)
+                    except UnicodeDecodeError:
+                        # 如果出现编码错误，尝试使用 latin1 解码
+                        return pickle.loads(serialized, encoding='latin1')
 
                 # 检查是否超时
                 if asyncio.get_event_loop().time() - start_time > timeout:

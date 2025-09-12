@@ -75,7 +75,8 @@ class AioRedisFilter(BaseFilter):
     def create_instance(cls, crawler) -> 'BaseFilter':
         """从爬虫配置创建过滤器实例"""
         redis_url = crawler.settings.get('REDIS_URL', 'redis://localhost:6379')
-        decode_responses = crawler.settings.get_bool('DECODE_RESPONSES', False)
+        # 确保 decode_responses=False 以避免编码问题
+        decode_responses = False  # crawler.settings.get_bool('DECODE_RESPONSES', False)
         ttl_setting = crawler.settings.get_int('REDIS_TTL')
 
         # 处理TTL设置
@@ -84,7 +85,7 @@ class AioRedisFilter(BaseFilter):
             ttl = max(0, int(ttl_setting)) if ttl_setting > 0 else None
 
         try:
-            # 使用优化的连接池
+            # 使用优化的连接池，确保 decode_responses=False
             redis_pool = get_redis_pool(
                 redis_url,
                 max_connections=20,
@@ -92,7 +93,7 @@ class AioRedisFilter(BaseFilter):
                 socket_timeout=30,
                 health_check_interval=30,
                 retry_on_timeout=True,
-                decode_responses=decode_responses,
+                decode_responses=decode_responses,  # 确保不自动解码响应
                 encoding='utf-8'
             )
             
