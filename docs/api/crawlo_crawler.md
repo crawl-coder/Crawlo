@@ -25,6 +25,29 @@ Crawlo Crawler Module
     process = CrawlerProcess()
     await process.crawl([Spider1, Spider2])
 
+## 导入的类
+
+- annotations
+- Type
+- Optional
+- Set
+- List
+- Union
+- Dict
+- Any
+- Spider
+- get_global_spider_registry
+- Engine
+- get_logger
+- Subscriber
+- ExtensionManager
+- StatsCollector
+- spider_opened
+- spider_closed
+- SettingManager
+- merge_settings
+- get_settings
+
 ## 类
 
 ### CrawlerContext

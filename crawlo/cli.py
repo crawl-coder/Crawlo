@@ -10,24 +10,49 @@ def main():
     # 获取所有可用命令
     commands = get_commands()
 
+    # 创建主解析器
     parser = argparse.ArgumentParser(
         description="Crawlo: A lightweight web crawler framework.",
-        usage="crawlo <command> [options]"
+        usage="crawlo <command> [options]",
+        add_help=False  # 禁用默认帮助，我们自己处理
     )
-    parser.add_argument('command', help='Available commands: ' + ', '.join(commands.keys()))
-    # 注意：这里不添加具体参数，由子命令解析
-
-    # 只解析命令
+    
+    # 添加帮助参数
+    parser.add_argument('-h', '--help', action='store_true', help='显示帮助信息')
+    parser.add_argument('command', nargs='?', help='可用命令: ' + ', '.join(commands.keys()))
+    
+    # 解析已知参数
     args, unknown = parser.parse_known_args()
 
+    # 处理帮助参数
+    if args.help or (args.command is None and not unknown):
+        # 导入并运行帮助命令
+        try:
+            module = __import__(commands['help'], fromlist=['main'])
+            sys.exit(module.main([]))
+        except ImportError as e:
+            print(f"Failed to load help command: {e}")
+            sys.exit(1)
+        except Exception as e:
+            print(f"Help command failed: {e}")
+            sys.exit(1)
+
+    # 检查命令是否存在
     if args.command not in commands:
         print(f"Unknown command: {args.command}")
         print(f"Available commands: {', '.join(commands.keys())}")
+        # 显示帮助信息
+        try:
+            module = __import__(commands['help'], fromlist=['main'])
+            module.main([])
+        except:
+            pass
         sys.exit(1)
 
     # 动态导入并执行命令
     try:
         module = __import__(commands[args.command], fromlist=['main'])
+        # 将未知参数传递给子命令
         sys.exit(module.main(unknown))
     except ImportError as e:
         print(f"Failed to load command '{args.command}': {e}")

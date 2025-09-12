@@ -9,6 +9,19 @@ HTTP Response 封装模块
 - 正则表达式支持
 - Cookie 处理
 
+## 导入的类
+
+- SimpleCookie
+- Selector
+- SelectorList
+- Dict
+- Any
+- List
+- Optional
+- Union
+- _urljoin
+- DecodeError
+
 ## 类
 
 ### Response

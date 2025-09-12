@@ -8,6 +8,20 @@ HTTP Request 封装模块
 - 安全的深拷贝操作
 - 灵活的请求配置
 
+## 导入的类
+
+- deepcopy
+- urlencode
+- safe_url_string
+- Dict
+- Optional
+- Callable
+- Union
+- Any
+- TypeVar
+- List
+- escape_ajax
+
 ## 类
 
 ### RequestPriority

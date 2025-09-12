@@ -26,6 +26,20 @@ Crawlo Spider Module
             # 解析逻辑
             yield Item(data=response.json())
 
+## 导入的类
+
+- annotations
+- Type
+- Any
+- Optional
+- List
+- Dict
+- Union
+- Iterator
+- AsyncIterator
+- Request
+- get_logger
+
 ## 类
 
 ### SpiderMeta

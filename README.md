@@ -74,8 +74,11 @@ class MySpider(Spider):
 ### 运行爬虫
 
 ```bash
-# 运行单个爬虫
+# 使用命令行工具运行爬虫（推荐）
 crawlo run myspider
+
+# 使用项目自带的 run.py 脚本运行
+python run.py
 
 # 运行所有爬虫
 crawlo run all
@@ -88,6 +91,15 @@ crawlo run myspider
 ## 📜 命令行工具
 
 Crawlo 提供了丰富的命令行工具来帮助开发和管理爬虫项目：
+
+### 获取帮助
+
+```bash
+# 显示帮助信息
+crawlo -h
+crawlo --help
+crawlo help
+```
 
 ### crawlo startproject
 
@@ -474,12 +486,43 @@ PIPELINES = [
     'crawlo.pipelines.console_pipeline.ConsolePipeline',
     'crawlo.pipelines.json_pipeline.JsonPipeline',
     'crawlo.pipelines.redis_dedup_pipeline.RedisDedupPipeline',  # Redis去重管道
+    'crawlo.pipelines.mysql_pipeline.AsyncmyMySQLPipeline',      # MySQL存储管道
 ]
 ```
 
+### MySQL 管道配置
+
+Crawlo 提供了现成的 MySQL 管道实现，可以轻松将爬取的数据存储到 MySQL 数据库中：
+
+```python
+# 在 settings.py 中启用 MySQL 管道
+PIPELINES = [
+    'crawlo.pipelines.mysql_pipeline.AsyncmyMySQLPipeline',
+]
+
+# MySQL 数据库配置
+MYSQL_HOST = 'localhost'
+MYSQL_PORT = 3306
+MYSQL_USER = 'your_username'
+MYSQL_PASSWORD = 'your_password'
+MYSQL_DB = 'your_database'
+MYSQL_TABLE = 'your_table_name'
+
+# 可选的批量插入配置
+MYSQL_BATCH_SIZE = 100
+MYSQL_USE_BATCH = True
+```
+
+MySQL 管道特性：
+- **异步操作**：基于 asyncmy 驱动，提供高性能的异步数据库操作
+- **连接池**：自动管理数据库连接，提高效率
+- **批量插入**：支持批量插入以提高性能
+- **事务支持**：确保数据一致性
+- **灵活配置**：支持自定义表名、批量大小等参数
+
 ### 命令行配置
 
-```bash
+``bash
 # 运行单个爬虫
 crawlo run myspider
 
@@ -501,7 +544,7 @@ crawlo run myspider
 - **ConsolePipeline**: 控制台输出管道
 - **JsonPipeline**: JSON文件存储管道
 - **RedisDedupPipeline**: Redis去重管道，基于Redis集合实现分布式去重
-- **MySQLPipeline**: MySQL数据库存储管道
+- **AsyncmyMySQLPipeline**: MySQL数据库存储管道，基于asyncmy驱动
 
 ### 扩展组件
 功能增强扩展，包括日志、监控、性能分析等。

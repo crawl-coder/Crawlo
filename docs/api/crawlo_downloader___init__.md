@@ -13,6 +13,17 @@ Crawlo Downloader Module
 - DownloaderBase: 下载器基类
 - ActivateRequestManager: 活跃请求管理器
 
+## 导入的类
+
+- abstractmethod
+- ABCMeta
+- Final
+- Set
+- Optional
+- asynccontextmanager
+- get_logger
+- MiddlewareManager
+
 ## 类
 
 ### ActivateRequestManager

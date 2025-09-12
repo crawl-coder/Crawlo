@@ -2,6 +2,18 @@
 
 日志管理器：安全版本，使用字符串化 key 避免 unhashable 问题
 
+## 导入的类
+
+- Formatter
+- StreamHandler
+- FileHandler
+- Logger
+- DEBUG
+- INFO
+- WARNING
+- ERROR
+- CRITICAL
+
 ## 类
 
 ### LoggerManager

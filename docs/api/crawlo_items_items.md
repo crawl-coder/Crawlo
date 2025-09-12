@@ -2,6 +2,18 @@
 
 Item 类定义
 
+## 导入的类
+
+- deepcopy
+- pformat
+- Any
+- Iterator
+- Dict
+- MutableMapping
+- ItemMeta
+- ItemInitError
+- ItemAttributeError
+
 ## 类
 
 ### Item

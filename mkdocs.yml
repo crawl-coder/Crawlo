@@ -129,6 +129,15 @@ nav:
     - crawlo.response: api/crawlo_network_response.md
     - crawlo.items: api/crawlo_items_items.md
     - crawlo.pipelines: api/crawlo_pipelines___init__.md
+    - crawlo.pipelines.RedisDedupPipeline: api/crawlo_pipelines_redis_dedup_pipeline.md
+    - crawlo.pipelines.MemoryDedupPipeline: api/crawlo_pipelines_memory_dedup_pipeline.md
+    - crawlo.pipelines.BloomDedupPipeline: api/crawlo_pipelines_bloom_dedup_pipeline.md
+    - crawlo.pipelines.DatabaseDedupPipeline: api/crawlo_pipelines_database_dedup_pipeline.md
+    - crawlo.pipelines.ConsolePipeline: api/crawlo_pipelines_console_pipeline.md
+    - crawlo.pipelines.JsonPipeline: api/crawlo_pipelines_json_pipeline.md
+    - crawlo.pipelines.CsvPipeline: api/crawlo_pipelines_csv_pipeline.md
+    - crawlo.pipelines.AsyncmyMySQLPipeline: api/crawlo_pipelines_mysql_pipeline.md
+    - crawlo.pipelines.MongoPipeline: api/crawlo_pipelines_mongo_pipeline.md
     - crawlo.middleware: api/crawlo_middleware___init__.md
     - crawlo.extensions: api/crawlo_extension___init__.md
     - crawlo.filters: api/crawlo_filters___init__.md

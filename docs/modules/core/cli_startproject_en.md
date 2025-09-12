@@ -89,6 +89,30 @@ project_name/
         └── __init__.py        # Spider package initialization file
 ```
 
+## run.py Startup Script Description
+
+The `run.py` file in the project root directory is a simplified crawler startup script that users can run directly:
+
+```bash
+python run.py
+```
+
+This script has the following features:
+
+1. **Automatic Configuration Loading**: The script automatically finds and loads the project's configuration file
+2. **Fixed Spider Execution**: By default, it runs a spider named `your_spider_name`
+3. **Simplified Design**: The code is concise and easy to understand and modify
+
+Usage:
+1. Open the `run.py` file
+2. Replace `'your_spider_name'` with the actual spider name you want to run
+3. Run the command `python run.py`
+
+Note: If you need more complex running options (such as running multiple spiders, custom configurations, etc.), it is recommended to use the command-line tool:
+```bash
+crawlo run spider_name
+```
+
 ## Configuration File Description
 
 Regardless of the template type chosen, the generated configuration file is uniformly named `settings.py`, but the content will be adjusted accordingly based on the template type:

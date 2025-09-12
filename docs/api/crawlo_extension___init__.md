@@ -1,5 +1,14 @@
 # crawlo.extension.__init__
 
+## 导入的类
+
+- List
+- Any
+- pformat
+- get_logger
+- load_class
+- ExtensionInitError
+
 ## 类
 
 ### ExtensionManager

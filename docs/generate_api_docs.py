@@ -22,6 +22,15 @@ MODULES = [
     'crawlo/network/response.py',
     'crawlo/items/items.py',
     'crawlo/pipelines/__init__.py',
+    'crawlo/pipelines/redis_dedup_pipeline.py',
+    'crawlo/pipelines/memory_dedup_pipeline.py',
+    'crawlo/pipelines/bloom_dedup_pipeline.py',
+    'crawlo/pipelines/database_dedup_pipeline.py',
+    'crawlo/pipelines/console_pipeline.py',
+    'crawlo/pipelines/json_pipeline.py',
+    'crawlo/pipelines/csv_pipeline.py',
+    'crawlo/pipelines/mysql_pipeline.py',
+    'crawlo/pipelines/mongo_pipeline.py',
     'crawlo/middleware/__init__.py',
     'crawlo/extension/__init__.py',
     'crawlo/filters/__init__.py',
@@ -45,6 +54,17 @@ def extract_module_info(module_path):
         # 提取类和函数
         classes = []
         functions = []
+        
+        # 提取导入的类
+        imported_classes = []
+        for node in tree.body:
+            if isinstance(node, ast.ImportFrom):
+                # 处理 from ... import ... 语句
+                for alias in node.names:
+                    if alias.asname:
+                        imported_classes.append(alias.asname)
+                    else:
+                        imported_classes.append(alias.name)
         
         for node in tree.body:
             if isinstance(node, ast.ClassDef):
@@ -76,7 +96,8 @@ def extract_module_info(module_path):
         return {
             'docstring': docstring,
             'classes': classes,
-            'functions': functions
+            'functions': functions,
+            'imported_classes': imported_classes
         }
     except Exception as e:
         print(f"Error processing {module_path}: {e}")
@@ -88,6 +109,14 @@ def generate_module_doc(module_name, module_info):
     
     if module_info['docstring']:
         lines.append(module_info['docstring'])
+        lines.append("")
+    
+    # 添加导入的类信息
+    if module_info.get('imported_classes'):
+        lines.append("## 导入的类")
+        lines.append("")
+        for cls_name in module_info['imported_classes']:
+            lines.append(f"- {cls_name}")
         lines.append("")
     
     if module_info['classes']:

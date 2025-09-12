@@ -13,6 +13,13 @@ Crawlo Filters Module
 - BaseFilter: 所有过滤器的基类
 - requested(): 检查请求是否重复的主要方法
 
+## 导入的类
+
+- ABC
+- abstractmethod
+- Optional
+- request_fingerprint
+
 ## 类
 
 ### BaseFilter

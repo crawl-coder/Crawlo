@@ -1,5 +1,18 @@
 # crawlo.core.scheduler
 
+## 导入的类
+
+- Optional
+- Callable
+- get_logger
+- set_request
+- RequestSerializer
+- ErrorHandler
+- QueueManager
+- QueueConfig
+- load_class
+- common_call
+
 ## 类
 
 ### Scheduler
