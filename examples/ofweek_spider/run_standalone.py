@@ -19,11 +19,12 @@ os.chdir(project_root)
 from crawlo.crawler import CrawlerProcess
 from crawlo.project import get_settings
 
+
 def main():
     """主函数：使用单机模式配置运行爬虫"""
     # 获取配置
     settings = get_settings()
-    
+
     print("🚀 启动 OfweekSpider (单机模式)")
     print(f"  - 项目名称: {settings.get('PROJECT_NAME', 'Unknown')}")
     print(f"  - 并发数: {settings.get('CONCURRENCY', 1)}")
@@ -31,23 +32,24 @@ def main():
     print(f"  - 过滤器: {settings.get('FILTER_CLASS', 'Unknown')}")
     print(f"  - 队列类型: {settings.get('QUEUE_TYPE', 'Unknown')}")
     print("-" * 50)
-    
+
     # 创建爬虫进程并应用配置
     try:
         # 确保 spider 模块被正确导入
         spider_modules = ['ofweek_spider.spiders']
         process = CrawlerProcess(settings=settings, spider_modules=spider_modules)
         print("✅ 爬虫进程初始化成功")
-        
+
         # 运行指定的爬虫 - 使用正确的爬虫名称 'of_week'
         asyncio.run(process.crawl('of_week'))
         print("✅ 爬虫运行完成")
-        
+
     except Exception as e:
         print(f"❌ 运行失败: {e}")
         import traceback
         traceback.print_exc()
         sys.exit(1)
+
 
 if __name__ == '__main__':
     main()
