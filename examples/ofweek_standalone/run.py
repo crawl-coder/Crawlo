@@ -40,7 +40,7 @@ def main():
         print("✅ 爬虫进程初始化成功")
         
         # 运行指定的爬虫
-        asyncio.run(process.crawl('of_week'))
+        asyncio.run(process.crawl('of_week_standalone'))
         print("✅ 爬虫运行完成")
         
     except Exception as e:

@@ -108,7 +108,7 @@ RUN_MODE = 'standalone'  # 默认单机模式，简单易用
 # ============================== 队列配置（支持分布式） ==============================
 
 # 队列类型：'auto'（自动选择）, 'memory'（内存队列）, 'redis'（分布式队列）
-QUEUE_TYPE = 'auto'
+QUEUE_TYPE = 'memory'
 SCHEDULER_MAX_QUEUE_SIZE = 2000
 SCHEDULER_QUEUE_NAME = f'crawlo:{{project_name}}:queue:requests'  # 使用统一命名规范
 QUEUE_MAX_RETRIES = 3

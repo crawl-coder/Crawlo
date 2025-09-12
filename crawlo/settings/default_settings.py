@@ -45,7 +45,7 @@ SCHEDULER_MAX_QUEUE_SIZE = 1000
 SCHEDULER_QUEUE_NAME = f"crawlo:{PROJECT_NAME}:queue:requests"
 
 # 队列类型：memory/redis/auto
-QUEUE_TYPE = 'auto'
+QUEUE_TYPE = 'memory'
 
 # 默认去重管道（根据运行模式自动选择）
 DEFAULT_DEDUP_PIPELINE = 'crawlo.pipelines.redis_dedup_pipeline.RedisDedupPipeline'
