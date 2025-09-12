@@ -17,7 +17,7 @@ try:
     
     # 测试通过 load_class 导入
     from crawlo.project import load_class
-    cls = load_class('crawlo.pipelines.RedisDedupPipeline')
+    cls = load_class('crawlo.pipelines.redis_dedup_pipeline.RedisDedupPipeline')
     print("✓ load_class import successful")
     print(f"  Class: {cls}")
     

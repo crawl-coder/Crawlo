@@ -149,10 +149,10 @@ REQUEST_DIR = '.'
 # 分布式模式默认使用Redis去重管道
 if RUN_MODE == 'distributed':
     # 分布式模式下默认使用Redis去重管道
-    DEFAULT_DEDUP_PIPELINE = 'crawlo.pipelines.RedisDedupPipeline'
+    DEFAULT_DEDUP_PIPELINE = 'crawlo.pipelines.redis_dedup_pipeline.RedisDedupPipeline'
 else:
     # 单机模式下默认使用内存去重管道
-    DEFAULT_DEDUP_PIPELINE = 'crawlo.pipelines.MemoryDedupPipeline'
+    DEFAULT_DEDUP_PIPELINE = 'crawlo.pipelines.memory_dedup_pipeline.MemoryDedupPipeline'
 
 # 去重过滤器（推荐分布式项目使用 Redis 过滤器）
 FILTER_CLASS = 'crawlo.filters.memory_filter.MemoryFilter'
