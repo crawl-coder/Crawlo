@@ -21,7 +21,7 @@ DOWNLOAD_DELAY = 1.0
 DOWNLOADER = 'crawlo.downloader.aiohttp_downloader.AioHttpDownloader'
 
 # ============================== 队列配置 ==============================
-QUEUE_TYPE = 'memory'
+QUEUE_TYPE = 'auto'
 
 # ============================== 去重过滤器 ==============================
 FILTER_CLASS = 'crawlo.filters.memory_filter.MemoryFilter'

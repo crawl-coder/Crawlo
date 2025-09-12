@@ -1,25 +1,89 @@
-# Crawlo - 异步分布式爬虫框架
-
+<!-- markdownlint-disable MD033 MD041 -->
 <div align="center">
-
-[![Python Version](https://img.shields.io/badge/python-3.8%2B-blue)](https://www.python.org/downloads/)
-[![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
-[![Documentation](https://img.shields.io/badge/docs-latest-brightgreen)](https://crawlo.readthedocs.io/)
-
-一个基于 asyncio 的高性能异步分布式爬虫框架，支持单机和分布式部署。
-
+  <h1 align="center">Crawlo</h1>
+  <p align="center">异步分布式爬虫框架</p>
+  <p align="center"><strong>基于 asyncio 的高性能异步分布式爬虫框架，支持单机和分布式部署</strong></p>
+  
+  <p align="center">
+    <a href="https://www.python.org/downloads/">
+      <img src="https://img.shields.io/badge/python-3.8%2B-blue" alt="Python Version">
+    </a>
+    <a href="LICENSE">
+      <img src="https://img.shields.io/badge/license-MIT-green" alt="License">
+    </a>
+    <a href="https://crawlo.readthedocs.io/">
+      <img src="https://img.shields.io/badge/docs-latest-brightgreen" alt="Documentation">
+    </a>
+    <a href="https://github.com/crawlo/crawlo/actions">
+      <img src="https://github.com/crawlo/crawlo/workflows/CI/badge.svg" alt="CI Status">
+    </a>
+  </p>
+  
+  <p align="center">
+    <a href="#-特性">特性</a> •
+    <a href="#-快速开始">快速开始</a> •
+    <a href="#-命令行工具">命令行工具</a> •
+    <a href="#-架构设计">架构设计</a> •
+    <a href="#-示例项目">示例项目</a>
+  </p>
 </div>
 
-## 🌟 特性
+<br />
 
-- **异步高性能**: 基于 asyncio 实现，充分利用现代 CPU 多核性能
-- **分布式支持**: 内置 Redis 队列，轻松实现分布式部署
-- **模块化设计**: 中间件、管道、扩展组件系统，易于定制和扩展
-- **智能去重**: 多种去重策略（内存、Redis、Bloom Filter）
-- **灵活配置**: 支持多种配置方式，适应不同场景需求
-- **丰富文档**: 完整的中英文双语文档和示例项目
+<!-- 特性 section -->
+<div align="center">
+  <h2>🌟 特性</h2>
 
-## 🚀 快速开始
+  <table>
+    <thead>
+      <tr>
+        <th>特性</th>
+        <th>描述</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>⚡ <strong>异步高性能</strong></td>
+        <td>基于 asyncio 实现，充分利用现代 CPU 多核性能</td>
+      </tr>
+      <tr>
+        <td>🌐 <strong>分布式支持</strong></td>
+        <td>内置 Redis 队列，轻松实现分布式部署</td>
+      </tr>
+      <tr>
+        <td>🔧 <strong>模块化设计</strong></td>
+        <td>中间件、管道、扩展组件系统，易于定制和扩展</td>
+      </tr>
+      <tr>
+        <td>🔄 <strong>智能去重</strong></td>
+        <td>多种去重策略（内存、Redis、Bloom Filter）</td>
+      </tr>
+      <tr>
+        <td>⚙️ <strong>灵活配置</strong></td>
+        <td>支持多种配置方式，适应不同场景需求</td>
+      </tr>
+      <tr>
+        <td>📋 <strong>高级日志</strong></td>
+        <td>支持日志轮转、结构化日志、JSON格式等高级功能</td>
+      </tr>
+      <tr>
+        <td>📊 <strong>可视化架构</strong></td>
+        <td>提供完整的架构图和组件关系图，便于理解和使用</td>
+      </tr>
+      <tr>
+        <td>📚 <strong>丰富文档</strong></td>
+        <td>完整的中英文双语文档和示例项目</td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+<br />
+
+---
+
+<!-- 快速开始 section -->
+<h2 align="center">🚀 快速开始</h2>
 
 ### 安装
 
@@ -88,7 +152,10 @@ cd subdirectory
 crawlo run myspider
 ```
 
-## 📜 命令行工具
+---
+
+<!-- 命令行工具 section -->
+<h2 align="center">📜 命令行工具</h2>
 
 Crawlo 提供了丰富的命令行工具来帮助开发和管理爬虫项目：
 
@@ -226,134 +293,114 @@ crawlo stats myspider --all
 - `spider_name`: 指定要查看统计信息的爬虫名称
 - `--all`: 显示指定爬虫的所有历史运行记录
 
-## 🏗️ 架构设计
+---
 
-### 组件交互图
+<!-- 架构设计 section -->
+<h2 align="center">🏗️ 架构设计</h2>
 
-```
-┌─────────────────────────────────────────────────────────────────────┐
-│                            Crawler                                  │
-│  ┌──────────────┐  ┌──────────────┐  ┌──────────────────────────┐  │
-│  │   Spider     │  │   Engine     │  │      ExtensionManager     │  │
-│  │              │  │              │  │                          │  │
-│  │ start_urls   │  │  Scheduler ◄─┼──┼──► StatsCollector         │  │
-│  │ parse()      │  │              │  │                          │  │
-│  │              │  │ Downloader ◄─┼──┼──► MiddlewareManager     │  │
-│  │              │  │              │  │                          │  │
-│  │              │  │ Processor  ◄─┼──┼──► PipelineManager       │  │
-│  └──────────────┘  └──────┬───────┘  └──────────────────────────┘  │
-└──────────────────────────┼─────────────────────────────────────────┘
-                           │
-        ┌──────────────────▼──────────────────┐
-        │         Scheduler                   │
-        │  ┌──────────────────────────────┐   │
-        │  │       QueueManager           │   │
-        │  │  ┌─────────┐  ┌────────────┐ │   │
-        │  │  │ Memory  │  │   Redis    │ │   │
-        │  │  │ Queue   │  │  Queue     │ │   │
-        │  │  └─────────┘  └────────────┘ │   │
-        │  └──────────────────────────────┘   │
-        │  ┌──────────────────────────────┐   │
-        │  │        Filter                │   │
-        │  │  ┌─────────┐  ┌────────────┐ │   │
-        │  │  │ Memory  │  │   Redis    │ │   │
-        │  │  │ Filter  │  │  Filter    │ │   │
-        │  │  └─────────┘  └────────────┘ │   │
-        │  └──────────────────────────────┘   │
-        └─────────────────────────────────────┘
-                           │
-        ┌──────────────────▼──────────────────┐
-        │         Downloader                  │
-        │  ┌──────────────────────────────┐   │
-        │  │    MiddlewareManager         │   │
-        │  │                              │   │
-        │  │ RequestMiddleware ◄────────┐ │   │
-        │  │ ResponseMiddleware        │ │   │
-        │  │ ExceptionMiddleware       │ │   │
-        │  │                          ╱  │   │
-        │  └─────────────────────────╱───┘   │
-        │                           ╱        │
-        │  ┌───────────────────────▼──┐      │
-        │  │  Download Implementations │      │
-        │  │  - AioHttpDownloader   │      │
-        │  │  - HttpXDownloader     │      │
-        │  │  - CurlCffiDownloader  │      │
-        │  └──────────────────────────┘      │
-        └─────────────────────────────────────┘
-                           │
-        ┌──────────────────▼──────────────────┐
-        │          Processor                  │
-        │  ┌──────────────────────────────┐   │
-        │  │    PipelineManager           │   │
-        │  │  ┌─────────────────────────┐ │   │
-        │  │  │   Pipeline Stages       │ │   │
-        │  │  │ - ValidationPipeline    │ │   │
-        │  │  │ - ProcessingPipeline    │ │   │
-        │  │  │ - StoragePipeline       │ │   │
-        │  │  │ - DeduplicationPipeline │ │   │
-        │  │  └─────────────────────────┘ │   │
-        │  └──────────────────────────────┘   │
-        └─────────────────────────────────────┘
-```
+### 核心组件说明
 
-### 运行模式切换图
+Crawlo 框架由以下核心组件构成：
 
-```
-                    ┌─────────────────────┐
-                    │   ModeManager       │
-                    │  (运行模式管理器)    │
-                    └─────────┬───────────┘
-                              │
-        ┌─────────────────────┼─────────────────────┐
-        │                     │                     │
-        ▼                     ▼                     ▼
-┌───────────────┐    ┌─────────────────┐   ┌─────────────────┐
-│  Standalone   │    │   Distributed   │   │      Auto       │
-│   (单机模式)   │    │   (分布式模式)   │   │   (自动检测模式)  │
-└───────┬───────┘    └─────────┬───────┘   └─────────┬───────┘
-        │                      │                     │
-        ▼                      ▼                     ▼
-┌───────────────┐    ┌─────────────────┐   ┌─────────────────┐
-│ Memory Queue  │    │   Redis Queue   │   │  Auto Select    │
-│ Memory Filter │    │  Redis Filter   │   │ Memory/Redis    │
-└───────────────┘    └─────────────────┘   └─────────────────┘
-```
+<table>
+  <thead>
+    <tr>
+      <th>组件</th>
+      <th>功能描述</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><strong>Crawler</strong></td>
+      <td>爬虫运行实例，管理Spider与引擎的生命周期</td>
+    </tr>
+    <tr>
+      <td><strong>Engine</strong></td>
+      <td>引擎组件，协调Scheduler、Downloader、Processor</td>
+    </tr>
+    <tr>
+      <td><strong>Scheduler</strong></td>
+      <td>调度器，管理请求队列和去重过滤</td>
+    </tr>
+    <tr>
+      <td><strong>Downloader</strong></td>
+      <td>下载器，负责网络请求，支持多种实现(aiohttp, httpx, curl-cffi)</td>
+    </tr>
+    <tr>
+      <td><strong>Processor</strong></td>
+      <td>处理器，处理响应数据和管道</td>
+    </tr>
+    <tr>
+      <td><strong>QueueManager</strong></td>
+      <td>统一的队列管理器，支持内存队列和Redis队列的自动切换</td>
+    </tr>
+    <tr>
+      <td><strong>Filter</strong></td>
+      <td>请求去重过滤器，支持内存和Redis两种实现</td>
+    </tr>
+    <tr>
+      <td><strong>Middleware</strong></td>
+      <td>中间件系统，处理请求/响应的预处理和后处理</td>
+    </tr>
+    <tr>
+      <td><strong>Pipeline</strong></td>
+      <td>数据处理管道，支持多种存储方式(控制台、数据库等)和去重功能</td>
+    </tr>
+    <tr>
+      <td><strong>Spider</strong></td>
+      <td>爬虫基类，定义爬取逻辑</td>
+    </tr>
+  </tbody>
+</table>
 
-### 数据流向图
+### 运行模式
 
-```
-┌─────────────┐    1.生成初始请求     ┌──────────────┐
-│   Spider    ├─────────────────────►│  Scheduler   │
-└─────────────┘                      └──────┬───────┘
-                                            │ 2.去重检查
-                                            ▼
-                                  ┌─────────────────┐
-                                  │     Filter      │
-                                  └─────────┬───────┘
-                                            │ 3.入队
-                                            ▼
-                                  ┌─────────────────┐
-                                  │      Queue      │
-                                  └─────────┬───────┘
-                                            │ 4.获取请求
-                                            ▼
-                                  ┌─────────────────┐    5.下载请求    
-                                  │   Downloader    ├──────────────────┐
-                                  └─────────────────┘                  │
-                                            │ 6.解析响应              │
-                                            ▼                         ▼
-                                  ┌─────────────────┐    7.生成数据    ┌─────────────┐
-                                  │   Processor     ├────────────────►│   Pipeline  │
-                                  └─────────────────┘                 └──────┬──────┘
-                                            │ 8.存储数据                     │ 9.去重处理
-                                            ▼                                ▼
-                                  ┌─────────────────┐              ┌─────────────────┐
-                                  │     Items       │◄─────────────┤  Deduplication  │
-                                  └─────────────────┘              │    Pipeline     │
-                                                                   └─────────────────┘
-```
+Crawlo支持三种运行模式：
 
-### 模块层次结构图
+<table>
+  <thead>
+    <tr>
+      <th>模式</th>
+      <th>描述</th>
+      <th>队列类型</th>
+      <th>过滤器类型</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><strong>standalone</strong></td>
+      <td>单机模式</td>
+      <td>内存队列</td>
+      <td>内存过滤器</td>
+    </tr>
+    <tr>
+      <td><strong>distributed</strong></td>
+      <td>分布式模式</td>
+      <td>Redis队列</td>
+      <td>Redis过滤器</td>
+    </tr>
+    <tr>
+      <td><strong>auto</strong></td>
+      <td>自动检测模式</td>
+      <td>根据环境自动选择最佳运行方式</td>
+      <td>根据环境自动选择</td>
+    </tr>
+  </tbody>
+</table>
+
+### 可视化架构图
+
+为了更好地理解Crawlo的架构，我们提供了以下可视化图表：
+
+1. [核心组件关系图](docs/architecture_diagram.md#核心组件关系图) - 展示各组件之间的关系
+2. [请求处理流程图](docs/architecture_diagram.md#请求处理流程图) - 展示请求在框架中的处理流程
+3. [运行模式切换图](docs/architecture_diagram.md#运行模式切换图) - 展示不同运行模式的切换逻辑
+4. [扩展系统架构图](docs/extension_system.md#扩展组件架构图) - 展示扩展系统的架构
+5. [下载器系统图](docs/downloader_system.md#下载器架构图) - 展示下载器系统的架构
+
+这些图表使用Mermaid语法编写，您可以使用支持Mermaid的Markdown编辑器或在线工具来渲染查看。
+
+### 模块层次结构
 
 ```
 crawlo/
@@ -423,6 +470,8 @@ crawlo/
 │   ├── log_interval.py            # 定时日志
 │   ├── log_stats.py               # 统计日志
 │   ├── logging_extension.py       # 日志扩展
+│   ├── advanced_logging_extension.py # 高级日志扩展
+│   ├── log_monitor.py             # 日志监控扩展
 │   ├── memory_monitor.py          # 内存监控
 │   └── performance_profiler.py    # 性能分析
 │
@@ -433,7 +482,8 @@ crawlo/
 │
 ├── utils/                          # 工具库
 │   ├── __init__.py                 
-│   ├── log.py                     # 日志工具
+│   ├── log.py                     # 基础日志工具
+│   ├── advanced_log.py            # 高级日志工具
 │   ├── request.py                 # 请求工具
 │   ├── request_serializer.py      # 请求序列化
 │   └── func_tools.py              # 函数工具
@@ -443,31 +493,14 @@ crawlo/
     └── spider/
 ```
 
-### 组件说明
+---
 
-- **Crawler**: 爬虫运行实例，管理Spider与引擎的生命周期
-- **Engine**: 引擎组件，协调Scheduler、Downloader、Processor
-- **Scheduler**: 调度器，管理请求队列和去重过滤
-- **Downloader**: 下载器，负责网络请求，支持多种实现(aiohttp, httpx, curl-cffi)
-- **Processor**: 处理器，处理响应数据和管道
-- **QueueManager**: 统一的队列管理器，支持内存队列和Redis队列的自动切换
-- **Filter**: 请求去重过滤器，支持内存和Redis两种实现
-- **Middleware**: 中间件系统，处理请求/响应的预处理和后处理
-- **Pipeline**: 数据处理管道，支持多种存储方式(控制台、数据库等)和去重功能
-- **Spider**: 爬虫基类，定义爬取逻辑
-
-### 运行模式
-
-Crawlo支持三种运行模式：
-- **standalone**: 单机模式，使用内存队列和内存过滤器
-- **distributed**: 分布式模式，使用Redis队列和Redis过滤器
-- **auto**: 自动检测模式，根据环境自动选择最佳运行方式
-
-## 🎛️ 配置系统
+<!-- 配置系统 section -->
+<h2 align="center">🎛️ 配置系统</h2>
 
 ### 传统配置方式
 
-```
+```python
 # settings.py
 PROJECT_NAME = 'myproject'
 CONCURRENCY = 16
@@ -487,6 +520,29 @@ PIPELINES = [
     'crawlo.pipelines.json_pipeline.JsonPipeline',
     'crawlo.pipelines.redis_dedup_pipeline.RedisDedupPipeline',  # Redis去重管道
     'crawlo.pipelines.mysql_pipeline.AsyncmyMySQLPipeline',      # MySQL存储管道
+]
+
+# 高级日志配置
+LOG_FILE = 'logs/spider.log'
+LOG_LEVEL = 'INFO'
+LOG_MAX_BYTES = 10 * 1024 * 1024  # 10MB
+LOG_BACKUP_COUNT = 5
+LOG_JSON_FORMAT = False  # 设置为True启用JSON格式
+
+# 启用高级日志扩展
+ADVANCED_LOGGING_ENABLED = True
+
+# 启用日志监控
+LOG_MONITOR_ENABLED = True
+LOG_MONITOR_INTERVAL = 30
+LOG_MONITOR_DETAILED_STATS = True
+
+# 添加扩展
+EXTENSIONS = [
+    'crawlo.extension.log_interval.LogIntervalExtension',
+    'crawlo.extension.log_stats.LogStats',
+    'crawlo.extension.advanced_logging_extension.AdvancedLoggingExtension',
+    'crawlo.extension.log_monitor.LogMonitorExtension',
 ]
 ```
 
@@ -522,7 +578,7 @@ MySQL 管道特性：
 
 ### 命令行配置
 
-``bash
+```bash
 # 运行单个爬虫
 crawlo run myspider
 
@@ -534,7 +590,10 @@ cd subdirectory
 crawlo run myspider
 ```
 
-## 🧩 核心组件
+---
+
+<!-- 核心组件 section -->
+<h2 align="center">🧩 核心组件</h2>
 
 ### 中间件系统
 灵活的中间件系统，支持请求预处理、响应处理和异常处理。
@@ -547,18 +606,31 @@ crawlo run myspider
 - **AsyncmyMySQLPipeline**: MySQL数据库存储管道，基于asyncmy驱动
 
 ### 扩展组件
-功能增强扩展，包括日志、监控、性能分析等。
+功能增强扩展，包括日志、监控、性能分析等：
+- **LogIntervalExtension**: 定时日志扩展
+- **LogStats**: 统计日志扩展
+- **AdvancedLoggingExtension**: 高级日志扩展
+- **LogMonitorExtension**: 日志监控扩展
+- **MemoryMonitorExtension**: 内存监控扩展
+- **PerformanceProfilerExtension**: 性能分析扩展
 
 ### 过滤系统
 智能去重过滤，支持多种去重策略（内存、Redis、Bloom Filter）。
 
-## 📦 示例项目
+---
 
-- [API数据采集](examples/api_data_collection/) - 简单的API数据采集示例
-- [电信设备许可证](examples/telecom_licenses_distributed/) - 分布式爬取示例
+<!-- 示例项目 section -->
+<h2 align="center">📦 示例项目</h2>
+
 - [OFweek分布式爬虫](examples/ofweek_distributed/) - 复杂的分布式爬虫示例，包含Redis去重功能
+- [OFweek独立爬虫](examples/ofweek_standalone/) - 独立运行的爬虫示例
+- [OFweek混合模式爬虫](examples/ofweek_spider/) - 支持单机和分布式模式切换的爬虫示例
+- [高级日志使用示例](examples/advanced_logging_example.py) - 展示如何使用高级日志功能
 
-## 📚 文档
+---
+
+<!-- 文档 section -->
+<h2 align="center">📚 文档</h2>
 
 完整的文档请访问 [Crawlo Documentation](https://crawlo.readthedocs.io/)
 
@@ -566,11 +638,19 @@ crawlo run myspider
 - [模块化文档](docs/modules/index.md)
 - [API参考](docs/api_reference.md)
 - [配置最佳实践](docs/configuration_best_practices.md)
+- [高级日志功能](docs/advanced_logging.md)
+- [架构图解](docs/architecture_diagram.md)
 
-## 🤝 贡献
+---
+
+<!-- 贡献 section -->
+<h2 align="center">🤝 贡献</h2>
 
 欢迎提交 Issue 和 Pull Request 来帮助改进 Crawlo！
 
-## 📄 许可证
+---
+
+<!-- 许可证 section -->
+<h2 align="center">📄 许可证</h2>
 
 本项目采用 MIT 许可证，详情请见 [LICENSE](LICENSE) 文件。

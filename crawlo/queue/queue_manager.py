@@ -198,13 +198,28 @@ class QueueManager:
             return 0
     
     def empty(self) -> bool:
-        """检查队列是否为空"""
+        """检查队列是否为空（同步版本，用于兼容性）"""
         try:
             # 对于内存队列，可以同步检查
             if self._queue_type == QueueType.MEMORY:
                 return self._queue.qsize() == 0
-            # 对于 Redis 队列，需要异步操作，这里返回近似值
-            return False
+            # 对于 Redis 队列，由于需要异步操作，这里返回近似值
+            # 为了确保程序能正常退出，我们返回True，让上层通过更精确的异步检查来判断
+            return True
+        except Exception:
+            return True
+    
+    async def async_empty(self) -> bool:
+        """检查队列是否为空（异步版本，更精确）"""
+        try:
+            # 对于内存队列
+            if self._queue_type == QueueType.MEMORY:
+                return self._queue.qsize() == 0
+            # 对于 Redis 队列，使用异步检查
+            elif self._queue_type == QueueType.REDIS:
+                size = await self.size()
+                return size == 0
+            return True
         except Exception:
             return True
     

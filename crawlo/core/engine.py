@@ -321,12 +321,15 @@ class Engine(object):
     async def _should_exit(self) -> bool:
         """检查是否应该退出（增强版本）"""
         # 没有启动请求，且所有队列都空闲
-        if (self.start_requests is None and 
-            self.scheduler.idle() and 
-            self.downloader.idle() and 
-            self.task_manager.all_done() and 
-            self.processor.idle()):
-            return True
+        if self.start_requests is None:
+            # 使用异步的idle检查方法以获得更精确的结果
+            scheduler_idle = await self.scheduler.async_idle() if hasattr(self.scheduler, 'async_idle') else self.scheduler.idle()
+            
+            if (scheduler_idle and 
+                self.downloader.idle() and 
+                self.task_manager.all_done() and 
+                self.processor.idle()):
+                return True
         
         return False
 

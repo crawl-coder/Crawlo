@@ -114,6 +114,13 @@ class Scheduler:
         """检查队列是否为空"""
         return len(self) == 0
 
+    async def async_idle(self) -> bool:
+        """异步检查队列是否为空（更精确）"""
+        if not self.queue_manager:
+            return True
+        # 使用队列管理器的异步empty方法
+        return await self.queue_manager.async_empty()
+
     async def close(self):
         """关闭调度器"""
         try:
