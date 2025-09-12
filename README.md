@@ -635,10 +635,10 @@ crawlo run myspider
 
 - [快速开始指南](docs/modules/index.md)
 - [模块化文档](docs/modules/index.md)
-- [API参考](docs/api_reference.md)
-- [配置最佳实践](docs/configuration_best_practices.md)
-- [高级日志功能](docs/advanced_logging.md)
-- [架构图解](docs/architecture_diagram.md)
+- [API参考](docs/api/index.md)
+- [配置最佳实践](docs/best_practices/index.md)
+- [高级日志功能](docs/advanced_logging/index.md)
+- [架构图解](docs/architecture/index.md)
 
 ---
 
