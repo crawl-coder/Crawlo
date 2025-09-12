@@ -44,7 +44,7 @@
     <tbody>
       <tr>
         <td>⚡ <strong>异步高性能</strong></td>
-        <td>基于 asyncio 实现，充分利用现代 CPU 多核性能</td>
+        <td>基于 asyncio 实现，充分利用现代 CPU 夯性能</td>
       </tr>
       <tr>
         <td>🌐 <strong>分布式支持</strong></td>
@@ -388,18 +388,6 @@ Crawlo支持三种运行模式：
   </tbody>
 </table>
 
-### 可视化架构图
-
-为了更好地理解Crawlo的架构，我们提供了以下可视化图表：
-
-1. [核心组件关系图](docs/architecture_diagram.md#核心组件关系图) - 展示各组件之间的关系
-2. [请求处理流程图](docs/architecture_diagram.md#请求处理流程图) - 展示请求在框架中的处理流程
-3. [运行模式切换图](docs/architecture_diagram.md#运行模式切换图) - 展示不同运行模式的切换逻辑
-4. [扩展系统架构图](docs/extension_system.md#扩展组件架构图) - 展示扩展系统的架构
-5. [下载器系统图](docs/downloader_system.md#下载器架构图) - 展示下载器系统的架构
-
-这些图表使用Mermaid语法编写，您可以使用支持Mermaid的Markdown编辑器或在线工具来渲染查看。
-
 ### 模块层次结构
 
 ```
@@ -470,10 +458,10 @@ crawlo/
 │   ├── log_interval.py            # 定时日志
 │   ├── log_stats.py               # 统计日志
 │   ├── logging_extension.py       # 日志扩展
-│   ├── advanced_logging_extension.py # 高级日志扩展
-│   ├── log_monitor.py             # 日志监控扩展
 │   ├── memory_monitor.py          # 内存监控
-│   └── performance_profiler.py    # 性能分析
+│   ├── performance_profiler.py    # 性能分析
+│   ├── health_check.py            # 健康检查
+│   └── request_recorder.py        # 请求记录
 │
 ├── settings/                       # 配置系统
 │   ├── __init__.py                 
@@ -483,7 +471,6 @@ crawlo/
 ├── utils/                          # 工具库
 │   ├── __init__.py                 
 │   ├── log.py                     # 基础日志工具
-│   ├── advanced_log.py            # 高级日志工具
 │   ├── request.py                 # 请求工具
 │   ├── request_serializer.py      # 请求序列化
 │   └── func_tools.py              # 函数工具
@@ -500,7 +487,7 @@ crawlo/
 
 ### 传统配置方式
 
-```python
+```
 # settings.py
 PROJECT_NAME = 'myproject'
 CONCURRENCY = 16
@@ -541,8 +528,8 @@ LOG_MONITOR_DETAILED_STATS = True
 EXTENSIONS = [
     'crawlo.extension.log_interval.LogIntervalExtension',
     'crawlo.extension.log_stats.LogStats',
-    'crawlo.extension.advanced_logging_extension.AdvancedLoggingExtension',
-    'crawlo.extension.log_monitor.LogMonitorExtension',
+    'crawlo.extension.logging_extension.CustomLoggerExtension',
+    'crawlo.extension.memory_monitor.MemoryMonitorExtension',
 ]
 ```
 
@@ -550,7 +537,7 @@ EXTENSIONS = [
 
 Crawlo 提供了现成的 MySQL 管道实现，可以轻松将爬取的数据存储到 MySQL 数据库中：
 
-```python
+```
 # 在 settings.py 中启用 MySQL 管道
 PIPELINES = [
     'crawlo.pipelines.mysql_pipeline.AsyncmyMySQLPipeline',
@@ -609,10 +596,11 @@ crawlo run myspider
 功能增强扩展，包括日志、监控、性能分析等：
 - **LogIntervalExtension**: 定时日志扩展
 - **LogStats**: 统计日志扩展
-- **AdvancedLoggingExtension**: 高级日志扩展
-- **LogMonitorExtension**: 日志监控扩展
+- **CustomLoggerExtension**: 自定义日志扩展
 - **MemoryMonitorExtension**: 内存监控扩展
 - **PerformanceProfilerExtension**: 性能分析扩展
+- **HealthCheckExtension**: 健康检查扩展
+- **RequestRecorderExtension**: 请求记录扩展
 
 ### 过滤系统
 智能去重过滤，支持多种去重策略（内存、Redis、Bloom Filter）。
@@ -634,6 +622,15 @@ crawlo run myspider
 完整的文档请访问 [Crawlo Documentation](https://crawlo.readthedocs.io/)
 
 - [快速开始指南](docs/modules/index.md)
+- [模块化文档](docs/modules/index.md)
+- [核心引擎文档](docs/modules/core/engine.md)
+- [调度器文档](docs/modules/core/scheduler.md)
+- [下载器文档](docs/modules/downloader/index.md)
+- [中间件文档](docs/modules/middleware/index.md)
+- [管道文档](docs/modules/pipeline/index.md)
+- [队列文档](docs/modules/queue/index.md)
+- [过滤器文档](docs/modules/filter/index.md)
+- [扩展组件文档](docs/modules/extension/index.md)
 
 ---
 
