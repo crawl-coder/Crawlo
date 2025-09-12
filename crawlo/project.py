@@ -30,6 +30,15 @@ def _find_project_root(start_path: str = ".") -> Optional[str]:
         2. 存在 '__init__.py' 和 'settings.py'（即 Python 包）
     """
     path = os.path.abspath(start_path)
+    
+    # 首先检查当前目录及其子目录
+    for root, dirs, files in os.walk(path):
+        if "crawlo.cfg" in files:
+            cfg_path = os.path.join(root, "crawlo.cfg")
+            logger.info(f"✅ 找到项目配置文件: {cfg_path}")
+            return root
+    
+    # 如果在子目录中没找到，再向上查找
     while True:
         cfg_file = os.path.join(path, "crawlo.cfg")
         if os.path.isfile(cfg_file):
@@ -128,12 +137,25 @@ def load_class(_path):
             raise TypeError(f"args expect str or object, got {_path}")
 
     module_name, class_name = _path.rsplit('.', 1)
-    module = import_module(module_name)
+    
+    try:
+        module = import_module(module_name)
+    except ImportError as e:
+        # 尝试不同的导入方式
+        try:
+            # 尝试直接导入完整路径
+            module = import_module(_path)
+            return module
+        except ImportError:
+            pass
+        raise ImportError(f"Cannot import module {module_name}: {e}")
 
     try:
         cls = getattr(module, class_name)
     except AttributeError:
-        raise NameError(f"Module {module_name!r} has no class named {class_name!r}")
+        # 提供更详细的错误信息
+        available_attrs = [attr for attr in dir(module) if not attr.startswith('_')]
+        raise NameError(f"Module {module_name!r} has no class named {class_name!r}. Available attributes: {available_attrs}")
     return cls
 
 

@@ -30,12 +30,17 @@ class PipelineManager:
 
     def _add_pipelines(self, pipelines):
         for pipeline in pipelines:
-            pipeline_cls = load_class(pipeline)
-            if not hasattr(pipeline_cls, 'from_crawler'):
-                raise PipelineInitError(
-                    f"Pipeline init failed, must inherit from `BasePipeline` or have a `create_instance` method"
-                )
-            self.pipelines.append(pipeline_cls.from_crawler(self.crawler))
+            try:
+                pipeline_cls = load_class(pipeline)
+                if not hasattr(pipeline_cls, 'from_crawler'):
+                    raise PipelineInitError(
+                        f"Pipeline init failed, must inherit from `BasePipeline` or have a `create_instance` method"
+                    )
+                self.pipelines.append(pipeline_cls.from_crawler(self.crawler))
+            except Exception as e:
+                self.logger.error(f"Failed to load pipeline {pipeline}: {e}")
+                # 可以选择继续加载其他管道或抛出异常
+                raise
         if pipelines:
             self.logger.info(f"enabled pipelines: \n {pformat(pipelines)}")
 

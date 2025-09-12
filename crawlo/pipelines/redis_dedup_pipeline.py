@@ -13,13 +13,14 @@
 """
 
 import hashlib
-from typing import Dict, Any, Optional
+from typing import Optional
+
 import redis
 
 from crawlo import Item
+from crawlo.exceptions import DropItem
 from crawlo.spider import Spider
 from crawlo.utils.log import get_logger
-from crawlo.exceptions import DropItem
 
 
 class RedisDedupPipeline:

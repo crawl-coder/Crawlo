@@ -8,7 +8,7 @@ ofweek_distributed 项目配置文件
 
 # ============================== 项目基本信息 ==============================
 PROJECT_NAME = 'ofweek_distributed'
-VERSION = '1.0.0'
+VERSION = 1.0
 
 # ============================== 运行模式 ==============================
 RUN_MODE = 'distributed'
@@ -53,7 +53,7 @@ MIDDLEWARES = [
 PIPELINES = [
     'crawlo.pipelines.console_pipeline.ConsolePipeline',
     'crawlo.pipelines.json_pipeline.JsonPipeline',
-    'crawlo.pipelines.redis_dedup_pipeline.RedisDedupPipeline',
+    'crawlo.pipelines.redis_dedup_pipeline.RedisDedupPipeline',  # Redis去重管道
 ]
 
 # ============================== 扩展组件 ==============================

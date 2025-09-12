@@ -33,7 +33,7 @@ from ..items import NewsItem
 
 class OfweekSpider(Spider):
     """
-    爬虫：of_week
+    爬虫：of_week_distributed
     
     功能说明：
     - 支持并发爬取
@@ -62,7 +62,7 @@ class OfweekSpider(Spider):
     - 优化去重性能
     - 增加监控和故障恢复机制
     """
-    name = 'of_week'
+    name = 'of_week_distributed'  # 修改为与类名一致
     allowed_domains = ['ee.ofweek.com']
     start_urls = ['https://ee.ofweek.com/']
     

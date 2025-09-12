@@ -8,6 +8,7 @@
 import sys
 import asyncio
 import configparser
+import os
 from pathlib import Path
 from importlib import import_module
 
@@ -32,6 +33,12 @@ def get_project_root():
     向上查找 crawlo.cfg 来确定项目根目录
     """
     current = Path.cwd()
+    # 首先检查当前目录及其子目录
+    for root, dirs, files in os.walk(current):
+        if "crawlo.cfg" in files:
+            return Path(root)
+    
+    # 如果在子目录中没找到，再向上查找
     for _ in range(10):
         cfg = current / "crawlo.cfg"
         if cfg.exists():

@@ -62,7 +62,7 @@ class OfweekSpider(Spider):
     - 优化去重性能
     - 增加监控和故障恢复机制
     """
-    name = 'of_week'
+    name = 'of_week_standalone'
     allowed_domains = ['ee.ofweek.com']
     start_urls = ['https://ee.ofweek.com/']
     

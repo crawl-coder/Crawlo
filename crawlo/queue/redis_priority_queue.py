@@ -129,7 +129,15 @@ class RedisPriorityQueue:
             # 🔥 使用专用的序列化工具清理 Request
             clean_request = self.request_serializer.prepare_for_serialization(request)
             
-            serialized = pickle.dumps(clean_request)
+            # 确保序列化后的数据可以被正确反序列化
+            try:
+                serialized = pickle.dumps(clean_request)
+                # 验证序列化数据可以被反序列化
+                pickle.loads(serialized)
+            except Exception as serialize_error:
+                logger.error(f"❌ 请求序列化验证失败 (Module: {self.module_name}): {serialize_error}")
+                return False
+            
             pipe = self._redis.pipeline()
             pipe.zadd(self.queue_name, {key: score})
             pipe.hset(f"{self.queue_name}:data", key, serialized)
@@ -172,12 +180,23 @@ class RedisPriorityQueue:
                     pipe.hdel(f"{self.queue_name}:data", key)
                     await pipe.execute()
 
-                    # 确保使用正确的解码方式
+                    # 更安全的反序列化方式
                     try:
-                        return pickle.loads(serialized)
+                        # 首先尝试标准的 pickle 反序列化
+                        request = pickle.loads(serialized)
+                        return request
                     except UnicodeDecodeError:
                         # 如果出现编码错误，尝试使用 latin1 解码
-                        return pickle.loads(serialized, encoding='latin1')
+                        request = pickle.loads(serialized, encoding='latin1')
+                        return request
+                    except Exception as pickle_error:
+                        # 如果pickle反序列化失败，记录错误并跳过这个任务
+                        logger.error(f"❌ 无法反序列化请求数据 (Module: {self.module_name}): {pickle_error}")
+                        # 从processing队列中移除这个无效的任务
+                        await self._redis.zrem(self.processing_queue, processing_key)
+                        await self._redis.hdel(f"{self.processing_queue}:data", processing_key)
+                        # 继续尝试下一个任务
+                        continue
 
                 # 检查是否超时
                 if asyncio.get_event_loop().time() - start_time > timeout:
