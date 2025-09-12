@@ -1,50 +1,56 @@
-# Crawlo 框架教程示例
+# Crawlo 框架示例项目
 
-本目录包含了两个基于Crawlo框架命令从零开始创建的完整教程示例，展示如何使用标准流程实现电信设备许可证数据采集。
+本目录包含 Crawlo 框架的各种使用示例，帮助开发者快速上手和理解框架功能。
+
+## 示例项目列表
+
+1. [ofweek_spider](ofweek_spider/) - Ofweek 网站爬虫示例（混合版）
+2. [ofweek_standalone](ofweek_standalone/) - Ofweek 网站爬虫示例（独立单机版）
+3. [ofweek_distributed](ofweek_distributed/) - Ofweek 网站爬虫示例（独立分布式版）
+
+## 使用说明
+
+每个示例项目都包含完整的项目结构和运行说明，可以直接使用 Crawlo 命令运行。
 
 ## 📁 项目结构
 
 ```
 examples/
-├── api_data_collection/             # API数据采集示例（列表页模式）
+├── ofweek_standalone/              # Ofweek 网站爬虫（独立单机版）
 │   ├── crawlo.cfg                   # 项目配置文件
 │   ├── run.py                       # 启动脚本
 │   ├── logs/                        # 日志目录
-│   └── api_data_collection/
+│   └── ofweek_standalone/
 │       ├── __init__.py
-│       ├── settings.py              # 分布式配置
+│       ├── settings.py              # 单机模式配置
 │       ├── items.py                 # 数据结构定义
 │       └── spiders/
 │           ├── __init__.py
-│           └── api_data.py          # 爬虫实现（列表页模式）
+│           └── OfweekSpider.py      # Ofweek 网站爬虫
 │
-├── telecom_licenses_standalone/     # 单机版示例（使用crawlo startproject创建）
+├── ofweek_distributed/             # Ofweek 网站爬虫（独立分布式版）
 │   ├── crawlo.cfg                   # 项目配置文件
 │   ├── run.py                       # 启动脚本
 │   ├── logs/                        # 日志目录
-│   └── telecom_licenses_standalone/
+│   └── ofweek_distributed/
 │       ├── __init__.py
-│       ├── settings.py              # 项目配置
+│       ├── settings.py              # 分布式模式配置
 │       ├── items.py                 # 数据结构定义
-│       ├── middlewares.py           # 中间件
-│       ├── pipelines.py             # 数据管道
 │       └── spiders/
 │           ├── __init__.py
-│           └── telecom_device.py    # 爬虫实现
+│           └── OfweekSpider.py      # Ofweek 网站爬虫
 │
-├── telecom_licenses_distributed/    # 分布式版示例（使用crawlo startproject创建）
+├── ofweek_spider/                  # Ofweek 网站爬虫（混合版，支持模式切换）
 │   ├── crawlo.cfg                   # 项目配置文件
-│   ├── run.py                       # 启动脚本
+│   ├── run.py                       # 启动脚本（支持模式切换）
 │   ├── logs/                        # 日志目录
-│   └── telecom_licenses_distributed/
+│   └── ofweek_spider/
 │       ├── __init__.py
-│       ├── settings.py              # 分布式配置
-│       ├── items.py                 # 数据结构定义（含分布式字段）
-│       ├── middlewares.py           # 中间件
-│       ├── pipelines.py             # 数据管道
+│       ├── settings.py              # 混合模式配置
+│       ├── items.py                 # 数据结构定义
 │       └── spiders/
 │           ├── __init__.py
-│           └── telecom_device.py    # 分布式爬虫实现
+│           └── OfweekSpider.py      # Ofweek 网站爬虫
 │
 └── README.md                        # 本文档
 ```
@@ -56,34 +62,54 @@ examples/
 - 严格遵循框架默认配置和目录规范
 - 基于框架模板进行业务逻辑定制
 
-### 真实业务逻辑
-- **数据源**: 工信部电信设备许可证API
-- **API地址**: `https://ythzxfw.miit.gov.cn/oldyth/user-center/tbAppSearch/selectResult`
-- **数据规模**: 约26,405页数据
-- **数据清洗**: 自动移除HTML标签和格式化
+## Ofweek 爬虫示例
 
-### 分布式模式对比
-本目录包含了 Crawlo 框架支持的两种主要分布式爬虫模式：
+### 项目概述
+Ofweek 爬虫示例演示了如何使用 Crawlo 框架创建一个完整的新闻网站爬虫，支持从单机模式到分布式模式的平滑演进。
 
-1. **列表页直接获取数据模式**：参见 [api_data_collection](api_data_collection/) 示例
-2. **传统列表-详情页模式**：参见 [telecom_licenses_distributed](telecom_licenses_distributed/) 示例
+### 功能特点
+- 抓取 [OFweek 电子工程网](https://ee.ofweek.com/) 的新闻文章
+- 支持单机模式和分布式模式切换
+- 包含完整的数据提取和清洗逻辑
+- 提供详细的演进文档和配置示例
 
-### 数据字段映射
-根据框架默认配置规范定义数据结构：
+### 项目结构
 
-| 字段名 | 描述 | API字段映射 |
-|--------|------|-------------|
-| license_number | 许可证编号 | articleField01 |
-| device_name | 设备名称 | articleField02 |
-| device_model | 设备型号 | articleField03 |
-| applicant | 申请单位 | articleField04 |
-| manufacturer | 生产厂商 | articleField05 |
-| issue_date | 发证日期 | articleField06 |
-| expiry_date | 到期日期 | articleField07 |
-| certificate_type | 证书类型 | articleField08 |
-| remarks | 备注 | articleField09 |
-| certificate_status | 证书状态 | articleField10 |
-| origin | 原产地 | articleField11 |
+#### 1. [ofweek_standalone](ofweek_standalone/) - 独立单机版
+专为单机运行优化的版本，配置简单，无需额外依赖。
+
+#### 2. [ofweek_distributed](ofweek_distributed/) - 独立分布式版
+专为分布式部署优化的版本，需要 Redis 环境支持。
+
+#### 3. [ofweek_spider](ofweek_spider/) - 混合版（支持模式切换）
+通过环境变量支持单机和分布式模式的无缝切换，便于对比学习。
+
+### 运行方式
+
+#### 独立单机版 (ofweek_standalone)
+```bash
+cd examples/ofweek_standalone
+python run.py
+```
+
+#### 独立分布式版 (ofweek_distributed)
+```bash
+cd examples/ofweek_distributed
+# 确保 Redis 服务已启动
+python run.py
+```
+
+#### 混合版 (ofweek_spider)
+```bash
+cd examples/ofweek_spider
+
+# 运行单机模式（默认）
+python run.py
+
+# 运行分布式模式
+export CRAWLO_MODE=distributed
+python run.py
+```
 
 ## 🚀 快速开始
 

@@ -47,21 +47,24 @@ class ModeManager:
         redis_host: str = '127.0.0.1',
         redis_port: int = 6379,
         redis_password: Optional[str] = None,
+        redis_db: int = 0,  # 添加 redis_db 参数
         project_name: str = 'crawlo'
     ) -> Dict[str, Any]:
         """获取分布式模式配置"""
-        # 构建 Redis URL
+        # 构建 Redis URL，使用传入的 redis_db 参数
         if redis_password:
-            redis_url = f'redis://:{redis_password}@{redis_host}:{redis_port}/0'
+            redis_url = f'redis://:{redis_password}@{redis_host}:{redis_port}/{redis_db}'
         else:
-            redis_url = f'redis://{redis_host}:{redis_port}/0'
+            redis_url = f'redis://{redis_host}:{redis_port}/{redis_db}'
         
         return {
+            'PROJECT_NAME': project_name,  # 添加项目名称到配置中
             'QUEUE_TYPE': 'redis',
             'FILTER_CLASS': 'crawlo.filters.aioredis_filter.AioRedisFilter',
             'REDIS_HOST': redis_host,
             'REDIS_PORT': redis_port,
             'REDIS_PASSWORD': redis_password,
+            'REDIS_DB': redis_db,  # 添加 Redis 数据库编号到配置中
             'REDIS_URL': redis_url,
             'SCHEDULER_QUEUE_NAME': f'crawlo:{project_name}:queue:requests',  # 使用统一命名规范
             # Redis key配置已移至各组件中，使用统一的命名规范
@@ -111,6 +114,7 @@ class ModeManager:
                 redis_host=kwargs.get('redis_host', '127.0.0.1'),
                 redis_port=kwargs.get('redis_port', 6379),
                 redis_password=kwargs.get('redis_password'),
+                redis_db=kwargs.get('redis_db', 0),  # 添加 redis_db 参数
                 project_name=kwargs.get('project_name', 'crawlo')
             )
             
@@ -160,6 +164,7 @@ def distributed_mode(
     redis_host: str = '127.0.0.1',
     redis_port: int = 6379,
     redis_password: Optional[str] = None,
+    redis_db: int = 0,  # 添加 redis_db 参数
     project_name: str = 'crawlo',
     **kwargs
 ) -> Dict[str, Any]:
@@ -169,6 +174,7 @@ def distributed_mode(
         redis_host=redis_host,
         redis_port=redis_port,
         redis_password=redis_password,
+        redis_db=redis_db,  # 传递 redis_db 参数
         project_name=project_name,
         **kwargs
     )

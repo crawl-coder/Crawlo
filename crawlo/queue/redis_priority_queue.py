@@ -1,17 +1,16 @@
+import asyncio
 import pickle
 import time
-import asyncio
-from typing import Optional
-import redis.asyncio as aioredis
 import traceback
-import os
+from typing import Optional
+
+import redis.asyncio as aioredis
 
 from crawlo import Request
-from crawlo.utils.log import get_logger
-from crawlo.utils.request_serializer import RequestSerializer
 from crawlo.utils.error_handler import ErrorHandler
+from crawlo.utils.log import get_logger
 from crawlo.utils.redis_connection_pool import get_redis_pool, OptimizedRedisConnectionPool
-
+from crawlo.utils.request_serializer import RequestSerializer
 
 logger = get_logger(__name__)
 error_handler = ErrorHandler(__name__)
@@ -45,17 +44,8 @@ class RedisPriorityQueue:
         if queue_name is None:
             self.queue_name = f"crawlo:{module_name}:queue:requests"
         else:
-            # 如果提供了 queue_name，确保符合命名规范
-            # 处理可能的重复前缀问题
-            if queue_name.startswith("crawlo:crawlo:"):
-                # 修复双重 crawlo 前缀
-                self.queue_name = queue_name.replace("crawlo:crawlo:", "crawlo:", 1)
-            elif not queue_name.startswith("crawlo:"):
-                # 如果没有 crawlo 前缀，添加它
-                self.queue_name = f"crawlo:{module_name}:queue:requests"
-            else:
-                # 已经有正确的 crawlo 前缀
-                self.queue_name = queue_name
+            # 保持用户提供的队列名称不变，不做修改
+            self.queue_name = queue_name
         
         # 如果未提供 processing_queue，则根据 queue_name 自动生成
         if processing_queue is None:

@@ -70,7 +70,7 @@ class Engine(object):
     def engine_start(self):
         self.running = True
         self.logger.info(
-            f"Crawlo (version {self.settings.get_float('VERSION')}) started. "
+            f"Crawlo (version {self.settings.get('VERSION')}) started. "
             f"(project name : {self.settings.get('PROJECT_NAME')})"
         )
 

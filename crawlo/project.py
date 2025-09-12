@@ -139,6 +139,19 @@ def load_class(_path):
 
 def merge_settings(spider, settings):
     spider_name = getattr(spider, 'name', 'UnknownSpider')
+    # 检查 settings 是否为 SettingManager 实例
+    if not hasattr(settings, 'update_attributes'):
+        logger.error(f"merge_settings 接收到的 settings 不是 SettingManager 实例: {type(settings)}")
+        # 如果是字典，创建一个新的 SettingManager 实例
+        if isinstance(settings, dict):
+            from crawlo.settings.setting_manager import SettingManager
+            new_settings = SettingManager()
+            new_settings.update_attributes(settings)
+            settings = new_settings
+        else:
+            logger.error("无法处理的 settings 类型")
+            return
+            
     if hasattr(spider, 'custom_settings'):
         custom_settings = getattr(spider, 'custom_settings')
         settings.update_attributes(custom_settings)

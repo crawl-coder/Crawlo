@@ -158,6 +158,7 @@ class CrawloConfig:
         redis_host: str = '127.0.0.1',
         redis_port: int = 6379,
         redis_password: Optional[str] = None,
+        redis_db: int = 0,  # 添加 redis_db 参数
         project_name: str = 'crawlo',
         concurrency: int = 16,
         download_delay: float = 1.0,
@@ -170,6 +171,7 @@ class CrawloConfig:
             redis_host: Redis 服务器地址
             redis_port: Redis 端口
             redis_password: Redis 密码
+            redis_db: Redis 数据库编号
             project_name: 项目名称（用于命名空间）
             concurrency: 并发数
             download_delay: 下载延迟
@@ -179,6 +181,7 @@ class CrawloConfig:
             redis_host=redis_host,
             redis_port=redis_port,
             redis_password=redis_password,
+            redis_db=redis_db,  # 传递 redis_db 参数
             project_name=project_name,
             CONCURRENCY=concurrency,
             DOWNLOAD_DELAY=download_delay,
