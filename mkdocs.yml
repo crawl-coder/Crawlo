@@ -34,150 +34,111 @@ nav:
     - 简介: README.md
   - 模块文档:
     - 首页: 
-      - 中文: docs/modules/index.md
-      - English: docs/modules/index_en.md
+      - 中文: modules/index.md
+      - English: modules/index_en.md
     - 核心模块 (Core): 
       - 概述: 
-        - 中文: docs/modules/core/index.md
-        - English: docs/modules/core/index_en.md
+        - 中文: modules/core/index.md
+        - English: modules/core/index_en.md
       - 引擎 (Engine): 
-        - 中文: docs/modules/core/engine.md
-        - English: docs/modules/core/engine_en.md
+        - 中文: modules/core/engine.md
+        - English: modules/core/engine_en.md
       - 调度器 (Scheduler): 
-        - 中文: docs/modules/core/scheduler.md
-        - English: docs/modules/core/scheduler_en.md
+        - 中文: modules/core/scheduler.md
+        - English: modules/core/scheduler_en.md
       - 处理器 (Processor): 
-        - 中文: docs/modules/core/processor.md
-        - English: docs/modules/core/processor_en.md
+        - 中文: modules/core/processor.md
+        - English: modules/core/processor_en.md
+      - startproject 命令:
+        - 中文: modules/core/cli_startproject.md
+        - English: modules/core/cli_startproject_en.md
     - 下载器模块 (Downloader):
       - 概述: 
-        - 中文: docs/modules/downloader/index.md
-        - English: docs/modules/downloader/index_en.md
+        - 中文: modules/downloader/index.md
+        - English: modules/downloader/index_en.md
       - AioHttpDownloader: 
-        - 中文: docs/modules/downloader/aiohttp.md
-        - English: docs/modules/downloader/aiohttp_en.md
+        - 中文: modules/downloader/aiohttp.md
+        - English: modules/downloader/aiohttp_en.md
       - HttpXDownloader: 
-        - 中文: docs/modules/downloader/httpx.md
-        - English: docs/modules/downloader/httpx_en.md
+        - 中文: modules/downloader/httpx.md
+        - English: modules/downloader/httpx_en.md
       - CurlCffiDownloader: 
-        - 中文: docs/modules/downloader/curl_cffi.md
-        - English: docs/modules/downloader/curl_cffi_en.md
+        - 中文: modules/downloader/curl_cffi.md
+        - English: modules/downloader/curl_cffi_en.md
     - 中间件模块 (Middleware):
       - 概述: 
-        - 中文: docs/modules/middleware/index.md
-        - English: docs/modules/middleware/index_en.md
+        - 中文: modules/middleware/index.md
+        - English: modules/middleware/index_en.md
       - MiddlewareManager: 
-        - 中文: docs/modules/middleware/manager.md
-        - English: docs/modules/middleware/manager_en.md
+        - 中文: modules/middleware/manager.md
+        - English: modules/middleware/manager_en.md
       - 内置中间件: 
-        - 中文: docs/modules/middleware/built_in.md
-        - English: docs/modules/middleware/built_in_en.md
+        - 中文: modules/middleware/built_in.md
+        - English: modules/middleware/built_in_en.md
     - 管道模块 (Pipeline):
       - 概述: 
-        - 中文: docs/modules/pipeline/index.md
-        - English: docs/modules/pipeline/index_en.md
+        - 中文: modules/pipeline/index.md
+        - English: modules/pipeline/index_en.md
       - PipelineManager: 
-        - 中文: docs/modules/pipeline/manager.md
-        - English: docs/modules/pipeline/manager_en.md
+        - 中文: modules/pipeline/manager.md
+        - English: modules/pipeline/manager_en.md
       - 内置管道: 
-        - 中文: docs/modules/pipeline/built_in.md
-        - English: docs/modules/pipeline/built_in_en.md
+        - 中文: modules/pipeline/built_in.md
+        - English: modules/pipeline/built_in_en.md
     - 队列模块 (Queue):
       - 概述: 
-        - 中文: docs/modules/queue/index.md
-        - English: docs/modules/queue/index_en.md
+        - 中文: modules/queue/index.md
+        - English: modules/queue/index_en.md
       - QueueManager: 
-        - 中文: docs/modules/queue/manager.md
-        - English: docs/modules/queue/manager_en.md
+        - 中文: modules/queue/manager.md
+        - English: modules/queue/manager_en.md
       - 内存队列: 
-        - 中文: docs/modules/queue/memory.md
-        - English: docs/modules/queue/memory_en.md
+        - 中文: modules/queue/memory.md
+        - English: modules/queue/memory_en.md
       - Redis队列: 
-        - 中文: docs/modules/queue/redis.md
-        - English: docs/modules/queue/redis_en.md
+        - 中文: modules/queue/redis.md
+        - English: modules/queue/redis_en.md
     - 过滤器模块 (Filter):
       - 概述: 
-        - 中文: docs/modules/filter/index.md
-        - English: docs/modules/filter/index_en.md
+        - 中文: modules/filter/index.md
+        - English: modules/filter/index_en.md
       - BaseFilter: 
-        - 中文: docs/modules/filter/base.md
-        - English: docs/modules/filter/base_en.md
+        - 中文: modules/filter/base.md
+        - English: modules/filter/base_en.md
       - 内存过滤器: 
-        - 中文: docs/modules/filter/memory.md
-        - English: docs/modules/filter/memory_en.md
+        - 中文: modules/filter/memory.md
+        - English: modules/filter/memory_en.md
       - Redis过滤器: 
-        - 中文: docs/modules/filter/redis.md
-        - English: docs/modules/filter/redis_en.md
+        - 中文: modules/filter/redis.md
+        - English: modules/filter/redis_en.md
     - 扩展模块 (Extension):
       - 概述: 
-        - 中文: docs/modules/extension/index.md
-        - English: docs/modules/extension/index_en.md
+        - 中文: modules/extension/index.md
+        - English: modules/extension/index_en.md
       - ExtensionManager: 
-        - 中文: docs/modules/extension/manager.md
-        - English: docs/modules/extension/manager_en.md
+        - 中文: modules/extension/manager.md
+        - English: modules/extension/manager_en.md
       - 内置扩展: 
-        - 中文: docs/modules/extension/built_in.md
-        - English: docs/modules/extension/built_in_en.md
+        - 中文: modules/extension/built_in.md
+        - English: modules/extension/built_in_en.md
   - API 参考:
-    - crawlo: api/crawlo.md
-    - crawlo.crawler: api/crawlo.crawler.md
-    - crawlo.spider: api/crawlo.spider.md
-    - crawlo.request: api/crawlo.request.md
-    - crawlo.response: api/crawlo.response.md
-    - crawlo.items: api/crawlo.items.md
-    - crawlo.pipelines: api/crawlo.pipelines.md
-    - crawlo.middleware: api/crawlo.middleware.md
-    - crawlo.extensions: api/crawlo.extensions.md
-    - crawlo.filters: api/crawlo.filters.md
-    - crawlo.downloader: api/crawlo.downloader.md
-    - crawlo.scheduler: api/crawlo.scheduler.md
-    - crawlo.queues: api/crawlo.queues.md
-    - crawlo.utils: api/crawlo.utils.md
+    - crawlo: api/crawlo___init__.md
+    - crawlo.crawler: api/crawlo_crawler.md
+    - crawlo.spider: api/crawlo_spider___init__.md
+    - crawlo.request: api/crawlo_network_request.md
+    - crawlo.response: api/crawlo_network_response.md
+    - crawlo.items: api/crawlo_items_items.md
+    - crawlo.pipelines: api/crawlo_pipelines___init__.md
+    - crawlo.middleware: api/crawlo_middleware___init__.md
+    - crawlo.extensions: api/crawlo_extension___init__.md
+    - crawlo.filters: api/crawlo_filters___init__.md
+    - crawlo.downloader: api/crawlo_downloader___init__.md
+    - crawlo.scheduler: api/crawlo_core_scheduler.md
+    - crawlo.queues: api/crawlo_queue___init__.md
+    - crawlo.utils: api/crawlo_utils_log.md
 
 plugins:
   - search
-  - i18n:
-      docs_structure: suffix
-      languages:
-        - locale: zh
-          default: true
-          name: 中文
-          build: true
-        - locale: en
-          name: English
-          build: true
-          nav_translations:
-            首页: Home
-            简介: Introduction
-            模块文档: Module Documentation
-            首页: Home
-            核心模块 (Core): Core Module
-            引擎 (Engine): Engine
-            调度器 (Scheduler): Scheduler
-            处理器 (Processor): Processor
-            下载器模块 (Downloader): Downloader Module
-            概述: Overview
-            AioHttpDownloader: AioHttpDownloader
-            HttpXDownloader: HttpXDownloader
-            CurlCffiDownloader: CurlCffiDownloader
-            中间件模块 (Middleware): Middleware Module
-            MiddlewareManager: MiddlewareManager
-            内置中间件: Built-in Middlewares
-            管道模块 (Pipeline): Pipeline Module
-            PipelineManager: PipelineManager
-            内置管道: Built-in Pipelines
-            队列模块 (Queue): Queue Module
-            QueueManager: QueueManager
-            内存队列: Memory Queue
-            Redis队列: Redis Queue
-            过滤器模块 (Filter): Filter Module
-            BaseFilter: BaseFilter
-            内存过滤器: Memory Filter
-            Redis过滤器: Redis Filter
-            扩展模块 (Extension): Extension Module
-            ExtensionManager: ExtensionManager
-            内置扩展: Built-in Extensions
-            API 参考: API Reference
 
 extra:
   social:

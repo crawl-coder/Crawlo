@@ -30,8 +30,23 @@ pip install crawlo
 ### 创建项目
 
 ```bash
+# 创建默认项目
 crawlo startproject myproject
+
+# 创建分布式模板项目
+crawlo startproject myproject distributed
+
+# 创建项目并选择特定模块
+crawlo startproject myproject --modules mysql,redis,proxy
+
 cd myproject
+```
+
+### 生成爬虫
+
+```bash
+# 在项目目录中生成爬虫
+crawlo genspider news_spider news.example.com
 ```
 
 ### 编写爬虫
@@ -59,8 +74,145 @@ class MySpider(Spider):
 ### 运行爬虫
 
 ```bash
-crawlo crawl myspider
+# 运行单个爬虫
+crawlo run myspider
+
+# 运行所有爬虫
+crawlo run all
+
+# 在项目子目录中也能正确运行
+cd subdirectory
+crawlo run myspider
 ```
+
+## 📜 命令行工具
+
+Crawlo 提供了丰富的命令行工具来帮助开发和管理爬虫项目：
+
+### crawlo startproject
+
+创建新的爬虫项目。
+
+```bash
+# 基本用法
+crawlo startproject <project_name> [template_type] [--modules module1,module2]
+
+# 示例
+crawlo startproject my_spider_project
+crawlo startproject news_crawler simple
+crawlo startproject ecommerce_spider distributed --modules mysql,proxy
+```
+
+**参数说明：**
+- `project_name`: 项目名称（必须是有效的Python标识符）
+- `template_type`: 模板类型（可选）
+  - `default`: 默认模板 - 通用配置，适合大多数项目
+  - `simple`: 简化模板 - 最小配置，适合快速开始
+  - `distributed`: 分布式模板 - 针对分布式爬取优化
+  - `high-performance`: 高性能模板 - 针对大规模高并发优化
+  - `gentle`: 温和模板 - 低负载配置，对目标网站友好
+- `--modules`: 选择要包含的模块组件（可选）
+  - `mysql`: MySQL数据库支持
+  - `mongodb`: MongoDB数据库支持
+  - `redis`: Redis支持（分布式队列和去重）
+  - `proxy`: 代理支持
+  - `monitoring`: 监控和性能分析
+  - `dedup`: 去重功能
+  - `httpx`: HttpX下载器
+  - `aiohttp`: AioHttp下载器
+  - `curl`: CurlCffi下载器
+
+### crawlo genspider
+
+在现有项目中生成新的爬虫。
+
+```bash
+# 基本用法
+crawlo genspider <spider_name> <domain>
+
+# 示例
+crawlo genspider news_spider news.example.com
+crawlo genspider product_spider shop.example.com
+```
+
+**参数说明：**
+- `spider_name`: 爬虫名称（必须是有效的Python标识符）
+- `domain`: 目标域名
+
+### crawlo run
+
+运行爬虫。
+
+```bash
+# 基本用法
+crawlo run <spider_name>|all [--json] [--no-stats]
+
+# 示例
+crawlo run myspider
+crawlo run all
+crawlo run all --json --no-stats
+```
+
+**参数说明：**
+- `spider_name`: 要运行的爬虫名称
+- `all`: 运行所有爬虫
+- `--json`: 以JSON格式输出结果
+- `--no-stats`: 不记录统计信息
+
+### crawlo list
+
+列出项目中所有可用的爬虫。
+
+```bash
+# 基本用法
+crawlo list [--json]
+
+# 示例
+crawlo list
+crawlo list --json
+```
+
+**参数说明：**
+- `--json`: 以JSON格式输出结果
+
+### crawlo check
+
+检查爬虫定义的合规性。
+
+```bash
+# 基本用法
+crawlo check [--fix] [--ci] [--json] [--watch]
+
+# 示例
+crawlo check
+crawlo check --fix
+crawlo check --ci
+crawlo check --watch
+```
+
+**参数说明：**
+- `--fix`: 自动修复常见问题
+- `--ci`: CI模式输出（简洁格式）
+- `--json`: 以JSON格式输出结果
+- `--watch`: 监听模式，文件更改时自动检查
+
+### crawlo stats
+
+查看爬虫运行统计信息。
+
+```bash
+# 基本用法
+crawlo stats [spider_name] [--all]
+
+# 示例
+crawlo stats
+crawlo stats myspider
+crawlo stats myspider --all
+```
+
+**参数说明：**
+- `spider_name`: 指定要查看统计信息的爬虫名称
+- `--all`: 显示指定爬虫的所有历史运行记录
 
 ## 🏗️ 架构设计
 
@@ -126,6 +278,7 @@ crawlo crawl myspider
         │  │  │ - ValidationPipeline    │ │   │
         │  │  │ - ProcessingPipeline    │ │   │
         │  │  │ - StoragePipeline       │ │   │
+        │  │  │ - DeduplicationPipeline │ │   │
         │  │  └─────────────────────────┘ │   │
         │  └──────────────────────────────┘   │
         └─────────────────────────────────────┘
@@ -179,12 +332,13 @@ crawlo crawl myspider
                                             ▼                         ▼
                                   ┌─────────────────┐    7.生成数据    ┌─────────────┐
                                   │   Processor     ├────────────────►│   Pipeline  │
-                                  └─────────────────┘                 └─────────────┘
-                                            │ 8.存储数据
-                                            ▼
-                                  ┌─────────────────┐
-                                  │     Items       │
-                                  └─────────────────┘
+                                  └─────────────────┘                 └──────┬──────┘
+                                            │ 8.存储数据                     │ 9.去重处理
+                                            ▼                                ▼
+                                  ┌─────────────────┐              ┌─────────────────┐
+                                  │     Items       │◄─────────────┤  Deduplication  │
+                                  └─────────────────┘              │    Pipeline     │
+                                                                   └─────────────────┘
 ```
 
 ### 模块层次结构图
@@ -248,6 +402,8 @@ crawlo/
 │   ├── pipeline_manager.py        # 管道管理器
 │   ├── base_pipeline.py           # 管道基类
 │   ├── console_pipeline.py        # 控制台输出管道
+│   ├── json_pipeline.py           # JSON存储管道
+│   ├── redis_dedup_pipeline.py    # Redis去重管道
 │   └── mysql_pipeline.py          # MySQL存储管道
 │
 ├── extension/                      # 扩展组件
@@ -285,7 +441,7 @@ crawlo/
 - **QueueManager**: 统一的队列管理器，支持内存队列和Redis队列的自动切换
 - **Filter**: 请求去重过滤器，支持内存和Redis两种实现
 - **Middleware**: 中间件系统，处理请求/响应的预处理和后处理
-- **Pipeline**: 数据处理管道，支持多种存储方式(控制台、数据库等)
+- **Pipeline**: 数据处理管道，支持多种存储方式(控制台、数据库等)和去重功能
 - **Spider**: 爬虫基类，定义爬取逻辑
 
 ### 运行模式
@@ -306,12 +462,33 @@ CONCURRENCY = 16
 DOWNLOAD_DELAY = 1.0
 QUEUE_TYPE = 'memory'  # 单机模式
 # QUEUE_TYPE = 'redis'   # 分布式模式
+
+# Redis 配置 (分布式模式下使用)
+REDIS_HOST = 'localhost'
+REDIS_PORT = 6379
+REDIS_DB = 0
+REDIS_PASSWORD = ''
+
+# 数据管道配置
+PIPELINES = [
+    'crawlo.pipelines.console_pipeline.ConsolePipeline',
+    'crawlo.pipelines.json_pipeline.JsonPipeline',
+    'crawlo.pipelines.redis_dedup_pipeline.RedisDedupPipeline',  # Redis去重管道
+]
 ```
 
 ### 命令行配置
 
-```
-crawlo crawl myspider --concurrency=32 --delay=0.5
+```bash
+# 运行单个爬虫
+crawlo run myspider
+
+# 运行所有爬虫
+crawlo run all
+
+# 在项目子目录中也能正确运行
+cd subdirectory
+crawlo run myspider
 ```
 
 ## 🧩 核心组件
@@ -320,7 +497,11 @@ crawlo crawl myspider --concurrency=32 --delay=0.5
 灵活的中间件系统，支持请求预处理、响应处理和异常处理。
 
 ### 管道系统
-可扩展的数据处理管道，支持多种存储方式（控制台、数据库等）。
+可扩展的数据处理管道，支持多种存储方式（控制台、数据库等）和去重功能：
+- **ConsolePipeline**: 控制台输出管道
+- **JsonPipeline**: JSON文件存储管道
+- **RedisDedupPipeline**: Redis去重管道，基于Redis集合实现分布式去重
+- **MySQLPipeline**: MySQL数据库存储管道
 
 ### 扩展组件
 功能增强扩展，包括日志、监控、性能分析等。
@@ -332,6 +513,7 @@ crawlo crawl myspider --concurrency=32 --delay=0.5
 
 - [API数据采集](examples/api_data_collection/) - 简单的API数据采集示例
 - [电信设备许可证](examples/telecom_licenses_distributed/) - 分布式爬取示例
+- [OFweek分布式爬虫](examples/ofweek_distributed/) - 复杂的分布式爬虫示例，包含Redis去重功能
 
 ## 📚 文档
 
