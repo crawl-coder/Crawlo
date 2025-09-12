@@ -578,7 +578,7 @@ MySQL 管道特性：
 
 ### 命令行配置
 
-```bash
+```
 # 运行单个爬虫
 crawlo run myspider
 
@@ -625,7 +625,6 @@ crawlo run myspider
 - [OFweek分布式爬虫](examples/ofweek_distributed/) - 复杂的分布式爬虫示例，包含Redis去重功能
 - [OFweek独立爬虫](examples/ofweek_standalone/) - 独立运行的爬虫示例
 - [OFweek混合模式爬虫](examples/ofweek_spider/) - 支持单机和分布式模式切换的爬虫示例
-- [高级日志使用示例](examples/advanced_logging_example.py) - 展示如何使用高级日志功能
 
 ---
 
