@@ -329,7 +329,13 @@ class Engine(object):
                 self.downloader.idle() and 
                 self.task_manager.all_done() and 
                 self.processor.idle()):
-                return True
+                # 增加额外检查确保所有任务都完成
+                await asyncio.sleep(0.1)  # 短暂等待确保没有新的任务加入
+                if (await self.scheduler.async_idle() and 
+                    self.downloader.idle() and 
+                    self.task_manager.all_done() and 
+                    self.processor.idle()):
+                    return True
         
         return False
 

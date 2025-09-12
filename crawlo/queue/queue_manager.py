@@ -276,27 +276,15 @@ class QueueManager:
     async def _create_queue(self, queue_type: QueueType):
         """创建队列实例"""
         if queue_type == QueueType.REDIS:
-            # 从队列名称中提取项目名称，用于module_name
-            # 例如：crawlo:books_distributed:queue:requests -> books_distributed
+            # 简化项目名称提取逻辑
             project_name = "default"
             if ':' in self.config.queue_name:
                 parts = self.config.queue_name.split(':')
-                if len(parts) >= 2:
-                    # 处理可能的双重 crawlo 前缀
-                    if parts[0] == "crawlo" and parts[1] == "crawlo":
-                        # 双重 crawlo 前缀，取第三个部分作为项目名称
-                        if len(parts) >= 3:
-                            project_name = parts[2]
-                        else:
-                            project_name = "default"
-                    elif parts[0] == "crawlo":
-                        # 正常的 crawlo 前缀，取第二个部分作为项目名称
-                        project_name = parts[1]
-                    else:
-                        # 没有 crawlo 前缀，使用第一个部分作为项目名称
-                        project_name = parts[0]
-                else:
-                    project_name = self.config.queue_name or "default"
+                # 跳过所有"crawlo"前缀，取第一个非"crawlo"部分作为项目名称
+                for part in parts:
+                    if part != "crawlo":
+                        project_name = part
+                        break
             else:
                 project_name = self.config.queue_name or "default"
             

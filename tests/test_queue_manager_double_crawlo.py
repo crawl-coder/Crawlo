@@ -49,26 +49,15 @@ async def test_queue_manager_naming():
             print(f"测试 {i}: {test_case['name']}")
             print(f"  输入队列名称: {test_case['queue_name']}")
             
-            # 测试队列管理器中的项目名称提取逻辑
+            # 使用优化后的项目名称提取逻辑
             project_name = "default"
             if ':' in test_case['queue_name']:
                 parts = test_case['queue_name'].split(':')
-                if len(parts) >= 2:
-                    # 处理可能的双重 crawlo 前缀
-                    if parts[0] == "crawlo" and parts[1] == "crawlo":
-                        # 双重 crawlo 前缀，取第三个部分作为项目名称
-                        if len(parts) >= 3:
-                            project_name = parts[2]
-                        else:
-                            project_name = "default"
-                    elif parts[0] == "crawlo":
-                        # 正常的 crawlo 前缀，取第二个部分作为项目名称
-                        project_name = parts[1]
-                    else:
-                        # 没有 crawlo 前缀，使用第一个部分作为项目名称
-                        project_name = parts[0]
-                else:
-                    project_name = test_case['queue_name'] or "default"
+                # 跳过所有"crawlo"前缀，取第一个非"crawlo"部分作为项目名称
+                for part in parts:
+                    if part != "crawlo":
+                        project_name = part
+                        break
             else:
                 project_name = test_case['queue_name'] or "default"
             
@@ -132,26 +121,15 @@ async def test_queue_manager_create_queue():
                 # 创建队列管理器
                 queue_manager = QueueManager(config)
                 
-                # 创建队列实例（模拟队列管理器的_create_queue方法）
+                # 使用优化后的项目名称提取逻辑
                 project_name = "default"
                 if ':' in test_case['queue_name']:
                     parts = test_case['queue_name'].split(':')
-                    if len(parts) >= 2:
-                        # 处理可能的双重 crawlo 前缀
-                        if parts[0] == "crawlo" and parts[1] == "crawlo":
-                            # 双重 crawlo 前缀，取第三个部分作为项目名称
-                            if len(parts) >= 3:
-                                project_name = parts[2]
-                            else:
-                                project_name = "default"
-                        elif parts[0] == "crawlo":
-                            # 正常的 crawlo 前缀，取第二个部分作为项目名称
-                            project_name = parts[1]
-                        else:
-                            # 没有 crawlo 前缀，使用第一个部分作为项目名称
-                            project_name = parts[0]
-                    else:
-                        project_name = test_case['queue_name'] or "default"
+                    # 跳过所有"crawlo"前缀，取第一个非"crawlo"部分作为项目名称
+                    for part in parts:
+                        if part != "crawlo":
+                            project_name = part
+                            break
                 else:
                     project_name = test_case['queue_name'] or "default"
                 
@@ -194,38 +172,3 @@ async def test_queue_manager_create_queue():
         print(f"❌ 队列管理器创建队列测试失败: {e}")
         traceback.print_exc()
         return False
-
-
-async def main():
-    """主测试函数"""
-    print("🚀 开始队列管理器双重 crawlo 前缀问题测试...")
-    print("=" * 50)
-    
-    try:
-        # 测试队列管理器项目名称提取
-        naming_test_success = await test_queue_manager_naming()
-        print()
-        
-        # 测试队列管理器创建队列
-        create_test_success = await test_queue_manager_create_queue()
-        print()
-        
-        print("=" * 50)
-        if naming_test_success and create_test_success:
-            print("🎉 队列管理器双重 crawlo 前缀问题测试通过！")
-        else:
-            print("❌ 部分测试失败，请检查实现")
-            return 1
-            
-    except Exception as e:
-        print("=" * 50)
-        print(f"❌ 测试过程中发生异常: {e}")
-        traceback.print_exc()
-        return 1
-    
-    return 0
-
-
-if __name__ == "__main__":
-    exit_code = asyncio.run(main())
-    sys.exit(exit_code)
