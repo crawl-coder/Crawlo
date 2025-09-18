@@ -26,6 +26,10 @@ QUEUE_TYPE = 'memory'
 # ============================== 去重过滤器 ==============================
 FILTER_CLASS = 'crawlo.filters.memory_filter.MemoryFilter'
 
+# ============================== 默认去重管道 ==============================
+# 明确指定单机模式下使用内存去重管道
+DEFAULT_DEDUP_PIPELINE = 'crawlo.pipelines.memory_dedup_pipeline.MemoryDedupPipeline'
+
 # ============================== 爬虫模块配置 ==============================
 SPIDER_MODULES = ['ofweek_standalone.spiders']
 
@@ -44,6 +48,8 @@ MIDDLEWARES = [
 PIPELINES = [
     'crawlo.pipelines.console_pipeline.ConsolePipeline',
     'crawlo.pipelines.json_pipeline.JsonPipeline',
+    # 明确添加内存去重管道
+    'crawlo.pipelines.memory_dedup_pipeline.MemoryDedupPipeline',
 ]
 
 # ============================== 扩展组件 ==============================

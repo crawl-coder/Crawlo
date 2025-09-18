@@ -174,7 +174,8 @@ export REDIS_PORT=6379
 python run_standalone.py
 
 # 运行分布式模式
-python run_distributed.py
+# 使用 crawlo run 命令运行分布式模式
+crawlo run of_week
 ```
 
 ## 复杂性分析

@@ -108,21 +108,17 @@ def _copytree_with_templates(src, dst, context, template_type='default', modules
 
     for item in src_path.rglob('*'):
         rel_path = item.relative_to(src_path)
-        dst_item = dst_path / rel_path
+        # 对于run.py.tmpl文件，需要特殊处理，将其放到项目根目录
+        if item.name == 'run.py.tmpl':
+            dst_item = dst_path.parent / rel_path  # 放到项目根目录
+        else:
+            dst_item = dst_path / rel_path
 
         # 检查是否应该包含此文件
         path_str = str(rel_path).replace('\\', '/')
         
-        # 分布式模板始终包含分布式运行脚本
-        if template_type == 'distributed' and 'run_distributed' in path_str:
-            pass  # 允许包含分布式运行脚本
-        # 非分布式模板根据模块选择决定是否包含
-        elif 'run_distributed' in path_str:
-            # 如果不是分布式模板且没有选择redis模块，则不包含分布式运行脚本
-            if template_type != 'distributed' and ('redis' not in (modules or [])):
-                continue
-        # 其他文件根据模块选择决定是否包含
-        elif not _should_include_file(rel_path, modules):
+        # 所有文件根据模块选择决定是否包含
+        if not _should_include_file(rel_path, modules):
             continue
 
         if item.is_dir():
@@ -155,6 +151,9 @@ def _copytree_with_templates(src, dst, context, template_type='default', modules
                 if item.name == 'settings.py.tmpl':
                     # 特殊处理设置模板文件，统一生成为 settings.py
                     final_dst = dst_item.parent / 'settings.py'
+                # 特殊处理run.py.tmpl文件
+                elif item.name == 'run.py.tmpl':
+                    final_dst = dst_item.with_suffix('')  # 去掉.tmpl后缀
                 else:
                     final_dst = dst_item.with_suffix('')
                     
@@ -179,8 +178,8 @@ def _should_include_file(rel_path, modules: List[str]) -> bool:
         'settings.py.tmpl',
         'spiders/__init__.py.tmpl',
         'items.py.tmpl',
-        'middlewares.py.tmpl',
-        'run.py.tmpl'
+        'middlewares.py.tmpl'
+        # 移除了'run.py.tmpl'，因为它现在在模板根目录
     ]
     
     path_str = str(rel_path).replace('\\', '/')
@@ -372,16 +371,25 @@ def main(args):
         else:
             console.print("[yellow]⚠ 警告:[/yellow] 找不到模板 'crawlo.cfg.tmpl'。")
 
-        # 3. 复制并渲染项目包内容
+        # 3. 渲染 run.py.tmpl (放在项目根目录)
+        run_template = TEMPLATES_DIR / 'run.py.tmpl'
+        if run_template.exists():
+            run_content = _render_template(run_template, context)
+            (project_dir / 'run.py').write_text(run_content, encoding='utf-8')
+            console.print(f":white_check_mark: 已创建 [green]{project_dir / 'run.py'}[/green]")
+        else:
+            console.print("[yellow]⚠ 警告:[/yellow] 找不到模板 'run.py.tmpl'。")
+
+        # 4. 复制并渲染项目包内容
         package_dir = project_dir / project_name
         _copytree_with_templates(template_dir, package_dir, context, template_type, modules)
         console.print(f":white_check_mark: 已创建项目包: [green]{package_dir}[/green]")
 
-        # 4. 创建 logs 目录
+        # 5. 创建 logs 目录
         (project_dir / 'logs').mkdir(exist_ok=True)
         console.print(":white_check_mark: 已创建 logs 目录")
         
-        # 5. 创建 output 目录（用于数据输出）
+        # 6. 创建 output 目录（用于数据输出）
         (project_dir / 'output').mkdir(exist_ok=True)
         console.print(":white_check_mark: 已创建 output 目录")
 

@@ -5,13 +5,40 @@
 基于 Crawlo 框架的分布式爬虫项目配置。
 适合大规模数据采集和多节点部署。
 """
-
 import os
 from crawlo.config import CrawloConfig
 
 # ============================== 项目基本信息 ==============================
 PROJECT_NAME = '{{project_name}}'
-VERSION = '1.0.0'
+
+# ============================== 分布式配置说明 ==============================
+# 
+# 本模板专为分布式部署设计，适用于以下场景：
+# - 大规模数据采集任务
+# - 需要多节点协同工作的项目
+# - 高并发、高吞吐量需求
+# 
+# 运行模式特点：
+# - RUN_MODE = 'distributed'（分布式模式）
+# - QUEUE_TYPE = 'redis'（使用Redis队列实现分布式协调）
+# - FILTER_CLASS = 'crawlo.filters.aioredis_filter.AioRedisFilter'（Redis过滤器）
+# - DEFAULT_DEDUP_PIPELINE = 'crawlo.pipelines.redis_dedup_pipeline.RedisDedupPipeline'（Redis去重）
+# 
+# 部署要求：
+# - 需要配置Redis服务器连接参数
+# - 建议使用独立的Redis数据库避免数据冲突
+# - 多节点部署时确保所有节点能访问同一Redis实例
+#
+# 🎯 最佳使用方式：
+# 推荐使用配置工厂方式创建分布式配置：
+# from crawlo.config import CrawloConfig
+# config = CrawloConfig.distributed(
+#     redis_host='your_redis_host',
+#     redis_port=6379,
+#     redis_password='your_password',
+#     project_name='{{project_name}}'
+# )
+# process = CrawlerProcess(settings=config.to_dict())
 
 # ============================== 分布式配置 ==============================
 # 使用配置工厂创建分布式配置
@@ -73,6 +100,9 @@ MONGO_BATCH_SIZE = 100
 MONGO_USE_BATCH = True
 
 # ============================== 去重配置 ==============================
+# 明确指定分布式模式下使用Redis去重管道
+DEFAULT_DEDUP_PIPELINE = 'crawlo.pipelines.redis_dedup_pipeline.RedisDedupPipeline'
+FILTER_CLASS = 'crawlo.filters.aioredis_filter.AioRedisFilter'
 REDIS_TTL = 0
 CLEANUP_FP = 0
 FILTER_DEBUG = True
@@ -96,6 +126,9 @@ PIPELINES = [
     # 'crawlo.pipelines.mysql_pipeline.AsyncmyMySQLPipeline',
     # 'crawlo.pipelines.mongo_pipeline.MongoPipeline',
 ]
+
+# 明确添加Redis去重管道到管道列表开头
+PIPELINES.insert(0, DEFAULT_DEDUP_PIPELINE)
 
 # ============================== 扩展组件 ==============================
 EXTENSIONS = [

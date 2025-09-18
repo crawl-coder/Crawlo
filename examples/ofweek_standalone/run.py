@@ -24,6 +24,7 @@ def main():
     """主函数：使用单机模式配置运行爬虫"""
     # 获取配置
     settings = get_settings()
+    print(settings)
 
     print("🚀 启动 OfweekSpider (单机模式)")
     print(f"  - 项目名称: {settings.get('PROJECT_NAME', 'Unknown')}")

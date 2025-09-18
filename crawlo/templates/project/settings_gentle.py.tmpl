@@ -5,13 +5,40 @@
 基于 Crawlo 框架的温和爬虫项目配置。
 适合对目标网站友好的低负载爬取。
 """
-
 import os
 from crawlo.config import CrawloConfig
 
 # ============================== 项目基本信息 ==============================
 PROJECT_NAME = '{{project_name}}'
-VERSION = '1.0.0'
+
+# ============================== 温和模式配置说明 ==============================
+# 
+# 本模板专为对目标网站友好的低负载爬取设计，适用于以下场景：
+# - 需要避免对目标网站造成过大压力
+# - 长时间运行的监控类爬虫
+# - 对目标网站有友好性要求的项目
+# 
+# 运行模式特点：
+# - RUN_MODE = 'standalone'（单机模式）
+# - QUEUE_TYPE = 'memory'（使用内存队列）
+# - FILTER_CLASS = 'crawlo.filters.memory_filter.MemoryFilter'（内存过滤器）
+# - DEFAULT_DEDUP_PIPELINE = 'crawlo.pipelines.memory_dedup_pipeline.MemoryDedupPipeline'（内存去重）
+# 
+# 配置特点：
+# - 低并发：CONCURRENCY = 2
+# - 高延迟：DOWNLOAD_DELAY = 3.0秒
+# - 随机化：启用RANDOMNESS增加随机性
+# - 连接池限制：减少连接数避免给服务器造成压力
+# 
+# 扩展建议：
+# - 如需跨会话去重，可将FILTER_CLASS和DEFAULT_DEDUP_PIPELINE改为Redis实现
+# - 可根据目标网站特性调整DOWNLOAD_DELAY和RANDOM_RANGE参数
+#
+# 🎯 最佳使用方式：
+# 推荐使用配置工厂方式创建温和模式配置：
+# from crawlo.config import CrawloConfig
+# config = CrawloConfig.presets().gentle()
+# process = CrawlerProcess(settings=config.to_dict())
 
 # ============================== 温和模式配置 ==============================
 # 使用配置工厂创建温和模式配置
@@ -61,6 +88,9 @@ MONGO_DATABASE = '{{project_name}}_db'
 MONGO_COLLECTION = '{{project_name}}_items'
 
 # ============================== 去重配置 ==============================
+# 明确指定温和模式下使用内存去重管道
+DEFAULT_DEDUP_PIPELINE = 'crawlo.pipelines.memory_dedup_pipeline.MemoryDedupPipeline'
+FILTER_CLASS = 'crawlo.filters.memory_filter.MemoryFilter'
 REDIS_TTL = 0
 CLEANUP_FP = 0
 FILTER_DEBUG = True
@@ -78,6 +108,9 @@ PIPELINES = [
     'crawlo.pipelines.console_pipeline.ConsolePipeline',
     # '{{project_name}}.pipelines.DatabasePipeline',
 ]
+
+# 明确添加内存去重管道到管道列表开头
+PIPELINES.insert(0, DEFAULT_DEDUP_PIPELINE)
 
 # ============================== 扩展组件 ==============================
 EXTENSIONS = [

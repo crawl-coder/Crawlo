@@ -11,16 +11,13 @@ PROJECT_NAME = 'ofweek_spider'
 VERSION = '1.0.0'
 
 # ============================== 运行模式 ==============================
-# 可以通过环境变量切换模式:
-# export CRAWLO_MODE=standalone  # 单机模式
-# export CRAWLO_MODE=distributed  # 分布式模式
-import os
-RUN_MODE = os.getenv('CRAWLO_MODE', 'standalone')
+# 固定为单机模式，但使用Redis进行过滤和去重
+RUN_MODE = 'standalone'
 
 # ============================== 并发配置 ==============================
-CONCURRENCY = 8 if RUN_MODE == 'distributed' else 4
-MAX_RUNNING_SPIDERS = 5 if RUN_MODE == 'distributed' else 1
-DOWNLOAD_DELAY = 0.5 if RUN_MODE == 'distributed' else 1.0
+CONCURRENCY = 4
+MAX_RUNNING_SPIDERS = 1
+DOWNLOAD_DELAY = 1.0
 
 # ============================== 下载器配置 ==============================
 DOWNLOADER = 'crawlo.downloader.aiohttp_downloader.AioHttpDownloader'
@@ -33,11 +30,18 @@ REDIS_DB = 2
 REDIS_URL = f'redis://{REDIS_HOST}:{REDIS_PORT}/{REDIS_DB}'
 
 # ============================== 队列配置 ==============================
-QUEUE_TYPE = 'redis' if RUN_MODE == 'distributed' else 'memory'
+# 使用自动队列类型，让框架根据Redis可用性自动选择
+# 如果Redis可用，则使用Redis队列；否则使用内存队列
+QUEUE_TYPE = 'auto'
 SCHEDULER_QUEUE_NAME = f'crawlo:{PROJECT_NAME}:queue:requests'
 
 # ============================== 去重过滤器 ==============================
-FILTER_CLASS = 'crawlo.filters.aioredis_filter.AioRedisFilter' if RUN_MODE == 'distributed' else 'crawlo.filters.memory_filter.MemoryFilter'
+# 单机模式下使用Redis过滤器实现跨会话去重
+FILTER_CLASS = 'crawlo.filters.aioredis_filter.AioRedisFilter'
+
+# ============================== 默认去重管道 ==============================
+# 明确指定使用Redis去重管道
+DEFAULT_DEDUP_PIPELINE = 'crawlo.pipelines.redis_dedup_pipeline.RedisDedupPipeline'
 
 # ============================== 爬虫模块配置 ==============================
 SPIDER_MODULES = ['ofweek_spider.spiders']
@@ -57,11 +61,9 @@ MIDDLEWARES = [
 PIPELINES = [
     'crawlo.pipelines.console_pipeline.ConsolePipeline',
     'crawlo.pipelines.json_pipeline.JsonPipeline',
+    # 明确添加Redis去重管道
+    'crawlo.pipelines.redis_dedup_pipeline.RedisDedupPipeline',
 ]
-
-# 分布式模式下添加 Redis 去重管道
-if RUN_MODE == 'distributed':
-    PIPELINES.insert(0, 'crawlo.pipelines.redis_dedup_pipeline.RedisDedupPipeline')
 
 # ============================== 扩展组件 ==============================
 EXTENSIONS = [

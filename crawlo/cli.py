@@ -10,12 +10,19 @@ from crawlo.commands import get_commands
 def main():
     # 获取框架版本号
     version_file = os.path.join(os.path.dirname(__file__), '__version__.py')
+    VERSION = '1.0.0'  # 默认版本号
     if os.path.exists(version_file):
-        with open(version_file, 'r') as f:
-            exec(f.read())
-        VERSION = locals().get('__version__', '1.0.0')
-    else:
-        VERSION = '1.0.0'
+        try:
+            with open(version_file, 'r') as f:
+                content = f.read()
+                # 使用正则表达式提取版本号
+                import re
+                version_match = re.search(r"__version__\s*=\s*['\"]([^'\"]*)['\"]", content)
+                if version_match:
+                    VERSION = version_match.group(1)
+        except Exception:
+            # 如果读取失败，使用默认版本号
+            pass
 
     # 获取所有可用命令
     commands = get_commands()

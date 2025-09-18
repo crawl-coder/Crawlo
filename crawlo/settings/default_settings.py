@@ -1,4 +1,3 @@
-#!/usr/bin/python
 # -*- coding:UTF-8 -*-
 """
 默认配置文件
@@ -47,12 +46,9 @@ SCHEDULER_QUEUE_NAME = f"crawlo:{PROJECT_NAME}:queue:requests"
 # 队列类型：memory/redis/auto
 QUEUE_TYPE = 'auto'
 
-# 默认去重管道（根据运行模式自动选择）
-DEFAULT_DEDUP_PIPELINE = 'crawlo.pipelines.redis_dedup_pipeline.RedisDedupPipeline'
-
-# 请求去重过滤器
+# 明确配置默认去重管道和过滤器，避免冗余的if-else判断
+DEFAULT_DEDUP_PIPELINE = 'crawlo.pipelines.memory_dedup_pipeline.MemoryDedupPipeline'
 FILTER_CLASS = 'crawlo.filters.memory_filter.MemoryFilter'
-# FILTER_CLASS = 'crawlo.filters.aioredis_filter.AioRedisFilter' # 分布式去重
 
 # --- Redis 过滤器配置 ---
 # 使用环境变量配置工具获取 Redis 配置
@@ -105,13 +101,8 @@ PIPELINES = [
     # 'crawlo.pipelines.mysql_pipeline.AsyncmyMySQLPipeline',     # MySQL 存储（可选）
 ]
 
-# 根据运行模式自动配置默认去重管道
-if RUN_MODE == 'distributed':
-    # 分布式模式下添加Redis去重管道
-    PIPELINES.insert(0, DEFAULT_DEDUP_PIPELINE)
-else:
-    # 单机模式下添加内存去重管道
-    PIPELINES.insert(0, DEFAULT_DEDUP_PIPELINE)
+# 明确添加默认去重管道到管道列表开头
+PIPELINES.insert(0, DEFAULT_DEDUP_PIPELINE)
 
 # 扩展组件（监控与日志）
 EXTENSIONS = [

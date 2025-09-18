@@ -461,8 +461,10 @@ class CrawlerProcess:
         # 注册信号量
         signal.signal(signal.SIGINT, self._shutdown)
         signal.signal(signal.SIGTERM, self._shutdown)
+
+        self._log_startup_info()
         
-        logger.info(
+        logger.debug(
             f"CrawlerProcess 初始化完成\n"
             f"  - 最大并行爬虫数: {self.max_concurrency}\n"
             f"  - 已注册爬虫数: {len(self._spider_registry)}\n"
@@ -496,7 +498,7 @@ class CrawlerProcess:
                 # 每30秒输出一次状态
                 stats = self.context.get_stats()
                 if stats['active_crawlers'] > 0:
-                    logger.info(
+                    logger.debug(
                         f"爬虫状态: 活跃 {stats['active_crawlers']}, "
                         f"完成 {stats['completed_crawlers']}, "
                         f"失败 {stats['failed_crawlers']}, "
@@ -566,8 +568,8 @@ class CrawlerProcess:
                 error_count += 1
                 logger.error(f"扫描模块 {module_name} 失败: {e}", exc_info=True)
         
-        logger.info(
-            f"模块发现完成: 成功 {discovered_count} 个，失败 {error_count} 个"
+        logger.debug(
+            f"爬虫注册完成: 成功 {discovered_count} 个，失败 {error_count} 个"
         )
 
     # === 公共只读接口：避免直接访问 _spider_registry ===
@@ -612,7 +614,7 @@ class CrawlerProcess:
             # 阶段 3: 按类名排序，保证启动顺序可预测
             spider_classes_to_run.sort(key=lambda cls: cls.__name__.lower())
             
-            logger.info(
+            logger.debug(
                 f"开始启动 {total} 个爬虫\n"
                 f"  - 最大并发数: {self.max_concurrency}\n"
                 f"  - 爬虫列表: {[cls.__name__ for cls in spider_classes_to_run]}"
@@ -946,6 +948,87 @@ class CrawlerProcess:
         except Exception as e:
             logger.warning(f"无法加载默认配置: {e}，使用空配置")
             return SettingManager()
+
+    def _log_startup_info(self):
+        """打印启动信息，包括运行模式和关键配置检查"""
+        # 获取运行模式
+        run_mode = self.settings.get('RUN_MODE', 'standalone')
+        
+        # 构建启动信息日志
+        startup_info = [
+            "🚀 Crawlo 爬虫框架启动",
+            f"  运行模式: {run_mode}"
+        ]
+        
+        # 根据运行模式添加特定信息
+        if run_mode == 'distributed':
+            startup_info.append("  🌐 分布式模式 - 支持多节点协同工作")
+            # 检查Redis配置
+            redis_host = self.settings.get('REDIS_HOST', 'localhost')
+            redis_port = self.settings.get('REDIS_PORT', 6379)
+            startup_info.append(f"  Redis地址: {redis_host}:{redis_port}")
+            
+            # 检查队列类型
+            queue_type = self.settings.get('QUEUE_TYPE', 'redis')
+            if queue_type != 'redis':
+                startup_info.append(f"  ⚠️  警告: 分布式模式下建议使用 'redis' 队列类型，当前为 '{queue_type}'")
+        else:
+            startup_info.append("  🏠 单机模式 - 适用于开发和小规模数据采集")
+            # 检查队列类型
+            queue_type = self.settings.get('QUEUE_TYPE', 'memory')
+            if queue_type != 'memory' and queue_type != 'auto':
+                startup_info.append(f"  ⚠️  警告: 单机模式下建议使用 'memory' 队列类型，当前为 '{queue_type}'")
+        
+        # 检查关键配置项
+        concurrency = self.settings.get('CONCURRENCY', 8)
+        download_delay = self.settings.get('DOWNLOAD_DELAY', 1.0)
+        filter_class = self.settings.get('FILTER_CLASS', 'crawlo.filters.memory_filter.MemoryFilter')
+        
+        # 并发数检查
+        if run_mode == 'distributed':
+            if concurrency < 8:
+                startup_info.append(f"  ⚠️  警告: 分布式模式下建议并发数 >= 8，当前为 {concurrency}")
+        else:
+            if concurrency > 16:
+                startup_info.append(f"  ⚠️  警告: 单机模式下建议并发数 <= 16，当前为 {concurrency}")
+        
+        # 下载延迟检查
+        if download_delay < 0.1:
+            startup_info.append(f"  ⚠️  警告: 下载延迟过小({download_delay}s)可能导致被封IP")
+        elif download_delay > 10:
+            startup_info.append(f"  ⚠️  警告: 下载延迟过大({download_delay}s)可能影响效率")
+        
+        startup_info.extend([
+            f"  并发数: {concurrency}",
+            f"  下载延迟: {download_delay}秒",
+            f"  过滤器类: {filter_class}"
+        ])
+        
+        # 检查去重管道配置
+        default_dedup_pipeline = self.settings.get('DEFAULT_DEDUP_PIPELINE', '')
+        pipelines = self.settings.get('PIPELINES', [])
+        
+        if default_dedup_pipeline:
+            startup_info.append(f"  默认去重管道: {default_dedup_pipeline}")
+        
+        # 检查去重管道是否在PIPELINES列表中
+        if default_dedup_pipeline and default_dedup_pipeline not in pipelines:
+            startup_info.append(f"  ⚠️  警告: 默认去重管道 '{default_dedup_pipeline}' 未添加到 PIPELINES 列表中")
+        
+        # 检查下载器配置
+        downloader = self.settings.get('DOWNLOADER', 'crawlo.downloader.aiohttp_downloader.AioHttpDownloader')
+        # startup_info.append(f"  下载器: {downloader}")
+        
+        # 检查中间件配置
+        middlewares = self.settings.get('MIDDLEWARES', [])
+        # startup_info.append(f"  中间件数量: {len(middlewares)}")
+        
+        # 检查扩展组件配置
+        extensions = self.settings.get('EXTENSIONS', [])
+        # startup_info.append(f"  扩展组件数量: {len(extensions)}")
+        
+        # 输出启动信息
+        logger.info("\n".join(startup_info))
 
 
 # === 工具函数 ===

@@ -24,7 +24,6 @@
 ### 4. 运行脚本
 - 创建了统一运行脚本 (`run.py`)
 - 创建了单机模式运行脚本 (`run_standalone.py`)
-- 创建了分布式模式运行脚本 (`run_distributed.py`)
 
 ### 5. 文档编写
 - 创建了项目 README.md 说明文档
@@ -56,7 +55,6 @@ ofweek_spider/
 ├── crawlo_distributed.cfg     # 分布式模式配置文件
 ├── run.py                     # 统一运行脚本
 ├── run_standalone.py          # 单机模式运行脚本
-├── run_distributed.py         # 分布式模式运行脚本
 ├── test_run_fixed.py          # 测试脚本
 ├── README.md                  # 项目说明文档
 ├── DISTRIBUTED_EVOLUTION.md   # 分布式演进文档
@@ -90,9 +88,6 @@ python run.py distributed
 ```bash
 # 运行单机模式
 python run_standalone.py
-
-# 运行分布式模式
-python run_distributed.py
 ```
 
 ### 3. 使用 Crawlo 命令行工具

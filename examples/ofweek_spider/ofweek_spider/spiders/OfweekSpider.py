@@ -10,13 +10,7 @@ ofweek.spiders.of_week
 <body>
 <!--StartFragment-->
 
-    # 使用 standalone 模式运行（单机模式）
-    python run_standalone.py
-
-    # 使用 distributed 模式运行（分布式模式）
-    python run_distributed.py
-
-    # 或者使用框架命令
+    # 使用 crawlo run 命令运行爬虫
     crawlo run of_week
 
 <!--EndFragment-->

@@ -30,6 +30,7 @@ def main():
         settings = get_settings()
         # 将分布式配置导入到 SettingManager 中
         # settings.update_attributes(locals())
+        print(settings)
 
         # 确保 spider 模块被正确导入
         spider_modules = ['ofweek_distributed.spiders']

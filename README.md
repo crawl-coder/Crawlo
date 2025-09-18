@@ -150,169 +150,80 @@ crawlo run myspider
 ---
 
 <!-- 命令行工具 section -->
-<h2 align="center">📜 命令行工具</h2>
+<h2 align="center">🔧 命令行工具</h2>
 
-Crawlo 提供了丰富的命令行工具来帮助开发和管理爬虫项目：
-
-### 获取帮助
-
-```bash
-# 显示帮助信息
-crawlo -h
-crawlo --help
-crawlo help
-```
+Crawlo 提供了丰富的命令行工具，简化项目创建和管理。
 
 ### crawlo startproject
 
 创建新的爬虫项目。
 
 ```bash
-# 基本用法
-crawlo startproject <project_name> [template_type] [--modules module1,module2]
+# 创建默认项目
+crawlo startproject myproject
 
-# 示例
-crawlo startproject my_spider_project
-crawlo startproject news_crawler simple
-crawlo startproject ecommerce_spider distributed --modules mysql,proxy
+# 创建指定模板的项目
+crawlo startproject myproject simple
+crawlo startproject myproject distributed
 ```
-
-**参数说明：**
-- `project_name`: 项目名称（必须是有效的Python标识符）
-- `template_type`: 模板类型（可选）
-  - `default`: 默认模板 - 通用配置，适合大多数项目
-  - `simple`: 简化模板 - 最小配置，适合快速开始
-  - `distributed`: 分布式模板 - 针对分布式爬取优化
-  - `high-performance`: 高性能模板 - 针对大规模高并发优化
-  - `gentle`: 温和模板 - 低负载配置，对目标网站友好
-- `--modules`: 选择要包含的模块组件（可选）
-  - `mysql`: MySQL数据库支持
-  - `mongodb`: MongoDB数据库支持
-  - `redis`: Redis支持（分布式队列和去重）
-  - `proxy`: 代理支持
-  - `monitoring`: 监控和性能分析
-  - `dedup`: 去重功能
-  - `httpx`: HttpX下载器
-  - `aiohttp`: AioHttp下载器
-  - `curl`: CurlCffi下载器
 
 ### crawlo genspider
 
 在现有项目中生成新的爬虫。
 
 ```bash
-# 基本用法
-crawlo genspider <spider_name> <domain>
+# 在当前目录生成爬虫
+crawlo genspider myspider http://example.com
 
-# 示例
-crawlo genspider news_spider news.example.com
-crawlo genspider product_spider shop.example.com
+# 指定模板生成爬虫
+crawlo genspider myspider http://example.com --template basic
 ```
-
-**参数说明：**
-- `spider_name`: 爬虫名称（必须是有效的Python标识符）
-- `domain`: 目标域名
 
 ### crawlo run
 
-运行爬虫。
+运行指定的爬虫。
 
 ```bash
-# 基本用法
-crawlo run <spider_name>|all [--json] [--no-stats]
-
-# 示例
+# 运行单个爬虫
 crawlo run myspider
+
+# 运行所有爬虫
 crawlo run all
-crawlo run all --json --no-stats
+
+# 以JSON格式输出结果
+crawlo run myspider --json
+
+# 禁用统计信息
+crawlo run myspider --no-stats
 ```
-
-**参数说明：**
-- `spider_name`: 要运行的爬虫名称
-- `all`: 运行所有爬虫
-- `--json`: 以JSON格式输出结果
-- `--no-stats`: 不记录统计信息
-
-### crawlo run-distributed
-
-运行分布式爬虫。
-
-```bash
-# 基本用法
-crawlo run-distributed <spider_name> [--redis-host <host>] [--redis-port <port>] ...
-
-# 示例
-crawlo run-distributed myspider
-crawlo run-distributed myspider --redis-host 192.168.1.100 --concurrency 32
-```
-
-**参数说明：**
-- `spider_name`: 要运行的爬虫名称
-- `--redis-host`: Redis服务器地址
-- `--redis-port`: Redis端口
-- `--redis-password`: Redis密码
-- `--redis-db`: Redis数据库编号
-- `--concurrency`: 并发数
-- `--delay`: 下载延迟（秒）
-- `--project-name`: 项目名称
-- `--debug`: 启用调试模式
-- `--json`: 以JSON格式输出结果
-- `--no-stats`: 不记录统计信息
 
 ### crawlo list
 
 列出项目中所有可用的爬虫。
 
 ```bash
-# 基本用法
-crawlo list [--json]
-
-# 示例
 crawlo list
-crawlo list --json
 ```
-
-**参数说明：**
-- `--json`: 以JSON格式输出结果
 
 ### crawlo check
 
-检查爬虫定义的合规性。
+检查项目配置和爬虫实现。
 
 ```bash
-# 基本用法
-crawlo check [--fix] [--ci] [--json] [--watch]
-
-# 示例
 crawlo check
-crawlo check --fix
-crawlo check --ci
-crawlo check --watch
 ```
-
-**参数说明：**
-- `--fix`: 自动修复常见问题
-- `--ci`: CI模式输出（简洁格式）
-- `--json`: 以JSON格式输出结果
-- `--watch`: 监听模式，文件更改时自动检查
 
 ### crawlo stats
 
-查看爬虫运行统计信息。
+查看爬虫统计数据。
 
 ```bash
-# 基本用法
-crawlo stats [spider_name] [--all]
-
-# 示例
+# 查看最新统计数据
 crawlo stats
-crawlo stats myspider
-crawlo stats myspider --all
-```
 
-**参数说明：**
-- `spider_name`: 指定要查看统计信息的爬虫名称
-- `--all`: 显示指定爬虫的所有历史运行记录
+# 查看指定爬虫的统计数据
+crawlo stats myspider
+```
 
 ---
 
@@ -331,7 +242,7 @@ cd myproject
 
 #### 运行分布式爬虫
 
-```bash
+```
 # 使用命令行工具运行分布式爬虫
 crawlo run-distributed myspider
 
@@ -340,6 +251,9 @@ crawlo run-distributed myspider --redis-host 192.168.1.100 --redis-port 6379
 
 # 使用项目自带的 run_distributed.py 脚本运行
 python run_distributed.py --spider myspider
+
+# 使用 crawlo run 命令运行分布式模式
+crawlo run myspider
 ```
 
 #### 分布式配置
@@ -350,6 +264,139 @@ python run_distributed.py --spider myspider
 - **去重过滤器**: AioRedisFilter
 - **状态共享**: Redis协调
 - **可扩展性**: 多节点集群
+
+<!-- 配置方式 section -->
+<h2 align="center">⚙️ 配置方式</h2>
+
+Crawlo 提供了多种灵活的配置方式，以适应不同的使用场景和开发需求。
+
+### 三种配置方式详解
+
+#### 1. 配置工厂方式（推荐）
+
+使用 `CrawloConfig` 配置工厂是推荐的配置方式，它提供了类型安全和智能提示。
+
+```python
+from crawlo.config import CrawloConfig
+from crawlo.crawler import CrawlerProcess
+
+# 单机模式配置
+config = CrawloConfig.standalone(
+    concurrency=8,
+    download_delay=1.0
+)
+
+# 分布式模式配置
+config = CrawloConfig.distributed(
+    redis_host='127.0.0.1',
+    redis_port=6379,
+    project_name='myproject',
+    concurrency=16
+)
+
+# 自动检测模式配置
+config = CrawloConfig.auto(concurrency=12)
+
+# 从环境变量读取配置
+config = CrawloConfig.from_env()
+
+# 创建爬虫进程
+process = CrawlerProcess(settings=config.to_dict())
+```
+
+#### 2. 直接配置方式
+
+直接在 `settings.py` 文件中配置各项参数，适合需要精细控制的场景。
+
+```python
+# settings.py
+PROJECT_NAME = 'myproject'
+RUN_MODE = 'standalone'  # 或 'distributed' 或 'auto'
+CONCURRENCY = 8
+DOWNLOAD_DELAY = 1.0
+
+# 分布式模式下需要配置Redis
+REDIS_HOST = '127.0.0.1'
+REDIS_PORT = 6379
+REDIS_PASSWORD = ''
+
+# 其他配置...
+```
+
+#### 3. 环境变量方式
+
+通过环境变量配置，适合部署和CI/CD场景。
+
+```bash
+# 设置环境变量
+export CRAWLO_MODE=standalone
+export CONCURRENCY=8
+export DOWNLOAD_DELAY=1.0
+export REDIS_HOST=127.0.0.1
+export REDIS_PORT=6379
+```
+
+```python
+# 在代码中读取环境变量
+from crawlo.config import CrawloConfig
+config = CrawloConfig.from_env()
+process = CrawlerProcess(settings=config.to_dict())
+```
+
+### 不同运行模式下的最佳配置方式
+
+#### 单机模式 (standalone)
+
+适用于开发调试、小规模数据采集、个人项目。
+
+**推荐配置方式：**
+```python
+from crawlo.config import CrawloConfig
+config = CrawloConfig.standalone(concurrency=4, download_delay=1.0)
+process = CrawlerProcess(settings=config.to_dict())
+```
+
+**特点：**
+- 简单易用，资源占用少
+- 无需额外依赖（如Redis）
+- 适合个人开发环境
+
+#### 分布式模式 (distributed)
+
+适用于大规模数据采集、多节点协同工作、高并发需求。
+
+**推荐配置方式：**
+```python
+from crawlo.config import CrawloConfig
+config = CrawloConfig.distributed(
+    redis_host='your_redis_host',
+    redis_port=6379,
+    project_name='myproject',
+    concurrency=16
+)
+process = CrawlerProcess(settings=config.to_dict())
+```
+
+**特点：**
+- 支持多节点扩展
+- 高并发处理能力
+- 需要Redis支持
+
+#### 自动检测模式 (auto)
+
+适用于希望根据环境自动选择最佳运行方式。
+
+**推荐配置方式：**
+```python
+from crawlo.config import CrawloConfig
+config = CrawloConfig.auto(concurrency=12)
+process = CrawlerProcess(settings=config.to_dict())
+```
+
+**特点：**
+- 智能检测环境配置
+- 自动选择运行模式
+- 适合在不同环境中使用同一套配置
 
 <!-- 架构设计 section -->
 <h2 align="center">🏗️ 架构设计</h2>
@@ -444,99 +491,63 @@ Crawlo支持三种运行模式：
   </tbody>
 </table>
 
-### 模块层次结构
+#### 运行模式选择指南
 
-```
-crawlo/
-├── cli.py                          # 命令行接口
-├── crawler.py                      # 爬虫运行实例
-├── project.py                      # 项目管理
-├── config.py                       # 配置管理
-├── mode_manager.py                 # 运行模式管理器
-├── stats_collector.py              # 统计收集器
-├── subscriber.py                   # 事件订阅器
-├── task_manager.py                 # 任务管理器
-├── event.py                        # 事件定义
-├── exceptions.py                   # 异常定义
-├──
-├── core/                           # 核心组件
-│   ├── engine.py                   # 引擎
-│   ├── scheduler.py                # 调度器
-│   ├── processor.py                # 处理器
-│
-├── spider/                         # 爬虫基类
-│   └── __init__.py                 # 爬虫元类和基类
-│
-├── network/                        # 网络相关
-│   ├── request.py                  # 请求对象
-│   └── response.py                 # 响应对象
-│
-├── downloader/                     # 下载器
-│   ├── __init__.py                 # 下载器基类
-│   ├── aiohttp_downloader.py      # AioHttp实现
-│   ├── httpx_downloader.py        # HttpX实现
-│   └── cffi_downloader.py         # CurlCffi实现
-│
-├── queue/                          # 队列管理
-│   ├── __init__.py                 
-│   ├── queue_manager.py           # 队列管理器
-│   ├── pqueue.py                  # 内存优先队列
-│   └── redis_priority_queue.py    # Redis优先队列
-│
-├── filters/                        # 过滤器
-│   ├── __init__.py                 
-│   ├── base_filter.py             # 过滤器基类
-│   ├── memory_filter.py           # 内存过滤器
-│   └── aioredis_filter.py         # Redis过滤器
-│
-├── middleware/                     # 中间件
-│   ├── __init__.py                 
-│   ├── middleware_manager.py      # 中间件管理器
-│   ├── default_header.py          # 默认请求头
-│   ├── download_delay.py          # 下载延迟
-│   ├── proxy.py                   # 代理支持
-│   ├── request_ignore.py          # 请求忽略
-│   ├── response_code.py           # 响应码处理
-│   ├── response_filter.py         # 响应过滤
-│   └── retry.py                   # 重试机制
-│
-├── pipelines/                      # 数据管道
-│   ├── __init__.py                 
-│   ├── pipeline_manager.py        # 管道管理器
-│   ├── base_pipeline.py           # 管道基类
-│   ├── console_pipeline.py        # 控制台输出管道
-│   ├── json_pipeline.py           # JSON存储管道
-│   ├── redis_dedup_pipeline.py    # Redis去重管道
-│   └── mysql_pipeline.py          # MySQL存储管道
-│
-├── extension/                      # 扩展组件
-│   ├── __init__.py                 
-│   ├── log_interval.py            # 定时日志
-│   ├── log_stats.py               # 统计日志
-│   ├── logging_extension.py       # 日志扩展
-│   ├── memory_monitor.py          # 内存监控
-│   ├── performance_profiler.py    # 性能分析
-│   ├── health_check.py            # 健康检查
-│   └── request_recorder.py        # 请求记录
-│
-├── settings/                       # 配置系统
-│   ├── __init__.py                 
-│   ├── default_settings.py        # 默认配置
-│   └── setting_manager.py         # 配置管理器
-│
-├── utils/                          # 工具库
-│   ├── __init__.py                 
-│   ├── log.py                     # 基础日志工具
-│   ├── request.py                 # 请求工具
-│   ├── request_serializer.py      # 请求序列化
-│   └── func_tools.py              # 函数工具
-│
-└── templates/                      # 模板文件
-    ├── project/                   
-    └── spider/
-```
+##### 1. 单机模式 (standalone)
+- **适用场景**：
+  - 开发和测试阶段
+  - 小规模数据采集（几千到几万条数据）
+  - 学习和演示用途
+  - 对目标网站负载要求不高的场景
+- **优势**：
+  - 配置简单，无需额外依赖
+  - 资源消耗低
+  - 启动快速
+  - 适合本地开发调试
+- **限制**：
+  - 无法跨会话去重
+  - 无法分布式部署
+  - 内存占用随数据量增长
 
----
+##### 2. 分布式模式 (distributed)
+- **适用场景**：
+  - 大规模数据采集（百万级以上）
+  - 需要多节点协同工作
+  - 要求跨会话、跨节点去重
+  - 生产环境部署
+- **优势**：
+  - 支持水平扩展
+  - 跨节点任务协调
+  - 持久化去重过滤
+  - 高可用性
+- **要求**：
+  - 需要Redis服务器
+  - 网络环境稳定
+  - 更复杂的配置管理
+
+##### 3. 自动模式 (auto)
+- **适用场景**：
+  - 希望根据环境自动选择最佳配置
+  - 开发和生产环境使用同一套代码
+  - 动态适应运行环境
+- **工作机制**：
+  - 检测Redis可用性
+  - Redis可用时自动切换到分布式模式
+  - Redis不可用时回退到单机模式
+- **优势**：
+  - 环境适应性强
+  - 部署灵活
+  - 开发和生产环境配置统一
+
+#### 队列类型选择指南
+
+Crawlo支持三种队列类型，可通过`QUEUE_TYPE`配置项设置：
+
+- **memory**：使用内存队列，适用于单机模式
+- **redis**：使用Redis队列，适用于分布式模式
+- **auto**：自动检测模式，根据Redis可用性自动选择
+
+推荐使用`auto`模式，让框架根据环境自动选择最适合的队列类型。
 
 <!-- 配置系统 section -->
 <h2 align="center">🎛️ 配置系统</h2>

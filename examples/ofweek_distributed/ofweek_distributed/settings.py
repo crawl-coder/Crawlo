@@ -35,6 +35,10 @@ SCHEDULER_QUEUE_NAME = f'crawlo:{PROJECT_NAME}:queue:requests'
 # ============================== 去重过滤器 ==============================
 FILTER_CLASS = 'crawlo.filters.aioredis_filter.AioRedisFilter'
 
+# ============================== 默认去重管道 ==============================
+# 明确指定分布式模式下使用Redis去重管道
+DEFAULT_DEDUP_PIPELINE = 'crawlo.pipelines.redis_dedup_pipeline.RedisDedupPipeline'
+
 # ============================== 爬虫模块配置 ==============================
 SPIDER_MODULES = ['ofweek_distributed.spiders']
 
