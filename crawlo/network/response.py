@@ -133,6 +133,11 @@ class Response:
         except Exception as e:
             raise DecodeError(f"Failed to decode response from {self.url}: {e}")
 
+      @property
+    def status_code(self) -> int:
+        """为了向后兼容，提供 status_code 属性"""
+        return self.status      
+
     @property
     def is_success(self) -> bool:
         """检查响应是否成功 (2xx)"""
