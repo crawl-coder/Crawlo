@@ -89,11 +89,12 @@ MIDDLEWARES = [
     'crawlo.middleware.download_delay.DownloadDelayMiddleware',  # 2. 控制请求频率
     'crawlo.middleware.default_header.DefaultHeaderMiddleware',  # 3. 添加默认请求头
     'crawlo.middleware.proxy.ProxyMiddleware',  # 4. 设置代理
+    'crawlo.middleware.offsite.OffsiteMiddleware',  # 5. 站外请求过滤
 
     # === 响应处理阶段 ===
-    'crawlo.middleware.retry.RetryMiddleware',  # 5. 失败请求重试
-    'crawlo.middleware.response_code.ResponseCodeMiddleware',  # 6. 处理特殊状态码
-    'crawlo.middleware.response_filter.ResponseFilterMiddleware',  # 7. 响应内容过滤
+    'crawlo.middleware.retry.RetryMiddleware',  # 6. 失败请求重试
+    'crawlo.middleware.response_code.ResponseCodeMiddleware',  # 7. 处理特殊状态码
+    'crawlo.middleware.response_filter.ResponseFilterMiddleware',  # 8. 响应内容过滤
 ]
 
 # ============================== 扩展与管道 ==============================
@@ -137,11 +138,17 @@ PROXY_ENABLED = False  # 是否启用代理
 PROXY_API_URL = "https://api.proxyprovider.com/get"  # 代理获取接口（请替换为真实地址）
 
 # 代理提取方式（支持字段路径或函数）
-PROXY_EXTRACTOR = "proxy"  # 如返回 {"proxy": "http://1.1.1.1:8080"}
+# 示例: "proxy" 适用于 {"proxy": "http://1.1.1.1:8080"}
+# 示例: "data.proxy" 适用于 {"data": {"proxy": "http://1.1.1.1:8080"}}
+PROXY_EXTRACTOR = "proxy"
 
 # 代理刷新控制
 PROXY_REFRESH_INTERVAL = 60  # 代理刷新间隔（秒）
 PROXY_API_TIMEOUT = 10  # 请求代理 API 超时时间
+
+# 代理池配置
+PROXY_POOL_SIZE = 5  # 代理池大小，控制同时维护的代理数量
+PROXY_HEALTH_CHECK_THRESHOLD = 0.5  # 健康检查阈值（成功率低于此值的代理将被标记为不健康）
 
 # ============================== Curl-Cffi 特有配置 ==============================
 

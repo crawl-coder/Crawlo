@@ -33,6 +33,8 @@ class {{class_name}}(Spider):
     #     'DOWNLOAD_DELAY': 2.0,
     #     'CONCURRENCY': 4,
     #     'RETRY_HTTP_CODES': [500, 502, 503, 504, 408, 429],
+    #     'ALLOWED_RESPONSE_CODES': [200, 301, 302],  # 只允许特定状态码
+    #     'DENIED_RESPONSE_CODES': [403, 404],        # 拒绝特定状态码
     # }
 
     def start_requests(self):
