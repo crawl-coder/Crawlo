@@ -13,9 +13,6 @@ from crawlo.utils.env_config import get_redis_config, get_runtime_config
 # 项目名称（用于日志、Redis Key 等标识）
 PROJECT_NAME = get_runtime_config()['PROJECT_NAME']
 
-# 框架版本
-VERSION = 1.0
-
 # 运行模式：standalone/distributed/auto
 RUN_MODE = get_runtime_config()['CRAWLO_MODE']
 
@@ -46,9 +43,10 @@ SCHEDULER_QUEUE_NAME = f"crawlo:{PROJECT_NAME}:queue:requests"
 # 队列类型：memory/redis/auto
 QUEUE_TYPE = 'auto'
 
-# 明确配置默认去重管道和过滤器，避免冗余的if-else判断
-DEFAULT_DEDUP_PIPELINE = 'crawlo.pipelines.memory_dedup_pipeline.MemoryDedupPipeline'
-FILTER_CLASS = 'crawlo.filters.memory_filter.MemoryFilter'
+
+# 明确配置默认去重管道和过滤器，在auto模式下，如果Redis可用则使用Redis去重，否则使用内存去重
+DEFAULT_DEDUP_PIPELINE = 'crawlo.pipelines.redis_dedup_pipeline.RedisDedupPipeline'
+FILTER_CLASS = 'crawlo.filters.aioredis_filter.AioRedisFilter'
 
 # --- Redis 过滤器配置 ---
 # 使用环境变量配置工具获取 Redis 配置

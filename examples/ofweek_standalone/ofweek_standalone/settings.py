@@ -7,8 +7,6 @@ ofweek_standalone 项目配置文件
 
 # ============================== 项目基本信息 ==============================
 PROJECT_NAME = 'ofweek_standalone'
-VERSION = 1.0
-
 # ============================== 运行模式 ==============================
 RUN_MODE = 'standalone'
 
@@ -21,7 +19,7 @@ DOWNLOAD_DELAY = 1.0
 DOWNLOADER = 'crawlo.downloader.aiohttp_downloader.AioHttpDownloader'
 
 # ============================== 队列配置 ==============================
-QUEUE_TYPE = 'memory'
+QUEUE_TYPE = 'auto'
 
 # ============================== 去重过滤器 ==============================
 FILTER_CLASS = 'crawlo.filters.memory_filter.MemoryFilter'

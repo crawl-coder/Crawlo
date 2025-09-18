@@ -1,103 +1,99 @@
 # -*- coding: UTF-8 -*-
 """
-{{project_name}} 项目配置文件（简化版）
-=============================
-基于 Crawlo 框架的简化爬虫项目配置。
-适合快速开始和小型项目。
+简化模式配置模板
+最小配置，适合快速开始和简单项目
 """
-import os
-from crawlo.config import CrawloConfig
 
 # ============================== 项目基本信息 ==============================
 PROJECT_NAME = '{{project_name}}'
 
-# ============================== 简化版配置说明 ==============================
-# 
-# 本模板专为快速开始和小型项目设计，适用于以下场景：
-# - 学习和实验目的
-# - 小规模数据采集任务
-# - 个人项目或原型开发
-# 
-# 运行模式特点：
-# - RUN_MODE = 'standalone'（单机模式）
-# - QUEUE_TYPE = 'memory'（使用内存队列）
-# - FILTER_CLASS = 'crawlo.filters.memory_filter.MemoryFilter'（内存过滤器）
-# - DEFAULT_DEDUP_PIPELINE = 'crawlo.pipelines.memory_dedup_pipeline.MemoryDedupPipeline'（内存去重）
-# 
-# 配置优势：
-# - 简单易用，开箱即用
-# - 无需额外依赖（如Redis）
-# - 资源占用少，适合个人开发环境
-# 
-# 扩展建议：
-# - 如需跨会话去重，可将FILTER_CLASS和DEFAULT_DEDUP_PIPELINE改为Redis实现
-# - 如需更高性能，可调整CONCURRENCY和DOWNLOAD_DELAY参数
-#
-# 🎯 最佳使用方式：
-# 推荐使用配置工厂方式创建基本配置：
-# from crawlo.config import CrawloConfig
-# config = CrawloConfig.standalone()
-# process = CrawlerProcess(settings=config.to_dict())
+# ============================== 简化运行模式 ==============================
+# 运行模式：'standalone'(单机), 'distributed'(分布式), 'auto'(自动检测)
+RUN_MODE = 'standalone'  # 单机模式 - 适用于开发和小规模数据采集
 
-# ============================== 基本配置 ==============================
-# 使用配置工厂创建基本配置
-CONFIG = CrawloConfig.standalone(
-    concurrency=4,
-    download_delay=1.0
-)
+# 并发配置
+CONCURRENCY = 4  # 低并发数以减少资源占用
+DOWNLOAD_DELAY = 1.0  # 增加延迟以降低目标网站压力
 
-# 获取配置
-locals().update(CONFIG.to_dict())
+# ============================== 队列配置 ==============================
 
-# ============================== 网络请求配置 ==============================
-DOWNLOADER = "crawlo.downloader.httpx_downloader.HttpXDownloader"
-DOWNLOAD_TIMEOUT = 30
-VERIFY_SSL = True
+# 队列类型：'auto'（自动选择）, 'memory'（内存队列）, 'redis'（分布式队列）
+QUEUE_TYPE = 'auto'  # 自动检测，如果Redis可用则使用Redis队列
+SCHEDULER_MAX_QUEUE_SIZE = 1000
+SCHEDULER_QUEUE_NAME = f'crawlo:{{project_name}}:queue:requests'
+QUEUE_MAX_RETRIES = 3
+QUEUE_TIMEOUT = 300
 
-# ============================== 并发配置 ==============================
-CONCURRENCY = 4
-DOWNLOAD_DELAY = 1.0
+# ============================== 去重过滤配置 ==============================
 
-# ============================== 数据存储配置 ==============================
-# MySQL 配置
-MYSQL_HOST = os.getenv('MYSQL_HOST', '127.0.0.1')
-MYSQL_PORT = int(os.getenv('MYSQL_PORT', 3306))
-MYSQL_USER = os.getenv('MYSQL_USER', 'root')
-MYSQL_PASSWORD = os.getenv('MYSQL_PASSWORD', '123456')
-MYSQL_DB = os.getenv('MYSQL_DB', '{{project_name}}')
-MYSQL_TABLE = '{{project_name}}_data'
-
-# MongoDB 配置
-MONGO_URI = os.getenv('MONGO_URI', 'mongodb://localhost:27017')
-MONGO_DATABASE = '{{project_name}}_db'
-MONGO_COLLECTION = '{{project_name}}_items'
-
-# ============================== 去重配置 ==============================
-# 明确指定简化模式下使用内存去重管道
+# 简化模式下使用内存去重管道和过滤器
 DEFAULT_DEDUP_PIPELINE = 'crawlo.pipelines.memory_dedup_pipeline.MemoryDedupPipeline'
 FILTER_CLASS = 'crawlo.filters.memory_filter.MemoryFilter'
 
-# ============================== 中间件与管道 ==============================
+# --- Redis 配置（用于分布式去重和队列） ---
+REDIS_HOST = '127.0.0.1'
+REDIS_PORT = 6379
+REDIS_PASSWORD = ''  # 如果有密码，请填写
+
+# 根据是否有密码生成 URL
+if REDIS_PASSWORD:
+    REDIS_URL = f'redis://:{REDIS_PASSWORD}@{REDIS_HOST}:{REDIS_PORT}/0'
+else:
+    REDIS_URL = f'redis://{REDIS_HOST}:{REDIS_PORT}/0'
+
+# Redis key配置已移至各组件中，使用统一的命名规范
+# crawlo:{project_name}:filter:fingerprint (请求去重)
+# crawlo:{project_name}:item:fingerprint (数据项去重)
+# crawlo:{project_name}:queue:requests (请求队列)
+# crawlo:{project_name}:queue:processing (处理中队列)
+# crawlo:{project_name}:queue:failed (失败队列)
+
+REDIS_TTL = 0
+CLEANUP_FP = 0
+FILTER_DEBUG = True
+DECODE_RESPONSES = True
+
+# ============================== 中间件配置 ==============================
+
 MIDDLEWARES = [
+    # === 请求预处理阶段 ===
     'crawlo.middleware.request_ignore.RequestIgnoreMiddleware',
     'crawlo.middleware.download_delay.DownloadDelayMiddleware',
     'crawlo.middleware.default_header.DefaultHeaderMiddleware',
+    'crawlo.middleware.proxy.ProxyMiddleware',
+    'crawlo.middleware.offsite.OffsiteMiddleware', 
+    
+    # === 响应处理阶段 ===
     'crawlo.middleware.retry.RetryMiddleware',
     'crawlo.middleware.response_code.ResponseCodeMiddleware',
+    'crawlo.middleware.response_filter.ResponseFilterMiddleware',
 ]
 
+# ============================== 数据管道配置 ==============================
+
+# 数据处理管道（启用的存储方式）
 PIPELINES = [
     'crawlo.pipelines.console_pipeline.ConsolePipeline',
-    # '{{project_name}}.pipelines.DatabasePipeline',
+    # '{{project_name}}.pipelines.DatabasePipeline',        # 自定义数据库管道
+    # 'crawlo.pipelines.mysql_pipeline.AsyncmyMySQLPipeline',  # MySQL 存储
+    # 'crawlo.pipelines.mongo_pipeline.MongoPipeline',      # MongoDB 存储
 ]
 
-# 明确添加内存去重管道到管道列表开头
+# 明确添加默认去重管道到管道列表开头
 PIPELINES.insert(0, DEFAULT_DEDUP_PIPELINE)
 
-# ============================== 日志配置 ==============================
-LOG_LEVEL = 'INFO'
-LOG_FILE = f'logs/{{project_name}}.log'
-STATS_DUMP = True
+# ============================== 扩展组件 ==============================
 
-# ============================== 自定义配置 ==============================
-# 在此处添加项目特定的配置项
+EXTENSIONS = [
+    'crawlo.extension.log_interval.LogIntervalExtension',
+    'crawlo.extension.log_stats.LogStats',
+    'crawlo.extension.logging_extension.CustomLoggerExtension',
+]
+
+# ============================== 日志配置 ==============================
+
+LOG_LEVEL = 'INFO'
+STATS_DUMP = True
+LOG_FILE = f'logs/{{project_name}}.log'
+LOG_FORMAT = '%(asctime)s - [%(name)s] - %(levelname)s： %(message)s'
+LOG_ENCODING = 'utf-8'

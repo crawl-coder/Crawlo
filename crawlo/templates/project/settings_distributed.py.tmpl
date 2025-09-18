@@ -12,7 +12,10 @@ from crawlo.config import CrawloConfig
 PROJECT_NAME = '{{project_name}}'
 
 # ============================== 分布式配置说明 ==============================
-# 
+RUN_MODE = 'distributed'  
+QUEUE_TYPE = 'redis'  
+FILTER_CLASS = 'crawlo.filters.aioredis_filter.AioRedisFilter'  
+DEFAULT_DEDUP_PIPELINE = 'crawlo.pipelines.redis_dedup_pipeline.RedisDedupPipeline'
 # 本模板专为分布式部署设计，适用于以下场景：
 # - 大规模数据采集任务
 # - 需要多节点协同工作的项目
