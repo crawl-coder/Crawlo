@@ -137,7 +137,7 @@ def show_help():
     console.print()
     
     # 显示更多信息
-    console.print("[bold green]更多信息:[/bold green]")
-    console.print("  文档: https://crawlo.readthedocs.io/")
-    console.print("  源码: https://github.com/crawl-coder/Crawlo")
-    console.print("  问题: https://github.com/crawl-coder/Crawlo/issues")
+    # console.print("[bold green]更多信息:[/bold green]")
+    # console.print("  文档: https://crawlo.readthedocs.io/")
+    # console.print("  源码: https://github.com/crawl-coder/Crawlo")
+    # console.print("  问题: https://github.com/crawl-coder/Crawlo/issues")
