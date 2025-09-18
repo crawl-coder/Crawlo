@@ -3,10 +3,20 @@
 # -*- coding: UTF-8 -*-
 import sys
 import argparse
+import os
 from crawlo.commands import get_commands
 
 
 def main():
+    # 获取框架版本号
+    version_file = os.path.join(os.path.dirname(__file__), '__version__.py')
+    if os.path.exists(version_file):
+        with open(version_file, 'r') as f:
+            exec(f.read())
+        VERSION = locals().get('__version__', '1.0.0')
+    else:
+        VERSION = '1.0.0'
+
     # 获取所有可用命令
     commands = get_commands()
 
@@ -19,10 +29,16 @@ def main():
     
     # 添加帮助参数
     parser.add_argument('-h', '--help', action='store_true', help='显示帮助信息')
+    parser.add_argument('-v', '--version', action='store_true', help='显示版本信息')
     parser.add_argument('command', nargs='?', help='可用命令: ' + ', '.join(commands.keys()))
     
     # 解析已知参数
     args, unknown = parser.parse_known_args()
+
+    # 处理版本参数
+    if args.version:
+        print(f"Crawlo {VERSION}")
+        sys.exit(0)
 
     # 处理帮助参数
     if args.help or (args.command is None and not unknown):
