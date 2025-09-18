@@ -22,6 +22,21 @@ from crawlo.utils.log import get_logger
 logger = get_logger(__name__)
 
 
+def _get_settings_module_from_cfg(cfg_path: str) -> str:
+    """从 crawlo.cfg 读取 settings 模块路径"""
+    config = configparser.ConfigParser()
+    try:
+        config.read(cfg_path, encoding="utf-8")
+        if config.has_section("settings") and config.has_option("settings", "default"):
+            module_path = config.get("settings", "default")
+            logger.debug(f"📄 从 crawlo.cfg 加载 settings 模块: {module_path}")
+            return module_path
+        else:
+            raise RuntimeError(f"配置文件缺少 [settings] 或 default 选项: {cfg_path}")
+    except Exception as e:
+        raise RuntimeError(f"解析 crawlo.cfg 失败: {e}")
+
+
 def _find_project_root(start_path: str = ".") -> Optional[str]:
     """
     从指定路径向上查找项目根目录。
@@ -35,20 +50,37 @@ def _find_project_root(start_path: str = ".") -> Optional[str]:
     for root, dirs, files in os.walk(path):
         if "crawlo.cfg" in files:
             cfg_path = os.path.join(root, "crawlo.cfg")
-            logger.info(f"✅ 找到项目配置文件: {cfg_path}")
+            logger.debug(f"✅ 找到项目配置文件: {cfg_path}")
             return root
     
-    # 如果在子目录中没找到，再向上查找
+    # 向上查找直到找到 crawlo.cfg 或包含 settings.py 和 __init__.py 的目录
+    original_path = path
+    checked_paths = set()
+    
     while True:
+        # 避免无限循环
+        if path in checked_paths:
+            break
+        checked_paths.add(path)
+        
+        # 检查 crawlo.cfg
         cfg_file = os.path.join(path, "crawlo.cfg")
         if os.path.isfile(cfg_file):
-            logger.info(f"✅ 找到项目配置文件: {cfg_file}")
+            logger.debug(f"✅ 找到项目配置文件: {cfg_file}")
             return path
 
+        # 检查 settings.py 和 __init__.py
         settings_file = os.path.join(path, "settings.py")
         init_file = os.path.join(path, "__init__.py")
         if os.path.isfile(settings_file) and os.path.isfile(init_file):
-            logger.info(f"✅ 找到项目模块: {path}")
+            logger.debug(f"✅ 找到项目模块: {path}")
+            # 即使找到了项目模块，也继续向上查找是否有 crawlo.cfg
+            parent = os.path.dirname(path)
+            if parent != path:
+                parent_cfg = os.path.join(parent, "crawlo.cfg")
+                if os.path.isfile(parent_cfg):
+                    logger.debug(f"✅ 在上层目录找到项目配置文件: {parent_cfg}")
+                    return parent
             return path
 
         parent = os.path.dirname(path)
@@ -56,23 +88,83 @@ def _find_project_root(start_path: str = ".") -> Optional[str]:
             break
         path = parent
 
+    # 如果向上查找也没找到，尝试从脚本所在目录查找
+    # 获取当前脚本文件的路径
+    try:
+        script_path = os.path.dirname(os.path.abspath(sys.argv[0]))
+        if script_path != original_path:
+            path = script_path
+            checked_paths = set()  # 重置已检查路径
+            while True:
+                # 避免无限循环
+                if path in checked_paths:
+                    break
+                checked_paths.add(path)
+                
+                cfg_file = os.path.join(path, "crawlo.cfg")
+                if os.path.isfile(cfg_file):
+                    logger.debug(f"✅ 找到项目配置文件: {cfg_file}")
+                    return path
+
+                settings_file = os.path.join(path, "settings.py")
+                init_file = os.path.join(path, "__init__.py")
+                if os.path.isfile(settings_file) and os.path.isfile(init_file):
+                    logger.debug(f"✅ 找到项目模块: {path}")
+                    # 即使找到了项目模块，也继续向上查找是否有 crawlo.cfg
+                    parent = os.path.dirname(path)
+                    if parent != path:
+                        parent_cfg = os.path.join(parent, "crawlo.cfg")
+                        if os.path.isfile(parent_cfg):
+                            logger.debug(f"✅ 在上层目录找到项目配置文件: {parent_cfg}")
+                            return parent
+                    return path
+
+                parent = os.path.dirname(path)
+                if parent == path:
+                    break
+                path = parent
+    except Exception:
+        pass
+
+    # 最后尝试从当前工作目录查找
+    try:
+        cwd = os.getcwd()
+        if cwd != original_path and cwd != script_path:
+            path = cwd
+            checked_paths = set()  # 重置已检查路径
+            while True:
+                # 避免无限循环
+                if path in checked_paths:
+                    break
+                checked_paths.add(path)
+                
+                cfg_file = os.path.join(path, "crawlo.cfg")
+                if os.path.isfile(cfg_file):
+                    logger.debug(f"✅ 找到项目配置文件: {cfg_file}")
+                    return path
+
+                settings_file = os.path.join(path, "settings.py")
+                init_file = os.path.join(path, "__init__.py")
+                if os.path.isfile(settings_file) and os.path.isfile(init_file):
+                    logger.debug(f"✅ 找到项目模块: {path}")
+                    # 即使找到了项目模块，也继续向上查找是否有 crawlo.cfg
+                    parent = os.path.dirname(path)
+                    if parent != path:
+                        parent_cfg = os.path.join(parent, "crawlo.cfg")
+                        if os.path.isfile(parent_cfg):
+                            logger.debug(f"✅ 在上层目录找到项目配置文件: {parent_cfg}")
+                            return parent
+                    return path
+
+                parent = os.path.dirname(path)
+                if parent == path:
+                    break
+                path = parent
+    except Exception:
+        pass
+
     logger.warning("❌ 未找到 Crawlo 项目根目录。请确保在包含 'crawlo.cfg' 或 'settings.py' 的目录运行。")
     return None
-
-
-def _get_settings_module_from_cfg(cfg_path: str) -> str:
-    """从 crawlo.cfg 读取 settings 模块路径"""
-    config = configparser.ConfigParser()
-    try:
-        config.read(cfg_path, encoding="utf-8")
-        if config.has_section("settings") and config.has_option("settings", "default"):
-            module_path = config.get("settings", "default")
-            logger.info(f"📄 从 crawlo.cfg 加载 settings 模块: {module_path}")
-            return module_path
-        else:
-            raise RuntimeError(f"配置文件缺少 [settings] 或 default 选项: {cfg_path}")
-    except Exception as e:
-        raise RuntimeError(f"解析 crawlo.cfg 失败: {e}")
 
 
 def get_settings(custom_settings: Optional[dict] = None) -> SettingManager:
@@ -108,22 +200,22 @@ def get_settings(custom_settings: Optional[dict] = None) -> SettingManager:
     project_root_str = os.path.abspath(project_root)
     if project_root_str not in sys.path:
         sys.path.insert(0, project_root_str)
-        logger.info(f"📁 项目根目录已加入 sys.path: {project_root_str}")
+        logger.debug(f"📁 项目根目录已加入 sys.path: {project_root_str}")
 
     # 4. 加载 SettingManager
-    logger.info(f"⚙️ 正在加载配置模块: {settings_module_path}")
+    logger.debug(f"⚙️ 正在加载配置模块: {settings_module_path}")
     settings = SettingManager()
 
     try:
         settings.set_settings(settings_module_path)
-        logger.info("✅ settings 模块加载成功")
+        logger.debug("✅ settings 模块加载成功")
     except Exception as e:
         raise ImportError(f"加载 settings 模块失败 '{settings_module_path}': {e}")
 
     # 5. 合并运行时配置
     if custom_settings:
         settings.update_attributes(custom_settings)
-        logger.info(f"🔧 已应用运行时自定义配置: {list(custom_settings.keys())}")
+        logger.debug(f"🔧 已应用运行时自定义配置: {list(custom_settings.keys())}")
 
     logger.info("🎉 Crawlo 项目配置初始化完成！")
     return settings
