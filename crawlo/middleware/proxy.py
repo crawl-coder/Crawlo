@@ -1,10 +1,11 @@
 #!/usr/bin/python
 # -*- coding: UTF-8 -*-
+import time
 import asyncio
 import socket
-from typing import Optional, Dict, Any, Callable, Union, TYPE_CHECKING, List
 from urllib.parse import urlparse
-import time
+from typing import Optional, Dict, Any, Callable, Union, TYPE_CHECKING, List
+
 
 from crawlo import Request, Response
 from crawlo.exceptions import NotConfiguredError

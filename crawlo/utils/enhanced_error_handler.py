@@ -1,16 +1,13 @@
 #!/usr/bin/python
 # -*- coding:UTF-8 -*-
 """
-增强版错误处理工具
+误处理工具
 提供更详细、更一致的错误处理和日志记录机制
 """
 import traceback
-import logging
-import sys
-import os
-from typing import Optional, Callable, Any, Dict, List
-from functools import wraps
 from datetime import datetime
+from functools import wraps
+from typing import Optional, Callable, Any, Dict, List
 
 from crawlo.utils.log import get_logger
 

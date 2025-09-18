@@ -1,10 +1,9 @@
 #!/usr/bin/python
 # -*- coding:UTF-8 -*-
 import asyncio
-import weakref
 from collections import defaultdict
 from inspect import iscoroutinefunction
-from typing import Dict, Set, Callable, Coroutine, Any, TypeAlias, List, Tuple
+from typing import Dict, Callable, Coroutine, Any, TypeAlias, List, Tuple
 
 
 class ReceiverTypeError(TypeError):

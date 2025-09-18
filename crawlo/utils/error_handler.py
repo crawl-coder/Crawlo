@@ -4,13 +4,11 @@
 统一错误处理工具
 提供一致的错误处理和日志记录机制
 """
-import traceback
-import logging
-from typing import Optional, Callable, Any
 from functools import wraps
+from typing import Callable, Any
 
-from crawlo.utils.log import get_logger
 from crawlo.utils.enhanced_error_handler import EnhancedErrorHandler, ErrorContext
+from crawlo.utils.log import get_logger
 
 
 class ErrorHandler:

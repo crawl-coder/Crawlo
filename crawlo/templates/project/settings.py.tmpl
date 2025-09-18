@@ -146,8 +146,6 @@ MONGO_USE_BATCH = False  # 是否启用批量插入
 REQUEST_DIR = '.'
 
 # 根据运行模式自动选择去重管道
-# 单机模式默认使用内存去重管道
-# 分布式模式默认使用Redis去重管道
 if RUN_MODE == 'distributed':
     # 分布式模式下默认使用Redis去重管道
     DEFAULT_DEDUP_PIPELINE = 'crawlo.pipelines.redis_dedup_pipeline.RedisDedupPipeline'
@@ -157,7 +155,6 @@ else:
 
 # 去重过滤器（推荐分布式项目使用 Redis 过滤器）
 FILTER_CLASS = 'crawlo.filters.memory_filter.MemoryFilter'
-# FILTER_CLASS = 'crawlo.filters.aioredis_filter.AioRedisFilter'  # 分布式去重
 
 # --- Redis 配置（用于分布式去重和队列） ---
 REDIS_HOST = os.getenv('REDIS_HOST', '127.0.0.1')
@@ -190,6 +187,7 @@ MIDDLEWARES = [
     'crawlo.middleware.download_delay.DownloadDelayMiddleware',
     'crawlo.middleware.default_header.DefaultHeaderMiddleware',
     'crawlo.middleware.proxy.ProxyMiddleware',
+    'crawlo.middleware.offsite.OffsiteMiddleware', 
     
     # === 响应处理阶段 ===
     'crawlo.middleware.retry.RetryMiddleware',

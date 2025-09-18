@@ -5,9 +5,8 @@
 ==========
 提供配置项的验证和默认值设置功能，确保配置的合理性和一致性。
 """
+from typing import Dict, Any, List, Tuple
 
-from typing import Dict, Any, List, Tuple, Optional
-import re
 from crawlo.utils.log import get_logger
 
 

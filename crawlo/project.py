@@ -14,10 +14,10 @@ import sys
 import configparser
 from importlib import import_module
 from inspect import iscoroutinefunction
-from typing import Callable, Optional, Tuple
+from typing import Callable, Optional
 
-from crawlo.utils.log import get_logger
 from crawlo.settings.setting_manager import SettingManager
+from crawlo.utils.log import get_logger
 
 logger = get_logger(__name__)
 

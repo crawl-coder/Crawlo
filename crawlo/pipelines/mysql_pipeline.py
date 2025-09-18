@@ -1,11 +1,12 @@
 # -*- coding: utf-8 -*-
 import asyncio
 import aiomysql
-from typing import Optional, List, Dict
 from asyncmy import create_pool
-from crawlo.utils.log import get_logger
+from typing import Optional, List, Dict
+
 from crawlo.exceptions import ItemDiscard
-from crawlo.utils.db_helper import make_insert_sql, make_batch_sql, logger
+from crawlo.utils.db_helper import make_insert_sql, make_batch_sql
+from crawlo.utils.log import get_logger
 
 
 class AsyncmyMySQLPipeline:

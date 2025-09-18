@@ -4,7 +4,6 @@
 RequestIgnoreMiddleware 中间件
 用于处理和记录被忽略的请求
 """
-
 from crawlo.utils.log import get_logger
 from crawlo.exceptions import IgnoreRequestError
 from crawlo.event import ignore_request

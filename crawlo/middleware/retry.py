@@ -1,7 +1,7 @@
 #!/usr/bin/python
 # -*- coding:UTF-8 -*-
-from typing import List
 import asyncio
+from typing import List
 
 try:
     from anyio import EndOfStream

@@ -4,13 +4,13 @@
 Redis连接池优化工具
 提供优化的Redis连接池管理和配置
 """
-import asyncio
-import redis.asyncio as aioredis
-from typing import Dict, Any, Optional, Union
 from contextlib import asynccontextmanager
+from typing import Dict, Any, Optional
 
-from crawlo.utils.log import get_logger
+import redis.asyncio as aioredis
+
 from crawlo.utils.error_handler import ErrorHandler
+from crawlo.utils.log import get_logger
 
 
 class OptimizedRedisConnectionPool:

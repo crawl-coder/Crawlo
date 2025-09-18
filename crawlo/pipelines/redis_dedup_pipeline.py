@@ -11,15 +11,13 @@
 - 可配置: 支持自定义 Redis 连接参数
 - 容错设计: 网络异常时不会丢失数据
 """
-
+import redis
 import hashlib
 from typing import Optional
 
-import redis
-
 from crawlo import Item
-from crawlo.exceptions import DropItem
 from crawlo.spider import Spider
+from crawlo.exceptions import DropItem
 from crawlo.utils.log import get_logger
 
 

@@ -6,8 +6,8 @@
 """
 import asyncio
 import time
-from typing import Generator, Optional, Set
 from collections import deque
+from typing import Generator, Optional
 
 from crawlo import Request
 from crawlo.utils.log import get_logger

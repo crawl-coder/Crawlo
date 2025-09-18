@@ -4,14 +4,15 @@
 性能监控工具
 提供系统性能监控和资源使用情况跟踪
 """
-import time
-import psutil
 import asyncio
-from typing import Dict, Any, Optional, Callable
+import time
 from functools import wraps
+from typing import Dict, Any
 
-from crawlo.utils.log import get_logger
+import psutil
+
 from crawlo.utils.error_handler import ErrorHandler
+from crawlo.utils.log import get_logger
 
 
 class PerformanceMonitor:

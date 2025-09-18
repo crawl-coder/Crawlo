@@ -4,10 +4,9 @@
 Request 序列化工具类
 负责处理 Request 对象的序列化前清理工作，解决 logger 等不可序列化对象的问题
 """
+import gc
 import logging
 import pickle
-import gc
-from typing import Any, Dict
 
 from crawlo.utils.log import get_logger
 

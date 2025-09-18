@@ -1,11 +1,11 @@
 #!/usr/bin/python
 # -*- coding:UTF-8 -*-
 import asyncio
+from datetime import datetime
 from typing import Any, Optional, Dict
-from datetime import datetime, timedelta
 
-from crawlo.utils.log import get_logger
 from crawlo.event import spider_opened, spider_closed, response_received, request_scheduled
+from crawlo.utils.log import get_logger
 
 
 class HealthCheckExtension:

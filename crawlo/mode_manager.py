@@ -10,10 +10,10 @@
 2. distributed - 分布式模式  
 3. auto - 自动检测模式
 """
-
-from typing import Dict, Any, Optional
-from enum import Enum
 import os
+from enum import Enum
+from typing import Dict, Any, Optional
+
 from crawlo.utils.log import get_logger
 
 

@@ -6,7 +6,8 @@
 import asyncio
 import json
 import time
-from typing import Generator, Iterator, List, Set, Optional, Dict, Any
+from typing import Generator, List, Dict, Any
+
 from crawlo.utils.log import get_logger
 
 

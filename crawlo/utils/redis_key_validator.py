@@ -5,9 +5,8 @@ Redis Key 验证工具
 =================
 提供 Redis Key 命名规范的验证功能
 """
-
-import re
 from typing import List, Tuple
+
 from crawlo.utils.log import get_logger
 
 
