@@ -211,13 +211,13 @@ def validate_project_name(project_name: str) -> tuple[bool, str]:
     """
     # 检查是否为空
     if not project_name or not project_name.strip():
-        return False, "Project name cannot be empty"
+        return False, "项目名称不能为空"
     
     project_name = project_name.strip()
     
     # 检查长度
     if len(project_name) > 50:
-        return False, "Project name too long (max 50 characters)"
+        return False, "项目名称太长（最多50个字符）"
     
     # 检查是否为Python关键字
     python_keywords = {
@@ -228,22 +228,21 @@ def validate_project_name(project_name: str) -> tuple[bool, str]:
         'while', 'with', 'yield'
     }
     if project_name in python_keywords:
-        return False, f"'{project_name}' is a Python keyword and cannot be used as project name"
+        return False, f"'{project_name}' 是Python关键字，不能用作项目名称"
     
     # 检查是否为有效的Python标识符
     if not project_name.isidentifier():
-        return False, "Project name must be a valid Python identifier"
+        return False, "项目名称必须是有效的Python标识符"
     
     # 检查格式（建议使用snake_case）
     if not re.match(r'^[a-z][a-z0-9_]*$', project_name):
         return False, (
-            "Project name should start with lowercase letter and "
-            "contain only lowercase letters, numbers, and underscores"
+            "项目名称应以小写字母开头，只能包含小写字母、数字和下划线"
         )
     
     # 检查是否以数字结尾（不推荐）
     if project_name[-1].isdigit():
-        return False, "Project name should not end with a number"
+        return False, "项目名称不应以数字结尾"
     
     return True, ""
 
@@ -284,8 +283,8 @@ def show_module_options():
 
 def main(args):
     if len(args) < 1:
-        console.print("[bold red]Error:[/bold red] Usage: [blue]crawlo startproject[/blue] <project_name> [template_type] [--modules module1,module2]")
-        console.print("💡 Examples:")
+        console.print("[bold red]错误:[/bold red] 用法: [blue]crawlo startproject[/blue] <项目名称> [模板类型] [--modules 模块1,模块2]")
+        console.print("💡 示例:")
         console.print("   [blue]crawlo startproject[/blue] my_spider_project")
         console.print("   [blue]crawlo startproject[/blue] news_crawler simple")
         console.print("   [blue]crawlo startproject[/blue] ecommerce_spider distributed --modules mysql,proxy")
@@ -315,8 +314,8 @@ def main(args):
     # 验证模板类型
     if template_type not in TEMPLATE_TYPES:
         show_error_panel(
-            "Invalid Template Type",
-            f"Template type '[cyan]{template_type}[/cyan]' is not supported.\n"
+            "无效的模板类型",
+            f"不支持模板类型 '[cyan]{template_type}[/cyan]'。\n"
         )
         show_template_options()
         return 1
@@ -325,14 +324,14 @@ def main(args):
     is_valid, error_msg = validate_project_name(project_name)
     if not is_valid:
         show_error_panel(
-            "Invalid Project Name", 
-            f"[cyan]{project_name}[/cyan] is not a valid project name.\n"
+            "无效的项目名称", 
+            f"[cyan]{project_name}[/cyan] 不是有效的项目名称。\n"
             f"❌ {error_msg}\n\n"
-            "💡 Project name should:\n"
-            "  • Start with lowercase letter\n"
-            "  • Contain only lowercase letters, numbers, and underscores\n"
-            "  • Be a valid Python identifier\n"
-            "  • Not be a Python keyword"
+            "💡 项目名称应:\n"
+            "  • 以小写字母开头\n"
+            "  • 只能包含小写字母、数字和下划线\n"
+            "  • 是有效的Python标识符\n"
+            "  • 不能是Python关键字"
         )
         return 1
     
@@ -340,9 +339,9 @@ def main(args):
 
     if project_dir.exists():
         show_error_panel(
-            "Directory Exists",
-            f"Directory '[cyan]{project_dir}[/cyan]' already exists.\n"
-            "💡 Choose a different project name or remove the existing directory."
+            "目录已存在",
+            f"目录 '[cyan]{project_dir}[/cyan]' 已存在。\n"
+            "💡 请选择不同的项目名称或删除现有目录。"
         )
         return 1
 
@@ -358,26 +357,26 @@ def main(args):
         if cfg_template.exists():
             cfg_content = _render_template(cfg_template, context)
             (project_dir / 'crawlo.cfg').write_text(cfg_content, encoding='utf-8')
-            console.print(f":white_check_mark: Created [green]{project_dir / 'crawlo.cfg'}[/green]")
+            console.print(f":white_check_mark: 已创建 [green]{project_dir / 'crawlo.cfg'}[/green]")
         else:
-            console.print("[yellow]⚠ Warning:[/yellow] Template 'crawlo.cfg.tmpl' not found.")
+            console.print("[yellow]⚠ 警告:[/yellow] 找不到模板 'crawlo.cfg.tmpl'。")
 
         # 3. 复制并渲染项目包内容
         package_dir = project_dir / project_name
         _copytree_with_templates(template_dir, package_dir, context, template_type, modules)
-        console.print(f":white_check_mark: Created project package: [green]{package_dir}[/green]")
+        console.print(f":white_check_mark: 已创建项目包: [green]{package_dir}[/green]")
 
         # 4. 创建 logs 目录
         (project_dir / 'logs').mkdir(exist_ok=True)
-        console.print(":white_check_mark: Created logs directory")
+        console.print(":white_check_mark: 已创建 logs 目录")
         
         # 5. 创建 output 目录（用于数据输出）
         (project_dir / 'output').mkdir(exist_ok=True)
-        console.print(":white_check_mark: Created output directory")
+        console.print(":white_check_mark: 已创建 output 目录")
 
         # 成功面板
-        success_text = Text.from_markup(f"Project '[bold cyan]{project_name}[/bold cyan]' created successfully!")
-        console.print(Panel(success_text, title=":rocket: Success", border_style="green", padding=(1, 2)))
+        success_text = Text.from_markup(f"项目 '[bold cyan]{project_name}[/bold cyan]' 创建成功！")
+        console.print(Panel(success_text, title=":rocket: 成功", border_style="green", padding=(1, 2)))
         
         # 显示使用的模板类型
         if template_type != 'default':
@@ -389,15 +388,15 @@ def main(args):
 
         # 下一步操作提示（对齐美观 + 语法高亮）
         next_steps = f"""
-        [bold]🚀 Next steps:[/bold]
+        [bold]🚀 下一步操作:[/bold]
         [blue]cd[/blue] {project_name}
         [blue]crawlo genspider[/blue] example example.com
         [blue]crawlo run[/blue] example
         
-        [bold]📚 Learn more:[/bold]
-        [blue]crawlo list[/blue]                    # List all spiders
-        [blue]crawlo check[/blue] example          # Check spider validity
-        [blue]crawlo stats[/blue]                  # View statistics
+        [bold]📚 了解更多:[/bold]
+        [blue]crawlo list[/blue]                    # 列出所有爬虫
+        [blue]crawlo check[/blue] example          # 检查爬虫有效性
+        [blue]crawlo stats[/blue]                  # 查看统计信息
         """.strip()
         console.print(next_steps)
 
@@ -405,12 +404,12 @@ def main(args):
 
     except Exception as e:
         show_error_panel(
-            "Creation Failed",
-            f"Failed to create project: {e}"
+            "创建失败",
+            f"创建项目失败: {e}"
         )
         if project_dir.exists():
             shutil.rmtree(project_dir, ignore_errors=True)
-            console.print("[red]:cross_mark: Cleaned up partially created project.[/red]")
+            console.print("[red]:cross_mark: 已清理部分创建的项目。[/red]")
         return 1
 
 if __name__ == "__main__":

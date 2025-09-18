@@ -37,8 +37,8 @@ def _render_template(tmpl_path, context):
 
 def main(args):
     if len(args) < 2:
-        console.print("[bold red]Error:[/bold red] Usage: [blue]crawlo genspider[/blue] <spider_name> <domain>")
-        console.print("💡 Examples:")
+        console.print("[bold red]错误:[/bold red] 用法: [blue]crawlo genspider[/blue] <爬虫名称> <域名>")
+        console.print("💡 示例:")
         console.print("   [blue]crawlo genspider[/blue] news_spider news.example.com")
         console.print("   [blue]crawlo genspider[/blue] product_spider shop.example.com")
         return 1
@@ -49,28 +49,28 @@ def main(args):
     # 验证爬虫名称
     if not validate_spider_name(spider_name):
         show_error_panel(
-            "Invalid Spider Name", 
-            f"Spider name '[cyan]{spider_name}[/cyan]' is invalid.\n"
-            "💡 Spider name should:\n"
-            "  • Start with lowercase letter\n"
-            "  • Contain only lowercase letters, numbers, and underscores\n"
-            "  • Be a valid Python identifier"
+            "无效的爬虫名称", 
+            f"爬虫名称 '[cyan]{spider_name}[/cyan]' 无效。\n"
+            "💡 爬虫名称应:\n"
+            "  • 以小写字母开头\n"
+            "  • 只能包含小写字母、数字和下划线\n"
+            "  • 是有效的Python标识符"
         )
         return 1
     
     # 验证域名格式
     if not is_valid_domain(domain):
         show_error_panel(
-            "Invalid Domain", 
-            f"Domain '[cyan]{domain}[/cyan]' format is invalid.\n"
-            "💡 Please provide a valid domain name like 'example.com'"
+            "无效的域名", 
+            f"域名 '[cyan]{domain}[/cyan]' 格式无效。\n"
+            "💡 请提供有效的域名，如 'example.com'"
         )
         return 1
 
     # 验证项目环境
     is_valid, project_package, error_msg = validate_project_environment()
     if not is_valid:
-        show_error_panel("Not a Crawlo Project", error_msg)
+        show_error_panel("非Crawlo项目", error_msg)
         return 1
     
     project_root = get_project_root()
@@ -91,10 +91,10 @@ def main(args):
         if item_classes:
             default_item_class = item_classes[0].__name__
         else:
-            console.print("[yellow]:warning: Warning:[/yellow] No item class found in [cyan]items.py[/cyan], using [green]ExampleItem[/green].")
+            console.print("[yellow]:warning: 警告:[/yellow] 在 [cyan]items.py[/cyan] 中未找到项目类，使用 [green]ExampleItem[/green]。")
 
     except ImportError as e:
-        console.print(f"[yellow]:warning: Warning:[/yellow] Failed to import [cyan]{items_module_path}[/cyan]: {e}")
+        console.print(f"[yellow]:warning: 警告:[/yellow] 导入 [cyan]{items_module_path}[/cyan] 失败: {e}")
         # 仍使用默认 ExampleItem，不中断流程
 
     # 创建爬虫文件
@@ -104,8 +104,8 @@ def main(args):
     spider_file = spiders_dir / f'{spider_name}.py'
     if spider_file.exists():
         show_error_panel(
-            "Spider Already Exists", 
-            f"Spider '[cyan]{spider_name}[/cyan]' already exists at\n[green]{spider_file}[/green]"
+            "爬虫已存在", 
+            f"爬虫 '[cyan]{spider_name}[/cyan]' 已存在于\n[green]{spider_file}[/green]"
         )
         return 1
 
@@ -113,8 +113,8 @@ def main(args):
     tmpl_path = TEMPLATES_DIR / 'spider' / 'spider.py.tmpl'
     if not tmpl_path.exists():
         show_error_panel(
-            "Template Not Found", 
-            f"Template file not found at [cyan]{tmpl_path}[/cyan]"
+            "模板未找到", 
+            f"模板文件未找到于 [cyan]{tmpl_path}[/cyan]"
         )
         return 1
 
@@ -134,11 +134,11 @@ def main(args):
         with open(spider_file, 'w', encoding='utf-8') as f:
             f.write(content)
         
-        console.print(f":white_check_mark: [green]Spider '[bold]{spider_name}[/bold]' created successfully![/green]")
-        console.print(f"  → Location: [cyan]{spider_file}[/cyan]")
-        console.print(f"  → Class: [yellow]{class_name}[/yellow]")
-        console.print(f"  → Domain: [blue]{domain}[/blue]")
-        console.print("\n[bold]Next steps:[/bold]")
+        console.print(f":white_check_mark: [green]爬虫 '[bold]{spider_name}[/bold]' 创建成功！[/green]")
+        console.print(f"  → 位置: [cyan]{spider_file}[/cyan]")
+        console.print(f"  → 类名: [yellow]{class_name}[/yellow]")
+        console.print(f"  → 域名: [blue]{domain}[/blue]")
+        console.print("\n[bold]下一步操作:[/bold]")
         console.print(f"  [blue]crawlo run[/blue] {spider_name}")
         console.print(f"  [blue]crawlo check[/blue] {spider_name}")
         
@@ -146,7 +146,7 @@ def main(args):
         
     except Exception as e:
         show_error_panel(
-            "Creation Failed", 
-            f"Failed to create spider: {e}"
+            "创建失败", 
+            f"创建爬虫失败: {e}"
         )
         return 1

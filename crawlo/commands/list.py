@@ -34,9 +34,9 @@ def main(args):
     filtered_args = [arg for arg in args if not arg.startswith('--')]
     if filtered_args:
         if show_json:
-            console.print_json(data={"success": False, "error": "Usage: crawlo list [--json]"})
+            console.print_json(data={"success": False, "error": "用法: crawlo list [--json]"})
         else:
-            console.print("[bold red]❌ Error:[/bold red] Usage: [blue]crawlo list[/blue] [--json]")
+            console.print("[bold red]❌ 错误:[/bold red] 用法: [blue]crawlo list[/blue] [--json]")
         return 1
 
     try:
@@ -46,7 +46,7 @@ def main(args):
             if show_json:
                 console.print_json(data={"success": False, "error": error_msg})
             else:
-                show_error_panel("Not a Crawlo Project", error_msg)
+                show_error_panel("非Crawlo项目", error_msg)
             return 1
 
         # 初始化 CrawlerProcess 并加载爬虫模块
@@ -60,18 +60,18 @@ def main(args):
                 console.print_json(data={
                     "success": True, 
                     "spiders": [],
-                    "message": "No spiders found in project"
+                    "message": "项目中未找到爬虫"
                 })
             else:
                 console.print(Panel(
                     Text.from_markup(
-                        ":envelope_with_arrow: [bold]No spiders found[/bold] in '[cyan]spiders/[/cyan]' directory.\n\n"
-                        "[bold]💡 Make sure:[/bold]\n"
-                        "  • Spider classes inherit from [blue]`crawlo.spider.Spider`[/blue]\n"
-                        "  • Each spider has a [green]`name`[/green] attribute\n"
-                        "  • Spiders are imported in [cyan]`spiders/__init__.py`[/cyan] (if using package)"
+                        ":envelope_with_arrow: [bold]未找到爬虫[/bold] 于 '[cyan]spiders/[/cyan]' 目录。\n\n"
+                        "[bold]💡 确保:[/bold]\n"
+                        "  • 爬虫类继承自 [blue]`crawlo.spider.Spider`[/blue]\n"
+                        "  • 每个爬虫都有 [green]`name`[/green] 属性\n"
+                        "  • 爬虫已在 [cyan]`spiders/__init__.py`[/cyan] 中导入 (如果使用包)"
                     ),
-                    title="📭 No Spiders Found",
+                    title="📭 未找到爬虫",
                     border_style="yellow",
                     padding=(1, 2)
                 ))
@@ -108,18 +108,18 @@ def main(args):
 
         # 表格输出
         table = Table(
-            title=f"📋 Found {len(spider_names)} spider(s)",
+            title=f"📋 找到 {len(spider_names)} 个爬虫",
             box=box.ROUNDED,
             show_header=True,
             header_style="bold magenta",
             title_style="bold green"
         )
-        table.add_column("Name", style="cyan", no_wrap=True)
-        table.add_column("Class", style="green")
-        table.add_column("Module", style="dim")
-        table.add_column("URLs", style="blue", justify="center")
-        table.add_column("Domains", style="yellow")
-        table.add_column("Custom Settings", style="magenta", justify="center")
+        table.add_column("名称", style="cyan", no_wrap=True)
+        table.add_column("类名", style="green")
+        table.add_column("模块", style="dim")
+        table.add_column("URL数", style="blue", justify="center")
+        table.add_column("域名", style="yellow")
+        table.add_column("自定义设置", style="magenta", justify="center")
 
         for info in spider_info:
             domains_display = ", ".join(info["allowed_domains"][:2])  # 显示前2个域名
@@ -140,10 +140,10 @@ def main(args):
         console.print(table)
         
         # 显示使用提示
-        console.print("\n[bold]🚀 Next steps:[/bold]")
-        console.print("  [blue]crawlo run[/blue] <spider_name>    # Run a specific spider")
-        console.print("  [blue]crawlo run[/blue] all             # Run all spiders")
-        console.print("  [blue]crawlo check[/blue] <spider_name>  # Check spider validity")
+        console.print("\n[bold]🚀 下一步操作:[/bold]")
+        console.print("  [blue]crawlo run[/blue] <爬虫名称>    # 运行指定爬虫")
+        console.print("  [blue]crawlo run[/blue] all             # 运行所有爬虫")
+        console.print("  [blue]crawlo check[/blue] <爬虫名称>  # 检查爬虫有效性")
         
         return 0
 
@@ -151,6 +151,6 @@ def main(args):
         if show_json:
             console.print_json(data={"success": False, "error": str(e)})
         else:
-            console.print(f"[bold red]❌ Unexpected error:[/bold red] {e}")
-        logger.exception("Exception during 'crawlo list'")
+            console.print(f"[bold red]❌ 意外错误:[/bold red] {e}")
+        logger.exception("执行 'crawlo list' 时发生异常")
         return 1

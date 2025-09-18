@@ -46,7 +46,7 @@ def validate_project_environment() -> Tuple[bool, Optional[str], Optional[str]]:
     # 1. 查找项目根目录
     project_root = get_project_root()
     if not project_root:
-        return False, None, "Cannot find 'crawlo.cfg'. Run this command inside your project directory."
+        return False, None, "找不到 'crawlo.cfg'。请在项目目录中运行此命令。"
     
     # 2. 将项目根加入 Python 路径
     project_root_str = str(project_root)
@@ -60,10 +60,10 @@ def validate_project_environment() -> Tuple[bool, Optional[str], Optional[str]]:
     try:
         config.read(cfg_file, encoding="utf-8")
     except Exception as e:
-        return False, None, f"Failed to read crawlo.cfg: {e}"
+        return False, None, f"读取 crawlo.cfg 失败: {e}"
     
     if not config.has_section("settings") or not config.has_option("settings", "default"):
-        return False, None, "Invalid crawlo.cfg: missing [settings] section or 'default' option"
+        return False, None, "无效的 crawlo.cfg：缺少 [settings] 部分或 'default' 选项"
     
     # 4. 获取项目包名
     settings_module = config.get("settings", "default")
@@ -73,7 +73,7 @@ def validate_project_environment() -> Tuple[bool, Optional[str], Optional[str]]:
     try:
         import_module(project_package)
     except ImportError as e:
-        return False, None, f"Failed to import project package '{project_package}': {e}"
+        return False, None, f"导入项目包 '{project_package}' 失败: {e}"
     
     return True, project_package, None
 
