@@ -77,7 +77,13 @@ class RedisPriorityQueue:
         """异步连接 Redis，支持重试"""
         async with self._lock:
             if self._redis is not None:
-                return self._redis
+                # 如果已经连接，测试连接是否仍然有效
+                try:
+                    await self._redis.ping()
+                    return self._redis
+                except Exception:
+                    # 连接失效，重新连接
+                    self._redis = None
 
             for attempt in range(max_retries):
                 try:
@@ -97,7 +103,8 @@ class RedisPriorityQueue:
                     
                     # 测试连接
                     await self._redis.ping()
-                    logger.info(f"✅ Redis 连接成功 (Module: {self.module_name})")
+                    # 只在调试模式下输出详细连接信息
+                    logger.debug(f"✅ Redis 连接成功 (Module: {self.module_name})")
                     return self._redis
                 except Exception as e:
                     error_msg = f"⚠️ Redis 连接失败 (尝试 {attempt + 1}/{max_retries}, Module: {self.module_name}): {e}"

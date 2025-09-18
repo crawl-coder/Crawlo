@@ -4,11 +4,11 @@
 统一的队列管理器
 提供简洁、一致的队列接口，自动处理不同队列类型的差异
 """
-from typing import Optional, Dict, Any, Union
-from enum import Enum
+import os
 import asyncio
 import traceback
-import os
+from typing import Optional, Dict, Any, Union
+from enum import Enum
 
 from crawlo.utils.log import get_logger
 from crawlo.utils.request_serializer import RequestSerializer
@@ -103,11 +103,24 @@ class QueueManager:
             self._queue_type = queue_type
             
             # 测试队列健康状态
-            await self._health_check()
+            health_check_result = await self._health_check()
             
             self.logger.info(f"✅ 队列初始化成功: {queue_type.value}")
-            self.logger.info(f"📊 队列配置: {self._get_queue_info()}")
-            return True
+            # 只在调试模式下输出详细配置信息
+            self.logger.debug(f"📊 队列配置: {self._get_queue_info()}")
+            
+            # 如果健康检查返回True，表示队列类型发生了切换，需要更新配置
+            if health_check_result:
+                return True
+            
+            # 如果队列类型是Redis，检查是否需要更新配置
+            if queue_type == QueueType.REDIS:
+                # 这个检查需要在调度器中进行，因为队列管理器无法访问crawler.settings
+                # 但我们不需要总是返回True，只有在确实需要更新时才返回True
+                # 调度器会进行更详细的检查
+                pass
+            
+            return False  # 默认不需要更新配置
             
         except Exception as e:
             # 记录详细的错误信息和堆栈跟踪
@@ -265,7 +278,15 @@ class QueueManager:
                 raise RuntimeError("Redis 队列不可用：未安装 redis 依赖")
             if not self.config.redis_url:
                 raise RuntimeError("Redis 队列不可用：未配置 REDIS_URL")
-            return QueueType.REDIS
+            # 测试 Redis 连接
+            try:
+                test_queue = RedisPriorityQueue(self.config.redis_url)
+                await test_queue.connect()
+                await test_queue.close()
+                return QueueType.REDIS
+            except Exception as e:
+                # 如果强制使用Redis但连接失败，则抛出异常
+                raise RuntimeError(f"Redis 队列不可用：无法连接到 Redis ({e})")
         
         elif self.config.queue_type == QueueType.MEMORY:
             return QueueType.MEMORY
@@ -307,7 +328,7 @@ class QueueManager:
         else:
             raise ValueError(f"不支持的队列类型: {queue_type}")
     
-    async def _health_check(self) -> None:
+    async def _health_check(self) -> bool:
         """健康检查"""
         try:
             if self._queue_type == QueueType.REDIS:
@@ -317,9 +338,27 @@ class QueueManager:
             else:
                 # 内存队列总是健康的
                 self._health_status = "healthy"
+                return False  # 内存队列不需要更新配置
         except Exception as e:
             self.logger.warning(f"队列健康检查失败: {e}")
             self._health_status = "unhealthy"
+            # 如果是Redis队列且健康检查失败，尝试切换到内存队列
+            if self._queue_type == QueueType.REDIS and self.config.queue_type == QueueType.AUTO:
+                self.logger.info("Redis队列不可用，尝试切换到内存队列...")
+                try:
+                    await self._queue.close()
+                except:
+                    pass
+                self._queue = None
+                # 重新创建内存队列
+                self._queue = await self._create_queue(QueueType.MEMORY)
+                self._queue_type = QueueType.MEMORY
+                self._queue_semaphore = asyncio.Semaphore(self.config.max_queue_size)
+                self._health_status = "healthy"
+                self.logger.info("✅ 已切换到内存队列")
+                # 返回一个信号，表示需要更新过滤器和去重管道配置
+                return True
+        return False
     
     def _get_queue_info(self) -> Dict[str, Any]:
         """获取队列配置信息"""

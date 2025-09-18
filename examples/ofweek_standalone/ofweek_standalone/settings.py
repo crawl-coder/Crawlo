@@ -5,10 +5,27 @@ ofweek_standalone 项目配置文件
 基于 Crawlo 框架的爬虫项目配置。
 """
 
+import os
+
 # ============================== 项目基本信息 ==============================
 PROJECT_NAME = 'ofweek_standalone'
 # ============================== 运行模式 ==============================
 RUN_MODE = 'standalone'
+
+# 确保日志目录存在
+os.makedirs('logs', exist_ok=True)
+
+# ============================== Redis配置 ==============================
+REDIS_HOST = '127.0.0.1'
+REDIS_PORT = 6379
+REDIS_PASSWORD = ''
+REDIS_DB = 0
+
+# 根据是否有密码生成 URL
+if REDIS_PASSWORD:
+    REDIS_URL = f'redis://:{REDIS_PASSWORD}@{REDIS_HOST}:{REDIS_PORT}/{REDIS_DB}'
+else:
+    REDIS_URL = f'redis://{REDIS_HOST}:{REDIS_PORT}/{REDIS_DB}'
 
 # ============================== 并发配置 ==============================
 CONCURRENCY = 4
@@ -22,10 +39,11 @@ DOWNLOADER = 'crawlo.downloader.aiohttp_downloader.AioHttpDownloader'
 QUEUE_TYPE = 'auto'
 
 # ============================== 去重过滤器 ==============================
+# 使用auto模式，让框架根据Redis可用性自动选择过滤器
 FILTER_CLASS = 'crawlo.filters.memory_filter.MemoryFilter'
 
 # ============================== 默认去重管道 ==============================
-# 明确指定单机模式下使用内存去重管道
+# 使用auto模式，让框架根据Redis可用性自动选择去重管道
 DEFAULT_DEDUP_PIPELINE = 'crawlo.pipelines.memory_dedup_pipeline.MemoryDedupPipeline'
 
 # ============================== 爬虫模块配置 ==============================
@@ -46,7 +64,7 @@ MIDDLEWARES = [
 PIPELINES = [
     'crawlo.pipelines.console_pipeline.ConsolePipeline',
     'crawlo.pipelines.json_pipeline.JsonPipeline',
-    # 明确添加内存去重管道
+    # 使用内存去重管道作为默认值
     'crawlo.pipelines.memory_dedup_pipeline.MemoryDedupPipeline',
 ]
 

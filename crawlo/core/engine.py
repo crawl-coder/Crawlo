@@ -88,8 +88,9 @@ class Engine(object):
         self.downloader = downloader_cls(self.crawler)
         if hasattr(self.downloader, 'open'):
             if asyncio.iscoroutinefunction(self.downloader.open):
-                await self.downloader.open()
+                self.downloader.open()
             else:
+                # DownloaderBase.open() 是同步方法，直接调用而不是await
                 self.downloader.open()
 
         self.processor = Processor(self.crawler)
@@ -97,6 +98,7 @@ class Engine(object):
             if asyncio.iscoroutinefunction(self.processor.open):
                 await self.processor.open()
             else:
+                # Processor.open() 是同步方法
                 self.processor.open()
 
         self.start_requests = iter(spider.start_requests())

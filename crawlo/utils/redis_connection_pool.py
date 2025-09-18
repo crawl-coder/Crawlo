@@ -37,6 +37,7 @@ class OptimizedRedisConnectionPool:
         # 连接池实例
         self._connection_pool: Optional[aioredis.ConnectionPool] = None
         self._redis_client: Optional[aioredis.Redis] = None
+        self._connection_tested = False  # 标记是否已测试连接
         
         # 连接池统计信息
         self._stats = {
@@ -61,7 +62,8 @@ class OptimizedRedisConnectionPool:
                 connection_pool=self._connection_pool
             )
             
-            self.logger.info(f"✅ Redis连接池初始化成功: {self.redis_url}")
+            # 只在调试模式下输出详细连接池信息
+            self.logger.debug(f"✅ Redis连接池初始化成功: {self.redis_url}")
             self.logger.debug(f"   连接池配置: {self.config}")
             
         except Exception as e:
@@ -71,6 +73,18 @@ class OptimizedRedisConnectionPool:
                 raise_error=True
             )
     
+    async def _test_connection(self):
+        """测试Redis连接"""
+        if self._redis_client and not self._connection_tested:
+            try:
+                await self._redis_client.ping()
+                self._connection_tested = True
+                # 只在调试模式下输出连接测试成功信息
+                self.logger.debug(f"✅ Redis连接测试成功: {self.redis_url}")
+            except Exception as e:
+                self.logger.error(f"❌ Redis连接测试失败: {self.redis_url} - {e}")
+                raise
+    
     async def get_connection(self) -> aioredis.Redis:
         """
         获取Redis连接实例
@@ -79,7 +93,10 @@ class OptimizedRedisConnectionPool:
             Redis连接实例
         """
         if not self._redis_client:
-            await self._initialize_pool()
+            self._initialize_pool()
+        
+        # 确保连接有效
+        await self._test_connection()
         
         self._stats['active_connections'] += 1
         return self._redis_client

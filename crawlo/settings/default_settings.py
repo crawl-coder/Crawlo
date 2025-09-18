@@ -3,7 +3,6 @@
 默认配置文件
 包含 Crawlo 框架的所有默认设置项
 """
-import os
 
 # 添加环境变量配置工具导入
 from crawlo.utils.env_config import get_redis_config, get_runtime_config
@@ -44,9 +43,10 @@ SCHEDULER_QUEUE_NAME = f"crawlo:{PROJECT_NAME}:queue:requests"
 QUEUE_TYPE = 'auto'
 
 
-# 明确配置默认去重管道和过滤器，在auto模式下，如果Redis可用则使用Redis去重，否则使用内存去重
-DEFAULT_DEDUP_PIPELINE = 'crawlo.pipelines.redis_dedup_pipeline.RedisDedupPipeline'
-FILTER_CLASS = 'crawlo.filters.aioredis_filter.AioRedisFilter'
+# 默认使用内存过滤器和去重管道，确保在无Redis环境下也能正常运行
+# 在auto模式下，如果Redis可用，框架会自动更新为Redis实现以提供更好的去重能力
+DEFAULT_DEDUP_PIPELINE = 'crawlo.pipelines.memory_dedup_pipeline.MemoryDedupPipeline' 
+FILTER_CLASS = 'crawlo.filters.memory_filter.MemoryFilter'  
 
 # --- Redis 过滤器配置 ---
 # 使用环境变量配置工具获取 Redis 配置
