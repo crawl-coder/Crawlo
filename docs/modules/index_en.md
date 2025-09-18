@@ -34,6 +34,7 @@ Each module documentation section includes:
 - [Queue Module](queue/index_en.md) - Request queue management for standalone and distributed crawling
 - [Filter Module](filter/index_en.md) - Request deduplication functionality
 - [Extension Module](extension/index_en.md) - Additional features and monitoring components
+- [CLI Tools Reference](cli-tools-reference_en.md) - Command-line tools usage guide
 
 ## How to Navigate
 

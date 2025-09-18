@@ -18,6 +18,8 @@ sys.path.insert(0, project_root)
 os.chdir(project_root)
 
 from crawlo.crawler import CrawlerProcess
+from crawlo.project import get_settings
+
 
 def main():
     """主函数：运行固定的爬虫"""
@@ -25,9 +27,16 @@ def main():
     
     # 创建爬虫进程（自动加载默认配置）
     try:
+        # 获取项目配置
+        settings = get_settings()
+        
+        # 检查是否为分布式模式并验证Redis连接
+        if settings.get('RUN_MODE', 'standalone') == 'distributed':
+            _check_redis_connection(settings)
+        
         # 确保 spider 模块被正确导入
         spider_modules = ['{{project_name}}.spiders']
-        process = CrawlerProcess(spider_modules=spider_modules)
+        process = CrawlerProcess(settings=settings, spider_modules=spider_modules)
         print("✅ 爬虫进程初始化成功")
         
         # 运行固定的爬虫
@@ -41,6 +50,39 @@ def main():
         import traceback
         traceback.print_exc()
         sys.exit(1)
+
+
+def _check_redis_connection(settings):
+    """检查Redis连接（分布式模式下）"""
+    try:
+        import redis.asyncio as redis
+        redis_url = settings.get('REDIS_URL', 'redis://127.0.0.1:6379/0')
+        redis_host = settings.get('REDIS_HOST', '127.0.0.1')
+        redis_port = settings.get('REDIS_PORT', 6379)
+        
+        print(f"🔍 检查 Redis 连接: {redis_host}:{redis_port}")
+        
+        # 创建Redis连接进行测试
+        async def _test_redis():
+            try:
+                r = redis.from_url(redis_url, encoding="utf-8", decode_responses=True)
+                await r.ping()
+                await r.close()
+                return True
+            except Exception as e:
+                print(f"❌ Redis 连接失败: {e}")
+                return False
+        
+        # 运行异步测试
+        if not asyncio.run(_test_redis()):
+            raise ConnectionError(f"无法连接到 Redis 服务器 {redis_host}:{redis_port}")
+            
+        print("✅ Redis 连接正常")
+    except ImportError:
+        print("⚠️  Redis 客户端未安装，跳过连接检查")
+    except Exception as e:
+        raise ConnectionError(f"Redis 连接检查失败: {e}")
+
 
 if __name__ == '__main__':
     main()

@@ -233,6 +233,32 @@ crawlo run all --json --no-stats
 - `--json`: 以JSON格式输出结果
 - `--no-stats`: 不记录统计信息
 
+### crawlo run-distributed
+
+运行分布式爬虫。
+
+```bash
+# 基本用法
+crawlo run-distributed <spider_name> [--redis-host <host>] [--redis-port <port>] ...
+
+# 示例
+crawlo run-distributed myspider
+crawlo run-distributed myspider --redis-host 192.168.1.100 --concurrency 32
+```
+
+**参数说明：**
+- `spider_name`: 要运行的爬虫名称
+- `--redis-host`: Redis服务器地址
+- `--redis-port`: Redis端口
+- `--redis-password`: Redis密码
+- `--redis-db`: Redis数据库编号
+- `--concurrency`: 并发数
+- `--delay`: 下载延迟（秒）
+- `--project-name`: 项目名称
+- `--debug`: 启用调试模式
+- `--json`: 以JSON格式输出结果
+- `--no-stats`: 不记录统计信息
+
 ### crawlo list
 
 列出项目中所有可用的爬虫。
@@ -289,6 +315,41 @@ crawlo stats myspider --all
 - `--all`: 显示指定爬虫的所有历史运行记录
 
 ---
+
+### 分布式模式
+
+Crawlo支持分布式爬取，通过Redis实现任务队列和去重过滤，支持多节点协同工作。
+
+#### 配置分布式项目
+
+```bash
+# 创建分布式模板项目
+crawlo startproject myproject distributed
+
+cd myproject
+```
+
+#### 运行分布式爬虫
+
+```bash
+# 使用命令行工具运行分布式爬虫
+crawlo run-distributed myspider
+
+# 指定Redis配置运行
+crawlo run-distributed myspider --redis-host 192.168.1.100 --redis-port 6379
+
+# 使用项目自带的 run_distributed.py 脚本运行
+python run_distributed.py --spider myspider
+```
+
+#### 分布式配置
+
+分布式模式使用Redis作为任务队列和去重过滤器：
+
+- **队列后端**: Redis（RedisPriorityQueue）
+- **去重过滤器**: AioRedisFilter
+- **状态共享**: Redis协调
+- **可扩展性**: 多节点集群
 
 <!-- 架构设计 section -->
 <h2 align="center">🏗️ 架构设计</h2>

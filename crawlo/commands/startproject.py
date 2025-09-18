@@ -110,8 +110,19 @@ def _copytree_with_templates(src, dst, context, template_type='default', modules
         rel_path = item.relative_to(src_path)
         dst_item = dst_path / rel_path
 
-        # 检查是否应该包含此文件（基于模块选择）
-        if not _should_include_file(rel_path, modules):
+        # 检查是否应该包含此文件
+        path_str = str(rel_path).replace('\\', '/')
+        
+        # 分布式模板始终包含分布式运行脚本
+        if template_type == 'distributed' and 'run_distributed' in path_str:
+            pass  # 允许包含分布式运行脚本
+        # 非分布式模板根据模块选择决定是否包含
+        elif 'run_distributed' in path_str:
+            # 如果不是分布式模板且没有选择redis模块，则不包含分布式运行脚本
+            if template_type != 'distributed' and ('redis' not in (modules or [])):
+                continue
+        # 其他文件根据模块选择决定是否包含
+        elif not _should_include_file(rel_path, modules):
             continue
 
         if item.is_dir():

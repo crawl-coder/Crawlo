@@ -34,6 +34,7 @@
 - [队列模块](queue/index.md) - 单机和分布式爬取的请求队列管理
 - [过滤器模块](filter/index.md) - 请求去重功能
 - [扩展模块](extension/index.md) - 附加功能和监控组件
+- [CLI工具参考](cli-tools-reference.md) - 命令行工具使用指南
 
 ## 如何浏览
 

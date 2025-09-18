@@ -21,32 +21,54 @@ from rich.progress import Progress, SpinnerColumn, TextColumn
 
 from crawlo.crawler import CrawlerProcess
 from crawlo.utils.log import get_logger
-from crawlo.project import get_settings
+from crawlo.project import get_settings, _find_project_root
 from crawlo.commands.stats import record_stats
 
 logger = get_logger(__name__)
 console = Console()
 
 
-def get_project_root():
-    """
-    向上查找 crawlo.cfg 来确定项目根目录
-    """
-    current = Path.cwd()
-    # 首先检查当前目录及其子目录
-    for root, dirs, files in os.walk(current):
-        if "crawlo.cfg" in files:
-            return Path(root)
-    
-    # 如果在子目录中没找到，再向上查找
-    for _ in range(10):
-        cfg = current / "crawlo.cfg"
-        if cfg.exists():
-            return current
-        if current == current.parent:
-            break
-        current = current.parent
-    return None
+def check_redis_connection(settings):
+    """检查Redis连接（分布式模式下）"""
+    try:
+        # 检查是否为分布式模式
+        run_mode = settings.get('RUN_MODE', 'standalone')
+        queue_type = settings.get('QUEUE_TYPE', 'memory')
+        
+        if run_mode == 'distributed' or queue_type == 'redis':
+            import redis.asyncio as redis
+            redis_url = settings.get('REDIS_URL', 'redis://127.0.0.1:6379/0')
+            redis_host = settings.get('REDIS_HOST', '127.0.0.1')
+            redis_port = settings.get('REDIS_PORT', 6379)
+            
+            console.print(f"🔍 检查 Redis 连接: {redis_host}:{redis_port}")
+            
+            # 创建Redis连接进行测试
+            async def _test_redis():
+                try:
+                    r = redis.from_url(redis_url, encoding="utf-8", decode_responses=True)
+                    await r.ping()
+                    await r.close()
+                    return True
+                except Exception as e:
+                    console.print(f"❌ Redis 连接失败: {e}")
+                    return False
+            
+            # 运行异步测试
+            if not asyncio.run(_test_redis()):
+                raise ConnectionError(f"无法连接到 Redis 服务器 {redis_host}:{redis_port}")
+                
+            console.print("✅ Redis 连接正常")
+            return True
+        else:
+            # 非分布式模式，跳过Redis检查
+            return True
+    except ImportError:
+        console.print("⚠️  Redis 客户端未安装，跳过连接检查")
+        return True
+    except Exception as e:
+        console.print(f"❌ Redis 连接检查失败: {e}")
+        return False
 
 
 def main(args):
@@ -70,7 +92,7 @@ def main(args):
 
     try:
         # 1. 查找项目根目录
-        project_root = get_project_root()
+        project_root = _find_project_root()
         if not project_root:
             msg = ":cross_mark: [bold red]找不到 'crawlo.cfg'[/bold red]\n💡 请在项目目录中运行此命令。"
             if show_json:
@@ -90,8 +112,8 @@ def main(args):
             sys.path.insert(0, project_root_str)
 
         # 2. 读取 crawlo.cfg 获取 settings 模块
-        cfg_file = project_root / "crawlo.cfg"
-        if not cfg_file.exists():
+        cfg_file = os.path.join(project_root, "crawlo.cfg")
+        if not os.path.exists(cfg_file):
             msg = f"在 {project_root} 中未找到 crawlo.cfg"
             if show_json:
                 console.print_json(data={"success": False, "error": msg})
@@ -129,6 +151,15 @@ def main(args):
 
         # 4. 加载 settings 和爬虫模块
         settings = get_settings()
+        
+        # 检查Redis连接（如果是分布式模式）
+        if not check_redis_connection(settings):
+            if show_json:
+                console.print_json(data={"success": False, "error": "Redis连接检查失败"})
+                return 1
+            else:
+                return 1
+        
         spider_modules = [f"{project_package}.spiders"]
         process = CrawlerProcess(settings=settings, spider_modules=spider_modules)
 
