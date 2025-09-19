@@ -36,8 +36,6 @@ class AioHttpDownloader(DownloaderBase):
     def open(self):
         super().open()
         # 恢复关键的下载器启动信息为INFO级别
-        self.logger.info("Opening AioHttpDownloader")
-
         # 读取配置
         timeout_secs = self.crawler.settings.get_int("DOWNLOAD_TIMEOUT", 30)
         verify_ssl = self.crawler.settings.get_bool("VERIFY_SSL", True)
@@ -75,7 +73,7 @@ class AioHttpDownloader(DownloaderBase):
         # 输出下载器配置摘要
         spider_name = getattr(self.crawler.spider, 'name', 'Unknown')
         concurrency = self.crawler.settings.get('CONCURRENCY', 4)
-        self.logger.info(f"{spider_name}(name='{spider_name}') <下载器类：{self.__class__.__name__}> <并发数：{concurrency}>")
+        self.logger.debug(f"下载器初始化完成 [爬虫: {spider_name}, 类型: {self.__class__.__name__}, 并发数: {concurrency}]")
 
         self.logger.debug("AioHttpDownloader initialized.")
 

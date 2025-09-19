@@ -63,9 +63,9 @@ class BloomDedupPipeline:
         # 初始化 Bloom Filter
         try:
             self.bloom_filter = BloomFilter(capacity=capacity, error_rate=error_rate)
-            self.logger.info(f"Bloom Filter 去重管道初始化完成 (容量: {capacity}, 误判率: {error_rate})")
+            self.logger.info(f"Bloom filter deduplication pipeline initialized (Capacity: {capacity}, Error rate: {error_rate})")
         except Exception as e:
-            self.logger.error(f"Bloom Filter 初始化失败: {e}")
+            self.logger.error(f"Bloom filter initialization failed: {e}")
             raise RuntimeError(f"Bloom Filter 初始化失败: {e}")
 
         self.capacity = capacity
@@ -100,17 +100,17 @@ class BloomDedupPipeline:
             if fingerprint in self.bloom_filter:
                 # 如果可能已存在（Bloom Filter 可能有误判），丢弃这个数据项
                 self.dropped_count += 1
-                self.logger.debug(f"可能丢弃重复数据项: {fingerprint[:20]}...")
+                self.logger.debug(f"Possibly dropping duplicate item: {fingerprint[:20]}...")
                 raise DropItem(f"可能重复的数据项: {fingerprint}")
             else:
                 # 添加指纹到 Bloom Filter
                 self.bloom_filter.add(fingerprint)
                 self.added_count += 1
-                self.logger.debug(f"处理新数据项: {fingerprint[:20]}...")
+                self.logger.debug(f"Processing new item: {fingerprint[:20]}...")
                 return item
                 
         except Exception as e:
-            self.logger.error(f"处理数据项时出错: {e}")
+            self.logger.error(f"Error processing item: {e}")
             # 在错误时继续处理，避免丢失数据
             return item
 
@@ -145,13 +145,13 @@ class BloomDedupPipeline:
         
         :param spider: 爬虫实例
         """
-        self.logger.info(f"爬虫 {spider.name} 关闭:")
-        self.logger.info(f"  - 处理的数据项数: {self.added_count}")
-        self.logger.info(f"  - 可能丢弃的重复数据项: {self.dropped_count}")
+        self.logger.info(f"Spider {spider.name} closed:")
+        self.logger.info(f"  - Processed items: {self.added_count}")
+        self.logger.info(f"  - Possibly dropped duplicate items: {self.dropped_count}")
         
         if BLOOM_FILTER_AVAILABLE:
             # 注意：Bloom Filter 无法准确统计元素数量
-            self.logger.info(f"  - Bloom Filter 容量: {self.capacity}")
-            self.logger.info(f"  - Bloom Filter 误判率: {self.error_rate}")
+            self.logger.info(f"  - Bloom filter capacity: {self.capacity}")
+            self.logger.info(f"  - Bloom filter error rate: {self.error_rate}")
         else:
-            self.logger.warning("  - 未安装 pybloom_live，使用内存集合作为替代")
+            self.logger.warning("  - pybloom_live not installed, using memory set as fallback")

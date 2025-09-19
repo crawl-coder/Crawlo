@@ -115,8 +115,15 @@ class DownloaderBase(metaclass=DownloaderMeta):
         if self._closed:
             raise RuntimeError(f"{self.__class__.__name__} 已关闭，无法重新打开")
             
-        self.logger.info(
-            f"{self.crawler.spider} <下载器类：{type(self).__name__}> "
+        # 获取下载器类的完整路径
+        downloader_class = f"{type(self).__module__}.{type(self).__name__}"
+        
+        # 输出启用的下载器信息（类似MiddlewareManager的格式）
+        self.logger.info(f"enabled downloader: \n  {downloader_class}")
+        
+        # 输出下载器配置摘要
+        self.logger.debug(
+            f"{self.crawler.spider} <下载器类：{downloader_class}> "
             f"<并发数：{self.crawler.settings.get_int('CONCURRENCY')}>"
         )
         

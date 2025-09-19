@@ -122,7 +122,7 @@ EXTENSIONS = [
 LOG_LEVEL = 'INFO'  # 日志级别: DEBUG/INFO/WARNING/ERROR
 STATS_DUMP = True  # 是否周期性输出统计信息
 LOG_FILE = f'logs/{PROJECT_NAME}.log'  # 日志文件路径
-LOG_FORMAT = '%(asctime)s - [%(name)s] - %(levelname)s： %(message)s'
+LOG_FORMAT = '%(asctime)s - [%(name)s] - %(levelname)s: %(message)s'
 LOG_ENCODING = 'utf-8'
 
 # ============================== 代理配置 ==============================

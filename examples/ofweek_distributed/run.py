@@ -27,14 +27,13 @@ def main():
     # 创建爬虫进程并应用配置
     try:
         # 创建 SettingManager 实例并应用配置
-        settings = get_settings()
+        # settings = get_settings()
         # 将分布式配置导入到 SettingManager 中
         # settings.update_attributes(locals())
-        print(settings)
 
         # 确保 spider 模块被正确导入
         spider_modules = ['ofweek_distributed.spiders']
-        process = CrawlerProcess(settings=settings, spider_modules=spider_modules)
+        process = CrawlerProcess(spider_modules=spider_modules)
         print("✅ 爬虫进程初始化成功")
 
         # 运行指定的爬虫，使用正确的爬虫名称

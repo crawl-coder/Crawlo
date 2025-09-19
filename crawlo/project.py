@@ -177,7 +177,7 @@ def get_settings(custom_settings: Optional[dict] = None) -> SettingManager:
     Returns:
         SettingManager: 已加载配置的实例
     """
-    # 将INFO级别日志改为DEBUG级别，避免冗余输出
+    # Change INFO level log to DEBUG level to avoid redundant output
     logger.debug("🚀 正在初始化 Crawlo 项目配置...")
 
     # 1. 查找项目根

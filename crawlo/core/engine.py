@@ -32,13 +32,13 @@ class Engine(object):
         self.start_requests: Optional[Generator] = None
         self.task_manager: Optional[TaskManager] = TaskManager(self.settings.get_int('CONCURRENCY'))
 
-        # 增强控制参数
+        # Enhanced control parameters
         self.max_queue_size = self.settings.get_int('SCHEDULER_MAX_QUEUE_SIZE', 200)
         self.generation_batch_size = self.settings.get_int('REQUEST_GENERATION_BATCH_SIZE', 10)
         self.generation_interval = self.settings.get_float('REQUEST_GENERATION_INTERVAL', 0.05)
-        self.backpressure_ratio = self.settings.get_float('BACKPRESSURE_RATIO', 0.8)  # 队列达到80%时启动背压
+        self.backpressure_ratio = self.settings.get_float('BACKPRESSURE_RATIO', 0.8)  # Start backpressure when queue reaches 80%
         
-        # 状态跟踪
+        # State tracking
         self._generation_paused = False
         self._last_generation_time = 0
         self._generation_stats = {
@@ -49,17 +49,17 @@ class Engine(object):
         self.logger = get_logger(name=self.__class__.__name__)
 
     def _get_downloader_cls(self):
-        """获取下载器类，支持多种配置方式"""
+        """Get downloader class, supports multiple configuration methods"""
         # 方式1: 使用 DOWNLOADER_TYPE 简化名称（推荐）
         downloader_type = self.settings.get('DOWNLOADER_TYPE')
         if downloader_type:
             try:
                 from crawlo.downloader import get_downloader_class
                 downloader_cls = get_downloader_class(downloader_type)
-                self.logger.debug(f"使用下载器类型: {downloader_type} -> {downloader_cls.__name__}")
+                self.logger.debug(f"Using downloader type: {downloader_type} -> {downloader_cls.__name__}")
                 return downloader_cls
             except (ImportError, ValueError) as e:
-                self.logger.warning(f"无法使用下载器类型 '{downloader_type}': {e}，回退到默认配置")
+                self.logger.warning(f"Unable to use downloader type '{downloader_type}': {e}, falling back to default configuration")
         
         # 方式2: 使用 DOWNLOADER 完整类路径（兼容旧版本）
         downloader_cls = load_class(self.settings.get('DOWNLOADER'))
@@ -69,11 +69,12 @@ class Engine(object):
 
     def engine_start(self):
         self.running = True
-        # 获取版本号，如果获取失败则使用默认值
+        # Get version number, use default value if failed to get
         version = self.settings.get('VERSION', '1.0.0')
         if not version or version == 'None':
             version = '1.0.0'
-        self.logger.info(
+        # Change INFO level log to DEBUG level to avoid duplication with CrawlerProcess startup log
+        self.logger.debug(
             f"Crawlo Started version {version} . "
             # f"(project name : {self.settings.get('PROJECT_NAME')})"
         )
@@ -116,7 +117,7 @@ class Engine(object):
     async def crawl(self):
         """
         Crawl the spider
-        增强版本支持智能请求生成和背压控制
+        Enhanced version supports intelligent request generation and backpressure control
         """
         generation_task = None
         
@@ -158,7 +159,7 @@ class Engine(object):
             await self.close_spider()
 
     async def _traditional_request_generation(self):
-        """传统的请求生成方式（兼容旧版本）"""
+        """Traditional request generation method (compatible with older versions)"""
         while self.running:
             try:
                 start_request = next(self.start_requests)
@@ -168,19 +169,19 @@ class Engine(object):
                 self.start_requests = None
                 break
             except Exception as exp:
-                # 1、发去请求的request全部运行完毕
-                # 2、调度器是否空闲
-                # 3、下载器是否空闲
+                # 1. All requests have been processed
+                # 2. Is scheduler idle
+                # 3. Is downloader idle
                 if not await self._exit():
                     continue
                 self.running = False
                 if self.start_requests is not None:
-                    self.logger.error(f"启动请求时发生错误: {str(exp)}")
+                    self.logger.error(f"Error occurred while starting request: {str(exp)}")
             await asyncio.sleep(0.001)
 
     async def _controlled_request_generation(self):
-        """受控的请求生成（增强功能）"""
-        self.logger.info("🎛️ 启动受控请求生成")
+        """Controlled request generation (enhanced features)"""
+        self.logger.info("🎛️ Starting controlled request generation")
         
         batch = []
         total_generated = 0
@@ -205,14 +206,14 @@ class Engine(object):
                 total_generated += generated
         
         except Exception as e:
-            self.logger.error(f"❌ 请求生成失败: {e}")
+            self.logger.error(f"❌ Request generation failed: {e}")
         
         finally:
             self.start_requests = None
-            self.logger.info(f"🎉 请求生成完成，总计: {total_generated}")
+            self.logger.info(f"🎉 Request generation completed, total: {total_generated}")
 
     async def _process_generation_batch(self, batch) -> int:
-        """处理一批请求"""
+        """Process a batch of requests"""
         generated = 0
         
         for request in batch:
@@ -235,7 +236,7 @@ class Engine(object):
         return generated
 
     async def _should_pause_generation(self) -> bool:
-        """判断是否应该暂停生成"""
+        """Determine whether generation should be paused"""
         # 检查队列大小
         if await self._is_queue_full():
             return True
@@ -251,7 +252,7 @@ class Engine(object):
         return False
 
     async def _is_queue_full(self) -> bool:
-        """检查队列是否已满"""
+        """Check if queue is full"""
         if not self.scheduler:
             return False
         
@@ -259,9 +260,9 @@ class Engine(object):
         return queue_size >= self.max_queue_size * self.backpressure_ratio
 
     async def _wait_for_capacity(self):
-        """等待系统有足够容量"""
+        """Wait for system to have sufficient capacity"""
         self._generation_stats['backpressure_events'] += 1
-        self.logger.debug("⏸️ 触发背压，暂停请求生成")
+        self.logger.debug("⏸️ Backpressure triggered, pausing request generation")
         
         wait_time = 0.1
         max_wait = 2.0
@@ -330,7 +331,7 @@ class Engine(object):
         return False
 
     async def _should_exit(self) -> bool:
-        """检查是否应该退出（增强版本）"""
+        """检查是否应该退出"""
         # 没有启动请求，且所有队列都空闲
         if self.start_requests is None:
             # 使用异步的idle检查方法以获得更精确的结果

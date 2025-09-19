@@ -491,6 +491,8 @@ Crawlo支持三种运行模式：
   </tbody>
 </table>
 
+> **运行模式说明**: distributed模式为多节点分布式设计，强制使用Redis队列和去重；standalone+auto为单机智能模式，根据环境自动选择内存或Redis队列与去重策略，零配置启动。
+
 #### 运行模式选择指南
 
 ##### 1. 单机模式 (standalone)

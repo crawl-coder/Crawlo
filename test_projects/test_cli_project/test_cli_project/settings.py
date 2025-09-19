@@ -224,11 +224,9 @@ EXTENSIONS = [
 # HEALTH_CHECK_INTERVAL = 60  # 健康检查间隔（秒）
 
 # ============================== 日志配置 ==============================
-
 LOG_LEVEL = 'INFO'
-STATS_DUMP = True
-LOG_FILE = f'logs/test_cli_project.log'
-LOG_FORMAT = '%(asctime)s - [%(name)s] - %(levelname)s： %(message)s'
+LOG_FILE = 'logs/test_cli_project.log'
+LOG_FORMAT = '%(asctime)s - [%(name)s] - %(levelname)s: %(message)s'
 LOG_ENCODING = 'utf-8'
 
 # ============================== 代理配置 ==============================

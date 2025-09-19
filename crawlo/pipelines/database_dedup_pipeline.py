@@ -93,9 +93,9 @@ class DatabaseDedupPipeline:
             # 创建去重表（如果不存在）
             await self._create_dedup_table()
             
-            self.logger.info(f"数据库去重管道初始化完成: {self.db_config['host']}:{self.db_config['port']}/{self.db_config['db']}.{self.table_name}")
+            self.logger.info(f"Database deduplication pipeline initialized: {self.db_config['host']}:{self.db_config['port']}/{self.db_config['db']}.{self.table_name}")
         except Exception as e:
-            self.logger.error(f"数据库去重管道初始化失败: {e}")
+            self.logger.error(f"Database deduplication pipeline initialization failed: {e}")
             raise RuntimeError(f"数据库去重管道初始化失败: {e}")
 
     async def _create_dedup_table(self) -> None:
@@ -132,16 +132,16 @@ class DatabaseDedupPipeline:
             if exists:
                 # 如果已存在，丢弃这个数据项
                 self.dropped_count += 1
-                self.logger.debug(f"丢弃重复数据项: {fingerprint[:20]}...")
-                raise DropItem(f"重复的数据项: {fingerprint}")
+                self.logger.debug(f"Dropping duplicate item: {fingerprint[:20]}...")
+                raise DropItem(f"Duplicate item: {fingerprint}")
             else:
                 # 记录新数据项的指纹
                 await self._insert_fingerprint(fingerprint)
-                self.logger.debug(f"处理新数据项: {fingerprint[:20]}...")
+                self.logger.debug(f"Processing new item: {fingerprint[:20]}...")
                 return item
                 
         except Exception as e:
-            self.logger.error(f"处理数据项时出错: {e}")
+            self.logger.error(f"Error processing item: {e}")
             # 在错误时继续处理，避免丢失数据
             return item
 
@@ -217,7 +217,7 @@ class DatabaseDedupPipeline:
                 self.pool.close()
                 await self.pool.wait_closed()
                 
-            self.logger.info(f"爬虫 {spider.name} 关闭:")
-            self.logger.info(f"  - 丢弃的重复数据项: {self.dropped_count}")
+            self.logger.info(f"Spider {spider.name} closed:")
+            self.logger.info(f"  - Dropped duplicate items: {self.dropped_count}")
         except Exception as e:
-            self.logger.error(f"关闭爬虫时出错: {e}")
+            self.logger.error(f"Error closing spider: {e}")

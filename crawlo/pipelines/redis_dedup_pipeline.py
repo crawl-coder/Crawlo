@@ -58,10 +58,10 @@ class RedisDedupPipeline:
             )
             # 测试连接
             self.redis_client.ping()
-            # 将INFO级别日志改为DEBUG级别，避免冗余输出
-            self.logger.debug(f"Redis 连接成功: {redis_host}:{redis_port}/{redis_db}")
+            # Change INFO level log to DEBUG level to avoid redundant output
+            self.logger.debug(f"Redis connection successful: {redis_host}:{redis_port}/{redis_db}")
         except Exception as e:
-            self.logger.error(f"Redis 连接失败: {e}")
+            self.logger.error(f"Redis connection failed: {e}")
             raise RuntimeError(f"Redis 连接失败: {e}")
 
         self.redis_key = redis_key
@@ -104,19 +104,19 @@ class RedisDedupPipeline:
             if not is_new:
                 # 如果指纹已存在，丢弃这个数据项
                 self.dropped_count += 1
-                self.logger.debug(f"丢弃重复数据项: {fingerprint[:20]}...")
-                raise DropItem(f"重复的数据项: {fingerprint}")
+                self.logger.debug(f"Dropping duplicate item: {fingerprint[:20]}...")
+                raise DropItem(f"Duplicate item: {fingerprint}")
             else:
                 # 如果是新数据项，继续处理
-                self.logger.debug(f"处理新数据项: {fingerprint[:20]}...")
+                self.logger.debug(f"Processing new item: {fingerprint[:20]}...")
                 return item
                 
         except redis.RedisError as e:
-            self.logger.error(f"Redis 错误: {e}")
+            self.logger.error(f"Redis error: {e}")
             # 在 Redis 错误时继续处理，避免丢失数据
             return item
         except Exception as e:
-            self.logger.error(f"处理数据项时出错: {e}")
+            self.logger.error(f"Error processing item: {e}")
             # 在其他错误时继续处理
             return item
 
@@ -154,14 +154,14 @@ class RedisDedupPipeline:
         try:
             # 获取去重统计信息
             total_items = self.redis_client.scard(self.redis_key)
-            self.logger.info(f"爬虫 {spider.name} 关闭:")
-            self.logger.info(f"  - 丢弃的重复数据项: {self.dropped_count}")
-            self.logger.info(f"  - Redis 中存储的指纹数: {total_items}")
+            self.logger.info(f"Spider {spider.name} closed:")
+            self.logger.info(f"  - Dropped duplicate items: {self.dropped_count}")
+            self.logger.info(f"  - Fingerprints stored in Redis: {total_items}")
             
             # 注意：默认情况下不清理 Redis 中的指纹
             # 如果需要清理，可以在设置中配置
             if spider.crawler.settings.getbool('REDIS_DEDUP_CLEANUP', False):
                 deleted = self.redis_client.delete(self.redis_key)
-                self.logger.info(f"  - 清理的指纹数: {deleted}")
+                self.logger.info(f"  - Cleaned fingerprints: {deleted}")
         except Exception as e:
-            self.logger.error(f"关闭爬虫时出错: {e}")
+            self.logger.error(f"Error closing spider: {e}")

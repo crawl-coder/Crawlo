@@ -15,7 +15,7 @@ from logging import (
     CRITICAL,
 )
 
-LOG_FORMAT = '%(asctime)s - [%(name)s] - %(levelname)s： %(message)s'
+LOG_FORMAT = '%(asctime)s - [%(name)s] - %(levelname)s: %(message)s'
 
 
 class LoggerManager:

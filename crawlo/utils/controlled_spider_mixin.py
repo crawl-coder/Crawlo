@@ -89,8 +89,8 @@ class ControlledRequestMixin:
         return iter([])  # 默认返回空生成器
     
     def _controlled_request_generator(self, original_generator) -> Generator[Request, None, None]:
-        """受控的请求生成器"""
-        self.logger.info(f"🎛️ 启动受控请求生成器 (最大待处理: {self.max_pending_requests})")
+        """Controlled request generator"""
+        self.logger.info(f"🎛️ Starting controlled request generator (max pending: {self.max_pending_requests})")
         
         request_buffer = deque()
         batch_count = 0
@@ -114,11 +114,11 @@ class ControlledRequestMixin:
                 yield from self._yield_controlled_batch(request_buffer)
         
         except Exception as e:
-            self.logger.error(f"❌ 受控请求生成失败: {e}")
+            self.logger.error(f"❌ Controlled request generation failed: {e}")
             raise
         
         self.logger.info(
-            f"🎉 受控请求生成完成！"
+            f"🎉 Controlled request generation completed!"
             f"总计: {self._generation_stats['generated']}, "
             f"跳过: {self._generation_stats['skipped']}, "
             f"背压事件: {self._generation_stats['backpressure_events']}"
@@ -175,7 +175,7 @@ class ControlledRequestMixin:
         return False
     
     def _wait_for_capacity(self):
-        """等待系统有足够容量"""
+        """Wait for system to have sufficient capacity"""
         wait_time = 0.1
         max_wait = 5.0
         

@@ -36,7 +36,7 @@ class MemoryDedupPipeline:
         self.seen_items: Set[str] = set()
         self.dropped_count = 0
         
-        self.logger.info("内存去重管道初始化完成")
+        self.logger.info("Memory deduplication pipeline initialized")
 
     @classmethod
     def from_crawler(cls, crawler):
@@ -63,16 +63,16 @@ class MemoryDedupPipeline:
             if fingerprint in self.seen_items:
                 # 如果已存在，丢弃这个数据项
                 self.dropped_count += 1
-                self.logger.debug(f"丢弃重复数据项: {fingerprint[:20]}...")
+                self.logger.debug(f"Dropping duplicate item: {fingerprint[:20]}...")
                 raise DropItem(f"重复的数据项: {fingerprint}")
             else:
                 # 记录新数据项的指纹
                 self.seen_items.add(fingerprint)
-                self.logger.debug(f"处理新数据项: {fingerprint[:20]}...")
+                self.logger.debug(f"Processing new item: {fingerprint[:20]}...")
                 return item
                 
         except Exception as e:
-            self.logger.error(f"处理数据项时出错: {e}")
+            self.logger.error(f"Error processing item: {e}")
             # 在错误时继续处理，避免丢失数据
             return item
 
@@ -107,9 +107,9 @@ class MemoryDedupPipeline:
         
         :param spider: 爬虫实例
         """
-        self.logger.info(f"爬虫 {spider.name} 关闭:")
-        self.logger.info(f"  - 丢弃的重复数据项: {self.dropped_count}")
-        self.logger.info(f"  - 内存中存储的指纹数: {len(self.seen_items)}")
+        self.logger.info(f"Spider {spider.name} closed:")
+        self.logger.info(f"  - Dropped duplicate items: {self.dropped_count}")
+        self.logger.info(f"  - Fingerprints stored in memory: {len(self.seen_items)}")
         
         # 清理内存
         self.seen_items.clear()

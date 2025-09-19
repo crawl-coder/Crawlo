@@ -279,14 +279,14 @@ class RedisPriorityQueue:
         return f"{self.module_name}:url:{hash(request.url) & 0x7FFFFFFF}"  # 确保正数
 
     async def qsize(self) -> int:
-        """获取队列大小"""
+        """Get queue size"""
         try:
             await self._ensure_connection()
             return await self._redis.zcard(self.queue_name)
         except Exception as e:
             error_handler.handle_error(
                 e, 
-                context=f"获取队列大小失败 (Module: {self.module_name})", 
+                context=f"Failed to get queue size (Module: {self.module_name})", 
                 raise_error=False
             )
             return 0
