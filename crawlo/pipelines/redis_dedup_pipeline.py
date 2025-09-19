@@ -58,7 +58,8 @@ class RedisDedupPipeline:
             )
             # 测试连接
             self.redis_client.ping()
-            self.logger.info(f"Redis 连接成功: {redis_host}:{redis_port}/{redis_db}")
+            # 将INFO级别日志改为DEBUG级别，避免冗余输出
+            self.logger.debug(f"Redis 连接成功: {redis_host}:{redis_port}/{redis_db}")
         except Exception as e:
             self.logger.error(f"Redis 连接失败: {e}")
             raise RuntimeError(f"Redis 连接失败: {e}")

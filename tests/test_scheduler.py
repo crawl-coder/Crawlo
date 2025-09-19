@@ -32,9 +32,16 @@ class MockSettings:
             'SCHEDULER_QUEUE_NAME': 'test:crawlo:requests',
             'FILTER_DEBUG': False,
             'PROJECT_NAME': 'test',
+            'QUEUE_TYPE': 'memory',
+            'DEFAULT_DEDUP_PIPELINE': 'crawlo.pipelines.memory_dedup_pipeline.MemoryDedupPipeline',
         }
         if self.use_redis:
-            config['REDIS_URL'] = 'redis://localhost:6379/0'
+            config.update({
+                'REDIS_URL': 'redis://localhost:6379/0',
+                'QUEUE_TYPE': 'redis',
+                'FILTER_CLASS': 'crawlo.filters.aioredis_filter.AioRedisFilter',
+                'DEFAULT_DEDUP_PIPELINE': 'crawlo.pipelines.redis_dedup_pipeline.RedisDedupPipeline',
+            })
         
         return config.get(key, default)
     
@@ -49,6 +56,10 @@ class MockSettings:
         if isinstance(value, str):
             return value.lower() in ('true', '1', 'yes')
         return bool(value) if value is not None else default
+
+    def get_float(self, key, default=0.0):
+        value = self.get(key, default)
+        return float(value) if value is not None else default
 
 
 class MockFilter:
@@ -80,7 +91,7 @@ async def test_memory_scheduler():
     # 模拟去重过滤器
     scheduler.dupe_filter = MockFilter()
     
-    scheduler.open()
+    await scheduler.open()
     
     # 测试入队
     request1 = Request(url="https://example1.com")
@@ -114,7 +125,7 @@ async def test_redis_scheduler():
         # 模拟去重过滤器
         scheduler.dupe_filter = MockFilter()
         
-        scheduler.open()
+        await scheduler.open()
         
         # 测试入队
         request1 = Request(url="https://redis-test1.com", priority=5)
@@ -183,7 +194,7 @@ async def test_concurrent_redis():
         crawler = MockCrawler(use_redis=True)
         scheduler = Scheduler.create_instance(crawler)
         scheduler.dupe_filter = MockFilter()
-        scheduler.open()
+        await scheduler.open()
         
         # 并发运行生产者和消费者
         tasks = [

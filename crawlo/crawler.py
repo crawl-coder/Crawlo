@@ -155,11 +155,12 @@ class Crawler:
             self.context.increment_active()
             
             # 阶段 1: 初始化组件
+            # 调整组件初始化顺序，确保日志输出顺序符合要求
             self.subscriber = self._create_subscriber()
             self.spider = self._create_spider()
             self.engine = self._create_engine() 
             self.stats = self._create_stats()
-            self.extension = self._create_extension()
+            # 注意：这里不初始化扩展管理器，让它在引擎中初始化
             
             # 记录初始化时间
             self._performance_metrics['initialization_time'] = time.time() - init_start
@@ -167,7 +168,10 @@ class Crawler:
             # 阶段 2: 验证状态
             self._validate_crawler_state()
             
-            # 阶段 3: 启动爬虫
+            # 阶段 3: 显示运行配置摘要
+            self._log_runtime_summary()
+            
+            # 阶段 4: 启动爬虫
             crawl_start = time.time()
             await self.engine.start_spider(self.spider)
             
@@ -189,6 +193,17 @@ class Crawler:
             self.context.decrement_active()
             # 确保资源清理
             await self._ensure_cleanup()
+
+    def _log_runtime_summary(self):
+        """记录运行时配置摘要"""
+        # 获取爬虫名称
+        spider_name = getattr(self.spider, 'name', 'Unknown')
+        
+        # 显示简化的运行时信息，避免与项目初始化重复
+        logger.info(f"🕷️  开始运行爬虫: {spider_name}")
+        
+        # 注意：并发数和下载延迟信息已在其他地方显示，避免重复
+        # 如果需要显示其他运行时特定信息，可以在这里添加
 
     def _validate_crawler_state(self):
         """
@@ -300,6 +315,7 @@ class Crawler:
 
     def _create_extension(self) -> ExtensionManager:
         """创建扩展管理器"""
+        # 修改扩展管理器的创建方式，延迟初始化直到需要时
         extension = ExtensionManager.create_instance(self)
         logger.debug(f"扩展管理器初始化完成，爬虫: {getattr(self.spider, 'name', 'Unknown')}")
         return extension
@@ -956,79 +972,52 @@ class CrawlerProcess:
         
         # 构建启动信息日志
         startup_info = [
-            "🚀 Crawlo 爬虫框架启动",
-            f"  运行模式: {run_mode}"
+            "🚀 Crawlo 爬虫框架启动"
         ]
         
-        # 根据运行模式添加特定信息
+        # 获取实际的队列类型
+        queue_type = self.settings.get('QUEUE_TYPE', 'memory')
+        
+        # 根据运行模式和队列类型组合显示信息
         if run_mode == 'distributed':
+            startup_info.append("  运行模式: distributed")
             startup_info.append("  🌐 分布式模式 - 支持多节点协同工作")
-            # 检查Redis配置
+            # 显示Redis配置
             redis_host = self.settings.get('REDIS_HOST', 'localhost')
             redis_port = self.settings.get('REDIS_PORT', 6379)
             startup_info.append(f"  Redis地址: {redis_host}:{redis_port}")
-            
-            # 检查队列类型
-            queue_type = self.settings.get('QUEUE_TYPE', 'redis')
-            if queue_type != 'redis':
-                startup_info.append(f"  ⚠️  警告: 分布式模式下建议使用 'redis' 队列类型，当前为 '{queue_type}'")
-        else:
-            startup_info.append("  🏠 单机模式 - 适用于开发和小规模数据采集")
-            # 检查队列类型
-            queue_type = self.settings.get('QUEUE_TYPE', 'memory')
-            if queue_type != 'memory' and queue_type != 'auto':
-                startup_info.append(f"  ⚠️  警告: 单机模式下建议使用 'memory' 队列类型，当前为 '{queue_type}'")
+        elif run_mode == 'standalone':
+            if queue_type == 'redis':
+                startup_info.append("  运行模式: standalone+redis")
+                # startup_info.append("  🌐 分布式模式 - 支持多节点协同工作")
+                # 显示Redis配置
+                redis_host = self.settings.get('REDIS_HOST', 'localhost')
+                redis_port = self.settings.get('REDIS_PORT', 6379)
+                startup_info.append(f"  Redis地址: {redis_host}:{redis_port}")
+            elif queue_type == 'auto':
+                startup_info.append("  运行模式: standalone+auto")
+                # startup_info.append("  🤖 自动检测模式 - 智能选择最佳运行方式")
+            else:  # memory
+                startup_info.append("  运行模式: standalone")
+                # startup_info.append("  🏠 单机模式 - 适用于开发和小规模数据采集")
+        else:  # auto mode
+            if queue_type == 'redis':
+                startup_info.append("  运行模式: auto+redis")
+                # startup_info.append("  🌐 分布式模式 - 支持多节点协同工作")
+                # 显示Redis配置
+                redis_host = self.settings.get('REDIS_HOST', 'localhost')
+                redis_port = self.settings.get('REDIS_PORT', 6379)
+                startup_info.append(f"  Redis地址: {redis_host}:{redis_port}")
+            elif queue_type == 'memory':
+                startup_info.append("  运行模式: auto+memory")
+                # startup_info.append("  🏠 单机模式 - 适用于开发和小规模数据采集")
+            else:  # auto
+                startup_info.append("  运行模式: auto")
+                # startup_info.append("  🤖 自动检测模式 - 智能选择最佳运行方式")
         
-        # 检查关键配置项
-        concurrency = self.settings.get('CONCURRENCY', 8)
-        download_delay = self.settings.get('DOWNLOAD_DELAY', 1.0)
-        filter_class = self.settings.get('FILTER_CLASS', 'crawlo.filters.memory_filter.MemoryFilter')
-        
-        # 并发数检查
-        if run_mode == 'distributed':
-            if concurrency < 8:
-                startup_info.append(f"  ⚠️  警告: 分布式模式下建议并发数 >= 8，当前为 {concurrency}")
-        else:
-            if concurrency > 16:
-                startup_info.append(f"  ⚠️  警告: 单机模式下建议并发数 <= 16，当前为 {concurrency}")
-        
-        # 下载延迟检查
-        if download_delay < 0.1:
-            startup_info.append(f"  ⚠️  警告: 下载延迟过小({download_delay}s)可能导致被封IP")
-        elif download_delay > 10:
-            startup_info.append(f"  ⚠️  警告: 下载延迟过大({download_delay}s)可能影响效率")
-        
-        startup_info.extend([
-            f"  并发数: {concurrency}",
-            f"  下载延迟: {download_delay}秒",
-            f"  过滤器类: {filter_class}"
-        ])
-        
-        # 检查去重管道配置
-        default_dedup_pipeline = self.settings.get('DEFAULT_DEDUP_PIPELINE', '')
-        pipelines = self.settings.get('PIPELINES', [])
-        
-        if default_dedup_pipeline:
-            startup_info.append(f"  默认去重管道: {default_dedup_pipeline}")
-        
-        # 检查去重管道是否在PIPELINES列表中
-        if default_dedup_pipeline and default_dedup_pipeline not in pipelines:
-            startup_info.append(f"  ⚠️  警告: 默认去重管道 '{default_dedup_pipeline}' 未添加到 PIPELINES 列表中")
-        
-        # 检查下载器配置
-        downloader = self.settings.get('DOWNLOADER', 'crawlo.downloader.aiohttp_downloader.AioHttpDownloader')
-        # startup_info.append(f"  下载器: {downloader}")
-        
-        # 检查中间件配置
-        middlewares = self.settings.get('MIDDLEWARES', [])
-        # startup_info.append(f"  中间件数量: {len(middlewares)}")
-        
-        # 检查扩展组件配置
-        extensions = self.settings.get('EXTENSIONS', [])
-        # startup_info.append(f"  扩展组件数量: {len(extensions)}")
-        
-        # 输出启动信息
-        logger.info("\n".join(startup_info))
+        # 打印启动信息
+        for info in startup_info:
+            logger.info(info)
 
 
 # === 工具函数 ===

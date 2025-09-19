@@ -297,7 +297,7 @@ class RedisPriorityQueue:
             # 连接池会自动管理连接，这里不需要显式关闭单个连接
             self._redis = None
             self._redis_pool = None
-            logger.info(f"✅ Redis 连接已释放 (Module: {self.module_name})")
+            logger.debug(f"✅ Redis 连接已释放 (Module: {self.module_name})")
         except Exception as e:
             error_handler.handle_error(
                 e, 

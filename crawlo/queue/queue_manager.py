@@ -264,13 +264,14 @@ class QueueManager:
                     test_queue = RedisPriorityQueue(self.config.redis_url)
                     await test_queue.connect()
                     await test_queue.close()
-                    self.logger.info("🔍 自动检测: Redis 可用，使用分布式队列")
+                    # 将INFO级别日志改为DEBUG级别，避免冗余输出
+                    self.logger.debug("🔍 自动检测: Redis 可用，使用分布式队列")
                     return QueueType.REDIS
                 except Exception as e:
-                    self.logger.warning(f"🔍 自动检测: Redis 不可用 ({e})，使用内存队列")
+                    self.logger.debug(f"🔍 自动检测: Redis 不可用 ({e})，使用内存队列")
                     return QueueType.MEMORY
             else:
-                self.logger.info("🔍 自动检测: Redis 未配置，使用内存队列")
+                self.logger.debug("🔍 自动检测: Redis 未配置，使用内存队列")
                 return QueueType.MEMORY
         
         elif self.config.queue_type == QueueType.REDIS:

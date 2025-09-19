@@ -177,7 +177,8 @@ def get_settings(custom_settings: Optional[dict] = None) -> SettingManager:
     Returns:
         SettingManager: 已加载配置的实例
     """
-    logger.info("🚀 正在初始化 Crawlo 项目配置...")
+    # 将INFO级别日志改为DEBUG级别，避免冗余输出
+    logger.debug("🚀 正在初始化 Crawlo 项目配置...")
 
     # 1. 查找项目根
     project_root = _find_project_root()
@@ -217,8 +218,42 @@ def get_settings(custom_settings: Optional[dict] = None) -> SettingManager:
         settings.update_attributes(custom_settings)
         logger.debug(f"🔧 已应用运行时自定义配置: {list(custom_settings.keys())}")
 
-    logger.info("🎉 Crawlo 项目配置初始化完成！")
+    # 6. 显示核心配置摘要（INFO级别）
+    # _log_settings_summary(settings)
+
+    # 将项目初始化完成的消息改为DEBUG级别
+    logger.debug("🎉 Crawlo 项目配置初始化完成！")
     return settings
+
+
+def _log_settings_summary(settings: SettingManager):
+    """记录配置摘要信息"""
+    mode_info = {
+        'memory': '🏠 单机模式',
+        'redis': '🌐 分布式模式', 
+        'auto': '🤖 自动检测模式'
+    }
+    
+    queue_type = settings.get('QUEUE_TYPE', 'memory')
+    
+    logger.info(f"运行模式: {queue_type}")
+    logger.info(f"  {mode_info.get(queue_type, queue_type)}")
+    
+    # 在auto模式下，只显示最基本的配置信息，因为详细配置会在调度器初始化时更新
+    if queue_type != 'auto':
+        concurrency = settings.get('CONCURRENCY', 8)
+        logger.info(f"  并发数: {concurrency}")
+        delay = settings.get('DOWNLOAD_DELAY', 1.0)
+        logger.info(f"  下载延迟: {delay}秒")
+        
+        if queue_type == 'redis':
+            redis_host = settings.get('REDIS_HOST', 'localhost')
+            redis_port = settings.get('REDIS_PORT', 6379)
+            logger.info(f"  Redis地址: {redis_host}:{redis_port}")
+            
+        logger.info(f"  过滤器类: {settings.get('FILTER_CLASS')}")
+        logger.info(f"  默认去重管道: {settings.get('DEFAULT_DEDUP_PIPELINE')}")
+    # 对于auto模式，我们不显示详细配置信息，因为它们会在调度器初始化时更新
 
 
 def load_class(_path):

@@ -42,6 +42,7 @@ class PipelineManager:
                 # 可以选择继续加载其他管道或抛出异常
                 raise
         if pipelines:
+            # 恢复INFO级别日志，保留关键的启用信息
             self.logger.info(f"enabled pipelines: \n {pformat(pipelines)}")
 
     def _add_methods(self):

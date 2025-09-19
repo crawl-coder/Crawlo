@@ -69,9 +69,13 @@ class Engine(object):
 
     def engine_start(self):
         self.running = True
+        # 获取版本号，如果获取失败则使用默认值
+        version = self.settings.get('VERSION', '1.0.0')
+        if not version or version == 'None':
+            version = '1.0.0'
         self.logger.info(
-            f"Crawlo (version {self.settings.get('VERSION')}) started. "
-            f"(project name : {self.settings.get('PROJECT_NAME')})"
+            f"Crawlo Started version {version} . "
+            # f"(project name : {self.settings.get('PROJECT_NAME')})"
         )
 
     async def start_spider(self, spider):
@@ -100,6 +104,11 @@ class Engine(object):
             else:
                 # Processor.open() 是同步方法
                 self.processor.open()
+
+        # 在处理器初始化之后初始化扩展管理器，确保日志输出顺序正确
+        # 中间件 -> 管道 -> 扩展
+        if not hasattr(self.crawler, 'extension') or not self.crawler.extension:
+            self.crawler.extension = self.crawler._create_extension()
 
         self.start_requests = iter(spider.start_requests())
         await self._open_spider()

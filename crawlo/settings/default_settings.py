@@ -5,12 +5,16 @@
 """
 
 # 添加环境变量配置工具导入
-from crawlo.utils.env_config import get_redis_config, get_runtime_config
+from crawlo.utils.env_config import get_redis_config, get_runtime_config, get_version
+import os
 
 # ============================== 项目基础配置 ==============================
 
 # 项目名称（用于日志、Redis Key 等标识）
 PROJECT_NAME = get_runtime_config()['PROJECT_NAME']
+
+# 项目版本号 - 从框架的__version__.py文件中读取，如果不存在则使用默认值
+VERSION = get_version()
 
 # 运行模式：standalone/distributed/auto
 RUN_MODE = get_runtime_config()['CRAWLO_MODE']

@@ -6,21 +6,15 @@
 # @Desc    : 命令行入口：crawlo -h|--help，显示帮助信息。
 """
 import sys
-import os
 from rich.console import Console
 from rich.table import Table
 from rich.panel import Panel
 from rich.text import Text
 from rich import box
+from crawlo.utils.env_config import get_version
 
 # 获取框架版本号
-version_file = os.path.join(os.path.dirname(__file__), '..', '__version__.py')
-if os.path.exists(version_file):
-    with open(version_file, 'r') as f:
-        exec(f.read())
-    VERSION = locals().get('__version__', '1.0.0')
-else:
-    VERSION = '1.0.0'
+VERSION = get_version()
 
 console = Console()
 

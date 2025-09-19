@@ -101,6 +101,7 @@ class MiddlewareManager:
     def _add_middleware(self, middlewares):
         enabled_middlewares = [m for m in middlewares if self._validate_middleware(m)]
         if enabled_middlewares:
+            # 恢复INFO级别日志，保留关键的启用信息
             self.logger.info(f'enabled middleware：\n {pformat(enabled_middlewares)}')
 
     def _validate_middleware(self, middleware):

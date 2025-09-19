@@ -37,7 +37,7 @@ class Scheduler:
 
     async def open(self):
         """初始化调度器和队列"""
-        self.logger.info("开始初始化调度器...")
+        self.logger.debug("开始初始化调度器...")
         try:
             # 创建队列配置
             queue_config = QueueConfig.from_settings(self.crawler.settings)
@@ -46,37 +46,32 @@ class Scheduler:
             self.queue_manager = QueueManager(queue_config)
             
             # 初始化队列
-            self.logger.info("开始初始化队列管理器...")
             needs_config_update = await self.queue_manager.initialize()
             
-            self.logger.info(f"队列初始化完成，needs_config_update: {needs_config_update}")
-            self.logger.info(f"当前队列类型: {self.queue_manager._queue_type}")
-            
             # 检查是否需要更新过滤器配置
+            updated_configs = []
             if needs_config_update:
                 # 如果返回True，说明队列类型发生了变化，需要检查当前队列类型来决定更新方向
-                self.logger.info("需要更新配置...")
                 if self.queue_manager._queue_type == QueueType.REDIS:
-                    self.logger.info("更新为Redis配置...")
                     self._update_filter_config_for_redis()
+                    updated_configs.append("Redis")
                 else:
-                    self.logger.info("更新为内存配置...")
                     self._update_filter_config_if_needed()
+                    updated_configs.append("内存")
             else:
                 # 检查是否需要更新配置（即使队列管理器没有要求更新）
-                self.logger.debug("检查是否需要更新配置...")
                 if self.queue_manager._queue_type == QueueType.REDIS:
                     # 检查当前过滤器是否为内存过滤器
                     current_filter_class = self.crawler.settings.get('FILTER_CLASS', '')
                     if 'memory_filter' in current_filter_class:
-                        self.logger.info("检测到需要更新为Redis配置...")
                         self._update_filter_config_for_redis()
+                        updated_configs.append("Redis")
                 elif self.queue_manager._queue_type == QueueType.MEMORY:
                     # 检查当前过滤器是否为Redis过滤器
                     current_filter_class = self.crawler.settings.get('FILTER_CLASS', '')
                     if 'aioredis_filter' in current_filter_class or 'redis_filter' in current_filter_class:
-                        self.logger.info("检测到需要更新为内存配置...")
                         self._update_filter_config_if_needed()
+                        updated_configs.append("内存")
             
             # 只有在确实需要更新配置时才重新创建过滤器实例
             # 检查是否真的进行了配置更新
@@ -87,22 +82,27 @@ class Scheduler:
             
             if needs_config_update or filter_updated:
                 # 重新创建过滤器实例，确保使用更新后的配置
-                self.logger.debug("重新创建过滤器实例...")
                 filter_cls = load_class(self.crawler.settings.get('FILTER_CLASS'))
                 self.dupe_filter = filter_cls.create_instance(self.crawler)
-                self.logger.info(f"✅ 过滤器实例已更新为: {type(self.dupe_filter).__name__}")
-            else:
-                self.logger.debug("过滤器配置无需更新，跳过重新创建")
+                
+                # 如果配置被更新，记录警告信息
+                if filter_updated:
+                    original_mode = "分布式" if 'memory_filter' in self.crawler.settings.get('FILTER_CLASS', '') else "单机"
+                    new_mode = "单机" if self.queue_manager._queue_type == QueueType.MEMORY else "分布式"
+                    self.logger.warning(f"⚠️ 检测到运行模式不一致，已从{original_mode}模式自动切换到{new_mode}模式")
             
-            # 输出队列状态和配置信息
+            # 输出关键的调度器初始化完成信息
             status = self.queue_manager.get_status()
             current_filter = self.crawler.settings.get('FILTER_CLASS')
-            current_dedup_pipeline = self.crawler.settings.get('DEFAULT_DEDUP_PIPELINE')
             
-            self.logger.info(f'队列类型: {status["type"]}, 状态: {status["health"]}')
-            self.logger.info(f'当前过滤器: {type(self.dupe_filter).__name__} ({current_filter})')
-            self.logger.info(f'当前去重管道: {current_dedup_pipeline}')
-            self.logger.info("调度器初始化完成")
+            # 优化日志输出，将多条日志合并为1条关键信息
+            # 显示完整路径的过滤器类名
+            if self.crawler.settings.get('QUEUE_TYPE', 'memory') == 'auto' and updated_configs:
+                concurrency = self.crawler.settings.get('CONCURRENCY', 8)
+                delay = self.crawler.settings.get('DOWNLOAD_DELAY', 1.0)
+                self.logger.info(f"✅ 调度器初始化完成 [队列类型: {status['type']}, 状态: {status['health']}, 并发数: {concurrency}, 延迟: {delay}s, 过滤器: {current_filter}]")
+            else:
+                self.logger.info(f"✅ 调度器初始化完成 [队列类型: {status['type']}, 状态: {status['health']}, 过滤器: {current_filter}]")
         except Exception as e:
             self.logger.error(f"❌ 调度器初始化失败: {e}")
             self.logger.debug(f"详细错误信息:\n{traceback.format_exc()}")
@@ -113,10 +113,12 @@ class Scheduler:
         if self.queue_manager and self.queue_manager._queue_type == QueueType.MEMORY:
             # 检查当前过滤器是否为Redis过滤器
             current_filter_class = self.crawler.settings.get('FILTER_CLASS', '')
+            updated_configs = []
+            
             if 'aioredis_filter' in current_filter_class or 'redis_filter' in current_filter_class:
                 # 更新为内存过滤器
                 self.crawler.settings.set('FILTER_CLASS', 'crawlo.filters.memory_filter.MemoryFilter')
-                self.logger.info("✅ 已更新过滤器配置为内存模式")
+                updated_configs.append("过滤器")
             
             # 检查当前去重管道是否为Redis去重管道
             current_dedup_pipeline = self.crawler.settings.get('DEFAULT_DEDUP_PIPELINE', '')
@@ -130,17 +132,23 @@ class Scheduler:
                     index = pipelines.index(current_dedup_pipeline)
                     pipelines[index] = 'crawlo.pipelines.memory_dedup_pipeline.MemoryDedupPipeline'
                     self.crawler.settings.set('PIPELINES', pipelines)
-                self.logger.info("✅ 已更新去重管道配置为内存模式")
-    
+                updated_configs.append("去重管道")
+            
+            # 合并日志输出
+            if updated_configs:
+                self.logger.info(f"✅ 已更新{', '.join(updated_configs)}配置为内存模式")
+
     def _update_filter_config_for_redis(self):
         """如果队列类型是Redis，则更新过滤器配置为Redis实现"""
         if self.queue_manager and self.queue_manager._queue_type == QueueType.REDIS:
             # 检查当前过滤器是否为内存过滤器
             current_filter_class = self.crawler.settings.get('FILTER_CLASS', '')
+            updated_configs = []
+            
             if 'memory_filter' in current_filter_class:
                 # 更新为Redis过滤器
                 self.crawler.settings.set('FILTER_CLASS', 'crawlo.filters.aioredis_filter.AioRedisFilter')
-                self.logger.info("✅ 已更新过滤器配置为Redis模式")
+                updated_configs.append("过滤器")
             
             # 检查当前去重管道是否为内存去重管道
             current_dedup_pipeline = self.crawler.settings.get('DEFAULT_DEDUP_PIPELINE', '')
@@ -154,7 +162,11 @@ class Scheduler:
                     index = pipelines.index(current_dedup_pipeline)
                     pipelines[index] = 'crawlo.pipelines.redis_dedup_pipeline.RedisDedupPipeline'
                     self.crawler.settings.set('PIPELINES', pipelines)
-                self.logger.info("✅ 已更新去重管道配置为Redis模式")
+                updated_configs.append("去重管道")
+            
+            # 合并日志输出
+            if updated_configs:
+                self.logger.info(f"✅ 已更新{', '.join(updated_configs)}配置为Redis模式")
 
     async def next_request(self):
         """获取下一个请求"""

@@ -35,4 +35,5 @@ class ExtensionManager(object):
                 raise ExtensionInitError(f"Failed to load extension '{extension_path}': {e}")
         
         if extensions:
+            # 恢复INFO级别日志，保留关键的启用信息
             self.logger.info(f"Enabled extensions: \n{pformat(extensions)}")

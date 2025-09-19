@@ -28,7 +28,7 @@ else:
     REDIS_URL = f'redis://{REDIS_HOST}:{REDIS_PORT}/{REDIS_DB}'
 
 # ============================== 并发配置 ==============================
-CONCURRENCY = 4
+CONCURRENCY = 24
 MAX_RUNNING_SPIDERS = 1
 DOWNLOAD_DELAY = 1.0
 

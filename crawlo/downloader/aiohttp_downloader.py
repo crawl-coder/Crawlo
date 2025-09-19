@@ -35,6 +35,7 @@ class AioHttpDownloader(DownloaderBase):
 
     def open(self):
         super().open()
+        # 恢复关键的下载器启动信息为INFO级别
         self.logger.info("Opening AioHttpDownloader")
 
         # 读取配置
@@ -70,6 +71,11 @@ class AioHttpDownloader(DownloaderBase):
             trace_configs=[trace_config],
             auto_decompress=True,
         )
+
+        # 输出下载器配置摘要
+        spider_name = getattr(self.crawler.spider, 'name', 'Unknown')
+        concurrency = self.crawler.settings.get('CONCURRENCY', 4)
+        self.logger.info(f"{spider_name}(name='{spider_name}') <下载器类：{self.__class__.__name__}> <并发数：{concurrency}>")
 
         self.logger.debug("AioHttpDownloader initialized.")
 
@@ -216,6 +222,7 @@ class AioHttpDownloader(DownloaderBase):
     async def close(self) -> None:
         """关闭会话资源"""
         if self.session and not self.session.closed:
+            # 恢复关键的下载器关闭信息为INFO级别
             self.logger.info("Closing AioHttpDownloader session...")
             await self.session.close()
         self.logger.debug("AioHttpDownloader closed.")
