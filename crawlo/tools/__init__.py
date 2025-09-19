@@ -22,10 +22,8 @@ from .date_tools import (
 )
 
 # 数据清洗工具封装
-from ..cleaners import (
+from .text_cleaner import (
     TextCleaner,
-    DataFormatter,
-    EncodingConverter,
     remove_html_tags,
     decode_html_entities,
     remove_extra_whitespace,
@@ -34,13 +32,21 @@ from ..cleaners import (
     clean_text,
     extract_numbers,
     extract_emails,
-    extract_urls,
+    extract_urls
+)
+
+from .data_formatter import (
+    DataFormatter,
     format_number,
     format_currency,
     format_percentage,
     format_phone_number,
     format_chinese_id_card,
-    capitalize_words,
+    capitalize_words
+)
+
+from .encoding_converter import (
+    EncodingConverter,
     detect_encoding,
     to_utf8,
     convert_encoding
@@ -56,6 +62,13 @@ from .data_validator import (
     validate_date,
     validate_number_range,
     check_data_integrity
+)
+
+# 请求处理工具
+from .request_tools import (
+    build_url,
+    add_query_params,
+    merge_headers
 )
 
 # 重试机制封装
@@ -146,6 +159,11 @@ __all__ = [
     "validate_date",
     "validate_number_range",
     "check_data_integrity",
+    
+    # 请求处理工具
+    "build_url",
+    "add_query_params",
+    "merge_headers",
     
     # 重试机制封装
     "RetryMechanism",

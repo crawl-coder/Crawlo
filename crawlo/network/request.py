@@ -5,13 +5,14 @@ HTTP Request 封装模块
 ====================
 提供功能完善的HTTP请求封装，支持:
 - JSON/表单数据自动处理
+- GET请求参数处理
 - 优先级排序机制
 - 安全的深拷贝操作
 - 灵活的请求配置
 """
 import json
 from copy import deepcopy
-from urllib.parse import urlencode
+from urllib.parse import urlencode, urlparse, urlunparse, parse_qsl
 from w3lib.url import safe_url_string
 from typing import Dict, Optional, Callable, Union, Any, TypeVar, List
 
@@ -52,7 +53,7 @@ class RequestPriority:
 class Request:
     """
     封装一个 HTTP 请求对象，用于爬虫框架中表示一个待抓取的请求任务。
-    支持 JSON、表单、原始 body 提交，自动处理 Content-Type 与编码。
+    支持 JSON、表单、GET参数、原始 body 提交，自动处理 Content-Type 与编码。
     不支持文件上传（multipart/form-data），保持轻量。
     """
 
@@ -77,6 +78,7 @@ class Request:
         'flags',
         '_json_body',
         '_form_data',
+        '_params',
         'use_dynamic_loader',
         'dynamic_loader_options'
     )
@@ -88,8 +90,9 @@ class Request:
         method: Optional[str] = 'GET',
         headers: Optional[Dict[str, str]] = None,
         body: Optional[Union[bytes, str, Dict[Any, Any]]] = None,
-        form_data: Optional[Dict[Any, Any]] = None,
-        json_body: Optional[Dict[Any, Any]] = None,
+        form_data: Optional[Dict[str, Any]] = None,
+        json_body: Optional[Dict[str, Any]] = None,
+        params: Optional[Dict[str, Any]] = None,
         cb_kwargs: Optional[Dict[str, Any]] = None,
         cookies: Optional[Dict[str, str]] = None,
         meta: Optional[Dict[str, Any]] = None,
@@ -114,8 +117,9 @@ class Request:
         :param method: HTTP 方法，默认 GET
         :param headers: 请求头
         :param body: 原始请求体（bytes/str），若为 dict 且未使用 json_body/form_data，则自动转为 JSON
-        :param form_data: 表单数据，自动转为 application/x-www-form-urlencoded
+        :param form_data: 表单数据，POST请求时自动转为 application/x-www-form-urlencoded
         :param json_body: JSON 数据，自动序列化并设置 Content-Type
+        :param params: GET请求参数，会自动附加到URL上
         :param cb_kwargs: 传递给 callback 的额外参数
         :param cookies: Cookies 字典
         :param meta: 元数据（跨中间件传递数据）
@@ -150,10 +154,18 @@ class Request:
         # 保存高层语义参数（用于 copy）
         self._json_body = json_body
         self._form_data = form_data
+        self._params = params
         
         # 动态加载相关属性
         self.use_dynamic_loader = use_dynamic_loader
         self.dynamic_loader_options = dynamic_loader_options or {}
+
+        # 处理GET参数
+        if params is not None and self.method == 'GET':
+            # 将GET参数附加到URL上
+            self._url = self._add_params_to_url(url, params)
+        else:
+            self._url = url
 
         # 构建 body
         if json_body is not None:
@@ -165,11 +177,14 @@ class Request:
 
         elif form_data is not None:
             if self.method == 'GET':
-                self.method = 'POST'
-            if 'Content-Type' not in self.headers:
-                self.headers['Content-Type'] = 'application/x-www-form-urlencoded'
-            query_str = urlencode(form_data)
-            self.body = query_str.encode(encoding)  # ✅ 显式编码为 bytes
+                # 对于GET请求，将form_data作为GET参数处理
+                self._url = self._add_params_to_url(self._url, form_data)
+            else:
+                # 对于POST等请求，将form_data作为请求体处理
+                if 'Content-Type' not in self.headers:
+                    self.headers['Content-Type'] = 'application/x-www-form-urlencoded'
+                query_str = urlencode(form_data)
+                self.body = query_str.encode(encoding)  # ✅ 显式编码为 bytes
 
 
         else:
@@ -182,7 +197,32 @@ class Request:
                 self.body = self.body.encode(encoding)
 
         self.dont_filter = dont_filter
-        self._set_url(url)
+        self._set_url(self._url)
+
+    @staticmethod
+    def _add_params_to_url(url: str, params: Dict[str, Any]) -> str:
+        """将参数添加到URL中"""
+        if not params:
+            return url
+            
+        # 解析URL
+        parsed = urlparse(url)
+        # 解析现有查询参数
+        query_params = parse_qsl(parsed.query, keep_blank_values=True)
+        # 添加新参数
+        for key, value in params.items():
+            query_params.append((str(key), str(value)))
+        # 重新构建查询字符串
+        new_query = urlencode(query_params)
+        # 构建新的URL
+        return urlunparse((
+            parsed.scheme,
+            parsed.netloc,
+            parsed.path,
+            parsed.params,
+            new_query,
+            parsed.fragment
+        ))
 
     @staticmethod
     def _safe_deepcopy_meta(meta: Dict[str, Any]) -> Dict[str, Any]:
@@ -215,16 +255,17 @@ class Request:
 
     def copy(self: _Request) -> _Request:
         """
-        创建当前请求的副本，保留所有高层语义（json_body/form_data）。
+        创建当前请求的副本，保留所有高层语义（json_body/form_data/params）。
         """
         return type(self)(
             url=self.url,
             callback=self.callback,
             method=self.method,
             headers=self.headers.copy(),
-            body=None,  # 由 form_data/json_body 重新生成
+            body=None,  # 由 form_data/json_body/params 重新生成
             form_data=self._form_data,
             json_body=self._json_body,
+            params=self._params,
             cb_kwargs=deepcopy(self.cb_kwargs),
             err_back=self.err_back,
             cookies=self.cookies.copy(),

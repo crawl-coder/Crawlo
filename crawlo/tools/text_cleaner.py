@@ -5,10 +5,10 @@
 # @Author  : crawl-coder
 # @Desc    : 文本清洗工具
 """
-import re
 import html
-from typing import Optional, Union, List
+import re
 import unicodedata
+from typing import List
 
 
 class TextCleaner:

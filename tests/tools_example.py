@@ -3,6 +3,7 @@
 """
 Crawlo框架工具包使用示例
 """
+import asyncio
 from crawlo.tools import (
     # 日期工具
     parse_time,
@@ -182,7 +183,7 @@ def demo_authenticated_proxy_tools():
     print()
 
 
-def demo_distributed_coordinator_tools():
+async def demo_distributed_coordinator_tools():
     """演示分布式协调工具的使用"""
     print("=== 分布式协调工具演示 ===\n")
     
@@ -193,7 +194,7 @@ def demo_distributed_coordinator_tools():
     print(f"生成任务ID: URL={url}, Spider={spider_name} -> {task_id}")
     
     # 获取集群信息
-    cluster_info = get_cluster_info()
+    cluster_info = await get_cluster_info()
     print(f"集群信息: {cluster_info}")
     
     print()
@@ -207,7 +208,9 @@ if __name__ == '__main__':
     demo_request_handling_tools()
     demo_anti_crawler_tools()
     demo_authenticated_proxy_tools()
-    demo_distributed_coordinator_tools()
+    
+    # 运行异步演示
+    asyncio.run(demo_distributed_coordinator_tools())
     
     print("=== 在爬虫中使用工具包 ===\n")
     print("在爬虫项目中，您可以这样使用工具包:")

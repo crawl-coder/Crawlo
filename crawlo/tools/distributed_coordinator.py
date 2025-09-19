@@ -18,8 +18,8 @@ class TaskDistributor:
     """任务分发工具类"""
 
     @staticmethod
-    def generate_pagination_tasks(base_url: str, start_page: int = 1, 
-                                end_page: int = 100, page_param: str = "page") -> List[str]:
+    def generate_pagination_tasks(base_url: str, start_page: int = 1,
+                                  end_page: int = 100, page_param: str = "page") -> List[str]:
         """
         生成分页任务URL列表
         
@@ -35,13 +35,13 @@ class TaskDistributor:
         tasks = []
         parsed = urlparse(base_url)
         query_dict = dict([q.split('=') for q in parsed.query.split('&') if q]) if parsed.query else {}
-        
+
         for page in range(start_page, end_page + 1):
             query_dict[page_param] = str(page)
             query_string = '&'.join([f"{k}={v}" for k, v in query_dict.items()])
             new_parsed = parsed._replace(query=query_string)
             tasks.append(urllib.parse.urlunparse(new_parsed))
-            
+
         return tasks
 
     @staticmethod
@@ -58,28 +58,28 @@ class TaskDistributor:
         """
         if num_workers <= 0:
             raise ValueError("工作节点数量必须大于0")
-            
+
         if not tasks:
             return [[] for _ in range(num_workers)]
-            
+
         # 计算每个工作节点应分配的任务数量
         tasks_per_worker = len(tasks) // num_workers
         remaining_tasks = len(tasks) % num_workers
-        
+
         distributed_tasks = []
         task_index = 0
-        
+
         for i in range(num_workers):
             # 分配基础任务数量
             worker_tasks_count = tasks_per_worker
             # 分配剩余任务
             if i < remaining_tasks:
                 worker_tasks_count += 1
-                
+
             worker_tasks = tasks[task_index:task_index + worker_tasks_count]
             distributed_tasks.append(worker_tasks)
             task_index += worker_tasks_count
-            
+
         return distributed_tasks
 
 
@@ -90,7 +90,8 @@ class DeduplicationTool:
         self.memory_set: Set[str] = set()
         self.bloom_filter = None  # 在实际应用中可以集成布隆过滤器
 
-    def generate_fingerprint(self, data: Any) -> str:
+    @staticmethod
+    def generate_fingerprint(data: Any) -> str:
         """
         生成数据指纹
         
@@ -105,7 +106,7 @@ class DeduplicationTool:
             data_str = str(sorted(data.items()))
         else:
             data_str = str(data)
-            
+
         return hashlib.md5(data_str.encode('utf-8')).hexdigest()
 
     def is_duplicate(self, data: Any) -> bool:
@@ -193,8 +194,8 @@ class DistributedCoordinator:
         unique_string = f"{url}_{spider_name}_{int(time.time() * 1000)}"
         return hashlib.md5(unique_string.encode('utf-8')).hexdigest()
 
-    async def claim_task(self, task_id: str, worker_id: str, 
-                        timeout: int = 300) -> Tuple[bool, Optional[str]]:
+    async def claim_task(self, task_id: str, worker_id: str,
+                         timeout: int = 300) -> Tuple[bool, Optional[str]]:
         """
         声明任务（分布式锁）
         
@@ -210,7 +211,7 @@ class DistributedCoordinator:
         if self.redis_client is None:
             # 模拟成功声明
             return True, None
-        
+
         try:
             # 实际实现应该使用Redis的SET命令带有NX和EX选项
             # result = await self.redis_client.set(f"task_lock:{task_id}", worker_id, nx=True, ex=timeout)
@@ -238,12 +239,12 @@ class DistributedCoordinator:
                 "worker_id": worker_id,
                 "timestamp": datetime.now().isoformat()
             }
-            
+
             if self.redis_client is None:
                 # 模拟成功报告
                 print(f"报告任务状态: {status_info}")
                 return True
-            
+
             # 实际实现应该将状态信息存储到Redis中
             # await self.redis_client.hset(f"task_status:{task_id}", mapping=status_info)
             return True
@@ -268,7 +269,7 @@ class DistributedCoordinator:
                     "failed_tasks": 5,
                     "timestamp": datetime.now().isoformat()
                 }
-            
+
             # 实际实现应该从Redis获取集群信息
             # 这里返回模拟数据
             return {
@@ -282,8 +283,8 @@ class DistributedCoordinator:
         except Exception as e:
             return {"error": str(e)}
 
-    def generate_pagination_tasks(self, base_url: str, start_page: int = 1, 
-                                 end_page: int = 100, page_param: str = "page") -> List[str]:
+    def generate_pagination_tasks(self, base_url: str, start_page: int = 1,
+                                  end_page: int = 100, page_param: str = "page") -> List[str]:
         """
         生成分页任务URL列表
         
@@ -325,7 +326,7 @@ class DistributedCoordinator:
         if self.redis_client is not None:
             # 这里可以实现基于Redis的去重逻辑
             pass
-            
+
         # 使用内存去重作为后备方案
         return await self.deduplication_tool.async_is_duplicate(data)
 
@@ -343,7 +344,7 @@ class DistributedCoordinator:
         if self.redis_client is not None:
             # 这里可以实现基于Redis的去重逻辑
             pass
-            
+
         # 使用内存去重作为后备方案
         return await self.deduplication_tool.async_add_to_dedup(data)
 
@@ -354,7 +355,7 @@ def generate_task_id(url: str, spider_name: str) -> str:
     return DistributedCoordinator.generate_task_id(url, spider_name)
 
 
-async def claim_task(task_id: str, worker_id: str, 
+async def claim_task(task_id: str, worker_id: str,
                      redis_client: Any = None, timeout: int = 300) -> Tuple[bool, Optional[str]]:
     """声明任务"""
     coordinator = DistributedCoordinator(redis_client)
@@ -362,7 +363,7 @@ async def claim_task(task_id: str, worker_id: str,
 
 
 async def report_task_status(task_id: str, status: str, worker_id: str,
-                            redis_client: Any = None) -> bool:
+                             redis_client: Any = None) -> bool:
     """报告任务状态"""
     coordinator = DistributedCoordinator(redis_client)
     return await coordinator.report_task_status(task_id, status, worker_id)
@@ -374,8 +375,8 @@ async def get_cluster_info(redis_client: Any = None) -> Dict[str, Any]:
     return await coordinator.get_cluster_info()
 
 
-def generate_pagination_tasks(base_url: str, start_page: int = 1, 
-                             end_page: int = 100, page_param: str = "page") -> List[str]:
+def generate_pagination_tasks(base_url: str, start_page: int = 1,
+                              end_page: int = 100, page_param: str = "page") -> List[str]:
     """生成分页任务URL列表"""
     coordinator = DistributedCoordinator()
     return coordinator.generate_pagination_tasks(base_url, start_page, end_page, page_param)

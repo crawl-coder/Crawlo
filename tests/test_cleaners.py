@@ -4,7 +4,7 @@
 数据清洗工具测试
 """
 import unittest
-from crawlo.cleaners import (
+from crawlo.tools import (
     TextCleaner,
     DataFormatter,
     remove_html_tags,

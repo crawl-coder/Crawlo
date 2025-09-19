@@ -22,8 +22,10 @@ from crawlo.utils import (
     to_local,
     from_timestamp_with_tz
 )
-from crawlo import cleaners
 from crawlo import tools
+
+# 为了向后兼容，从tools中导入cleaners相关的功能
+import crawlo.tools as cleaners
 
 # 版本号：优先从元数据读取
 try:

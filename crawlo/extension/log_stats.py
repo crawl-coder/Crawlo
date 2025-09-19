@@ -3,7 +3,7 @@
 from typing import Any
 
 from crawlo import event
-from crawlo.utils.date_tools import now, time_diff
+from crawlo.tools.date_tools import now, time_diff
 
 
 class LogStats(object):

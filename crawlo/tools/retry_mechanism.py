@@ -18,7 +18,7 @@ class RetryMechanism:
 
     # 默认应该重试的HTTP状态码
     DEFAULT_RETRY_STATUS_CODES = {429, 500, 502, 503, 504}
-    
+
     # 默认应该重试的异常类型
     DEFAULT_RETRY_EXCEPTIONS = (
         ConnectionError,
@@ -26,7 +26,7 @@ class RetryMechanism:
         asyncio.TimeoutError,
     )
 
-    def __init__(self, max_retries: int = 3, 
+    def __init__(self, max_retries: int = 3,
                  retry_status_codes: Optional[Set[int]] = None,
                  retry_exceptions: Optional[Tuple[type, ...]] = None):
         """
@@ -41,7 +41,7 @@ class RetryMechanism:
         self.retry_status_codes = retry_status_codes or self.DEFAULT_RETRY_STATUS_CODES
         self.retry_exceptions = retry_exceptions or self.DEFAULT_RETRY_EXCEPTIONS
 
-    def should_retry(self, status_code: Optional[int] = None, 
+    def should_retry(self, status_code: Optional[int] = None,
                      exception: Optional[Exception] = None) -> bool:
         """
         判断是否应该重试
@@ -56,15 +56,15 @@ class RetryMechanism:
         # 如果有状态码，检查是否在重试列表中
         if status_code is not None and status_code in self.retry_status_codes:
             return True
-            
+
         # 如果有异常，检查是否在重试列表中
         if exception is not None and isinstance(exception, self.retry_exceptions):
             return True
-            
+
         return False
 
-    def exponential_backoff(self, attempt: int, base_delay: float = 1.0, 
-                           max_delay: float = 60.0) -> float:
+    def exponential_backoff(self, attempt: int, base_delay: float = 1.0,
+                            max_delay: float = 60.0) -> float:
         """
         计算指数退避延迟时间
         
@@ -78,10 +78,10 @@ class RetryMechanism:
         """
         # 计算基本延迟：base_delay * (2 ^ attempt)
         delay = base_delay * (2 ** attempt)
-        
+
         # 添加随机抖动，避免惊群效应
         jitter = random.uniform(0, 0.1) * delay
-        
+
         # 返回最终延迟时间，不超过最大延迟
         return min(delay + jitter, max_delay)
 
@@ -101,11 +101,11 @@ class RetryMechanism:
             Exception: 如果超过最大重试次数仍未成功，则抛出最后一个异常
         """
         last_exception = None
-        
+
         for attempt in range(self.max_retries + 1):
             try:
                 result = await func(*args, **kwargs)
-                
+
                 # 如果函数返回状态码，检查是否需要重试
                 if hasattr(result, 'status') and self.should_retry(status_code=result.status):
                     if attempt < self.max_retries:
@@ -114,12 +114,12 @@ class RetryMechanism:
                         continue
                     else:
                         raise Exception(f"HTTP {result.status} after {self.max_retries} retries")
-                
+
                 return result
-                
+
             except Exception as e:
                 last_exception = e
-                
+
                 # 检查是否应该重试
                 if self.should_retry(exception=e) and attempt < self.max_retries:
                     delay = self.exponential_backoff(attempt)
@@ -127,7 +127,7 @@ class RetryMechanism:
                     continue
                 else:
                     raise e
-                    
+
         # 如果到达这里，说明所有重试都失败了
         raise last_exception
 
@@ -147,11 +147,11 @@ class RetryMechanism:
             Exception: 如果超过最大重试次数仍未成功，则抛出最后一个异常
         """
         last_exception = None
-        
+
         for attempt in range(self.max_retries + 1):
             try:
                 result = func(*args, **kwargs)
-                
+
                 # 如果函数返回状态码，检查是否需要重试
                 if hasattr(result, 'status') and self.should_retry(status_code=result.status):
                     if attempt < self.max_retries:
@@ -160,12 +160,12 @@ class RetryMechanism:
                         continue
                     else:
                         raise Exception(f"HTTP {result.status} after {self.max_retries} retries")
-                
+
                 return result
-                
+
             except Exception as e:
                 last_exception = e
-                
+
                 # 检查是否应该重试
                 if self.should_retry(exception=e) and attempt < self.max_retries:
                     delay = self.exponential_backoff(attempt)
@@ -173,12 +173,12 @@ class RetryMechanism:
                     continue
                 else:
                     raise e
-                    
+
         # 如果到达这里，说明所有重试都失败了
         raise last_exception
 
 
-def retry(max_retries: int = 3, 
+def retry(max_retries: int = 3,
           retry_status_codes: Optional[Set[int]] = None,
           retry_exceptions: Optional[Tuple[type, ...]] = None):
     """
@@ -189,33 +189,36 @@ def retry(max_retries: int = 3,
         retry_status_codes (Optional[Set[int]]): 应该重试的HTTP状态码
         retry_exceptions (Optional[Tuple[type, ...]]): 应该重试的异常类型
     """
+
     def decorator(func: Callable) -> Callable:
         retry_mechanism = RetryMechanism(max_retries, retry_status_codes, retry_exceptions)
-        
+
         if asyncio.iscoroutinefunction(func):
             @wraps(func)
             async def async_wrapper(*args, **kwargs):
                 return await retry_mechanism.async_retry(func, *args, **kwargs)
+
             return async_wrapper
         else:
             @wraps(func)
             def sync_wrapper(*args, **kwargs):
                 return retry_mechanism.sync_retry(func, *args, **kwargs)
+
             return sync_wrapper
-            
+
     return decorator
 
 
 # 便捷函数
-def should_retry(status_code: Optional[int] = None, 
+def should_retry(status_code: Optional[int] = None,
                  exception: Optional[Exception] = None) -> bool:
     """判断是否应该重试"""
     retry_mechanism = RetryMechanism()
     return retry_mechanism.should_retry(status_code, exception)
 
 
-def exponential_backoff(attempt: int, base_delay: float = 1.0, 
-                       max_delay: float = 60.0) -> float:
+def exponential_backoff(attempt: int, base_delay: float = 1.0,
+                        max_delay: float = 60.0) -> float:
     """计算指数退避延迟时间"""
     retry_mechanism = RetryMechanism()
     return retry_mechanism.exponential_backoff(attempt, base_delay, max_delay)

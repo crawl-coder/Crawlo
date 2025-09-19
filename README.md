@@ -110,7 +110,7 @@ crawlo genspider news_spider news.example.com
 
 ### 编写爬虫
 
-```python
+``python
 from crawlo import Spider, Request, Item
 
 class MyItem(Item):
@@ -650,6 +650,199 @@ crawlo run myspider
 
 <!-- 核心组件 section -->
 <h2 align="center">🧩 核心组件</h2>
+
+### Request类
+
+Request类是Crawlo框架中用于封装HTTP请求的核心组件，提供了丰富的功能来处理各种类型的HTTP请求。
+
+#### 基本用法
+
+```python
+from crawlo import Request
+
+# 创建一个基本的GET请求
+request = Request('https://example.com')
+
+# 创建带回调函数的请求
+request = Request('https://example.com', callback=self.parse)
+```
+
+#### params参数（GET请求参数）
+
+使用`params`参数来添加GET请求的查询参数，这些参数会自动附加到URL上：
+
+```python
+# GET请求带参数
+request = Request(
+    url='https://httpbin.org/get',
+    params={'key1': 'value1', 'key2': 'value2', 'page': 1},
+    callback=self.parse
+)
+# 实际请求URL会变成: https://httpbin.org/get?key1=value1&key2=value2&page=1
+
+# 复杂参数示例
+request = Request(
+    url='https://api.example.com/search',
+    params={
+        'q': 'python爬虫',
+        'sort': 'date',
+        'order': 'desc',
+        'limit': 20
+    },
+    callback=self.parse_results
+)
+```
+
+对于GET请求，如果同时指定了[params](file:///Users/oscar/projects/Crawlo/crawlo/network/request.py#L55-L55)和[form_data](file:///Users/oscar/projects/Crawlo/crawlo/network/request.py#L53-L53)参数，它们都会被作为查询参数附加到URL上。
+
+#### form_data参数（POST表单数据）
+
+使用`form_data`参数发送表单数据，会根据请求方法自动处理：
+
+```python
+# POST请求发送表单数据
+request = Request(
+    url='https://httpbin.org/post',
+    method='POST',
+    form_data={
+        'username': 'crawlo_user',
+        'password': 'secret_password',
+        'remember_me': 'true'
+    },
+    callback=self.parse_login
+)
+
+# GET请求使用form_data（会自动转换为查询参数）
+request = Request(
+    url='https://httpbin.org/get',
+    method='GET',
+    form_data={
+        'search': 'crawlo framework',
+        'category': 'documentation'
+    },
+    callback=self.parse_search
+)
+```
+
+对于POST请求，[form_data](file:///Users/oscar/projects/Crawlo/crawlo/network/request.py#L53-L53)会被编码为`application/x-www-form-urlencoded`格式并作为请求体发送。
+
+#### json_body参数（JSON请求体）
+
+使用`json_body`参数发送JSON数据：
+
+```python
+# 发送JSON数据
+request = Request(
+    url='https://api.example.com/users',
+    method='POST',
+    json_body={
+        'name': 'Crawlo User',
+        'email': 'user@example.com',
+        'preferences': {
+            'theme': 'dark',
+            'notifications': True
+        }
+    },
+    callback=self.parse_response
+)
+
+# PUT请求更新资源
+request = Request(
+    url='https://api.example.com/users/123',
+    method='PUT',
+    json_body={
+        'name': 'Updated Name',
+        'email': 'updated@example.com'
+    },
+    callback=self.parse_update
+)
+```
+
+使用[json_body](file:///Users/oscar/projects/Crawlo/crawlo/network/request.py#L54-L54)时，会自动设置`Content-Type: application/json`请求头，并将数据序列化为JSON格式。
+
+#### 混合使用参数
+
+可以同时使用多种参数类型，框架会自动处理：
+
+```python
+# GET请求同时使用params和form_data（都会作为查询参数）
+request = Request(
+    url='https://api.example.com/search',
+    params={'category': 'books'},           # 作为查询参数
+    form_data={'q': 'python', 'limit': 10}, # 也作为查询参数
+    callback=self.parse_search
+)
+
+# POST请求使用form_data和headers
+request = Request(
+    url='https://api.example.com/upload',
+    method='POST',
+    form_data={'title': 'My Document'},
+    headers={'Authorization': 'Bearer token123'},
+    callback=self.parse_upload
+)
+```
+
+#### 请求配置
+
+Request类支持丰富的配置选项：
+
+```python
+request = Request(
+    url='https://example.com',
+    method='GET',
+    headers={'User-Agent': 'Crawlo Bot'},
+    cookies={'session_id': 'abc123'},
+    priority=RequestPriority.HIGH,
+    timeout=30,
+    proxy='http://proxy.example.com:8080',
+    dont_filter=True,  # 跳过去重检查
+    meta={'custom_key': 'custom_value'},  # 传递自定义元数据
+    callback=self.parse
+)
+```
+
+#### 链式调用
+
+Request类支持链式调用来简化配置：
+
+```python
+request = Request('https://example.com')\
+    .add_header('User-Agent', 'Crawlo Bot')\
+    .set_proxy('http://proxy.example.com:8080')\
+    .set_timeout(30)\
+    .add_flag('important')\
+    .set_meta('custom_key', 'custom_value')
+```
+
+#### 优先级设置
+
+Crawlo提供了多种预定义的请求优先级：
+
+```python
+from crawlo import Request, RequestPriority
+
+# 设置不同的优先级
+urgent_request = Request('https://example.com', priority=RequestPriority.URGENT)
+high_request = Request('https://example.com', priority=RequestPriority.HIGH)
+normal_request = Request('https://example.com', priority=RequestPriority.NORMAL)
+low_request = Request('https://example.com', priority=RequestPriority.LOW)
+background_request = Request('https://example.com', priority=RequestPriority.BACKGROUND)
+```
+
+#### 动态加载器
+
+对于需要JavaScript渲染的页面，可以启用动态加载器：
+
+```python
+# 启用动态加载器
+request = Request('https://example.com')\
+    .set_dynamic_loader(use_dynamic=True)
+
+# 或者使用链式调用
+request = Request('https://example.com')\
+    .set_dynamic_loader(True, {'wait_time': 3, 'timeout': 30})
+```
 
 ### 中间件系统
 灵活的中间件系统，支持请求预处理、响应处理和异常处理。

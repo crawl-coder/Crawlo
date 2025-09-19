@@ -7,6 +7,7 @@
 """
 try:
     import chardet
+
     HAS_CHARDET = True
 except ImportError:
     HAS_CHARDET = False
@@ -30,10 +31,10 @@ class EncodingConverter:
         if isinstance(data, str):
             # 如果是字符串，直接返回
             return 'utf-8'
-        
+
         if not isinstance(data, bytes):
             return None
-            
+
         if HAS_CHARDET:
             try:
                 # 使用chardet检测编码
@@ -57,10 +58,10 @@ class EncodingConverter:
         if isinstance(data, str):
             # 如果已经是字符串，假设它已经是UTF-8
             return data
-            
+
         if not isinstance(data, bytes):
             return None
-            
+
         try:
             if source_encoding is None:
                 # 自动检测编码
@@ -77,16 +78,16 @@ class EncodingConverter:
             else:
                 # 使用指定编码
                 return data.decode(source_encoding)
-                
+
             # 使用检测到的编码解码
             return data.decode(source_encoding)
         except Exception:
             return None
 
     @staticmethod
-    def convert_encoding(data: Union[str, bytes], 
-                        source_encoding: Optional[str] = None, 
-                        target_encoding: str = 'utf-8') -> Optional[bytes]:
+    def convert_encoding(data: Union[str, bytes],
+                         source_encoding: Optional[str] = None,
+                         target_encoding: str = 'utf-8') -> Optional[bytes]:
         """
         编码转换
         
@@ -99,7 +100,7 @@ class EncodingConverter:
         utf8_str = EncodingConverter.to_utf8(data, source_encoding)
         if utf8_str is None:
             return None
-            
+
         try:
             # 再转换为目标编码
             return utf8_str.encode(target_encoding)
@@ -119,8 +120,8 @@ def to_utf8(data: Union[str, bytes], source_encoding: Optional[str] = None) -> O
     return EncodingConverter.to_utf8(data, source_encoding)
 
 
-def convert_encoding(data: Union[str, bytes], 
-                    source_encoding: Optional[str] = None, 
-                    target_encoding: str = 'utf-8') -> Optional[bytes]:
+def convert_encoding(data: Union[str, bytes],
+                     source_encoding: Optional[str] = None,
+                     target_encoding: str = 'utf-8') -> Optional[bytes]:
     """编码转换"""
     return EncodingConverter.convert_encoding(data, source_encoding, target_encoding)
