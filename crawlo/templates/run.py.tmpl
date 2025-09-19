@@ -26,7 +26,9 @@ def main():
     
     # 创建爬虫进程（自动加载默认配置）
     try:
-        process = CrawlerProcess()
+        # 确保 spider 模块被正确导入
+        spider_modules = ['{{project_name}}.spiders']
+        process = CrawlerProcess(spider_modules=spider_modules)
         print("✅ 爬虫进程初始化成功")
         
         # 运行固定的爬虫
