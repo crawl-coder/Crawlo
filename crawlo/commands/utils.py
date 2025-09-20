@@ -91,8 +91,8 @@ def show_error_panel(title: str, message: str, show_json: bool = False) -> None:
         console.print_json(data={"success": False, "error": message})
     else:
         console.print(Panel(
-            Text.from_markup(f":cross_mark: [bold red]{message}[/bold red]"),
-            title=f"❌ {title}",
+            Text.from_markup(f"[bold red]{message}[/bold red]"),
+            title=f"{title}",
             border_style="red",
             padding=(1, 2)
         ))
@@ -115,8 +115,8 @@ def show_success_panel(title: str, message: str, show_json: bool = False, data: 
         console.print_json(data=result)
     else:
         console.print(Panel(
-            Text.from_markup(f":white_check_mark: [bold green]{message}[/bold green]"),
-            title=f"✅ {title}",
+            Text.from_markup(f"[bold green]{message}[/bold green]"),
+            title=f"{title}",
             border_style="green",
             padding=(1, 2)
         ))

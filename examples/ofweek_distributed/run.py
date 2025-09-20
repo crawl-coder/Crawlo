@@ -34,14 +34,14 @@ def main():
         # 确保 spider 模块被正确导入
         spider_modules = ['ofweek_distributed.spiders']
         process = CrawlerProcess(spider_modules=spider_modules)
-        print("✅ 爬虫进程初始化成功")
+        print("爬虫进程初始化成功")
 
         # 运行指定的爬虫，使用正确的爬虫名称
         asyncio.run(process.crawl('of_week_distributed'))
-        print("✅ 爬虫运行完成")
+        print("爬虫运行完成")
 
     except Exception as e:
-        print(f"❌ 运行失败: {e}")
+        print(f"运行失败: {e}")
         import traceback
         traceback.print_exc()
         sys.exit(1)

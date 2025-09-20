@@ -242,14 +242,14 @@ class SpiderChangeHandler(FileSystemEventHandler):
         if event.src_path.endswith(".py") and "spiders" in event.src_path:
             file_path = Path(event.src_path)
             spider_name = file_path.stem
-            self.console.print(f"\n:eyes: [bold blue]检测到变更[/bold blue] [cyan]{file_path}[/cyan]")
+            self.console.print(f"\n[bold blue]检测到变更[/bold blue] [cyan]{file_path}[/cyan]")
             self.check_and_fix_spider(spider_name)
 
     def check_and_fix_spider(self, spider_name):
         try:
             process = CrawlerProcess(spider_modules=self.spider_modules)
             if spider_name not in process.get_spider_names():
-                self.console.print(f"[yellow]⚠️  {spider_name} 不是已注册的爬虫。[/yellow]")
+                self.console.print(f"[yellow]{spider_name} 不是已注册的爬虫。[/yellow]")
                 return
 
             cls = process.get_spider_class(spider_name)
@@ -273,7 +273,7 @@ class SpiderChangeHandler(FileSystemEventHandler):
                 issues.append("实例化失败")
 
             if issues:
-                self.console.print(f"[red]❌ {spider_name} 存在问题:[/red]")
+                self.console.print(f"[red]{spider_name} 存在问题:[/red]")
                 for issue in issues:
                     self.console.print(f"  • {issue}")
 
@@ -281,21 +281,21 @@ class SpiderChangeHandler(FileSystemEventHandler):
                     file_path = Path(cls.__file__)
                     fixed, msg = auto_fix_spider_file(cls, file_path)
                     if fixed:
-                        self.console.print(f"[green]✅ 自动修复: {msg}[/green]")
+                        self.console.print(f"[green]自动修复: {msg}[/green]")
                     else:
-                        self.console.print(f"[yellow]⚠️  无法修复: {msg}[/yellow]")
+                        self.console.print(f"[yellow]无法修复: {msg}[/yellow]")
             else:
-                self.console.print(f"[green]✅ {spider_name} 合规。[/green]")
+                self.console.print(f"[green]{spider_name} 合规。[/green]")
 
         except Exception as e:
-            self.console.print(f"[red]❌ 检查 {spider_name} 时出错: {e}[/red]")
+            self.console.print(f"[red]检查 {spider_name} 时出错: {e}[/red]")
 
 
 def watch_spiders(project_root: Path, project_package: str, show_fix: bool):
     """监听 spiders 目录变化并自动检查"""
     spider_path = project_root / project_package / "spiders"
     if not spider_path.exists():
-        console.print(f"[bold red]❌ Spider 目录未找到:[/bold red] {spider_path}")
+        console.print(f"[bold red]Spider 目录未找到:[/bold red] {spider_path}")
         return
 
     spider_modules = [f"{project_package}.spiders"]
@@ -304,9 +304,9 @@ def watch_spiders(project_root: Path, project_package: str, show_fix: bool):
     observer.schedule(event_handler, str(spider_path), recursive=False)
 
     console.print(Panel(
-        f":eyes: [bold blue]监听[/bold blue] [cyan]{spider_path}[/cyan] 中的变更\n"
+        f"[bold blue]监听[/bold blue] [cyan]{spider_path}[/cyan] 中的变更\n"
         "编辑任何爬虫文件以触发自动检查...",
-        title="🚀 已启动监听模式",
+        title="已启动监听模式",
         border_style="blue"
     ))
 
@@ -337,24 +337,24 @@ def main(args):
 
     valid_args = {"--fix", "-f", "--ci", "--json", "--watch"}
     if any(arg not in valid_args for arg in args):
-        console.print("[bold red]❌ 错误:[/bold red] 用法: [blue]crawlo check[/blue] [--fix] [--ci] [--json] [--watch]")
+        console.print("[bold red]错误:[/bold red] 用法: [blue]crawlo check[/blue] [--fix] [--ci] [--json] [--watch]")
         return 1
 
     try:
         # 1. 查找项目根目录
         project_root = get_project_root()
         if not project_root:
-            msg = ":cross_mark: [bold red]找不到 'crawlo.cfg'[/bold red]\n💡 请在项目目录中运行此命令。"
+            msg = "[bold red]找不到 'crawlo.cfg'[/bold red]\n请在项目目录中运行此命令。"
             if show_json:
                 console.print_json(data={"success": False, "error": "未找到项目根目录"})
                 return 1
             elif show_ci:
-                console.print("❌ 未找到项目根目录。缺少 crawlo.cfg。")
+                console.print("未找到项目根目录。缺少 crawlo.cfg。")
                 return 1
             else:
                 console.print(Panel(
                     Text.from_markup(msg),
-                    title="❌ 非Crawlo项目",
+                    title="非Crawlo项目",
                     border_style="red",
                     padding=(1, 2)
                 ))
@@ -372,10 +372,10 @@ def main(args):
                 console.print_json(data={"success": False, "error": msg})
                 return 1
             elif show_ci:
-                console.print(f"❌ {msg}")
+                console.print(f"{msg}")
                 return 1
             else:
-                console.print(Panel(msg, title="❌ 缺少配置文件", border_style="red"))
+                console.print(Panel(msg, title="缺少配置文件", border_style="red"))
                 return 1
 
         config = configparser.ConfigParser()
@@ -387,10 +387,10 @@ def main(args):
                 console.print_json(data={"success": False, "error": msg})
                 return 1
             elif show_ci:
-                console.print(f"❌ {msg}")
+                console.print(f"{msg}")
                 return 1
             else:
-                console.print(Panel(msg, title="❌ 无效配置", border_style="red"))
+                console.print(Panel(msg, title="无效配置", border_style="red"))
                 return 1
 
         settings_module = config.get("settings", "default")
@@ -405,10 +405,10 @@ def main(args):
                 console.print_json(data={"success": False, "error": msg})
                 return 1
             elif show_ci:
-                console.print(f"❌ {msg}")
+                console.print(f"{msg}")
                 return 1
             else:
-                console.print(Panel(msg, title="❌ 导入错误", border_style="red"))
+                console.print(Panel(msg, title="导入错误", border_style="red"))
                 return 1
 
         # 4. 加载爬虫
@@ -422,18 +422,18 @@ def main(args):
                 console.print_json(data={"success": True, "warning": msg})
                 return 0
             elif show_ci:
-                console.print("📭 未找到爬虫。")
+                console.print("未找到爬虫。")
                 return 0
             else:
                 console.print(Panel(
                     Text.from_markup(
-                        ":envelope_with_arrow: [bold]未找到爬虫[/bold]\n\n"
-                        "[bold]💡 确保:[/bold]\n"
+                        "[bold]未找到爬虫[/bold]\n\n"
+                        "[bold]确保:[/bold]\n"
                         "  • 爬虫定义于 '[cyan]spiders[/cyan]' 模块\n"
                         "  • 具有 [green]`name`[/green] 属性\n"
                         "  • 模块已正确导入"
                     ),
-                    title="📭 未找到爬虫",
+                    title="未找到爬虫",
                     border_style="yellow",
                     padding=(1, 2)
                 ))
@@ -441,13 +441,13 @@ def main(args):
 
         # 5. 如果启用 watch 模式，启动监听
         if show_watch:
-            console.print("[bold blue]:eyes: 启动监听模式...[/bold blue]")
+            console.print("[bold blue]启动监听模式...[/bold blue]")
             watch_spiders(project_root, project_package, show_fix)
             return 0  # watch 是长期运行，不返回
 
         # 6. 开始检查（非 watch 模式）
         if not show_ci and not show_json:
-            console.print(f":mag: [bold]正在检查 {len(spider_names)} 个爬虫...[/bold]\n")
+            console.print(f"[bold]正在检查 {len(spider_names)} 个爬虫...[/bold]\n")
 
         issues_found = False
         results = []
@@ -489,14 +489,14 @@ def main(args):
                     fixed, msg = auto_fix_spider_file(cls, file_path)
                     if fixed:
                         if not show_ci and not show_json:
-                            console.print(f"[green]🔧 已自动修复 {name} → {msg}[/green]")
+                            console.print(f"[green]已自动修复 {name} → {msg}[/green]")
                         issues = []  # 认为已修复
                     else:
                         if not show_ci and not show_json:
-                            console.print(f"[yellow]⚠️  无法自动修复 {name}: {msg}[/yellow]")
+                            console.print(f"[yellow]无法自动修复 {name}: {msg}[/yellow]")
                 except Exception as e:
                     if not show_ci and not show_json:
-                        console.print(f"[yellow]⚠️  找不到 {name} 的源文件: {e}[/yellow]")
+                        console.print(f"[yellow]找不到 {name} 的源文件: {e}[/yellow]")
 
             results.append({
                 "name": name,
@@ -525,17 +525,17 @@ def main(args):
 
         if show_ci:
             if issues_found:
-                console.print("❌ 合规性检查失败。")
+                console.print("合规性检查失败。")
                 for r in results:
                     if r["issues"]:
                         console.print(f"  • {r['name']}: {', '.join(r['issues'])}")
             else:
-                console.print("✅ 所有爬虫合规。")
+                console.print("所有爬虫合规。")
             return 1 if issues_found else 0
 
         # 9. 默认 rich 输出
         table = Table(
-            title="🔍 爬虫合规性检查结果",
+            title="爬虫合规性检查结果",
             box=box.ROUNDED,
             show_header=True,
             header_style="bold magenta",
@@ -548,10 +548,10 @@ def main(args):
 
         for res in results:
             if res["issues"]:
-                status = "[red]❌[/red]"
+                status = "[red]X[/red]"
                 issues_text = "\n".join(f"• {issue}" for issue in res["issues"])
             else:
-                status = "[green]✅[/green]"
+                status = "[green]√[/green]"
                 issues_text = "—"
 
             table.add_row(status, res["name"], res["class"], issues_text)
@@ -561,16 +561,16 @@ def main(args):
 
         if issues_found:
             console.print(Panel(
-                ":warning: [bold red]一些爬虫存在问题。[/bold red]\n请在运行前修复这些问题。",
-                title="⚠️  合规性检查失败",
+                "[bold red]一些爬虫存在问题。[/bold red]\n请在运行前修复这些问题。",
+                title="合规性检查失败",
                 border_style="red",
                 padding=(1, 2)
             ))
             return 1
         else:
             console.print(Panel(
-                ":tada: [bold green]所有爬虫都合规且定义良好！[/bold green]\n准备开始爬取！ 🕷️🚀",
-                title="🎉 检查通过",
+                "[bold green]所有爬虫都合规且定义良好！[/bold green]\n准备开始爬取！ ",
+                title="检查通过",
                 border_style="green",
                 padding=(1, 2)
             ))
@@ -581,9 +581,9 @@ def main(args):
         if show_json:
             console.print_json(data={"success": False, "error": str(e)})
         elif show_ci:
-            console.print(f"❌ 意外错误: {e}")
+            console.print(f"意外错误: {e}")
         else:
-            console.print(f"[bold red]❌ 检查过程中发生意外错误:[/bold red] {e}")
+            console.print(f"[bold red]检查过程中发生意外错误:[/bold red] {e}")
         return 1
 
 

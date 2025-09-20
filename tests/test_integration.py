@@ -105,28 +105,28 @@ class MockResponse:
 
 async def test_full_crawling_pipeline():
     """测试完整的爬取流水线"""
-    print("🔍 测试完整的爬取流水线...")
+    print("测试完整的爬取流水线...")
     
     try:
         # 简化测试，只验证基本功能
-        print("   ✅ 完整爬取流水线测试通过（简化版）")
+        print("   完整爬取流水线测试通过（简化版）")
         return True
         
     except Exception as e:
-        print(f"   ❌ 完整爬取流水线测试失败: {e}")
+        print(f"   完整爬取流水线测试失败: {e}")
         traceback.print_exc()
         return False
 
 
 async def test_redis_components_integration():
     """测试 Redis 组件集成"""
-    print("🔍 测试 Redis 组件集成...")
+    print("测试 Redis 组件集成...")
     
     try:
         redis_url = "redis://127.0.0.1:6379/15"
         
         # 1. 测试队列和过滤器集成
-        print("   🔄 测试队列和过滤器集成...")
+        print("   测试队列和过滤器集成...")
         
         # 创建队列
         queue = RedisPriorityQueue(
@@ -167,10 +167,10 @@ async def test_redis_components_integration():
         is_duplicate3 = await filter_instance.requested(request3)
         # assert not is_duplicate3, "不同请求不应该被标记为重复"
         
-        print("   ✅ 队列和过滤器集成测试通过")
+        print("   队列和过滤器集成测试通过")
         
         # 2. 测试管道集成
-        print("   🔄 测试管道集成...")
+        print("   测试管道集成...")
         
         # 创建管道实例
         pipeline = RedisDedupPipeline(
@@ -180,7 +180,7 @@ async def test_redis_components_integration():
             redis_key="test:integration:item:fingerprint"
         )
         
-        print("   ✅ 管道集成测试通过")
+        print("   管道集成测试通过")
         
         # 清理资源
         await queue.close()
@@ -189,18 +189,18 @@ async def test_redis_components_integration():
         return True
         
     except Exception as e:
-        print(f"   ❌ Redis 组件集成测试失败: {e}")
+        print(f"   Redis 组件集成测试失败: {e}")
         traceback.print_exc()
         return False
 
 
 async def test_component_lifecycle():
     """测试组件生命周期管理"""
-    print("🔍 测试组件生命周期管理...")
+    print("测试组件生命周期管理...")
     
     try:
         # 1. 测试组件创建和销毁
-        print("   🔄 测试组件创建和销毁...")
+        print("   测试组件创建和销毁...")
         
         redis_url = "redis://127.0.0.1:6379/15"
         
@@ -233,38 +233,38 @@ async def test_component_lifecycle():
         is_duplicate = await filter_instance.requested(request)
         # assert not is_duplicate, "过滤器应该可以正常使用"
         
-        print("   ✅ 组件创建测试通过")
+        print("   组件创建测试通过")
         
         # 2. 测试组件关闭
-        print("   🔄 测试组件关闭...")
+        print("   测试组件关闭...")
         
         await queue.close()
         await filter_instance.closed()
         
-        print("   ✅ 组件关闭测试通过")
+        print("   组件关闭测试通过")
         
         # 3. 测试连接池关闭
-        print("   🔄 测试连接池关闭...")
+        print("   测试连接池关闭...")
         
         await close_all_pools()
         
-        print("   ✅ 连接池关闭测试通过")
+        print("   连接池关闭测试通过")
         
         return True
         
     except Exception as e:
-        print(f"   ❌ 组件生命周期测试失败: {e}")
+        print(f"   组件生命周期测试失败: {e}")
         traceback.print_exc()
         return False
 
 
 async def test_error_handling_integration():
     """测试错误处理集成"""
-    print("🔍 测试错误处理集成...")
+    print("测试错误处理集成...")
     
     try:
         # 1. 测试 Redis 连接失败处理
-        print("   🔄 测试 Redis 连接失败处理...")
+        print("   测试 Redis 连接失败处理...")
         
         try:
             # 使用无效的 Redis URL
@@ -279,10 +279,10 @@ async def test_error_handling_integration():
             # 连接失败是预期的行为
             pass
         
-        print("   ✅ Redis 连接失败处理测试通过")
+        print("   Redis 连接失败处理测试通过")
         
         # 2. 测试组件错误恢复
-        print("   🔄 测试组件错误恢复...")
+        print("   测试组件错误恢复...")
         
         # 使用有效的 Redis URL
         queue = RedisPriorityQueue(
@@ -302,19 +302,19 @@ async def test_error_handling_integration():
         assert success, "队列应该能够自动重连"
         
         await queue.close()
-        print("   ✅ 组件错误恢复测试通过")
+        print("   组件错误恢复测试通过")
         
         return True
         
     except Exception as e:
-        print(f"   ❌ 错误处理集成测试失败: {e}")
+        print(f"   错误处理集成测试失败: {e}")
         traceback.print_exc()
         return False
 
 
 async def main():
     """主测试函数"""
-    print("🚀 开始集成测试...")
+    print("开始集成测试...")
     print("=" * 50)
     
     tests = [
@@ -331,24 +331,24 @@ async def main():
         try:
             if await test_func():
                 passed += 1
-                print(f"✅ {test_func.__name__} 通过")
+                print(f"{test_func.__name__} 通过")
             else:
-                print(f"❌ {test_func.__name__} 失败")
+                print(f"{test_func.__name__} 失败")
         except Exception as e:
-            print(f"❌ {test_func.__name__} 异常: {e}")
+            print(f"{test_func.__name__} 异常: {e}")
         print()
     
     # 关闭所有连接池
     await close_all_pools()
     
     print("=" * 50)
-    print(f"📊 集成测试结果: {passed}/{total} 通过")
+    print(f"集成测试结果: {passed}/{total} 通过")
     
     if passed == total:
-        print("🎉 所有集成测试通过！")
+        print("所有集成测试通过！")
         return 0
     else:
-        print("❌ 部分集成测试失败，请检查实现")
+        print("部分集成测试失败，请检查实现")
         return 1
 
 

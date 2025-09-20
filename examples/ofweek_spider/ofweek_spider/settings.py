@@ -73,7 +73,7 @@ EXTENSIONS = [
 ]
 
 # ============================== 日志配置 ==============================
-LOG_LEVEL = 'INFO'
+LOG_LEVEL = 'DEBUG'
 LOG_FILE = f'logs/{PROJECT_NAME}.log'
 STATS_DUMP = True
 

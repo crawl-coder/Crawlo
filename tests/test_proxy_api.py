@@ -240,18 +240,18 @@ async def main():
     direct_success = await test_target_url_without_proxy(target_url)
     
     if direct_success:
-        print("✅ 直接访问目标URL成功")
+        print("直接访问目标URL成功")
     else:
-        print("❌ 直接访问目标URL失败")
+        print("直接访问目标URL失败")
     
     # 4. 使用代理访问目标URL
     print("\n=== 测试使用代理访问目标URL ===")
     proxy_success = await test_target_url_with_proxy(proxy_url, target_url)
     
     if proxy_success:
-        print(f"✅ 代理测试成功！代理 {proxy_url} 可以正常访问目标链接")
+        print(f"代理测试成功！代理 {proxy_url} 可以正常访问目标链接")
     else:
-        print(f"❌ 代理测试失败！代理 {proxy_url} 无法访问目标链接")
+        print(f"代理测试失败！代理 {proxy_url} 无法访问目标链接")
         
     # 5. 总结
     print(f"\n=== 测试总结 ===")

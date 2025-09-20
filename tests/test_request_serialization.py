@@ -31,8 +31,8 @@ def test_request_serialization():
     )
     
     print(f"   📦 原始请求: {request}")
-    print(f"   🔧 请求有 logger: {hasattr(request, 'logger')}")
-    print(f"   🔧 meta 有 logger: {'spider_logger' in request.meta}")
+    print(f"   请求有 logger: {hasattr(request, 'logger')}")
+    print(f"   meta 有 logger: {'spider_logger' in request.meta}")
     
     # 创建一个 mock scheduler 来测试清理
     class MockScheduler:
@@ -52,20 +52,20 @@ def test_request_serialization():
     # 测试序列化
     try:
         serialized = pickle.dumps(request)
-        print(f"   ✅ 序列化成功，大小: {len(serialized)} bytes")
+        print(f"   序列化成功，大小: {len(serialized)} bytes")
         
         # 测试反序列化
         deserialized = pickle.loads(serialized)
-        print(f"   ✅ 反序列化成功: {deserialized}")
+        print(f"   反序列化成功: {deserialized}")
         return True
         
     except Exception as e:
-        print(f"   ❌ 序列化失败: {e}")
+        print(f"   序列化失败: {e}")
         return False
 
 if __name__ == "__main__":
     success = test_request_serialization()
     if success:
-        print("🎉 Request 序列化修复成功！")
+        print("Request 序列化修复成功！")
     else:
         print("❌ 序列化问题仍未解决")

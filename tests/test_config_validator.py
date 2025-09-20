@@ -180,14 +180,14 @@ class TestConfigValidator(unittest.TestCase):
 
 def main():
     """主测试函数"""
-    print("🚀 开始配置验证器测试...")
+    print("开始配置验证器测试...")
     print("=" * 50)
     
     # 运行测试
     unittest.main(argv=['first-arg-is-ignored'], exit=False, verbosity=2)
     
     print("=" * 50)
-    print("✅ 配置验证器测试完成")
+    print("配置验证器测试完成")
 
 
 if __name__ == "__main__":

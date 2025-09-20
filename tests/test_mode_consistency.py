@@ -27,7 +27,7 @@ class TestSpider(Spider):
 
 async def test_mode_consistency():
     """测试模式一致性提示"""
-    print("🔍 测试模式一致性提示...")
+    print("测试模式一致性提示...")
     
     try:
         # 创建爬虫进程
@@ -36,10 +36,10 @@ async def test_mode_consistency():
         # 添加爬虫
         await process.crawl(TestSpider)
         
-        print("✅ 模式一致性测试完成")
+        print("模式一致性测试完成")
         
     except Exception as e:
-        print(f"❌ 测试失败: {e}")
+        print(f"测试失败: {e}")
         import traceback
         traceback.print_exc()
 

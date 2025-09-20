@@ -33,15 +33,15 @@ def test_template_project_redis_key():
             ], cwd=original_cwd, capture_output=True, text=True)
             
             if result.returncode != 0:
-                print(f"❌ 创建项目失败: {result.stderr}")
+                print(f"创建项目失败: {result.stderr}")
                 return False
             
-            print("      ✅ 项目创建成功")
+            print("      项目创建成功")
             
             # 检查生成的文件
             project_dir = Path(original_cwd) / "test_project"
             if not project_dir.exists():
-                print("❌ 项目目录未创建")
+                print("项目目录未创建")
                 return False
                 
             # 移动项目到临时目录
@@ -51,7 +51,7 @@ def test_template_project_redis_key():
             
             settings_file = project_dir / "test_project" / "settings.py"
             if not settings_file.exists():
-                print("❌ settings.py文件未创建")
+                print("settings.py文件未创建")
                 return False
             
             # 读取settings.py内容
@@ -60,40 +60,40 @@ def test_template_project_redis_key():
             
             # 检查是否移除了旧的REDIS_KEY配置
             if "REDIS_KEY = f'{{project_name}}:fingerprint'" in settings_content:
-                print("❌ 仍然存在旧的REDIS_KEY配置")
+                print("仍然存在旧的REDIS_KEY配置")
                 return False
                 
             # 检查是否添加了新的注释
             if "# crawlo:{project_name}:filter:fingerprint (请求去重)" not in settings_content:
-                print("❌ 缺少新的Redis key命名规范注释")
+                print("缺少新的Redis key命名规范注释")
                 return False
                 
             if "# crawlo:{project_name}:item:fingerprint (数据项去重)" not in settings_content:
-                print("❌ 缺少数据项去重的Redis key命名规范注释")
+                print("缺少数据项去重的Redis key命名规范注释")
                 return False
             
-            print("      ✅ settings.py符合新的Redis key命名规范")
+            print("      settings.py符合新的Redis key命名规范")
             
             # 检查crawlo.cfg
             cfg_file = project_dir / "crawlo.cfg"
             if not cfg_file.exists():
-                print("❌ crawlo.cfg文件未创建")
+                print("crawlo.cfg文件未创建")
                 return False
                 
             with open(cfg_file, 'r', encoding='utf-8') as f:
                 cfg_content = f.read()
                 
             if "default = test_project.settings" not in cfg_content:
-                print("❌ crawlo.cfg配置不正确")
+                print("crawlo.cfg配置不正确")
                 return False
                 
-            print("      ✅ crawlo.cfg配置正确")
+            print("      crawlo.cfg配置正确")
             
-            print("✅ 模板项目Redis key命名规范测试通过！")
+            print("模板项目Redis key命名规范测试通过！")
             return True
             
         except Exception as e:
-            print(f"❌ 测试过程中发生错误: {e}")
+            print(f"测试过程中发生错误: {e}")
             import traceback
             traceback.print_exc()
             return False
@@ -109,7 +109,7 @@ def test_template_project_redis_key():
 
 def main():
     """主测试函数"""
-    print("🚀 开始模板项目Redis key命名规范测试...")
+    print("开始模板项目Redis key命名规范测试...")
     print("=" * 50)
     
     try:
@@ -117,14 +117,14 @@ def main():
         
         print("=" * 50)
         if success:
-            print("🎉 所有测试通过！模板项目符合新的Redis key命名规范")
+            print("所有测试通过！模板项目符合新的Redis key命名规范")
         else:
-            print("❌ 测试失败，请检查模板文件")
+            print("测试失败，请检查模板文件")
             return 1
             
     except Exception as e:
         print("=" * 50)
-        print(f"❌ 测试过程中发生异常: {e}")
+        print(f"测试过程中发生异常: {e}")
         return 1
     
     return 0

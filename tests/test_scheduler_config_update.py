@@ -105,23 +105,23 @@ async def test_config_update_logs():
     await scheduler.open()
     
     await scheduler.close()
-    print("   ✅ 配置更新日志测试完成")
+    print("   配置更新日志测试完成")
 
 
 async def main():
     """主测试函数"""
-    print("🚀 开始测试调度器配置更新日志优化...")
+    print("开始测试调度器配置更新日志优化...")
     print("=" * 50)
     
     try:
         await test_config_update_logs()
         
         print("=" * 50)
-        print("🎉 调度器配置更新日志优化测试完成！")
+        print("调度器配置更新日志优化测试完成！")
         
     except Exception as e:
         print("=" * 50)
-        print(f"❌ 测试失败: {e}")
+        print(f"测试失败: {e}")
         import traceback
         traceback.print_exc()
 

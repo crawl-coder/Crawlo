@@ -139,7 +139,7 @@ class Request:
         self.cookies = cookies or {}
         self.priority = -priority  # 用于排序：值越小优先级越高
         
-        # 🔧 安全处理 meta，移除 logger 后再 deepcopy
+        # 安全处理 meta，移除 logger 后再 deepcopy
         self._meta = self._safe_deepcopy_meta(meta) if meta is not None else {}
         
         self.timeout = self._meta.get('download_timeout', timeout)
@@ -184,7 +184,7 @@ class Request:
                 if 'Content-Type' not in self.headers:
                     self.headers['Content-Type'] = 'application/x-www-form-urlencoded'
                 query_str = urlencode(form_data)
-                self.body = query_str.encode(encoding)  # ✅ 显式编码为 bytes
+                self.body = query_str.encode(encoding)  # 显式编码为 bytes
 
 
         else:

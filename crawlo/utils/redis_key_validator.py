@@ -177,9 +177,9 @@ def print_validation_report(keys: List[str], project_name: str = None):
     print("=" * 50)
     
     if is_valid:
-        print("✅ 所有Redis Key命名规范验证通过")
+        print("所有Redis Key命名规范验证通过")
     else:
-        print("❌ 发现不符合命名规范的Redis Key:")
+        print("发现不符合命名规范的Redis Key:")
         for key in invalid_keys:
             print(f"  - {key}")
     
@@ -187,13 +187,13 @@ def print_validation_report(keys: List[str], project_name: str = None):
     for key in keys:
         info = validator.get_key_info(key)
         if info['valid']:
-            print(f"  ✅ {key}")
+            print(f"  {key}")
             print(f"     框架: {info['framework']}")
             print(f"     项目: {info['project']}")
             print(f"     组件: {info['component']}")
             if 'sub_component' in info:
                 print(f"     子组件: {info['sub_component']}")
         else:
-            print(f"  ❌ {key} - {info.get('error', '无效')}")
+            print(f"  {key} - {info.get('error', '无效')}")
     
     print("=" * 50)

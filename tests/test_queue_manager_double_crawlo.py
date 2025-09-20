@@ -18,7 +18,7 @@ from crawlo.queue.queue_manager import QueueManager, QueueConfig, QueueType
 
 async def test_queue_manager_naming():
     """测试队列管理器中的项目名称提取"""
-    print("🚀 开始测试队列管理器项目名称提取...")
+    print("开始测试队列管理器项目名称提取...")
     print("=" * 50)
     
     test_cases = [
@@ -68,21 +68,21 @@ async def test_queue_manager_naming():
             assert project_name == test_case['expected_module'], \
                 f"项目名称不匹配: {project_name} != {test_case['expected_module']}"
             
-            print("  ✅ 测试通过")
+            print("  测试通过")
             print()
         
-        print("✅ 队列管理器项目名称提取测试通过！")
+        print("队列管理器项目名称提取测试通过！")
         return True
         
     except Exception as e:
-        print(f"❌ 队列管理器项目名称提取测试失败: {e}")
+        print(f"队列管理器项目名称提取测试失败: {e}")
         traceback.print_exc()
         return False
 
 
 async def test_queue_manager_create_queue():
     """测试队列管理器创建队列"""
-    print("🚀 开始测试队列管理器创建队列...")
+    print("开始测试队列管理器创建队列...")
     print("=" * 50)
     
     test_cases = [
@@ -157,18 +157,18 @@ async def test_queue_manager_create_queue():
                 assert queue.failed_queue == test_case['expected_failed'], \
                     f"失败队列名称不匹配: {queue.failed_queue} != {test_case['expected_failed']}"
                 
-                print("  ✅ 测试通过")
+                print("  测试通过")
             except Exception as e:
-                print(f"  ❌ 测试失败: {e}")
+                print(f"  测试失败: {e}")
                 traceback.print_exc()
                 return False
             
             print()
         
-        print("✅ 队列管理器创建队列测试通过！")
+        print("队列管理器创建队列测试通过！")
         return True
         
     except Exception as e:
-        print(f"❌ 队列管理器创建队列测试失败: {e}")
+        print(f"队列管理器创建队列测试失败: {e}")
         traceback.print_exc()
         return False

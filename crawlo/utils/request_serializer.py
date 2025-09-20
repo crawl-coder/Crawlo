@@ -43,13 +43,13 @@ class RequestSerializer:
             
             # 最终验证
             if not self._test_serialization(request):
-                self.logger.warning("⚠️ 常规清理无效，使用深度清理")
+                self.logger.warning("常规清理无效，使用深度清理")
                 request = self._deep_clean_request(request)
                 
             return request
             
         except Exception as e:
-            self.logger.error(f"❌ Request 序列化准备失败: {e}")
+            self.logger.error(f"Request 序列化准备失败: {e}")
             # 最后的保险：重建 Request
             return self._rebuild_clean_request(request)
     
@@ -213,7 +213,7 @@ class RequestSerializer:
             return clean_request
             
         except Exception as e:
-            self.logger.error(f"❌ 重建 Request 失败: {e}")
+            self.logger.error(f"重建 Request 失败: {e}")
             # 最简单的 fallback
             from crawlo.network.request import Request
             return Request(url=str(original_request.url))

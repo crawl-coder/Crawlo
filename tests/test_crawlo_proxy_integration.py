@@ -106,11 +106,11 @@ async def test_proxy_middleware_integration():
         # 这里我们直接测试API连接，而不是完整的代理池更新
         proxy_data = await proxy_middleware._get_proxy_from_api()
         if proxy_data:
-            print(f"✅ 成功从API获取代理信息: {proxy_data}")
+            print(f"成功从API获取代理信息: {proxy_data}")
         else:
-            print("❌ 无法从API获取代理信息")
+            print("无法从API获取代理信息")
     except Exception as e:
-        print(f"❌ 获取代理时出错: {e}")
+        print(f"获取代理时出错: {e}")
     
     print("\n=== 代理中间件集成测试完成 ===")
 

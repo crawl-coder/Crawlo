@@ -36,7 +36,7 @@ DOWNLOAD_DELAY = 1.0
 DOWNLOADER = 'crawlo.downloader.aiohttp_downloader.AioHttpDownloader'
 
 # ============================== 队列配置 ==============================
-QUEUE_TYPE = 'auto'
+QUEUE_TYPE = 'memory'
 
 # ============================== 去重过滤器 ==============================
 # 使用auto模式，让框架根据Redis可用性自动选择过滤器
@@ -63,7 +63,7 @@ MIDDLEWARES = [
 # ============================== 数据管道 ==============================
 PIPELINES = [
     'crawlo.pipelines.console_pipeline.ConsolePipeline',
-    'crawlo.pipelines.json_pipeline.JsonPipeline',
+    # 'crawlo.pipelines.json_pipeline.JsonPipeline',
     # 使用内存去重管道作为默认值
     'crawlo.pipelines.memory_dedup_pipeline.MemoryDedupPipeline',
 ]
@@ -76,8 +76,16 @@ EXTENSIONS = [
 ]
 
 # ============================== 日志配置 ==============================
-LOG_LEVEL = 'INFO'
+LOG_LEVEL = 'DEBUG'
+LOG_CONSOLE_LEVEL = 'DEBUG'  # 添加控制台日志级别配置
 LOG_FILE = 'logs/ofweek_standalone.log'
+# 启用日志轮转功能
+LOG_USE_ROTATION = True
+LOG_ROTATION_TYPE = 'size'  # 或者使用 'time'
+LOG_MAX_BYTES = 10 * 1024 * 1024  # 10MB
+LOG_BACKUP_COUNT = 5
+# 时间轮转时的文件后缀格式（可选）
+# LOG_ROTATION_SUFFIX = '%Y-%m-%d_%H-%M-%S'
 STATS_DUMP = True
 
 # ============================== 输出配置 ==============================

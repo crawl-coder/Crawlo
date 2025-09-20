@@ -61,7 +61,7 @@ def record_stats(crawler):
                 "timestamp": datetime.now().isoformat(),
                 "stats": stats
             }, f, ensure_ascii=False, indent=2, default=str)
-        logger.info(f"📊 爬虫 '{spider_name}' 的统计信息已保存 → {filename}")
+        logger.info(f"Stats for spider '{spider_name}' saved to {filename}")
     except Exception as e:
         logger.error(f"保存 '{spider_name}' 的统计信息失败: {e}")
 
@@ -135,11 +135,11 @@ def main(args):
     if not all_stats:
         console.print(Panel(
             Text.from_markup(
-                ":chart_with_upwards_trend: [bold]未找到统计信息。[/bold]\n"
-                "💡 先运行一个爬虫以生成统计信息。\n"
-                f"📁 统计目录: [cyan]{get_stats_dir()}[/cyan]"
+                "[bold]未找到统计信息。[/bold]\n"
+                "先运行一个爬虫以生成统计信息。\n"
+                f"统计目录: [cyan]{get_stats_dir()}[/cyan]"
             ),
-            title="📊 统计信息",
+            title="统计信息",
             border_style="yellow",
             padding=(1, 2)
         ))
@@ -149,7 +149,7 @@ def main(args):
     if not spider_name:
         console.print(Panel(
             "[bold]最近的爬虫统计信息（上次运行）[/bold]",
-            title="📊 爬虫统计概览",
+            title="爬虫统计概览",
             border_style="green",
             padding=(0, 1)
         ))
@@ -157,7 +157,7 @@ def main(args):
         for name, runs in all_stats.items():
             latest = runs[0]
             ts = latest['timestamp'][:19]
-            console.print(f"🕷️  [bold cyan]{name}[/bold cyan] ([green]{ts}[/green])")
+            console.print(f" [bold cyan]{name}[/bold cyan] ([green]{ts}[/green])")
             display_stats_table(latest["stats"], title=f"{name} 的统计信息")
             console.print()  # 空行分隔
 
@@ -165,18 +165,18 @@ def main(args):
 
     # 显示指定爬虫的历史
     if spider_name not in all_stats:
-        console.print(f"[bold red]:cross_mark: 未找到爬虫 '[cyan]{spider_name}[/cyan]' 的统计信息[/bold red]")
+        console.print(f"[bold red]未找到爬虫 '[cyan]{spider_name}[/cyan]' 的统计信息[/bold red]")
         available = ', '.join(all_stats.keys())
         if available:
-            console.print(f":bulb: 可用爬虫: [green]{available}[/green]")
+            console.print(f"可用爬虫: [green]{available}[/green]")
         return 1
 
     runs = all_stats[spider_name]
     if show_all:
-        console.print(f":bar_chart: [bold]'[cyan]{spider_name}[/cyan]' 的所有运行记录 ({len(runs)} 次):[/bold]")
+        console.print(f"[bold]'[cyan]{spider_name}[/cyan]' 的所有运行记录 ({len(runs)} 次):[/bold]")
     else:
         runs = runs[:1]
-        console.print(f":bar_chart: [bold]'[cyan]{spider_name}[/cyan]' 的上次运行:[/bold]")
+        console.print(f"[bold]'[cyan]{spider_name}[/cyan]' 的上次运行:[/bold]")
 
     for i, run in enumerate(runs, 1):
         ts = run['timestamp']

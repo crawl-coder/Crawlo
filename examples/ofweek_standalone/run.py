@@ -9,6 +9,9 @@ import sys
 import os
 import asyncio
 
+# 禁用输出缓冲
+sys.stdout.flush()
+
 # 添加项目根目录到 Python 路径
 project_root = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, project_root)
@@ -17,33 +20,30 @@ sys.path.insert(0, project_root)
 os.chdir(project_root)
 
 from crawlo.crawler import CrawlerProcess
+from crawlo.utils.log import get_logger
 
 
-async def main():
+def main():
     """主函数：使用单机模式配置运行爬虫"""
-    # print("🚀 开始启动 OfweekSpider (单机模式)")
-    
-    # 获取配置
-    # settings = get_settings()
-    # print("配置信息:")
-    # print(f"  - 项目名称: {settings.get('PROJECT_NAME', 'Unknown')}")
-    # print(f"  - 运行模式: {settings.get('RUN_MODE', 'Unknown')}")
-    # print(f"  - 并发数: {settings.get('CONCURRENCY', 1)}")
-    # print(f"  - 下载延迟: {settings.get('DOWNLOAD_DELAY', 0)}秒")
-    # print(f"  - 过滤器: {settings.get('FILTER_CLASS', 'Unknown')}")
-    # print(f"  - 队列类型: {settings.get('QUEUE_TYPE', 'Unknown')}")
-    # print(f"  - 默认去重管道: {settings.get('DEFAULT_DEDUP_PIPELINE', 'Unknown')}")
-    # print(f"  - Redis URL: {settings.get('REDIS_URL', 'Unknown')}")
-    # print("-" * 50)
-
-    # 创建爬虫进程并应用配置
+    # 创建爬虫进程（自动加载默认配置）
     try:
         # 确保 spider 模块被正确导入
         spider_modules = ['ofweek_standalone.spiders']
         process = CrawlerProcess(spider_modules=spider_modules)
-
-        await process.crawl('of_week_standalone')
-
+        
+        # 在CrawlerProcess创建之后创建logger，确保LoggerManager已经被配置
+        logger = get_logger(name='ofweek_standalone')
+        logger.debug("🚀 启动 OfweekSpider (单机模式)")
+        
+        print("✅ 爬虫进程初始化成功")
+        sys.stdout.flush()
+        
+        # 运行固定的爬虫
+        asyncio.run(process.crawl('of_week_standalone'))
+        
+        print("✅ 爬虫运行完成")
+        sys.stdout.flush()
+        
     except Exception as e:
         print(f"❌ 运行失败: {e}")
         import traceback
@@ -52,12 +52,4 @@ async def main():
 
 
 if __name__ == '__main__':
-    # 设置超时时间
-    try:
-        asyncio.run(main())
-    except KeyboardInterrupt:
-        print("程序被用户中断")
-    except Exception as e:
-        print(f"程序运行出错: {e}")
-        import traceback
-        traceback.print_exc()
+    main()

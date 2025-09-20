@@ -63,7 +63,7 @@ class OptimizedRedisConnectionPool:
             )
             
             # 只在调试模式下输出详细连接池信息
-            self.logger.debug(f"✅ Redis连接池初始化成功: {self.redis_url}")
+            self.logger.debug(f"Redis连接池初始化成功: {self.redis_url}")
             self.logger.debug(f"   连接池配置: {self.config}")
             
         except Exception as e:
@@ -80,9 +80,9 @@ class OptimizedRedisConnectionPool:
                 await self._redis_client.ping()
                 self._connection_tested = True
                 # 只在调试模式下输出连接测试成功信息
-                self.logger.debug(f"✅ Redis连接测试成功: {self.redis_url}")
+                self.logger.debug(f"Redis连接测试成功: {self.redis_url}")
             except Exception as e:
-                self.logger.error(f"❌ Redis连接测试失败: {self.redis_url} - {e}")
+                self.logger.error(f"Redis连接测试失败: {self.redis_url} - {e}")
                 raise
     
     async def get_connection(self) -> aioredis.Redis:
@@ -128,7 +128,7 @@ class OptimizedRedisConnectionPool:
                 await self._connection_pool.disconnect()
                 self._connection_pool = None
                 
-            self.logger.info("✅ Redis连接池已关闭")
+            self.logger.info("Redis连接池已关闭")
         except Exception as e:
             self.error_handler.handle_error(
                 e, 

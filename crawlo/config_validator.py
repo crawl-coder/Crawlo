@@ -210,9 +210,9 @@ class ConfigValidator:
         report.append("=" * 50)
         
         if is_valid:
-            report.append("✅ 配置验证通过")
+            report.append("配置验证通过")
         else:
-            report.append("❌ 配置验证失败")
+            report.append("配置验证失败")
             report.append("错误:")
             for error in errors:
                 report.append(f"  - {error}")

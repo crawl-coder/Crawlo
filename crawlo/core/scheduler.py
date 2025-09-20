@@ -96,7 +96,7 @@ class Scheduler:
             current_filter = self.crawler.settings.get('FILTER_CLASS')
             
             # 输出启用的过滤器信息（类似Downloader的格式）
-            self.logger.info(f"enabled filters: \n  {current_filter}")
+            self.logger.info(f"enabled filters: \n  {current_filter}")  # 注释掉重复的日志
             
             # 优化日志输出，将多条日志合并为1条关键信息
             # 显示完整路径的过滤器类名
@@ -212,7 +212,7 @@ class Scheduler:
             success = await self.queue_manager.put(request, priority=getattr(request, 'priority', 0))
             
             if success:
-                self.logger.debug(f"✅ Request enqueued successfully: {request.url}")
+                self.logger.debug(f"Request enqueued successfully: {request.url}")
             
             return success
         except Exception as e:

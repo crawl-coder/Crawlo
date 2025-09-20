@@ -82,7 +82,7 @@ def demonstrate_config_validation():
             concurrency=8,
             download_delay=1.0
         )
-        print("✅ 单机模式配置创建成功")
+        print("单机模式配置创建成功")
         config.print_summary()
         print()
         
@@ -93,10 +93,10 @@ def demonstrate_config_validation():
             }
             invalid_config_obj = CrawloConfig.custom(invalid_config_dict)
         except ValueError as e:
-            print(f"✅ 捕获到配置验证异常: {e}")
+            print(f"捕获到配置验证异常: {e}")
         
     except Exception as e:
-        print(f"❌ 配置创建失败: {e}")
+        print(f"配置创建失败: {e}")
 
 
 if __name__ == "__main__":

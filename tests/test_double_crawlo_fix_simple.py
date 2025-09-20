@@ -18,7 +18,7 @@ from crawlo.queue.redis_priority_queue import RedisPriorityQueue
 
 def test_redis_queue_naming():
     """测试 Redis 队列命名修复"""
-    print("🚀 开始测试 Redis 队列命名修复...")
+    print("开始测试 Redis 队列命名修复...")
     print("=" * 50)
     
     test_cases = [
@@ -77,26 +77,26 @@ def test_redis_queue_naming():
                 assert queue.failed_queue == test_case['expected_failed'], \
                     f"失败队列名称不匹配: {queue.failed_queue} != {test_case['expected_failed']}"
                 
-                print("  ✅ 测试通过")
+                print("  测试通过")
             except Exception as e:
-                print(f"  ❌ 测试失败: {e}")
+                print(f"  测试失败: {e}")
                 traceback.print_exc()
                 return False
             
             print()
         
-        print("✅ Redis 队列命名修复测试通过！")
+        print("Redis 队列命名修复测试通过！")
         return True
         
     except Exception as e:
-        print(f"❌ Redis 队列命名修复测试失败: {e}")
+        print(f"Redis 队列命名修复测试失败: {e}")
         traceback.print_exc()
         return False
 
 
 def main():
     """主测试函数"""
-    print("🚀 开始双重 crawlo 前缀问题修复测试...")
+    print("开始双重 crawlo 前缀问题修复测试...")
     print("=" * 50)
     
     try:
@@ -106,14 +106,14 @@ def main():
         
         print("=" * 50)
         if redis_test_success:
-            print("🎉 Redis 队列命名修复测试通过！双重 crawlo 前缀问题已修复")
+            print("Redis 队列命名修复测试通过！双重 crawlo 前缀问题已修复")
         else:
-            print("❌ Redis 队列命名修复测试失败，请检查实现")
+            print("Redis 队列命名修复测试失败，请检查实现")
             return 1
             
     except Exception as e:
         print("=" * 50)
-        print(f"❌ 测试过程中发生异常: {e}")
+        print(f"测试过程中发生异常: {e}")
         traceback.print_exc()
         return 1
     

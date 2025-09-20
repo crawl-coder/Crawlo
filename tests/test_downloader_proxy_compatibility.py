@@ -87,7 +87,7 @@ async def test_aiohttp_with_proxy(proxy_url, target_url):
         if request.proxy:
             print(f"✓ 代理已成功设置: {request.proxy}")
         else:
-            print("⚠ 代理未设置")
+            print("代理未设置")
             
         # 尝试下载
         try:
@@ -145,7 +145,7 @@ async def test_httpx_with_proxy_async(proxy_url, target_url):
         if request.proxy:
             print(f"✓ 代理已成功设置: {request.proxy}")
         else:
-            print("⚠ 代理未设置")
+            print("代理未设置")
             
         # 尝试下载
         try:
@@ -203,7 +203,7 @@ async def test_curl_cffi_with_proxy_async(proxy_url, target_url):
         if request.proxy:
             print(f"✓ 代理已成功设置: {request.proxy}")
         else:
-            print("⚠ 代理未设置")
+            print("代理未设置")
             
         # 尝试下载
         try:

@@ -28,11 +28,11 @@ async def test_redis_connection():
             print(f"   尝试连接: {redis_url}")
             queue = RedisPriorityQueue(redis_url=redis_url)
             await queue.connect()
-            print(f"   ✅ 连接成功: {redis_url}")
+            print(f"   连接成功: {redis_url}")
             await queue.close()
             return redis_url
         except Exception as e:
-            print(f"   ❌ 连接失败: {redis_url} - {e}")
+            print(f"   连接失败: {redis_url} - {e}")
     
     raise ConnectionError("所有 Redis URL 都连接失败")
 
@@ -56,32 +56,32 @@ async def test_queue_operations(redis_url):
         
         success = await queue.put(test_request, priority=5)
         if success:
-            print("   ✅ 插入成功")
+            print("   插入成功")
         else:
-            print("   ❌ 插入失败")
+            print("   插入失败")
             return False
             
         # 测试队列大小
         size = await queue.qsize()
-        print(f"   📊 队列大小: {size}")
+        print(f"   队列大小: {size}")
         
         # 测试 get 操作
         print("   📥 获取请求...")
         retrieved_request = await queue.get(timeout=2.0)
         
         if retrieved_request:
-            print(f"   ✅ 获取成功: {retrieved_request.url}")
+            print(f"   获取成功: {retrieved_request.url}")
             # 测试 ack
             await queue.ack(retrieved_request)
-            print("   ✅ ACK 成功")
+            print("   ACK 成功")
         else:
-            print("   ❌ 获取失败（超时）")
+            print("   获取失败（超时）")
             return False
             
         return True
         
     except Exception as e:
-        print(f"   ❌ 队列操作失败: {e}")
+        print(f"   队列操作失败: {e}")
         traceback.print_exc()
         return False
     finally:
@@ -107,16 +107,16 @@ async def test_serialization():
         
         # 测试序列化
         serialized = pickle.dumps(request)
-        print(f"   ✅ 序列化成功，大小: {len(serialized)} bytes")
+        print(f"   序列化成功，大小: {len(serialized)} bytes")
         
         # 测试反序列化
         deserialized = pickle.loads(serialized)
-        print(f"   ✅ 反序列化成功: {deserialized.url}")
+        print(f"   反序列化成功: {deserialized.url}")
         
         return True
         
     except Exception as e:
-        print(f"   ❌ 序列化失败: {e}")
+        print(f"   序列化失败: {e}")
         traceback.print_exc()
         return False
 
@@ -132,9 +132,9 @@ async def test_concurrent_operations(redis_url):
                 request = Request(url=f"https://example{start_id + i}.com", priority=i)
                 await queue.put(request, priority=i)
                 await asyncio.sleep(0.1)
-            print(f"   ✅ 生产者 {start_id} 完成")
+            print(f"   生产者 {start_id} 完成")
         except Exception as e:
-            print(f"   ❌ 生产者 {start_id} 失败: {e}")
+            print(f"   生产者 {start_id} 失败: {e}")
     
     async def consumer(queue, consumer_id):
         """消费者"""
@@ -148,9 +148,9 @@ async def test_concurrent_operations(redis_url):
                     await asyncio.sleep(0.05)
                 else:
                     break
-            print(f"   ✅ 消费者 {consumer_id} 处理了 {consumed} 个请求")
+            print(f"   消费者 {consumer_id} 处理了 {consumed} 个请求")
         except Exception as e:
-            print(f"   ❌ 消费者 {consumer_id} 失败: {e}")
+            print(f"   消费者 {consumer_id} 失败: {e}")
     
     queue = RedisPriorityQueue(
         redis_url=redis_url,
@@ -172,12 +172,12 @@ async def test_concurrent_operations(redis_url):
         
         # 检查剩余队列大小
         final_size = await queue.qsize()
-        print(f"   📊 最终队列大小: {final_size}")
+        print(f"   最终队列大小: {final_size}")
         
         return True
         
     except Exception as e:
-        print(f"   ❌ 并发测试失败: {e}")
+        print(f"   并发测试失败: {e}")
         return False
     finally:
         await queue.close()
@@ -185,7 +185,7 @@ async def test_concurrent_operations(redis_url):
 
 async def main():
     """主测试函数"""
-    print("🚀 开始 Redis 分布式队列诊断...")
+    print("开始 Redis 分布式队列诊断...")
     print("=" * 50)
     
     try:
@@ -205,11 +205,11 @@ async def main():
             return
             
         print("=" * 50)
-        print("🎉 所有测试通过！Redis 队列工作正常")
+        print("所有测试通过！Redis 队列工作正常")
         
     except Exception as e:
         print("=" * 50)
-        print(f"❌ 诊断失败: {e}")
+        print(f"诊断失败: {e}")
         traceback.print_exc()
         
         # 提供解决建议

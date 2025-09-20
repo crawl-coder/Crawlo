@@ -104,16 +104,16 @@ class RedisPriorityQueue:
                     # 测试连接
                     await self._redis.ping()
                     # 只在调试模式下输出详细连接信息
-                    logger.debug(f"✅ Redis 连接成功 (Module: {self.module_name})")
+                    # logger.debug(f"Redis 连接成功 (Module: {self.module_name})")  # 注释掉重复的日志
                     return self._redis
                 except Exception as e:
-                    error_msg = f"⚠️ Redis 连接失败 (尝试 {attempt + 1}/{max_retries}, Module: {self.module_name}): {e}"
+                    error_msg = f"Redis 连接失败 (尝试 {attempt + 1}/{max_retries}, Module: {self.module_name}): {e}"
                     logger.warning(error_msg)
                     logger.debug(f"详细错误信息:\n{traceback.format_exc()}")
                     if attempt < max_retries - 1:
                         await asyncio.sleep(delay)
                     else:
-                        raise ConnectionError(f"❌ 无法连接 Redis (Module: {self.module_name}): {e}")
+                        raise ConnectionError(f"无法连接 Redis (Module: {self.module_name}): {e}")
 
     async def _ensure_connection(self):
         """确保连接有效"""
@@ -122,7 +122,7 @@ class RedisPriorityQueue:
         try:
             await self._redis.ping()
         except Exception as e:
-            logger.warning(f"🔄 Redis 连接失效 (Module: {self.module_name})，尝试重连...: {e}")
+            logger.warning(f"Redis 连接失效 (Module: {self.module_name})，尝试重连...: {e}")
             self._redis = None
             await self.connect()
 
@@ -142,7 +142,7 @@ class RedisPriorityQueue:
                 # 验证序列化数据可以被反序列化
                 pickle.loads(serialized)
             except Exception as serialize_error:
-                logger.error(f"❌ 请求序列化验证失败 (Module: {self.module_name}): {serialize_error}")
+                logger.error(f"请求序列化验证失败 (Module: {self.module_name}): {serialize_error}")
                 return False
             
             pipe = self._redis.pipeline()
@@ -151,7 +151,7 @@ class RedisPriorityQueue:
             result = await pipe.execute()
             
             if result[0] > 0:
-                logger.debug(f"✅ 成功入队 (Module: {self.module_name}): {request.url}")
+                logger.debug(f"成功入队 (Module: {self.module_name}): {request.url}")  # 注释掉重复的日志
             return result[0] > 0
         except Exception as e:
             error_handler.handle_error(
@@ -198,7 +198,7 @@ class RedisPriorityQueue:
                         return request
                     except Exception as pickle_error:
                         # 如果pickle反序列化失败，记录错误并跳过这个任务
-                        logger.error(f"❌ 无法反序列化请求数据 (Module: {self.module_name}): {pickle_error}")
+                        logger.error(f"无法反序列化请求数据 (Module: {self.module_name}): {pickle_error}")
                         # 从processing队列中移除这个无效的任务
                         await self._redis.zrem(self.processing_queue, processing_key)
                         await self._redis.hdel(f"{self.processing_queue}:data", processing_key)
@@ -256,7 +256,7 @@ class RedisPriorityQueue:
 
             if retries <= self.max_retries:
                 await self.put(request, priority=request.priority + 1)
-                logger.info(f"🔁 任务重试 [{retries}/{self.max_retries}] (Module: {self.module_name}): {request.url}")
+                logger.info(f"任务重试 [{retries}/{self.max_retries}] (Module: {self.module_name}): {request.url}")
             else:
                 failed_data = {
                     "url": request.url,
@@ -266,7 +266,7 @@ class RedisPriorityQueue:
                     "request_pickle": pickle.dumps(request).hex(),  # 可选：保存完整请求
                 }
                 await self._redis.lpush(self.failed_queue, pickle.dumps(failed_data))
-                logger.error(f"❌ 任务彻底失败 [{retries}次] (Module: {self.module_name}): {request.url}")
+                logger.error(f"任务彻底失败 [{retries}次] (Module: {self.module_name}): {request.url}")
         except Exception as e:
             error_handler.handle_error(
                 e, 
@@ -297,7 +297,7 @@ class RedisPriorityQueue:
             # 连接池会自动管理连接，这里不需要显式关闭单个连接
             self._redis = None
             self._redis_pool = None
-            logger.debug(f"✅ Redis 连接已释放 (Module: {self.module_name})")
+            logger.debug(f"Redis 连接已释放 (Module: {self.module_name})")
         except Exception as e:
             error_handler.handle_error(
                 e, 

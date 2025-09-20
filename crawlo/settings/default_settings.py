@@ -60,7 +60,7 @@ REDIS_PORT = redis_config['REDIS_PORT']
 REDIS_PASSWORD = redis_config['REDIS_PASSWORD']
 REDIS_DB = redis_config['REDIS_DB']
 
-# 🔧 根据是否有密码生成不同的 URL 格式
+# 根据是否有密码生成不同的 URL 格式
 if REDIS_PASSWORD:
     REDIS_URL = f'redis://:{REDIS_PASSWORD}@{REDIS_HOST}:{REDIS_PORT}/{REDIS_DB}'
 else:
@@ -119,7 +119,7 @@ EXTENSIONS = [
 
 # ============================== 日志与监控 ==============================
 
-LOG_LEVEL = 'INFO'  # 日志级别: DEBUG/INFO/WARNING/ERROR
+LOG_LEVEL = 'DEBUG'  # 日志级别: DEBUG/INFO/WARNING/ERROR
 STATS_DUMP = True  # 是否周期性输出统计信息
 LOG_FILE = f'logs/{PROJECT_NAME}.log'  # 日志文件路径
 LOG_FORMAT = '%(asctime)s - [%(name)s] - %(levelname)s: %(message)s'

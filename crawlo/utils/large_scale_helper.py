@@ -119,7 +119,7 @@ class ProgressManager:
         try:
             with open(self.progress_file, 'r', encoding='utf-8') as f:
                 progress = json.load(f)
-                self.logger.info(f"📊 加载进度: {progress}")
+                self.logger.info(f"加载进度: {progress}")
                 return progress
         except FileNotFoundError:
             self.logger.info("📄 未找到进度文件，从头开始")
@@ -194,7 +194,7 @@ class MemoryOptimizer:
         memory_mb = memory_info.get('memory_mb', 0)
         
         if memory_mb > self.max_memory_mb:
-            self.logger.warning(f"⚠️ 内存使用过高: {memory_mb:.1f}MB > {self.max_memory_mb}MB")
+            self.logger.warning(f"内存使用过高: {memory_mb:.1f}MB > {self.max_memory_mb}MB")
             return True
             
         return False
@@ -204,7 +204,7 @@ class MemoryOptimizer:
         try:
             import gc
             collected = gc.collect()
-            self.logger.debug(f"🗑️ 垃圾回收: 清理了 {collected} 个对象")
+            self.logger.debug(f"垃圾回收: 清理了 {collected} 个对象")
         except Exception as e:
             self.logger.error(f"垃圾回收失败: {e}")
 
@@ -338,7 +338,7 @@ class LargeScaleSpiderMixin:
             completed=True
         )
         
-        self.logger.info(f"🎉 处理完成！总计: {processed_count}, 跳过: {skipped_count}")
+        self.logger.info(f"处理完成！总计: {processed_count}, 跳过: {skipped_count}")
     
     def create_request_from_item(self, item):
         """从数据项创建请求（需要子类实现）"""
