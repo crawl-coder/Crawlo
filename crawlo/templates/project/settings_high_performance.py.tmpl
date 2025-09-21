@@ -54,53 +54,44 @@ CLEANUP_FP = 0
 FILTER_DEBUG = True
 DECODE_RESPONSES = True
 
-# ============================== 中间件配置 ==============================
+# ============================== 用户自定义中间件配置 ==============================
+# 注意：框架默认中间件已自动加载，此处可添加或覆盖默认中间件
 
-MIDDLEWARES = [
-    # === 请求预处理阶段 ===
-    'crawlo.middleware.request_ignore.RequestIgnoreMiddleware',
-    'crawlo.middleware.download_delay.DownloadDelayMiddleware',
-    'crawlo.middleware.default_header.DefaultHeaderMiddleware',
-    'crawlo.middleware.proxy.ProxyMiddleware',
-    'crawlo.middleware.offsite.OffsiteMiddleware', 
-    
-    # === 响应处理阶段 ===
-    'crawlo.middleware.retry.RetryMiddleware',
-    'crawlo.middleware.response_code.ResponseCodeMiddleware',
-    'crawlo.middleware.response_filter.ResponseFilterMiddleware',
-]
+# 中间件列表（框架默认中间件 + 用户自定义中间件）
+# MIDDLEWARES = [
+    # '{{project_name}}.middlewares.CustomMiddleware',  # 示例自定义中间件
+# ]
 
-# ============================== 数据管道配置 ==============================
+# ============================== 用户自定义数据管道配置 ==============================
+# 注意：框架默认管道已自动加载，此处可添加或覆盖默认管道
 
-# 数据处理管道（启用的存储方式）
-PIPELINES = [
-    'crawlo.pipelines.console_pipeline.ConsolePipeline',
+# 数据处理管道列表（框架默认管道 + 用户自定义管道）
+# PIPELINES = [
     # '{{project_name}}.pipelines.DatabasePipeline',        # 自定义数据库管道
     # 'crawlo.pipelines.mysql_pipeline.AsyncmyMySQLPipeline',  # MySQL 存储
     # 'crawlo.pipelines.mongo_pipeline.MongoPipeline',      # MongoDB 存储
-]
+# ]
 
 # 明确添加默认去重管道到管道列表开头
-PIPELINES.insert(0, DEFAULT_DEDUP_PIPELINE)
+# PIPELINES.insert(0, DEFAULT_DEDUP_PIPELINE)
 
-# ============================== 扩展组件 ==============================
+# ============================== 用户自定义扩展组件 ==============================
+# 注意：框架默认扩展已自动加载，此处可添加或覆盖默认扩展
 
-EXTENSIONS = [
-    'crawlo.extension.log_interval.LogIntervalExtension',
-    'crawlo.extension.log_stats.LogStats',
-    'crawlo.extension.logging_extension.CustomLoggerExtension',
+# 扩展组件列表（框架默认扩展 + 用户自定义扩展）
+# EXTENSIONS = [
     # 'crawlo.extension.memory_monitor.MemoryMonitorExtension',  # 内存监控
     # 'crawlo.extension.request_recorder.RequestRecorderExtension',  # 请求记录
     # 'crawlo.extension.performance_profiler.PerformanceProfilerExtension',  # 性能分析
     # 'crawlo.extension.health_check.HealthCheckExtension',  # 健康检查
-]
+# ]
 
 # ============================== 日志配置 ==============================
 
 LOG_LEVEL = 'INFO'
 STATS_DUMP = True
 LOG_FILE = f'logs/{{project_name}}.log'
-LOG_FORMAT = '%(asctime)s - [%(name)s] - %(levelname)s： %(message)s'
+LOG_FORMAT = '%(asctime)s - [%(name)s] - %(levelname)s: %(message)s'
 LOG_ENCODING = 'utf-8'
 
 # ============================== 性能优化配置 ==============================

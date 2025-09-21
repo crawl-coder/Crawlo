@@ -12,9 +12,9 @@ from crawlo.config import CrawloConfig
 PROJECT_NAME = '{{project_name}}'
 
 # ============================== 分布式配置说明 ==============================
-RUN_MODE = 'distributed'  
-QUEUE_TYPE = 'redis'  
-FILTER_CLASS = 'crawlo.filters.aioredis_filter.AioRedisFilter'  
+RUN_MODE = 'distributed'
+QUEUE_TYPE = 'redis'
+FILTER_CLASS = 'crawlo.filters.aioredis_filter.AioRedisFilter'
 DEFAULT_DEDUP_PIPELINE = 'crawlo.pipelines.redis_dedup_pipeline.RedisDedupPipeline'
 # 本模板专为分布式部署设计，适用于以下场景：
 # - 大规模数据采集任务
@@ -58,34 +58,48 @@ CONFIG = CrawloConfig.distributed(
 locals().update(CONFIG.to_dict())
 
 # ============================== 网络请求配置 ==============================
-DOWNLOADER = "crawlo.downloader.httpx_downloader.HttpXDownloader"
-DOWNLOAD_TIMEOUT = 60
-VERIFY_SSL = True
+
+# 注意：框架已提供默认的网络请求配置，以下配置项通常无需修改
+# 如需自定义，请取消注释并修改相应值
+
+# DOWNLOADER = "crawlo.downloader.httpx_downloader.HttpXDownloader"
+# DOWNLOAD_TIMEOUT = 60
+# VERIFY_SSL = True
 
 # ============================== 并发配置 ==============================
-CONCURRENCY = 16
-MAX_RUNNING_SPIDERS = 5
-DOWNLOAD_DELAY = 1.0
+
+# 注意：并发配置通常通过CrawloConfig设置，以下配置项用于细粒度调整
+
+# CONCURRENCY = 16
+# MAX_RUNNING_SPIDERS = 5
+# DOWNLOAD_DELAY = 1.0
 
 # ============================== 队列配置 ==============================
-SCHEDULER_MAX_QUEUE_SIZE = 5000
-QUEUE_MAX_RETRIES = 5
-QUEUE_TIMEOUT = 300
+
+# 注意：队列配置通常通过CrawloConfig设置，以下配置项用于细粒度调整
+
+# SCHEDULER_MAX_QUEUE_SIZE = 5000
+# QUEUE_MAX_RETRIES = 5
+# QUEUE_TIMEOUT = 300
 
 # ============================== Redis 配置 ==============================
-REDIS_HOST = os.getenv('REDIS_HOST', '127.0.0.1')
-REDIS_PORT = int(os.getenv('REDIS_PORT', 6379))
-REDIS_PASSWORD = os.getenv('REDIS_PASSWORD', '')
-REDIS_DB = int(os.getenv('REDIS_DB', 0))
+
+# 注意：Redis配置通常通过CrawloConfig设置，以下配置项用于细粒度调整
+
+# REDIS_HOST = os.getenv('REDIS_HOST', '127.0.0.1')
+# REDIS_PORT = int(os.getenv('REDIS_PORT', 6379))
+# REDIS_PASSWORD = os.getenv('REDIS_PASSWORD', '')
+# REDIS_DB = int(os.getenv('REDIS_DB', 0))
 
 # 根据是否有密码生成 URL
-if REDIS_PASSWORD:
-    REDIS_URL = f'redis://:{REDIS_PASSWORD}@{REDIS_HOST}:{REDIS_PORT}/{REDIS_DB}'
-else:
-    REDIS_URL = f'redis://{REDIS_HOST}:{REDIS_PORT}/{REDIS_DB}'
+# if REDIS_PASSWORD:
+#     REDIS_URL = f'redis://:{REDIS_PASSWORD}@{REDIS_HOST}:{REDIS_PORT}/{REDIS_DB}'
+# else:
+#     REDIS_URL = f'redis://{REDIS_HOST}:{REDIS_PORT}/{REDIS_DB}'
 
 # ============================== 数据存储配置 ==============================
-# MySQL 配置
+
+# --- MySQL 配置 ---
 MYSQL_HOST = os.getenv('MYSQL_HOST', '127.0.0.1')
 MYSQL_PORT = int(os.getenv('MYSQL_PORT', 3306))
 MYSQL_USER = os.getenv('MYSQL_USER', 'root')
@@ -95,7 +109,7 @@ MYSQL_TABLE = '{{project_name}}_data'
 MYSQL_BATCH_SIZE = 100
 MYSQL_USE_BATCH = True
 
-# MongoDB 配置
+# --- MongoDB 配置 ---
 MONGO_URI = os.getenv('MONGO_URI', 'mongodb://localhost:27017')
 MONGO_DATABASE = '{{project_name}}_db'
 MONGO_COLLECTION = '{{project_name}}_items'
@@ -103,51 +117,54 @@ MONGO_BATCH_SIZE = 100
 MONGO_USE_BATCH = True
 
 # ============================== 去重配置 ==============================
+
+# 注意：框架已提供默认的去重配置，以下配置项通常无需修改
+# 如需自定义，请取消注释并修改相应值
+
 # 明确指定分布式模式下使用Redis去重管道
-DEFAULT_DEDUP_PIPELINE = 'crawlo.pipelines.redis_dedup_pipeline.RedisDedupPipeline'
-FILTER_CLASS = 'crawlo.filters.aioredis_filter.AioRedisFilter'
-REDIS_TTL = 0
-CLEANUP_FP = 0
-FILTER_DEBUG = True
+# DEFAULT_DEDUP_PIPELINE = 'crawlo.pipelines.redis_dedup_pipeline.RedisDedupPipeline'
+# FILTER_CLASS = 'crawlo.filters.aioredis_filter.AioRedisFilter'
+# REDIS_TTL = 0
+# CLEANUP_FP = 0
+# FILTER_DEBUG = True
 
-# ============================== 中间件与管道 ==============================
-MIDDLEWARES = [
-    'crawlo.middleware.request_ignore.RequestIgnoreMiddleware',
-    'crawlo.middleware.download_delay.DownloadDelayMiddleware',
-    'crawlo.middleware.default_header.DefaultHeaderMiddleware',
-    'crawlo.middleware.proxy.ProxyMiddleware',
-    'crawlo.middleware.offsite.OffsiteMiddleware', 
-    
-    'crawlo.middleware.retry.RetryMiddleware',
-    'crawlo.middleware.response_code.ResponseCodeMiddleware',
-    'crawlo.middleware.response_filter.ResponseFilterMiddleware',
-]
+# ============================== 用户自定义中间件配置 ==============================
+# 注意：框架默认中间件已自动加载，此处可添加或覆盖默认中间件
 
-PIPELINES = [
-    'crawlo.pipelines.console_pipeline.ConsolePipeline',
-    # '{{project_name}}.pipelines.DatabasePipeline',
-    # 'crawlo.pipelines.mysql_pipeline.AsyncmyMySQLPipeline',
-    # 'crawlo.pipelines.mongo_pipeline.MongoPipeline',
-]
+# 中间件列表（框架默认中间件 + 用户自定义中间件）
+# MIDDLEWARES = [
+    # '{{project_name}}.middlewares.CustomMiddleware',  # 示例自定义中间件
+# ]
 
-# 明确添加Redis去重管道到管道列表开头
-PIPELINES.insert(0, DEFAULT_DEDUP_PIPELINE)
+# ============================== 用户自定义数据管道配置 ==============================
+# 注意：框架默认管道已自动加载，此处可添加或覆盖默认管道
 
-# ============================== 扩展组件 ==============================
-EXTENSIONS = [
-    'crawlo.extension.log_interval.LogIntervalExtension',
-    'crawlo.extension.log_stats.LogStats',
-    'crawlo.extension.logging_extension.CustomLoggerExtension',
-    # 'crawlo.extension.memory_monitor.MemoryMonitorExtension',
-    # 'crawlo.extension.request_recorder.RequestRecorderExtension',
-]
+# 数据处理管道列表（框架默认管道 + 用户自定义管道）
+# PIPELINES = [
+    # '{{project_name}}.pipelines.DatabasePipeline',        # 自定义数据库管道
+    # 'crawlo.pipelines.mysql_pipeline.AsyncmyMySQLPipeline',  # MySQL 存储
+    # 'crawlo.pipelines.mongo_pipeline.MongoPipeline',      # MongoDB 存储
+# ]
+
+# ============================== 用户自定义扩展组件 ==============================
+# 注意：框架默认扩展已自动加载，此处可添加或覆盖默认扩展
+
+# 扩展组件列表（框架默认扩展 + 用户自定义扩展）
+# EXTENSIONS = [
+    # 'crawlo.extension.memory_monitor.MemoryMonitorExtension',  # 内存监控
+    # 'crawlo.extension.request_recorder.RequestRecorderExtension',  # 请求记录
+    # 'crawlo.extension.performance_profiler.PerformanceProfilerExtension',  # 性能分析
+    # 'crawlo.extension.health_check.HealthCheckExtension',  # 健康检查
+# ]
 
 # ============================== 日志配置 ==============================
+
 LOG_LEVEL = 'INFO'
 LOG_FILE = f'logs/{{project_name}}.log'
 STATS_DUMP = True
 
 # ============================== 代理配置 ==============================
+
 PROXY_ENABLED = False
 PROXY_API_URL = ""
 PROXY_EXTRACTOR = "proxy"

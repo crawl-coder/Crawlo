@@ -1,69 +1,76 @@
 # -*- coding: UTF-8 -*-
 """
 ofweek_distributed 项目配置文件
-=============================
+==============================
 基于 Crawlo 框架的分布式爬虫项目配置。
-适合大规模数据采集和多节点部署。
 """
+
+import os
 
 # ============================== 项目基本信息 ==============================
 PROJECT_NAME = 'ofweek_distributed'
 
-# ============================== 运行模式 ==============================
+# 确保日志目录存在
+os.makedirs('logs', exist_ok=True)
+
+# ============================== 分布式运行模式 ==============================
 RUN_MODE = 'distributed'
+
+# ============================== Redis配置 ==============================
+REDIS_HOST = '127.0.0.1'
+REDIS_PORT = 6379
+REDIS_PASSWORD = ''
+REDIS_DB = 0
+
+# 根据是否有密码生成 URL
+if REDIS_PASSWORD:
+    REDIS_URL = f'redis://:{REDIS_PASSWORD}@{REDIS_HOST}:{REDIS_PORT}/{REDIS_DB}'
+else:
+    REDIS_URL = f'redis://{REDIS_HOST}:{REDIS_PORT}/{REDIS_DB}'
 
 # ============================== 并发配置 ==============================
 CONCURRENCY = 16
-MAX_RUNNING_SPIDERS = 5
-DOWNLOAD_DELAY = 0.5
+MAX_RUNNING_SPIDERS = 1
+DOWNLOAD_DELAY = 1.0
 
 # ============================== 下载器配置 ==============================
 DOWNLOADER = 'crawlo.downloader.aiohttp_downloader.AioHttpDownloader'
 
-# ============================== Redis 配置 ==============================
-REDIS_HOST = '127.0.0.1'
-REDIS_PORT = 6379
-REDIS_PASSWORD = ''
-REDIS_DB = 2
-REDIS_URL = f'redis://{REDIS_HOST}:{REDIS_PORT}/{REDIS_DB}'
-
 # ============================== 队列配置 ==============================
 QUEUE_TYPE = 'redis'
-SCHEDULER_QUEUE_NAME = f'crawlo:{PROJECT_NAME}:queue:requests'
 
 # ============================== 去重过滤器 ==============================
 FILTER_CLASS = 'crawlo.filters.aioredis_filter.AioRedisFilter'
 
 # ============================== 默认去重管道 ==============================
-# 明确指定分布式模式下使用Redis去重管道
 DEFAULT_DEDUP_PIPELINE = 'crawlo.pipelines.redis_dedup_pipeline.RedisDedupPipeline'
 
 # ============================== 爬虫模块配置 ==============================
 SPIDER_MODULES = ['ofweek_distributed.spiders']
 
-# ============================== 中间件 ==============================
+# ============================== 用户自定义中间件 ==============================
+# 注意：框架默认中间件已自动加载，此处可添加或覆盖默认中间件
+
+# 中间件列表（框架默认中间件 + 用户自定义中间件）
 MIDDLEWARES = [
-    'crawlo.middleware.request_ignore.RequestIgnoreMiddleware',
-    'crawlo.middleware.download_delay.DownloadDelayMiddleware',
-    'crawlo.middleware.default_header.DefaultHeaderMiddleware',
-    'crawlo.middleware.proxy.ProxyMiddleware',
-    'crawlo.middleware.retry.RetryMiddleware',
-    'crawlo.middleware.response_code.ResponseCodeMiddleware',
-    'crawlo.middleware.response_filter.ResponseFilterMiddleware',
+    # 'ofweek_distributed.middlewares.CustomMiddleware',  # 示例自定义中间件
 ]
 
-# ============================== 数据管道 ==============================
+# ============================== 用户自定义数据管道 ==============================
+# 注意：框架默认管道已自动加载，此处可添加或覆盖默认管道
+
+# 数据处理管道列表（框架默认管道 + 用户自定义管道）
 PIPELINES = [
-    'crawlo.pipelines.console_pipeline.ConsolePipeline',
     'crawlo.pipelines.json_pipeline.JsonPipeline',
-    'crawlo.pipelines.redis_dedup_pipeline.RedisDedupPipeline',  # Redis去重管道
+    # 'crawlo.pipelines.redis_dedup_pipeline.RedisDedupPipeline',  # Redis去重管道（已默认加载）
 ]
 
-# ============================== 扩展组件 ==============================
+# ============================== 用户自定义扩展组件 ==============================
+# 注意：框架默认扩展已自动加载，此处可添加或覆盖默认扩展
+
+# 扩展组件列表（框架默认扩展 + 用户自定义扩展）
 EXTENSIONS = [
-    'crawlo.extension.log_interval.LogIntervalExtension',
-    'crawlo.extension.log_stats.LogStats',
-    'crawlo.extension.logging_extension.CustomLoggerExtension',
+    # 'crawlo.extension.memory_monitor.MemoryMonitorExtension',  # 内存监控
 ]
 
 # ============================== 日志配置 ==============================

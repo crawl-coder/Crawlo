@@ -3,7 +3,7 @@ import os
 from crawlo.config import CrawloConfig
 
 # ============================== 项目基本信息 ==============================
-PROJECT_NAME = '{{project_name}}'
+PROJECT_NAME = 'test_project'
 
 # ============================== 运行模式选择 ==============================
 
@@ -19,7 +19,7 @@ CONFIG = CrawloConfig.standalone(
 # CONFIG = CrawloConfig.distributed(
 #     redis_host='127.0.0.1',
 #     redis_password='your_password',  # 如果有密码
-#     project_name='{{project_name}}',
+#     project_name='test_project',
 #     concurrency=16,
 #     download_delay=1.0
 # )
@@ -92,7 +92,7 @@ locals().update(CONFIG.to_dict())
 # - 'redis'：适用于分布式部署场景，需要Redis服务器支持
 # QUEUE_TYPE = 'auto'
 # SCHEDULER_MAX_QUEUE_SIZE = 2000
-# SCHEDULER_QUEUE_NAME = f'crawlo:{{project_name}}:queue:requests'  # 使用统一命名规范
+# SCHEDULER_QUEUE_NAME = f'crawlo:test_project:queue:requests'  # 使用统一命名规范
 # QUEUE_MAX_RETRIES = 3
 # QUEUE_TIMEOUT = 300
 
@@ -108,15 +108,15 @@ MYSQL_HOST = os.getenv('MYSQL_HOST', '127.0.0.1')
 MYSQL_PORT = int(os.getenv('MYSQL_PORT', 3306))
 MYSQL_USER = os.getenv('MYSQL_USER', 'root')
 MYSQL_PASSWORD = os.getenv('MYSQL_PASSWORD', '123456')
-MYSQL_DB = os.getenv('MYSQL_DB', '{{project_name}}')
-MYSQL_TABLE = '{{project_name}}_data'
+MYSQL_DB = os.getenv('MYSQL_DB', 'test_project')
+MYSQL_TABLE = 'test_project_data'
 MYSQL_BATCH_SIZE = 100
 MYSQL_USE_BATCH = False  # 是否启用批量插入
 
 # --- MongoDB 配置 ---
 MONGO_URI = os.getenv('MONGO_URI', 'mongodb://localhost:27017')
-MONGO_DATABASE = '{{project_name}}_db'
-MONGO_COLLECTION = '{{project_name}}_items'
+MONGO_DATABASE = 'test_project_db'
+MONGO_COLLECTION = 'test_project_items'
 MONGO_MAX_POOL_SIZE = 200
 MONGO_MIN_POOL_SIZE = 20
 MONGO_BATCH_SIZE = 100  # 批量插入条数
@@ -162,8 +162,8 @@ MONGO_USE_BATCH = False  # 是否启用批量插入
 
 # 中间件列表（框架默认中间件 + 用户自定义中间件）
 # MIDDLEWARES = [
-    # '{{project_name}}.middlewares.CustomMiddleware',  # 示例自定义中间件
-    # 'crawlo.middleware.proxy.ProxyMiddleware',  # 启用代理功能（需要配置 PROXY_API_URL）
+# 'test_project.middlewares.CustomMiddleware',  # 示例自定义中间件
+# 'crawlo.middleware.proxy.ProxyMiddleware',  # 启用代理功能（需要配置 PROXY_API_URL）
 # ]
 
 # ============================== 用户自定义数据管道配置 ==============================
@@ -171,9 +171,9 @@ MONGO_USE_BATCH = False  # 是否启用批量插入
 
 # 数据处理管道列表（框架默认管道 + 用户自定义管道）
 # PIPELINES = [
-    # '{{project_name}}.pipelines.DatabasePipeline',        # 自定义数据库管道
-    # 'crawlo.pipelines.mysql_pipeline.AsyncmyMySQLPipeline',  # MySQL 存储
-    # 'crawlo.pipelines.mongo_pipeline.MongoPipeline',      # MongoDB 存储
+# 'test_project.pipelines.DatabasePipeline',        # 自定义数据库管道
+# 'crawlo.pipelines.mysql_pipeline.AsyncmyMySQLPipeline',  # MySQL 存储
+# 'crawlo.pipelines.mongo_pipeline.MongoPipeline',      # MongoDB 存储
 # ]
 
 # ============================== 用户自定义扩展组件 ==============================
@@ -181,17 +181,17 @@ MONGO_USE_BATCH = False  # 是否启用批量插入
 
 # 扩展组件列表（框架默认扩展 + 用户自定义扩展）
 # EXTENSIONS = [
-    # 'crawlo.extension.memory_monitor.MemoryMonitorExtension',  # 内存监控
-    # 'crawlo.extension.request_recorder.RequestRecorderExtension',  # 请求记录
-    # 'crawlo.extension.performance_profiler.PerformanceProfilerExtension',  # 性能分析
-    # 'crawlo.extension.health_check.HealthCheckExtension',  # 健康检查
+# 'crawlo.extension.memory_monitor.MemoryMonitorExtension',  # 内存监控
+# 'crawlo.extension.request_recorder.RequestRecorderExtension',  # 请求记录
+# 'crawlo.extension.performance_profiler.PerformanceProfilerExtension',  # 性能分析
+# 'crawlo.extension.health_check.HealthCheckExtension',  # 健康检查
 # ]
 
 # ============================== 日志配置 ==============================
 
 LOG_LEVEL = 'INFO'
 STATS_DUMP = True
-LOG_FILE = f'logs/{{project_name}}.log'
+LOG_FILE = f'logs/test_project.log'
 LOG_FORMAT = '%(asctime)s - [%(name)s] - %(levelname)s: %(message)s'
 LOG_ENCODING = 'utf-8'
 

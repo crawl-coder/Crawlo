@@ -7,6 +7,7 @@
 1. [ofweek_spider](ofweek_spider/) - Ofweek 网站爬虫示例（混合版）
 2. [ofweek_standalone](ofweek_standalone/) - Ofweek 网站爬虫示例（独立单机版）
 3. [ofweek_distributed](ofweek_distributed/) - Ofweek 网站爬虫示例（独立分布式版）
+4. [simple_proxy_example](simple_proxy_example/) - 简化版代理中间件使用示例
 
 ## 使用说明
 
@@ -51,6 +52,15 @@ examples/
 │       └── spiders/
 │           ├── __init__.py
 │           └── OfweekSpider.py      # Ofweek 网站爬虫
+│
+├── simple_proxy_example/           # 简化版代理中间件使用示例
+│   ├── run.py                       # 启动脚本
+│   └── simple_proxy_example/
+│       ├── __init__.py
+│       ├── settings.py              # 简化版代理配置
+│       └── spiders/
+│           ├── __init__.py
+│           └── example_spider.py    # 示例爬虫
 │
 └── README.md                        # 本文档
 ```
@@ -108,6 +118,24 @@ python run.py
 
 # 运行分布式模式
 export CRAWLO_MODE=distributed
+python run.py
+```
+
+## 简化版代理中间件示例
+
+### 项目概述
+[simple_proxy_example](simple_proxy_example/) 演示了如何使用 Crawlo 框架的简化版代理中间件，对比复杂版代理中间件的优势。
+
+### 功能特点
+- 使用简单的代理列表配置
+- 轻量级实现，代码简洁
+- 易于配置和使用
+- 适用于只需要基本代理功能的场景
+
+### 运行方式
+```bash
+cd examples/simple_proxy_example
+# 修改 settings.py 中的 PROXY_LIST 配置
 python run.py
 ```
 

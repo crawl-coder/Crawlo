@@ -40,6 +40,7 @@ class ConfigValidator:
         self._validate_redis_settings(config)
         self._validate_middleware_settings(config)
         self._validate_pipeline_settings(config)
+        self._validate_extension_settings(config)
         self._validate_logging_settings(config)
         
         is_valid = len(self.errors) == 0
@@ -146,9 +147,22 @@ class ConfigValidator:
             redis_url = config.get('REDIS_URL')
             if redis_url is not None and not isinstance(redis_url, str):
                 self.errors.append("REDIS_URL 必须是字符串")
+            
+            # Redis队列名称验证（提供默认值）
+            scheduler_queue_name = config.get('SCHEDULER_QUEUE_NAME')
+            project_name = config.get('PROJECT_NAME', 'crawlo')
+            if scheduler_queue_name is None:
+                # 如果没有设置，使用默认值
+                scheduler_queue_name = f'crawlo:{project_name}:queue:requests'
+            
+            if not scheduler_queue_name:
+                self.errors.append("使用Redis队列时，SCHEDULER_QUEUE_NAME 不能为空")
+            elif not self._is_valid_redis_key(scheduler_queue_name):
+                self.warnings.append(f"Redis队列名称 '{scheduler_queue_name}' 不符合命名规范，建议使用 'crawlo:{project_name}:queue:requests' 格式")
     
     def _validate_middleware_settings(self, config: Dict[str, Any]):
         """验证中间件设置"""
+        # 验证 MIDDLEWARES
         middlewares = config.get('MIDDLEWARES', [])
         if not isinstance(middlewares, list):
             self.errors.append("MIDDLEWARES 必须是列表")
@@ -159,6 +173,7 @@ class ConfigValidator:
     
     def _validate_pipeline_settings(self, config: Dict[str, Any]):
         """验证管道设置"""
+        # 验证 PIPELINES
         pipelines = config.get('PIPELINES', [])
         if not isinstance(pipelines, list):
             self.errors.append("PIPELINES 必须是列表")
@@ -166,6 +181,17 @@ class ConfigValidator:
             for i, pipeline in enumerate(pipelines):
                 if not isinstance(pipeline, str):
                     self.errors.append(f"PIPELINES[{i}] 必须是字符串")
+    
+    def _validate_extension_settings(self, config: Dict[str, Any]):
+        """验证扩展设置"""
+        # 验证 EXTENSIONS
+        extensions = config.get('EXTENSIONS', [])
+        if not isinstance(extensions, list):
+            self.errors.append("EXTENSIONS 必须是列表")
+        else:
+            for i, extension in enumerate(extensions):
+                if not isinstance(extension, str):
+                    self.errors.append(f"EXTENSIONS[{i}] 必须是字符串")
     
     def _validate_logging_settings(self, config: Dict[str, Any]):
         """验证日志设置"""

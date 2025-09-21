@@ -24,9 +24,8 @@ ofweek.spiders.of_week
 </html>"""
 from urllib.parse import urljoin
 
-from crawlo.spider import Spider
 from crawlo import Request
-from crawlo.utils.log import get_logger
+from crawlo.spider import Spider
 from ..items import NewsItem
 
 
@@ -61,7 +60,7 @@ class OfweekSpider(Spider):
     - 优化去重性能
     - 增加监控和故障恢复机制
     """
-    name = 'of_week_standalone'
+    name = 'of_week'
     allowed_domains = ['ee.ofweek.com']
     start_urls = ['https://ee.ofweek.com/']
 
