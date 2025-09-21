@@ -46,41 +46,36 @@ FILTER_CLASS = 'crawlo.filters.memory_filter.MemoryFilter'
 # 使用auto模式，让框架根据Redis可用性自动选择去重管道
 DEFAULT_DEDUP_PIPELINE = 'crawlo.pipelines.memory_dedup_pipeline.MemoryDedupPipeline'
 
-# ============================== 用户自定义中间件 ==============================
-# 注意：框架默认中间件已自动加载，此处可添加或覆盖默认中间件
+# ============================== 爬虫模块配置 ==============================
+SPIDER_MODULES = ['ofweek_standalone.spiders']
 
-# 中间件列表（框架默认中间件 + 用户自定义中间件）
+# ============================== 中间件 ==============================
 MIDDLEWARES = [
-    # 'ofweek_standalone.middlewares.CustomMiddleware',  # 示例自定义中间件
+    'crawlo.middleware.request_ignore.RequestIgnoreMiddleware',
+    'crawlo.middleware.download_delay.DownloadDelayMiddleware',
+    'crawlo.middleware.default_header.DefaultHeaderMiddleware',
+    'crawlo.middleware.retry.RetryMiddleware',
+    'crawlo.middleware.response_code.ResponseCodeMiddleware',
+    'crawlo.middleware.response_filter.ResponseFilterMiddleware',
 ]
 
-# ============================== 用户自定义数据管道 ==============================
-# 注意：框架默认管道已自动加载，此处可添加或覆盖默认管道
-
-# 数据处理管道列表（框架默认管道 + 用户自定义管道）
+# ============================== 数据管道 ==============================
 PIPELINES = [
-    # 'crawlo.pipelines.json_pipeline.JsonPipeline',
+    'crawlo.pipelines.console_pipeline.ConsolePipeline',
+    'crawlo.pipelines.json_pipeline.JsonPipeline',
+    # 注意：去重管道会自动添加到列表开头，无需在这里显式声明
 ]
 
-# ============================== 用户自定义扩展组件 ==============================
-# 注意：框架默认扩展已自动加载，此处可添加或覆盖默认扩展
-
-# 扩展组件列表（框架默认扩展 + 用户自定义扩展）
+# ============================== 扩展组件 ==============================
 EXTENSIONS = [
-    # 'crawlo.extension.memory_monitor.MemoryMonitorExtension',  # 内存监控
+    'crawlo.extension.log_interval.LogIntervalExtension',
+    'crawlo.extension.log_stats.LogStats',
+    'crawlo.extension.logging_extension.CustomLoggerExtension',
 ]
 
 # ============================== 日志配置 ==============================
-LOG_LEVEL = 'DEBUG'
-# LOG_CONSOLE_LEVEL = 'DEBUG'  # 添加控制台日志级别配置
+LOG_LEVEL = 'INFO'
 LOG_FILE = 'logs/ofweek_standalone.log'
-# 启用日志轮转功能
-LOG_USE_ROTATION = True
-LOG_ROTATION_TYPE = 'size'  # 或者使用 'time'
-LOG_MAX_BYTES = 10 * 1024 * 1024  # 10MB
-LOG_BACKUP_COUNT = 5
-# 时间轮转时的文件后缀格式（可选）
-# LOG_ROTATION_SUFFIX = '%Y-%m-%d_%H-%M-%S'
 STATS_DUMP = True
 
 # ============================== 输出配置 ==============================

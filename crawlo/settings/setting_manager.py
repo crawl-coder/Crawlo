@@ -15,38 +15,45 @@ class SettingManager(MutableMapping):
         self.set_settings(default_settings)
         # 在初始化时合并配置
         self._merge_config(values)
-        
+
     def _merge_config(self, user_config):
         """合并默认配置和用户配置"""
         if not user_config:
             return
-            
+
         # 合并中间件配置
         if 'MIDDLEWARES' in user_config:
             default_middlewares = self.attributes.get('MIDDLEWARES', [])
             user_middlewares = user_config['MIDDLEWARES']
             self.attributes['MIDDLEWARES'] = default_middlewares + user_middlewares
-            
+
         # 合并管道配置
-        if 'PIPELINES' in user_config:
-            default_pipelines = self.attributes.get('PIPELINES', [])
-            user_pipelines = user_config['PIPELINES']
-            merged_pipelines = default_pipelines + user_pipelines
-            # 特殊处理PIPELINES，确保去重管道在最前面
-            dedup_pipeline = self.attributes.get('DEFAULT_DEDUP_PIPELINE')
-            if dedup_pipeline:
-                # 移除所有去重管道实例（如果存在）
-                merged_pipelines = [item for item in merged_pipelines if item != dedup_pipeline]
-                # 在开头插入去重管道
-                merged_pipelines.insert(0, dedup_pipeline)
-            self.attributes['PIPELINES'] = merged_pipelines
-            
+        # 如果用户配置了PIPELINES，则使用用户配置，否则使用默认配置
+        if 'PIPELINES' in user_config and user_config['PIPELINES'] is not None:
+            # 过滤掉空值和注释
+            user_pipelines = [pipeline for pipeline in user_config['PIPELINES'] if pipeline and not pipeline.strip().startswith('#')]
+            # 如果用户配置的管道列表不为空，则使用用户配置，否则使用默认配置
+            if user_pipelines:
+                self.attributes['PIPELINES'] = user_pipelines
+            # 如果用户配置了空列表，则仍然使用默认配置
+        # 注意：默认配置已经在set_settings中加载，这里不需要额外处理
+
+        # 特殊处理PIPELINES，确保去重管道在最前面
+        dedup_pipeline = self.attributes.get('DEFAULT_DEDUP_PIPELINE')
+        if dedup_pipeline:
+            pipelines = self.attributes.get('PIPELINES', [])
+            # 移除所有去重管道实例（如果存在）
+            pipelines = [item for item in pipelines if item != dedup_pipeline]
+            # 在开头插入去重管道
+            pipelines.insert(0, dedup_pipeline)
+            self.attributes['PIPELINES'] = pipelines
+
         # 合并扩展配置
         if 'EXTENSIONS' in user_config:
             default_extensions = self.attributes.get('EXTENSIONS', [])
             user_extensions = user_config['EXTENSIONS']
             self.attributes['EXTENSIONS'] = default_extensions + user_extensions
-            
+
         # 更新其他用户配置
         for key, value in user_config.items():
             if key not in ['MIDDLEWARES', 'PIPELINES', 'EXTENSIONS']:
@@ -147,7 +154,7 @@ class SettingManager(MutableMapping):
         # 创建一个新的实例
         cls = self.__class__
         new_instance = cls.__new__(cls)
-        
+
         # 复制attributes字典，但排除不可pickle的对象
         new_attributes = {}
         for key, value in self.attributes.items():
@@ -157,8 +164,8 @@ class SettingManager(MutableMapping):
             except Exception:
                 # 如果复制失败，保留原始引用（对于logger等对象）
                 new_attributes[key] = value
-        
+
         # 设置新实例的attributes
         new_instance.attributes = new_attributes
-        
+
         return new_instance

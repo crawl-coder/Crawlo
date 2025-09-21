@@ -21,7 +21,7 @@ Example Usage:
     # Single crawler run
     crawler = Crawler(MySpider, settings)
     await crawler.crawl()
-    
+
     # Multi-crawler concurrent management
     process = CrawlerProcess()
     await process.crawl([Spider1, Spider2])
@@ -110,7 +110,7 @@ class CrawlerContext:
 class Crawler:
     """
     Single crawler runtime instance, managing Spider and engine lifecycle
-    
+
     Provides functionality:
     - Spider lifecycle management (initialization, running, closing)
     - Engine component coordination management
@@ -148,7 +148,7 @@ class Crawler:
     async def crawl(self):
         """
         Start the crawler core process
-        
+
         Includes the following stages:
         1. Initialization stage: Create all components
         2. Validation stage: Check configuration and state
@@ -267,7 +267,7 @@ class Crawler:
     def _create_spider(self) -> Spider:
         """
         Create and validate spider instance (enhanced version)
-        
+
         Performs the following validations:
         - Spider name must exist
         - start_requests method must be callable
@@ -321,14 +321,16 @@ class Crawler:
     def _create_stats(self) -> StatsCollector:
         """Create stats collector"""
         stats = StatsCollector(self)
-        _get_logger().debug(f"Stats collector initialized successfully, spider: {getattr(self.spider, 'name', 'Unknown')}")
+        _get_logger().debug(
+            f"Stats collector initialized successfully, spider: {getattr(self.spider, 'name', 'Unknown')}")
         return stats
 
     def _create_extension(self) -> ExtensionManager:
         """Create extension manager"""
         # Modify extension manager creation method, delay initialization until needed
         extension = ExtensionManager.create_instance(self)
-        _get_logger().debug(f"Extension manager initialized successfully, spider: {getattr(self.spider, 'name', 'Unknown')}")
+        _get_logger().debug(
+            f"Extension manager initialized successfully, spider: {getattr(self.spider, 'name', 'Unknown')}")
         return extension
 
     def _set_spider(self, spider: Spider):
@@ -348,7 +350,7 @@ class Crawler:
     async def close(self, reason='finished') -> None:
         """
         Close crawler and clean up resources (enhanced version)
-        
+
         Ensure closing only once and handle all cleanup operations
         """
         async with self._close_lock:
@@ -419,7 +421,7 @@ class Crawler:
 class CrawlerProcess:
     """
     Crawler process manager
-    
+
     Supported features:
     - Multi-crawler concurrent scheduling and resource management
     - Automatic module discovery and spider registration
@@ -428,15 +430,15 @@ class CrawlerProcess:
     - Real-time status monitoring and statistics
     - Error recovery and retry mechanism
     - Large-scale crawler optimization support
-    
+
     Usage example:
         # Basic usage
         process = CrawlerProcess()
         await process.crawl(MySpider)
-        
+
         # Multi-crawler concurrency
         await process.crawl([Spider1, Spider2, 'spider_name'])
-        
+
         # Custom concurrency
         process = CrawlerProcess(max_concurrency=8)
     """
@@ -491,7 +493,7 @@ class CrawlerProcess:
 
         self._log_startup_info()
 
-        logger.debug(
+        _get_logger().debug(
             f"CrawlerProcess initialized successfully\n"
             f"  - Max concurrent crawlers: {self.max_concurrency}\n"
             f"  - Registered crawlers: {len(self._spider_registry)}\n"
@@ -504,7 +506,7 @@ class CrawlerProcess:
             return
 
         self._monitoring_task = asyncio.create_task(self._monitor_loop())
-        logger.debug("Monitoring task started")
+        _get_logger().debug("Monitoring task started")
 
     async def stop_monitoring(self):
         """Stop monitoring task"""
@@ -514,7 +516,7 @@ class CrawlerProcess:
                 await self._monitoring_task
             except asyncio.CancelledError:
                 pass
-            logger.debug("Monitoring task stopped")
+            _get_logger().debug("Monitoring task stopped")
 
     async def _monitor_loop(self):
         """Monitoring loop, periodically collect and report status"""
@@ -525,7 +527,7 @@ class CrawlerProcess:
                 # Output status every 30 seconds
                 stats = self.context.get_stats()
                 if stats['active_crawlers'] > 0:
-                    logger.debug(
+                    _get_logger().debug(
                         f"Crawler status: Active {stats['active_crawlers']}, "
                         f"Completed {stats['completed_crawlers']}, "
                         f"Failed {stats['failed_crawlers']}, "
@@ -535,9 +537,9 @@ class CrawlerProcess:
                 await asyncio.sleep(30)  # 30 second interval
 
         except asyncio.CancelledError:
-            logger.debug("Monitoring loop cancelled")
+            _get_logger().debug("Monitoring loop cancelled")
         except Exception as e:
-            logger.error(f"Monitoring loop error: {e}", exc_info=True)
+            _get_logger().error(f"Monitoring loop error: {e}", exc_info=True)
 
     async def _collect_performance_stats(self):
         """Collect performance statistics data"""
@@ -557,15 +559,19 @@ class CrawlerProcess:
             # Skip performance monitoring when psutil is not available
             pass
         except Exception as e:
-            logger.debug(f"Failed to collect performance statistics: {e}")
+            _get_logger().debug(f"Failed to collect performance statistics: {e}")
 
     @staticmethod
     def auto_discover(modules: List[str]):
         """
         Automatically import modules, trigger Spider class definition and registration (enhanced version)
-        
+
         Supports recursive scanning and error recovery
         """
+        # 确保logger被正确初始化
+        from crawlo.utils.log import get_logger
+        logger = get_logger(__name__)
+
         import importlib
         import pkgutil
 
@@ -617,7 +623,7 @@ class CrawlerProcess:
     async def crawl(self, spiders: Union[Type[Spider], str, List[Union[Type[Spider], str]]]):
         """
         Start one or more crawlers
-        
+
         Enhanced features:
         - Intelligent concurrency control
         - Real-time monitoring and statistics
@@ -642,7 +648,7 @@ class CrawlerProcess:
             # Phase 3: Sort by class name to ensure predictable startup order
             spider_classes_to_run.sort(key=lambda cls: cls.__name__.lower())
 
-            logger.debug(
+            _get_logger().debug(
                 f"Starting {total} crawlers\n"
                 f"  - Max concurrency: {self.max_concurrency}\n"
                 f"  - Spider list: {[cls.__name__ for cls in spider_classes_to_run]}"
@@ -666,7 +672,7 @@ class CrawlerProcess:
 
             if failed:
                 failed_spiders = [spider_classes_to_run[i].__name__ for i in failed]
-                logger.error(
+                _get_logger().error(
                     f"Crawler execution result: {successful}/{total} succeeded, {len(failed)}/{total} failed\n"
                     f"  - Failed crawlers: {failed_spiders}"
                 )
@@ -674,9 +680,9 @@ class CrawlerProcess:
                 # Record detailed error information
                 for i in failed:
                     error = results[i]
-                    logger.error(f"Spider {spider_classes_to_run[i].__name__} error details: {error}")
+                    _get_logger().error(f"Spider {spider_classes_to_run[i].__name__} error details: {error}")
             else:
-                logger.info(f"All {total} crawlers completed successfully!")
+                _get_logger().info(f"All {total} crawlers completed successfully!")
 
             # Return statistics results
             return {
@@ -709,10 +715,10 @@ class CrawlerProcess:
                 await asyncio.gather(*self._active_tasks, return_exceptions=True)
                 self._active_tasks.clear()
 
-            logger.debug("Process resources cleanup completed")
+            _get_logger().debug("Process resources cleanup completed")
 
         except Exception as e:
-            logger.error(f"Error cleaning up process resources: {e}", exc_info=True)
+            _get_logger().error(f"Error cleaning up process resources: {e}", exc_info=True)
 
     def get_process_stats(self) -> Dict[str, Any]:
         """Get process statistics information"""
@@ -738,7 +744,7 @@ class CrawlerProcess:
     ) -> List[Type[Spider]]:
         """
         Resolve input to spider class list
-        
+
         Supports various input formats and validates uniqueness
         """
         inputs = self._normalize_inputs(spiders_input)
@@ -762,10 +768,11 @@ class CrawlerProcess:
                 seen_spider_names.add(spider_name)
                 spider_classes.append(spider_cls)
 
-                logger.debug(f"Spider resolved successfully: {item} -> {spider_cls.__name__} (name='{spider_name}')")
+                _get_logger().debug(
+                    f"Spider resolved successfully: {item} -> {spider_cls.__name__} (name='{spider_name}')")
 
             except Exception as e:
-                logger.error(f"Failed to resolve spider: {item} - {e}")
+                _get_logger().error(f"Failed to resolve spider: {item} - {e}")
                 raise
 
         return spider_classes
@@ -774,7 +781,7 @@ class CrawlerProcess:
     def _normalize_inputs(spiders_input) -> List[Union[Type[Spider], str]]:
         """
         Normalize input to list
-        
+
         Supports more input types and provides better error information
         """
         if isinstance(spiders_input, (type, str)):
@@ -793,7 +800,7 @@ class CrawlerProcess:
     def _resolve_spider_class(self, item: Union[Type[Spider], str]) -> Type[Spider]:
         """
         Resolve single input item to spider class
-        
+
         Provides better error prompts and debugging information
         """
         if isinstance(item, type) and issubclass(item, Spider):
@@ -820,7 +827,7 @@ class CrawlerProcess:
     async def _run_spider_with_limit(self, spider_cls: Type[Spider], seq: int, total: int):
         """
         Spider running function limited by semaphore
-        
+
         Includes enhanced error handling and monitoring functionality
         """
         task = asyncio.current_task()
@@ -835,7 +842,7 @@ class CrawlerProcess:
             await self.semaphore.acquire()
 
             # start_msg = f"[{seq}/{total}] Initializing spider: {spider_cls.__name__}"
-            # logger.info(start_msg)
+            # _get_logger().info(start_msg)
 
             # Create and run crawler
             crawler = Crawler(spider_cls, self.settings, self.context)
@@ -854,7 +861,7 @@ class CrawlerProcess:
                 f"[{seq}/{total}] Crawler completed: {spider_cls.__name__}, "
                 f"took: {duration:.2f} seconds"
             )
-            logger.info(end_msg)
+            _get_logger().info(end_msg)
 
             # Record success statistics
             self._performance_stats['successful_requests'] += 1
@@ -864,7 +871,7 @@ class CrawlerProcess:
             self._performance_stats['failed_requests'] += 1
 
             error_msg = f"Spider {spider_cls.__name__} execution failed: {e}"
-            logger.error(error_msg, exc_info=True)
+            _get_logger().error(error_msg, exc_info=True)
 
             # Record error information to context
             if hasattr(self, 'context'):
@@ -883,16 +890,16 @@ class CrawlerProcess:
                 self.semaphore.release()
 
             except Exception as cleanup_error:
-                logger.warning(f"Error cleaning up resources: {cleanup_error}")
+                _get_logger().warning(f"Error cleaning up resources: {cleanup_error}")
 
     def _shutdown(self, _signum, _frame):
         """
         Graceful shutdown signal handling
-        
+
         Provides better shutdown experience and resource cleanup
         """
         signal_name = {signal.SIGINT: 'SIGINT', signal.SIGTERM: 'SIGTERM'}.get(_signum, str(_signum))
-        logger.warning(f"Received shutdown signal {signal_name}, stopping all crawlers...")
+        _get_logger().warning(f"Received shutdown signal {signal_name}, stopping all crawlers...")
 
         # Set shutdown event
         if hasattr(self, '_shutdown_event'):
@@ -903,17 +910,17 @@ class CrawlerProcess:
             if crawler.engine:
                 crawler.engine.running = False
                 crawler.engine.normal = False
-                logger.debug(f"Crawler engine stopped: {getattr(crawler.spider, 'name', 'Unknown')}")
+                _get_logger().debug(f"Crawler engine stopped: {getattr(crawler.spider, 'name', 'Unknown')}")
 
         # Create shutdown task
         asyncio.create_task(self._wait_for_shutdown())
 
-        logger.info("Shutdown command sent, waiting for crawlers to complete current tasks...")
+        _get_logger().info("Shutdown command sent, waiting for crawlers to complete current tasks...")
 
     async def _wait_for_shutdown(self):
         """
         Wait for all active tasks to complete
-        
+
         Provides better shutdown time control and progress feedback
         """
         try:
@@ -924,7 +931,7 @@ class CrawlerProcess:
             pending = [t for t in self._active_tasks if not t.done()]
 
             if pending:
-                logger.info(
+                _get_logger().info(
                     f"Waiting for {len(pending)} active tasks to complete..."
                     f"(Maximum wait time: 30 seconds)"
                 )
@@ -936,7 +943,7 @@ class CrawlerProcess:
                         timeout=30.0
                     )
                 except asyncio.TimeoutError:
-                    logger.warning("Some tasks timed out, forcing cancellation...")
+                    _get_logger().warning("Some tasks timed out, forcing cancellation...")
 
                     # Force cancel timed out tasks
                     for task in pending:
@@ -951,7 +958,7 @@ class CrawlerProcess:
 
             # Output final statistics
             final_stats = self.context.get_stats()
-            logger.info(
+            _get_logger().info(
                 f"All crawlers gracefully shut down 👋\n"
                 f"  - Total crawlers: {final_stats['total_crawlers']}\n"
                 f"  - Successfully completed: {final_stats['completed_crawlers']}\n"
@@ -961,13 +968,13 @@ class CrawlerProcess:
             )
 
         except Exception as e:
-            logger.error(f"Error during shutdown process: {e}", exc_info=True)
+            _get_logger().error(f"Error during shutdown process: {e}", exc_info=True)
 
     @classmethod
     def _get_default_settings(cls) -> SettingManager:
         """
         Load default configuration
-        
+
         Provides better error handling and fallback strategy
         """
         try:
@@ -1018,9 +1025,9 @@ class CrawlerProcess:
         else:
             startup_info.append(f"Run Mode: {run_mode}")
 
-        # Print startup information
+        # Print startup information at DEBUG level instead of INFO
         for info in startup_info:
-            logger.info(info)
+            _get_logger().debug(info)
 
 
 # === Utility functions ===
@@ -1032,7 +1039,7 @@ def create_crawler_with_optimizations(
 ) -> Crawler:
     """
     Create an optimized crawler instance
-    
+
     :param spider_cls: Spider class
     :param settings: Settings manager
     :param optimization_kwargs: Optimization parameters
@@ -1056,7 +1063,7 @@ def create_process_with_large_scale_config(
 ) -> CrawlerProcess:
     """
     Create a process manager that supports large-scale optimization
-    
+
     :param config_type: Configuration type ('conservative', 'balanced', 'aggressive', 'memory_optimized')
     :param concurrency: Concurrency count
     :param kwargs: Other parameters
@@ -1074,7 +1081,7 @@ def create_process_with_large_scale_config(
         }
 
         if config_type not in config_methods:
-            logger.warning(f"Unknown configuration type: {config_type}, using default configuration")
+            _get_logger().warning(f"Unknown configuration type: {config_type}, using default configuration")
             settings = SettingManager()
         else:
             config = config_methods[config_type](concurrency)
@@ -1088,7 +1095,7 @@ def create_process_with_large_scale_config(
         )
 
     except ImportError:
-        logger.warning("Large-scale configuration module does not exist, using default configuration")
+        _get_logger().warning("Large-scale configuration module does not exist, using default configuration")
         return CrawlerProcess(max_concurrency=concurrency, **kwargs)
 
 
