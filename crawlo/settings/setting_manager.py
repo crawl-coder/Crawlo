@@ -25,18 +25,20 @@ class SettingManager(MutableMapping):
         if 'MIDDLEWARES' in user_config:
             default_middlewares = self.attributes.get('MIDDLEWARES', [])
             user_middlewares = user_config['MIDDLEWARES']
-            self.attributes['MIDDLEWARES'] = default_middlewares + user_middlewares
+            # 如果用户配置了空列表，则仍然使用默认配置
+            if user_middlewares:
+                self.attributes['MIDDLEWARES'] = default_middlewares + user_middlewares
 
         # 合并管道配置
-        # 如果用户配置了PIPELINES，则使用用户配置，否则使用默认配置
-        if 'PIPELINES' in user_config and user_config['PIPELINES'] is not None:
-            # 过滤掉空值和注释
-            user_pipelines = [pipeline for pipeline in user_config['PIPELINES'] if pipeline and not pipeline.strip().startswith('#')]
-            # 如果用户配置的管道列表不为空，则使用用户配置，否则使用默认配置
-            if user_pipelines:
-                self.attributes['PIPELINES'] = user_pipelines
+        if 'PIPELINES' in user_config:
+            default_pipelines = self.attributes.get('PIPELINES', [])
+            user_pipelines = user_config['PIPELINES']
             # 如果用户配置了空列表，则仍然使用默认配置
-        # 注意：默认配置已经在set_settings中加载，这里不需要额外处理
+            if user_pipelines:
+                # 过滤掉空值和注释
+                user_pipelines = [pipeline for pipeline in user_pipelines if pipeline and not pipeline.strip().startswith('#')]
+                if user_pipelines:
+                    self.attributes['PIPELINES'] = user_pipelines
 
         # 特殊处理PIPELINES，确保去重管道在最前面
         dedup_pipeline = self.attributes.get('DEFAULT_DEDUP_PIPELINE')
@@ -52,7 +54,10 @@ class SettingManager(MutableMapping):
         if 'EXTENSIONS' in user_config:
             default_extensions = self.attributes.get('EXTENSIONS', [])
             user_extensions = user_config['EXTENSIONS']
-            self.attributes['EXTENSIONS'] = default_extensions + user_extensions
+            # 如果用户配置了空列表，则仍然使用默认配置
+            if user_extensions:
+                self.attributes['EXTENSIONS'] = default_extensions + user_extensions
+            # 如果用户没有配置扩展，则使用默认配置
 
         # 更新其他用户配置
         for key, value in user_config.items():

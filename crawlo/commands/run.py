@@ -5,38 +5,26 @@
 # @Author  : crawl-coder
 # @Desc    : 命令行入口：crawlo run <spider_name>|all，用于运行指定爬虫。
 """
+import os
 import sys
 import asyncio
 import configparser
-import os
-from pathlib import Path
 from importlib import import_module
 
+from rich import box
 from rich.console import Console
 from rich.panel import Panel
+from rich.progress import Progress, SpinnerColumn, TextColumn
 from rich.table import Table
 from rich.text import Text
-from rich import box
-from rich.progress import Progress, SpinnerColumn, TextColumn
 
+from crawlo.commands.stats import record_stats
 from crawlo.crawler import CrawlerProcess
 from crawlo.project import get_settings, _find_project_root
-from crawlo.commands.stats import record_stats
+# 使用自定义日志系统
+from crawlo.utils.log import get_logger
 
-# 延迟初始化logger，在需要时通过get_logger获取
-logger = None
-
-
-def _get_logger():
-    """延迟获取logger实例，确保在配置加载后创建"""
-    global logger
-    if logger is None:
-        from crawlo.utils.log import get_logger
-        # 在项目初始化阶段，我们希望看到DEBUG级别的日志
-        # 所以直接设置logger的级别为DEBUG
-        logger = get_logger(__name__, level='DEBUG')
-    return logger
-
+logger = get_logger(__name__)
 
 console = Console()
 
@@ -91,8 +79,7 @@ def main(args):
         crawlo run <spider_name>|all [--json] [--no-stats]
     """
     # 添加调试信息
-    _get_logger().debug("DEBUG: 进入main函数")
-    _get_logger().info("INFO: 进入main函数")
+    logger.debug("DEBUG: 进入main函数")
     
     if len(args) < 1:
         console.print("[bold red]用法:[/bold red] [blue]crawlo run[/blue] <爬虫名称>|all [bold yellow][--json] [--no-stats][/bold yellow]")
@@ -204,21 +191,7 @@ def main(args):
                     return 1
 
             # 显示即将运行的爬虫列表
-            table = Table(
-                title=f"启动全部 {len(spider_names)} 个爬虫",
-                box=box.ROUNDED,
-                show_header=True,
-                header_style="bold magenta"
-            )
-            table.add_column("名称", style="cyan")
-            table.add_column("类名", style="green")
-
-            for name in sorted(spider_names):
-                cls = process.get_spider_class(name)
-                table.add_row(name, cls.__name__)
-
-            console.print(table)
-            console.print()
+            # 根据用户要求，不再显示详细的爬虫列表信息
 
             # 注册 stats 记录（除非 --no-stats）
             if not no_stats:
@@ -277,20 +250,21 @@ def main(args):
         spider_class = process.get_spider_class(spider_name)
 
         # 显示启动信息
-        if not show_json:
-            info_table = Table(
-                title=f"启动爬虫: [bold cyan]{spider_name}[/bold cyan]",
-                box=box.SIMPLE,
-                show_header=False,
-                title_style="bold green"
-            )
-            info_table.add_column("Key", style="yellow")
-            info_table.add_column("Value", style="cyan")
-            info_table.add_row("Project", project_package)
-            info_table.add_row("Class", spider_class.__name__)
-            info_table.add_row("Module", spider_class.__module__)
-            console.print(info_table)
-            console.print()
+        # 根据用户要求，不再显示项目启动信息
+        # if not show_json:
+        #     info_table = Table(
+        #         title=f"启动爬虫: [bold cyan]{spider_name}[/bold cyan]",
+        #         box=box.SIMPLE,
+        #         show_header=False,
+        #         title_style="bold green"
+        #     )
+        #     info_table.add_column("Key", style="yellow")
+        #     info_table.add_column("Value", style="cyan")
+        #     info_table.add_row("Project", project_package)
+        #     info_table.add_row("Class", spider_class.__name__)
+        #     info_table.add_row("Module", spider_class.__module__)
+        #     console.print(info_table)
+        #     console.print()
 
         # 注册 stats 记录
         if not no_stats:
@@ -324,7 +298,7 @@ def main(args):
             console.print(f"[bold yellow]{msg}[/bold yellow]")
         return 1
     except Exception as e:
-        _get_logger().exception("Exception during 'crawlo run'")
+        logger.exception("Exception during 'crawlo run'")
         msg = f"意外错误: {e}"
         if show_json:
             console.print_json(data={"success": False, "error": msg})

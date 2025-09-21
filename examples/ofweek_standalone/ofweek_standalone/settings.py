@@ -60,11 +60,11 @@ MIDDLEWARES = [
 ]
 
 # ============================== 数据管道 ==============================
-PIPELINES = [
-    'crawlo.pipelines.console_pipeline.ConsolePipeline',
-    'crawlo.pipelines.json_pipeline.JsonPipeline',
-    # 注意：去重管道会自动添加到列表开头，无需在这里显式声明
-]
+# PIPELINES = [
+#     'crawlo.pipelines.console_pipeline.ConsolePipeline',
+#     'crawlo.pipelines.json_pipeline.JsonPipeline',
+#     # 注意：去重管道会自动添加到列表开头，无需在这里显式声明
+# ]
 
 # ============================== 扩展组件 ==============================
 EXTENSIONS = [
@@ -74,8 +74,7 @@ EXTENSIONS = [
 ]
 
 # ============================== 日志配置 ==============================
-LOG_LEVEL = 'DEBUG'
-LOG_CONSOLE_LEVEL = 'DEBUG'  # 添加这一行，确保DEBUG级别的日志能在控制台显示
+LOG_LEVEL = 'INFO'
 LOG_FILE = 'logs/ofweek_standalone.log'
 STATS_DUMP = True
 

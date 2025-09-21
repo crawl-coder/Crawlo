@@ -1,7 +1,7 @@
 # -*- coding: UTF-8 -*-
 """
 ofweek_spider 项目配置文件
-=========================
+=============================
 基于 Crawlo 框架的爬虫项目配置。
 """
 
@@ -9,12 +9,11 @@ import os
 
 # ============================== 项目基本信息 ==============================
 PROJECT_NAME = 'ofweek_spider'
+# ============================== 运行模式 ==============================
+RUN_MODE = 'standalone'
 
 # 确保日志目录存在
 os.makedirs('logs', exist_ok=True)
-
-# ============================== 运行模式 ==============================
-RUN_MODE = 'standalone'
 
 # ============================== Redis配置 ==============================
 REDIS_HOST = '127.0.0.1'
@@ -29,7 +28,7 @@ else:
     REDIS_URL = f'redis://{REDIS_HOST}:{REDIS_PORT}/{REDIS_DB}'
 
 # ============================== 并发配置 ==============================
-CONCURRENCY = 8
+CONCURRENCY = 24
 MAX_RUNNING_SPIDERS = 1
 DOWNLOAD_DELAY = 1.0
 
@@ -40,42 +39,43 @@ DOWNLOADER = 'crawlo.downloader.aiohttp_downloader.AioHttpDownloader'
 QUEUE_TYPE = 'memory'
 
 # ============================== 去重过滤器 ==============================
+# 使用auto模式，让框架根据Redis可用性自动选择过滤器
 FILTER_CLASS = 'crawlo.filters.memory_filter.MemoryFilter'
 
 # ============================== 默认去重管道 ==============================
+# 使用auto模式，让框架根据Redis可用性自动选择去重管道
 DEFAULT_DEDUP_PIPELINE = 'crawlo.pipelines.memory_dedup_pipeline.MemoryDedupPipeline'
 
 # ============================== 爬虫模块配置 ==============================
 SPIDER_MODULES = ['ofweek_spider.spiders']
 
-# ============================== 用户自定义中间件 ==============================
-# 注意：框架默认中间件已自动加载，此处可添加或覆盖默认中间件
-
-# 中间件列表（框架默认中间件 + 用户自定义中间件）
+# ============================== 中间件 ==============================
 MIDDLEWARES = [
-    # 'ofweek_spider.middlewares.CustomMiddleware',  # 示例自定义中间件
+    'crawlo.middleware.request_ignore.RequestIgnoreMiddleware',
+    'crawlo.middleware.download_delay.DownloadDelayMiddleware',
+    'crawlo.middleware.default_header.DefaultHeaderMiddleware',
+    'crawlo.middleware.retry.RetryMiddleware',
+    'crawlo.middleware.response_code.ResponseCodeMiddleware',
+    'crawlo.middleware.response_filter.ResponseFilterMiddleware',
 ]
 
-# ============================== 用户自定义数据管道 ==============================
-# 注意：框架默认管道已自动加载，此处可添加或覆盖默认管道
-
-# 数据处理管道列表（框架默认管道 + 用户自定义管道）
+# ============================== 数据管道 ==============================
 PIPELINES = [
+    'crawlo.pipelines.console_pipeline.ConsolePipeline',
     'crawlo.pipelines.json_pipeline.JsonPipeline',
-    # 'crawlo.pipelines.mysql_pipeline.AsyncmyMySQLPipeline',     # MySQL 存储
+    # 注意：去重管道会自动添加到列表开头，无需在这里显式声明
 ]
 
-# ============================== 用户自定义扩展组件 ==============================
-# 注意：框架默认扩展已自动加载，此处可添加或覆盖默认扩展
-
-# 扩展组件列表（框架默认扩展 + 用户自定义扩展）
+# ============================== 扩展组件 ==============================
 EXTENSIONS = [
-    # 'crawlo.extension.memory_monitor.MemoryMonitorExtension',  # 内存监控
+    'crawlo.extension.log_interval.LogIntervalExtension',
+    'crawlo.extension.log_stats.LogStats',
+    'crawlo.extension.logging_extension.CustomLoggerExtension',
 ]
 
 # ============================== 日志配置 ==============================
 LOG_LEVEL = 'INFO'
-LOG_FILE = f'logs/{PROJECT_NAME}.log'
+LOG_FILE = 'logs/ofweek_spider.log'
 STATS_DUMP = True
 
 # ============================== 输出配置 ==============================

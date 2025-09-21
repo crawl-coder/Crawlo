@@ -74,7 +74,7 @@ class Engine(object):
         if not version or version == 'None':
             version = '1.0.0'
         # Change INFO level log to DEBUG level to avoid duplication with CrawlerProcess startup log
-        self.logger.info(
+        self.logger.debug(
             f"Crawlo Started version {version}"
         )
 
