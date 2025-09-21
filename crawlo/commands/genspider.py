@@ -38,7 +38,7 @@ def _render_template(tmpl_path, context):
 def main(args):
     if len(args) < 2:
         console.print("[bold red]错误:[/bold red] 用法: [blue]crawlo genspider[/blue] <爬虫名称> <域名>")
-        console.print("💡 示例:")
+        console.print("示例:")
         console.print("   [blue]crawlo genspider[/blue] news_spider news.example.com")
         console.print("   [blue]crawlo genspider[/blue] product_spider shop.example.com")
         return 1
@@ -51,7 +51,7 @@ def main(args):
         show_error_panel(
             "无效的爬虫名称", 
             f"爬虫名称 '[cyan]{spider_name}[/cyan]' 无效。\n"
-            "💡 爬虫名称应:\n"
+            "爬虫名称应:\n"
             "  • 以小写字母开头\n"
             "  • 只能包含小写字母、数字和下划线\n"
             "  • 是有效的Python标识符"
@@ -63,7 +63,7 @@ def main(args):
         show_error_panel(
             "无效的域名", 
             f"域名 '[cyan]{domain}[/cyan]' 格式无效。\n"
-            "💡 请提供有效的域名，如 'example.com'"
+            "请提供有效的域名，如 'example.com'"
         )
         return 1
 
@@ -91,10 +91,10 @@ def main(args):
         if item_classes:
             default_item_class = item_classes[0].__name__
         else:
-            console.print("[yellow]:warning: 警告:[/yellow] 在 [cyan]items.py[/cyan] 中未找到项目类，使用 [green]ExampleItem[/green]。")
+            console.print("[yellow]警告:[/yellow] 在 [cyan]items.py[/cyan] 中未找到项目类，使用 [green]ExampleItem[/green]。")
 
     except ImportError as e:
-        console.print(f"[yellow]:warning: 警告:[/yellow] 导入 [cyan]{items_module_path}[/cyan] 失败: {e}")
+        console.print(f"[yellow]警告:[/yellow] 导入 [cyan]{items_module_path}[/cyan] 失败: {e}")
         # 仍使用默认 ExampleItem，不中断流程
 
     # 创建爬虫文件
@@ -134,7 +134,7 @@ def main(args):
         with open(spider_file, 'w', encoding='utf-8') as f:
             f.write(content)
         
-        console.print(f":white_check_mark: [green]爬虫 '[bold]{spider_name}[/bold]' 创建成功！[/green]")
+        console.print(f"[green]爬虫 '[bold]{spider_name}[/bold]' 创建成功！[/green]")
         console.print(f"  → 位置: [cyan]{spider_file}[/cyan]")
         console.print(f"  → 类名: [yellow]{class_name}[/yellow]")
         console.print(f"  → 域名: [blue]{domain}[/blue]")

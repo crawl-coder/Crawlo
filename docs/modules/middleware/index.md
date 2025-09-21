@@ -5,6 +5,7 @@
 ## 目录
 - [MiddlewareManager](manager.md) - 核心中间件管理系统
 - [内置中间件](built_in.md) - 内置中间件组件概述
+- [代理中间件](proxy.md) - 代理中间件详细说明
 
 ## 概述
 
@@ -43,7 +44,8 @@ Crawlo提供了几个内置中间件组件：
 | `RequestIgnoreMiddleware` | 过滤不需要的请求 |
 | `DownloadDelayMiddleware` | 在请求之间添加延迟 |
 | `DefaultHeaderMiddleware` | 为请求添加默认头部 |
-| `ProxyMiddleware` | 处理代理配置 |
+| `ProxyMiddleware` | 处理代理配置（复杂版） |
+| `SimpleProxyMiddleware` | 处理代理配置（简化版） |
 | `RetryMiddleware` | 为失败请求实现重试逻辑 |
 | `ResponseCodeMiddleware` | 处理HTTP响应码 |
 
@@ -56,7 +58,9 @@ MIDDLEWARES = [
     'crawlo.middleware.request_ignore.RequestIgnoreMiddleware',
     'crawlo.middleware.download_delay.DownloadDelayMiddleware',
     'crawlo.middleware.default_header.DefaultHeaderMiddleware',
-    'crawlo.middleware.proxy.ProxyMiddleware',
+    # 选择使用复杂版或简化版代理中间件
+    # 'crawlo.middleware.proxy.ProxyMiddleware',        # 复杂版代理中间件
+    'crawlo.middleware.simple_proxy.SimpleProxyMiddleware',  # 简化版代理中间件
     'crawlo.middleware.retry.RetryMiddleware',
     'crawlo.middleware.response_code.ResponseCodeMiddleware',
 ]
@@ -68,6 +72,25 @@ MIDDLEWARES = [
 2. **下载**：请求发送到下载器
 3. **响应处理**：按相反顺序调用每个中间件的[process_response](https://github.com/crawl-coder/Crawlo/blob/master/crawlo/middleware/base.py#L28)方法
 4. **异常处理**：如果发生异常，则调用[process_exception](https://github.com/crawl-coder/Crawlo/blob/master/crawlo/middleware/base.py#L35)方法
+
+## 代理中间件选择指南
+
+Crawlo框架提供了两种代理中间件实现：
+
+1. **ProxyMiddleware（复杂版）**：
+   - 动态从API获取代理
+   - 代理池管理
+   - 健康检查和成功率统计
+   - 复杂的代理提取逻辑
+   - 适用于需要高级代理管理功能的场景
+
+2. **SimpleProxyMiddleware（简化版）**：
+   - 基于固定代理列表的简单实现
+   - 轻量级，代码简洁
+   - 易于配置和使用
+   - 适用于只需要基本代理功能的场景
+
+详细信息请参阅[代理中间件文档](proxy.md)。
 
 ## 创建自定义中间件
 

@@ -27,8 +27,8 @@ def main(args):
     """
     # 检查是否有无效参数
     if args and args[0] not in ['-h', '--help', 'help']:
-        console.print("[bold red]❌ 无效参数:[/bold red] [yellow]{}[/yellow]".format(args[0]))
-        console.print("[bold blue]💡 提示:[/bold blue] 使用 [green]crawlo -h[/green] 或 [green]crawlo --help[/green] 查看帮助信息")
+        console.print("[bold red]无效参数:[/bold red] [yellow]{}[/yellow]".format(args[0]))
+        console.print("[bold blue]提示:[/bold blue] 使用 [green]crawlo -h[/green] 或 [green]crawlo --help[/green] 查看帮助信息")
         return 1
 
     # 显示帮助信息
@@ -40,7 +40,7 @@ def show_help():
     """显示完整的帮助信息"""
     # 显示框架标题和版本
     console.print(Panel(
-        Text.from_markup(f":spider_web: [bold blue]Crawlo[/bold blue] [bold white]v{VERSION}[/bold white] - 异步爬虫框架"),
+        Text.from_markup(f"[bold blue]Crawlo[/bold blue] [bold white]v{VERSION}[/bold white] - 异步爬虫框架"),
         expand=False,
         border_style="blue"
     ))

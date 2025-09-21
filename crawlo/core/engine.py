@@ -181,7 +181,7 @@ class Engine(object):
 
     async def _controlled_request_generation(self):
         """Controlled request generation (enhanced features)"""
-        self.logger.info("🎛️ Starting controlled request generation")
+        self.logger.info("Starting controlled request generation")
         
         batch = []
         total_generated = 0
@@ -206,11 +206,11 @@ class Engine(object):
                 total_generated += generated
         
         except Exception as e:
-            self.logger.error(f"❌ Request generation failed: {e}")
+            self.logger.error(f"Request generation failed: {e}")
         
         finally:
             self.start_requests = None
-            self.logger.info(f"🎉 Request generation completed, total: {total_generated}")
+            self.logger.info(f"Request generation completed, total: {total_generated}")
 
     async def _process_generation_batch(self, batch) -> int:
         """Process a batch of requests"""
@@ -262,7 +262,7 @@ class Engine(object):
     async def _wait_for_capacity(self):
         """Wait for system to have sufficient capacity"""
         self._generation_stats['backpressure_events'] += 1
-        self.logger.debug("⏸️ Backpressure triggered, pausing request generation")
+        self.logger.debug("Backpressure triggered, pausing request generation")
         
         wait_time = 0.1
         max_wait = 2.0

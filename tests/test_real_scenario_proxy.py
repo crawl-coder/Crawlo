@@ -81,13 +81,13 @@ async def test_without_proxy():
             async with session.get(URL) as response:
                 print(f"状态码: {response.status}")
                 if response.status == 200:
-                    print("✅ 直接访问成功")
+                    print("直接访问成功")
                     return True
                 else:
-                    print(f"❌ 直接访问失败，状态码: {response.status}")
+                    print(f"直接访问失败，状态码: {response.status}")
                     return False
     except Exception as e:
-        print(f"❌ 直接访问出错: {e}")
+        print(f"直接访问出错: {e}")
         return False
 
 
@@ -115,10 +115,10 @@ async def test_with_proxy(proxy_url):
                     async with session.get(URL, proxy=clean_proxy, proxy_auth=auth) as response:
                         print(f"状态码: {response.status}")
                         if response.status == 200:
-                            print("✅ 代理访问成功")
+                            print("代理访问成功")
                             return True
                         else:
-                            print(f"❌ 代理访问失败，状态码: {response.status}")
+                            print(f"代理访问失败，状态码: {response.status}")
                             return False
             else:
                 # 直接使用代理URL
@@ -126,13 +126,13 @@ async def test_with_proxy(proxy_url):
                 async with session.get(URL, proxy=proxy_url) as response:
                     print(f"状态码: {response.status}")
                     if response.status == 200:
-                        print("✅ 代理访问成功")
+                        print("代理访问成功")
                         return True
                     else:
-                        print(f"❌ 代理访问失败，状态码: {response.status}")
+                        print(f"代理访问失败，状态码: {response.status}")
                         return False
     except Exception as e:
-        print(f"❌ 代理访问出错: {e}")
+        print(f"代理访问出错: {e}")
         return False
 
 
@@ -179,7 +179,7 @@ async def main():
     proxy_url = await get_proxy_from_api()
     
     if not proxy_url:
-        print("\n❌ 无法获取代理，测试结束")
+        print("\n无法获取代理，测试结束")
         return
     
     # 3. 使用代理访问

@@ -50,7 +50,7 @@ class MockCrawler:
 
 async def test_item_dedup_redis_key():
     """测试数据项去重Redis key命名规范"""
-    print("🔍 测试数据项去重Redis key命名规范...")
+    print("测试数据项去重Redis key命名规范...")
     
     try:
         # 测试不同的项目名称
@@ -83,20 +83,20 @@ async def test_item_dedup_redis_key():
             assert pipeline.redis_key == test_case["expected_key"], \
                 f"Redis key不匹配: {pipeline.redis_key} != {test_case['expected_key']}"
             
-            print(f"      ✅ Redis key: {pipeline.redis_key}")
+            print(f"      Redis key: {pipeline.redis_key}")
         
-        print("✅ 数据项去重Redis key命名规范测试通过！")
+        print("数据项去重Redis key命名规范测试通过！")
         return True
         
     except Exception as e:
-        print(f"❌ 数据项去重Redis key命名规范测试失败: {e}")
+        print(f"数据项去重Redis key命名规范测试失败: {e}")
         traceback.print_exc()
         return False
 
 
 def main():
     """主测试函数"""
-    print("🚀 开始数据项去重Redis key命名规范测试...")
+    print("开始数据项去重Redis key命名规范测试...")
     print("=" * 50)
     
     try:
@@ -104,14 +104,14 @@ def main():
         
         print("=" * 50)
         if success:
-            print("🎉 所有测试通过！数据项去重使用统一的Redis key命名规范")
+            print("所有测试通过！数据项去重使用统一的Redis key命名规范")
         else:
-            print("❌ 测试失败，请检查实现")
+            print("测试失败，请检查实现")
             return 1
             
     except Exception as e:
         print("=" * 50)
-        print(f"❌ 测试过程中发生异常: {e}")
+        print(f"测试过程中发生异常: {e}")
         traceback.print_exc()
         return 1
     

@@ -51,7 +51,7 @@ def connect_to_db(host: str, port: int) -> bool:
         )
     
     # 模拟连接成功
-    print("✅ 数据库连接成功")
+    print("数据库连接成功")
     return True
 
 
@@ -81,7 +81,7 @@ async def fetch_data_from_api(url: str) -> dict:
         )
     
     # 模拟成功响应
-    print("✅ API数据获取成功")
+    print("API数据获取成功")
     return {"data": "sample data", "status": "success"}
 
 
@@ -99,7 +99,7 @@ def process_data(data: dict) -> Optional[str]:
         
         # 模拟处理成功
         result = f"处理完成: {data.get('data', 'no data')}"
-        print(f"✅ {result}")
+        print(f"{result}")
         return result
         
     except Exception as e:
@@ -111,7 +111,7 @@ def process_data(data: dict) -> Optional[str]:
 
 async def main():
     """主函数"""
-    print("🚀 错误处理使用示例")
+    print("错误处理使用示例")
     print("=" * 50)
     
     # 1. 测试数据库连接（成功情况）
@@ -119,7 +119,7 @@ async def main():
     try:
         connect_to_db("localhost", 5432)
     except Exception as e:
-        print(f"❌ 意外错误: {e}")
+        print(f"意外错误: {e}")
     print()
     
     # 2. 测试数据库连接（失败情况）
@@ -127,7 +127,7 @@ async def main():
     try:
         connect_to_db("invalid.host", 5432)
     except Exception as e:
-        print(f"❌ 预期的数据库连接错误: {e}")
+        print(f"预期的数据库连接错误: {e}")
     print()
     
     # 3. 测试API调用（成功情况）
@@ -136,7 +136,7 @@ async def main():
         data = await fetch_data_from_api("https://api.com/data")
         process_data(data)
     except Exception as e:
-        print(f"❌ API调用错误: {e}")
+        print(f"API调用错误: {e}")
     print()
     
     # 4. 测试API调用（失败情况，带重试）
@@ -145,7 +145,7 @@ async def main():
         data = await fetch_data_from_api("https://error.api.com/data")
         process_data(data)
     except Exception as e:
-        print(f"❌ API调用错误（重试后仍然失败）: {e}")
+        print(f"API调用错误（重试后仍然失败）: {e}")
     print()
     
     # 5. 测试数据处理（失败情况）
@@ -165,7 +165,7 @@ async def main():
     print()
     
     print("=" * 50)
-    print("🎉 示例运行完成")
+    print("示例运行完成")
 
 
 if __name__ == "__main__":

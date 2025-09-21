@@ -17,29 +17,35 @@ DOWNLOAD_DELAY = 1.0  # 增加延迟以降低目标网站压力
 
 # ============================== 队列配置 ==============================
 
+# 注意：框架已提供默认的队列配置，以下配置项通常无需修改
+# 如需自定义，请取消注释并修改相应值
+
 # 队列类型：'auto'（自动选择）, 'memory'（内存队列）, 'redis'（分布式队列）
-QUEUE_TYPE = 'auto'  # 自动检测，如果Redis可用则使用Redis队列
-SCHEDULER_MAX_QUEUE_SIZE = 1000
-SCHEDULER_QUEUE_NAME = f'crawlo:{{project_name}}:queue:requests'
-QUEUE_MAX_RETRIES = 3
-QUEUE_TIMEOUT = 300
+# QUEUE_TYPE = 'auto'  # 自动检测，如果Redis可用则使用Redis队列
+# SCHEDULER_MAX_QUEUE_SIZE = 1000
+# SCHEDULER_QUEUE_NAME = f'crawlo:{{project_name}}:queue:requests'
+# QUEUE_MAX_RETRIES = 3
+# QUEUE_TIMEOUT = 300
 
 # ============================== 去重过滤配置 ==============================
 
+# 注意：框架已提供默认的去重配置，以下配置项通常无需修改
+# 如需自定义，请取消注释并修改相应值
+
 # 简化模式下使用内存去重管道和过滤器
-DEFAULT_DEDUP_PIPELINE = 'crawlo.pipelines.memory_dedup_pipeline.MemoryDedupPipeline'
-FILTER_CLASS = 'crawlo.filters.memory_filter.MemoryFilter'
+# DEFAULT_DEDUP_PIPELINE = 'crawlo.pipelines.memory_dedup_pipeline.MemoryDedupPipeline'
+# FILTER_CLASS = 'crawlo.filters.memory_filter.MemoryFilter'
 
 # --- Redis 配置（用于分布式去重和队列） ---
-REDIS_HOST = '127.0.0.1'
-REDIS_PORT = 6379
-REDIS_PASSWORD = ''  # 如果有密码，请填写
+# REDIS_HOST = '127.0.0.1'
+# REDIS_PORT = 6379
+# REDIS_PASSWORD = ''  # 如果有密码，请填写
 
 # 根据是否有密码生成 URL
-if REDIS_PASSWORD:
-    REDIS_URL = f'redis://:{REDIS_PASSWORD}@{REDIS_HOST}:{REDIS_PORT}/0'
-else:
-    REDIS_URL = f'redis://{REDIS_HOST}:{REDIS_PORT}/0'
+# if REDIS_PASSWORD:
+#     REDIS_URL = f'redis://:{REDIS_PASSWORD}@{REDIS_HOST}:{REDIS_PORT}/0'
+# else:
+#     REDIS_URL = f'redis://{REDIS_HOST}:{REDIS_PORT}/0'
 
 # Redis key配置已移至各组件中，使用统一的命名规范
 # crawlo:{project_name}:filter:fingerprint (请求去重)
@@ -48,52 +54,44 @@ else:
 # crawlo:{project_name}:queue:processing (处理中队列)
 # crawlo:{project_name}:queue:failed (失败队列)
 
-REDIS_TTL = 0
-CLEANUP_FP = 0
-FILTER_DEBUG = True
-DECODE_RESPONSES = True
+# REDIS_TTL = 0
+# CLEANUP_FP = 0
+# FILTER_DEBUG = True
+# DECODE_RESPONSES = True
 
-# ============================== 中间件配置 ==============================
+# ============================== 用户自定义中间件配置 ==============================
+# 注意：框架默认中间件已自动加载，此处可添加或覆盖默认中间件
 
-MIDDLEWARES = [
-    # === 请求预处理阶段 ===
-    'crawlo.middleware.request_ignore.RequestIgnoreMiddleware',
-    'crawlo.middleware.download_delay.DownloadDelayMiddleware',
-    'crawlo.middleware.default_header.DefaultHeaderMiddleware',
-    'crawlo.middleware.proxy.ProxyMiddleware',
-    'crawlo.middleware.offsite.OffsiteMiddleware', 
-    
-    # === 响应处理阶段 ===
-    'crawlo.middleware.retry.RetryMiddleware',
-    'crawlo.middleware.response_code.ResponseCodeMiddleware',
-    'crawlo.middleware.response_filter.ResponseFilterMiddleware',
-]
+# 中间件列表（框架默认中间件 + 用户自定义中间件）
+# MIDDLEWARES = [
+    # '{{project_name}}.middlewares.CustomMiddleware',  # 示例自定义中间件
+# ]
 
-# ============================== 数据管道配置 ==============================
+# ============================== 用户自定义数据管道配置 ==============================
+# 注意：框架默认管道已自动加载，此处可添加或覆盖默认管道
 
-# 数据处理管道（启用的存储方式）
-PIPELINES = [
-    'crawlo.pipelines.console_pipeline.ConsolePipeline',
+# 数据处理管道列表（框架默认管道 + 用户自定义管道）
+# PIPELINES = [
     # '{{project_name}}.pipelines.DatabasePipeline',        # 自定义数据库管道
     # 'crawlo.pipelines.mysql_pipeline.AsyncmyMySQLPipeline',  # MySQL 存储
     # 'crawlo.pipelines.mongo_pipeline.MongoPipeline',      # MongoDB 存储
-]
+# ]
 
-# 明确添加默认去重管道到管道列表开头
-PIPELINES.insert(0, DEFAULT_DEDUP_PIPELINE)
+# ============================== 用户自定义扩展组件 ==============================
+# 注意：框架默认扩展已自动加载，此处可添加或覆盖默认扩展
 
-# ============================== 扩展组件 ==============================
-
-EXTENSIONS = [
-    'crawlo.extension.log_interval.LogIntervalExtension',
-    'crawlo.extension.log_stats.LogStats',
-    'crawlo.extension.logging_extension.CustomLoggerExtension',
-]
+# 扩展组件列表（框架默认扩展 + 用户自定义扩展）
+# EXTENSIONS = [
+    # 'crawlo.extension.memory_monitor.MemoryMonitorExtension',  # 内存监控
+    # 'crawlo.extension.request_recorder.RequestRecorderExtension',  # 请求记录
+    # 'crawlo.extension.performance_profiler.PerformanceProfilerExtension',  # 性能分析
+    # 'crawlo.extension.health_check.HealthCheckExtension',  # 健康检查
+# ]
 
 # ============================== 日志配置 ==============================
 
 LOG_LEVEL = 'INFO'
 STATS_DUMP = True
 LOG_FILE = f'logs/{{project_name}}.log'
-LOG_FORMAT = '%(asctime)s - [%(name)s] - %(levelname)s： %(message)s'
+LOG_FORMAT = '%(asctime)s - [%(name)s] - %(levelname)s: %(message)s'
 LOG_ENCODING = 'utf-8'

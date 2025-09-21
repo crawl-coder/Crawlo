@@ -101,17 +101,17 @@ async def test_memory_scheduler():
     success2 = await scheduler.enqueue_request(request2)
     
     print(f"   📤 入队结果: {success1}, {success2}")
-    print(f"   📊 队列大小: {len(scheduler)}")
+    print(f"   队列大小: {len(scheduler)}")
     
     # 测试出队
     req1 = await scheduler.next_request()
     req2 = await scheduler.next_request()
     
     print(f"   📥 出队结果: {req1.url if req1 else None}, {req2.url if req2 else None}")
-    print(f"   📊 剩余大小: {len(scheduler)}")
+    print(f"   剩余大小: {len(scheduler)}")
     
     await scheduler.close()
-    print("   ✅ 内存调度器测试完成")
+    print("   内存调度器测试完成")
 
 
 async def test_redis_scheduler():
@@ -136,8 +136,8 @@ async def test_redis_scheduler():
         success2 = await scheduler.enqueue_request(request2)
         success3 = await scheduler.enqueue_request(request3)
         
-        print(f"   📤 入队结果: {success1}, {success2}, {success3}")
-        print(f"   📊 队列大小: {len(scheduler)}")
+        print(f"   入队结果: {success1}, {success2}, {success3}")
+        print(f"   队列大小: {len(scheduler)}")
         
         # 等待一小段时间让 Redis 操作完成
         await asyncio.sleep(0.5)
@@ -155,13 +155,13 @@ async def test_redis_scheduler():
         if req3:
             print(f"      {req3.url} (优先级: {getattr(req3, 'priority', 0)})")
             
-        print(f"   📊 剩余大小: {len(scheduler)}")
+        print(f"   剩余大小: {len(scheduler)}")
         
         await scheduler.close()
-        print("   ✅ Redis 调度器测试完成")
+        print("   Redis 调度器测试完成")
         
     except Exception as e:
-        print(f"   ❌ Redis 调度器测试失败: {e}")
+        print(f"   Redis 调度器测试失败: {e}")
         import traceback
         traceback.print_exc()
 
@@ -176,7 +176,7 @@ async def test_concurrent_redis():
             request = Request(url=f"https://{name}-{i}.com", priority=i % 10)
             await scheduler.enqueue_request(request)
             await asyncio.sleep(0.01)
-        print(f"   ✅ 生产者 {name} 完成 ({count} 个请求)")
+        print(f"   生产者 {name} 完成 ({count} 个请求)")
     
     async def consumer(scheduler, name, count):
         """消费者"""
@@ -188,7 +188,7 @@ async def test_concurrent_redis():
                 await asyncio.sleep(0.005)
             else:
                 break
-        print(f"   ✅ 消费者 {name} 处理了 {consumed} 个请求")
+        print(f"   消费者 {name} 处理了 {consumed} 个请求")
     
     try:
         crawler = MockCrawler(use_redis=True)
@@ -207,20 +207,20 @@ async def test_concurrent_redis():
         
         await asyncio.gather(*tasks, return_exceptions=True)
         
-        print(f"   📊 最终队列大小: {len(scheduler)}")
+        print(f"   最终队列大小: {len(scheduler)}")
         
         await scheduler.close()
-        print("   ✅ 并发测试完成")
+        print("   并发测试完成")
         
     except Exception as e:
-        print(f"   ❌ 并发测试失败: {e}")
+        print(f"   并发测试失败: {e}")
         import traceback
         traceback.print_exc()
 
 
 async def main():
     """主测试函数"""
-    print("🚀 开始测试修复后的 Scheduler...")
+    print("开始测试修复后的 Scheduler...")
     print("=" * 50)
     
     try:
@@ -236,11 +236,11 @@ async def main():
         await test_concurrent_redis()
         
         print("=" * 50)
-        print("🎉 所有 Scheduler 测试完成！")
+        print("所有 Scheduler 测试完成！")
         
     except Exception as e:
         print("=" * 50)
-        print(f"❌ 测试失败: {e}")
+        print(f"测试失败: {e}")
         import traceback
         traceback.print_exc()
 

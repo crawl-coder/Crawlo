@@ -35,47 +35,54 @@ locals().update(CONFIG.to_dict())
 
 # ============================== 网络请求配置 ==============================
 
+# 注意：框架已提供默认的网络请求配置，以下配置项通常无需修改
+# 如需自定义，请取消注释并修改相应值
+
 # 下载器选择（推荐使用 CurlCffi，支持浏览器指纹模拟）
-DOWNLOADER = "crawlo.downloader.httpx_downloader.HttpXDownloader"     # HTTP/2 支持
+# DOWNLOADER = "crawlo.downloader.httpx_downloader.HttpXDownloader"     # HTTP/2 支持
 # DOWNLOADER = "crawlo.downloader.cffi_downloader.CurlCffiDownloader"  # 支持浏览器指纹
 # DOWNLOADER = "crawlo.downloader.aiohttp_downloader.AioHttpDownloader"  # 轻量级选择
 
 # 请求超时与安全
-DOWNLOAD_TIMEOUT = 30
-VERIFY_SSL = True
-USE_SESSION = True
+# DOWNLOAD_TIMEOUT = 30
+# VERIFY_SSL = True
+# USE_SESSION = True
 
 # 请求延迟控制（防反爬）
-DOWNLOAD_DELAY = 1.0
-RANDOM_RANGE = (0.5, 1.5)
-RANDOMNESS = False
+# DOWNLOAD_DELAY = 1.0
+# RANDOM_RANGE = (0.5, 1.5)
+# RANDOMNESS = False
 
 # 重试策略
-MAX_RETRY_TIMES = 3
-RETRY_PRIORITY = -1
-RETRY_HTTP_CODES = [408, 429, 500, 502, 503, 504, 522, 524]
-IGNORE_HTTP_CODES = [403, 404]
-ALLOWED_RESPONSE_CODES = []  # ResponseFilterMiddleware允许的状态码
-DENIED_RESPONSE_CODES = []   # ResponseFilterMiddleware拒绝的状态码
+# MAX_RETRY_TIMES = 3
+# RETRY_PRIORITY = -1
+# RETRY_HTTP_CODES = [408, 429, 500, 502, 503, 504, 522, 524]
+# IGNORE_HTTP_CODES = [403, 404]
+# ALLOWED_RESPONSE_CODES = []  # ResponseFilterMiddleware允许的状态码
+# DENIED_RESPONSE_CODES = []   # ResponseFilterMiddleware拒绝的状态码
 
 # 连接池配置
-CONNECTION_POOL_LIMIT = 50
-DOWNLOAD_MAXSIZE = 10 * 1024 * 1024    # 10MB
-DOWNLOAD_WARN_SIZE = 1024 * 1024       # 1MB
-DOWNLOAD_RETRY_TIMES = MAX_RETRY_TIMES  # 下载器内部重试次数（复用全局）
+# CONNECTION_POOL_LIMIT = 50
+# DOWNLOAD_MAXSIZE = 10 * 1024 * 1024    # 10MB
+# DOWNLOAD_WARN_SIZE = 1024 * 1024       # 1MB
+# DOWNLOAD_RETRY_TIMES = MAX_RETRY_TIMES  # 下载器内部重试次数（复用全局）
 
 # 下载统计配置
-DOWNLOADER_STATS = True  # 是否启用下载器统计功能
-DOWNLOAD_STATS = True  # 是否记录下载时间和大小统计
+# DOWNLOADER_STATS = True  # 是否启用下载器统计功能
+# DOWNLOAD_STATS = True  # 是否记录下载时间和大小统计
 
 # ============================== 并发与调度配置 ==============================
 
-CONCURRENCY = 8
-INTERVAL = 5
-DEPTH_PRIORITY = 1
-MAX_RUNNING_SPIDERS = 3
+# 注意：并发配置通常通过CrawloConfig设置，以下配置项用于细粒度调整
+
+# CONCURRENCY = 8
+# INTERVAL = 5
+# DEPTH_PRIORITY = 1
+# MAX_RUNNING_SPIDERS = 3
 
 # ============================== 队列配置（支持分布式） ==============================
+
+# 注意：队列配置通常通过CrawloConfig设置，以下配置项用于细粒度调整
 
 # 队列类型：'auto'（自动选择）, 'memory'（内存队列）, 'redis'（分布式队列）
 # 
@@ -83,16 +90,16 @@ MAX_RUNNING_SPIDERS = 3
 # - 'auto'：推荐用于大多数场景，框架会根据Redis可用性自动选择
 # - 'memory'：适用于单机运行且不需要Redis的场景
 # - 'redis'：适用于分布式部署场景，需要Redis服务器支持
-QUEUE_TYPE = 'auto'
-SCHEDULER_MAX_QUEUE_SIZE = 2000
-SCHEDULER_QUEUE_NAME = f'crawlo:{{project_name}}:queue:requests'  # 使用统一命名规范
-QUEUE_MAX_RETRIES = 3
-QUEUE_TIMEOUT = 300
+# QUEUE_TYPE = 'auto'
+# SCHEDULER_MAX_QUEUE_SIZE = 2000
+# SCHEDULER_QUEUE_NAME = f'crawlo:{{project_name}}:queue:requests'  # 使用统一命名规范
+# QUEUE_MAX_RETRIES = 3
+# QUEUE_TIMEOUT = 300
 
 # 大规模爬取优化
-LARGE_SCALE_BATCH_SIZE = 1000  # 批处理大小
-LARGE_SCALE_CHECKPOINT_INTERVAL = 5000  # 进度保存间隔
-LARGE_SCALE_MAX_MEMORY_USAGE = 500  # 最大内存使用量（MB）
+# LARGE_SCALE_BATCH_SIZE = 1000  # 批处理大小
+# LARGE_SCALE_CHECKPOINT_INTERVAL = 5000  # 进度保存间隔
+# LARGE_SCALE_MAX_MEMORY_USAGE = 500  # 最大内存使用量（MB）
 
 # ============================== 数据存储配置 ==============================
 
@@ -117,23 +124,25 @@ MONGO_USE_BATCH = False  # 是否启用批量插入
 
 # ============================== 去重过滤配置 ==============================
 
-REQUEST_DIR = '.'
+# 注意：框架已提供默认的去重配置，以下配置项通常无需修改
+# 如需自定义，请取消注释并修改相应值
 
-# 明确配置默认去重管道和过滤器，避免冗余的if-else判断
+# REQUEST_DIR = '.'
+
 # 在单机模式下，如果Redis可用则使用Redis去重，否则使用内存去重
-DEFAULT_DEDUP_PIPELINE = 'crawlo.pipelines.redis_dedup_pipeline.RedisDedupPipeline'
-FILTER_CLASS = 'crawlo.filters.aioredis_filter.AioRedisFilter'
+# DEFAULT_DEDUP_PIPELINE = 'crawlo.pipelines.redis_dedup_pipeline.RedisDedupPipeline'
+# FILTER_CLASS = 'crawlo.filters.aioredis_filter.AioRedisFilter'
 
 # --- Redis 配置（用于分布式去重和队列） ---
-REDIS_HOST = os.getenv('REDIS_HOST', '127.0.0.1')
-REDIS_PORT = int(os.getenv('REDIS_PORT', 6379))
-REDIS_PASSWORD = os.getenv('REDIS_PASSWORD', '')
+# REDIS_HOST = os.getenv('REDIS_HOST', '127.0.0.1')
+# REDIS_PORT = int(os.getenv('REDIS_PORT', 6379))
+# REDIS_PASSWORD = os.getenv('REDIS_PASSWORD', '')
 
 # 根据是否有密码生成 URL
-if REDIS_PASSWORD:
-    REDIS_URL = f'redis://:{REDIS_PASSWORD}@{REDIS_HOST}:{REDIS_PORT}/0'
-else:
-    REDIS_URL = f'redis://{REDIS_HOST}:{REDIS_PORT}/0'
+# if REDIS_PASSWORD:
+#     REDIS_URL = f'redis://:{REDIS_PASSWORD}@{REDIS_HOST}:{REDIS_PORT}/0'
+# else:
+#     REDIS_URL = f'redis://{REDIS_HOST}:{REDIS_PORT}/0'
 
 # Redis key配置已移至各组件中，使用统一的命名规范
 # crawlo:{project_name}:filter:fingerprint (请求去重)
@@ -142,89 +151,64 @@ else:
 # crawlo:{project_name}:queue:processing (处理中队列)
 # crawlo:{project_name}:queue:failed (失败队列)
 
-REDIS_TTL = 0
-CLEANUP_FP = 0
-FILTER_DEBUG = True
-DECODE_RESPONSES = True
+# REDIS_TTL = 0
+# CLEANUP_FP = 0
+# FILTER_DEBUG = True
+# DECODE_RESPONSES = True
 
-# ============================== 中间件配置 ==============================
+# ============================== 用户自定义中间件配置 ==============================
+# 注意：框架默认中间件已自动加载，此处可添加或覆盖默认中间件
+# 如需启用代理功能，请取消注释 ProxyMiddleware 并配置代理相关参数
 
-MIDDLEWARES = [
-    # === 请求预处理阶段 ===
-    'crawlo.middleware.request_ignore.RequestIgnoreMiddleware',
-    'crawlo.middleware.download_delay.DownloadDelayMiddleware',
-    'crawlo.middleware.default_header.DefaultHeaderMiddleware',
-    'crawlo.middleware.proxy.ProxyMiddleware',
-    'crawlo.middleware.offsite.OffsiteMiddleware', 
-    
-    # === 响应处理阶段 ===
-    'crawlo.middleware.retry.RetryMiddleware',
-    'crawlo.middleware.response_code.ResponseCodeMiddleware',
-    'crawlo.middleware.response_filter.ResponseFilterMiddleware',
-]
+# 中间件列表（框架默认中间件 + 用户自定义中间件）
+# MIDDLEWARES = [
+    # '{{project_name}}.middlewares.CustomMiddleware',  # 示例自定义中间件
+    # 'crawlo.middleware.proxy.ProxyMiddleware',  # 启用代理功能（需要配置 PROXY_API_URL）
+# ]
 
-# ============================== 数据管道配置 ==============================
+# ============================== 用户自定义数据管道配置 ==============================
+# 注意：框架默认管道已自动加载，此处可添加或覆盖默认管道
 
-# 数据处理管道（启用的存储方式）
-PIPELINES = [
-    'crawlo.pipelines.console_pipeline.ConsolePipeline',
+# 数据处理管道列表（框架默认管道 + 用户自定义管道）
+# PIPELINES = [
     # '{{project_name}}.pipelines.DatabasePipeline',        # 自定义数据库管道
     # 'crawlo.pipelines.mysql_pipeline.AsyncmyMySQLPipeline',  # MySQL 存储
     # 'crawlo.pipelines.mongo_pipeline.MongoPipeline',      # MongoDB 存储
-]
+# ]
 
-# 明确添加默认去重管道到管道列表开头
-PIPELINES.insert(0, DEFAULT_DEDUP_PIPELINE)
+# ============================== 用户自定义扩展组件 ==============================
+# 注意：框架默认扩展已自动加载，此处可添加或覆盖默认扩展
 
-# ============================== 扩展组件 ==============================
-
-EXTENSIONS = [
-    'crawlo.extension.log_interval.LogIntervalExtension',
-    'crawlo.extension.log_stats.LogStats',
-    'crawlo.extension.logging_extension.CustomLoggerExtension',
+# 扩展组件列表（框架默认扩展 + 用户自定义扩展）
+# EXTENSIONS = [
     # 'crawlo.extension.memory_monitor.MemoryMonitorExtension',  # 内存监控
     # 'crawlo.extension.request_recorder.RequestRecorderExtension',  # 请求记录
     # 'crawlo.extension.performance_profiler.PerformanceProfilerExtension',  # 性能分析
     # 'crawlo.extension.health_check.HealthCheckExtension',  # 健康检查
-]
-
-# ============================== 扩展配置 ==============================
-
-# 内存监控扩展配置
-# MEMORY_MONITOR_ENABLED = True  # 是否启用内存监控
-# MEMORY_MONITOR_INTERVAL = 60  # 内存检查间隔（秒）
-# MEMORY_WARNING_THRESHOLD = 80.0  # 内存使用警告阈值（百分比）
-# MEMORY_CRITICAL_THRESHOLD = 90.0  # 内存使用严重阈值（百分比）
-
-# 请求记录扩展配置
-# REQUEST_RECORDER_ENABLED = True  # 是否启用请求记录
-# REQUEST_RECORDER_OUTPUT_DIR = 'requests_log'  # 请求记录输出目录
-# REQUEST_RECORDER_MAX_FILE_SIZE = 10 * 1024 * 1024  # 单个记录文件最大大小（字节）
-
-# 性能分析扩展配置
-# PERFORMANCE_PROFILER_ENABLED = True  # 是否启用性能分析
-# PERFORMANCE_PROFILER_OUTPUT_DIR = 'profiling'  # 性能分析输出目录
-# PERFORMANCE_PROFILER_INTERVAL = 300  # 定期保存分析结果间隔（秒）
-
-# 健康检查扩展配置
-# HEALTH_CHECK_ENABLED = True  # 是否启用健康检查
-# HEALTH_CHECK_INTERVAL = 60  # 健康检查间隔（秒）
+# ]
 
 # ============================== 日志配置 ==============================
 
 LOG_LEVEL = 'INFO'
 STATS_DUMP = True
 LOG_FILE = f'logs/{{project_name}}.log'
-LOG_FORMAT = '%(asctime)s - [%(name)s] - %(levelname)s： %(message)s'
+LOG_FORMAT = '%(asctime)s - [%(name)s] - %(levelname)s: %(message)s'
 LOG_ENCODING = 'utf-8'
 
 # ============================== 代理配置 ==============================
 
-PROXY_ENABLED = False
-PROXY_API_URL = ""  # 请填入真实的代理API地址
-PROXY_EXTRACTOR = "proxy"
-PROXY_REFRESH_INTERVAL = 60
-PROXY_API_TIMEOUT = 10
+# 代理功能默认不启用，如需使用请取消注释并配置以下参数
+# PROXY_ENABLED = True
+# PROXY_API_URL = "https://api.proxyprovider.com/get"  # 请填入真实的代理API地址
+
+# 代理提取方式（支持字段路径或函数）
+# 示例: "proxy" 适用于 {"proxy": "http://1.1.1.1:8080"}
+# 示例: "data.proxy" 适用于 {"data": {"proxy": "http://1.1.1.1:8080"}}
+# PROXY_EXTRACTOR = "proxy"
+
+# 代理刷新控制
+# PROXY_REFRESH_INTERVAL = 60  # 代理刷新间隔（秒）
+# PROXY_API_TIMEOUT = 10  # 请求代理 API 超时时间
 
 # ============================== 浏览器指纹配置 ==============================
 
@@ -235,17 +219,6 @@ CURL_BROWSER_VERSION_MAP = {
     "edge": "edge101",
     "safari": "safari184",
     "firefox": "firefox135",
-}
-
-# 默认请求头
-DEFAULT_REQUEST_HEADERS = {
-    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 '
-                  '(KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36',
-    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-    'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
-    'Accept-Encoding': 'gzip, deflate, br',
-    'Connection': 'keep-alive',
-    'Upgrade-Insecure-Requests': '1',
 }
 
 # ============================== 下载器优化配置 ==============================

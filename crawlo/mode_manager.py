@@ -105,11 +105,11 @@ class ModeManager:
         mode = RunMode(mode.lower())
         
         if mode == RunMode.STANDALONE:
-            self.logger.info("🏠 使用单机模式 - 简单快速，适合开发和中小规模爬取")
+            self.logger.info("使用单机模式 - 简单快速，适合开发和中小规模爬取")
             settings = self.get_standalone_settings()
             
         elif mode == RunMode.DISTRIBUTED:
-            self.logger.info("🌐 使用分布式模式 - 支持多节点扩展，适合大规模爬取")
+            self.logger.info("使用分布式模式 - 支持多节点扩展，适合大规模爬取")
             settings = self.get_distributed_settings(
                 redis_host=kwargs.get('redis_host', '127.0.0.1'),
                 redis_port=kwargs.get('redis_port', 6379),
@@ -119,7 +119,7 @@ class ModeManager:
             )
             
         elif mode == RunMode.AUTO:
-            self.logger.info("🤖 使用自动检测模式 - 智能选择最佳运行方式")
+            self.logger.info("使用自动检测模式 - 智能选择最佳运行方式")
             settings = self.get_auto_settings()
             
         else:

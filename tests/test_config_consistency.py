@@ -26,7 +26,7 @@ class TestSpider(Spider):
 
 async def test_config_consistency():
     """测试配置一致性优化"""
-    print("🔍 测试配置一致性优化...")
+    print("测试配置一致性优化...")
     
     # 模拟单机模式配置但Redis可用的情况
     custom_settings = {
@@ -44,31 +44,31 @@ async def test_config_consistency():
         crawler = Crawler(TestSpider, settings)
         
         # 启动爬虫（这会触发调度器初始化）
-        print("🚀 开始初始化爬虫...")
+        print("开始初始化爬虫...")
         await crawler.crawl()
         
-        print("✅ 配置一致性测试完成")
+        print("配置一致性测试完成")
         
     except Exception as e:
-        print(f"❌ 测试失败: {e}")
+        print(f"测试失败: {e}")
         import traceback
         traceback.print_exc()
 
 
 async def main():
     """主测试函数"""
-    print("🚀 开始测试配置一致性优化...")
+    print("开始测试配置一致性优化...")
     print("=" * 50)
     
     try:
         await test_config_consistency()
         
         print("=" * 50)
-        print("🎉 配置一致性优化测试完成！")
+        print("配置一致性优化测试完成！")
         
     except Exception as e:
         print("=" * 50)
-        print(f"❌ 测试失败: {e}")
+        print(f"测试失败: {e}")
         import traceback
         traceback.print_exc()
 

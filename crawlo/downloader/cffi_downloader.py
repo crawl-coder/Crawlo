@@ -9,7 +9,7 @@ from curl_cffi.requests import AsyncSession
 
 from crawlo.network.response import Response
 from crawlo.downloader import DownloaderBase
-
+from crawlo.utils.log import get_logger
 
 class CurlCffiDownloader(DownloaderBase):
     """
@@ -22,39 +22,28 @@ class CurlCffiDownloader(DownloaderBase):
     """
 
     def __init__(self, crawler):
-        super().__init__(crawler)
-        self.session: Optional[AsyncSession] = None
-        self.max_download_size: int = 0
-        self.download_warn_size: int = 0
-        self.download_delay: float = 0
-        self.randomize_delay: bool = False
-        self.default_headers: dict = {}
-        # 使用默认值，但会在 open 中被 settings 覆盖
-        self.browser_type_str: str = "chrome136"
-        self._last_request_time: float = 0
-        self._active_requests: set = set()  # 用于跟踪活跃请求
+        self.crawler = crawler
+        self.logger = get_logger(self.__class__.__name__, crawler.settings.get('LOG_LEVEL'))
+        self._active_requests = set()
 
-    def open(self):
-        super().open()
-        self.logger.info("正在打开 CurlCffiDownloader")
-
-        # 读取配置
-        timeout_secs = self.crawler.settings.get_int("DOWNLOAD_TIMEOUT", 30)
-        verify_ssl = self.crawler.settings.get_bool("VERIFY_SSL", True)
-        pool_size = self.crawler.settings.get_int("CONNECTION_POOL_LIMIT", 100)
-        self.max_download_size = self.crawler.settings.get_int("DOWNLOAD_MAXSIZE", 10 * 1024 * 1024)  # 10MB
-        self.download_warn_size = self.crawler.settings.get_int("DOWNLOAD_WARN_SIZE", 1024 * 1024)  # 1MB
-        self.download_delay = self.crawler.settings.get_float("DOWNLOAD_DELAY", 0)
-        self.randomize_delay = self.crawler.settings.get_bool("RANDOMIZE_DOWNLOAD_DELAY",
-                                                              self.crawler.settings.get_bool("RANDOMNESS", False))
-        self.default_headers = self.crawler.settings.get_dict("DEFAULT_REQUEST_HEADERS", {})
+        # --- 基础配置 ---
+        timeout_secs = crawler.settings.get_int("DOWNLOAD_TIMEOUT", 180)
+        verify_ssl = crawler.settings.get_bool("VERIFY_SSL", True)
+        pool_size = crawler.settings.get_int("CONNECTION_POOL_LIMIT", 20)
+        self.max_download_size = crawler.settings.get_int("DOWNLOAD_MAXSIZE", 10 * 1024 * 1024)  # 10MB
+        self.download_warn_size = crawler.settings.get_int("DOWNLOAD_WARN_SIZE", 1024 * 1024)  # 1MB
+        self.download_delay = crawler.settings.get_float("DOWNLOAD_DELAY", 0)
+        self.randomize_delay = crawler.settings.get_bool("RANDOMIZE_DOWNLOAD_DELAY",
+                                                              crawler.settings.get_bool("RANDOMNESS", False))
+        # 不再使用DEFAULT_REQUEST_HEADERS配置项
+        self.default_headers = {}
 
         # --- 浏览器指纹模拟配置 ---
-        user_browser_map = self.crawler.settings.get_dict("CURL_BROWSER_VERSION_MAP", {})
+        user_browser_map = crawler.settings.get_dict("CURL_BROWSER_VERSION_MAP", {})
         default_browser_map = self._get_default_browser_map()
         effective_browser_map = {**default_browser_map, **user_browser_map}
 
-        raw_browser_type_str = self.crawler.settings.get("CURL_BROWSER_TYPE", "chrome")
+        raw_browser_type_str = crawler.settings.get("CURL_BROWSER_TYPE", "chrome")
         self.browser_type_str = effective_browser_map.get(raw_browser_type_str.lower(), raw_browser_type_str)
 
         # 创建会话配置

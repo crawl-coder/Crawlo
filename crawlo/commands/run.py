@@ -41,7 +41,7 @@ def check_redis_connection(settings):
             redis_host = settings.get('REDIS_HOST', '127.0.0.1')
             redis_port = settings.get('REDIS_PORT', 6379)
             
-            console.print(f"🔍 检查 Redis 连接: {redis_host}:{redis_port}")
+            console.print(f"检查 Redis 连接: {redis_host}:{redis_port}")
             
             # 创建Redis连接进行测试
             async def _test_redis():
@@ -51,23 +51,23 @@ def check_redis_connection(settings):
                     await r.close()
                     return True
                 except Exception as e:
-                    console.print(f"❌ Redis 连接失败: {e}")
+                    console.print(f"Redis 连接失败: {e}")
                     return False
             
             # 运行异步测试
             if not asyncio.run(_test_redis()):
                 raise ConnectionError(f"无法连接到 Redis 服务器 {redis_host}:{redis_port}")
                 
-            console.print("✅ Redis 连接正常")
+            console.print("Redis 连接正常")
             return True
         else:
             # 非分布式模式，跳过Redis检查
             return True
     except ImportError:
-        console.print("⚠️  Redis 客户端未安装，跳过连接检查")
+        console.print("Redis 客户端未安装，跳过连接检查")
         return True
     except Exception as e:
-        console.print(f"❌ Redis 连接检查失败: {e}")
+        console.print(f"Redis 连接检查失败: {e}")
         return False
 
 
@@ -78,8 +78,8 @@ def main(args):
         crawlo run <spider_name>|all [--json] [--no-stats]
     """
     if len(args) < 1:
-        console.print("[bold red]❌ 用法:[/bold red] [blue]crawlo run[/blue] <爬虫名称>|all [bold yellow][--json] [--no-stats][/bold yellow]")
-        console.print("💡 示例:")
+        console.print("[bold red]用法:[/bold red] [blue]crawlo run[/blue] <爬虫名称>|all [bold yellow][--json] [--no-stats][/bold yellow]")
+        console.print("示例:")
         console.print("   [blue]crawlo run baidu[/blue]")
         console.print("   [blue]crawlo run all[/blue]")
         console.print("   [blue]crawlo run all --json --no-stats[/blue]")
@@ -94,14 +94,14 @@ def main(args):
         # 1. 查找项目根目录
         project_root = _find_project_root()
         if not project_root:
-            msg = ":cross_mark: [bold red]找不到 'crawlo.cfg'[/bold red]\n💡 请在项目目录中运行此命令。"
+            msg = "[bold red]找不到 'crawlo.cfg'[/bold red]\n请在项目目录中运行此命令。"
             if show_json:
                 console.print_json(data={"success": False, "error": "未找到项目根目录"})
                 return 1
             else:
                 console.print(Panel(
                     Text.from_markup(msg),
-                    title="❌ 非Crawlo项目",
+                    title="非Crawlo项目",
                     border_style="red",
                     padding=(1, 2)
                 ))
@@ -119,7 +119,7 @@ def main(args):
                 console.print_json(data={"success": False, "error": msg})
                 return 1
             else:
-                console.print(Panel(msg, title="❌ 缺少配置文件", border_style="red"))
+                console.print(Panel(msg, title="缺少配置文件", border_style="red"))
                 return 1
 
         config = configparser.ConfigParser()
@@ -131,7 +131,7 @@ def main(args):
                 console.print_json(data={"success": False, "error": msg})
                 return 1
             else:
-                console.print(Panel(msg, title="❌ 无效配置", border_style="red"))
+                console.print(Panel(msg, title="无效配置", border_style="red"))
                 return 1
 
         settings_module = config.get("settings", "default")
@@ -146,7 +146,7 @@ def main(args):
                 console.print_json(data={"success": False, "error": msg})
                 return 1
             else:
-                console.print(Panel(msg, title="❌ 导入错误", border_style="red"))
+                console.print(Panel(msg, title="导入错误", border_style="red"))
                 return 1
 
         # 4. 加载 settings 和爬虫模块
@@ -174,13 +174,13 @@ def main(args):
                 else:
                     console.print(Panel(
                         Text.from_markup(
-                            ":cross_mark: [bold red]未找到爬虫。[/bold red]\n\n"
-                            "[bold]💡 确保:[/bold]\n"
+                            "[bold red]未找到爬虫。[/bold red]\n\n"
+                            "[bold]确保:[/bold]\n"
                             "  • 爬虫定义于 '[cyan]spiders/[/cyan]' 目录\n"
                             "  • 具有 [green]`name`[/green] 属性\n"
                             "  • 模块已导入 (例如通过 [cyan]__init__.py[/cyan])"
                         ),
-                        title="❌ 未找到爬虫",
+                        title="未找到爬虫",
                         border_style="red",
                         padding=(1, 2)
                     ))
@@ -188,7 +188,7 @@ def main(args):
 
             # 显示即将运行的爬虫列表
             table = Table(
-                title=f"🚀 启动全部 {len(spider_names)} 个爬虫",
+                title=f"启动全部 {len(spider_names)} 个爬虫",
                 box=box.ROUNDED,
                 show_header=True,
                 header_style="bold magenta"
@@ -221,8 +221,8 @@ def main(args):
                 console.print_json(data={"success": True, "spiders": spider_names})
             else:
                 console.print(Panel(
-                    ":tada: [bold green]所有爬虫运行完成！[/bold green]",
-                    title="✅ 全部完成",
+                    "[bold green]所有爬虫运行完成！[/bold green]",
+                    title="全部完成",
                     border_style="green"
                 ))
             return 0
@@ -242,16 +242,16 @@ def main(args):
             else:
                 panel_content = Text.from_markup(msg + "\n")
                 if available:
-                    panel_content.append("\n💡 可用爬虫:\n")
+                    panel_content.append("\n可用爬虫:\n")
                     for name in sorted(available):
                         cls = process.get_spider_class(name)
                         panel_content.append(f"  • [cyan]{name}[/cyan] ([green]{cls.__name__}[/green])\n")
                 else:
-                    panel_content.append("\n💡 未找到爬虫。请检查爬虫模块。")
+                    panel_content.append("\n未找到爬虫。请检查爬虫模块。")
 
                 console.print(Panel(
                     panel_content,
-                    title="❌ 爬虫未找到",
+                    title="爬虫未找到",
                     border_style="red",
                     padding=(1, 2)
                 ))
@@ -262,7 +262,7 @@ def main(args):
         # 显示启动信息
         if not show_json:
             info_table = Table(
-                title=f"🚀 启动爬虫: [bold cyan]{spider_name}[/bold cyan]",
+                title=f"启动爬虫: [bold cyan]{spider_name}[/bold cyan]",
                 box=box.SIMPLE,
                 show_header=False,
                 title_style="bold green"
@@ -293,14 +293,14 @@ def main(args):
             console.print_json(data={"success": True, "spider": spider_name})
         else:
             console.print(Panel(
-                f":tada: [bold green]爬虫 '[cyan]{spider_name}[/cyan]' 运行完成！[/bold green]",
-                title="✅ 完成",
+                f"[bold green]爬虫 '[cyan]{spider_name}[/cyan]' 运行完成！[/bold green]",
+                title="完成",
                 border_style="green"
             ))
         return 0
 
     except KeyboardInterrupt:
-        msg = "⚠️  爬虫被用户中断。"
+        msg = "爬虫被用户中断。"
         if show_json:
             console.print_json(data={"success": False, "error": msg})
         else:
@@ -312,7 +312,7 @@ def main(args):
         if show_json:
             console.print_json(data={"success": False, "error": msg})
         else:
-            console.print(f"[bold red]❌ {msg}[/bold red]")
+            console.print(f"[bold red]{msg}[/bold red]")
         return 1
 
 

@@ -36,7 +36,7 @@ def main(args):
         if show_json:
             console.print_json(data={"success": False, "error": "用法: crawlo list [--json]"})
         else:
-            console.print("[bold red]❌ 错误:[/bold red] 用法: [blue]crawlo list[/blue] [--json]")
+            console.print("[bold red]错误:[/bold red] 用法: [blue]crawlo list[/blue] [--json]")
         return 1
 
     try:
@@ -65,13 +65,13 @@ def main(args):
             else:
                 console.print(Panel(
                     Text.from_markup(
-                        ":envelope_with_arrow: [bold]未找到爬虫[/bold] 于 '[cyan]spiders/[/cyan]' 目录。\n\n"
-                        "[bold]💡 确保:[/bold]\n"
+                        "[bold]未找到爬虫[/bold] 于 '[cyan]spiders/[/cyan]' 目录。\n\n"
+                        "[bold]确保:[/bold]\n"
                         "  • 爬虫类继承自 [blue]`crawlo.spider.Spider`[/blue]\n"
                         "  • 每个爬虫都有 [green]`name`[/green] 属性\n"
                         "  • 爬虫已在 [cyan]`spiders/__init__.py`[/cyan] 中导入 (如果使用包)"
                     ),
-                    title="📭 未找到爬虫",
+                    title="未找到爬虫",
                     border_style="yellow",
                     padding=(1, 2)
                 ))
@@ -108,7 +108,7 @@ def main(args):
 
         # 表格输出
         table = Table(
-            title=f"📋 找到 {len(spider_names)} 个爬虫",
+            title=f"找到 {len(spider_names)} 个爬虫",
             box=box.ROUNDED,
             show_header=True,
             header_style="bold magenta",
@@ -140,7 +140,7 @@ def main(args):
         console.print(table)
         
         # 显示使用提示
-        console.print("\n[bold]🚀 下一步操作:[/bold]")
+        console.print("\n[bold]下一步操作:[/bold]")
         console.print("  [blue]crawlo run[/blue] <爬虫名称>    # 运行指定爬虫")
         console.print("  [blue]crawlo run[/blue] all             # 运行所有爬虫")
         console.print("  [blue]crawlo check[/blue] <爬虫名称>  # 检查爬虫有效性")
@@ -151,6 +151,6 @@ def main(args):
         if show_json:
             console.print_json(data={"success": False, "error": str(e)})
         else:
-            console.print(f"[bold red]❌ 意外错误:[/bold red] {e}")
+            console.print(f"[bold red]意外错误:[/bold red] {e}")
         logger.exception("执行 'crawlo list' 时发生异常")
         return 1

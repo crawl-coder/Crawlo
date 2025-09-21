@@ -24,7 +24,7 @@ from crawlo.utils.performance_monitor import PerformanceMonitor, PerformanceTime
 
 async def test_redis_queue_performance():
     """测试 Redis 队列性能"""
-    print("🔍 测试 Redis 队列性能...")
+    print("测试 Redis 队列性能...")
     
     try:
         queue = RedisPriorityQueue(
@@ -34,7 +34,7 @@ async def test_redis_queue_performance():
         await queue.connect()
         
         # 1. 测试批量入队性能
-        print("   📊 测试批量入队性能...")
+        print("   测试批量入队性能...")
         start_time = time.time()
         request_count = 1000
         
@@ -50,7 +50,7 @@ async def test_redis_queue_performance():
         print(f"      入队速率: {rate:.1f} 请求/秒")
         
         # 2. 测试批量出队性能
-        print("   📊 测试批量出队性能...")
+        print("   测试批量出队性能...")
         start_time = time.time()
         
         retrieved_count = 0
@@ -73,25 +73,25 @@ async def test_redis_queue_performance():
         
         # 性能标准：1000个请求应该在5秒内完成
         if duration < 5.0:
-            print("   ✅ Redis 队列性能测试通过")
+            print("   Redis 队列性能测试通过")
             return True
         else:
-            print("   ⚠️ Redis 队列性能较低")
+            print("   Redis 队列性能较低")
             return True  # 仍然算通过，只是性能较低
         
     except Exception as e:
-        print(f"   ❌ Redis 队列性能测试失败: {e}")
+        print(f"   Redis 队列性能测试失败: {e}")
         traceback.print_exc()
         return False
 
 
 async def test_redis_connection_pool_performance():
     """测试 Redis 连接池性能"""
-    print("🔍 测试 Redis 连接池性能...")
+    print("测试 Redis 连接池性能...")
     
     try:
         # 1. 测试连接获取性能
-        print("   📊 测试连接获取性能...")
+        print("   测试连接获取性能...")
         start_time = time.time()
         connection_count = 100
         
@@ -106,7 +106,7 @@ async def test_redis_connection_pool_performance():
         print(f"      获取 {connection_count} 个连接耗时: {duration:.2f}秒")
         
         # 2. 测试连接复用性能
-        print("   📊 测试连接复用性能...")
+        print("   测试连接复用性能...")
         start_time = time.time()
         
         # 重复获取相同连接
@@ -121,7 +121,7 @@ async def test_redis_connection_pool_performance():
         print(f"      复用 {connection_count * 10} 次连接耗时: {duration:.2f}秒")
         
         # 3. 测试并发连接获取
-        print("   📊 测试并发连接获取...")
+        print("   测试并发连接获取...")
         
         async def get_connection_worker(worker_id: int):
             pool = get_redis_pool("redis://127.0.0.1:6379/15")
@@ -142,21 +142,21 @@ async def test_redis_connection_pool_performance():
         
         # 性能标准：并发获取应该在2秒内完成
         if duration < 2.0 and success_count >= 45:
-            print("   ✅ Redis 连接池性能测试通过")
+            print("   Redis 连接池性能测试通过")
             return True
         else:
-            print("   ⚠️ Redis 连接池性能较低")
+            print("   Redis 连接池性能较低")
             return True  # 仍然算通过，只是性能较低
         
     except Exception as e:
-        print(f"   ❌ Redis 连接池性能测试失败: {e}")
+        print(f"   Redis 连接池性能测试失败: {e}")
         traceback.print_exc()
         return False
 
 
 async def test_batch_processor_performance():
     """测试批处理器性能"""
-    print("🔍 测试批处理器性能...")
+    print("测试批处理器性能...")
     
     try:
         # 创建连接池和批处理器
@@ -165,7 +165,7 @@ async def test_batch_processor_performance():
         batch_processor = RedisBatchProcessor(redis_client, batch_size=100)
         
         # 1. 测试 Redis 批量设置性能
-        print("   📊 测试 Redis 批量设置性能...")
+        print("   测试 Redis 批量设置性能...")
         items_count = 1000
         items = [{"key": f"perf_test_key_{i}", "value": f"perf_test_value_{i}"} for i in range(items_count)]
         
@@ -180,7 +180,7 @@ async def test_batch_processor_performance():
         print(f"      设置速率: {rate:.1f} 键值对/秒")
         
         # 2. 测试 Redis 批量获取性能
-        print("   📊 测试 Redis 批量获取性能...")
+        print("   测试 Redis 批量获取性能...")
         keys = [f"perf_test_key_{i}" for i in range(items_count)]
         
         start_time = time.time()
@@ -194,7 +194,7 @@ async def test_batch_processor_performance():
         print(f"      获取速率: {rate:.1f} 键值对/秒")
         
         # 3. 测试通用批处理器性能
-        print("   📊 测试通用批处理器性能...")
+        print("   测试通用批处理器性能...")
         
         async def process_item(item: int) -> int:
             # 模拟一些处理工作
@@ -219,14 +219,14 @@ async def test_batch_processor_performance():
         
         # 性能标准：批量操作应该在合理时间内完成
         if duration < 10.0:
-            print("   ✅ 批处理器性能测试通过")
+            print("   批处理器性能测试通过")
             return True
         else:
-            print("   ⚠️ 批处理器性能较低")
+            print("   批处理器性能较低")
             return True  # 仍然算通过，只是性能较低
         
     except Exception as e:
-        print(f"   ❌ 批处理器性能测试失败: {e}")
+        print(f"   批处理器性能测试失败: {e}")
         traceback.print_exc()
         return False
 
@@ -239,7 +239,7 @@ async def test_performance_monitor_overhead():
         monitor = PerformanceMonitor("test_monitor")
         
         # 1. 测试指标获取开销
-        print("   📊 测试指标获取开销...")
+        print("   测试指标获取开销...")
         start_time = time.time()
         
         for i in range(100):
@@ -253,7 +253,7 @@ async def test_performance_monitor_overhead():
         print(f"      平均每次耗时: {duration * 1000 / 100:.2f}毫秒")
         
         # 2. 测试计时器开销
-        print("   📊 测试计时器开销...")
+        print("   测试计时器开销...")
         
         total_timer_time = 0
         timer_count = 1000
@@ -271,21 +271,21 @@ async def test_performance_monitor_overhead():
         
         # 开销标准：平均计时器开销应该小于1毫秒
         if avg_timer_time < 1.0:
-            print("   ✅ 性能监控器开销测试通过")
+            print("   性能监控器开销测试通过")
             return True
         else:
-            print("   ⚠️ 性能监控器开销较高")
+            print("   性能监控器开销较高")
             return True  # 仍然算通过，只是开销较高
         
     except Exception as e:
-        print(f"   ❌ 性能监控器开销测试失败: {e}")
+        print(f"   性能监控器开销测试失败: {e}")
         traceback.print_exc()
         return False
 
 
 async def main():
     """主测试函数"""
-    print("🚀 开始性能测试...")
+    print("开始性能测试...")
     print("=" * 50)
     
     tests = [
@@ -302,24 +302,24 @@ async def main():
         try:
             if await test_func():
                 passed += 1
-                print(f"✅ {test_func.__name__} 通过")
+                print(f"{test_func.__name__} 通过")
             else:
-                print(f"❌ {test_func.__name__} 失败")
+                print(f"{test_func.__name__} 失败")
         except Exception as e:
-            print(f"❌ {test_func.__name__} 异常: {e}")
+            print(f"{test_func.__name__} 异常: {e}")
         print()
     
     # 关闭所有连接池
     await close_all_pools()
     
     print("=" * 50)
-    print(f"📊 性能测试结果: {passed}/{total} 通过")
+    print(f"性能测试结果: {passed}/{total} 通过")
     
     if passed == total:
-        print("🎉 所有性能测试通过！")
+        print("所有性能测试通过！")
         return 0
     else:
-        print("❌ 部分性能测试失败，请检查实现")
+        print("部分性能测试失败，请检查实现")
         return 1
 
 

@@ -199,7 +199,7 @@ crawlo run myspider --no-stats
 
 ### crawlo list
 
-列出项目中所有可用的爬虫。
+列出项目中的所有爬虫。
 
 ```bash
 crawlo list
@@ -210,60 +210,23 @@ crawlo list
 检查项目配置和爬虫实现。
 
 ```bash
+# 检查所有爬虫
 crawlo check
+
+# 检查特定爬虫
+crawlo check myspider
 ```
 
 ### crawlo stats
 
-查看爬虫统计数据。
+查看爬虫统计信息。
 
 ```bash
-# 查看最新统计数据
+# 查看统计信息
 crawlo stats
-
-# 查看指定爬虫的统计数据
-crawlo stats myspider
 ```
 
 ---
-
-### 分布式模式
-
-Crawlo支持分布式爬取，通过Redis实现任务队列和去重过滤，支持多节点协同工作。
-
-#### 配置分布式项目
-
-```bash
-# 创建分布式模板项目
-crawlo startproject myproject distributed
-
-cd myproject
-```
-
-#### 运行分布式爬虫
-
-```
-# 使用命令行工具运行分布式爬虫
-crawlo run-distributed myspider
-
-# 指定Redis配置运行
-crawlo run-distributed myspider --redis-host 192.168.1.100 --redis-port 6379
-
-# 使用项目自带的 run_distributed.py 脚本运行
-python run_distributed.py --spider myspider
-
-# 使用 crawlo run 命令运行分布式模式
-crawlo run myspider
-```
-
-#### 分布式配置
-
-分布式模式使用Redis作为任务队列和去重过滤器：
-
-- **队列后端**: Redis（RedisPriorityQueue）
-- **去重过滤器**: AioRedisFilter
-- **状态共享**: Redis协调
-- **可扩展性**: 多节点集群
 
 <!-- 配置方式 section -->
 <h2 align="center">⚙️ 配置方式</h2>
@@ -308,7 +271,7 @@ process = CrawlerProcess(settings=config.to_dict())
 
 直接在 `settings.py` 文件中配置各项参数，适合需要精细控制的场景。
 
-```python
+```
 # settings.py
 PROJECT_NAME = 'myproject'
 RUN_MODE = 'standalone'  # 或 'distributed' 或 'auto'
@@ -397,6 +360,63 @@ process = CrawlerProcess(settings=config.to_dict())
 - 智能检测环境配置
 - 自动选择运行模式
 - 适合在不同环境中使用同一套配置
+
+### 组件配置说明
+
+Crawlo框架的中间件、管道和扩展组件采用模块化设计，框架会自动加载默认组件，用户只需配置自定义组件。
+
+#### 中间件配置
+
+框架默认加载以下中间件：
+- RequestIgnoreMiddleware：忽略无效请求
+- DownloadDelayMiddleware：控制请求频率
+- DefaultHeaderMiddleware：添加默认请求头
+- ProxyMiddleware：设置代理
+- OffsiteMiddleware：站外请求过滤
+- RetryMiddleware：失败请求重试
+- ResponseCodeMiddleware：处理特殊状态码
+- ResponseFilterMiddleware：响应内容过滤
+
+用户可以通过`CUSTOM_MIDDLEWARES`配置自定义中间件：
+
+```python
+# settings.py
+CUSTOM_MIDDLEWARES = [
+    'myproject.middlewares.CustomMiddleware',
+]
+```
+
+#### 管道配置
+
+框架默认加载以下管道：
+- ConsolePipeline：控制台输出
+- 默认去重管道（根据运行模式自动选择）
+
+用户可以通过`CUSTOM_PIPELINES`配置自定义管道：
+
+```python
+# settings.py
+CUSTOM_PIPELINES = [
+    'crawlo.pipelines.json_pipeline.JsonPipeline',
+    'crawlo.pipelines.mysql_pipeline.AsyncmyMySQLPipeline',
+]
+```
+
+#### 扩展配置
+
+框架默认加载以下扩展：
+- LogIntervalExtension：定时日志
+- LogStats：统计信息
+- CustomLoggerExtension：自定义日志
+
+用户可以通过`CUSTOM_EXTENSIONS`配置自定义扩展：
+
+```python
+# settings.py
+CUSTOM_EXTENSIONS = [
+    'crawlo.extension.memory_monitor.MemoryMonitorExtension',
+]
+```
 
 <!-- 架构设计 section -->
 <h2 align="center">🏗️ 架构设计</h2>
@@ -571,10 +591,9 @@ REDIS_DB = 0
 REDIS_PASSWORD = ''
 
 # 数据管道配置
-PIPELINES = [
-    'crawlo.pipelines.console_pipeline.ConsolePipeline',
+# 注意：框架默认管道已自动加载，此处仅用于添加自定义管道
+CUSTOM_PIPELINES = [
     'crawlo.pipelines.json_pipeline.JsonPipeline',
-    'crawlo.pipelines.redis_dedup_pipeline.RedisDedupPipeline',  # Redis去重管道
     'crawlo.pipelines.mysql_pipeline.AsyncmyMySQLPipeline',      # MySQL存储管道
 ]
 
@@ -593,11 +612,8 @@ LOG_MONITOR_ENABLED = True
 LOG_MONITOR_INTERVAL = 30
 LOG_MONITOR_DETAILED_STATS = True
 
-# 添加扩展
-EXTENSIONS = [
-    'crawlo.extension.log_interval.LogIntervalExtension',
-    'crawlo.extension.log_stats.LogStats',
-    'crawlo.extension.logging_extension.CustomLoggerExtension',
+# 添加扩展（注意：框架默认扩展已自动加载，此处仅用于添加自定义扩展）
+CUSTOM_EXTENSIONS = [
     'crawlo.extension.memory_monitor.MemoryMonitorExtension',
 ]
 ```
@@ -608,7 +624,7 @@ Crawlo 提供了现成的 MySQL 管道实现，可以轻松将爬取的数据存
 
 ```
 # 在 settings.py 中启用 MySQL 管道
-PIPELINES = [
+CUSTOM_PIPELINES = [
     'crawlo.pipelines.mysql_pipeline.AsyncmyMySQLPipeline',
 ]
 
@@ -847,6 +863,42 @@ request = Request('https://example.com')\
 ### 中间件系统
 灵活的中间件系统，支持请求预处理、响应处理和异常处理。
 
+Crawlo框架内置了多种中间件，其中代理中间件有两种实现：
+
+1. **ProxyMiddleware（复杂版）**：
+   - 动态从API获取代理
+   - 代理池管理
+   - 健康检查和成功率统计
+   - 复杂的代理提取逻辑
+   - 适用于需要高级代理管理功能的场景
+
+2. **SimpleProxyMiddleware（简化版）**：
+   - 基于固定代理列表的简单实现
+   - 轻量级，代码简洁
+   - 易于配置和使用
+   - 适用于只需要基本代理功能的场景
+
+如果需要使用简化版代理中间件，可以在配置文件中替换默认的代理中间件：
+
+```python
+# settings.py
+MIDDLEWARES = [
+    # 注释掉复杂版代理中间件
+    # 'crawlo.middleware.proxy.ProxyMiddleware',
+    # 启用简化版代理中间件
+    'crawlo.middleware.simple_proxy.SimpleProxyMiddleware',
+]
+
+# 配置代理列表
+PROXY_ENABLED = True
+PROXY_LIST = [
+    "http://proxy1.example.com:8080",
+    "http://proxy2.example.com:8080",
+]
+```
+
+有关代理中间件的详细使用说明，请参考[代理中间件示例项目](examples/simple_proxy_example/)。
+
 ### 管道系统
 可扩展的数据处理管道，支持多种存储方式（控制台、数据库等）和去重功能：
 - **ConsolePipeline**: 控制台输出管道
@@ -859,7 +911,7 @@ request = Request('https://example.com')\
 - **LogIntervalExtension**: 定时日志扩展
 - **LogStats**: 统计日志扩展
 - **CustomLoggerExtension**: 自定义日志扩展
-- **MemoryMonitorExtension**: 内存监控扩展
+- **MemoryMonitorExtension**: 内存监控扩展（监控爬虫进程内存使用情况）
 - **PerformanceProfilerExtension**: 性能分析扩展
 - **HealthCheckExtension**: 健康检查扩展
 - **RequestRecorderExtension**: 请求记录扩展

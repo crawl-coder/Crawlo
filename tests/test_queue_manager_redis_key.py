@@ -66,7 +66,7 @@ class MockSettings:
 
 async def test_queue_manager_redis_key():
     """测试QueueManager创建Redis队列时的key命名"""
-    print("🔍 测试QueueManager创建Redis队列时的key命名...")
+    print("测试QueueManager创建Redis队列时的key命名...")
     
     try:
         # 测试不同的队列名称配置
@@ -134,23 +134,23 @@ async def test_queue_manager_redis_key():
             assert queue.failed_queue == expected_failed_queue, \
                 f"失败队列名称不匹配: {queue.failed_queue} != {expected_failed_queue}"
             
-            print(f"      ✅ module_name: {queue.module_name}")
-            print(f"      ✅ 队列名称: {queue.queue_name}")
-            print(f"      ✅ 处理中队列名称: {queue.processing_queue}")
-            print(f"      ✅ 失败队列名称: {queue.failed_queue}")
+            print(f"      module_name: {queue.module_name}")
+            print(f"      队列名称: {queue.queue_name}")
+            print(f"      处理中队列名称: {queue.processing_queue}")
+            print(f"      失败队列名称: {queue.failed_queue}")
         
-        print("✅ QueueManager Redis key命名测试通过！")
+        print("QueueManager Redis key命名测试通过！")
         return True
         
     except Exception as e:
-        print(f"❌ QueueManager Redis key命名测试失败: {e}")
+        print(f"QueueManager Redis key命名测试失败: {e}")
         traceback.print_exc()
         return False
 
 
 async def main():
     """主测试函数"""
-    print("🚀 开始QueueManager Redis key命名测试...")
+    print("开始QueueManager Redis key命名测试...")
     print("=" * 50)
     
     try:
@@ -158,14 +158,14 @@ async def main():
         
         print("=" * 50)
         if success:
-            print("🎉 所有测试通过！QueueManager正确传递module_name参数")
+            print("所有测试通过！QueueManager正确传递module_name参数")
         else:
-            print("❌ 测试失败，请检查实现")
+            print("测试失败，请检查实现")
             return 1
             
     except Exception as e:
         print("=" * 50)
-        print(f"❌ 测试过程中发生异常: {e}")
+        print(f"测试过程中发生异常: {e}")
         traceback.print_exc()
         return 1
     

@@ -34,13 +34,13 @@ class TestSpider(Spider):
     
     def parse(self, response):
         # 验证主 logger 还在
-        self.logger.info(f"✅ 主 logger 工作正常: {response.url}")
+        self.logger.info(f"主 logger 工作正常: {response.url}")
         return {"url": response.url, "status": "success"}
 
 
 def test_scheduler_cleaning():
     """测试调度器的 logger 清理"""
-    print("🔍 测试调度器 logger 清理...")
+    print("测试调度器 logger 清理...")
     
     spider = TestSpider()
     request = Request(
@@ -62,31 +62,31 @@ def test_scheduler_cleaning():
     scheduler = MockScheduler()
     
     # 清理前检查
-    print(f"   🔧 清理前 - spider.logger: {spider.logger is not None}")
-    print(f"   🔧 清理前 - spider.custom_logger: {spider.custom_logger is not None}")
-    print(f"   🔧 清理前 - request.callback: {request.callback is not None}")
+    print(f"   清理前 - spider.logger: {spider.logger is not None}")
+    print(f"   清理前 - spider.custom_logger: {spider.custom_logger is not None}")
+    print(f"   清理前 - request.callback: {request.callback is not None}")
     
     # 执行清理
     cleaned_request = scheduler._deep_clean_loggers(request)
     
     # 清理后检查
-    print(f"   ✅ 清理后 - spider.logger: {spider.logger is not None}")
-    print(f"   ✅ 清理后 - spider.custom_logger: {spider.custom_logger is None}")
-    print(f"   ✅ 清理后 - request.callback: {cleaned_request.callback is None}")
+    print(f"   清理后 - spider.logger: {spider.logger is not None}")
+    print(f"   清理后 - spider.custom_logger: {spider.custom_logger is None}")
+    print(f"   清理后 - request.callback: {cleaned_request.callback is None}")
     
     # 序列化测试
     try:
         serialized = pickle.dumps(cleaned_request)
-        print(f"   ✅ 调度器清理后序列化成功，大小: {len(serialized)} bytes")
+        print(f"   调度器清理后序列化成功，大小: {len(serialized)} bytes")
         return True
     except Exception as e:
-        print(f"   ❌ 调度器清理后序列化失败: {e}")
+        print(f"   调度器清理后序列化失败: {e}")
         return False
 
 
 async def test_redis_queue_cleaning():
     """测试 Redis 队列的 logger 清理"""
-    print("\\n🔍 测试 Redis 队列 logger 清理...")
+    print("\\n测试 Redis 队列 logger 清理...")
     
     spider = TestSpider()
     request = Request(
@@ -101,18 +101,18 @@ async def test_redis_queue_cleaning():
         
         # 入队测试
         success = await queue.put(request, priority=0)
-        print(f"   ✅ Redis 队列入队成功: {success}")
+        print(f"   Redis 队列入队成功: {success}")
         
         if success:
             # 出队测试
             retrieved = await queue.get(timeout=2.0)
             if retrieved:
-                print(f"   ✅ Redis 队列出队成功: {retrieved.url}")
-                print(f"   ✅ callback 信息保存: {'_callback_info' in retrieved.meta}")
+                print(f"   Redis 队列出队成功: {retrieved.url}")
+                print(f"   callback 信息保存: {'_callback_info' in retrieved.meta}")
                 await queue.close()
                 return True
             else:
-                print("   ❌ 出队失败")
+                print("   出队失败")
                 await queue.close()
                 return False
         else:
@@ -120,13 +120,13 @@ async def test_redis_queue_cleaning():
             return False
             
     except Exception as e:
-        print(f"   ❌ Redis 队列测试失败: {e}")
+        print(f"   Redis 队列测试失败: {e}")
         return False
 
 
 async def main():
     """主测试函数"""
-    print("🚀 开始最终验证测试...")
+    print("开始最终验证测试...")
     print("=" * 60)
     
     # 测试 1: 调度器清理
@@ -136,17 +136,17 @@ async def main():
     redis_ok = await test_redis_queue_cleaning()
     
     print("\\n" + "=" * 60)
-    print("📊 测试结果汇总:")
-    print(f"   调度器 logger 清理: {'✅ 通过' if scheduler_ok else '❌ 失败'}")
-    print(f"   Redis 队列清理: {'✅ 通过' if redis_ok else '❌ 失败'}")
+    print("测试结果汇总:")
+    print(f"   调度器 logger 清理: {'通过' if scheduler_ok else '失败'}")
+    print(f"   Redis 队列清理: {'通过' if redis_ok else '失败'}")
     
     if scheduler_ok and redis_ok:
-        print("\\n🎉 所有测试通过！")
-        print("✅ 分布式队列的 logger 序列化问题已完全修复！")
-        print("✅ Crawlo 现在可以正常使用 Redis 分布式队列了！")
+        print("\\n所有测试通过！")
+        print("分布式队列的 logger 序列化问题已完全修复！")
+        print("Crawlo 现在可以正常使用 Redis 分布式队列了！")
         return True
     else:
-        print("\\n❌ 部分测试失败，需要进一步修复")
+        print("\\n部分测试失败，需要进一步修复")
         return False
 
 

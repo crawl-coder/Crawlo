@@ -16,7 +16,7 @@ from crawlo.utils.enhanced_error_handler import EnhancedErrorHandler, ErrorConte
 
 def test_basic_error_handling():
     """测试基本错误处理"""
-    print("🔍 1. 测试基本错误处理...")
+    print("1. 测试基本错误处理...")
     
     try:
         handler = EnhancedErrorHandler("test_logger")
@@ -29,9 +29,9 @@ def test_basic_error_handling():
         
         try:
             handler.safe_call(failing_function, context=context)
-            print("   ✅ 同步函数错误处理成功")
+            print("   同步函数错误处理成功")
         except Exception as e:
-            print(f"   ❌ 同步函数错误处理失败: {e}")
+            print(f"   同步函数错误处理失败: {e}")
             return False
             
         # 测试普通函数的错误处理（不是异步函数）
@@ -42,22 +42,22 @@ def test_basic_error_handling():
         
         result = handler.safe_call(normal_function, context=context)
         if result == "正常返回值":
-            print("   ✅ 普通函数处理成功")
+            print("   普通函数处理成功")
         else:
-            print("   ❌ 普通函数处理失败")
+            print("   普通函数处理失败")
             return False
             
         return True
         
     except Exception as e:
-        print(f"   ❌ 基本错误处理测试失败: {e}")
+        print(f"   基本错误处理测试失败: {e}")
         traceback.print_exc()
         return False
 
 
 def test_detailed_exception():
     """测试详细异常"""
-    print("🔍 2. 测试详细异常...")
+    print("2. 测试详细异常...")
     
     try:
         # 创建错误上下文
@@ -86,18 +86,18 @@ def test_detailed_exception():
         assert details["error_code"] == "DB_CONN_001"
         assert details["exception_type"] == "DetailedException"
         
-        print("   ✅ 详细异常测试成功")
+        print("   详细异常测试成功")
         return True
         
     except Exception as e:
-        print(f"   ❌ 详细异常测试失败: {e}")
+        print(f"   详细异常测试失败: {e}")
         traceback.print_exc()
         return False
 
 
 async def test_retry_decorator():
     """测试重试装饰器"""
-    print("🔍 3. 测试重试装饰器...")
+    print("3. 测试重试装饰器...")
     
     try:
         handler = EnhancedErrorHandler("test_retry_logger")
@@ -118,7 +118,7 @@ async def test_retry_decorator():
         assert result == "成功"
         assert attempt_count == 3
         
-        print("   ✅ 同步函数重试测试成功")
+        print("   同步函数重试测试成功")
         
         # 测试异步函数重试
         async_attempt_count = 0
@@ -136,18 +136,18 @@ async def test_retry_decorator():
         assert result == "异步成功"
         assert async_attempt_count == 3
         
-        print("   ✅ 异步函数重试测试成功")
+        print("   异步函数重试测试成功")
         return True
         
     except Exception as e:
-        print(f"   ❌ 重试装饰器测试失败: {e}")
+        print(f"   重试装饰器测试失败: {e}")
         traceback.print_exc()
         return False
 
 
 async def test_exception_decorator():
     """测试异常装饰器"""
-    print("🔍 4. 测试异常装饰器...")
+    print("4. 测试异常装饰器...")
     
     try:
         # 测试同步函数装饰器
@@ -158,9 +158,9 @@ async def test_exception_decorator():
         # 调用应该捕获异常但不抛出
         try:
             decorated_function()
-            print("   ✅ 同步函数装饰器测试成功")
+            print("   同步函数装饰器测试成功")
         except Exception:
-            print("   ❌ 同步函数装饰器测试失败：异常未被捕获")
+            print("   同步函数装饰器测试失败：异常未被捕获")
             return False
             
         # 测试异步函数装饰器
@@ -171,22 +171,22 @@ async def test_exception_decorator():
         # 异步调用
         try:
             await async_decorated_function()
-            print("   ✅ 异步函数装饰器测试成功")
+            print("   异步函数装饰器测试成功")
         except Exception:
-            print("   ❌ 异步函数装饰器测试失败：异常未被捕获")
+            print("   异步函数装饰器测试失败：异常未被捕获")
             return False
             
         return True
         
     except Exception as e:
-        print(f"   ❌ 异常装饰器测试失败: {e}")
+        print(f"   异常装饰器测试失败: {e}")
         traceback.print_exc()
         return False
 
 
 def test_error_history():
     """测试错误历史记录"""
-    print("🔍 5. 测试错误历史记录...")
+    print("5. 测试错误历史记录...")
     
     try:
         handler = EnhancedErrorHandler("history_test_logger")
@@ -213,18 +213,18 @@ def test_error_history():
             assert "历史记录测试错误" in record["message"]
             assert record["exception_type"] == "ValueError"
         
-        print("   ✅ 错误历史记录测试成功")
+        print("   错误历史记录测试成功")
         return True
         
     except Exception as e:
-        print(f"   ❌ 错误历史记录测试失败: {e}")
+        print(f"   错误历史记录测试失败: {e}")
         traceback.print_exc()
         return False
 
 
 async def main():
     """主测试函数"""
-    print("🚀 开始增强版错误处理工具测试...")
+    print("开始增强版错误处理工具测试...")
     print("=" * 50)
     
     tests = [
@@ -247,22 +247,22 @@ async def main():
                 
             if result:
                 passed += 1
-                print(f"✅ {test_func.__name__} 通过")
+                print(f"{test_func.__name__} 通过")
             else:
-                print(f"❌ {test_func.__name__} 失败")
+                print(f"{test_func.__name__} 失败")
         except Exception as e:
-            print(f"❌ {test_func.__name__} 异常: {e}")
+            print(f"{test_func.__name__} 异常: {e}")
             traceback.print_exc()
         print()
     
     print("=" * 50)
-    print(f"📊 测试结果: {passed}/{total} 通过")
+    print(f"测试结果: {passed}/{total} 通过")
     
     if passed == total:
-        print("🎉 所有测试通过！增强版错误处理工具工作正常")
+        print("所有测试通过！增强版错误处理工具工作正常")
         return 0
     else:
-        print("❌ 部分测试失败，请检查实现")
+        print("部分测试失败，请检查实现")
         return 1
 
 

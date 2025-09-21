@@ -113,7 +113,7 @@ class PerformanceMonitor:
             
             # 基本信息
             basic_info = (
-                f"📊 系统性能指标 | "
+                f"系统性能指标 | "
                 f"CPU: {metrics['cpu']['percent']:.1f}% | "
                 f"内存: {metrics['memory']['percent']:.1f}% | "
                 f"进程CPU: {metrics['process']['cpu_percent']:.1f}% | "
@@ -187,7 +187,7 @@ class PerformanceTimer:
     def start(self):
         """开始计时"""
         self.start_time = time.time()
-        self.logger.debug(f"⏱️  开始计时: {self.name}")
+        self.logger.debug(f"开始计时: {self.name}")
     
     def stop(self) -> float:
         """
@@ -201,7 +201,7 @@ class PerformanceTimer:
             raise RuntimeError("计时器未启动")
         
         elapsed = self.end_time - self.start_time
-        self.logger.debug(f"⏱️  停止计时: {self.name}, 耗时: {elapsed:.3f}秒")
+        self.logger.debug(f"停止计时: {self.name}, 耗时: {elapsed:.3f}秒")
         return elapsed
     
     def __enter__(self):
@@ -212,9 +212,9 @@ class PerformanceTimer:
         try:
             elapsed = self.stop()
             if exc_type is None:
-                self.logger.info(f"✅ {self.name} 执行成功，耗时: {elapsed:.3f}秒")
+                self.logger.info(f"{self.name} 执行成功，耗时: {elapsed:.3f}秒")
             else:
-                self.logger.error(f"❌ {self.name} 执行失败，耗时: {elapsed:.3f}秒")
+                self.logger.error(f"{self.name} 执行失败，耗时: {elapsed:.3f}秒")
         except Exception as e:
             self.error_handler.handle_error(
                 e, 

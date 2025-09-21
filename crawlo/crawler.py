@@ -42,7 +42,16 @@ from .event import spider_opened, spider_closed
 from .settings.setting_manager import SettingManager
 from crawlo.project import merge_settings, get_settings
 
-logger = get_logger(__name__)
+# 延迟初始化logger，在需要时通过get_logger获取
+logger = None
+
+
+def _get_logger():
+    """延迟获取logger实例，确保在配置加载后创建"""
+    global logger
+    if logger is None:
+        logger = get_logger(__name__)
+    return logger
 
 
 class CrawlerContext:
@@ -181,12 +190,12 @@ class Crawler:
             # Update context status
             self.context.increment_completed()
 
-            logger.info(f"Spider {self.spider.name} completed, took {self._get_total_duration():.2f} seconds")
+            _get_logger().info(f"Spider {self.spider.name} completed, took {self._get_total_duration():.2f} seconds")
 
         except Exception as e:
             self._performance_metrics['error_count'] += 1
             self.context.increment_failed(str(e))
-            logger.error(f"Spider {getattr(self.spider, 'name', 'Unknown')} failed to run: {e}", exc_info=True)
+            _get_logger().error(f"Spider {getattr(self.spider, 'name', 'Unknown')} failed to run: {e}", exc_info=True)
             raise
         finally:
             self.context.decrement_active()
@@ -204,7 +213,7 @@ class Crawler:
         else:
             spider_name = 'Unknown'
 
-        logger.info(f"Starting running {spider_name}")
+        _get_logger().info(f"Starting running {spider_name}")
 
     def _validate_crawler_state(self):
         """
@@ -224,7 +233,7 @@ class Crawler:
         if not self.spider.name:
             raise ValueError("Spider name cannot be empty")
 
-        logger.debug(f"Spider {self.spider.name} state validation passed")
+        _get_logger().debug(f"Spider {self.spider.name} state validation passed")
 
     def _get_total_duration(self) -> float:
         """Get total runtime"""
@@ -238,7 +247,7 @@ class Crawler:
             if not self._closed:
                 await self.close()
         except Exception as e:
-            logger.warning(f"Error cleaning up resources: {e}")
+            _get_logger().warning(f"Error cleaning up resources: {e}")
 
     def get_performance_metrics(self) -> Dict[str, Any]:
         """Get performance metrics"""
@@ -291,7 +300,7 @@ class Crawler:
 
         # parse method check (warning instead of error)
         if not callable(getattr(spider, 'parse', None)):
-            logger.warning(
+            _get_logger().warning(
                 f"Spider '{spider.name}' does not define 'parse' method.\n"
                 f"Ensure all Requests specify a callback function, otherwise responses will be ignored."
             )
@@ -299,27 +308,27 @@ class Crawler:
         # Set spider configuration
         self._set_spider(spider)
 
-        logger.debug(f"Spider '{spider.name}' initialized successfully")
+        _get_logger().debug(f"Spider '{spider.name}' initialized successfully")
         return spider
 
     def _create_engine(self) -> Engine:
         """Create and initialize engine"""
         engine = Engine(self)
         engine.engine_start()
-        logger.debug(f"Engine initialized successfully, spider: {getattr(self.spider, 'name', 'Unknown')}")
+        _get_logger().debug(f"Engine initialized successfully, spider: {getattr(self.spider, 'name', 'Unknown')}")
         return engine
 
     def _create_stats(self) -> StatsCollector:
         """Create stats collector"""
         stats = StatsCollector(self)
-        logger.debug(f"Stats collector initialized successfully, spider: {getattr(self.spider, 'name', 'Unknown')}")
+        _get_logger().debug(f"Stats collector initialized successfully, spider: {getattr(self.spider, 'name', 'Unknown')}")
         return stats
 
     def _create_extension(self) -> ExtensionManager:
         """Create extension manager"""
         # Modify extension manager creation method, delay initialization until needed
         extension = ExtensionManager.create_instance(self)
-        logger.debug(f"Extension manager initialized successfully, spider: {getattr(self.spider, 'name', 'Unknown')}")
+        _get_logger().debug(f"Extension manager initialized successfully, spider: {getattr(self.spider, 'name', 'Unknown')}")
         return extension
 
     def _set_spider(self, spider: Spider):
@@ -334,7 +343,7 @@ class Crawler:
         # Merge spider custom configuration
         merge_settings(spider, self.settings)
 
-        logger.debug(f"Spider '{spider.name}' configuration merged successfully")
+        _get_logger().debug(f"Spider '{spider.name}' configuration merged successfully")
 
     async def close(self, reason='finished') -> None:
         """
@@ -362,15 +371,15 @@ class Crawler:
                         from crawlo.commands.stats import record_stats
                         record_stats(self)
                     except ImportError:
-                        logger.debug("Statistics recording module does not exist, skipping statistics recording")
+                        _get_logger().debug("Statistics recording module does not exist, skipping statistics recording")
 
-                logger.info(
+                _get_logger().info(
                     f"Spider '{getattr(self.spider, 'name', 'Unknown')}' closed, "
                     f"reason: {reason}, took: {self._get_total_duration():.2f} seconds"
                 )
 
             except Exception as e:
-                logger.error(f"Error closing crawler: {e}", exc_info=True)
+                _get_logger().error(f"Error closing crawler: {e}", exc_info=True)
             finally:
                 # Ensure resource cleanup
                 await self._cleanup_resources()
@@ -404,7 +413,7 @@ class Crawler:
         if cleanup_tasks:
             await asyncio.gather(*cleanup_tasks, return_exceptions=True)
 
-        logger.debug("Resource cleanup completed")
+        _get_logger().debug("Resource cleanup completed")
 
 
 class CrawlerProcess:
@@ -667,7 +676,7 @@ class CrawlerProcess:
                     error = results[i]
                     logger.error(f"Spider {spider_classes_to_run[i].__name__} error details: {error}")
             else:
-                logger.info(f"All {total} crawlers completed successfully! 🎉")
+                logger.info(f"All {total} crawlers completed successfully!")
 
             # Return statistics results
             return {
@@ -963,10 +972,10 @@ class CrawlerProcess:
         """
         try:
             settings = get_settings()
-            logger.debug("Default configuration loaded successfully")
+            _get_logger().debug("Default configuration loaded successfully")
             return settings
         except Exception as e:
-            logger.warning(f"Unable to load default configuration: {e}, using empty configuration")
+            _get_logger().warning(f"Unable to load default configuration: {e}, using empty configuration")
             return SettingManager()
 
     def _log_startup_info(self):

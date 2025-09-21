@@ -90,7 +90,7 @@ class ControlledRequestMixin:
     
     def _controlled_request_generator(self, original_generator) -> Generator[Request, None, None]:
         """Controlled request generator"""
-        self.logger.info(f"🎛️ Starting controlled request generator (max pending: {self.max_pending_requests})")
+        self.logger.info(f"Starting controlled request generator (max pending: {self.max_pending_requests})")
         
         request_buffer = deque()
         batch_count = 0
@@ -114,11 +114,11 @@ class ControlledRequestMixin:
                 yield from self._yield_controlled_batch(request_buffer)
         
         except Exception as e:
-            self.logger.error(f"❌ Controlled request generation failed: {e}")
+            self.logger.error(f"Controlled request generation failed: {e}")
             raise
         
         self.logger.info(
-            f"🎉 Controlled request generation completed!"
+            f"Controlled request generation completed!"
             f"总计: {self._generation_stats['generated']}, "
             f"跳过: {self._generation_stats['skipped']}, "
             f"背压事件: {self._generation_stats['backpressure_events']}"
@@ -129,7 +129,7 @@ class ControlledRequestMixin:
         while request_buffer:
             # 检查当前系统负载
             if self._should_pause_generation():
-                self.logger.debug("⏸️ 检测到系统负载过高，暂停生成")
+                self.logger.debug("检测到系统负载过高，暂停生成")
                 self._generation_stats['backpressure_events'] += 1
                 self._wait_for_capacity()
             

@@ -238,6 +238,29 @@ class ProxyMiddleware:
 
         return await self._extract_proxy(raw_data)
 
+    def _parse_proxy_data(self, proxy_data: Union[str, Dict[str, Any]]) -> List[str]:
+        """解析代理数据，提取代理URL列表"""
+        new_proxies = []
+        if isinstance(proxy_data, str):
+            # 单个代理
+            if proxy_data.startswith("http://") or proxy_data.startswith("https://"):
+                new_proxies = [proxy_data]
+        elif isinstance(proxy_data, dict):
+            # 如果是字典，尝试提取代理列表
+            for key, value in proxy_data.items():
+                if isinstance(value, str) and (value.startswith("http://") or value.startswith("https://")):
+                    new_proxies.append(value)
+                elif isinstance(value, list):
+                    # 如果值是列表，添加所有有效的代理
+                    for item in value:
+                        if isinstance(item, str) and (item.startswith("http://") or item.startswith("https://")):
+                            new_proxies.append(item)
+        return new_proxies
+
+    def _get_healthy_proxies(self) -> List[Proxy]:
+        """获取所有健康的代理"""
+        return [p for p in self._proxy_pool if p.is_healthy and p.success_rate >= self.health_check_threshold]
+
     async def _update_proxy_pool(self):
         """更新代理池"""
         if not self.enabled:
@@ -255,20 +278,7 @@ class ProxyMiddleware:
             return
 
         # 解析代理数据
-        new_proxies = []
-        if isinstance(proxy_data, str):
-            # 单个代理
-            new_proxies = [proxy_data]
-        elif isinstance(proxy_data, dict):
-            # 如果是字典，尝试提取代理列表
-            for key, value in proxy_data.items():
-                if isinstance(value, str) and (value.startswith("http://") or value.startswith("https://")):
-                    new_proxies.append(value)
-                elif isinstance(value, list):
-                    # 如果值是列表，添加所有有效的代理
-                    for item in value:
-                        if isinstance(item, str) and (item.startswith("http://") or item.startswith("https://")):
-                            new_proxies.append(item)
+        new_proxies = self._parse_proxy_data(proxy_data)
 
         # 创建新的代理池
         if new_proxies:
@@ -288,14 +298,12 @@ class ProxyMiddleware:
             return None
 
         # 查找健康的代理
-        healthy_proxies = [p for p in self._proxy_pool if
-                           p.is_healthy and p.success_rate >= self.health_check_threshold]
+        healthy_proxies = self._get_healthy_proxies()
 
         if not healthy_proxies:
             # 如果没有健康的代理，尝试更新代理池
             await self._update_proxy_pool()
-            healthy_proxies = [p for p in self._proxy_pool if
-                               p.is_healthy and p.success_rate >= self.health_check_threshold]
+            healthy_proxies = self._get_healthy_proxies()
 
         if not healthy_proxies:
             return None

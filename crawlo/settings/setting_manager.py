@@ -13,12 +13,53 @@ class SettingManager(MutableMapping):
     def __init__(self, values=None):
         self.attributes = {}
         self.set_settings(default_settings)
-        self.update_attributes(values)
+        # 在初始化时合并配置
+        self._merge_config(values)
+        
+    def _merge_config(self, user_config):
+        """合并默认配置和用户配置"""
+        if not user_config:
+            return
+            
+        # 合并中间件配置
+        if 'MIDDLEWARES' in user_config:
+            default_middlewares = self.attributes.get('MIDDLEWARES', [])
+            user_middlewares = user_config['MIDDLEWARES']
+            self.attributes['MIDDLEWARES'] = default_middlewares + user_middlewares
+            
+        # 合并管道配置
+        if 'PIPELINES' in user_config:
+            default_pipelines = self.attributes.get('PIPELINES', [])
+            user_pipelines = user_config['PIPELINES']
+            merged_pipelines = default_pipelines + user_pipelines
+            # 特殊处理PIPELINES，确保去重管道在最前面
+            dedup_pipeline = self.attributes.get('DEFAULT_DEDUP_PIPELINE')
+            if dedup_pipeline:
+                # 移除所有去重管道实例（如果存在）
+                merged_pipelines = [item for item in merged_pipelines if item != dedup_pipeline]
+                # 在开头插入去重管道
+                merged_pipelines.insert(0, dedup_pipeline)
+            self.attributes['PIPELINES'] = merged_pipelines
+            
+        # 合并扩展配置
+        if 'EXTENSIONS' in user_config:
+            default_extensions = self.attributes.get('EXTENSIONS', [])
+            user_extensions = user_config['EXTENSIONS']
+            self.attributes['EXTENSIONS'] = default_extensions + user_extensions
+            
+        # 更新其他用户配置
+        for key, value in user_config.items():
+            if key not in ['MIDDLEWARES', 'PIPELINES', 'EXTENSIONS']:
+                self.attributes[key] = value
 
     def get(self, key, default=None):
         """安全获取值，不触发递归"""
         value = self.attributes.get(key, default)
         return value if value is not None else default
+
+    def _get_merged_list(self, key, default=None):
+        """这个方法已不再需要，因为配置合并已在配置加载时完成"""
+        return self.attributes.get(key, default or [])
 
     def get_int(self, key, default=0):
         return int(self.get(key, default=default))

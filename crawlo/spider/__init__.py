@@ -340,7 +340,7 @@ class Spider(metaclass=SpiderMeta):
         - 连接数据库
         - 设置初始状态
         """
-        self.logger.info(f"爬虫 {self.name} 已开启")
+        self.logger.info(f"Spider {self.name} opened")
     
     async def spider_closed(self):
         """
@@ -357,9 +357,9 @@ class Spider(metaclass=SpiderMeta):
                 'total_items': self.stats.get('total_items', 0),
                 'success_rate': self.stats.get('success_rate', 'N/A')
             }
-            self.logger.info(f"爬虫 {self.name} 已关闭，统计信息: {stats_summary}")
+            self.logger.info(f"Spider {self.name} closed, stats: {stats_summary}")
         else:
-            self.logger.info(f"爬虫 {self.name} 已关闭")
+            self.logger.info(f"Spider {self.name} closed")
 
     def __str__(self) -> str:
         return f"{self.__class__.__name__}(name='{self.name}')"

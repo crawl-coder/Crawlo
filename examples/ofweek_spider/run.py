@@ -27,7 +27,7 @@ def main():
 
     run_mode = settings.get('RUN_MODE', 'standalone')
 
-    print(f"🚀 启动 OfweekSpider ({run_mode}模式)")
+    print(f"启动 OfweekSpider ({run_mode}模式)")
     print(f"  - 项目名称: {settings.get('PROJECT_NAME', 'Unknown')}")
     print(f"  - 并发数: {settings.get('CONCURRENCY', 1)}")
     print(f"  - 下载延迟: {settings.get('DOWNLOAD_DELAY', 0)}秒")
@@ -44,10 +44,10 @@ def main():
             redis_url = settings.get('REDIS_URL', 'redis://127.0.0.1:6379/0')
             r = redis.Redis.from_url(redis_url)
             r.ping()
-            print("✅ Redis 连接成功")
+            print("Redis 连接成功")
         except Exception as e:
-            print(f"❌ Redis 连接失败: {e}")
-            print("💡 请确保 Redis 服务已启动并可访问")
+            print(f"Redis 连接失败: {e}")
+            print("请确保 Redis 服务已启动并可访问")
             sys.exit(1)
 
     print("-" * 50)
@@ -57,14 +57,14 @@ def main():
         # 确保 spider 模块被正确导入
         spider_modules = ['ofweek_spider.spiders']
         process = CrawlerProcess(settings=settings, spider_modules=spider_modules)
-        print("✅ 爬虫进程初始化成功")
+        print("爬虫进程初始化成功")
 
         # 运行指定的爬虫
         asyncio.run(process.crawl('of_week'))
-        print("✅ 爬虫运行完成")
+        print("爬虫运行完成")
 
     except Exception as e:
-        print(f"❌ 运行失败: {e}")
+        print(f"运行失败: {e}")
         import traceback
         traceback.print_exc()
         sys.exit(1)

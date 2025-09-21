@@ -5,6 +5,7 @@
 ## 目录
 - [ExtensionManager](manager.md) - 核心扩展管理系统
 - [内置扩展](built_in.md) - 内置扩展组件概述
+- [内存监控扩展](memory_monitor.md) - 内存监控扩展详细说明
 
 ## 概述
 
@@ -50,6 +51,7 @@ EXTENSIONS = [
     'crawlo.extension.log_interval.LogIntervalExtension',
     'crawlo.extension.log_stats.LogStats',
     'crawlo.extension.logging_extension.CustomLoggerExtension',
+    'crawlo.extension.memory_monitor.MemoryMonitorExtension',  # 内存监控扩展
 ]
 ```
 
@@ -64,6 +66,12 @@ EXTENSIONS = [
 5. **数据项处理**：数据项成功处理时
 6. **爬虫关闭**：爬虫完成爬取时
 7. **爬虫关闭**：爬虫关闭时
+
+## 内存监控扩展
+
+MemoryMonitorExtension是一个用于监控爬虫进程内存使用情况的扩展组件。它定期检查进程的内存使用率，并在超过预设阈值时发出警告或严重警告。
+
+详细信息请参阅[内存监控扩展文档](memory_monitor.md)。
 
 ## 创建自定义扩展
 

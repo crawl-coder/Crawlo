@@ -90,9 +90,9 @@ class CrawloConfig:
     def print_summary(self) -> 'CrawloConfig':
         """打印配置摘要"""
         mode_info = {
-            'memory': '🏠 单机模式',
-            'redis': '🌐 分布式模式', 
-            'auto': '🤖 自动检测模式'
+            'memory': '单机模式',
+            'redis': '分布式模式', 
+            'auto': '自动检测模式'
         }
         
         queue_type = self.settings.get('QUEUE_TYPE', 'memory')
@@ -100,7 +100,7 @@ class CrawloConfig:
         concurrency = self.settings.get('CONCURRENCY', 8)
         
         print("=" * 50)
-        print(f"📋 Crawlo 配置摘要")
+        print(f"Crawlo 配置摘要")
         print("=" * 50)
         print(f"运行模式: {mode_info.get(queue_type, queue_type)}")
         print(f"队列类型: {queue_type}")

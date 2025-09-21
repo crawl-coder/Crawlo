@@ -59,7 +59,7 @@ class RedisDedupPipeline:
             # 测试连接
             self.redis_client.ping()
             # Change INFO level log to DEBUG level to avoid redundant output
-            self.logger.debug(f"Redis connection successful: {redis_host}:{redis_port}/{redis_db}")
+            # self.logger.debug(f"Redis connection successful: {redis_host}:{redis_port}/{redis_db}")  # 注释掉重复的日志
         except Exception as e:
             self.logger.error(f"Redis connection failed: {e}")
             raise RuntimeError(f"Redis 连接失败: {e}")
@@ -104,11 +104,11 @@ class RedisDedupPipeline:
             if not is_new:
                 # 如果指纹已存在，丢弃这个数据项
                 self.dropped_count += 1
-                self.logger.debug(f"Dropping duplicate item: {fingerprint[:20]}...")
+                # self.logger.debug(f"Dropping duplicate item: {fingerprint[:20]}...")  # 注释掉重复的日志
                 raise DropItem(f"Duplicate item: {fingerprint}")
             else:
                 # 如果是新数据项，继续处理
-                self.logger.debug(f"Processing new item: {fingerprint[:20]}...")
+                # self.logger.debug(f"Processing new item: {fingerprint[:20]}...")  # 注释掉重复的日志
                 return item
                 
         except redis.RedisError as e:

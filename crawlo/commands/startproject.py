@@ -76,7 +76,7 @@ def show_error_panel(title, content):
         from rich.panel import Panel
         console.print(Panel(content, title=title, border_style="red"))
     else:
-        print(f"❌ {title}")
+        print(f"{title}")
         print(content)
 
 def show_success_panel(title, content):
@@ -85,7 +85,7 @@ def show_success_panel(title, content):
         from rich.panel import Panel
         console.print(Panel(content, title=title, border_style="green"))
     else:
-        print(f"✅ {title}")
+        print(f"{title}")
         print(content)
 
 def _render_template(tmpl_path, context):
@@ -294,7 +294,7 @@ def show_module_options():
 def main(args):
     if len(args) < 1:
         console.print("[bold red]错误:[/bold red] 用法: [blue]crawlo startproject[/blue] <项目名称> [模板类型] [--modules 模块1,模块2]")
-        console.print("💡 示例:")
+        console.print("示例:")
         console.print("   [blue]crawlo startproject[/blue] my_spider_project")
         console.print("   [blue]crawlo startproject[/blue] news_crawler simple")
         console.print("   [blue]crawlo startproject[/blue] ecommerce_spider distributed --modules mysql,proxy")
@@ -336,8 +336,8 @@ def main(args):
         show_error_panel(
             "无效的项目名称", 
             f"[cyan]{project_name}[/cyan] 不是有效的项目名称。\n"
-            f"❌ {error_msg}\n\n"
-            "💡 项目名称应:\n"
+            f"{error_msg}\n\n"
+            "项目名称应:\n"
             "  • 以小写字母开头\n"
             "  • 只能包含小写字母、数字和下划线\n"
             "  • 是有效的Python标识符\n"
@@ -351,7 +351,7 @@ def main(args):
         show_error_panel(
             "目录已存在",
             f"目录 '[cyan]{project_dir}[/cyan]' 已存在。\n"
-            "💡 请选择不同的项目名称或删除现有目录。"
+            "请选择不同的项目名称或删除现有目录。"
         )
         return 1
 
@@ -367,52 +367,52 @@ def main(args):
         if cfg_template.exists():
             cfg_content = _render_template(cfg_template, context)
             (project_dir / 'crawlo.cfg').write_text(cfg_content, encoding='utf-8')
-            console.print(f":white_check_mark: 已创建 [green]{project_dir / 'crawlo.cfg'}[/green]")
+            console.print(f"已创建 [green]{project_dir / 'crawlo.cfg'}[/green]")
         else:
-            console.print("[yellow]⚠ 警告:[/yellow] 找不到模板 'crawlo.cfg.tmpl'。")
+            console.print("[yellow]警告:[/yellow] 找不到模板 'crawlo.cfg.tmpl'。")
 
         # 3. 渲染 run.py.tmpl (放在项目根目录)
         run_template = TEMPLATES_DIR / 'run.py.tmpl'
         if run_template.exists():
             run_content = _render_template(run_template, context)
             (project_dir / 'run.py').write_text(run_content, encoding='utf-8')
-            console.print(f":white_check_mark: 已创建 [green]{project_dir / 'run.py'}[/green]")
+            console.print(f"已创建 [green]{project_dir / 'run.py'}[/green]")
         else:
-            console.print("[yellow]⚠ 警告:[/yellow] 找不到模板 'run.py.tmpl'。")
+            console.print("[yellow]警告:[/yellow] 找不到模板 'run.py.tmpl'。")
 
         # 4. 复制并渲染项目包内容
         package_dir = project_dir / project_name
         _copytree_with_templates(template_dir, package_dir, context, template_type, modules)
-        console.print(f":white_check_mark: 已创建项目包: [green]{package_dir}[/green]")
+        console.print(f"已创建项目包: [green]{package_dir}[/green]")
 
         # 5. 创建 logs 目录
         (project_dir / 'logs').mkdir(exist_ok=True)
-        console.print(":white_check_mark: 已创建 logs 目录")
+        console.print("已创建 logs 目录")
         
         # 6. 创建 output 目录（用于数据输出）
         (project_dir / 'output').mkdir(exist_ok=True)
-        console.print(":white_check_mark: 已创建 output 目录")
+        console.print("已创建 output 目录")
 
         # 成功面板
         success_text = Text.from_markup(f"项目 '[bold cyan]{project_name}[/bold cyan]' 创建成功！")
-        console.print(Panel(success_text, title=":rocket: 成功", border_style="green", padding=(1, 2)))
+        console.print(Panel(success_text, title="成功", border_style="green", padding=(1, 2)))
         
         # 显示使用的模板类型
         if template_type != 'default':
-            console.print(f":information: 使用模板类型: [bold blue]{template_type}[/bold blue] - {TEMPLATE_TYPES[template_type]}")
+            console.print(f"使用模板类型: [bold blue]{template_type}[/bold blue] - {TEMPLATE_TYPES[template_type]}")
         
         # 显示选择的模块
         if modules:
-            console.print(f":information: 选择的模块: [bold blue]{', '.join(modules)}[/bold blue]")
+            console.print(f"选择的模块: [bold blue]{', '.join(modules)}[/bold blue]")
 
         # 下一步操作提示（对齐美观 + 语法高亮）
         next_steps = f"""
-        [bold]🚀 下一步操作:[/bold]
+        [bold]下一步操作:[/bold]
         [blue]cd[/blue] {project_name}
         [blue]crawlo genspider[/blue] example example.com
         [blue]crawlo run[/blue] example
         
-        [bold]📚 了解更多:[/bold]
+        [bold]了解更多:[/bold]
         [blue]crawlo list[/blue]                    # 列出所有爬虫
         [blue]crawlo check[/blue] example          # 检查爬虫有效性
         [blue]crawlo stats[/blue]                  # 查看统计信息
@@ -428,7 +428,7 @@ def main(args):
         )
         if project_dir.exists():
             shutil.rmtree(project_dir, ignore_errors=True)
-            console.print("[red]:cross_mark: 已清理部分创建的项目。[/red]")
+            console.print("[red]已清理部分创建的项目。[/red]")
         return 1
 
 if __name__ == "__main__":

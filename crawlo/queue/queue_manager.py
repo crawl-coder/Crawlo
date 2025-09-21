@@ -107,7 +107,7 @@ class QueueManager:
 
             self.logger.info(f"Queue initialized successfully Type: {queue_type.value}")
             # 只在调试模式下输出详细配置信息
-            self.logger.debug(f"📊 Queue configuration: {self._get_queue_info()}")
+            self.logger.debug(f"Queue configuration: {self._get_queue_info()}")
 
             # 如果健康检查返回True，表示队列类型发生了切换，需要更新配置
             if health_check_result:
@@ -124,7 +124,7 @@ class QueueManager:
 
         except Exception as e:
             # 记录详细的错误信息和堆栈跟踪
-            self.logger.error(f"❌ Queue initialization failed: {e}")
+            self.logger.error(f"Queue initialization failed: {e}")
             self.logger.debug(f"详细错误信息:\n{traceback.format_exc()}")
             self._health_status = "error"
             return False
@@ -160,12 +160,12 @@ class QueueManager:
                 raise RuntimeError(f"队列类型 {self._queue_type} 不支持 put 操作")
 
             if success:
-                self.logger.debug(f"✅ Request enqueued successfully: {request.url}")
+                self.logger.debug(f"Request enqueued successfully: {request.url}")
 
             return success
 
         except Exception as e:
-            self.logger.error(f"❌ Failed to enqueue request: {e}")
+            self.logger.error(f"Failed to enqueue request: {e}")
             if self._queue_semaphore:
                 self._queue_semaphore.release()
             return False
@@ -191,7 +191,7 @@ class QueueManager:
             return request
 
         except Exception as e:
-            self.logger.error(f"❌ Failed to dequeue request: {e}")
+            self.logger.error(f"Failed to dequeue request: {e}")
             return None
 
     async def size(self) -> int:
@@ -242,7 +242,7 @@ class QueueManager:
             try:
                 await self._queue.close()
                 # Change INFO level log to DEBUG level to avoid redundant output
-                self.logger.debug("✅ Queue closed")
+                self.logger.debug("Queue closed")
             except Exception as e:
                 self.logger.warning(f"Error closing queue: {e}")
 
@@ -266,13 +266,13 @@ class QueueManager:
                     await test_queue.connect()
                     await test_queue.close()
                     # Change INFO level log to DEBUG level to avoid redundant output
-                    self.logger.debug("🔍 Auto-detection: Redis available, using distributed queue")
+                    self.logger.debug("Auto-detection: Redis available, using distributed queue")
                     return QueueType.REDIS
                 except Exception as e:
-                    self.logger.debug(f"🔍 Auto-detection: Redis unavailable ({e}), using memory queue")
+                    self.logger.debug(f"Auto-detection: Redis unavailable ({e}), using memory queue")
                     return QueueType.MEMORY
             else:
-                self.logger.debug("🔍 Auto-detection: Redis not configured, using memory queue")
+                self.logger.debug("Auto-detection: Redis not configured, using memory queue")
                 return QueueType.MEMORY
 
         elif self.config.queue_type == QueueType.REDIS:
@@ -357,7 +357,7 @@ class QueueManager:
                 self._queue_type = QueueType.MEMORY
                 self._queue_semaphore = asyncio.Semaphore(self.config.max_queue_size)
                 self._health_status = "healthy"
-                self.logger.info("✅ Switched to memory queue")
+                self.logger.info("Switched to memory queue")
                 # 返回一个信号，表示需要更新过滤器和去重管道配置
                 return True
         return False

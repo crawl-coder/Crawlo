@@ -35,7 +35,7 @@ def demonstrate_redis_key_validation():
     
     for key in valid_keys:
         is_valid = validate_redis_key_naming(key, "books_distributed")
-        print(f"  ✅ {key} - {'通过' if is_valid else '失败'}")
+        print(f"  {key} - {'通过' if is_valid else '失败'}")
     
     print()
     
@@ -51,7 +51,7 @@ def demonstrate_redis_key_validation():
     
     for key in invalid_keys:
         is_valid = validate_redis_key_naming(key, "books_distributed")
-        print(f"  ❌ {key} - {'通过' if is_valid else '失败'}")
+        print(f"  {key} - {'通过' if is_valid else '失败'}")
     
     print()
     

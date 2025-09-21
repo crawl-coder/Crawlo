@@ -3,10 +3,8 @@
 默认配置文件
 包含 Crawlo 框架的所有默认设置项
 """
-
 # 添加环境变量配置工具导入
 from crawlo.utils.env_config import get_redis_config, get_runtime_config, get_version
-import os
 
 # ============================== 项目基础配置 ==============================
 
@@ -25,7 +23,7 @@ CONCURRENCY = get_runtime_config()['CONCURRENCY']
 # ============================== 爬虫核心配置 ==============================
 
 # 默认下载器
-DOWNLOADER = 'crawlo.downloader.aiohttp_downloader.AioHttpDownloader'
+DOWNLOADER = "crawlo.downloader.httpx_downloader.HttpXDownloader"
 
 # 请求延迟（秒）
 DOWNLOAD_DELAY = 1
@@ -60,7 +58,7 @@ REDIS_PORT = redis_config['REDIS_PORT']
 REDIS_PASSWORD = redis_config['REDIS_PASSWORD']
 REDIS_DB = redis_config['REDIS_DB']
 
-# 🔧 根据是否有密码生成不同的 URL 格式
+# 根据是否有密码生成不同的 URL 格式
 if REDIS_PASSWORD:
     REDIS_URL = f'redis://:{REDIS_PASSWORD}@{REDIS_HOST}:{REDIS_PORT}/{REDIS_DB}'
 else:
@@ -79,14 +77,15 @@ CLEANUP_FP = 0  # 程序结束时是否清理指纹（0=不清理）
 FILTER_DEBUG = True  # 是否开启去重调试日志
 DECODE_RESPONSES = True  # Redis 返回是否解码为字符串
 
-# ============================== 中间件配置 ==============================
+# ============================== 框架默认中间件配置 ==============================
 
+# 框架中间件列表（框架默认中间件 + 用户自定义中间件）
 MIDDLEWARES = [
     # === 请求预处理阶段 ===
     'crawlo.middleware.request_ignore.RequestIgnoreMiddleware',  # 1. 忽略无效请求
     'crawlo.middleware.download_delay.DownloadDelayMiddleware',  # 2. 控制请求频率
     'crawlo.middleware.default_header.DefaultHeaderMiddleware',  # 3. 添加默认请求头
-    'crawlo.middleware.proxy.ProxyMiddleware',  # 4. 设置代理
+    # 'crawlo.middleware.proxy.ProxyMiddleware',  # 4. 设置代理（默认不启用）
     'crawlo.middleware.offsite.OffsiteMiddleware',  # 5. 站外请求过滤
 
     # === 响应处理阶段 ===
@@ -95,31 +94,30 @@ MIDDLEWARES = [
     'crawlo.middleware.response_filter.ResponseFilterMiddleware',  # 8. 响应内容过滤
 ]
 
-# ============================== 扩展与管道 ==============================
+# ============================== 框架默认管道配置 ==============================
 
-# 数据处理管道（启用的存储方式）
+# 框架数据处理管道列表（框架默认管道 + 用户自定义管道）
 PIPELINES = [
     'crawlo.pipelines.console_pipeline.ConsolePipeline',  # 控制台输出
     # 'crawlo.pipelines.mysql_pipeline.AsyncmyMySQLPipeline',     # MySQL 存储（可选）
 ]
 
 # 明确添加默认去重管道到管道列表开头
-PIPELINES.insert(0, DEFAULT_DEDUP_PIPELINE)
+# 注意：此操作已移至SettingManager中处理，避免重复插入
+# PIPELINES.insert(0, DEFAULT_DEDUP_PIPELINE)
 
-# 扩展组件（监控与日志）
+# ============================== 框架默认扩展配置 ==============================
+
+# 框架扩展组件列表（框架默认扩展 + 用户自定义扩展）
 EXTENSIONS = [
     'crawlo.extension.log_interval.LogIntervalExtension',  # 定时日志
     'crawlo.extension.log_stats.LogStats',  # 统计信息
     'crawlo.extension.logging_extension.CustomLoggerExtension',  # 自定义日志
-    # 'crawlo.extension.memory_monitor.MemoryMonitorExtension',  # 内存监控
-    # 'crawlo.extension.request_recorder.RequestRecorderExtension',  # 请求记录
-    # 'crawlo.extension.performance_profiler.PerformanceProfilerExtension',  # 性能分析
-    # 'crawlo.extension.health_check.HealthCheckExtension',  # 健康检查
 ]
 
 # ============================== 日志与监控 ==============================
 
-LOG_LEVEL = 'INFO'  # 日志级别: DEBUG/INFO/WARNING/ERROR
+LOG_LEVEL = 'DEBUG'  # 日志级别: DEBUG/INFO/WARNING/ERROR
 STATS_DUMP = True  # 是否周期性输出统计信息
 LOG_FILE = f'logs/{PROJECT_NAME}.log'  # 日志文件路径
 LOG_FORMAT = '%(asctime)s - [%(name)s] - %(levelname)s: %(message)s'
@@ -127,8 +125,14 @@ LOG_ENCODING = 'utf-8'
 
 # ============================== 代理配置 ==============================
 
+# 代理功能默认不启用，如需使用请在项目配置文件中启用并配置相关参数
 PROXY_ENABLED = False  # 是否启用代理
-PROXY_API_URL = "https://api.proxyprovider.com/get"  # 代理获取接口（请替换为真实地址）
+
+# 简化版代理配置（适用于SimpleProxyMiddleware）
+PROXY_LIST = []  # 代理列表，例如: ["http://proxy1:8080", "http://proxy2:8080"]
+
+# 高级代理配置（适用于ProxyMiddleware）
+PROXY_API_URL = ""  # 代理获取接口（请替换为真实地址）
 
 # 代理提取方式（支持字段路径或函数）
 # 示例: "proxy" 适用于 {"proxy": "http://1.1.1.1:8080"}
@@ -138,10 +142,6 @@ PROXY_EXTRACTOR = "proxy"
 # 代理刷新控制
 PROXY_REFRESH_INTERVAL = 60  # 代理刷新间隔（秒）
 PROXY_API_TIMEOUT = 10  # 请求代理 API 超时时间
-
-# 代理池配置
-PROXY_POOL_SIZE = 5  # 代理池大小，控制同时维护的代理数量
-PROXY_HEALTH_CHECK_THRESHOLD = 0.5  # 健康检查阈值（成功率低于此值的代理将被标记为不健康）
 
 # ============================== Curl-Cffi 特有配置 ==============================
 
@@ -154,18 +154,6 @@ CURL_BROWSER_VERSION_MAP = {
     "edge": "edge101",
     "safari": "safari184",
     "firefox": "firefox135",
-    # 示例：旧版本测试
-    # "chrome_legacy": "chrome110",
-}
-
-# Curl-Cffi 优化配置
-CURL_RANDOMIZE_DELAY = False  # 是否启用随机延迟
-CURL_RETRY_BACKOFF = True  # 是否启用指数退避重试
-
-# 默认请求头（可被 Spider 覆盖）
-DEFAULT_REQUEST_HEADERS = {
-    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 '
-                  '(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
 }
 
 # ============================== 下载器优化配置 ==============================
@@ -218,3 +206,11 @@ PLAYWRIGHT_MAX_PAGES_PER_BROWSER = 10  # 单浏览器最大页面数量
 # 通用优化配置
 CONNECTION_TTL_DNS_CACHE = 300  # DNS缓存TTL（秒）
 CONNECTION_KEEPALIVE_TIMEOUT = 15  # Keep-Alive超时（秒）
+
+# ============================== 内存监控配置 ==============================
+
+# 内存监控扩展默认不启用，如需使用请在项目配置文件中启用
+MEMORY_MONITOR_ENABLED = False  # 是否启用内存监控
+MEMORY_MONITOR_INTERVAL = 60  # 内存监控检查间隔（秒）
+MEMORY_WARNING_THRESHOLD = 80.0  # 内存使用率警告阈值（百分比）
+MEMORY_CRITICAL_THRESHOLD = 90.0  # 内存使用率严重阈值（百分比）
