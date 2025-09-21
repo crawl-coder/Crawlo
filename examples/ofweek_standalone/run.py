@@ -5,19 +5,8 @@
 适用于开发测试和小规模数据采集
 """
 
-import sys
-import os
 import asyncio
-
-# 禁用输出缓冲
-sys.stdout.flush()
-
-# 添加项目根目录到 Python 路径
-project_root = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, project_root)
-
-# 切换到项目根目录
-os.chdir(project_root)
+import sys
 
 from crawlo.crawler import CrawlerProcess
 

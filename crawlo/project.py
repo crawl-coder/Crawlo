@@ -17,7 +17,9 @@ def _get_logger():
     """延迟获取logger实例，确保在配置加载后创建"""
     global logger
     if logger is None:
-        logger = get_logger(__name__)
+        # 在项目初始化阶段，我们希望看到DEBUG级别的日志
+        # 所以直接设置logger的级别为DEBUG
+        logger = get_logger(__name__, level='DEBUG')
     return logger
 
 
@@ -241,8 +243,22 @@ def get_settings(custom_settings: Optional[dict] = None) -> SettingManager:
     Returns:
         SettingManager: 已加载配置的实例
     """
+    # 在这里配置日志系统，确保在使用logger之前配置好
+    from crawlo.utils.log import LoggerManager
+    # 但是我们不能在这里直接配置，因为settings还没有加载完成
+    # 所以我们先创建一个临时的logger用于项目初始化阶段的DEBUG日志
+    
+    # 为了确保在项目初始化阶段能看到DEBUG级别的日志，
+    # 我们直接创建一个DEBUG级别的logger
+    from crawlo.utils.log import get_logger
+    temp_logger = get_logger(__name__, level='DEBUG')
+    
+    # 添加调试信息
+    temp_logger.debug("DEBUG: 进入get_settings函数")
+    temp_logger.info("INFO: 进入get_settings函数")
+    
     # Change INFO level log to DEBUG level to avoid redundant output
-    _get_logger().debug("🚀 正在初始化 Crawlo 项目配置...")
+    temp_logger.debug("🚀 正在初始化 Crawlo 项目配置...")
 
     # 1. 查找项目根
     project_root = _find_project_root()
@@ -259,32 +275,36 @@ def get_settings(custom_settings: Optional[dict] = None) -> SettingManager:
         # 推断：项目目录名.settings
         project_name = os.path.basename(project_root)
         settings_module_path = f"{project_name}.settings"
-        _get_logger().warning(f"⚠️ 未找到 crawlo.cfg，推断 settings 模块为: {settings_module_path}")
+        temp_logger.warning(f"⚠️ 未找到 crawlo.cfg，推断 settings 模块为: {settings_module_path}")
 
     # 3. 注入 sys.path
     project_root_str = os.path.abspath(project_root)
     if project_root_str not in sys.path:
         sys.path.insert(0, project_root_str)
-        _get_logger().debug(f"📁 项目根目录已加入 sys.path: {project_root_str}")
+        temp_logger.debug(f"📁 项目根目录已加入 sys.path: {project_root_str}")
 
     # 4. 加载 SettingManager
-    _get_logger().debug(f"⚙️ 正在加载配置模块: {settings_module_path}")
+    temp_logger.debug(f"⚙️ 正在加载配置模块: {settings_module_path}")
     settings = SettingManager()
 
     try:
         settings.set_settings(settings_module_path)
-        _get_logger().debug("✅ settings 模块加载成功")
+        temp_logger.debug("✅ settings 模块加载成功")
     except Exception as e:
         raise ImportError(f"加载 settings 模块失败 '{settings_module_path}': {e}")
 
     # 5. 合并运行时配置
     if custom_settings:
         settings.update_attributes(custom_settings)
-        _get_logger().debug(f"🔧 已应用运行时自定义配置: {list(custom_settings.keys())}")
+        temp_logger.debug(f"🔧 已应用运行时自定义配置: {list(custom_settings.keys())}")
 
     # 6. 显示核心配置摘要（INFO级别）
     # _log_settings_summary(settings)
 
     # 将项目初始化完成的消息改为DEBUG级别
-    _get_logger().debug("🎉 Crawlo 项目配置初始化完成！")
+    temp_logger.debug("🎉 Crawlo 项目配置初始化完成！")
+    
+    # 配置日志系统
+    LoggerManager.configure(settings)
+    
     return settings

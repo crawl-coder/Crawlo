@@ -20,11 +20,24 @@ from rich import box
 from rich.progress import Progress, SpinnerColumn, TextColumn
 
 from crawlo.crawler import CrawlerProcess
-from crawlo.utils.log import get_logger
 from crawlo.project import get_settings, _find_project_root
 from crawlo.commands.stats import record_stats
 
-logger = get_logger(__name__)
+# 延迟初始化logger，在需要时通过get_logger获取
+logger = None
+
+
+def _get_logger():
+    """延迟获取logger实例，确保在配置加载后创建"""
+    global logger
+    if logger is None:
+        from crawlo.utils.log import get_logger
+        # 在项目初始化阶段，我们希望看到DEBUG级别的日志
+        # 所以直接设置logger的级别为DEBUG
+        logger = get_logger(__name__, level='DEBUG')
+    return logger
+
+
 console = Console()
 
 
@@ -77,6 +90,10 @@ def main(args):
     用法:
         crawlo run <spider_name>|all [--json] [--no-stats]
     """
+    # 添加调试信息
+    _get_logger().debug("DEBUG: 进入main函数")
+    _get_logger().info("INFO: 进入main函数")
+    
     if len(args) < 1:
         console.print("[bold red]用法:[/bold red] [blue]crawlo run[/blue] <爬虫名称>|all [bold yellow][--json] [--no-stats][/bold yellow]")
         console.print("示例:")
@@ -307,7 +324,7 @@ def main(args):
             console.print(f"[bold yellow]{msg}[/bold yellow]")
         return 1
     except Exception as e:
-        logger.exception("Exception during 'crawlo run'")
+        _get_logger().exception("Exception during 'crawlo run'")
         msg = f"意外错误: {e}"
         if show_json:
             console.print_json(data={"success": False, "error": msg})

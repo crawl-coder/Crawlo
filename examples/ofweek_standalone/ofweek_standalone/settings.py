@@ -74,7 +74,8 @@ EXTENSIONS = [
 ]
 
 # ============================== 日志配置 ==============================
-LOG_LEVEL = 'INFO'
+LOG_LEVEL = 'DEBUG'
+LOG_CONSOLE_LEVEL = 'DEBUG'  # 添加这一行，确保DEBUG级别的日志能在控制台显示
 LOG_FILE = 'logs/ofweek_standalone.log'
 STATS_DUMP = True
 

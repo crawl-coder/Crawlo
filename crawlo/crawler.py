@@ -34,7 +34,6 @@ import threading
 from typing import Type, Optional, Set, List, Union, Dict, Any
 from .spider import Spider, get_global_spider_registry
 from .core.engine import Engine
-from .utils.log import get_logger
 from .subscriber import Subscriber
 from .extension import ExtensionManager
 from .stats_collector import StatsCollector
@@ -50,7 +49,10 @@ def _get_logger():
     """延迟获取logger实例，确保在配置加载后创建"""
     global logger
     if logger is None:
-        logger = get_logger(__name__)
+        from .utils.log import get_logger
+        # 在项目初始化阶段，我们希望看到DEBUG级别的日志
+        # 所以直接设置logger的级别为DEBUG
+        logger = get_logger(__name__, level='DEBUG')
     return logger
 
 
