@@ -27,7 +27,14 @@ class SettingManager(MutableMapping):
             user_middlewares = user_config['MIDDLEWARES']
             # 如果用户配置了空列表，则仍然使用默认配置
             if user_middlewares:
-                self.attributes['MIDDLEWARES'] = default_middlewares + user_middlewares
+                # 过滤掉空值和注释
+                user_middlewares = [middleware for middleware in user_middlewares if middleware and not middleware.strip().startswith('#')]
+                # 合并默认中间件和用户中间件，去重但保持顺序
+                merged_middlewares = default_middlewares[:]
+                for middleware in user_middlewares:
+                    if middleware not in merged_middlewares:
+                        merged_middlewares.append(middleware)
+                self.attributes['MIDDLEWARES'] = merged_middlewares
 
         # 合并管道配置
         if 'PIPELINES' in user_config:
@@ -37,8 +44,12 @@ class SettingManager(MutableMapping):
             if user_pipelines:
                 # 过滤掉空值和注释
                 user_pipelines = [pipeline for pipeline in user_pipelines if pipeline and not pipeline.strip().startswith('#')]
-                if user_pipelines:
-                    self.attributes['PIPELINES'] = user_pipelines
+                # 合并默认管道和用户管道，去重但保持顺序
+                merged_pipelines = default_pipelines[:]
+                for pipeline in user_pipelines:
+                    if pipeline not in merged_pipelines:
+                        merged_pipelines.append(pipeline)
+                self.attributes['PIPELINES'] = merged_pipelines
 
         # 特殊处理PIPELINES，确保去重管道在最前面
         dedup_pipeline = self.attributes.get('DEFAULT_DEDUP_PIPELINE')
@@ -56,8 +67,14 @@ class SettingManager(MutableMapping):
             user_extensions = user_config['EXTENSIONS']
             # 如果用户配置了空列表，则仍然使用默认配置
             if user_extensions:
-                self.attributes['EXTENSIONS'] = default_extensions + user_extensions
-            # 如果用户没有配置扩展，则使用默认配置
+                # 过滤掉空值和注释
+                user_extensions = [extension for extension in user_extensions if extension and not extension.strip().startswith('#')]
+                # 合并默认扩展和用户扩展，去重但保持顺序
+                merged_extensions = default_extensions[:]
+                for extension in user_extensions:
+                    if extension not in merged_extensions:
+                        merged_extensions.append(extension)
+                self.attributes['EXTENSIONS'] = merged_extensions
 
         # 更新其他用户配置
         for key, value in user_config.items():
@@ -119,9 +136,15 @@ class SettingManager(MutableMapping):
     def set_settings(self, module):
         if isinstance(module, str):
             module = import_module(module)
+        
+        # 收集模块中的所有配置项
+        module_settings = {}
         for key in dir(module):
             if key.isupper():
-                self.set(key, getattr(module, key))
+                module_settings[key] = getattr(module, key)
+        
+        # 使用合并逻辑而不是直接设置
+        self._merge_config(module_settings)
 
     # 实现 MutableMapping 必须的方法
     def __getitem__(self, item):

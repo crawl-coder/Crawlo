@@ -10,7 +10,7 @@ from crawlo.utils.log import get_logger
 from . import BasePipeline
 
 
-class AsyncmyMySQLPipeline(BasePipeline):
+class AsyncmyMySQLPipeline:
     def __init__(self, crawler):
         self.crawler = crawler
         self.settings = crawler.settings
@@ -177,7 +177,7 @@ class AsyncmyMySQLPipeline(BasePipeline):
             self.logger.info("MySQL连接池已关闭")
 
 
-class AiomysqlMySQLPipeline(BasePipeline):
+class AiomysqlMySQLPipeline:
     def __init__(self, crawler):
         self.crawler = crawler
         self.settings = crawler.settings

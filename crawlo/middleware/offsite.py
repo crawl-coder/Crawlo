@@ -45,7 +45,8 @@ class OffsiteMiddleware:
         # 编译域名正则表达式以提高性能
         o._compile_domains()
         
-        crawler.logger.info(f"OffsiteMiddleware已启用，允许的域名: {allowed_domains}")
+        # 使用中间件自己的logger而不是crawler.logger
+        o.logger.info(f"OffsiteMiddleware已启用，允许的域名: {allowed_domains}")
         return o
 
     def _compile_domains(self):

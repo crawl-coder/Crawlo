@@ -51,26 +51,32 @@ SPIDER_MODULES = ['ofweek_standalone.spiders']
 
 # ============================== 中间件 ==============================
 MIDDLEWARES = [
-    'crawlo.middleware.request_ignore.RequestIgnoreMiddleware',
-    'crawlo.middleware.download_delay.DownloadDelayMiddleware',
-    'crawlo.middleware.default_header.DefaultHeaderMiddleware',
-    'crawlo.middleware.retry.RetryMiddleware',
-    'crawlo.middleware.response_code.ResponseCodeMiddleware',
-    'crawlo.middleware.response_filter.ResponseFilterMiddleware',
+    'crawlo.middleware.simple_proxy.SimpleProxyMiddleware',
 ]
+
+# ============================== 默认请求头配置 ==============================
+# 为DefaultHeaderMiddleware配置默认请求头
+DEFAULT_REQUEST_HEADERS = {
+    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+    'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
+    'Accept-Encoding': 'gzip, deflate, br',
+}
+
+# ============================== 允许的域名 ==============================
+# 为OffsiteMiddleware配置允许的域名
+ALLOWED_DOMAINS = ['ee.ofweek.com']
 
 # ============================== 数据管道 ==============================
 PIPELINES = [
-    'crawlo.pipelines.console_pipeline.ConsolePipeline',  # 控制台输出
     'crawlo.pipelines.mysql_pipeline.AsyncmyMySQLPipeline',     # MySQL 存储（使用asyncmy异步库）
 ]
 
 # ============================== 扩展组件 ==============================
-EXTENSIONS = [
-    'crawlo.extension.log_interval.LogIntervalExtension',
-    'crawlo.extension.log_stats.LogStats',
-    'crawlo.extension.logging_extension.CustomLoggerExtension',
-]
+# EXTENSIONS = [
+#     'crawlo.extension.log_interval.LogIntervalExtension',
+#     'crawlo.extension.log_stats.LogStats',
+#     'crawlo.extension.logging_extension.CustomLoggerExtension',
+# ]
 
 # ============================== 日志配置 ==============================
 LOG_LEVEL = 'INFO'
