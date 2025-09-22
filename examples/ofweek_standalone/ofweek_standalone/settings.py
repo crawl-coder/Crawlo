@@ -60,11 +60,10 @@ MIDDLEWARES = [
 ]
 
 # ============================== 数据管道 ==============================
-# PIPELINES = [
-#     'crawlo.pipelines.console_pipeline.ConsolePipeline',
-#     'crawlo.pipelines.json_pipeline.JsonPipeline',
-#     # 注意：去重管道会自动添加到列表开头，无需在这里显式声明
-# ]
+PIPELINES = [
+    'crawlo.pipelines.console_pipeline.ConsolePipeline',  # 控制台输出
+    'crawlo.pipelines.mysql_pipeline.AsyncmyMySQLPipeline',     # MySQL 存储（使用asyncmy异步库）
+]
 
 # ============================== 扩展组件 ==============================
 EXTENSIONS = [

@@ -30,6 +30,7 @@ class PipelineManager:
             # 移除所有去重管道实例（如果存在）
             pipelines = [item for item in pipelines if item != dedup_pipeline]
             # 在开头插入去重管道
+            self.logger.debug(f"{dedup_pipeline} insert successful")
             pipelines.insert(0, dedup_pipeline)
 
         self._add_pipelines(pipelines)
@@ -46,7 +47,7 @@ class PipelineManager:
                 pipeline_cls = load_class(pipeline)
                 if not hasattr(pipeline_cls, 'from_crawler'):
                     raise PipelineInitError(
-                        f"Pipeline init failed, must inherit from `BasePipeline` or have a `create_instance` method"
+                        f"Pipeline init failed, must inherit from `BasePipeline` or have a `from_crawler` method"
                     )
                 self.pipelines.append(pipeline_cls.from_crawler(self.crawler))
             except Exception as e:
