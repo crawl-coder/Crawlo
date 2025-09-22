@@ -17,8 +17,8 @@ class LoggerManager:
     logger_cache = {}
     _default_filename = None
     _default_level = DEBUG  # 设置为最低级别，由handler控制实际输出
-    _default_file_level = INFO  # 默认为INFO级别
-    _default_console_level = INFO  # 默认为INFO级别
+    _default_file_level = DEBUG  # 默认为DEBUG级别，确保所有INFO级别日志都能写入文件
+    _default_console_level = DEBUG  # 默认为DEBUG级别
     _default_log_format = LOG_FORMAT
     _default_encoding = 'utf-8'
     _configured = False  # 标记是否已配置
@@ -62,14 +62,14 @@ class LoggerManager:
         level = get_val('LOG_LEVEL', 'INFO')  # 默认为INFO级别
         file_level = get_val('LOG_FILE_LEVEL', level)  # 默认继承LOG_LEVEL的值
         # 根据项目规范，已完全移除LOG_CONSOLE_LEVEL支持，统一使用LOG_LEVEL控制控制台和文件的日志输出级别
-        console_level = level  # 控制台日志级别直接使用LOG_LEVEL的值
         log_format = get_val('LOG_FORMAT', LOG_FORMAT)
         encoding = get_val('LOG_ENCODING', 'utf-8')
 
         cls._default_filename = filename
         cls._default_level = cls._to_level(level)
         cls._default_file_level = cls._to_level(file_level)
-        cls._default_console_level = cls._to_level(console_level)
+        # 控制台日志级别直接使用LOG_LEVEL的值，不再支持LOG_CONSOLE_LEVEL
+        cls._default_console_level = cls._default_level
         cls._default_log_format = log_format
         cls._default_encoding = encoding
 

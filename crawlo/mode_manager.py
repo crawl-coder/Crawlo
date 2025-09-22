@@ -14,8 +14,6 @@ import os
 from enum import Enum
 from typing import Dict, Any, Optional
 
-from crawlo.utils.log import get_logger
-
 
 class RunMode(Enum):
     """运行模式枚举"""
@@ -28,7 +26,7 @@ class ModeManager:
     """运行模式管理器"""
 
     def __init__(self):
-        self.logger = get_logger(self.__class__.__name__)
+        pass
 
     @staticmethod
     def get_standalone_settings() -> Dict[str, Any]:
@@ -40,52 +38,6 @@ class ModeManager:
             'CONCURRENCY': 8,
             'MAX_RUNNING_SPIDERS': 1,
             'DOWNLOAD_DELAY': 1.0,
-            'LOG_LEVEL': 'INFO',
-        }
-
-    @staticmethod
-    def get_distributed_settings(
-            redis_host: str = '127.0.0.1',
-            redis_port: int = 6379,
-            redis_password: Optional[str] = None,
-            redis_db: int = 0,  # 添加 redis_db 参数
-            project_name: str = 'crawlo'
-    ) -> Dict[str, Any]:
-        """获取分布式模式配置"""
-        # 构建 Redis URL，使用传入的 redis_db 参数
-        if redis_password:
-            redis_url = f'redis://:{redis_password}@{redis_host}:{redis_port}/{redis_db}'
-        else:
-            redis_url = f'redis://{redis_host}:{redis_port}/{redis_db}'
-
-        return {
-            'PROJECT_NAME': project_name,  # 添加项目名称到配置中
-            'QUEUE_TYPE': 'redis',
-            'FILTER_CLASS': 'crawlo.filters.aioredis_filter.AioRedisFilter',
-            'REDIS_HOST': redis_host,
-            'REDIS_PORT': redis_port,
-            'REDIS_PASSWORD': redis_password,
-            'REDIS_DB': redis_db,  # 添加 Redis 数据库编号到配置中
-            'REDIS_URL': redis_url,
-            'SCHEDULER_QUEUE_NAME': f'crawlo:{project_name}:queue:requests',  # 使用统一命名规范
-            # Redis key配置已移至各组件中，使用统一的命名规范
-            # crawlo:{project_name}:filter:fingerprint (请求去重)
-            'CONCURRENCY': 16,
-            'MAX_RUNNING_SPIDERS': 1,
-            'DOWNLOAD_DELAY': 1.0,
-            'LOG_LEVEL': 'INFO',
-        }
-
-    @staticmethod
-    def get_auto_settings() -> Dict[str, Any]:
-        """获取自动检测模式配置"""
-        return {
-            'QUEUE_TYPE': 'auto',
-            'FILTER_CLASS': 'crawlo.filters.memory_filter.MemoryFilter',  # 默认内存过滤器
-            'CONCURRENCY': 12,
-            'MAX_RUNNING_SPIDERS': 1,
-            'DOWNLOAD_DELAY': 1.0,
-            'LOG_LEVEL': 'INFO',
         }
 
     def resolve_mode_settings(
@@ -104,13 +56,14 @@ class ModeManager:
             Dict[str, Any]: 配置字典
         """
         mode = RunMode(mode.lower())
+        mode_info = None
 
         if mode == RunMode.STANDALONE:
-            self.logger.info("使用单机模式 - 简单快速，适合开发和中小规模爬取")
+            mode_info = "使用单机模式 - 简单快速，适合开发和中小规模爬取"
             settings = self.get_standalone_settings()
 
         elif mode == RunMode.DISTRIBUTED:
-            self.logger.info("使用分布式模式 - 支持多节点扩展，适合大规模爬取")
+            mode_info = "使用分布式模式 - 支持多节点扩展，适合大规模爬取"
             settings = self.get_distributed_settings(
                 redis_host=kwargs.get('redis_host', '127.0.0.1'),
                 redis_port=kwargs.get('redis_port', 6379),
@@ -120,7 +73,7 @@ class ModeManager:
             )
 
         elif mode == RunMode.AUTO:
-            self.logger.info("使用自动检测模式 - 智能选择最佳运行方式")
+            mode_info = "使用自动检测模式 - 智能选择最佳运行方式"
             settings = self.get_auto_settings()
 
         else:
@@ -130,6 +83,9 @@ class ModeManager:
         user_settings = {k: v for k, v in kwargs.items()
                          if k not in ['redis_host', 'redis_port', 'redis_password', 'project_name']}
         settings.update(user_settings)
+
+        # 将模式信息添加到配置中，供后续使用
+        settings['_mode_info'] = mode_info
 
         return settings
 
@@ -191,23 +147,3 @@ def from_env(default_mode: str = 'standalone') -> Dict[str, Any]:
     """从环境变量创建配置"""
     # 移除直接使用 os.getenv()，要求通过 settings 配置
     raise RuntimeError("环境变量配置已移除，请在 settings 中配置相关参数")
-
-    # 保留原有代码作为参考
-    # mode = os.getenv('CRAWLO_MODE', default_mode).lower()
-    # 
-    # if mode == 'distributed':
-    #     return distributed_mode(
-    #         redis_host=os.getenv('REDIS_HOST', '127.0.0.1'),
-    #         redis_port=int(os.getenv('REDIS_PORT', 6379)),
-    #         redis_password=os.getenv('REDIS_PASSWORD'),
-    #         project_name=os.getenv('PROJECT_NAME', 'crawlo'),
-    #         CONCURRENCY=int(os.getenv('CONCURRENCY', 16)),
-    #     )
-    # elif mode == 'auto':
-    #     return auto_mode(
-    #         CONCURRENCY=int(os.getenv('CONCURRENCY', 12)),
-    #     )
-    # else:  # standalone
-    #     return standalone_mode(
-    #         CONCURRENCY=int(os.getenv('CONCURRENCY', 8)),
-    #     )

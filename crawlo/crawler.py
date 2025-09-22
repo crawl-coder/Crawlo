@@ -36,13 +36,12 @@ from .spider import Spider, get_global_spider_registry
 from .core.engine import Engine
 from .subscriber import Subscriber
 from .extension import ExtensionManager
+from crawlo.utils.log import get_logger
 from .stats_collector import StatsCollector
 from .event import spider_opened, spider_closed
 from .settings.setting_manager import SettingManager
 from crawlo.project import merge_settings, get_settings
 
-# 使用自定义日志系统
-from crawlo.utils.log import get_logger
 logger = get_logger(__name__)
 
 
@@ -112,7 +111,12 @@ class Crawler:
     - Exception handling and cleanup
     """
 
-    def __init__(self, spider_cls: Type[Spider], settings: SettingManager, context: Optional[CrawlerContext] = None):
+    def __init__(
+            self,
+            spider_cls: Type[Spider],
+            settings: SettingManager,
+            context: Optional[CrawlerContext] = None
+    ):
         self.spider_cls = spider_cls
         self.spider: Optional[Spider] = None
         self.engine: Optional[Engine] = None
@@ -136,6 +140,22 @@ class Crawler:
             'request_count': 0,
             'error_count': 0
         }
+
+        # Initialize components
+        self.subscriber = self._create_subscriber()
+        self.spider = self._create_spider()
+        self.engine = self._create_engine()
+        self.stats = self._create_stats()
+        # Note: Do not initialize extension manager here, let it initialize in the engine
+
+        # Validate crawler state
+        self._validate_crawler_state()
+
+        # 打印启动信息，确保在日志系统配置之后打印
+        self._log_startup_info()
+        
+        # 将启动爬虫名称的日志移到这里，确保在日志系统配置之后打印
+        logger.info(f"Starting running {self.spider.name}")
 
     async def crawl(self):
         """
@@ -232,6 +252,52 @@ class Crawler:
         if self._start_time and self._end_time:
             return self._end_time - self._start_time
         return 0.0
+
+    def _log_startup_info(self):
+        """Print startup information, including run mode and key configuration checks"""
+        # Get run mode
+        run_mode = self.settings.get('RUN_MODE', 'standalone')
+
+        # Get version number
+        version = self.settings.get('VERSION', '1.0.0')
+        if not version or version == 'None':
+            version = '1.0.0'
+
+        # Print framework start info
+        logger.info(f"Crawlo Framework Started {version}")
+
+        # Add mode info if available
+        mode_info = self.settings.get('_mode_info')
+        if mode_info:
+            logger.info(mode_info)
+        else:
+            # 如果没有_mode_info，添加默认信息
+            logger.info("使用单机模式 - 简单快速，适合开发和中小规模爬取")
+
+        # Get actual queue type
+        queue_type = self.settings.get('QUEUE_TYPE', 'memory')
+
+        # Display information based on run mode and queue type combination
+        if run_mode == 'distributed':
+            logger.info("Run Mode: distributed")
+            logger.info("Distributed Mode - Multi-node collaboration supported")
+            # Show Redis configuration
+            redis_host = self.settings.get('REDIS_HOST', 'localhost')
+            redis_port = self.settings.get('REDIS_PORT', 6379)
+            logger.info(f"Redis Address: {redis_host}:{redis_port}")
+        elif run_mode == 'standalone':
+            if queue_type == 'redis':
+                logger.info("Run Mode: standalone+redis")
+                # Show Redis configuration
+                redis_host = self.settings.get('REDIS_HOST', 'localhost')
+                redis_port = self.settings.get('REDIS_PORT', 6379)
+                logger.info(f"Redis Address: {redis_host}:{redis_port}")
+            elif queue_type == 'auto':
+                logger.info("Run Mode: standalone+auto")
+            else:  # memory
+                logger.info("Run Mode: standalone")
+        else:
+            logger.info(f"Run Mode: {run_mode}")
 
     async def _ensure_cleanup(self):
         """Ensure resource cleanup"""
@@ -483,7 +549,10 @@ class CrawlerProcess:
         signal.signal(signal.SIGINT, self._shutdown)
         signal.signal(signal.SIGTERM, self._shutdown)
 
-        self._log_startup_info()
+        # 注意：移除在这里调用_log_startup_info()，因为这时候日志系统可能还没有被正确配置
+        # 日志系统的配置是在project.py的get_settings函数中进行的，而CrawlerProcess的实例化
+        # 是在get_settings函数返回之前进行的，所以这时候调用_log_startup_info()可能会导致
+        # 日志信息没有被正确写入到日志文件中
 
         logger.debug(
             f"CrawlerProcess initialized successfully\n"
@@ -983,39 +1052,41 @@ class CrawlerProcess:
         if not version or version == 'None':
             version = '1.0.0'
 
-        # Build startup info log
-        startup_info = [
-            f"Crawlo Framework Started {version}"
-        ]
+        # Print framework start info
+        logger.info(f"Crawlo Framework Started {version}")
+
+        # Add mode info if available
+        mode_info = self.settings.get('_mode_info')
+        if mode_info:
+            logger.info(mode_info)
+        else:
+            # 如果没有_mode_info，添加默认信息
+            logger.info("使用单机模式 - 简单快速，适合开发和中小规模爬取")
 
         # Get actual queue type
         queue_type = self.settings.get('QUEUE_TYPE', 'memory')
 
         # Display information based on run mode and queue type combination
         if run_mode == 'distributed':
-            startup_info.append("Run Mode: distributed")
-            startup_info.append("Distributed Mode - Multi-node collaboration supported")
+            logger.info("Run Mode: distributed")
+            logger.info("Distributed Mode - Multi-node collaboration supported")
             # Show Redis configuration
             redis_host = self.settings.get('REDIS_HOST', 'localhost')
             redis_port = self.settings.get('REDIS_PORT', 6379)
-            startup_info.append(f"Redis Address: {redis_host}:{redis_port}")
+            logger.info(f"Redis Address: {redis_host}:{redis_port}")
         elif run_mode == 'standalone':
             if queue_type == 'redis':
-                startup_info.append("Run Mode: standalone+redis")
+                logger.info("Run Mode: standalone+redis")
                 # Show Redis configuration
                 redis_host = self.settings.get('REDIS_HOST', 'localhost')
                 redis_port = self.settings.get('REDIS_PORT', 6379)
-                startup_info.append(f"Redis Address: {redis_host}:{redis_port}")
+                logger.info(f"Redis Address: {redis_host}:{redis_port}")
             elif queue_type == 'auto':
-                startup_info.append("Run Mode: standalone+auto")
+                logger.info("Run Mode: standalone+auto")
             else:  # memory
-                startup_info.append("Run Mode: standalone")
+                logger.info("Run Mode: standalone")
         else:
-            startup_info.append(f"Run Mode: {run_mode}")
-
-        # Print startup information at INFO level
-        for info in startup_info:
-            logger.info(info)
+            logger.info(f"Run Mode: {run_mode}")
 
 
 # === Utility functions ===

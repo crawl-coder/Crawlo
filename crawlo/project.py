@@ -268,12 +268,25 @@ def get_settings(custom_settings: Optional[dict] = None) -> SettingManager:
     except Exception as e:
         raise ImportError(f"加载 settings 模块失败 '{settings_module_path}': {e}")
 
-    # 5. 合并运行时配置
+    # 5. 根据 RUN_MODE 获取相应配置
+    run_mode = settings.get('RUN_MODE', 'standalone')
+    if run_mode:
+        from crawlo.mode_manager import ModeManager
+        mode_manager = ModeManager()
+        mode_settings = mode_manager.resolve_mode_settings(run_mode)
+        # 合并模式配置，但不覆盖用户已设置的配置
+        for key, value in mode_settings.items():
+            # 只有当用户没有设置该配置项时才应用模式配置
+            if key not in settings.attributes:
+                settings.set(key, value)
+        logger.debug(f"🔧 已应用 {run_mode} 模式配置")
+
+    # 6. 合并运行时配置
     if custom_settings:
         settings.update_attributes(custom_settings)
         logger.debug(f"🔧 已应用运行时自定义配置: {list(custom_settings.keys())}")
 
-    # 6. 显示核心配置摘要（INFO级别）
+    # 7. 显示核心配置摘要（INFO级别）
     # _log_settings_summary(settings)
 
     # 配置日志系统
