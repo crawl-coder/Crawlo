@@ -5,17 +5,8 @@
 ============================
 基于 Crawlo 框架的简化爬虫启动器。
 """
-
 import sys
-import os
 import asyncio
-
-# 添加项目根目录到 Python 路径
-project_root = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, project_root)
-
-# 切换到项目根目录
-os.chdir(project_root)
 
 from crawlo.crawler import CrawlerProcess
 

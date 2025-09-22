@@ -1,43 +1,3 @@
-# -*- coding: UTF-8 -*-
-"""
-温和模式配置模板
-低负载配置，对目标网站友好
-"""
-
-# ============================== 项目基本信息 ==============================
-PROJECT_NAME = '{{project_name}}'
-
-# ============================== 温和运行模式 ==============================
-# 运行模式：'standalone'(单机), 'distributed'(分布式), 'auto'(自动检测)
-RUN_MODE = 'standalone'  # 单机模式 - 适用于开发和小规模数据采集
-
-# 并发配置
-CONCURRENCY = 2  # 极低并发数以减少目标网站压力
-DOWNLOAD_DELAY = 3.0  # 增加延迟以降低目标网站压力
-RANDOMNESS = True  # 启用随机延迟
-RANDOM_RANGE = (0.5, 2.0)  # 随机延迟范围
-
-# ============================== 队列配置 ==============================
-
-# 队列类型：'auto'（自动选择）, 'memory'（内存队列）, 'redis'（分布式队列）
-QUEUE_TYPE = 'auto'  # 自动检测，如果Redis可用则使用Redis队列
-SCHEDULER_MAX_QUEUE_SIZE = 500
-SCHEDULER_QUEUE_NAME = f'crawlo:{{project_name}}:queue:requests'
-QUEUE_MAX_RETRIES = 3
-QUEUE_TIMEOUT = 300
-
-# ============================== 去重过滤配置 ==============================
-
-# 温和模式下使用内存去重管道和过滤器
-DEFAULT_DEDUP_PIPELINE = 'crawlo.pipelines.memory_dedup_pipeline.MemoryDedupPipeline'
-FILTER_CLASS = 'crawlo.filters.memory_filter.MemoryFilter'
-
-# --- Redis 配置（用于分布式去重和队列） ---
-REDIS_HOST = '127.0.0.1'
-REDIS_PORT = 6379
-REDIS_PASSWORD = ''  # 如果有密码，请填写
-
-# 根据是否有密码生成 URL
 if REDIS_PASSWORD:
     REDIS_URL = f'redis://:{REDIS_PASSWORD}@{REDIS_HOST}:{REDIS_PORT}/0'
 else:
@@ -54,6 +14,11 @@ REDIS_TTL = 0
 CLEANUP_FP = 0
 FILTER_DEBUG = True
 DECODE_RESPONSES = True
+
+# ============================== 域名过滤配置 ==============================
+# OffsiteMiddleware 配置，用于限制爬虫只爬取指定域名的页面
+# 如需启用域名过滤功能，请取消注释并配置允许的域名列表
+# ALLOWED_DOMAINS = ['example.com', 'www.example.com']
 
 # ============================== 用户自定义中间件配置 ==============================
 # 注意：框架默认中间件已自动加载，此处可添加或覆盖默认中间件

@@ -40,6 +40,45 @@ class ModeManager:
             'DOWNLOAD_DELAY': 1.0,
         }
 
+    @staticmethod
+    def get_distributed_settings(
+            redis_host: str = '127.0.0.1',
+            redis_port: int = 6379,
+            redis_password: Optional[str] = None,
+            redis_db: int = 0,
+            project_name: str = 'crawlo'
+    ) -> Dict[str, Any]:
+        """获取分布式模式配置"""
+        # 构建 Redis URL
+        if redis_password:
+            redis_url = f'redis://:{redis_password}@{redis_host}:{redis_port}/{redis_db}'
+        else:
+            redis_url = f'redis://{redis_host}:{redis_port}/{redis_db}'
+            
+        return {
+            'QUEUE_TYPE': 'redis',
+            'FILTER_CLASS': 'crawlo.filters.aioredis_filter.AioRedisFilter',
+            'DEFAULT_DEDUP_PIPELINE': 'crawlo.pipelines.redis_dedup_pipeline.RedisDedupPipeline',
+            'REDIS_HOST': redis_host,
+            'REDIS_PORT': redis_port,
+            'REDIS_PASSWORD': redis_password,
+            'REDIS_DB': redis_db,
+            'REDIS_URL': redis_url,
+            'PROJECT_NAME': project_name,
+            'SCHEDULER_QUEUE_NAME': f'crawlo:{project_name}:queue:requests',
+            'CONCURRENCY': 16,
+            'MAX_RUNNING_SPIDERS': 10,
+            'DOWNLOAD_DELAY': 1.0,
+        }
+
+    @staticmethod
+    def get_auto_settings() -> Dict[str, Any]:
+        """获取自动检测模式配置"""
+        # 默认使用内存队列和过滤器
+        settings = ModeManager.get_standalone_settings()
+        settings['QUEUE_TYPE'] = 'auto'
+        return settings
+
     def resolve_mode_settings(
             self,
             mode: str = 'standalone',
