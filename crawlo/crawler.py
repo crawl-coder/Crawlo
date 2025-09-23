@@ -36,13 +36,27 @@ from .spider import Spider, get_global_spider_registry
 from .core.engine import Engine
 from .subscriber import Subscriber
 from .extension import ExtensionManager
-from crawlo.utils.log import get_logger
 from .stats_collector import StatsCollector
 from .event import spider_opened, spider_closed
 from .settings.setting_manager import SettingManager
 from crawlo.project import merge_settings, get_settings
 
-logger = get_logger(__name__)
+# 延迟初始化的logger
+class _LazyLogger:
+    def __init__(self):
+        self._logger = None
+    
+    def _get_logger(self):
+        if self._logger is None:
+            from crawlo.utils.log import get_logger
+            self._logger = get_logger(__name__)
+        return self._logger
+    
+    def __getattr__(self, name):
+        return getattr(self._get_logger(), name)
+
+# 创建全局logger实例
+logger = _LazyLogger()
 
 
 class CrawlerContext:
@@ -141,15 +155,8 @@ class Crawler:
             'error_count': 0
         }
 
-        # Initialize components
-        self.subscriber = self._create_subscriber()
-        self.spider = self._create_spider()
-        self.engine = self._create_engine()
-        self.stats = self._create_stats()
-        # Note: Do not initialize extension manager here, let it initialize in the engine
-
-        # Validate crawler state
-        self._validate_crawler_state()
+        # Note: 组件初始化移到crawl方法中，避免在构造函数中调用尚未定义的方法
+        # Validate crawler state也移到crawl方法中
 
         # 将启动信息的打印移到crawl方法中，避免在CrawlerProcess中重复打印
         # self._log_startup_info()
@@ -189,6 +196,7 @@ class Crawler:
             self._validate_crawler_state()
 
             # Phase 3: Display runtime configuration summary
+            self._log_startup_info()  # 添加这一行来调用启动信息日志
             self._log_runtime_summary()
 
             # Phase 4: Start crawler
@@ -306,16 +314,6 @@ class Crawler:
                 await self.close()
         except Exception as e:
             logger.warning(f"Error cleaning up resources: {e}")
-
-    def get_performance_metrics(self) -> Dict[str, Any]:
-        """Get performance metrics"""
-        metrics = self._performance_metrics.copy()
-        metrics['total_duration'] = self._get_total_duration()
-        if self.stats:
-            # Add statistics data
-            stats_data = getattr(self.stats, 'get_stats', lambda: {})()
-            metrics.update(stats_data)
-        return metrics
 
     @staticmethod
     def _create_subscriber() -> Subscriber:
@@ -747,31 +745,41 @@ class CrawlerProcess:
         await self.start_monitoring()
 
         try:
-            # Phase 3: Initialize context and monitoring
-            spider_classes_to_run.sort(key=lambda cls: cls.__name__.lower())
+            # Phase 3: Create and run crawlers
+            tasks = []
+            results = [None] * total
+            failed = []
 
-            logger.debug(
-                f"Starting {total} crawlers\n"
-                f"  - Max concurrency: {self.max_concurrency}\n"
-                f"  - Spider list: {[cls.__name__ for cls in spider_classes_to_run]}"
-            )
+            for i, spider_cls in enumerate(spider_classes_to_run):
+                # Create crawler instance
+                crawler = Crawler(spider_cls, self.settings, self.context)
+                self.crawlers.add(crawler)
 
-            # Phase 4: Stream start all crawler tasks
-            tasks = [
-                asyncio.create_task(
-                    self._run_spider_with_limit(spider_cls, index + 1, total),
-                    name=f"spider-{spider_cls.__name__}-{index + 1}"
+                # Create task
+                task = asyncio.create_task(crawler.crawl())
+                self._active_tasks.add(task)
+                tasks.append((i, task, crawler))
+
+            # Wait for all tasks to complete
+            if tasks:
+                done, pending = await asyncio.wait(
+                    [task for _, task, _ in tasks],
+                    return_when=asyncio.ALL_COMPLETED
                 )
-                for index, spider_cls in enumerate(spider_classes_to_run)
-            ]
 
-            # Phase 5: Wait for all tasks to complete (failures do not interrupt)
-            results = await asyncio.gather(*tasks, return_exceptions=True)
+                # Process results
+                successful = 0
+                for i, task, crawler in tasks:
+                    try:
+                        result = await task
+                        results[i] = result
+                        successful += 1
+                    except Exception as e:
+                        results[i] = e
+                        failed.append(i)
+                        logger.error(f"Crawler {crawler.spider.name if crawler.spider else 'Unknown'} failed: {e}")
 
-            # Phase 6: Statistics exceptions and results
-            failed = [i for i, r in enumerate(results) if isinstance(r, Exception)]
-            successful = total - len(failed)
-
+            # Phase 4: Output statistics
             if failed:
                 failed_spiders = [spider_classes_to_run[i].__name__ for i in failed]
                 logger.error(
@@ -846,153 +854,27 @@ class CrawlerProcess:
     ) -> List[Type[Spider]]:
         """
         Resolve input to spider class list
-
-        Supports various input formats and validates uniqueness
         """
-        inputs = self._normalize_inputs(spiders_input)
-        seen_spider_names: Set[str] = set()
-        spider_classes: List[Type[Spider]] = []
-
-        for item in inputs:
-            try:
-                spider_cls = self._resolve_spider_class(item)
-                spider_name = getattr(spider_cls, 'name', None)
-
-                if not spider_name:
-                    raise ValueError(f"Spider class {spider_cls.__name__} missing 'name' attribute")
-
-                if spider_name in seen_spider_names:
-                    raise ValueError(
-                        f"Duplicate spider name '{spider_name}' in this run.\n"
-                        f"Ensure each spider's name attribute is unique in this run."
-                    )
-
-                seen_spider_names.add(spider_name)
-                spider_classes.append(spider_cls)
-
-                logger.debug(
-                    f"Spider resolved successfully: {item} -> {spider_cls.__name__} (name='{spider_name}')")
-
-            except Exception as e:
-                logger.error(f"Failed to resolve spider: {item} - {e}")
-                raise
-
-        return spider_classes
-
-    @staticmethod
-    def _normalize_inputs(spiders_input) -> List[Union[Type[Spider], str]]:
-        """
-        Normalize input to list
-
-        Supports more input types and provides better error information
-        """
-        if isinstance(spiders_input, (type, str)):
+        if isinstance(spiders_input, type) and issubclass(spiders_input, Spider):
             return [spiders_input]
-        elif isinstance(spiders_input, (list, tuple, set)):
-            spider_list = list(spiders_input)
-            if not spider_list:
-                raise ValueError("Spider list cannot be empty")
-            return spider_list
+        elif isinstance(spiders_input, str):
+            if spiders_input not in self._spider_registry:
+                raise ValueError(f"Spider '{spiders_input}' not found. Available spiders: {list(self._spider_registry.keys())}")
+            return [self._spider_registry[spiders_input]]
+        elif isinstance(spiders_input, list):
+            result = []
+            for item in spiders_input:
+                if isinstance(item, type) and issubclass(item, Spider):
+                    result.append(item)
+                elif isinstance(item, str):
+                    if item not in self._spider_registry:
+                        raise ValueError(f"Spider '{item}' not found. Available spiders: {list(self._spider_registry.keys())}")
+                    result.append(self._spider_registry[item])
+                else:
+                    raise TypeError(f"Invalid spider type: {type(item)}. Must be Spider class or string name.")
+            return result
         else:
-            raise TypeError(
-                f"Unsupported spiders parameter type: {type(spiders_input)}\n"
-                f"Supported types: Spider class, name string, or their list/tuple/set"
-            )
-
-    def _resolve_spider_class(self, item: Union[Type[Spider], str]) -> Type[Spider]:
-        """
-        Resolve single input item to spider class
-
-        Provides better error prompts and debugging information
-        """
-        if isinstance(item, type) and issubclass(item, Spider):
-            # Direct Spider class
-            return item
-        elif isinstance(item, str):
-            # String name, need to look up registry
-            spider_cls = self._spider_registry.get(item)
-            if not spider_cls:
-                available_spiders = list(self._spider_registry.keys())
-                raise ValueError(
-                    f"Spider named '{item}' not found.\n"
-                    f"Registered spiders: {available_spiders}\n"
-                    f"Please check if the spider name is correct, or ensure the spider has been properly imported and registered."
-                )
-            return spider_cls
-        else:
-            raise TypeError(
-                f"Invalid type {type(item)}: {item}\n"
-                f"Must be Spider class or string name.\n"
-                f"Example: MySpider or 'my_spider'"
-            )
-
-    async def _run_spider_with_limit(self, spider_cls: Type[Spider], seq: int, total: int):
-        """
-        Spider running function limited by semaphore
-
-        Includes enhanced error handling and monitoring functionality
-        """
-        task = asyncio.current_task()
-        crawler = None
-
-        try:
-            # Register task
-            if task:
-                self._active_tasks.add(task)
-
-            # Acquire concurrency permit
-            await self.semaphore.acquire()
-
-            # start_msg = f"[{seq}/{total}] Initializing spider: {spider_cls.__name__}"
-            # logger.info(start_msg)
-
-            # Create and run crawler
-            crawler = Crawler(spider_cls, self.settings, self.context)
-            self.crawlers.add(crawler)
-
-            # Record start time
-            start_time = time.time()
-
-            # Run crawler
-            await crawler.crawl()
-
-            # Calculate runtime
-            duration = time.time() - start_time
-
-            end_msg = (
-                f"[{seq}/{total}] Crawler completed: {spider_cls.__name__}, "
-                f"took: {duration:.2f} seconds"
-            )
-            logger.info(end_msg)
-
-            # Record success statistics
-            self._performance_stats['successful_requests'] += 1
-
-        except Exception as e:
-            # Record failure statistics
-            self._performance_stats['failed_requests'] += 1
-
-            error_msg = f"Spider {spider_cls.__name__} execution failed: {e}"
-            logger.error(error_msg, exc_info=True)
-
-            # Record error information to context
-            if hasattr(self, 'context'):
-                self.context.increment_failed(error_msg)
-
-            raise
-        finally:
-            # Clean up resources
-            try:
-                if crawler and crawler in self.crawlers:
-                    self.crawlers.remove(crawler)
-
-                if task and task in self._active_tasks:
-                    self._active_tasks.remove(task)
-
-                self.semaphore.release()
-
-            except Exception as cleanup_error:
-                logger.warning(f"Error cleaning up resources: {cleanup_error}")
+            raise TypeError(f"Invalid input type: {type(spiders_input)}. Must be Spider class, string name, or list of them.")
 
     def _shutdown(self, _signum, _frame):
         """
@@ -1020,34 +902,19 @@ class CrawlerProcess:
         logger.info("Shutdown command sent, waiting for crawlers to complete current tasks...")
 
     async def _wait_for_shutdown(self):
-        """
-        Wait for all active tasks to complete
-
-        Provides better shutdown time control and progress feedback
-        """
+        """Wait for shutdown to complete"""
         try:
-            # Stop monitoring task
-            await self.stop_monitoring()
-
-            # Wait for active tasks to complete
-            pending = [t for t in self._active_tasks if not t.done()]
-
-            if pending:
-                logger.info(
-                    f"Waiting for {len(pending)} active tasks to complete..."
-                    f"(Maximum wait time: 30 seconds)"
+            # Wait for all active tasks to complete (with timeout)
+            if self._active_tasks:
+                done, pending = await asyncio.wait(
+                    list(self._active_tasks),
+                    timeout=30.0,
+                    return_when=asyncio.ALL_COMPLETED
                 )
 
-                # Set timeout
-                try:
-                    await asyncio.wait_for(
-                        asyncio.gather(*pending, return_exceptions=True),
-                        timeout=30.0
-                    )
-                except asyncio.TimeoutError:
-                    logger.warning("Some tasks timed out, forcing cancellation...")
-
-                    # Force cancel timed out tasks
+                if pending:
+                    logger.warning(f"强制关闭 {len(pending)} 个未完成的任务...")
+                    # Cancel any remaining tasks
                     for task in pending:
                         if not task.done():
                             task.cancel()
