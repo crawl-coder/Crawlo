@@ -21,6 +21,11 @@ PIPELINES = [
     'crawlo.pipelines.json_pipeline.JsonPipeline',
 ]
 
+# ============================== 域名过滤配置 ==============================
+# OffsiteMiddleware 配置，用于限制爬虫只爬取指定域名的页面
+# 如需启用域名过滤功能，请取消注释并配置允许的域名列表
+# ALLOWED_DOMAINS = ['example.com', 'www.example.com']
+
 # ============================== 日志配置 ==============================
 LOG_LEVEL = 'INFO'
 LOG_FILE = f'logs/{{project_name}}.log'

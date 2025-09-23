@@ -5,26 +5,27 @@
 # @Author  : crawl-coder
 # @Desc    : 命令行入口：crawlo run <spider_name>|all，用于运行指定爬虫。
 """
+import os
 import sys
 import asyncio
 import configparser
-import os
-from pathlib import Path
 from importlib import import_module
 
+from rich import box
 from rich.console import Console
 from rich.panel import Panel
+from rich.progress import Progress, SpinnerColumn, TextColumn
 from rich.table import Table
 from rich.text import Text
-from rich import box
-from rich.progress import Progress, SpinnerColumn, TextColumn
 
-from crawlo.crawler import CrawlerProcess
-from crawlo.utils.log import get_logger
-from crawlo.project import get_settings, _find_project_root
 from crawlo.commands.stats import record_stats
+from crawlo.crawler import CrawlerProcess
+from crawlo.project import get_settings, _find_project_root
+# 使用自定义日志系统
+from crawlo.utils.log import get_logger
 
 logger = get_logger(__name__)
+
 console = Console()
 
 
@@ -77,6 +78,9 @@ def main(args):
     用法:
         crawlo run <spider_name>|all [--json] [--no-stats]
     """
+    # 添加调试信息
+    logger.debug("DEBUG: 进入main函数")
+    
     if len(args) < 1:
         console.print("[bold red]用法:[/bold red] [blue]crawlo run[/blue] <爬虫名称>|all [bold yellow][--json] [--no-stats][/bold yellow]")
         console.print("示例:")
@@ -187,21 +191,7 @@ def main(args):
                     return 1
 
             # 显示即将运行的爬虫列表
-            table = Table(
-                title=f"启动全部 {len(spider_names)} 个爬虫",
-                box=box.ROUNDED,
-                show_header=True,
-                header_style="bold magenta"
-            )
-            table.add_column("名称", style="cyan")
-            table.add_column("类名", style="green")
-
-            for name in sorted(spider_names):
-                cls = process.get_spider_class(name)
-                table.add_row(name, cls.__name__)
-
-            console.print(table)
-            console.print()
+            # 根据用户要求，不再显示详细的爬虫列表信息
 
             # 注册 stats 记录（除非 --no-stats）
             if not no_stats:
@@ -260,20 +250,21 @@ def main(args):
         spider_class = process.get_spider_class(spider_name)
 
         # 显示启动信息
-        if not show_json:
-            info_table = Table(
-                title=f"启动爬虫: [bold cyan]{spider_name}[/bold cyan]",
-                box=box.SIMPLE,
-                show_header=False,
-                title_style="bold green"
-            )
-            info_table.add_column("Key", style="yellow")
-            info_table.add_column("Value", style="cyan")
-            info_table.add_row("Project", project_package)
-            info_table.add_row("Class", spider_class.__name__)
-            info_table.add_row("Module", spider_class.__module__)
-            console.print(info_table)
-            console.print()
+        # 根据用户要求，不再显示项目启动信息
+        # if not show_json:
+        #     info_table = Table(
+        #         title=f"启动爬虫: [bold cyan]{spider_name}[/bold cyan]",
+        #         box=box.SIMPLE,
+        #         show_header=False,
+        #         title_style="bold green"
+        #     )
+        #     info_table.add_column("Key", style="yellow")
+        #     info_table.add_column("Value", style="cyan")
+        #     info_table.add_row("Project", project_package)
+        #     info_table.add_row("Class", spider_class.__name__)
+        #     info_table.add_row("Module", spider_class.__module__)
+        #     console.print(info_table)
+        #     console.print()
 
         # 注册 stats 记录
         if not no_stats:

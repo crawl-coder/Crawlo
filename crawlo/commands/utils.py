@@ -133,8 +133,11 @@ def validate_spider_name(spider_name: str) -> bool:
         bool: 是否有效
     """
     import re
+    # 清理爬虫名称中的不可见字符
+    cleaned_name = ''.join(c for c in spider_name if not unicodedata.category(c).startswith('C'))
+    
     # 爬虫名称应该是有效的Python标识符
-    return spider_name.isidentifier() and re.match(r'^[a-z][a-z0-9_]*$', spider_name)
+    return cleaned_name.isidentifier() and re.match(r'^[a-z][a-z0-9_]*$', cleaned_name)
 
 
 def format_file_size(size_bytes: int) -> str:
@@ -181,7 +184,14 @@ def is_valid_domain(domain: str) -> bool:
         bool: 是否有效
     """
     import re
+    # 清理域名中的不可见字符
+    cleaned_domain = ''.join(c for c in domain if not unicodedata.category(c).startswith('C'))
+    
     pattern = re.compile(
         r'^(?:[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)*[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?$'
     )
-    return bool(pattern.match(domain))
+    return bool(pattern.match(cleaned_domain))
+
+
+# 添加导入
+import unicodedata

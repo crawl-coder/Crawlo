@@ -46,41 +46,41 @@ FILTER_CLASS = 'crawlo.filters.memory_filter.MemoryFilter'
 # 使用auto模式，让框架根据Redis可用性自动选择去重管道
 DEFAULT_DEDUP_PIPELINE = 'crawlo.pipelines.memory_dedup_pipeline.MemoryDedupPipeline'
 
-# ============================== 用户自定义中间件 ==============================
-# 注意：框架默认中间件已自动加载，此处可添加或覆盖默认中间件
+# ============================== 爬虫模块配置 ==============================
+SPIDER_MODULES = ['ofweek_standalone.spiders']
 
-# 中间件列表（框架默认中间件 + 用户自定义中间件）
+# ============================== 中间件 ==============================
 MIDDLEWARES = [
-    # 'ofweek_standalone.middlewares.CustomMiddleware',  # 示例自定义中间件
+    'crawlo.middleware.simple_proxy.SimpleProxyMiddleware',
 ]
 
-# ============================== 用户自定义数据管道 ==============================
-# 注意：框架默认管道已自动加载，此处可添加或覆盖默认管道
+# ============================== 默认请求头配置 ==============================
+# 为DefaultHeaderMiddleware配置默认请求头
+DEFAULT_REQUEST_HEADERS = {
+    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+    'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
+    'Accept-Encoding': 'gzip, deflate, br',
+}
 
-# 数据处理管道列表（框架默认管道 + 用户自定义管道）
+# ============================== 允许的域名 ==============================
+# 为OffsiteMiddleware配置允许的域名
+ALLOWED_DOMAINS = ['ee.ofweek.com']
+
+# ============================== 数据管道 ==============================
 PIPELINES = [
-    # 'crawlo.pipelines.json_pipeline.JsonPipeline',
+    'crawlo.pipelines.mysql_pipeline.AsyncmyMySQLPipeline',     # MySQL 存储（使用asyncmy异步库）
 ]
 
-# ============================== 用户自定义扩展组件 ==============================
-# 注意：框架默认扩展已自动加载，此处可添加或覆盖默认扩展
-
-# 扩展组件列表（框架默认扩展 + 用户自定义扩展）
-EXTENSIONS = [
-    # 'crawlo.extension.memory_monitor.MemoryMonitorExtension',  # 内存监控
-]
+# ============================== 扩展组件 ==============================
+# EXTENSIONS = [
+#     'crawlo.extension.log_interval.LogIntervalExtension',
+#     'crawlo.extension.log_stats.LogStats',
+#     'crawlo.extension.logging_extension.CustomLoggerExtension',
+# ]
 
 # ============================== 日志配置 ==============================
-LOG_LEVEL = 'DEBUG'
-# LOG_CONSOLE_LEVEL = 'DEBUG'  # 添加控制台日志级别配置
+LOG_LEVEL = 'INFO'
 LOG_FILE = 'logs/ofweek_standalone.log'
-# 启用日志轮转功能
-LOG_USE_ROTATION = True
-LOG_ROTATION_TYPE = 'size'  # 或者使用 'time'
-LOG_MAX_BYTES = 10 * 1024 * 1024  # 10MB
-LOG_BACKUP_COUNT = 5
-# 时间轮转时的文件后缀格式（可选）
-# LOG_ROTATION_SUFFIX = '%Y-%m-%d_%H-%M-%S'
 STATS_DUMP = True
 
 # ============================== 输出配置 ==============================

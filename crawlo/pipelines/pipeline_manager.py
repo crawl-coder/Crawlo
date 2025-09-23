@@ -4,7 +4,6 @@ from typing import List
 from pprint import pformat
 from asyncio import create_task
 
-
 from crawlo.utils.log import get_logger
 from crawlo.event import item_successful, item_discard
 from crawlo.project import load_class, common_call
@@ -20,6 +19,20 @@ class PipelineManager:
 
         self.logger = get_logger(self.__class__.__name__, self.crawler.settings.get('LOG_LEVEL'))
         pipelines = self.crawler.settings.get_list('PIPELINES')
+        dedup_pipeline = self.crawler.settings.get('DEFAULT_DEDUP_PIPELINE')
+
+        # 添加调试信息
+        self.logger.debug(f"PIPELINES from settings: {pipelines}")
+        self.logger.debug(f"DEFAULT_DEDUP_PIPELINE from settings: {dedup_pipeline}")
+
+        # 确保DEFAULT_DEDUP_PIPELINE被添加到管道列表开头
+        if dedup_pipeline:
+            # 移除所有去重管道实例（如果存在）
+            pipelines = [item for item in pipelines if item != dedup_pipeline]
+            # 在开头插入去重管道
+            self.logger.debug(f"{dedup_pipeline} insert successful")
+            pipelines.insert(0, dedup_pipeline)
+
         self._add_pipelines(pipelines)
         self._add_methods()
 
@@ -34,7 +47,7 @@ class PipelineManager:
                 pipeline_cls = load_class(pipeline)
                 if not hasattr(pipeline_cls, 'from_crawler'):
                     raise PipelineInitError(
-                        f"Pipeline init failed, must inherit from `BasePipeline` or have a `create_instance` method"
+                        f"Pipeline init failed, must inherit from `BasePipeline` or have a `from_crawler` method"
                     )
                 self.pipelines.append(pipeline_cls.from_crawler(self.crawler))
             except Exception as e:

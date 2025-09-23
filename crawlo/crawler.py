@@ -21,7 +21,7 @@ Example Usage:
     # Single crawler run
     crawler = Crawler(MySpider, settings)
     await crawler.crawl()
-    
+
     # Multi-crawler concurrent management
     process = CrawlerProcess()
     await process.crawl([Spider1, Spider2])
@@ -34,24 +34,15 @@ import threading
 from typing import Type, Optional, Set, List, Union, Dict, Any
 from .spider import Spider, get_global_spider_registry
 from .core.engine import Engine
-from .utils.log import get_logger
 from .subscriber import Subscriber
 from .extension import ExtensionManager
+from crawlo.utils.log import get_logger
 from .stats_collector import StatsCollector
 from .event import spider_opened, spider_closed
 from .settings.setting_manager import SettingManager
 from crawlo.project import merge_settings, get_settings
 
-# 延迟初始化logger，在需要时通过get_logger获取
-logger = None
-
-
-def _get_logger():
-    """延迟获取logger实例，确保在配置加载后创建"""
-    global logger
-    if logger is None:
-        logger = get_logger(__name__)
-    return logger
+logger = get_logger(__name__)
 
 
 class CrawlerContext:
@@ -110,7 +101,7 @@ class CrawlerContext:
 class Crawler:
     """
     Single crawler runtime instance, managing Spider and engine lifecycle
-    
+
     Provides functionality:
     - Spider lifecycle management (initialization, running, closing)
     - Engine component coordination management
@@ -120,7 +111,12 @@ class Crawler:
     - Exception handling and cleanup
     """
 
-    def __init__(self, spider_cls: Type[Spider], settings: SettingManager, context: Optional[CrawlerContext] = None):
+    def __init__(
+            self,
+            spider_cls: Type[Spider],
+            settings: SettingManager,
+            context: Optional[CrawlerContext] = None
+    ):
         self.spider_cls = spider_cls
         self.spider: Optional[Spider] = None
         self.engine: Optional[Engine] = None
@@ -145,10 +141,26 @@ class Crawler:
             'error_count': 0
         }
 
+        # Initialize components
+        self.subscriber = self._create_subscriber()
+        self.spider = self._create_spider()
+        self.engine = self._create_engine()
+        self.stats = self._create_stats()
+        # Note: Do not initialize extension manager here, let it initialize in the engine
+
+        # Validate crawler state
+        self._validate_crawler_state()
+
+        # 打印启动信息，确保在日志系统配置之后打印
+        self._log_startup_info()
+        
+        # 将启动爬虫名称的日志移到这里，确保在日志系统配置之后打印
+        logger.info(f"Starting running {self.spider.name}")
+
     async def crawl(self):
         """
         Start the crawler core process
-        
+
         Includes the following stages:
         1. Initialization stage: Create all components
         2. Validation stage: Check configuration and state
@@ -190,12 +202,12 @@ class Crawler:
             # Update context status
             self.context.increment_completed()
 
-            _get_logger().info(f"Spider {self.spider.name} completed, took {self._get_total_duration():.2f} seconds")
+            logger.info(f"Spider {self.spider.name} completed, took {self._get_total_duration():.2f} seconds")
 
         except Exception as e:
             self._performance_metrics['error_count'] += 1
             self.context.increment_failed(str(e))
-            _get_logger().error(f"Spider {getattr(self.spider, 'name', 'Unknown')} failed to run: {e}", exc_info=True)
+            logger.error(f"Spider {getattr(self.spider, 'name', 'Unknown')} failed to run: {e}", exc_info=True)
             raise
         finally:
             self.context.decrement_active()
@@ -213,7 +225,7 @@ class Crawler:
         else:
             spider_name = 'Unknown'
 
-        _get_logger().info(f"Starting running {spider_name}")
+        logger.info(f"Starting running {spider_name}")
 
     def _validate_crawler_state(self):
         """
@@ -233,7 +245,7 @@ class Crawler:
         if not self.spider.name:
             raise ValueError("Spider name cannot be empty")
 
-        _get_logger().debug(f"Spider {self.spider.name} state validation passed")
+        logger.debug(f"Spider {self.spider.name} state validation passed")
 
     def _get_total_duration(self) -> float:
         """Get total runtime"""
@@ -241,13 +253,59 @@ class Crawler:
             return self._end_time - self._start_time
         return 0.0
 
+    def _log_startup_info(self):
+        """Print startup information, including run mode and key configuration checks"""
+        # Get run mode
+        run_mode = self.settings.get('RUN_MODE', 'standalone')
+
+        # Get version number
+        version = self.settings.get('VERSION', '1.0.0')
+        if not version or version == 'None':
+            version = '1.0.0'
+
+        # Print framework start info
+        logger.info(f"Crawlo Framework Started {version}")
+
+        # Add mode info if available
+        mode_info = self.settings.get('_mode_info')
+        if mode_info:
+            logger.info(mode_info)
+        else:
+            # 如果没有_mode_info，添加默认信息
+            logger.info("使用单机模式 - 简单快速，适合开发和中小规模爬取")
+
+        # Get actual queue type
+        queue_type = self.settings.get('QUEUE_TYPE', 'memory')
+
+        # Display information based on run mode and queue type combination
+        if run_mode == 'distributed':
+            logger.info("Run Mode: distributed")
+            logger.info("Distributed Mode - Multi-node collaboration supported")
+            # Show Redis configuration
+            redis_host = self.settings.get('REDIS_HOST', 'localhost')
+            redis_port = self.settings.get('REDIS_PORT', 6379)
+            logger.info(f"Redis Address: {redis_host}:{redis_port}")
+        elif run_mode == 'standalone':
+            if queue_type == 'redis':
+                logger.info("Run Mode: standalone+redis")
+                # Show Redis configuration
+                redis_host = self.settings.get('REDIS_HOST', 'localhost')
+                redis_port = self.settings.get('REDIS_PORT', 6379)
+                logger.info(f"Redis Address: {redis_host}:{redis_port}")
+            elif queue_type == 'auto':
+                logger.info("Run Mode: standalone+auto")
+            else:  # memory
+                logger.info("Run Mode: standalone")
+        else:
+            logger.info(f"Run Mode: {run_mode}")
+
     async def _ensure_cleanup(self):
         """Ensure resource cleanup"""
         try:
             if not self._closed:
                 await self.close()
         except Exception as e:
-            _get_logger().warning(f"Error cleaning up resources: {e}")
+            logger.warning(f"Error cleaning up resources: {e}")
 
     def get_performance_metrics(self) -> Dict[str, Any]:
         """Get performance metrics"""
@@ -267,7 +325,7 @@ class Crawler:
     def _create_spider(self) -> Spider:
         """
         Create and validate spider instance (enhanced version)
-        
+
         Performs the following validations:
         - Spider name must exist
         - start_requests method must be callable
@@ -300,7 +358,7 @@ class Crawler:
 
         # parse method check (warning instead of error)
         if not callable(getattr(spider, 'parse', None)):
-            _get_logger().warning(
+            logger.warning(
                 f"Spider '{spider.name}' does not define 'parse' method.\n"
                 f"Ensure all Requests specify a callback function, otherwise responses will be ignored."
             )
@@ -308,27 +366,29 @@ class Crawler:
         # Set spider configuration
         self._set_spider(spider)
 
-        _get_logger().debug(f"Spider '{spider.name}' initialized successfully")
+        logger.debug(f"Spider '{spider.name}' initialized successfully")
         return spider
 
     def _create_engine(self) -> Engine:
         """Create and initialize engine"""
         engine = Engine(self)
         engine.engine_start()
-        _get_logger().debug(f"Engine initialized successfully, spider: {getattr(self.spider, 'name', 'Unknown')}")
+        logger.debug(f"Engine initialized successfully, spider: {getattr(self.spider, 'name', 'Unknown')}")
         return engine
 
     def _create_stats(self) -> StatsCollector:
         """Create stats collector"""
         stats = StatsCollector(self)
-        _get_logger().debug(f"Stats collector initialized successfully, spider: {getattr(self.spider, 'name', 'Unknown')}")
+        logger.debug(
+            f"Stats collector initialized successfully, spider: {getattr(self.spider, 'name', 'Unknown')}")
         return stats
 
     def _create_extension(self) -> ExtensionManager:
         """Create extension manager"""
         # Modify extension manager creation method, delay initialization until needed
         extension = ExtensionManager.create_instance(self)
-        _get_logger().debug(f"Extension manager initialized successfully, spider: {getattr(self.spider, 'name', 'Unknown')}")
+        logger.debug(
+            f"Extension manager initialized successfully, spider: {getattr(self.spider, 'name', 'Unknown')}")
         return extension
 
     def _set_spider(self, spider: Spider):
@@ -343,12 +403,12 @@ class Crawler:
         # Merge spider custom configuration
         merge_settings(spider, self.settings)
 
-        _get_logger().debug(f"Spider '{spider.name}' configuration merged successfully")
+        logger.debug(f"Spider '{spider.name}' configuration merged successfully")
 
     async def close(self, reason='finished') -> None:
         """
         Close crawler and clean up resources (enhanced version)
-        
+
         Ensure closing only once and handle all cleanup operations
         """
         async with self._close_lock:
@@ -371,15 +431,15 @@ class Crawler:
                         from crawlo.commands.stats import record_stats
                         record_stats(self)
                     except ImportError:
-                        _get_logger().debug("Statistics recording module does not exist, skipping statistics recording")
+                        logger.debug("Statistics recording module does not exist, skipping statistics recording")
 
-                _get_logger().info(
+                logger.info(
                     f"Spider '{getattr(self.spider, 'name', 'Unknown')}' closed, "
                     f"reason: {reason}, took: {self._get_total_duration():.2f} seconds"
                 )
 
             except Exception as e:
-                _get_logger().error(f"Error closing crawler: {e}", exc_info=True)
+                logger.error(f"Error closing crawler: {e}", exc_info=True)
             finally:
                 # Ensure resource cleanup
                 await self._cleanup_resources()
@@ -413,13 +473,13 @@ class Crawler:
         if cleanup_tasks:
             await asyncio.gather(*cleanup_tasks, return_exceptions=True)
 
-        _get_logger().debug("Resource cleanup completed")
+        logger.debug("Resource cleanup completed")
 
 
 class CrawlerProcess:
     """
     Crawler process manager
-    
+
     Supported features:
     - Multi-crawler concurrent scheduling and resource management
     - Automatic module discovery and spider registration
@@ -428,15 +488,15 @@ class CrawlerProcess:
     - Real-time status monitoring and statistics
     - Error recovery and retry mechanism
     - Large-scale crawler optimization support
-    
+
     Usage example:
         # Basic usage
         process = CrawlerProcess()
         await process.crawl(MySpider)
-        
+
         # Multi-crawler concurrency
         await process.crawl([Spider1, Spider2, 'spider_name'])
-        
+
         # Custom concurrency
         process = CrawlerProcess(max_concurrency=8)
     """
@@ -489,7 +549,10 @@ class CrawlerProcess:
         signal.signal(signal.SIGINT, self._shutdown)
         signal.signal(signal.SIGTERM, self._shutdown)
 
-        self._log_startup_info()
+        # 注意：移除在这里调用_log_startup_info()，因为这时候日志系统可能还没有被正确配置
+        # 日志系统的配置是在project.py的get_settings函数中进行的，而CrawlerProcess的实例化
+        # 是在get_settings函数返回之前进行的，所以这时候调用_log_startup_info()可能会导致
+        # 日志信息没有被正确写入到日志文件中
 
         logger.debug(
             f"CrawlerProcess initialized successfully\n"
@@ -563,7 +626,7 @@ class CrawlerProcess:
     def auto_discover(modules: List[str]):
         """
         Automatically import modules, trigger Spider class definition and registration (enhanced version)
-        
+
         Supports recursive scanning and error recovery
         """
         import importlib
@@ -617,7 +680,7 @@ class CrawlerProcess:
     async def crawl(self, spiders: Union[Type[Spider], str, List[Union[Type[Spider], str]]]):
         """
         Start one or more crawlers
-        
+
         Enhanced features:
         - Intelligent concurrency control
         - Real-time monitoring and statistics
@@ -639,7 +702,7 @@ class CrawlerProcess:
         await self.start_monitoring()
 
         try:
-            # Phase 3: Sort by class name to ensure predictable startup order
+            # Phase 3: Initialize context and monitoring
             spider_classes_to_run.sort(key=lambda cls: cls.__name__.lower())
 
             logger.debug(
@@ -738,7 +801,7 @@ class CrawlerProcess:
     ) -> List[Type[Spider]]:
         """
         Resolve input to spider class list
-        
+
         Supports various input formats and validates uniqueness
         """
         inputs = self._normalize_inputs(spiders_input)
@@ -762,7 +825,8 @@ class CrawlerProcess:
                 seen_spider_names.add(spider_name)
                 spider_classes.append(spider_cls)
 
-                logger.debug(f"Spider resolved successfully: {item} -> {spider_cls.__name__} (name='{spider_name}')")
+                logger.debug(
+                    f"Spider resolved successfully: {item} -> {spider_cls.__name__} (name='{spider_name}')")
 
             except Exception as e:
                 logger.error(f"Failed to resolve spider: {item} - {e}")
@@ -774,7 +838,7 @@ class CrawlerProcess:
     def _normalize_inputs(spiders_input) -> List[Union[Type[Spider], str]]:
         """
         Normalize input to list
-        
+
         Supports more input types and provides better error information
         """
         if isinstance(spiders_input, (type, str)):
@@ -793,7 +857,7 @@ class CrawlerProcess:
     def _resolve_spider_class(self, item: Union[Type[Spider], str]) -> Type[Spider]:
         """
         Resolve single input item to spider class
-        
+
         Provides better error prompts and debugging information
         """
         if isinstance(item, type) and issubclass(item, Spider):
@@ -820,7 +884,7 @@ class CrawlerProcess:
     async def _run_spider_with_limit(self, spider_cls: Type[Spider], seq: int, total: int):
         """
         Spider running function limited by semaphore
-        
+
         Includes enhanced error handling and monitoring functionality
         """
         task = asyncio.current_task()
@@ -888,7 +952,7 @@ class CrawlerProcess:
     def _shutdown(self, _signum, _frame):
         """
         Graceful shutdown signal handling
-        
+
         Provides better shutdown experience and resource cleanup
         """
         signal_name = {signal.SIGINT: 'SIGINT', signal.SIGTERM: 'SIGTERM'}.get(_signum, str(_signum))
@@ -913,7 +977,7 @@ class CrawlerProcess:
     async def _wait_for_shutdown(self):
         """
         Wait for all active tasks to complete
-        
+
         Provides better shutdown time control and progress feedback
         """
         try:
@@ -967,15 +1031,15 @@ class CrawlerProcess:
     def _get_default_settings(cls) -> SettingManager:
         """
         Load default configuration
-        
+
         Provides better error handling and fallback strategy
         """
         try:
             settings = get_settings()
-            _get_logger().debug("Default configuration loaded successfully")
+            logger.debug("Default configuration loaded successfully")
             return settings
         except Exception as e:
-            _get_logger().warning(f"Unable to load default configuration: {e}, using empty configuration")
+            logger.warning(f"Unable to load default configuration: {e}, using empty configuration")
             return SettingManager()
 
     def _log_startup_info(self):
@@ -988,39 +1052,41 @@ class CrawlerProcess:
         if not version or version == 'None':
             version = '1.0.0'
 
-        # Build startup info log
-        startup_info = [
-            f"Crawlo Framework Started v{version}"
-        ]
+        # Print framework start info
+        logger.info(f"Crawlo Framework Started {version}")
+
+        # Add mode info if available
+        mode_info = self.settings.get('_mode_info')
+        if mode_info:
+            logger.info(mode_info)
+        else:
+            # 如果没有_mode_info，添加默认信息
+            logger.info("使用单机模式 - 简单快速，适合开发和中小规模爬取")
 
         # Get actual queue type
         queue_type = self.settings.get('QUEUE_TYPE', 'memory')
 
         # Display information based on run mode and queue type combination
         if run_mode == 'distributed':
-            startup_info.append("Run Mode: distributed")
-            startup_info.append("Distributed Mode - Multi-node collaboration supported")
+            logger.info("Run Mode: distributed")
+            logger.info("Distributed Mode - Multi-node collaboration supported")
             # Show Redis configuration
             redis_host = self.settings.get('REDIS_HOST', 'localhost')
             redis_port = self.settings.get('REDIS_PORT', 6379)
-            startup_info.append(f"Redis Address: {redis_host}:{redis_port}")
+            logger.info(f"Redis Address: {redis_host}:{redis_port}")
         elif run_mode == 'standalone':
             if queue_type == 'redis':
-                startup_info.append("Run Mode: standalone+redis")
+                logger.info("Run Mode: standalone+redis")
                 # Show Redis configuration
                 redis_host = self.settings.get('REDIS_HOST', 'localhost')
                 redis_port = self.settings.get('REDIS_PORT', 6379)
-                startup_info.append(f"Redis Address: {redis_host}:{redis_port}")
+                logger.info(f"Redis Address: {redis_host}:{redis_port}")
             elif queue_type == 'auto':
-                startup_info.append("Run Mode: standalone+auto")
+                logger.info("Run Mode: standalone+auto")
             else:  # memory
-                startup_info.append("Run Mode: standalone")
+                logger.info("Run Mode: standalone")
         else:
-            startup_info.append(f"Run Mode: {run_mode}")
-
-        # Print startup information
-        for info in startup_info:
-            logger.info(info)
+            logger.info(f"Run Mode: {run_mode}")
 
 
 # === Utility functions ===
@@ -1032,7 +1098,7 @@ def create_crawler_with_optimizations(
 ) -> Crawler:
     """
     Create an optimized crawler instance
-    
+
     :param spider_cls: Spider class
     :param settings: Settings manager
     :param optimization_kwargs: Optimization parameters
@@ -1056,7 +1122,7 @@ def create_process_with_large_scale_config(
 ) -> CrawlerProcess:
     """
     Create a process manager that supports large-scale optimization
-    
+
     :param config_type: Configuration type ('conservative', 'balanced', 'aggressive', 'memory_optimized')
     :param concurrency: Concurrency count
     :param kwargs: Other parameters

@@ -28,8 +28,16 @@ class OffsiteMiddleware:
         创建中间件实例
         从爬虫设置中获取允许的域名列表
         """
-        # 从爬虫设置中获取允许的域名
-        allowed_domains = crawler.settings.get_list('ALLOWED_DOMAINS')
+        # 优先使用 Spider 实例的 allowed_domains，回退到全局设置中的 ALLOWED_DOMAINS
+        allowed_domains = []
+        
+        # 检查当前爬虫实例是否有 allowed_domains 属性
+        if hasattr(crawler, 'spider') and crawler.spider and hasattr(crawler.spider, 'allowed_domains'):
+            allowed_domains = getattr(crawler.spider, 'allowed_domains', [])
+        
+        # 如果 Spider 实例没有设置 allowed_domains，则从全局设置中获取
+        if not allowed_domains:
+            allowed_domains = crawler.settings.get_list('ALLOWED_DOMAINS')
         
         # 如果没有配置允许的域名，则禁用此中间件
         if not allowed_domains:
@@ -45,7 +53,8 @@ class OffsiteMiddleware:
         # 编译域名正则表达式以提高性能
         o._compile_domains()
         
-        crawler.logger.info(f"OffsiteMiddleware已启用，允许的域名: {allowed_domains}")
+        # 使用中间件自己的logger而不是crawler.logger
+        o.logger.info(f"OffsiteMiddleware已启用，允许的域名: {allowed_domains}")
         return o
 
     def _compile_domains(self):

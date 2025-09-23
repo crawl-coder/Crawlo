@@ -48,7 +48,18 @@ QUEUE_TYPE = 'auto'
 # 默认使用内存过滤器和去重管道，确保在无Redis环境下也能正常运行
 # 在auto模式下，如果Redis可用，框架会自动更新为Redis实现以提供更好的去重能力
 DEFAULT_DEDUP_PIPELINE = 'crawlo.pipelines.memory_dedup_pipeline.MemoryDedupPipeline' 
-FILTER_CLASS = 'crawlo.filters.memory_filter.MemoryFilter'  
+FILTER_CLASS = 'crawlo.filters.memory_filter.MemoryFilter'
+
+
+MYSQL_HOST = '127.0.0.1'
+MYSQL_PORT = 3306
+MYSQL_USER = 'root'
+MYSQL_PASSWORD = '123456'
+MYSQL_DB = 'crawl_pro'
+MYSQL_TABLE = 'crawlo'
+MYSQL_BATCH_SIZE = 100
+MYSQL_USE_BATCH = False  # 是否启用批量插入
+
 
 # --- Redis 过滤器配置 ---
 # 使用环境变量配置工具获取 Redis 配置
@@ -85,7 +96,6 @@ MIDDLEWARES = [
     'crawlo.middleware.request_ignore.RequestIgnoreMiddleware',  # 1. 忽略无效请求
     'crawlo.middleware.download_delay.DownloadDelayMiddleware',  # 2. 控制请求频率
     'crawlo.middleware.default_header.DefaultHeaderMiddleware',  # 3. 添加默认请求头
-    # 'crawlo.middleware.proxy.ProxyMiddleware',  # 4. 设置代理（默认不启用）
     'crawlo.middleware.offsite.OffsiteMiddleware',  # 5. 站外请求过滤
 
     # === 响应处理阶段 ===
@@ -98,8 +108,7 @@ MIDDLEWARES = [
 
 # 框架数据处理管道列表（框架默认管道 + 用户自定义管道）
 PIPELINES = [
-    'crawlo.pipelines.console_pipeline.ConsolePipeline',  # 控制台输出
-    # 'crawlo.pipelines.mysql_pipeline.AsyncmyMySQLPipeline',     # MySQL 存储（可选）
+    'crawlo.pipelines.console_pipeline.ConsolePipeline',
 ]
 
 # 明确添加默认去重管道到管道列表开头

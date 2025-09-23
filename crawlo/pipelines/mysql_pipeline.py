@@ -7,6 +7,7 @@ from typing import Optional, List, Dict
 from crawlo.exceptions import ItemDiscard
 from crawlo.utils.db_helper import make_insert_sql, make_batch_sql
 from crawlo.utils.log import get_logger
+from . import BasePipeline
 
 
 class AsyncmyMySQLPipeline:
@@ -200,7 +201,7 @@ class AiomysqlMySQLPipeline:
         crawler.subscriber.subscribe(self.spider_closed, event='spider_closed')
 
     @classmethod
-    def create_instance(cls, crawler):
+    def from_crawler(cls, crawler):
         return cls(crawler)
 
     async def _init_pool(self):
@@ -213,12 +214,12 @@ class AiomysqlMySQLPipeline:
                 try:
                     self.pool = await aiomysql.create_pool(
                         host=self.settings.get('MYSQL_HOST', 'localhost'),
-                        port=self.settings.getint('MYSQL_PORT', 3306),
+                        port=self.settings.get_int('MYSQL_PORT', 3306),
                         user=self.settings.get('MYSQL_USER', 'root'),
                         password=self.settings.get('MYSQL_PASSWORD', ''),
                         db=self.settings.get('MYSQL_DB', 'scrapy_db'),
-                        minsize=self.settings.getint('MYSQL_POOL_MIN', 2),
-                        maxsize=self.settings.getint('MYSQL_POOL_MAX', 5),
+                        minsize=self.settings.get_int('MYSQL_POOL_MIN', 2),
+                        maxsize=self.settings.get_int('MYSQL_POOL_MAX', 5),
                         cursorclass=aiomysql.DictCursor,
                         autocommit=False
                     )

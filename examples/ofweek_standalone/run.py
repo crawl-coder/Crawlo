@@ -4,23 +4,10 @@
 单机模式运行脚本
 适用于开发测试和小规模数据采集
 """
-
-import sys
-import os
 import asyncio
-
-# 禁用输出缓冲
-sys.stdout.flush()
-
-# 添加项目根目录到 Python 路径
-project_root = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, project_root)
-
-# 切换到项目根目录
-os.chdir(project_root)
+import sys
 
 from crawlo.crawler import CrawlerProcess
-from crawlo.utils.log import get_logger
 
 
 def main():
@@ -31,12 +18,11 @@ def main():
         spider_modules = ['ofweek_standalone.spiders']
         process = CrawlerProcess(spider_modules=spider_modules)
         
-        # 在CrawlerProcess创建之后创建logger，确保LoggerManager已经被配置
-        logger = get_logger(name='ofweek_standalone')
-        logger.debug("🚀 启动 OfweekSpider (单机模式)")
-        
-        print("✅ 爬虫进程初始化成功")
-        sys.stdout.flush()
+        # 添加调试信息
+        print("MIDDLEWARES配置详情:")
+        print("默认MIDDLEWARES:", process.settings.attributes.get('MIDDLEWARES', []))
+        print("实际启用的MIDDLEWARES:", process.settings.get_list('MIDDLEWARES'))
+        print()
         
         # 运行固定的爬虫
         asyncio.run(process.crawl('of_week_standalone'))

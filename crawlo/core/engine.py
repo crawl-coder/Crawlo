@@ -75,8 +75,7 @@ class Engine(object):
             version = '1.0.0'
         # Change INFO level log to DEBUG level to avoid duplication with CrawlerProcess startup log
         self.logger.debug(
-            f"Crawlo Started version {version} . "
-            # f"(project name : {self.settings.get('PROJECT_NAME')})"
+            f"Crawlo Started version {version}"
         )
 
     async def start_spider(self, spider):
