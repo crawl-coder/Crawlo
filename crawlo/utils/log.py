@@ -16,12 +16,13 @@ class LoggerManager:
     """日志管理器，提供统一的日志配置和获取接口"""
     logger_cache = {}
     _default_filename = None
-    _default_level = DEBUG  # 设置为最低级别，由handler控制实际输出
-    _default_file_level = DEBUG  # 默认为DEBUG级别，确保所有INFO级别日志都能写入文件
-    _default_console_level = DEBUG  # 默认为DEBUG级别
+    _default_level = INFO  # 默认级别改为INFO，而不是DEBUG
+    _default_file_level = INFO  # 默认为INFO级别
+    _default_console_level = INFO  # 默认为INFO级别
     _default_log_format = LOG_FORMAT
     _default_encoding = 'utf-8'
     _configured = False  # 标记是否已配置
+    _module_levels = {}  # 存储特定模块的日志级别
 
     @classmethod
     def _to_level(cls, level):
@@ -64,6 +65,9 @@ class LoggerManager:
         # 根据项目规范，已完全移除LOG_CONSOLE_LEVEL支持，统一使用LOG_LEVEL控制控制台和文件的日志输出级别
         log_format = get_val('LOG_FORMAT', LOG_FORMAT)
         encoding = get_val('LOG_ENCODING', 'utf-8')
+        
+        # 获取特定模块的日志级别配置
+        module_levels = get_val('LOG_LEVELS', {})
 
         cls._default_filename = filename
         cls._default_level = cls._to_level(level)
@@ -72,8 +76,12 @@ class LoggerManager:
         cls._default_console_level = cls._default_level
         cls._default_log_format = log_format
         cls._default_encoding = encoding
+        cls._module_levels = module_levels
 
         cls._configured = True
+        
+        # 更新所有已缓存的logger
+        cls._update_all_loggers()
 
     @classmethod
     def get_logger(cls, name='default', level=None, filename=None):
@@ -85,8 +93,8 @@ class LoggerManager:
         if level is not None:
             final_level = cls._to_level(level)
         else:
-            # Logger级别设置为DEBUG（最低级别），由handler控制实际输出
-            final_level = DEBUG
+            # 检查是否有针对此模块的特定日志级别配置
+            final_level = cls._get_module_level(name)
 
         final_filename = filename if filename is not None else cls._default_filename
 
@@ -99,13 +107,12 @@ class LoggerManager:
         key = '|'.join(key_parts)  # 如 "my_spider|20|logs/app.log"
 
         if key in cls.logger_cache:
-            # 更新logger级别
-            cls.logger_cache[key].setLevel(final_level)
             return cls.logger_cache[key]
 
         # 创建 logger
         _logger = Logger(name=name)
-        _logger.setLevel(final_level)
+        # 设置logger的级别为最低级别，让handler控制实际输出
+        _logger.setLevel(DEBUG)
 
         formatter = Formatter(cls._default_log_format)
 
@@ -113,7 +120,9 @@ class LoggerManager:
         if cls._default_console_level is not False:
             ch = StreamHandler()
             ch.setFormatter(formatter)
-            ch.setLevel(cls._default_console_level)
+            # 为控制台handler使用模块特定级别或默认级别
+            console_level = cls._get_module_level(name, cls._default_console_level)
+            ch.setLevel(console_level)
             _logger.addHandler(ch)
 
         # 文件
@@ -127,7 +136,9 @@ class LoggerManager:
                 fh = FileHandler(final_filename, mode='a', encoding=cls._default_encoding)
 
                 fh.setFormatter(formatter)
-                fh.setLevel(cls._default_file_level)
+                # 为文件handler使用模块特定级别或默认级别
+                file_level = cls._get_module_level(name, cls._default_file_level)
+                fh.setLevel(file_level)
                 _logger.addHandler(fh)
             except (PermissionError, FileNotFoundError) as e:
                 print(f"[Logger] 无法创建日志文件 {final_filename}: {e}")
@@ -142,6 +153,48 @@ class LoggerManager:
         """检查日志系统是否已配置"""
         return cls._configured
 
+    @classmethod
+    def _update_all_loggers(cls):
+        """更新所有已缓存的logger"""
+        for logger in cls.logger_cache.values():
+            cls._update_logger_handlers(logger)
+            
+    @classmethod
+    def _update_logger_handlers(cls, logger):
+        """更新logger的handler级别"""
+        # 更新控制台handler级别
+        for handler in logger.handlers:
+            if isinstance(handler, StreamHandler) and not isinstance(handler, FileHandler):
+                # 为控制台handler使用模块特定级别或默认级别
+                console_level = cls._get_module_level(logger.name, cls._default_console_level)
+                handler.setLevel(console_level)
+            elif isinstance(handler, FileHandler):
+                # 为文件handler使用模块特定级别或默认级别
+                file_level = cls._get_module_level(logger.name, cls._default_file_level)
+                handler.setLevel(file_level)
+                
+    @classmethod
+    def _get_module_level(cls, module_name, default_level=None):
+        """获取模块的特定日志级别"""
+        if not cls._module_levels:
+            return default_level or cls._default_level
+            
+        # 查找最匹配的模块级别配置
+        # 例如，对于模块名 'crawlo.crawler'，会检查:
+        # 1. 'crawlo.crawler'
+        # 2. 'crawlo'
+        # 3. 默认级别
+        current_module = module_name
+        while current_module:
+            if current_module in cls._module_levels:
+                return cls._to_level(cls._module_levels[current_module])
+            # 尝试父模块
+            if '.' in current_module:
+                current_module = '.'.join(current_module.split('.')[:-1])
+            else:
+                break
+                
+        return default_level or cls._default_level
 
 # 全局快捷函数
 get_logger = LoggerManager.get_logger

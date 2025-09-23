@@ -2,8 +2,15 @@ from typing import Any
 from crawlo.exceptions import NotConfigured
 from crawlo.utils.log import LoggerManager
 
-# 使用全局logger，避免每个模块都创建自己的延迟初始化函数
-logger = LoggerManager.get_logger(__name__)
+# 延迟获取logger，确保在日志系统配置之后获取
+_logger = None
+
+def logger():
+    """延迟获取logger实例，确保在日志系统配置之后获取"""
+    global _logger
+    if _logger is None:
+        _logger = LoggerManager.get_logger(__name__)
+    return _logger
 
 
 class CustomLoggerExtension:
@@ -36,7 +43,7 @@ class CustomLoggerExtension:
     def spider_opened(self, spider: Any) -> None:
         logger = LoggerManager.get_logger(__name__)
         try:
-            logger.info(
+            logger().info(
                 f"CustomLoggerExtension: Logging initialized. "
                 f"LOG_FILE={self.settings.get('LOG_FILE')}, "
                 f"LOG_LEVEL={self.settings.get('LOG_LEVEL')}"

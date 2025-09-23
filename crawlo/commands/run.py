@@ -24,7 +24,15 @@ from crawlo.project import get_settings, _find_project_root
 # 使用自定义日志系统
 from crawlo.utils.log import get_logger
 
-logger = get_logger(__name__)
+# 延迟获取logger，确保在日志系统配置之后获取
+_logger = None
+
+def logger():
+    """延迟获取logger实例，确保在日志系统配置之后获取"""
+    global _logger
+    if _logger is None:
+        _logger = get_logger(__name__)
+    return _logger
 
 console = Console()
 
@@ -79,7 +87,7 @@ def main(args):
         crawlo run <spider_name>|all [--json] [--no-stats]
     """
     # 添加调试信息
-    logger.debug("DEBUG: 进入main函数")
+    logger().debug("DEBUG: 进入main函数")
     
     if len(args) < 1:
         console.print("[bold red]用法:[/bold red] [blue]crawlo run[/blue] <爬虫名称>|all [bold yellow][--json] [--no-stats][/bold yellow]")
@@ -298,7 +306,7 @@ def main(args):
             console.print(f"[bold yellow]{msg}[/bold yellow]")
         return 1
     except Exception as e:
-        logger.exception("Exception during 'crawlo run'")
+        logger().exception("Exception during 'crawlo run'")
         msg = f"意外错误: {e}"
         if show_json:
             console.print_json(data={"success": False, "error": msg})

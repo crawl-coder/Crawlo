@@ -61,7 +61,7 @@ MYSQL_BATCH_SIZE = 100
 MYSQL_USE_BATCH = False  # 是否启用批量插入
 
 
-# --- Redis 过滤器配置 ---
+# --- Redis 过滤器配置 --- 
 # 使用环境变量配置工具获取 Redis 配置
 redis_config = get_redis_config()
 REDIS_HOST = redis_config['REDIS_HOST']
@@ -126,7 +126,7 @@ EXTENSIONS = [
 
 # ============================== 日志与监控 ==============================
 
-LOG_LEVEL = 'DEBUG'  # 日志级别: DEBUG/INFO/WARNING/ERROR
+LOG_LEVEL = 'DEBUG'  # 日志级别: DEBUG/INFO/WARNING/ERROR，改为INFO级别
 STATS_DUMP = True  # 是否周期性输出统计信息
 LOG_FILE = f'logs/{PROJECT_NAME}.log'  # 日志文件路径
 LOG_FORMAT = '%(asctime)s - [%(name)s] - %(levelname)s: %(message)s'

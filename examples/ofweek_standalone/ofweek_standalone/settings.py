@@ -50,9 +50,9 @@ DEFAULT_DEDUP_PIPELINE = 'crawlo.pipelines.memory_dedup_pipeline.MemoryDedupPipe
 SPIDER_MODULES = ['ofweek_standalone.spiders']
 
 # ============================== 中间件 ==============================
-MIDDLEWARES = [
-    'crawlo.middleware.simple_proxy.SimpleProxyMiddleware',
-]
+# MIDDLEWARES = [
+#     'crawlo.middleware.simple_proxy.SimpleProxyMiddleware',
+# ]
 
 # ============================== 默认请求头配置 ==============================
 # 为DefaultHeaderMiddleware配置默认请求头
@@ -81,6 +81,7 @@ PIPELINES = [
 # ============================== 日志配置 ==============================
 LOG_LEVEL = 'INFO'
 LOG_FILE = 'logs/ofweek_standalone.log'
+LOG_ENCODING = 'utf-8'  # 明确指定日志文件编码
 STATS_DUMP = True
 
 # ============================== 输出配置 ==============================

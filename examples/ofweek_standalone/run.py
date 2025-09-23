@@ -17,13 +17,7 @@ def main():
         # 确保 spider 模块被正确导入
         spider_modules = ['ofweek_standalone.spiders']
         process = CrawlerProcess(spider_modules=spider_modules)
-        
-        # 添加调试信息
-        print("MIDDLEWARES配置详情:")
-        print("默认MIDDLEWARES:", process.settings.attributes.get('MIDDLEWARES', []))
-        print("实际启用的MIDDLEWARES:", process.settings.get_list('MIDDLEWARES'))
-        print()
-        
+
         # 运行固定的爬虫
         asyncio.run(process.crawl('of_week_standalone'))
         
