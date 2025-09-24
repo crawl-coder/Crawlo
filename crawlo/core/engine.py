@@ -1,6 +1,7 @@
 #!/usr/bin/python
 # -*- coding:UTF-8 -*-
 import asyncio
+import time
 from inspect import iscoroutine
 from typing import Optional, Generator, Callable
 
@@ -34,8 +35,8 @@ class Engine(object):
         # Enhanced control parameters
         self.max_queue_size = self.settings.get_int('SCHEDULER_MAX_QUEUE_SIZE', 200)
         self.generation_batch_size = self.settings.get_int('REQUEST_GENERATION_BATCH_SIZE', 10)
-        self.generation_interval = self.settings.get_float('REQUEST_GENERATION_INTERVAL', 0.05)
-        self.backpressure_ratio = self.settings.get_float('BACKPRESSURE_RATIO', 0.8)  # Start backpressure when queue reaches 80%
+        self.generation_interval = self.settings.get_float('REQUEST_GENERATION_INTERVAL', 0.01)  # 优化默认值
+        self.backpressure_ratio = self.settings.get_float('BACKPRESSURE_RATIO', 0.9)  # 优化默认值
         
         # State tracking
         self._generation_paused = False
@@ -149,20 +150,25 @@ class Engine(object):
             
             # 主爬取循环
             loop_count = 0
+            last_exit_check = 0  # 记录上次检查退出条件的时间
+            exit_check_interval = 1  # 每1次循环检查一次退出条件，进一步提高检查频率
+            
             while self.running:
                 loop_count += 1
                 # 获取并处理请求
                 if request := await self._get_next_request():
                     await self._crawl(request)
                 
-                # 检查退出条件
-                should_exit = await self._should_exit()
-                if should_exit:
-                    self.logger.debug("满足退出条件，准备退出循环")
-                    break
+                # 优化退出条件检查频率
+                if loop_count - last_exit_check >= exit_check_interval:
+                    should_exit = await self._should_exit()
+                    if should_exit:
+                        self.logger.debug("满足退出条件，准备退出循环")
+                        break
+                    last_exit_check = loop_count
                 
-                # 短暂休息避免忙等
-                await asyncio.sleep(0.001)
+                # 短暂休息避免忙等，但减少休息时间以提高效率
+                await asyncio.sleep(0.000001)  # 从0.00001减少到0.000001
             
             self.logger.debug(f"主爬取循环结束，总共执行了 {loop_count} 次")
         
@@ -204,7 +210,8 @@ class Engine(object):
                 self.running = False
                 if self.start_requests is not None:
                     self.logger.error(f"Error occurred while starting request: {str(exp)}")
-            await asyncio.sleep(0.001)
+            # 减少等待时间以提高效率
+            await asyncio.sleep(0.00001)  # 从0.0001减少到0.00001
         self.logger.debug(f"传统请求生成完成，总共处理了 {processed_count} 个请求")
 
     async def _controlled_request_generation(self):
@@ -250,14 +257,14 @@ class Engine(object):
             
             # 等待队列有空间
             while await self._is_queue_full() and self.running:
-                await asyncio.sleep(0.1)
+                await asyncio.sleep(0.01)  # 减少等待时间
             
             if self.running:
                 await self.enqueue_request(request)
                 generated += 1
                 self._generation_stats['total_generated'] += 1
             
-            # 控制生成速度
+            # 控制生成速度，但使用更小的间隔
             if self.generation_interval > 0:
                 await asyncio.sleep(self.generation_interval)
         
@@ -292,8 +299,8 @@ class Engine(object):
         self._generation_stats['backpressure_events'] += 1
         self.logger.debug("Backpressure triggered, pausing request generation")
         
-        wait_time = 0.1
-        max_wait = 2.0
+        wait_time = 0.01  # 减少初始等待时间
+        max_wait = 1.0  # 减少最大等待时间
         
         while await self._should_pause_generation() and self.running:
             await asyncio.sleep(wait_time)
@@ -305,10 +312,15 @@ class Engine(object):
         await self.crawl()
 
     async def _crawl(self, request):
-        # TODO 实现并发
         async def crawl_task():
+            start_time = time.time()
             try:
                 outputs = await self._fetch(request)
+                # 记录响应时间
+                response_time = time.time() - start_time
+                if self.task_manager:
+                    self.task_manager.record_response_time(response_time)
+                
                 # TODO 处理output
                 if outputs:
                     await self._handle_spider_output(outputs)
@@ -393,8 +405,7 @@ class Engine(object):
                 downloader_idle and 
                 task_manager_done and 
                 processor_idle):
-                # 增加额外检查确保所有任务都完成
-                await asyncio.sleep(0.1)  # 短暂等待确保没有新的任务加入
+                # 立即进行二次检查，不等待
                 scheduler_idle = await self.scheduler.async_idle() if hasattr(self.scheduler, 'async_idle') else self.scheduler.idle()
                 downloader_idle = self.downloader.idle()
                 task_manager_done = self.task_manager.all_done()

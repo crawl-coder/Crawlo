@@ -8,10 +8,10 @@ from crawlo.utils.env_config import get_redis_config, get_runtime_config, get_ve
 
 # 框架初始化控制
 FRAMEWORK_INIT_ORDER = [
-    'log_system',      # 日志系统
+    'log_system',  # 日志系统
     'settings_system',  # 配置系统
     'core_components',  # 核心组件
-    'extensions',      # 扩展组件
+    'extensions',  # 扩展组件
     'full_initialization'  # 完全初始化
 ]
 FRAMEWORK_INIT_STATE = 'uninitialized'
@@ -31,7 +31,7 @@ VERSION = get_version()
 # 运行模式：standalone/distributed/auto
 RUN_MODE = get_runtime_config()['CRAWLO_MODE']
 
-# 并发数配置
+# 并发数配置 - 优化默认值以提高性能
 CONCURRENCY = get_runtime_config()['CONCURRENCY']
 
 # ============================== 爬虫核心配置 ==============================
@@ -39,8 +39,8 @@ CONCURRENCY = get_runtime_config()['CONCURRENCY']
 # 默认下载器
 DOWNLOADER = "crawlo.downloader.httpx_downloader.HttpXDownloader"
 
-# 请求延迟（秒）
-DOWNLOAD_DELAY = 1
+# 请求延迟（秒）- 优化默认值以提高性能
+DOWNLOAD_DELAY = 0.5
 
 # 随机延迟配置
 RANDOMNESS = False  # 是否启用随机延迟
@@ -49,11 +49,15 @@ RANDOM_RANGE = [0.5, 1.5]  # 随机延迟范围因子，实际延迟 = DOWNLOAD_
 # 深度优先级（负数表示深度优先，正数表示广度优先）
 DEPTH_PRIORITY = 1
 
-# 调度器队列最大大小
-SCHEDULER_MAX_QUEUE_SIZE = 10000
-# 背压控制配置
-BACKPRESSURE_RATIO = 0.8  # 背压触发阈值（队列大小达到最大容量的80%时触发背压控制）
+# 调度器队列最大大小 - 优化默认值以提高性能
+SCHEDULER_MAX_QUEUE_SIZE = 5000
+# 背压控制配置 - 优化默认值以提高性能
+BACKPRESSURE_RATIO = 0.9  # 背压触发阈值（队列大小达到最大容量的90%时触发背压控制）
 
+# 请求生成控制
+REQUEST_GENERATION_BATCH_SIZE = 10  # 请求生成批处理大小
+REQUEST_GENERATION_INTERVAL = 0.01  # 请求生成间隔（秒）
+ENABLE_CONTROLLED_REQUEST_GENERATION = False  # 是否启用受控请求生成
 
 # 调度器队列名称（遵循统一命名规范）
 SCHEDULER_QUEUE_NAME = f"crawlo:{PROJECT_NAME}:queue:requests"
@@ -61,12 +65,14 @@ SCHEDULER_QUEUE_NAME = f"crawlo:{PROJECT_NAME}:queue:requests"
 # 队列类型：memory/redis/auto
 QUEUE_TYPE = 'auto'
 
+# 队列配置
+QUEUE_MAX_RETRIES = 3  # 队列操作最大重试次数
+QUEUE_TIMEOUT = 300  # 队列操作超时时间（秒）
 
 # 默认使用内存过滤器和去重管道，确保在无Redis环境下也能正常运行
 # 在auto模式下，如果Redis可用，框架会自动更新为Redis实现以提供更好的去重能力
-DEFAULT_DEDUP_PIPELINE = 'crawlo.pipelines.memory_dedup_pipeline.MemoryDedupPipeline' 
+DEFAULT_DEDUP_PIPELINE = 'crawlo.pipelines.memory_dedup_pipeline.MemoryDedupPipeline'
 FILTER_CLASS = 'crawlo.filters.memory_filter.MemoryFilter'
-
 
 MYSQL_HOST = '127.0.0.1'
 MYSQL_PORT = 3306
@@ -77,8 +83,7 @@ MYSQL_TABLE = 'crawlo'
 MYSQL_BATCH_SIZE = 100
 MYSQL_USE_BATCH = False  # 是否启用批量插入
 
-
-# --- Redis 过滤器配置 --- 
+# --- Redis 过滤器配置 ---
 # 使用环境变量配置工具获取 Redis 配置
 redis_config = get_redis_config()
 REDIS_HOST = redis_config['REDIS_HOST']
@@ -128,10 +133,6 @@ PIPELINES = [
     'crawlo.pipelines.console_pipeline.ConsolePipeline',
 ]
 
-# 明确添加默认去重管道到管道列表开头
-# 注意：此操作已移至SettingManager中处理，避免重复插入
-# PIPELINES.insert(0, DEFAULT_DEDUP_PIPELINE)
-
 # ============================== 框架默认扩展配置 ==============================
 
 # 框架扩展组件列表（框架默认扩展 + 用户自定义扩展）
@@ -168,6 +169,8 @@ PROXY_EXTRACTOR = "proxy"
 # 代理刷新控制
 PROXY_REFRESH_INTERVAL = 60  # 代理刷新间隔（秒）
 PROXY_API_TIMEOUT = 10  # 请求代理 API 超时时间
+PROXY_POOL_SIZE = 5  # 代理池大小
+PROXY_HEALTH_CHECK_THRESHOLD = 0.5  # 代理健康检查阈值
 
 # ============================== Curl-Cffi 特有配置 ==============================
 
@@ -199,6 +202,17 @@ HTTPX_FOLLOW_REDIRECTS = True  # 是否自动跟随重定向
 # AioHttp 下载器专用配置
 AIOHTTP_AUTO_DECOMPRESS = True  # 是否自动解压响应
 AIOHTTP_FORCE_CLOSE = False  # 是否强制关闭连接
+
+# 通用下载器配置
+DOWNLOAD_TIMEOUT = 30  # 下载超时时间（秒）
+VERIFY_SSL = True  # 是否验证SSL证书
+CONNECTION_POOL_LIMIT = 100  # 连接池大小限制
+CONNECTION_POOL_LIMIT_PER_HOST = 20  # 每个主机的连接池大小限制
+DOWNLOAD_MAXSIZE = 10 * 1024 * 1024  # 最大下载大小（字节）
+DOWNLOAD_STATS = True  # 是否启用下载统计
+DOWNLOAD_WARN_SIZE = 1024 * 1024  # 下载警告大小（字节）
+DOWNLOAD_RETRY_TIMES = 3  # 下载重试次数
+MAX_RETRY_TIMES = 3  # 最大重试次数
 
 # ============================== Selenium 下载器配置 ==============================
 
@@ -240,3 +254,68 @@ MEMORY_MONITOR_ENABLED = False  # 是否启用内存监控
 MEMORY_MONITOR_INTERVAL = 60  # 内存监控检查间隔（秒）
 MEMORY_WARNING_THRESHOLD = 80.0  # 内存使用率警告阈值（百分比）
 MEMORY_CRITICAL_THRESHOLD = 90.0  # 内存使用率严重阈值（百分比）
+
+# ============================== 性能分析配置 ==============================
+
+# 性能分析扩展默认不启用
+PERFORMANCE_PROFILER_ENABLED = False  # 是否启用性能分析
+PERFORMANCE_PROFILER_OUTPUT_DIR = 'profiling'  # 性能分析输出目录
+PERFORMANCE_PROFILER_INTERVAL = 300  # 性能分析间隔（秒）
+
+# ============================== 健康检查配置 ==============================
+
+# 健康检查扩展默认启用
+HEALTH_CHECK_ENABLED = True  # 是否启用健康检查
+
+# ============================== 日志间隔配置 ==============================
+
+# 日志间隔扩展配置
+INTERVAL = 60  # 日志输出间隔（秒）
+
+# ============================== 自定义日志配置 ==============================
+
+# 自定义日志扩展配置
+LOG_ENABLE_CUSTOM = False  # 是否启用自定义日志
+
+# ============================== 默认请求头配置 ==============================
+
+# 默认请求头配置
+DEFAULT_REQUEST_HEADERS = {}  # 默认请求头
+USER_AGENT = None  # 用户代理
+USER_AGENTS = []  # 用户代理列表
+RANDOM_HEADERS = {}  # 随机请求头
+RANDOM_USER_AGENT_ENABLED = False  # 是否启用随机用户代理
+USER_AGENT_DEVICE_TYPE = "all"  # 用户代理设备类型
+
+# ============================== 站外过滤配置 ==============================
+
+# 站外过滤配置
+ALLOWED_DOMAINS = []  # 允许的域名列表
+
+# ============================== Bloom过滤器配置 ==============================
+
+# Bloom过滤器配置
+BLOOM_FILTER_CAPACITY = 1000000  # Bloom过滤器容量
+BLOOM_FILTER_ERROR_RATE = 0.001  # Bloom过滤器错误率
+
+# ============================== CSV管道配置 ==============================
+
+# CSV管道配置
+CSV_DELIMITER = ','  # CSV分隔符
+CSV_QUOTECHAR = '"'  # CSV引号字符
+CSV_INCLUDE_HEADERS = True  # 是否包含表头
+CSV_EXTRASACTION = 'ignore'  # 额外字段处理方式：ignore, raise
+CSV_FIELDNAMES = None  # 字段名列表
+CSV_FILE = None  # CSV文件路径
+CSV_DICT_FILE = None  # CSV字典文件路径
+CSV_BATCH_SIZE = 100  # CSV批处理大小
+CSV_BATCH_FILE = None  # CSV批处理文件路径
+
+# ============================== 数据库去重管道配置 ==============================
+
+# 数据库去重管道配置
+DB_HOST = 'localhost'  # 数据库主机
+DB_PORT = 3306  # 数据库端口
+DB_USER = 'root'  # 数据库用户
+DB_PASSWORD = ''  # 数据库密码
+DB_NAME = 'crawlo'  # 数据库名称

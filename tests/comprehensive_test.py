@@ -2,100 +2,81 @@
 # -*- coding: utf-8 -*-
 """
 综合测试脚本
-测试框架的核心功能
+测试Crawlo框架的所有优化功能
 """
-
+import asyncio
 import sys
 import os
-import asyncio
+
+# 添加项目根目录到Python路径
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
-from crawlo.spider import Spider
-from crawlo import Request
+from crawlo import Spider, Request
+from crawlo.crawler import CrawlerProcess
 
 
-class TestSpider(Spider):
-    """测试爬虫"""
-    name = 'comprehensive_test_spider'
+class ComprehensiveSpider(Spider):
+    name = 'comprehensive_test'
     
     def start_requests(self):
-        """发起测试请求"""
-        # 生成一些测试请求
-        for i in range(3):
-            yield Request(f'https://httpbin.org/get?page={i}', callback=self.parse)
+        # 测试多个URL
+        urls = [
+            'https://www.baidu.com/',
+            'https://www.baidu.com/s?wd=python',
+            'https://www.baidu.com/s?wd=爬虫',
+            'https://www.baidu.com/s?wd=框架',
+            'https://www.baidu.com/s?wd=异步',
+        ]
+        
+        for i, url in enumerate(urls):
+            # 设置不同的优先级
+            priority = -i  # 负数表示优先级，数值越小优先级越高
+            yield Request(url, callback=self.parse, priority=priority)
     
     def parse(self, response):
-        """解析响应"""
-        print(f"成功获取响应: {response.url}")
-        print(f"状态码: {response.status_code}")
-        return []
+        self.logger.info(f"访问URL: {response.url}")
+        self.logger.info(f"响应状态码: {response.status_code}")
+        self.logger.info(f"页面标题: {response.xpath('//title/text()').get()}")
+        
+        # 提取一些链接用于进一步测试
+        links = response.xpath('//a/@href').getall()[:3]  # 只取前3个链接
+        
+        # 跟进链接，设置不同的深度
+        for link in links:
+            if link.startswith('http'):
+                # 创建新的请求，增加深度
+                meta = response.meta.copy()
+                meta['depth'] = meta.get('depth', 0) + 1
+                yield Request(link, callback=self.parse_link, meta=meta)
+    
+    def parse_link(self, response):
+        self.logger.info(f"跟进链接: {response.url}")
+        self.logger.info(f"响应状态码: {response.status_code}")
+        self.logger.info(f"页面深度: {response.meta.get('depth', 0)}")
 
 
-async def test_framework_features():
-    """测试框架功能"""
-    print("开始综合测试...")
+async def main():
+    # 创建爬虫进程
+    process = CrawlerProcess(settings={
+        'CONCURRENCY': 4,  # 设置并发数
+        'DOWNLOAD_DELAY': 0.5,  # 设置下载延迟
+        'LOG_LEVEL': 'INFO',  # 设置日志级别
+        'SCHEDULER_MAX_QUEUE_SIZE': 100,  # 设置队列最大大小
+    })
     
-    # 1. 测试框架初始化
-    print("\n1. 测试框架初始化...")
-    from crawlo.initialization import initialize_framework
+    # 运行爬虫
+    await process.crawl(ComprehensiveSpider)
     
-    # 测试默认配置
-    settings = initialize_framework()
-    print(f"默认配置 - RUN_MODE: {settings.get('RUN_MODE')}")
-    print(f"默认配置 - QUEUE_TYPE: {settings.get('QUEUE_TYPE')}")
-    
-    # 2. 测试自定义配置
-    print("\n2. 测试自定义配置...")
-    custom_settings = {
-        'RUN_MODE': 'distributed',
-        'QUEUE_TYPE': 'memory',  # 使用内存队列进行测试
-        'PROJECT_NAME': 'comprehensive_test'
-    }
-    
-    # 重新初始化框架
-    settings = initialize_framework(custom_settings)
-    print(f"自定义配置 - RUN_MODE: {settings.get('RUN_MODE')}")
-    print(f"自定义配置 - QUEUE_TYPE: {settings.get('QUEUE_TYPE')}")
-    
-    # 3. 测试爬虫运行
-    print("\n3. 测试爬虫运行...")
-    from crawlo.crawler import CrawlerProcess
-    process = CrawlerProcess(settings=settings)
-    await process.crawl(TestSpider)
-    
-    # 4. 测试队列系统
-    print("\n4. 测试队列系统...")
-    from crawlo.queue.queue_manager import QueueConfig, QueueManager
-    
-    # 创建队列配置
-    queue_config = QueueConfig(
-        queue_type='memory',
-        max_queue_size=5
-    )
-    
-    # 创建队列管理器
-    queue_manager = QueueManager(queue_config)
-    await queue_manager.initialize()
-    
-    # 测试添加请求
-    request = Request('https://example.com/test')
-    success = await queue_manager.put(request)
-    print(f"添加请求到队列: {'成功' if success else '失败'}")
-    
-    # 测试获取请求
-    retrieved_request = await queue_manager.get(timeout=1.0)
-    print(f"从队列获取请求: {'成功' if retrieved_request else '失败'}")
-    
-    # 关闭队列
-    await queue_manager.close()
-    
-    print("\n综合测试完成！")
+    # 输出统计信息
+    if hasattr(process, 'get_metrics'):
+        metrics = process.get_metrics()
+        print(f"\n=== 爬虫统计信息 ===")
+        print(f"总执行时间: {metrics.get('total_duration', 0):.2f}秒")
+        print(f"总请求数: {metrics.get('total_requests', 0)}")
+        print(f"成功请求数: {metrics.get('total_success', 0)}")
+        print(f"错误请求数: {metrics.get('total_errors', 0)}")
+        print(f"平均成功率: {metrics.get('average_success_rate', 0):.2f}%")
 
 
-def main():
-    """主函数"""
-    asyncio.run(test_framework_features())
-
-
-if __name__ == "__main__":
-    main()
+if __name__ == '__main__':
+    asyncio.run(main())

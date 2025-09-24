@@ -28,19 +28,19 @@ else:
     REDIS_URL = f'redis://{REDIS_HOST}:{REDIS_PORT}/{REDIS_DB}'
 
 # ============================== 并发配置 ==============================
-CONCURRENCY = 24
+CONCURRENCY = 32  # 从24增加到32
 MAX_RUNNING_SPIDERS = 1
-DOWNLOAD_DELAY = 1.0
+DOWNLOAD_DELAY = 0.05  # 从0.1减少到0.05秒
 
 # ============================== 下载器配置 ==============================
 DOWNLOADER = 'crawlo.downloader.aiohttp_downloader.AioHttpDownloader'
 
 # ============================== 队列配置 ==============================
 QUEUE_TYPE = 'auto'
-SCHEDULER_MAX_QUEUE_SIZE = 100  # 设置队列大小为100
+SCHEDULER_MAX_QUEUE_SIZE = 200  # 从100增加到200
 
 # ============================== 背压控制配置 ==============================
-BACKPRESSURE_RATIO = 0.8  # 背压触发阈值（队列大小达到最大容量的80%时触发背压控制）
+BACKPRESSURE_RATIO = 0.9  # 从0.8增加到0.9
 
 # ============================== 去重过滤器 ==============================
 # 使用auto模式，让框架根据Redis可用性自动选择过滤器

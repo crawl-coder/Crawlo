@@ -6,7 +6,8 @@
 """
 import asyncio
 import sys
-import os
+
+from crawlo.crawler import CrawlerProcess
 
 
 def main():
@@ -15,7 +16,6 @@ def main():
 
     try:
         # 使用框架自动处理配置
-        from crawlo.crawler import CrawlerProcess
         spider_modules = ['ofweek_standalone.spiders']
         process = CrawlerProcess(spider_modules=spider_modules)
 

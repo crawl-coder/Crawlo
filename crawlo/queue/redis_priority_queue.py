@@ -20,11 +20,13 @@ from crawlo.utils.request_serializer import RequestSerializer
 _logger = None
 _error_handler = None
 
+
 def get_module_logger():
     global _logger
     if _logger is None:
         _logger = get_logger(__name__)
     return _logger
+
 
 def get_module_error_handler():
     global _error_handler
@@ -56,14 +58,14 @@ class RedisPriorityQueue:
 
         self.redis_url = redis_url
         self.module_name = module_name  # 保存 module_name
-        
+
         # 如果未提供 queue_name，则根据 module_name 自动生成
         if queue_name is None:
             self.queue_name = f"crawlo:{module_name}:queue:requests"
         else:
             # 保持用户提供的队列名称不变，不做修改
             self.queue_name = queue_name
-        
+
         # 如果未提供 processing_queue，则根据 queue_name 自动生成
         if processing_queue is None:
             if ":queue:requests" in self.queue_name:
@@ -72,7 +74,7 @@ class RedisPriorityQueue:
                 self.processing_queue = f"{self.queue_name}:processing"
         else:
             self.processing_queue = processing_queue
-            
+
         # 如果未提供 failed_queue，则根据 queue_name 自动生成
         if failed_queue is None:
             if ":queue:requests" in self.queue_name:
@@ -81,7 +83,7 @@ class RedisPriorityQueue:
                 self.failed_queue = f"{self.queue_name}:failed"
         else:
             self.failed_queue = failed_queue
-        
+
         self.max_retries = max_retries
         self.timeout = timeout
         self.max_connections = max_connections
@@ -115,9 +117,9 @@ class RedisPriorityQueue:
                         decode_responses=False,  # 确保不自动解码响应
                         encoding='utf-8'
                     )
-                    
+
                     self._redis = await self._redis_pool.get_connection()
-                    
+
                     # 测试连接
                     await self._redis.ping()
                     # 只在调试模式下输出详细连接信息
@@ -149,10 +151,10 @@ class RedisPriorityQueue:
             await self._ensure_connection()
             score = -priority
             key = self._get_request_key(request)
-            
+
             # 🔥 使用专用的序列化工具清理 Request
             clean_request = self.request_serializer.prepare_for_serialization(request)
-            
+
             # 确保序列化后的数据可以被正确反序列化
             try:
                 serialized = pickle.dumps(clean_request)
@@ -161,19 +163,19 @@ class RedisPriorityQueue:
             except Exception as serialize_error:
                 get_module_logger().error(f"请求序列化验证失败 (Module: {self.module_name}): {serialize_error}")
                 return False
-            
+
             pipe = self._redis.pipeline()
             pipe.zadd(self.queue_name, {key: score})
             pipe.hset(f"{self.queue_name}:data", key, serialized)
             result = await pipe.execute()
-            
+
             if result[0] > 0:
                 get_module_logger().debug(f"成功入队 (Module: {self.module_name}): {request.url}")  # 注释掉重复的日志
             return result[0] > 0
         except Exception as e:
             get_module_error_handler().handle_error(
-                e, 
-                context=f"放入队列失败 (Module: {self.module_name})", 
+                e,
+                context=f"放入队列失败 (Module: {self.module_name})",
                 raise_error=False
             )
             return False
@@ -226,13 +228,13 @@ class RedisPriorityQueue:
                 if asyncio.get_event_loop().time() - start_time > timeout:
                     return None
 
-                # 短暂等待，避免空轮询
-                await asyncio.sleep(0.1)
+                # 短暂等待，避免空轮询，但减少等待时间以提高响应速度
+                await asyncio.sleep(0.001)  # 从0.01减少到0.001
 
         except Exception as e:
             get_module_error_handler().handle_error(
-                e, 
-                context=f"获取队列任务失败 (Module: {self.module_name})", 
+                e,
+                context=f"获取队列任务失败 (Module: {self.module_name})",
                 raise_error=False
             )
             return None
@@ -255,8 +257,8 @@ class RedisPriorityQueue:
                     break
         except Exception as e:
             get_module_error_handler().handle_error(
-                e, 
-                context=f"确认任务完成失败 (Module: {self.module_name})", 
+                e,
+                context=f"确认任务完成失败 (Module: {self.module_name})",
                 raise_error=False
             )
 
@@ -273,7 +275,8 @@ class RedisPriorityQueue:
 
             if retries <= self.max_retries:
                 await self.put(request, priority=request.priority + 1)
-                get_module_logger().info(f"任务重试 [{retries}/{self.max_retries}] (Module: {self.module_name}): {request.url}")
+                get_module_logger().info(
+                    f"任务重试 [{retries}/{self.max_retries}] (Module: {self.module_name}): {request.url}")
             else:
                 failed_data = {
                     "url": request.url,
@@ -286,8 +289,8 @@ class RedisPriorityQueue:
                 get_module_logger().error(f"任务彻底失败 [{retries}次] (Module: {self.module_name}): {request.url}")
         except Exception as e:
             get_module_error_handler().handle_error(
-                e, 
-                context=f"标记任务失败失败 (Module: {self.module_name})", 
+                e,
+                context=f"标记任务失败失败 (Module: {self.module_name})",
                 raise_error=False
             )
 
@@ -302,8 +305,8 @@ class RedisPriorityQueue:
             return await self._redis.zcard(self.queue_name)
         except Exception as e:
             get_module_error_handler().handle_error(
-                e, 
-                context=f"Failed to get queue size (Module: {self.module_name})", 
+                e,
+                context=f"Failed to get queue size (Module: {self.module_name})",
                 raise_error=False
             )
             return 0
@@ -317,7 +320,7 @@ class RedisPriorityQueue:
             get_module_logger().debug(f"Redis 连接已释放 (Module: {self.module_name})")
         except Exception as e:
             get_module_error_handler().handle_error(
-                e, 
-                context=f"释放 Redis 连接失败 (Module: {self.module_name})", 
+                e,
+                context=f"释放 Redis 连接失败 (Module: {self.module_name})",
                 raise_error=False
             )
