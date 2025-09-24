@@ -15,7 +15,14 @@ class RequestSerializer:
     """Request 序列化工具类"""
     
     def __init__(self):
-        self.logger = get_logger(self.__class__.__name__)
+        # 延迟初始化logger避免循环依赖
+        self._logger = None
+    
+    @property
+    def logger(self):
+        if self._logger is None:
+            self._logger = get_logger(self.__class__.__name__)
+        return self._logger
     
     def prepare_for_serialization(self, request):
         """

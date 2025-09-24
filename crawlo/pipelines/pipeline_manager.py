@@ -6,7 +6,8 @@ from asyncio import create_task
 
 from crawlo.utils.log import get_logger
 from crawlo.event import item_successful, item_discard
-from crawlo.project import load_class, common_call
+from crawlo.utils.class_loader import load_class
+from crawlo.project import common_call
 from crawlo.exceptions import PipelineInitError, ItemDiscard, InvalidOutputError
 
 

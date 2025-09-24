@@ -8,7 +8,7 @@ from typing import List, Dict, Callable, Optional
 
 from crawlo import Request, Response
 from crawlo.utils.log import get_logger
-from crawlo.project import load_class
+from crawlo.utils.class_loader import load_class
 from crawlo.middleware import BaseMiddleware
 from crawlo.project import common_call
 from crawlo.event import ignore_request, response_received

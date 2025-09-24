@@ -3,26 +3,32 @@
 """
 单机模式运行脚本
 适用于开发测试和小规模数据采集
+使用手动初始化确保稳定性
 """
 import asyncio
 import sys
 
-from crawlo.crawler import CrawlerProcess
-
-
-def main():
-    """主函数：使用单机模式配置运行爬虫"""
-    # 创建爬虫进程（自动加载默认配置）
+async def main():
+    """主函数：框架完全自动初始化版本"""
     try:
-        # 确保 spider 模块被正确导入
-        spider_modules = ['ofweek_standalone.spiders']
-        process = CrawlerProcess(spider_modules=spider_modules)
-
-        # 运行固定的爬虫
-        asyncio.run(process.crawl('of_week_standalone'))
+        print("🚀 正在启动 ofweek_standalone 爬虫...")
+        
+        # 框架完全自动初始化，用户无需任何手动操作
+        from crawlo.crawler import CrawlerProcess
+        
+        print("✅ 正在创建 CrawlerProcess...")
+        process = CrawlerProcess()
+        print("爬虫进程初始化成功")
+        
+        print("✅ 正在运行爬虫...")
+        
+        # 直接使用爬虫类
+        from ofweek_standalone.spiders.OfweekSpider import OfweekSpider
+        
+        # 运行爬虫
+        await process.crawl(OfweekSpider)
         
         print("✅ 爬虫运行完成")
-        sys.stdout.flush()
         
     except Exception as e:
         print(f"❌ 运行失败: {e}")
@@ -30,6 +36,5 @@ def main():
         traceback.print_exc()
         sys.exit(1)
 
-
 if __name__ == '__main__':
-    main()
+    asyncio.run(main())

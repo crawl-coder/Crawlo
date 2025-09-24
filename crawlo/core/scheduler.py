@@ -1,14 +1,15 @@
 #!/usr/bin/python
 # -*- coding:UTF-8 -*-
-from typing import Optional, Callable
 import traceback
+from typing import Optional, Callable
 
 from crawlo.utils.log import get_logger
 from crawlo.utils.request import set_request
-from crawlo.utils.request_serializer import RequestSerializer
 from crawlo.utils.error_handler import ErrorHandler
+from crawlo.utils.class_loader import load_class
+from crawlo.project import common_call
+from crawlo.utils.request_serializer import RequestSerializer
 from crawlo.queue.queue_manager import QueueManager, QueueConfig, QueueType
-from crawlo.project import load_class, common_call
 
 
 class Scheduler:

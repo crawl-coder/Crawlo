@@ -15,6 +15,8 @@ class SettingManager(MutableMapping):
         self.set_settings(default_settings)
         # 在初始化时合并配置
         self._merge_config(values)
+        # 处理动态配置
+        self._process_dynamic_config()
 
     def _merge_config(self, user_config):
         """合并默认配置和用户配置"""
@@ -80,6 +82,16 @@ class SettingManager(MutableMapping):
         for key, value in user_config.items():
             if key not in ['MIDDLEWARES', 'PIPELINES', 'EXTENSIONS']:
                 self.attributes[key] = value
+    
+    def _process_dynamic_config(self):
+        """
+        处理动态配置项
+        某些配置项需要根据其他配置项的值进行动态计算
+        """
+        # 处理LOG_FILE配置
+        if self.attributes.get('LOG_FILE') is None:
+            project_name = self.attributes.get('PROJECT_NAME', 'crawlo')
+            self.attributes['LOG_FILE'] = f'logs/{project_name}.log'
 
     def get(self, key, default=None):
         """安全获取值，不触发递归"""
@@ -145,6 +157,9 @@ class SettingManager(MutableMapping):
         
         # 使用合并逻辑而不是直接设置
         self._merge_config(module_settings)
+        
+        # 处理动态配置项（如LOG_FILE）
+        self._process_dynamic_config()
 
     # 实现 MutableMapping 必须的方法
     def __getitem__(self, item):

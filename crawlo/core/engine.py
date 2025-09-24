@@ -1,21 +1,20 @@
 #!/usr/bin/python
 # -*- coding:UTF-8 -*-
 import asyncio
-import time
 from inspect import iscoroutine
 from typing import Optional, Generator, Callable
 
 from crawlo import Request, Item
-from crawlo.spider import Spider
-from crawlo.utils.log import get_logger
-from crawlo.exceptions import OutputError
-from crawlo.core.scheduler import Scheduler
 from crawlo.core.processor import Processor
-from crawlo.task_manager import TaskManager
-from crawlo.project import load_class
+from crawlo.core.scheduler import Scheduler
 from crawlo.downloader import DownloaderBase
-from crawlo.utils.func_tools import transform
 from crawlo.event import spider_opened, spider_error, request_scheduled
+from crawlo.exceptions import OutputError
+from crawlo.utils.class_loader import load_class
+from crawlo.spider import Spider
+from crawlo.task_manager import TaskManager
+from crawlo.utils.func_tools import transform
+from crawlo.utils.log import get_logger
 
 
 class Engine(object):
@@ -278,10 +277,27 @@ class Engine(object):
     async def _crawl(self, request):
         # TODO 实现并发
         async def crawl_task():
-            outputs = await self._fetch(request)
-            # TODO 处理output
-            if outputs:
-                await self._handle_spider_output(outputs)
+            try:
+                outputs = await self._fetch(request)
+                # TODO 处理output
+                if outputs:
+                    await self._handle_spider_output(outputs)
+            except Exception as e:
+                # 记录详细的异常信息
+                self.logger.error(
+                    f"处理请求失败: {getattr(request, 'url', 'Unknown URL')} - {type(e).__name__}: {e}"
+                )
+                self.logger.debug(f"详细异常信息", exc_info=True)
+                
+                # 发送统计事件
+                if hasattr(self.crawler, 'stats'):
+                    self.crawler.stats.inc_value('downloader/exception_count')
+                    self.crawler.stats.inc_value(f'downloader/exception_type_count/{type(e).__name__}')
+                    if hasattr(request, 'url'):
+                        self.crawler.stats.inc_value(f'downloader/failed_urls_count')
+                
+                # 不再重新抛出异常，避免未处理的Task异常
+                return None
 
         # 使用异步任务创建，遵守并发限制
         await self.task_manager.create_task(crawl_task())

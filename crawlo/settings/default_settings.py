@@ -6,10 +6,24 @@
 # 添加环境变量配置工具导入
 from crawlo.utils.env_config import get_redis_config, get_runtime_config, get_version
 
+# 框架初始化控制
+FRAMEWORK_INIT_ORDER = [
+    'log_system',      # 日志系统
+    'settings_system',  # 配置系统
+    'core_components',  # 核心组件
+    'extensions',      # 扩展组件
+    'full_initialization'  # 完全初始化
+]
+FRAMEWORK_INIT_STATE = 'uninitialized'
+
 # ============================== 项目基础配置 ==============================
 
 # 项目名称（用于日志、Redis Key 等标识）
 PROJECT_NAME = get_runtime_config()['PROJECT_NAME']
+
+# 确保项目名称不为空
+if not PROJECT_NAME or PROJECT_NAME == 'None':
+    PROJECT_NAME = 'crawlo'
 
 # 项目版本号 - 从框架的__version__.py文件中读取，如果不存在则使用默认值
 VERSION = get_version()
@@ -126,9 +140,9 @@ EXTENSIONS = [
 
 # ============================== 日志与监控 ==============================
 
-LOG_LEVEL = 'DEBUG'  # 日志级别: DEBUG/INFO/WARNING/ERROR，改为INFO级别
+LOG_LEVEL = None  # 日志级别: DEBUG/INFO/WARNING/ERROR，默认为None，由用户在项目settings中设置
 STATS_DUMP = True  # 是否周期性输出统计信息
-LOG_FILE = f'logs/{PROJECT_NAME}.log'  # 日志文件路径
+LOG_FILE = None  # 日志文件路径，将在项目配置中设置
 LOG_FORMAT = '%(asctime)s - [%(name)s] - %(levelname)s: %(message)s'
 LOG_ENCODING = 'utf-8'
 

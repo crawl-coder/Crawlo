@@ -9,8 +9,9 @@ from typing import Dict, Any, Optional
 
 import redis.asyncio as aioredis
 
-from crawlo.utils.error_handler import ErrorHandler
-from crawlo.utils.log import get_logger
+# 延迟导入避免循环依赖
+# from crawlo.utils.error_handler import ErrorHandler
+# from crawlo.utils.log import get_logger
 
 
 class OptimizedRedisConnectionPool:
@@ -31,8 +32,10 @@ class OptimizedRedisConnectionPool:
     def __init__(self, redis_url: str, **kwargs):
         self.redis_url = redis_url
         self.config = {**self.DEFAULT_CONFIG, **kwargs}
-        self.logger = get_logger(self.__class__.__name__)
-        self.error_handler = ErrorHandler(self.__class__.__name__)
+        
+        # 延迟初始化logger和error_handler
+        self._logger = None
+        self._error_handler = None
         
         # 连接池实例
         self._connection_pool: Optional[aioredis.ConnectionPool] = None
@@ -49,6 +52,22 @@ class OptimizedRedisConnectionPool:
         
         # 初始化连接池
         self._initialize_pool()
+    
+    @property
+    def logger(self):
+        """延迟初始化logger"""
+        if self._logger is None:
+            from crawlo.utils.log import get_logger
+            self._logger = get_logger(self.__class__.__name__)
+        return self._logger
+    
+    @property
+    def error_handler(self):
+        """延迟初始化error_handler"""
+        if self._error_handler is None:
+            from crawlo.utils.error_handler import ErrorHandler
+            self._error_handler = ErrorHandler(self.__class__.__name__)
+        return self._error_handler
     
     def _initialize_pool(self):
         """初始化连接池"""
@@ -176,8 +195,26 @@ class RedisBatchOperationHelper:
     def __init__(self, redis_client: aioredis.Redis, batch_size: int = 100):
         self.redis_client = redis_client
         self.batch_size = batch_size
-        self.logger = get_logger(self.__class__.__name__)
-        self.error_handler = ErrorHandler(self.__class__.__name__)
+        
+        # 延迟初始化logger和error_handler
+        self._logger = None
+        self._error_handler = None
+    
+    @property
+    def logger(self):
+        """延迟初始化logger"""
+        if self._logger is None:
+            from crawlo.utils.log import get_logger
+            self._logger = get_logger(self.__class__.__name__)
+        return self._logger
+    
+    @property
+    def error_handler(self):
+        """延迟初始化error_handler"""
+        if self._error_handler is None:
+            from crawlo.utils.error_handler import ErrorHandler
+            self._error_handler = ErrorHandler(self.__class__.__name__)
+        return self._error_handler
     
     async def batch_execute(self, operations: list, batch_size: Optional[int] = None) -> list:
         """

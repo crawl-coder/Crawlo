@@ -7,17 +7,19 @@
 import asyncio
 import traceback
 from enum import Enum
-from typing import Optional, Dict, Any, Union
+from typing import Optional, Dict, Any, Union, TYPE_CHECKING
 
-from crawlo import Request
+if TYPE_CHECKING:
+    from crawlo import Request
+
 from crawlo.queue.pqueue import SpiderPriorityQueue
 from crawlo.utils.error_handler import ErrorHandler
 from crawlo.utils.log import get_logger
 from crawlo.utils.request_serializer import RequestSerializer
 
 try:
-    from crawlo.queue.redis_priority_queue import RedisPriorityQueue
-
+    # 使用简化版Redis队列避免循环依赖
+    from crawlo.queue.simple_redis_queue import SimpleRedisQueue as RedisPriorityQueue
     REDIS_AVAILABLE = True
 except ImportError:
     RedisPriorityQueue = None
@@ -87,13 +89,26 @@ class QueueManager:
 
     def __init__(self, config: QueueConfig):
         self.config = config
-        self.logger = get_logger(self.__class__.__name__)
-        self.error_handler = ErrorHandler(self.__class__.__name__)
+        # 延迟初始化logger和error_handler避免循环依赖
+        self._logger = None
+        self._error_handler = None
         self.request_serializer = RequestSerializer()
         self._queue = None
         self._queue_semaphore = None
         self._queue_type = None
         self._health_status = "unknown"
+    
+    @property
+    def logger(self):
+        if self._logger is None:
+            self._logger = get_logger(self.__class__.__name__)
+        return self._logger
+    
+    @property
+    def error_handler(self):
+        if self._error_handler is None:
+            self._error_handler = ErrorHandler(self.__class__.__name__)
+        return self._error_handler
 
     async def initialize(self) -> bool:
         """初始化队列"""
@@ -129,7 +144,7 @@ class QueueManager:
             self._health_status = "error"
             return False
 
-    async def put(self, request: Request, priority: int = 0) -> bool:
+    async def put(self, request: "Request", priority: int = 0) -> bool:
         """Unified enqueue interface"""
         if not self._queue:
             raise RuntimeError("队列未初始化")
@@ -170,7 +185,7 @@ class QueueManager:
                 self._queue_semaphore.release()
             return False
 
-    async def get(self, timeout: float = 5.0) -> Optional[Request]:
+    async def get(self, timeout: float = 5.0) -> Optional["Request"]:
         """Unified dequeue interface"""
         if not self._queue:
             raise RuntimeError("队列未初始化")
@@ -262,10 +277,10 @@ class QueueManager:
             if REDIS_AVAILABLE and self.config.redis_url:
                 # 测试 Redis 连接
                 try:
+                    from crawlo.queue.redis_priority_queue import RedisPriorityQueue
                     test_queue = RedisPriorityQueue(self.config.redis_url)
                     await test_queue.connect()
                     await test_queue.close()
-                    # Change INFO level log to DEBUG level to avoid redundant output
                     self.logger.debug("Auto-detection: Redis available, using distributed queue")
                     return QueueType.REDIS
                 except Exception as e:
@@ -282,6 +297,7 @@ class QueueManager:
                 raise RuntimeError("Redis 队列不可用：未配置 REDIS_URL")
             # 测试 Redis 连接
             try:
+                from crawlo.queue.redis_priority_queue import RedisPriorityQueue
                 test_queue = RedisPriorityQueue(self.config.redis_url)
                 await test_queue.connect()
                 await test_queue.close()
@@ -299,6 +315,12 @@ class QueueManager:
     async def _create_queue(self, queue_type: QueueType):
         """Create queue instance"""
         if queue_type == QueueType.REDIS:
+            # 延迟导入Redis队列
+            try:
+                from crawlo.queue.redis_priority_queue import RedisPriorityQueue
+            except ImportError as e:
+                raise RuntimeError(f"Redis队列不可用：未能导入RedisPriorityQueue ({e})")
+            
             # 简化项目名称提取逻辑
             project_name = "default"
             if ':' in self.config.queue_name:

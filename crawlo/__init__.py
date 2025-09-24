@@ -3,6 +3,8 @@
 """
 Crawlo - 一个异步爬虫框架
 """
+from typing import TYPE_CHECKING
+
 from crawlo.spider import Spider
 from crawlo.items import Item, Field
 from crawlo.network.request import Request
@@ -24,8 +26,28 @@ from crawlo.utils import (
 )
 from crawlo import tools
 
+# 框架核心模块 - 使用TYPE_CHECKING避免循环导入
+if TYPE_CHECKING:
+    from crawlo.core.framework_initializer import get_framework_initializer, initialize_framework
+
 # 为了向后兼容，从tools中导入cleaners相关的功能
 import crawlo.tools as cleaners
+
+# 延迟导入的辅助函数
+def get_framework_initializer():
+    """延迟导入get_framework_initializer以避免循环依赖"""
+    from crawlo.core.framework_initializer import get_framework_initializer as _get_framework_initializer
+    return _get_framework_initializer()
+
+def initialize_framework(custom_settings=None):
+    """延迟导入initialize_framework以避免循环依赖"""
+    from crawlo.core.framework_initializer import initialize_framework as _initialize_framework
+    return _initialize_framework(custom_settings)
+
+# 向后兼容的别名
+def get_bootstrap_manager():
+    """向后兼容的别名"""
+    return get_framework_initializer()
 
 # 版本号：优先从元数据读取
 try:
@@ -60,5 +82,7 @@ __all__ = [
     'from_timestamp_with_tz',
     'cleaners',
     'tools',
+    'get_framework_initializer',
+    'get_bootstrap_manager',
     '__version__',
 ]

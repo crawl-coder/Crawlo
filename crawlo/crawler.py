@@ -31,32 +31,184 @@ import asyncio
 import signal
 import time
 import threading
-from typing import Type, Optional, Set, List, Union, Dict, Any
-from .spider import Spider, get_global_spider_registry
-from .core.engine import Engine
-from .subscriber import Subscriber
-from .extension import ExtensionManager
-from .stats_collector import StatsCollector
-from .event import spider_opened, spider_closed
-from .settings.setting_manager import SettingManager
-from crawlo.project import merge_settings, get_settings
+from typing import Type, Optional, Set, List, Union, Dict, Any, TYPE_CHECKING
 
-# 延迟初始化的logger
-class _LazyLogger:
-    def __init__(self):
-        self._logger = None
+if TYPE_CHECKING:
+    from .spider import Spider
+    from .core.engine import Engine
+    from .subscriber import Subscriber
+    from .extension import ExtensionManager
+    from .stats_collector import StatsCollector
+    from .settings.setting_manager import SettingManager
+
+# 创建一个独立的简单logger，避免使用复杂的LoggerManager
+import logging
+
+# 创建模块logger
+_logger = logging.getLogger(__name__)
+if not _logger.handlers:
+    handler = logging.StreamHandler()
+    formatter = logging.Formatter('%(asctime)s - [%(name)s] - %(levelname)s: %(message)s')
+    handler.setFormatter(formatter)
+    _logger.addHandler(handler)
+    _logger.setLevel(logging.INFO)
+
+def get_module_logger():
+    """获取模块logger"""
+    return _logger
+
+# 为了向后兼容，定义logger属性
+def __getattr__(name):
+    if name == 'logger':
+        return get_module_logger()
+    raise AttributeError(f"module '{__name__}' has no attribute '{name}'")
+
+class CrawlerInitializer:
+    """
+    爆虫程序初始化管理器
     
-    def _get_logger(self):
+    提供更加健壮的初始化管理，避免循环依赖和初始化卡住问题。
+    采用单例模式和线程安全设计。
+    """
+    
+    _instance = None
+    _lock = threading.RLock()
+    
+    def __new__(cls):
+        with cls._lock:
+            if cls._instance is None:
+                cls._instance = super().__new__(cls)
+                cls._instance._initialized = False
+            return cls._instance
+    
+    def __init__(self):
+        if self._initialized:
+            return
+            
+        with self.__class__._lock:
+            if self._initialized:
+                return
+                
+            self._initialized = True
+            self._framework_ready = False
+            self._initialization_error = None
+            self._init_lock = threading.RLock()
+            
+            # 延迟初始化的组件引用
+            self._settings = None
+            self._logger = None
+    
+    def ensure_framework_initialized(self, custom_settings=None):
+        """
+        确保框架已正确初始化
+        
+        采用幂等性设计，可以安全地多次调用
+        
+        Args:
+            custom_settings: 自定义配置
+            
+        Returns:
+            SettingManager: 初始化好的配置管理器
+            
+        Raises:
+            RuntimeError: 初始化失败时抛出
+        """
+        with self._init_lock:
+            # 如果已初始化成功，直接返回
+            if self._framework_ready and self._settings:
+                return self._settings
+            
+            # 如果之前初始化失败，重新尝试
+            if self._initialization_error:
+                logger = get_module_logger()
+                get_module_logger().warning(f"检测到之前的初始化错误: {self._initialization_error}，重新尝试...")
+                self._initialization_error = None
+                self._framework_ready = False
+                self._settings = None
+            
+            try:
+                # 延迟导入核心模块，避免循环依赖
+                from crawlo.core.framework_initializer import get_framework_initializer, initialize_framework
+                
+                # 检查框架初始化管理器状态
+                framework_init = get_framework_initializer()
+                
+                if framework_init.is_ready and framework_init.settings:
+                    # 框架已初始化，复用现有配置
+                    self._settings = framework_init.settings.copy()
+                    self._framework_ready = True
+                    logger = get_module_logger()
+                    get_module_logger().debug("框架已初始化，直接使用现有配置")
+                else:
+                    # 需要初始化框架
+                    get_module_logger().debug("框架未初始化，正在进行自动初始化...")
+                    self._settings = initialize_framework(custom_settings)
+                    self._framework_ready = True
+                    get_module_logger().debug("框架自动初始化完成")
+                
+                return self._settings
+                
+            except Exception as e:
+                # 记录初始化错误，但不卡住程序
+                self._initialization_error = str(e)
+                get_module_logger().error(f"框架初始化失败: {e}，使用默认配置")
+                
+                # 使用降级策略：创建基本配置管理器
+                try:
+                    from crawlo.settings.setting_manager import SettingManager
+                    self._settings = SettingManager()
+                    
+                    # 如果有自定义配置，尝试应用
+                    if custom_settings:
+                        self._settings.update_attributes(custom_settings)
+                    
+                    self._framework_ready = True
+                    get_module_logger().warning("使用降级配置管理器")
+                    return self._settings
+                    
+                except Exception as fallback_error:
+                    get_module_logger().error(f"降级配置创建失败: {fallback_error}")
+                    raise RuntimeError(f"框架初始化完全失败: {e}, 降级错误: {fallback_error}")
+    
+    @property
+    def is_ready(self) -> bool:
+        """检查框架是否已准备好"""
+        return self._framework_ready and self._settings is not None
+    
+    @property
+    def settings(self):
+        """获取配置管理器"""
+        return self._settings
+    
+    @property
+    def logger(self):
+        """延迟初始化logger"""
         if self._logger is None:
-            from crawlo.utils.log import get_logger
-            self._logger = get_logger(__name__)
+            # 使用模块级logger避免复杂的日志系统问题
+            self._logger = get_module_logger()
         return self._logger
     
-    def __getattr__(self, name):
-        return getattr(self._get_logger(), name)
+    def reset(self):
+        """重置初始化状态（仅用于测试）"""
+        with self._init_lock:
+            self._framework_ready = False
+            self._initialization_error = None
+            self._settings = None
+            self._logger = None
 
-# 创建全局logger实例
-logger = _LazyLogger()
+
+# 全局初始化管理器实例
+_crawler_initializer = CrawlerInitializer()
+
+
+def get_crawler_initializer() -> CrawlerInitializer:
+    """
+    获取爆虫程序初始化管理器实例
+    
+    Returns:
+        CrawlerInitializer: 初始化管理器实例
+    """
+    return _crawler_initializer
 
 
 class CrawlerContext:
@@ -127,10 +279,19 @@ class Crawler:
 
     def __init__(
             self,
-            spider_cls: Type[Spider],
-            settings: SettingManager,
+            spider_cls: "Type[Spider]",
+            settings: "SettingManager",
             context: Optional[CrawlerContext] = None
     ):
+        # 使用健壮的框架初始化管理器
+        init_manager = get_crawler_initializer()
+        if not init_manager.is_ready:
+            # 如果框架未初始化，进行安全初始化
+            try:
+                init_manager.ensure_framework_initialized()
+            except Exception as e:
+                get_module_logger().warning(f"初始化管理器初始化失败: {e}，继续使用现有配置")
+            
         self.spider_cls = spider_cls
         self.spider: Optional[Spider] = None
         self.engine: Optional[Engine] = None
@@ -154,15 +315,6 @@ class Crawler:
             'request_count': 0,
             'error_count': 0
         }
-
-        # Note: 组件初始化移到crawl方法中，避免在构造函数中调用尚未定义的方法
-        # Validate crawler state也移到crawl方法中
-
-        # 将启动信息的打印移到crawl方法中，避免在CrawlerProcess中重复打印
-        # self._log_startup_info()
-        
-        # 将启动爬虫名称的日志移到这里，确保在日志系统配置之后打印
-        # logger.info(f"Starting running {self.spider.name}")
 
     async def crawl(self):
         """
@@ -196,7 +348,7 @@ class Crawler:
             self._validate_crawler_state()
 
             # Phase 3: Display runtime configuration summary
-            self._log_startup_info()  # 添加这一行来调用启动信息日志
+            # 注意：不在这里调用_log_startup_info，避免与CrawlerProcess重复输出
             self._log_runtime_summary()
 
             # Phase 4: Start crawler
@@ -210,12 +362,12 @@ class Crawler:
             # Update context status
             self.context.increment_completed()
 
-            logger.info(f"Spider {self.spider.name} completed, took {self._get_total_duration():.2f} seconds")
+            get_module_logger().info(f"Spider {self.spider.name} completed, took {self._get_total_duration():.2f} seconds")
 
         except Exception as e:
             self._performance_metrics['error_count'] += 1
             self.context.increment_failed(str(e))
-            logger.error(f"Spider {getattr(self.spider, 'name', 'Unknown')} failed to run: {e}", exc_info=True)
+            get_module_logger().error(f"Spider {getattr(self.spider, 'name', 'Unknown')} failed to run: {e}", exc_info=True)
             raise
         finally:
             self.context.decrement_active()
@@ -233,7 +385,13 @@ class Crawler:
         else:
             spider_name = 'Unknown'
 
-        logger.info(f"Starting running {spider_name}")
+        # 使用框架logger输出运行信息，确保能输出到日志文件
+        init_manager = get_crawler_initializer()
+        if init_manager.is_ready and init_manager.logger:
+            init_manager.logger.info(f"Starting running {spider_name}")
+        else:
+            # 如果框架logger不可用，使用当前模块logger
+            get_module_logger().info(f"Starting running {spider_name}")
 
     def _validate_crawler_state(self):
         """
@@ -253,7 +411,7 @@ class Crawler:
         if not self.spider.name:
             raise ValueError("Spider name cannot be empty")
 
-        logger.debug(f"Spider {self.spider.name} state validation passed")
+        get_module_logger().debug(f"Spider {self.spider.name} state validation passed")
 
     def _get_total_duration(self) -> float:
         """Get total runtime"""
@@ -262,50 +420,10 @@ class Crawler:
         return 0.0
 
     def _log_startup_info(self):
-        """Print startup information, including run mode and key configuration checks"""
-        # Get run mode
-        run_mode = self.settings.get('RUN_MODE', 'standalone')
-
-        # Get version number
-        version = self.settings.get('VERSION', '1.0.0')
-        if not version or version == 'None':
-            version = '1.0.0'
-
-        # Print framework start info
-        logger.info(f"Crawlo Framework Started {version}")
-
-        # Add mode info if available
-        mode_info = self.settings.get('_mode_info')
-        if mode_info:
-            logger.info(mode_info)
-        else:
-            # 如果没有_mode_info，添加默认信息
-            logger.info("使用单机模式 - 简单快速，适合开发和中小规模爬取")
-
-        # Get actual queue type
-        queue_type = self.settings.get('QUEUE_TYPE', 'memory')
-
-        # Display information based on run mode and queue type combination
-        if run_mode == 'distributed':
-            logger.info("Run Mode: distributed")
-            logger.info("Distributed Mode - Multi-node collaboration supported")
-            # Show Redis configuration
-            redis_host = self.settings.get('REDIS_HOST', 'localhost')
-            redis_port = self.settings.get('REDIS_PORT', 6379)
-            logger.info(f"Redis Address: {redis_host}:{redis_port}")
-        elif run_mode == 'standalone':
-            if queue_type == 'redis':
-                logger.info("Run Mode: standalone+redis")
-                # Show Redis configuration
-                redis_host = self.settings.get('REDIS_HOST', 'localhost')
-                redis_port = self.settings.get('REDIS_PORT', 6379)
-                logger.info(f"Redis Address: {redis_host}:{redis_port}")
-            elif queue_type == 'auto':
-                logger.info("Run Mode: standalone+auto")
-            else:  # memory
-                logger.info("Run Mode: standalone")
-        else:
-            logger.info(f"Run Mode: {run_mode}")
+        """为了向后兼容保留的方法，但不再输出重复信息"""
+        # 这个方法为了向后兼容而保留，但不再输出重复的框架启动信息
+        # 框架启动信息由CrawlerProcess统一输出
+        pass
 
     async def _ensure_cleanup(self):
         """Ensure resource cleanup"""
@@ -313,11 +431,13 @@ class Crawler:
             if not self._closed:
                 await self.close()
         except Exception as e:
-            logger.warning(f"Error cleaning up resources: {e}")
+            get_module_logger().warning(f"Error cleaning up resources: {e}")
 
     @staticmethod
-    def _create_subscriber() -> Subscriber:
+    def _create_subscriber():
         """Create event subscriber"""
+        # 延迟导入避免循环依赖
+        from crawlo.subscriber import Subscriber
         return Subscriber()
 
     def _create_spider(self) -> Spider:
@@ -356,44 +476,58 @@ class Crawler:
 
         # parse method check (warning instead of error)
         if not callable(getattr(spider, 'parse', None)):
-            logger.warning(
+            get_module_logger().warning(
                 f"Spider '{spider.name}' does not define 'parse' method.\n"
                 f"Ensure all Requests specify a callback function, otherwise responses will be ignored."
             )
 
         # Set spider configuration
         self._set_spider(spider)
+        
+        # 应用延迟的自定义设置
+        if hasattr(spider, 'apply_pending_settings'):
+            spider.apply_pending_settings()
 
-        logger.debug(f"Spider '{spider.name}' initialized successfully")
+        get_module_logger().debug(f"Spider '{spider.name}' initialized successfully")
         return spider
 
-    def _create_engine(self) -> Engine:
+    def _create_engine(self):
         """Create and initialize engine"""
+        # 延迟导入避免循环依赖
+        from crawlo.core.engine import Engine
         engine = Engine(self)
         engine.engine_start()
-        logger.debug(f"Engine initialized successfully, spider: {getattr(self.spider, 'name', 'Unknown')}")
+        get_module_logger().debug(f"Engine initialized successfully, spider: {getattr(self.spider, 'name', 'Unknown')}")
         return engine
 
-    def _create_stats(self) -> StatsCollector:
+    def _create_stats(self):
         """Create stats collector"""
+        # 延迟导入避免循环依赖
+        from crawlo.stats_collector import StatsCollector
         stats = StatsCollector(self)
-        logger.debug(
+        get_module_logger().debug(
             f"Stats collector initialized successfully, spider: {getattr(self.spider, 'name', 'Unknown')}")
         return stats
 
-    def _create_extension(self) -> ExtensionManager:
+    def _create_extension(self):
         """Create extension manager"""
+        # 延迟导入避免循环依赖
+        from crawlo.extension import ExtensionManager
         # Modify extension manager creation method, delay initialization until needed
         extension = ExtensionManager.create_instance(self)
-        logger.debug(
+        get_module_logger().debug(
             f"Extension manager initialized successfully, spider: {getattr(self.spider, 'name', 'Unknown')}")
         return extension
 
-    def _set_spider(self, spider: Spider):
+    def _set_spider(self, spider):
         """
         Set spider configuration and event subscription
         Bind spider lifecycle events with subscriber
         """
+        # 延迟导入事件相关模块
+        from crawlo.event import spider_opened, spider_closed
+        from crawlo.project import merge_settings
+        
         # Subscribe to spider lifecycle events
         self.subscriber.subscribe(spider.spider_opened, event=spider_opened)
         self.subscriber.subscribe(spider.spider_closed, event=spider_closed)
@@ -401,7 +535,7 @@ class Crawler:
         # Merge spider custom configuration
         merge_settings(spider, self.settings)
 
-        logger.debug(f"Spider '{spider.name}' configuration merged successfully")
+        get_module_logger().debug(f"Spider '{spider.name}' configuration merged successfully")
 
     async def close(self, reason='finished') -> None:
         """
@@ -419,6 +553,8 @@ class Crawler:
             try:
                 # Notify spider close event
                 if self.subscriber:
+                    # 延迟导入事件
+                    from crawlo.event import spider_closed
                     await self.subscriber.notify(spider_closed)
 
                 # Statistics data collection
@@ -429,15 +565,15 @@ class Crawler:
                         from crawlo.commands.stats import record_stats
                         record_stats(self)
                     except ImportError:
-                        logger.debug("Statistics recording module does not exist, skipping statistics recording")
+                        get_module_logger().debug("Statistics recording module does not exist, skipping statistics recording")
 
-                logger.info(
+                get_module_logger().info(
                     f"Spider '{getattr(self.spider, 'name', 'Unknown')}' closed, "
                     f"reason: {reason}, took: {self._get_total_duration():.2f} seconds"
                 )
 
             except Exception as e:
-                logger.error(f"Error closing crawler: {e}", exc_info=True)
+                get_module_logger().error(f"Error closing crawler: {e}", exc_info=True)
             finally:
                 # Ensure resource cleanup
                 await self._cleanup_resources()
@@ -471,7 +607,7 @@ class Crawler:
         if cleanup_tasks:
             await asyncio.gather(*cleanup_tasks, return_exceptions=True)
 
-        logger.debug("Resource cleanup completed")
+        get_module_logger().debug("Resource cleanup completed")
 
 
 class CrawlerProcess:
@@ -506,8 +642,15 @@ class CrawlerProcess:
             spider_modules: Optional[List[str]] = None,
             enable_monitoring: bool = True
     ):
+        # 在初始化开始时就确保框架已初始化
+        if settings is None:
+            # 使用更安全的初始化方式
+            settings = self.__class__._get_default_settings()
+            
+        # 框架初始化在这里完成，现在可以安全使用所有组件
+        
         # Basic configuration
-        self.settings: SettingManager = settings or self._get_default_settings()
+        self.settings: SettingManager = settings
         self.crawlers: Set[Crawler] = set()
         self._active_tasks: Set[asyncio.Task] = set()
 
@@ -532,7 +675,7 @@ class CrawlerProcess:
             self.auto_discover(spider_modules)
 
         # Use snapshot of global registry (avoid subsequent import impact)
-        self._spider_registry: Dict[str, Type[Spider]] = get_global_spider_registry()
+        self._spider_registry = self._get_global_spider_registry()
 
         # Performance monitoring
         self._performance_stats = {
@@ -546,59 +689,99 @@ class CrawlerProcess:
         # Register signal handlers
         signal.signal(signal.SIGINT, self._shutdown)
         signal.signal(signal.SIGTERM, self._shutdown)
+        
+        # 在初始化结束时输出框架启动信息
+        self._log_startup_info()
 
     def _log_startup_info(self):
         """Print startup information, including run mode and key configuration checks"""
+        # 确保框架已初始化
+        init_manager = get_crawler_initializer()
+        if not init_manager.is_ready:
+            try:
+                init_manager.ensure_framework_initialized()
+            except Exception as e:
+                get_module_logger().warning(f"框架初始化失败: {e}")
+            
         # Get run mode
         run_mode = self.settings.get('RUN_MODE', 'standalone')
-
+        
         # Get version number
         version = self.settings.get('VERSION', '1.0.0')
         if not version or version == 'None':
             version = '1.0.0'
+            
+        # Get project name
+        project_name = self.settings.get('PROJECT_NAME', 'crawlo')
+        if not project_name or project_name == 'None':
+            project_name = 'crawlo'
 
         # Print framework start info
-        logger.info(f"Crawlo Framework Started {version}")
-
-        # Add mode info if available
+        # 使用模块级logger避免复杂的日志系统问题
+        framework_logger = get_module_logger()
+        
+        # 输出完整的框架启动信息
+        framework_logger.info(f"Crawlo Framework Started v{version}")
+        framework_logger.info(f"Project: {project_name}")
+        
+        # 显示运行模式详细信息
         mode_info = self.settings.get('_mode_info')
         if mode_info:
-            logger.info(mode_info)
+            framework_logger.info(mode_info)
         else:
             # 如果没有_mode_info，添加默认信息
-            logger.info("使用单机模式 - 简单快速，适合开发和中小规模爬取")
+            framework_logger.info("Mode: 单机模式 - 简单快速，适合开发和中小规模爬取")
 
         # Get actual queue type
         queue_type = self.settings.get('QUEUE_TYPE', 'memory')
+        filter_class = self.settings.get('FILTER_CLASS', 'Unknown')
+        concurrency = self.settings.get('CONCURRENCY', 8)
+        download_delay = self.settings.get('DOWNLOAD_DELAY', 1.0)
 
         # Display information based on run mode and queue type combination
         if run_mode == 'distributed':
-            logger.info("Run Mode: distributed")
-            logger.info("Distributed Mode - Multi-node collaboration supported")
+            framework_logger.info("Run Mode: distributed")
+            framework_logger.info("Distributed Mode - Multi-node collaboration supported")
             # Show Redis configuration
             redis_host = self.settings.get('REDIS_HOST', 'localhost')
             redis_port = self.settings.get('REDIS_PORT', 6379)
-            logger.info(f"Redis Address: {redis_host}:{redis_port}")
+            framework_logger.info(f"Redis: {redis_host}:{redis_port}")
         elif run_mode == 'standalone':
             if queue_type == 'redis':
-                logger.info("Run Mode: standalone+redis")
+                framework_logger.info("Run Mode: standalone+redis")
                 # Show Redis configuration
                 redis_host = self.settings.get('REDIS_HOST', 'localhost')
                 redis_port = self.settings.get('REDIS_PORT', 6379)
-                logger.info(f"Redis Address: {redis_host}:{redis_port}")
+                framework_logger.info(f"Redis: {redis_host}:{redis_port}")
             elif queue_type == 'auto':
-                logger.info("Run Mode: standalone+auto")
+                framework_logger.info("Run Mode: standalone+auto")
             else:  # memory
-                logger.info("Run Mode: standalone")
+                framework_logger.info("Run Mode: standalone")
         else:
-            logger.info(f"Run Mode: {run_mode}")
+            framework_logger.info(f"Run Mode: {run_mode}")
+            
+        # 显示关键配置信息
+        framework_logger.info(f"Configuration: Concurrency={concurrency}, Delay={download_delay}s, Queue={queue_type}")
+        
+        # 显示过滤器信息（简化显示）
+        filter_name = filter_class.split('.')[-1] if '.' in filter_class else filter_class
+        framework_logger.info(f"Filter: {filter_name}")
 
-        logger.debug(
+        get_module_logger().debug(
             f"CrawlerProcess initialized successfully\n"
             f"  - Max concurrent crawlers: {self.max_concurrency}\n"
             f"  - Registered crawlers: {len(self._spider_registry)}\n"
             f"  - Monitoring enabled: {self.enable_monitoring}"
         )
+    
+    def _get_global_spider_registry(self):
+        """获取全局爬虫注册表（延迟导入）"""
+        try:
+            from crawlo.spider import get_global_spider_registry
+            return get_global_spider_registry()
+        except ImportError as e:
+            get_module_logger().warning(f"无法导入爬虫注册表: {e}，返回空注册表")
+            return {}
 
     async def start_monitoring(self):
         """Start monitoring task"""
@@ -606,7 +789,7 @@ class CrawlerProcess:
             return
 
         self._monitoring_task = asyncio.create_task(self._monitor_loop())
-        logger.debug("Monitoring task started")
+        get_module_logger().debug("Monitoring task started")
 
     async def stop_monitoring(self):
         """Stop monitoring task"""
@@ -616,7 +799,7 @@ class CrawlerProcess:
                 await self._monitoring_task
             except asyncio.CancelledError:
                 pass
-            logger.debug("Monitoring task stopped")
+            get_module_logger().debug("Monitoring task stopped")
 
     async def _monitor_loop(self):
         """Monitoring loop, periodically collect and report status"""
@@ -627,7 +810,7 @@ class CrawlerProcess:
                 # Output status every 30 seconds
                 stats = self.context.get_stats()
                 if stats['active_crawlers'] > 0:
-                    logger.debug(
+                    get_module_logger().debug(
                         f"Crawler status: Active {stats['active_crawlers']}, "
                         f"Completed {stats['completed_crawlers']}, "
                         f"Failed {stats['failed_crawlers']}, "
@@ -637,9 +820,9 @@ class CrawlerProcess:
                 await asyncio.sleep(30)  # 30 second interval
 
         except asyncio.CancelledError:
-            logger.debug("Monitoring loop cancelled")
+            get_module_logger().debug("Monitoring loop cancelled")
         except Exception as e:
-            logger.error(f"Monitoring loop error: {e}", exc_info=True)
+            get_module_logger().error(f"Monitoring loop error: {e}", exc_info=True)
 
     async def _collect_performance_stats(self):
         """Collect performance statistics data"""
@@ -659,7 +842,7 @@ class CrawlerProcess:
             # Skip performance monitoring when psutil is not available
             pass
         except Exception as e:
-            logger.debug(f"Failed to collect performance statistics: {e}")
+            get_module_logger().debug(f"Failed to collect performance statistics: {e}")
 
     @staticmethod
     def auto_discover(modules: List[str]):
@@ -686,19 +869,19 @@ class CrawlerProcess:
                             discovered_count += 1
                         except Exception as sub_e:
                             error_count += 1
-                            logger.warning(f"Failed to import submodule {name}: {sub_e}")
+                            get_module_logger().warning(f"Failed to import submodule {name}: {sub_e}")
                 else:
                     # Single module
                     importlib.import_module(module_name)
                     discovered_count += 1
 
-                logger.debug(f"Module scanned: {module_name}")
+                get_module_logger().debug(f"Module scanned: {module_name}")
 
             except Exception as e:
                 error_count += 1
-                logger.error(f"Failed to scan module {module_name}: {e}", exc_info=True)
+                get_module_logger().error(f"Failed to scan module {module_name}: {e}", exc_info=True)
 
-        logger.debug(
+        get_module_logger().debug(
             f"Spider registration completed: {discovered_count} succeeded, {error_count} failed"
         )
 
@@ -733,9 +916,8 @@ class CrawlerProcess:
         if total == 0:
             raise ValueError("At least one spider class or name must be provided")
 
-        # 打印启动信息，确保在日志系统配置之后打印
-        # 在这里调用_log_startup_info，确保框架启动信息能正确输出到日志文件中
-        self._log_startup_info()
+        # 暂时注释掉这里的调用，在第一个Crawler初始化时输出
+        # self._log_startup_info()
 
         # Phase 2: Initialize context and monitoring
         for _ in range(total):
@@ -777,12 +959,12 @@ class CrawlerProcess:
                     except Exception as e:
                         results[i] = e
                         failed.append(i)
-                        logger.error(f"Crawler {crawler.spider.name if crawler.spider else 'Unknown'} failed: {e}")
+                        get_module_logger().error(f"Crawler {crawler.spider.name if crawler.spider else 'Unknown'} failed: {e}")
 
             # Phase 4: Output statistics
             if failed:
                 failed_spiders = [spider_classes_to_run[i].__name__ for i in failed]
-                logger.error(
+                get_module_logger().error(
                     f"Crawler execution result: {successful}/{total} succeeded, {len(failed)}/{total} failed\n"
                     f"  - Failed crawlers: {failed_spiders}"
                 )
@@ -790,9 +972,9 @@ class CrawlerProcess:
                 # Record detailed error information
                 for i in failed:
                     error = results[i]
-                    logger.error(f"Spider {spider_classes_to_run[i].__name__} error details: {error}")
+                    get_module_logger().error(f"Spider {spider_classes_to_run[i].__name__} error details: {error}")
             else:
-                logger.info(f"All {total} crawlers completed successfully!")
+                get_module_logger().info(f"All {total} crawlers completed successfully!")
 
             # Return statistics results
             return {
@@ -825,10 +1007,10 @@ class CrawlerProcess:
                 await asyncio.gather(*self._active_tasks, return_exceptions=True)
                 self._active_tasks.clear()
 
-            logger.debug("Process resources cleanup completed")
+            get_module_logger().debug("Process resources cleanup completed")
 
         except Exception as e:
-            logger.error(f"Error cleaning up process resources: {e}", exc_info=True)
+            get_module_logger().error(f"Error cleaning up process resources: {e}", exc_info=True)
 
     def get_process_stats(self) -> Dict[str, Any]:
         """Get process statistics information"""
@@ -855,6 +1037,9 @@ class CrawlerProcess:
         """
         Resolve input to spider class list
         """
+        # 延迟导入Spider类避免循环依赖
+        from .spider import Spider
+        
         if isinstance(spiders_input, type) and issubclass(spiders_input, Spider):
             return [spiders_input]
         elif isinstance(spiders_input, str):
@@ -883,7 +1068,7 @@ class CrawlerProcess:
         Provides better shutdown experience and resource cleanup
         """
         signal_name = {signal.SIGINT: 'SIGINT', signal.SIGTERM: 'SIGTERM'}.get(_signum, str(_signum))
-        logger.warning(f"Received shutdown signal {signal_name}, stopping all crawlers...")
+        get_module_logger().warning(f"Received shutdown signal {signal_name}, stopping all crawlers...")
 
         # Set shutdown event
         if hasattr(self, '_shutdown_event'):
@@ -894,12 +1079,12 @@ class CrawlerProcess:
             if crawler.engine:
                 crawler.engine.running = False
                 crawler.engine.normal = False
-                logger.debug(f"Crawler engine stopped: {getattr(crawler.spider, 'name', 'Unknown')}")
+                get_module_logger().debug(f"Crawler engine stopped: {getattr(crawler.spider, 'name', 'Unknown')}")
 
         # Create shutdown task
         asyncio.create_task(self._wait_for_shutdown())
 
-        logger.info("Shutdown command sent, waiting for crawlers to complete current tasks...")
+        get_module_logger().info("Shutdown command sent, waiting for crawlers to complete current tasks...")
 
     async def _wait_for_shutdown(self):
         """Wait for shutdown to complete"""
@@ -913,7 +1098,7 @@ class CrawlerProcess:
                 )
 
                 if pending:
-                    logger.warning(f"强制关闭 {len(pending)} 个未完成的任务...")
+                    get_module_logger().warning(f"强制关闭 {len(pending)} 个未完成的任务...")
                     # Cancel any remaining tasks
                     for task in pending:
                         if not task.done():
@@ -927,7 +1112,7 @@ class CrawlerProcess:
 
             # Output final statistics
             final_stats = self.context.get_stats()
-            logger.info(
+            get_module_logger().info(
                 f"All crawlers gracefully shut down 👋\n"
                 f"  - Total crawlers: {final_stats['total_crawlers']}\n"
                 f"  - Successfully completed: {final_stats['completed_crawlers']}\n"
@@ -937,28 +1122,46 @@ class CrawlerProcess:
             )
 
         except Exception as e:
-            logger.error(f"Error during shutdown process: {e}", exc_info=True)
+            get_module_logger().error(f"Error during shutdown process: {e}", exc_info=True)
 
     @classmethod
-    def _get_default_settings(cls) -> SettingManager:
+    def _get_default_settings(cls):
         """
-        Load default configuration
-
-        Provides better error handling and fallback strategy
+        加载默认配置，内置安全的框架自动初始化
+        
+        提供更好的错误处理和降级策略
         """
         try:
-            settings = get_settings()
-            logger.debug("Default configuration loaded successfully")
+            # 先尝试获取已初始化的框架配置
+            init_manager = get_crawler_initializer()
+            if init_manager.is_ready and init_manager.settings:
+                settings = init_manager.settings.copy()
+                get_module_logger().debug("框架已初始化，直接使用已有配置")
+                return settings
+            
+            # 框架未初始化，进行安全的自动初始化
+            get_module_logger().debug("框架未初始化，正在进行自动初始化...")
+            settings = init_manager.ensure_framework_initialized()
+            get_module_logger().debug("框架自动初始化完成，配置加载成功")
             return settings
+            
         except Exception as e:
-            logger.warning(f"Unable to load default configuration: {e}, using empty configuration")
-            return SettingManager()
+            # 如果初始化失败，返回空配置但记录警告
+            get_module_logger().warning(f"框架自动初始化失败: {e}，使用空配置")
+            # 使用降级策略
+            try:
+                from crawlo.settings.setting_manager import SettingManager
+                return SettingManager()
+            except ImportError:
+                # 如果连 SettingManager 都无法导入，返回 None
+                get_module_logger().error("无法导入 SettingManager，返回 None")
+                return None
 
 # === Utility functions ===
 
 def create_crawler_with_optimizations(
-        spider_cls: Type[Spider],
-        settings: Optional[SettingManager] = None,
+        spider_cls: "Type[Spider]",
+        settings: Optional["SettingManager"] = None,
         **optimization_kwargs
 ) -> Crawler:
     """
@@ -970,6 +1173,8 @@ def create_crawler_with_optimizations(
     :return: Crawler instance
     """
     if settings is None:
+        # 延迟导入避免循环依赖
+        from crawlo.settings.setting_manager import SettingManager
         settings = SettingManager()
 
     # Apply optimization configuration
@@ -1005,10 +1210,13 @@ def create_process_with_large_scale_config(
         }
 
         if config_type not in config_methods:
-            logger.warning(f"Unknown configuration type: {config_type}, using default configuration")
+            get_module_logger().warning(f"Unknown configuration type: {config_type}, using default configuration")
+            # 延迟导入避免循环依赖
+            from crawlo.settings.setting_manager import SettingManager
             settings = SettingManager()
         else:
             config = config_methods[config_type](concurrency)
+            from crawlo.settings.setting_manager import SettingManager
             settings = SettingManager()
             settings.update(config)
 
@@ -1019,7 +1227,7 @@ def create_process_with_large_scale_config(
         )
 
     except ImportError:
-        logger.warning("Large-scale configuration module does not exist, using default configuration")
+        get_module_logger().warning("Large-scale configuration module does not exist, using default configuration")
         return CrawlerProcess(max_concurrency=concurrency, **kwargs)
 
 

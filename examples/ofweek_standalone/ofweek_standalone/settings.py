@@ -36,7 +36,7 @@ DOWNLOAD_DELAY = 1.0
 DOWNLOADER = 'crawlo.downloader.aiohttp_downloader.AioHttpDownloader'
 
 # ============================== 队列配置 ==============================
-QUEUE_TYPE = 'memory'
+QUEUE_TYPE = 'auto'
 
 # ============================== 去重过滤器 ==============================
 # 使用auto模式，让框架根据Redis可用性自动选择过滤器
@@ -67,9 +67,9 @@ DEFAULT_REQUEST_HEADERS = {
 ALLOWED_DOMAINS = ['ee.ofweek.com']
 
 # ============================== 数据管道 ==============================
-PIPELINES = [
-    'crawlo.pipelines.mysql_pipeline.AsyncmyMySQLPipeline',     # MySQL 存储（使用asyncmy异步库）
-]
+# PIPELINES = [
+#     'crawlo.pipelines.mysql_pipeline.AsyncmyMySQLPipeline',     # MySQL 存储（使用asyncmy异步库）
+# ]
 
 # ============================== 扩展组件 ==============================
 # EXTENSIONS = [

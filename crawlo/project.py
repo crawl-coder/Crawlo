@@ -13,6 +13,7 @@ from crawlo.utils.log import get_logger, LoggerManager
 # 延迟获取logger，确保在日志系统配置之后获取
 _logger = None
 
+
 def logger():
     """延迟获取logger实例，确保在日志系统配置之后获取"""
     global _logger
@@ -26,16 +27,15 @@ def logger():
             return None
     return _logger
 
+
 # 添加一个临时的日志函数，用于在日志系统配置之前输出信息
 def _temp_debug(message):
     """临时调试函数，在日志系统配置之前使用"""
-    if LoggerManager.is_configured() and logger():
-        logger().debug(message)
-    else:
-        # 如果日志系统未配置，只在开发环境中打印到控制台
-        import os
-        if os.environ.get('CRAWLO_DEBUG'):
-            print(f"[DEBUG] {message}")
+    # 直接输出到控制台，避免循环依赖
+    import os
+    if os.environ.get('CRAWLO_DEBUG'):
+        print(f"[CRAWLO_DEBUG] {message}")
+
 
 def load_class(path: str) -> Any:
     """
@@ -47,12 +47,9 @@ def load_class(path: str) -> Any:
     Returns:
         加载的类对象
     """
-    try:
-        module_path, class_name = path.rsplit('.', 1)
-        module = importlib.import_module(module_path)
-        return getattr(module, class_name)
-    except (ValueError, ImportError, AttributeError) as e:
-        raise ImportError(f"无法加载类 '{path}': {e}")
+    # 使用工具模块的实现，避免循环依赖
+    from crawlo.utils.class_loader import load_class as _load_class
+    return _load_class(path)
 
 
 def merge_settings(spider, settings):
@@ -76,7 +73,7 @@ def merge_settings(spider, settings):
         else:
             _temp_debug("无法处理的 settings 类型")
             return
-            
+
     if hasattr(spider, 'custom_settings'):
         custom_settings = getattr(spider, 'custom_settings')
         settings.update_attributes(custom_settings)
@@ -125,24 +122,24 @@ def _find_project_root(start_path: str = ".") -> Optional[str]:
         2. 存在 '__init__.py' 和 'settings.py'（即 Python 包）
     """
     path = os.path.abspath(start_path)
-    
+
     # 首先检查当前目录及其子目录
     for root, dirs, files in os.walk(path):
         if "crawlo.cfg" in files:
             cfg_path = os.path.join(root, "crawlo.cfg")
             _temp_debug(f"✅ 找到项目配置文件: {cfg_path}")
             return root
-    
+
     # 向上查找直到找到 crawlo.cfg 或包含 settings.py 和 __init__.py 的目录
     original_path = path
     checked_paths = set()
-    
+
     while True:
         # 避免无限循环
         if path in checked_paths:
             break
         checked_paths.add(path)
-        
+
         # 检查 crawlo.cfg
         cfg_file = os.path.join(path, "crawlo.cfg")
         if os.path.isfile(cfg_file):
@@ -180,7 +177,7 @@ def _find_project_root(start_path: str = ".") -> Optional[str]:
                 if path in checked_paths:
                     break
                 checked_paths.add(path)
-                
+
                 cfg_file = os.path.join(path, "crawlo.cfg")
                 if os.path.isfile(cfg_file):
                     _temp_debug(f"✅ 找到项目配置文件: {cfg_file}")
@@ -217,7 +214,7 @@ def _find_project_root(start_path: str = ".") -> Optional[str]:
                 if path in checked_paths:
                     break
                 checked_paths.add(path)
-                
+
                 cfg_file = os.path.join(path, "crawlo.cfg")
                 if os.path.isfile(cfg_file):
                     _temp_debug(f"找到项目配置文件: {cfg_file}")
@@ -247,9 +244,10 @@ def _find_project_root(start_path: str = ".") -> Optional[str]:
     return None
 
 
-def get_settings(custom_settings: Optional[dict] = None) -> SettingManager:
+def _load_project_settings(custom_settings: Optional[dict] = None) -> SettingManager:
     """
-    获取配置管理器实例（主入口函数）
+    内部函数：加载项目配置（不处理日志初始化）
+    这个函数专门负责配置加载逻辑，避免与初始化管理器产生循环依赖
 
     Args:
         custom_settings: 运行时自定义配置，会覆盖 settings.py
@@ -257,7 +255,7 @@ def get_settings(custom_settings: Optional[dict] = None) -> SettingManager:
     Returns:
         SettingManager: 已加载配置的实例
     """
-    _temp_debug("🚀 正在初始化 Crawlo 项目配置...")
+    _temp_debug("🚀 正在加载 Crawlo 项目配置...")
 
     # 1. 查找项目根
     project_root = _find_project_root()
@@ -310,16 +308,26 @@ def get_settings(custom_settings: Optional[dict] = None) -> SettingManager:
         settings.update_attributes(custom_settings)
         _temp_debug(f"🔧 已应用运行时自定义配置: {list(custom_settings.keys())}")
 
-    # 7. 显示核心配置摘要（INFO级别）
-    # _log_settings_summary(settings)
-
-    # 配置日志系统
-    LoggerManager.configure(settings)
-    
-    # 重新初始化全局logger，确保使用配置后的设置
-    global _logger
-    _logger = get_logger(__name__)
-    
-    # 将项目初始化完成的消息改为DEBUG级别
-    logger().debug("🎉 Crawlo 项目配置初始化完成！")
+    _temp_debug("🎉 Crawlo 项目配置加载完成！")
     return settings
+
+
+def get_settings(custom_settings: Optional[dict] = None) -> SettingManager:
+    """
+    获取配置管理器实例（主入口函数）
+    
+    注意：这个函数现在作为向后兼容的入口，实际的初始化逻辑已经移到
+    crawlo.core.framework_initializer 模块中。建议使用新的初始化方式：
+    
+    >>> from crawlo.core.framework_initializer import initialize_framework
+    >>> settings = initialize_framework(custom_settings)
+
+    Args:
+        custom_settings: 运行时自定义配置，会覆盖 settings.py
+
+    Returns:
+        SettingManager: 已加载配置的实例
+    """
+    # 使用新的统一初始化管理器
+    from crawlo.core.framework_initializer import initialize_framework
+    return initialize_framework(custom_settings)

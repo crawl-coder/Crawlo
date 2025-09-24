@@ -6,6 +6,7 @@
 from abc import ABCMeta
 from .fields import Field
 
+
 class ItemMeta(ABCMeta):
     def __new__(mcs, name, bases, attrs):
         fields = {}
