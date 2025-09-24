@@ -4,16 +4,14 @@
 单机模式运行脚本
 使用新的框架架构，完全自动化初始化
 """
-import asyncio
 import sys
+import asyncio
 
 from crawlo.crawler import CrawlerProcess
 
 
 def main():
     """主函数：运行爬虫"""
-    # print("🚀 启动 Ofweek 爬虫")
-
     try:
         # 使用框架自动处理配置
         spider_modules = ['ofweek_standalone.spiders']

@@ -186,18 +186,7 @@ def main(args):
         logger().debug(f"SPIDER_MODULES from settings: {spider_modules}")
         process = CrawlerProcess(settings=settings, spider_modules=spider_modules)
         
-        # 手动导入爬虫模块以确保注册
-        for module_path in spider_modules:
-            try:
-                logger().debug(f"Attempting to import spider module: {module_path}")
-                __import__(module_path)
-                logger().debug(f"Successfully imported spider module: {module_path}")
-            except ImportError as e:
-                logger().warning(f"Failed to import spider module {module_path}: {e}")
-                # 尝试更详细的导入错误信息
-                import traceback
-                logger().warning(f"Import traceback: {traceback.format_exc()}")
-        
+        # 不再需要手动导入爬虫模块，框架内部会自动处理
         # 检查注册表中的爬虫
         from crawlo.spider import get_global_spider_registry
         registry = get_global_spider_registry()

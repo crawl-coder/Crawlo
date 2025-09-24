@@ -1,17 +1,66 @@
-# Crawlo 框架示例项目
+# Crawlo 框架示例
 
-本目录包含 Crawlo 框架的各种使用示例，帮助开发者快速上手和理解框架功能。
+Crawlo 是一个功能强大的异步爬虫框架，支持单机和分布式模式。本目录包含多个示例项目，展示框架的各种功能和使用方法。
 
-## 示例项目列表
+## 示例项目
 
-1. [ofweek_spider](ofweek_spider/) - Ofweek 网站爬虫示例（混合版）
-2. [ofweek_standalone](ofweek_standalone/) - Ofweek 网站爬虫示例（独立单机版）
-3. [ofweek_distributed](ofweek_distributed/) - Ofweek 网站爬虫示例（独立分布式版）
-4. [simple_proxy_example](simple_proxy_example/) - 简化版代理中间件使用示例
+### 1. 基础示例
+
+- [ofweek_standalone](ofweek_standalone/) - 单机模式基础示例
+- [ofweek_distributed](ofweek_distributed/) - 分布式模式基础示例
+
+### 2. 高级功能示例
+
+- [playwright_selenium_example](playwright_selenium_example/) - Playwright 和 Selenium 下载器示例
+- [refactored_example](refactored_example/) - 重构后的示例项目
+- [advanced_tools_example](advanced_tools_example/) - 高级工具使用示例（工厂模式、批处理工具、受控爬虫混入类、大规模配置工具、大规模爬虫辅助工具）
 
 ## 使用说明
 
-每个示例项目都包含完整的项目结构和运行说明，可以直接使用 Crawlo 命令运行。
+每个示例项目都包含完整的项目结构和运行脚本。进入相应的目录并运行 `python run.py` 即可启动示例。
+
+## 示例说明
+
+### ofweek_standalone
+
+展示如何使用 Crawlo 框架的单机模式进行网页爬取。包含完整的项目结构、配置文件和爬虫实现。
+
+### ofweek_distributed
+
+展示如何使用 Crawlo 框架的分布式模式进行网页爬取。需要 Redis 服务器支持。
+
+### playwright_selenium_example
+
+展示如何使用 Playwright 和 Selenium 下载器处理 JavaScript 渲染的页面。
+
+### refactored_example
+
+展示重构后的项目结构，使用更简洁的配置方式。
+
+### advanced_tools_example
+
+展示 Crawlo 框架的高级工具使用方法：
+
+1. **工厂模式相关模块** - 组件创建和依赖注入
+2. **批处理工具** - 大规模数据处理
+3. **受控爬虫混入类** - 大量请求的并发控制
+4. **大规模配置工具** - 针对大规模爬取的优化配置
+5. **大规模爬虫辅助工具** - 处理大规模爬取的辅助功能
+
+运行示例：
+```bash
+cd advanced_tools_example
+python run.py help             # 查看帮助信息
+python run.py factory          # 工厂模式示例
+python run.py batch            # 批处理工具示例
+python run.py controlled       # 受控爬虫混入类示例
+python run.py large_scale_config  # 大规模配置工具示例
+python run.py large_scale_helper  # 大规模爬虫辅助工具示例
+
+# 或者使用独立演示脚本
+python demo_tools.py           # 演示所有工具
+python demo_tools.py factory   # 演示工厂模式工具
+```
 
 ## 📁 项目结构
 
@@ -61,6 +110,27 @@ examples/
 │       └── spiders/
 │           ├── __init__.py
 │           └── example_spider.py    # 示例爬虫
+│
+├── advanced_tools_example/         # 高级工具使用示例
+│   ├── crawlo.cfg                   # 项目配置文件
+│   ├── run.py                       # 爬虫运行脚本
+│   ├── demo_tools.py                # 独立工具演示脚本
+│   ├── README.md                    # 项目说明文档
+│   ├── logs/                        # 日志目录
+│   ├── output/                      # 输出目录
+│   └── advanced_tools_example/
+│       ├── __init__.py
+│       ├── settings.py              # 配置文件
+│       ├── items.py                 # 数据项定义
+│       ├── middlewares.py           # 中间件
+│       ├── pipelines.py             # 管道
+│       └── spiders/                 # 爬虫模块
+│           ├── __init__.py
+│           ├── factory_example.py          # 工厂模式示例
+│           ├── batch_example.py            # 批处理工具示例
+│           ├── controlled_example.py       # 受控爬虫混入类示例
+│           ├── large_scale_config_example.py    # 大规模配置工具示例
+│           └── large_scale_helper_example.py    # 大规模爬虫辅助工具示例
 │
 └── README.md                        # 本文档
 ```
@@ -119,6 +189,37 @@ python run.py
 # 运行分布式模式
 export CRAWLO_MODE=distributed
 python run.py
+```
+
+## 高级工具示例
+
+### 项目概述
+[advanced_tools_example](advanced_tools_example/) 演示了 Crawlo 框架中各种高级工具的使用方法，包括工厂模式、批处理工具、受控爬虫混入类、大规模配置工具和大规模爬虫辅助工具。
+
+### 功能特点
+- 展示工厂模式在组件创建和依赖注入中的应用
+- 演示批处理工具在大规模数据处理中的使用
+- 展示受控爬虫混入类在处理大量请求时的并发控制
+- 演示大规模配置工具针对不同场景的优化配置
+- 展示大规模爬虫辅助工具在处理大规模任务时的支持功能
+
+### 运行方式
+```bash
+cd examples/advanced_tools_example
+
+# 查看帮助信息
+python run.py help
+
+# 运行特定示例
+python run.py factory          # 工厂模式示例
+python run.py batch            # 批处理工具示例
+python run.py controlled       # 受控爬虫混入类示例
+python run.py large_scale_config  # 大规模配置工具示例
+python run.py large_scale_helper  # 大规模爬虫辅助工具示例
+
+# 或者使用独立演示脚本
+python demo_tools.py           # 演示所有工具
+python demo_tools.py factory   # 演示特定工具
 ```
 
 ## 简化版代理中间件示例

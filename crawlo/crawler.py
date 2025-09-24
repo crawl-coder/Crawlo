@@ -356,6 +356,8 @@ class CrawlerProcess:
             
             self._logger.debug(f"Registering spider modules: {spider_modules}")
             
+            initial_spider_count = len(registry)
+            
             for module_path in spider_modules:
                 try:
                     # 导入模块
@@ -363,12 +365,90 @@ class CrawlerProcess:
                     self._logger.debug(f"Successfully imported spider module: {module_path}")
                 except ImportError as e:
                     self._logger.warning(f"Failed to import spider module {module_path}: {e}")
+                    # 如果导入失败，尝试自动发现
+                    self._auto_discover_spider_modules([module_path])
             
             # 检查注册表中的爬虫
             spider_names = list(registry.keys())
             self._logger.debug(f"Registered spiders after import: {spider_names}")
+            
+            # 如果导入模块后没有新的爬虫被注册，则尝试自动发现
+            final_spider_count = len(registry)
+            if final_spider_count == initial_spider_count:
+                self._logger.debug("No new spiders registered after importing modules, attempting auto-discovery")
+                self._auto_discover_spider_modules(spider_modules)
+                spider_names = list(registry.keys())
+                self._logger.debug(f"Registered spiders after auto-discovery: {spider_names}")
         except Exception as e:
             self._logger.warning(f"Error registering spider modules: {e}")
+    
+    def _auto_discover_spider_modules(self, spider_modules):
+        """
+        自动发现并导入爬虫模块中的所有爬虫
+        这个方法会扫描指定模块目录下的所有Python文件并自动导入
+        """
+        try:
+            from crawlo.spider import get_global_spider_registry
+            import importlib
+            from pathlib import Path
+            import sys
+            
+            registry = get_global_spider_registry()
+            initial_spider_count = len(registry)
+            
+            for module_path in spider_modules:
+                try:
+                    # 将模块路径转换为文件系统路径
+                    # 例如: ofweek_standalone.spiders -> ofweek_standalone/spiders
+                    package_parts = module_path.split('.')
+                    if len(package_parts) < 2:
+                        continue
+                        
+                    # 获取项目根目录
+                    project_root = None
+                    for path in sys.path:
+                        if path and Path(path).exists():
+                            possible_module_path = Path(path) / package_parts[0]
+                            if possible_module_path.exists():
+                                project_root = path
+                                break
+                    
+                    if not project_root:
+                        # 尝试使用当前工作目录
+                        project_root = str(Path.cwd())
+                    
+                    # 构建模块目录路径
+                    module_dir = Path(project_root)
+                    for part in package_parts:
+                        module_dir = module_dir / part
+                    
+                    # 如果目录存在，扫描其中的Python文件
+                    if module_dir.exists() and module_dir.is_dir():
+                        # 导入目录下的所有Python文件（除了__init__.py）
+                        for py_file in module_dir.glob("*.py"):
+                            if py_file.name.startswith('_'):
+                                continue
+                                
+                            # 构造模块名
+                            module_name = py_file.stem  # 文件名（不含扩展名）
+                            full_module_path = f"{module_path}.{module_name}"
+                            
+                            try:
+                                # 导入模块以触发Spider注册
+                                importlib.import_module(full_module_path)
+                            except ImportError as e:
+                                self._logger.warning(f"Failed to auto-import spider module {full_module_path}: {e}")
+                except Exception as e:
+                    self._logger.warning(f"Error during auto-discovery for module {module_path}: {e}")
+            
+            # 检查是否有新的爬虫被注册
+            final_spider_count = len(registry)
+            if final_spider_count > initial_spider_count:
+                new_spiders = list(registry.keys())
+                self._logger.info(f"Auto-discovered {final_spider_count - initial_spider_count} new spiders: {new_spiders}")
+                
+        except Exception as e:
+            self._logger.warning(f"Error during auto-discovery of spider modules: {e}")
     
     def is_spider_registered(self, name: str) -> bool:
         """检查爬虫是否已注册"""
@@ -473,9 +553,15 @@ class CrawlerProcess:
                                 # 导入模块来触发爬虫注册
                                 __import__(module_path)
                             except ImportError:
-                                pass  # 忽导入错误
+                                pass  # 忽略导入错误
                         
                         # 再次检查注册表
+                        if spider_cls_or_name in registry:
+                            return registry[spider_cls_or_name]
+                    
+                    # 如果仍然找不到，尝试自动发现模式
+                    if hasattr(self, '_spider_modules') and self._spider_modules:
+                        self._auto_discover_spider_modules(self._spider_modules)
                         if spider_cls_or_name in registry:
                             return registry[spider_cls_or_name]
                     
@@ -490,6 +576,25 @@ class CrawlerProcess:
                             registry[spider_class.name] = spider_class
                             return spider_class
                         else:
+                            # 尝试在spider_modules中查找
+                            if hasattr(self, '_spider_modules') and self._spider_modules:
+                                for module_path in self._spider_modules:
+                                    try:
+                                        # 构造完整的模块路径
+                                        full_module_path = f"{module_path}.{spider_cls_or_name}"
+                                        module = __import__(full_module_path, fromlist=[spider_cls_or_name])
+                                        # 获取模块中的Spider子类
+                                        for attr_name in dir(module):
+                                            attr_value = getattr(module, attr_name)
+                                            if (isinstance(attr_value, type) and
+                                                    issubclass(attr_value, registry.__class__.__bases__[0]) and
+                                                    hasattr(attr_value, 'name') and
+                                                    attr_value.name == spider_cls_or_name):
+                                                # 注册到全局注册表
+                                                registry[spider_cls_or_name] = attr_value
+                                                return attr_value
+                                    except ImportError:
+                                        continue
                             raise ValueError(f"Spider '{spider_cls_or_name}' not found in registry")
                     except (ImportError, AttributeError):
                         raise ValueError(f"Spider '{spider_cls_or_name}' not found in registry")
