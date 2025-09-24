@@ -70,6 +70,14 @@ DEFAULT_REQUEST_HEADERS = {
 # 为OffsiteMiddleware配置允许的域名
 ALLOWED_DOMAINS = ['ee.ofweek.com']
 
+# ============================== MySQL数据库配置 ==============================
+MYSQL_HOST = 'localhost'
+MYSQL_PORT = 3306
+MYSQL_USER = 'root'
+MYSQL_PASSWORD = 'password'  # 已设置的MySQL密码
+MYSQL_DB = 'cxzx_test'  # 请根据实际情况修改数据库名
+MYSQL_TABLE = 'crawlo'  # 默认表名，会被Spider的custom_settings覆盖
+
 # ============================== 数据管道 ==============================
 # PIPELINES = [
 #     'crawlo.pipelines.mysql_pipeline.AsyncmyMySQLPipeline',     # MySQL 存储（使用asyncmy异步库）
@@ -86,6 +94,9 @@ ALLOWED_DOMAINS = ['ee.ofweek.com']
 LOG_LEVEL = 'INFO'
 LOG_FILE = 'logs/ofweek_standalone.log'
 LOG_ENCODING = 'utf-8'  # 明确指定日志文件编码
+# 禁用日志轮转以避免并发问题
+LOG_MAX_BYTES = 0  # 设置为0禁用日志轮转
+LOG_BACKUP_COUNT = 0  # 设置为0禁用日志轮转
 STATS_DUMP = True
 
 # ============================== 输出配置 ==============================

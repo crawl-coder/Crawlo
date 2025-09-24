@@ -65,6 +65,10 @@ class OfweekSpider(Spider):
     allowed_domains = ['ee.ofweek.com']
     start_urls = ['https://ee.ofweek.com/']
 
+    custom_settings = {
+        "MYSQL_TABLE": "listed_balance_sheet_of_companies",
+    }
+
     # 高级配置（可选）
     # custom_settings = {
     #     'DOWNLOAD_DELAY': 1.0,  # Can reduce delay in distributed environment

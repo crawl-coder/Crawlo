@@ -4,8 +4,8 @@
 单机模式运行脚本
 使用新的框架架构，完全自动化初始化
 """
-import sys
 import asyncio
+import sys
 
 from crawlo.crawler import CrawlerProcess
 
