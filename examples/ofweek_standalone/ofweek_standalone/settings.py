@@ -36,7 +36,7 @@ DOWNLOAD_DELAY = 1.0
 DOWNLOADER = 'crawlo.downloader.aiohttp_downloader.AioHttpDownloader'
 
 # ============================== 队列配置 ==============================
-QUEUE_TYPE = 'auto'
+QUEUE_TYPE = 'memory'
 
 # ============================== 去重过滤器 ==============================
 # 使用auto模式，让框架根据Redis可用性自动选择过滤器

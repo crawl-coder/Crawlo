@@ -134,6 +134,8 @@ class OfweekSpider(Spider):
                 )
             except Exception as e:
                 self.logger.error(f"创建请求失败: {url}, 错误: {e}")
+        
+        self.logger.info("start_requests方法执行完成")
 
     def parse(self, response):
         """

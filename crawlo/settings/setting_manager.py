@@ -82,7 +82,24 @@ class SettingManager(MutableMapping):
         for key, value in user_config.items():
             if key not in ['MIDDLEWARES', 'PIPELINES', 'EXTENSIONS']:
                 self.attributes[key] = value
-    
+
+    def set_settings(self, module):
+        if isinstance(module, str):
+            module = import_module(module)
+        
+        # 收集模块中的所有配置项
+        module_settings = {}
+        for key in dir(module):
+            if key.isupper():
+                value = getattr(module, key)
+                module_settings[key] = value
+        
+        # 使用合并逻辑而不是直接设置
+        self._merge_config(module_settings)
+        
+        # 处理动态配置项（如LOG_FILE）
+        self._process_dynamic_config()
+        
     def _process_dynamic_config(self):
         """
         处理动态配置项
@@ -144,22 +161,6 @@ class SettingManager(MutableMapping):
 
     def set(self, key, value):
         self.attributes[key] = value
-
-    def set_settings(self, module):
-        if isinstance(module, str):
-            module = import_module(module)
-        
-        # 收集模块中的所有配置项
-        module_settings = {}
-        for key in dir(module):
-            if key.isupper():
-                module_settings[key] = getattr(module, key)
-        
-        # 使用合并逻辑而不是直接设置
-        self._merge_config(module_settings)
-        
-        # 处理动态配置项（如LOG_FILE）
-        self._process_dynamic_config()
 
     # 实现 MutableMapping 必须的方法
     def __getitem__(self, item):

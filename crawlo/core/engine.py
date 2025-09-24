@@ -73,9 +73,7 @@ class Engine(object):
         if not version or version == 'None':
             version = '1.0.0'
         # Change INFO level log to DEBUG level to avoid duplication with CrawlerProcess startup log
-        self.logger.debug(
-            f"Crawlo Started version {version}"
-        )
+        self.logger.debug(f"Crawlo Framework Started {version}")
 
     async def start_spider(self, spider):
         self.spider = spider
@@ -109,7 +107,20 @@ class Engine(object):
         if not hasattr(self.crawler, 'extension') or not self.crawler.extension:
             self.crawler.extension = self.crawler._create_extension()
 
-        self.start_requests = iter(spider.start_requests())
+        # 启动引擎
+        self.engine_start()
+        
+        self.logger.debug("开始创建start_requests迭代器")
+        try:
+            # 先收集所有请求到列表中，避免在检查时消耗迭代器
+            requests_list = list(spider.start_requests())
+            self.logger.debug(f"收集到 {len(requests_list)} 个请求")
+            self.start_requests = iter(requests_list)
+            self.logger.debug("start_requests迭代器创建成功")
+        except Exception as e:
+            self.logger.error(f"创建start_requests迭代器失败: {e}")
+            import traceback
+            self.logger.error(traceback.format_exc())
         await self._open_spider()
 
     async def crawl(self):
@@ -123,32 +134,41 @@ class Engine(object):
             # 启动请求生成任务（如果启用了受控生成）
             if (self.start_requests and 
                 self.settings.get_bool('ENABLE_CONTROLLED_REQUEST_GENERATION', False)):
+                self.logger.debug("创建受控请求生成任务")
                 generation_task = asyncio.create_task(
                     self._controlled_request_generation()
                 )
             else:
                 # 传统方式处理启动请求
+                self.logger.debug("创建传统请求生成任务")
                 generation_task = asyncio.create_task(
                     self._traditional_request_generation()
                 )
             
+            self.logger.debug("请求生成任务创建完成")
+            
             # 主爬取循环
+            loop_count = 0
             while self.running:
+                loop_count += 1
                 # 获取并处理请求
                 if request := await self._get_next_request():
                     await self._crawl(request)
                 
                 # 检查退出条件
-                if await self._should_exit():
+                should_exit = await self._should_exit()
+                if should_exit:
+                    self.logger.debug("满足退出条件，准备退出循环")
                     break
                 
                 # 短暂休息避免忙等
                 await asyncio.sleep(0.001)
+            
+            self.logger.debug(f"主爬取循环结束，总共执行了 {loop_count} 次")
         
         finally:
-            # 清理生成任务
+            # 确保请求生成任务完成
             if generation_task and not generation_task.done():
-                generation_task.cancel()
                 try:
                     await generation_task
                 except asyncio.CancelledError:
@@ -158,15 +178,24 @@ class Engine(object):
 
     async def _traditional_request_generation(self):
         """Traditional request generation method (compatible with older versions)"""
+        self.logger.debug("开始处理传统请求生成")
+        processed_count = 0
         while self.running:
             try:
                 start_request = next(self.start_requests)
+                self.logger.debug(f"获取到请求: {getattr(start_request, 'url', 'Unknown URL')}")
                 # 请求入队
                 await self.enqueue_request(start_request)
+                processed_count += 1
+                self.logger.debug(f"已处理请求数量: {processed_count}")
             except StopIteration:
+                self.logger.debug("所有起始请求处理完成")
                 self.start_requests = None
                 break
             except Exception as exp:
+                self.logger.error(f"处理请求时发生异常: {exp}")
+                import traceback
+                self.logger.error(traceback.format_exc())
                 # 1. All requests have been processed
                 # 2. Is scheduler idle
                 # 3. Is downloader idle
@@ -176,10 +205,11 @@ class Engine(object):
                 if self.start_requests is not None:
                     self.logger.error(f"Error occurred while starting request: {str(exp)}")
             await asyncio.sleep(0.001)
+        self.logger.debug(f"传统请求生成完成，总共处理了 {processed_count} 个请求")
 
     async def _controlled_request_generation(self):
         """Controlled request generation (enhanced features)"""
-        self.logger.info("Starting controlled request generation")
+        self.logger.debug("Starting controlled request generation")
         
         batch = []
         total_generated = 0
@@ -208,7 +238,7 @@ class Engine(object):
         
         finally:
             self.start_requests = None
-            self.logger.info(f"Request generation completed, total: {total_generated}")
+            self.logger.debug(f"Request generation completed, total: {total_generated}")
 
     async def _process_generation_batch(self, batch) -> int:
         """Process a batch of requests"""
@@ -271,8 +301,8 @@ class Engine(object):
 
     async def _open_spider(self):
         asyncio.create_task(self.crawler.subscriber.notify(spider_opened))
-        crawling = asyncio.create_task(self.crawl())
-        await crawling
+        # 直接调用crawl方法而不是创建任务，确保等待完成
+        await self.crawl()
 
     async def _crawl(self, request):
         # TODO 实现并发
@@ -347,22 +377,39 @@ class Engine(object):
 
     async def _should_exit(self) -> bool:
         """检查是否应该退出"""
+        self.logger.debug(f"检查退出条件: start_requests={self.start_requests is not None}")
         # 没有启动请求，且所有队列都空闲
         if self.start_requests is None:
+            self.logger.debug("start_requests 为 None，检查其他组件状态")
             # 使用异步的idle检查方法以获得更精确的结果
             scheduler_idle = await self.scheduler.async_idle() if hasattr(self.scheduler, 'async_idle') else self.scheduler.idle()
+            downloader_idle = self.downloader.idle()
+            task_manager_done = self.task_manager.all_done()
+            processor_idle = self.processor.idle()
+            
+            self.logger.debug(f"组件状态 - Scheduler: {scheduler_idle}, Downloader: {downloader_idle}, TaskManager: {task_manager_done}, Processor: {processor_idle}")
             
             if (scheduler_idle and 
-                self.downloader.idle() and 
-                self.task_manager.all_done() and 
-                self.processor.idle()):
+                downloader_idle and 
+                task_manager_done and 
+                processor_idle):
                 # 增加额外检查确保所有任务都完成
                 await asyncio.sleep(0.1)  # 短暂等待确保没有新的任务加入
-                if (await self.scheduler.async_idle() and 
-                    self.downloader.idle() and 
-                    self.task_manager.all_done() and 
-                    self.processor.idle()):
+                scheduler_idle = await self.scheduler.async_idle() if hasattr(self.scheduler, 'async_idle') else self.scheduler.idle()
+                downloader_idle = self.downloader.idle()
+                task_manager_done = self.task_manager.all_done()
+                processor_idle = self.processor.idle()
+                
+                self.logger.debug(f"二次检查组件状态 - Scheduler: {scheduler_idle}, Downloader: {downloader_idle}, TaskManager: {task_manager_done}, Processor: {processor_idle}")
+                
+                if (scheduler_idle and 
+                    downloader_idle and 
+                    task_manager_done and 
+                    processor_idle):
+                    self.logger.info("所有组件都空闲，准备退出")
                     return True
+        else:
+            self.logger.debug("start_requests 不为 None，不退出")
         
         return False
 
