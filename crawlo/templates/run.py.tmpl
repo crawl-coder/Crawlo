@@ -21,8 +21,8 @@ def main():
         spider_modules = ['{{project_name}}.spiders']
         process = CrawlerProcess(spider_modules=spider_modules)
 
-        # 运行指定的爬虫
-        asyncio.run(process.crawl('{{spider_name}}'))
+        # TODO 运行指定的爬虫
+        asyncio.run(process.crawl('spider_name'))
 
     except Exception as e:
         print(f"❌ 运行失败: {e}")

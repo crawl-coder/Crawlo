@@ -8,6 +8,7 @@ from typing import Optional
 # 向后兼容：导入新的日志系统
 try:
     from crawlo.logging import get_logger as new_get_logger, configure_logging
+
     _NEW_LOGGING_AVAILABLE = True
 except ImportError:
     _NEW_LOGGING_AVAILABLE = False
@@ -15,6 +16,7 @@ except ImportError:
     configure_logging = None
 
 LOG_FORMAT = '%(asctime)s - [%(name)s] - %(levelname)s: %(message)s'
+
 
 # 向后兼容的日志函数
 def get_logger(name: str = 'default', level: Optional[int] = None):
@@ -33,6 +35,7 @@ def get_logger(name: str = 'default', level: Optional[int] = None):
             logger.setLevel(level or logging.INFO)
         return logger
 
+
 # 兼容性函数
 def get_component_logger(component_class, settings=None, level=None):
     """获取组件Logger - 向后兼容"""
@@ -40,5 +43,5 @@ def get_component_logger(component_class, settings=None, level=None):
         component_name = component_class.__name__
     else:
         component_name = str(component_class)
-    
+
     return get_logger(component_name)
