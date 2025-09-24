@@ -374,17 +374,10 @@ class Spider(metaclass=SpiderMeta):
         可用于:
         - 清理资源
         - 关闭数据库连接
-        - 输出统计信息
         """
-        if self.stats:
-            stats_summary = {
-                'total_requests': self.stats.get('total_requests', 0),
-                'total_items': self.stats.get('total_items', 0),
-                'success_rate': self.stats.get('success_rate', 'N/A')
-            }
-            self.logger.info(f"Spider {self.name} closed, stats: {stats_summary}")
-        else:
-            self.logger.info(f"Spider {self.name} closed")
+        # 不再输出任何信息，避免与统计信息重复
+        # 统计信息由StatsCollector负责输出
+        pass
 
     def __str__(self) -> str:
         return f"{self.__class__.__name__}(name='{self.name}')"

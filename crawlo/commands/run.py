@@ -22,7 +22,8 @@ from crawlo.commands.stats import record_stats
 from crawlo.crawler import CrawlerProcess
 from crawlo.project import get_settings, _find_project_root
 # 使用新的统一初始化系统
-from crawlo.core.framework_initializer import initialize_framework, get_framework_initializer
+from crawlo.initialization import initialize_framework
+from crawlo.core import get_framework_initializer
 from crawlo.utils.log import get_logger
 
 # 延迟获取logger，确保在日志系统配置之后获取
@@ -180,8 +181,32 @@ def main(args):
             else:
                 return 1
 
-        spider_modules = [f"{project_package}.spiders"]
+        # 从配置中获取SPIDER_MODULES
+        spider_modules = settings.get('SPIDER_MODULES', [f"{project_package}.spiders"])
+        logger().debug(f"SPIDER_MODULES from settings: {spider_modules}")
         process = CrawlerProcess(settings=settings, spider_modules=spider_modules)
+        
+        # 手动导入爬虫模块以确保注册
+        for module_path in spider_modules:
+            try:
+                logger().debug(f"Attempting to import spider module: {module_path}")
+                __import__(module_path)
+                logger().debug(f"Successfully imported spider module: {module_path}")
+            except ImportError as e:
+                logger().warning(f"Failed to import spider module {module_path}: {e}")
+                # 尝试更详细的导入错误信息
+                import traceback
+                logger().warning(f"Import traceback: {traceback.format_exc()}")
+        
+        # 检查注册表中的爬虫
+        from crawlo.spider import get_global_spider_registry
+        registry = get_global_spider_registry()
+        spider_names = list(registry.keys())
+        logger().debug(f"Registered spiders after import: {spider_names}")
+        
+        # 调试信息
+        logger().debug(f"SPIDER_MODULES: {spider_modules}")
+        logger().debug(f"Available spiders: {process.get_spider_names()}")
 
         # === 情况1：运行所有爬虫 ===
         if spider_arg.lower() == "all":
@@ -209,11 +234,6 @@ def main(args):
             # 显示即将运行的爬虫列表
             # 根据用户要求，不再显示详细的爬虫列表信息
 
-            # 注册 stats 记录（除非 --no-stats）
-            if not no_stats:
-                for crawler in process.crawlers:
-                    crawler.signals.connect(record_stats, signal="spider_closed")
-
             # 并行运行所有爬虫
             with Progress(
                     SpinnerColumn(),
@@ -221,7 +241,7 @@ def main(args):
                     transient=True,
             ) as progress:
                 task = progress.add_task("正在运行所有爬虫...", total=None)
-                asyncio.run(process.crawl(spider_names))
+                asyncio.run(process.crawl_multiple(spider_names))
 
             if show_json:
                 console.print_json(data={"success": True, "spiders": spider_names})
@@ -283,9 +303,10 @@ def main(args):
         #     console.print()
 
         # 注册 stats 记录
-        if not no_stats:
-            for crawler in process.crawlers:
-                crawler.signals.connect(record_stats, signal="spider_closed")
+        # 注意：CrawlerProcess没有crawlers属性，我们需要在运行时注册
+        # if not no_stats:
+        #     for crawler in process.crawlers:
+        #         crawler.signals.connect(record_stats, signal="spider_closed")
 
         # 运行爬虫
         with Progress(

@@ -298,9 +298,21 @@ class ModernCrawler:
                 except Exception as e:
                     self._logger.warning(f"Engine cleanup failed: {e}")
             
+            # 调用Spider的spider_closed方法
+            if self._spider:
+                try:
+                    if asyncio.iscoroutinefunction(self._spider.spider_closed):
+                        await self._spider.spider_closed()
+                    else:
+                        self._spider.spider_closed()
+                except Exception as e:
+                    self._logger.warning(f"Spider cleanup failed: {e}")
+            
             if self._stats and hasattr(self._stats, 'close'):
                 try:
-                    await self._stats.close()
+                    close_result = self._stats.close()
+                    if asyncio.iscoroutine(close_result):
+                        await close_result
                 except Exception as e:
                     self._logger.warning(f"Stats cleanup failed: {e}")
             
@@ -320,20 +332,70 @@ class CrawlerProcess:
     简化版本，专注于核心功能
     """
     
-    def __init__(self, settings=None, max_concurrency: int = 3):
+    def __init__(self, settings=None, max_concurrency: int = 3, spider_modules=None):
         self._settings = settings or initialize_framework()
         self._max_concurrency = max_concurrency
         self._crawlers: List[ModernCrawler] = []
         self._semaphore = asyncio.Semaphore(max_concurrency)
         self._logger = get_logger('crawler.process')
+        self._spider_modules = spider_modules  # 保存spider_modules
+        
+        # 如果提供了spider_modules，自动注册这些模块中的爬虫
+        if spider_modules:
+            self._register_spider_modules(spider_modules)
         
         # 指标
         self._start_time: Optional[float] = None
         self._end_time: Optional[float] = None
     
+    def _register_spider_modules(self, spider_modules):
+        """注册爬虫模块"""
+        try:
+            from crawlo.spider import get_global_spider_registry
+            registry = get_global_spider_registry()
+            
+            self._logger.debug(f"Registering spider modules: {spider_modules}")
+            
+            for module_path in spider_modules:
+                try:
+                    # 导入模块
+                    __import__(module_path)
+                    self._logger.debug(f"Successfully imported spider module: {module_path}")
+                except ImportError as e:
+                    self._logger.warning(f"Failed to import spider module {module_path}: {e}")
+            
+            # 检查注册表中的爬虫
+            spider_names = list(registry.keys())
+            self._logger.debug(f"Registered spiders after import: {spider_names}")
+        except Exception as e:
+            self._logger.warning(f"Error registering spider modules: {e}")
+    
+    def is_spider_registered(self, name: str) -> bool:
+        """检查爬虫是否已注册"""
+        from crawlo.spider import get_global_spider_registry
+        registry = get_global_spider_registry()
+        return name in registry
+    
+    def get_spider_class(self, name: str):
+        """获取爬虫类"""
+        from crawlo.spider import get_global_spider_registry
+        registry = get_global_spider_registry()
+        return registry.get(name)
+    
+    def get_spider_names(self):
+        """获取所有注册的爬虫名称"""
+        from crawlo.spider import get_global_spider_registry
+        registry = get_global_spider_registry()
+        return list(registry.keys())
+    
     async def crawl(self, spider_cls_or_name, settings=None):
         """运行单个爬虫"""
         spider_cls = self._resolve_spider_class(spider_cls_or_name)
+        
+        # 记录启动的爬虫名称（符合规范要求）
+        from crawlo.logging import get_logger
+        logger = get_logger('crawlo.framework')
+        logger.info(f"Starting spider: {spider_cls.name}")
         
         merged_settings = self._merge_settings(settings)
         crawler = ModernCrawler(spider_cls, merged_settings)
@@ -348,10 +410,19 @@ class CrawlerProcess:
         self._start_time = time.time()
         
         try:
-            spider_classes = [
-                self._resolve_spider_class(cls_or_name) 
-                for cls_or_name in spider_classes_or_names
-            ]
+            spider_classes = []
+            for cls_or_name in spider_classes_or_names:
+                spider_cls = self._resolve_spider_class(cls_or_name)
+                spider_classes.append(spider_cls)
+            
+            # 记录启动的爬虫名称（符合规范要求）
+            spider_names = [cls.name for cls in spider_classes]
+            from crawlo.logging import get_logger
+            logger = get_logger('crawlo.framework')
+            if len(spider_names) == 1:
+                logger.info(f"Starting spider: {spider_names[0]}")
+            else:
+                logger.info(f"Starting spiders: {', '.join(spider_names)}")
             
             tasks = []
             for spider_cls in spider_classes:
@@ -394,7 +465,34 @@ class CrawlerProcess:
                 if spider_cls_or_name in registry:
                     return registry[spider_cls_or_name]
                 else:
-                    raise ValueError(f"Spider '{spider_cls_or_name}' not found in registry")
+                    # 如果在注册表中找不到，尝试通过spider_modules导入所有模块来触发注册
+                    # 然后再次检查注册表
+                    if hasattr(self, '_spider_modules') and self._spider_modules:
+                        for module_path in self._spider_modules:
+                            try:
+                                # 导入模块来触发爬虫注册
+                                __import__(module_path)
+                            except ImportError:
+                                pass  # 忽导入错误
+                        
+                        # 再次检查注册表
+                        if spider_cls_or_name in registry:
+                            return registry[spider_cls_or_name]
+                    
+                    # 如果仍然找不到，尝试直接导入模块
+                    try:
+                        # 假设格式为 module.SpiderClass
+                        if '.' in spider_cls_or_name:
+                            module_path, class_name = spider_cls_or_name.rsplit('.', 1)
+                            module = __import__(module_path, fromlist=[class_name])
+                            spider_class = getattr(module, class_name)
+                            # 注册到全局注册表
+                            registry[spider_class.name] = spider_class
+                            return spider_class
+                        else:
+                            raise ValueError(f"Spider '{spider_cls_or_name}' not found in registry")
+                    except (ImportError, AttributeError):
+                        raise ValueError(f"Spider '{spider_cls_or_name}' not found in registry")
             except ImportError:
                 raise ValueError(f"Cannot resolve spider name '{spider_cls_or_name}'")
         else:

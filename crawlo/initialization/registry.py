@@ -1,31 +1,16 @@
 #!/usr/bin/python
 # -*- coding: UTF-8 -*-
 """
-初始化器注册表 - 管理各种初始化器
+初始化器注册表 - 管理所有初始化器的注册和执行
 """
 
 import threading
-from typing import Dict, List, Callable, Type, Optional, Protocol
-from abc import ABC, abstractmethod
-
-from .phases import InitializationPhase, PhaseResult
+from typing import Dict, Optional, Callable, List
 from .context import InitializationContext
+from .phases import InitializationPhase, PhaseResult
 
 
-class Initializer(Protocol):
-    """初始化器协议"""
-    
-    def initialize(self, context: InitializationContext) -> PhaseResult:
-        """执行初始化"""
-        ...
-    
-    @property
-    def phase(self) -> InitializationPhase:
-        """初始化器负责的阶段"""
-        ...
-
-
-class BaseInitializer(ABC):
+class Initializer:
     """初始化器基类"""
     
     def __init__(self, phase: InitializationPhase):
@@ -33,31 +18,40 @@ class BaseInitializer(ABC):
     
     @property
     def phase(self) -> InitializationPhase:
+        """获取初始化阶段"""
         return self._phase
     
-    @abstractmethod
     def initialize(self, context: InitializationContext) -> PhaseResult:
         """执行初始化 - 子类必须实现"""
-        pass
+        raise NotImplementedError("Subclasses must implement initialize method")
+
+
+class BaseInitializer(Initializer):
+    """基础初始化器类 - 为向后兼容保留"""
+    
+    def __init__(self, phase: InitializationPhase):
+        super().__init__(phase)
     
     def _create_result(self, success: bool, duration: float = 0.0, 
-                      error: Optional[Exception] = None, 
-                      artifacts: Optional[dict] = None) -> PhaseResult:
-        """创建阶段结果的辅助方法"""
+                      artifacts: Optional[Dict] = None, error: Optional[Exception] = None) -> PhaseResult:
+        """创建初始化结果"""
         return PhaseResult(
-            phase=self._phase,
+            phase=self.phase,
             success=success,
             duration=duration,
-            error=error,
-            artifacts=artifacts or {}
+            artifacts=artifacts or {},
+            error=error
         )
 
 
 class InitializerRegistry:
     """
-    初始化器注册表
+    初始化器注册表 - 管理所有初始化器的注册和执行
     
-    管理所有初始化器的注册、查找和执行
+    特点：
+    1. 线程安全的注册和执行
+    2. 支持函数式和类式初始化器
+    3. 统一的结果处理
     """
     
     def __init__(self):

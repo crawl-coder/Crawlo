@@ -27,7 +27,10 @@ class InitializationPhase(Enum):
     # 阶段4：扩展组件初始化
     EXTENSIONS = "extensions"
     
-    # 阶段5：完成
+    # 阶段5：框架启动日志记录
+    FRAMEWORK_STARTUP_LOG = "framework_startup_log"
+    
+    # 阶段6：完成
     COMPLETED = "completed"
     
     # 错误状态
@@ -76,7 +79,7 @@ PHASE_DEFINITIONS = [
         phase=InitializationPhase.LOGGING,
         name="日志系统",
         description="配置和初始化日志系统",
-        dependencies=[InitializationPhase.PREPARING],
+        dependencies=[],  # 移除对PREPARING的依赖
         timeout=10.0
     ),
     PhaseDefinition(
@@ -102,10 +105,20 @@ PHASE_DEFINITIONS = [
         timeout=15.0
     ),
     PhaseDefinition(
+        phase=InitializationPhase.FRAMEWORK_STARTUP_LOG,
+        name="框架启动日志",
+        description="记录框架启动相关信息",
+        dependencies=[InitializationPhase.LOGGING, InitializationPhase.SETTINGS],
+        timeout=5.0
+    ),
+    PhaseDefinition(
         phase=InitializationPhase.COMPLETED,
         name="初始化完成",
         description="框架初始化完成",
-        dependencies=[InitializationPhase.CORE_COMPONENTS],  # Extensions是可选的
+        dependencies=[
+            InitializationPhase.CORE_COMPONENTS,
+            InitializationPhase.FRAMEWORK_STARTUP_LOG
+        ],  # Extensions是可选的
         timeout=5.0
     )
 ]

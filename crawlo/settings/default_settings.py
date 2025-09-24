@@ -50,7 +50,10 @@ RANDOM_RANGE = [0.5, 1.5]  # 随机延迟范围因子，实际延迟 = DOWNLOAD_
 DEPTH_PRIORITY = 1
 
 # 调度器队列最大大小
-SCHEDULER_MAX_QUEUE_SIZE = 1000
+SCHEDULER_MAX_QUEUE_SIZE = 10000
+# 背压控制配置
+BACKPRESSURE_RATIO = 0.8  # 背压触发阈值（队列大小达到最大容量的80%时触发背压控制）
+
 
 # 调度器队列名称（遵循统一命名规范）
 SCHEDULER_QUEUE_NAME = f"crawlo:{PROJECT_NAME}:queue:requests"

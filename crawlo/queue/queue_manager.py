@@ -156,13 +156,9 @@ class QueueManager:
 
             # 背压控制（仅对内存队列）
             if self._queue_semaphore:
-                # 对于大量请求，使用非阻塞式检查
-                if not self._queue_semaphore.locked():
-                    await self._queue_semaphore.acquire()
-                else:
-                    # 如果队列已满，返回 False 而不是阻塞
-                    self.logger.warning("Queue is full, skipping current request")
-                    return False
+                # 对于大量请求，使用阻塞式等待而不是跳过
+                # 这样可以确保不会丢失任何请求
+                await self._queue_semaphore.acquire()
 
             # 统一的入队操作
             if hasattr(self._queue, 'put'):

@@ -9,8 +9,6 @@ import sys
 import os
 import asyncio
 
-from crawlo.project import get_settings
-
 # 添加项目根目录到 Python 路径
 project_root = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, project_root)
@@ -29,11 +27,6 @@ def main():
     
     # 创建爬虫进程并应用配置
     try:
-        # 创建 SettingManager 实例并应用配置
-        # settings = get_settings()
-        # 将分布式配置导入到 SettingManager 中
-        # settings.update_attributes(locals())
-
         # 确保 spider 模块被正确导入
         spider_modules = ['ofweek_distributed.spiders']
         process = CrawlerProcess(spider_modules=spider_modules)

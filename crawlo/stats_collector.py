@@ -46,9 +46,6 @@ class StatsCollector(object):
 
         self._stats['spider_name'] = spider_name
 
-        if self._dump:
-            self.logger.info(f'{spider_name} stats: \n{pformat(self._stats)}')
-
     def __getitem__(self, item):
         return self._stats[item]
 
@@ -57,3 +54,20 @@ class StatsCollector(object):
 
     def __delitem__(self, key):
         del self._stats[key]
+
+    def close(self):
+        """关闭统计收集器并输出统计信息"""
+        if self._dump:
+            # 获取爬虫名称
+            spider_name = self._stats.get('spider_name', 'unknown')
+            
+            # 如果还没有设置爬虫名称，尝试从crawler中获取
+            if spider_name == 'unknown' and hasattr(self, 'crawler') and self.crawler:
+                spider = getattr(self.crawler, 'spider', None)
+                if spider and hasattr(spider, 'name'):
+                    spider_name = spider.name
+                    # 同时更新_stats中的spider_name
+                    self._stats['spider_name'] = spider_name
+            
+            # 输出统计信息（这是唯一输出统计信息的地方）
+            self.logger.info(f'{spider_name} stats: \n{pformat(self._stats)}')

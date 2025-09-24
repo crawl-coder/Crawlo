@@ -414,11 +414,11 @@ class Engine(object):
         return False
 
     async def close_spider(self):
+        # 不再调用crawler.close()，避免重复清理
+        # 清理工作应该由crawler的_lifecycle_manager上下文管理器来处理
         await asyncio.gather(*self.task_manager.current_task)
         await self.scheduler.close()
         await self.downloader.close()
-        if self.normal:
-            await self.crawler.close()
     
     def get_generation_stats(self) -> dict:
         """获取生成统计"""

@@ -105,8 +105,15 @@ class CoreInitializer:
         registry = get_global_registry()
         execution_order = get_execution_order()
         
+        # 只执行已注册的阶段
+        registered_phases = set(registry.get_all_phases())
+        
         for phase in execution_order:
             if phase == InitializationPhase.ERROR:
+                continue
+                
+            # 只执行已注册的阶段
+            if phase not in registered_phases:
                 continue
                 
             context.set_current_phase(phase)
