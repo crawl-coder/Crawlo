@@ -164,10 +164,11 @@ class NetworkDiagnostic:
                     
                     return {
                         'success': True,
-                        'status_code': response.status,
+                        'url': url,
+                        'status_code': response.status_code,  # 修复：使用status_code而不是status
                         'response_time': response_time,
-                        'headers': dict(response.headers),
-                        'error': None
+                        'content_length': len(response.body) if response.body else 0,
+                        'headers': dict(response.headers)
                     }
                     
         except aiohttp.ClientError as e:

@@ -36,7 +36,7 @@ DOWNLOAD_DELAY = 1.0
 DOWNLOADER = 'crawlo.downloader.aiohttp_downloader.AioHttpDownloader'
 
 # ============================== 队列配置 ==============================
-QUEUE_TYPE = 'memory'
+QUEUE_TYPE = 'auto'
 SCHEDULER_MAX_QUEUE_SIZE = 100  # 设置队列大小为100
 
 # ============================== 背压控制配置 ==============================
