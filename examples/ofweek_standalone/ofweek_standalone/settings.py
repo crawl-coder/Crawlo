@@ -10,7 +10,7 @@ import os
 # ============================== 项目基本信息 ==============================
 PROJECT_NAME = 'ofweek_standalone'
 # ============================== 运行模式 ==============================
-RUN_MODE = 'standalone'
+RUN_MODE = 'standalone'  # 改为分布式模式以测试Redis队列
 
 # 确保日志目录存在
 os.makedirs('logs', exist_ok=True)
@@ -36,19 +36,22 @@ DOWNLOAD_DELAY = 0.05  # 从0.1减少到0.05秒
 DOWNLOADER = 'crawlo.downloader.aiohttp_downloader.AioHttpDownloader'
 
 # ============================== 队列配置 ==============================
-QUEUE_TYPE = 'auto'
+QUEUE_TYPE = 'auto'  # 使用Redis队列
+# 队列名称遵循统一命名规范: crawlo:{PROJECT_NAME}:queue:requests
+# 当需要自定义队列名称时，取消注释并修改下面这行
+# SCHEDULER_QUEUE_NAME = f'crawlo:{PROJECT_NAME}:queue:requests'
 SCHEDULER_MAX_QUEUE_SIZE = 200  # 从100增加到200
 
 # ============================== 背压控制配置 ==============================
 BACKPRESSURE_RATIO = 0.9  # 从0.8增加到0.9
 
 # ============================== 去重过滤器 ==============================
-# 使用auto模式，让框架根据Redis可用性自动选择过滤器
-FILTER_CLASS = 'crawlo.filters.memory_filter.MemoryFilter'
+# 使用Redis过滤器
+FILTER_CLASS = 'crawlo.filters.aioredis_filter.AioRedisFilter'
 
 # ============================== 默认去重管道 ==============================
-# 使用auto模式，让框架根据Redis可用性自动选择去重管道
-DEFAULT_DEDUP_PIPELINE = 'crawlo.pipelines.memory_dedup_pipeline.MemoryDedupPipeline'
+# 使用Redis去重管道
+DEFAULT_DEDUP_PIPELINE = 'crawlo.pipelines.redis_dedup_pipeline.RedisDedupPipeline'
 
 # ============================== 爬虫模块配置 ==============================
 SPIDER_MODULES = ['ofweek_standalone.spiders']

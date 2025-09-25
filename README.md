@@ -580,6 +580,51 @@ Crawlo支持三种队列类型，可通过`QUEUE_TYPE`配置项设置：
 
 推荐使用`auto`模式，让框架根据环境自动选择最适合的队列类型。
 
+#### Redis Key 命名规范
+
+在分布式模式下，Crawlo框架使用Redis作为队列和去重存储。为了确保不同项目和爬虫之间的数据隔离，框架采用统一的Redis Key命名规范：
+
+##### 默认命名规则
+Redis Key遵循以下命名格式：`crawlo:{PROJECT_NAME}:{component}:{identifier}`
+
+其中：
+- `PROJECT_NAME`：项目名称，用于区分不同项目
+- `component`：组件类型，如`queue`、`filter`、`item`
+- `identifier`：具体标识符，如`requests`、`processing`、`failed`、`fingerprint`
+
+##### 具体Key格式
+1. **请求队列**：`crawlo:{PROJECT_NAME}:queue:requests`
+   - 用于存储待处理的请求任务
+
+2. **处理中队列**：`crawlo:{PROJECT_NAME}:queue:processing`
+   - 用于存储正在处理的请求任务
+
+3. **失败队列**：`crawlo:{PROJECT_NAME}:queue:failed`
+   - 用于存储处理失败的请求任务
+
+4. **请求去重**：`crawlo:{PROJECT_NAME}:filter:fingerprint`
+   - 用于存储请求URL的指纹，实现去重功能
+
+5. **数据项去重**：`crawlo:{PROJECT_NAME}:item:fingerprint`
+   - 用于存储数据项的指纹，防止重复存储
+
+##### 自定义队列名称
+用户可以通过`SCHEDULER_QUEUE_NAME`配置项自定义请求队列名称。处理中队列和失败队列会基于请求队列名称自动生成：
+- 处理中队列：将`:queue:requests`替换为`:queue:processing`
+- 失败队列：将`:queue:requests`替换为`:queue:failed`
+
+示例配置：
+```python
+# settings.py
+SCHEDULER_QUEUE_NAME = f'crawlo:{PROJECT_NAME}:queue:requests'
+```
+
+##### 命名规范优势
+1. **命名空间隔离**：通过项目名称实现不同项目间的数据隔离
+2. **组件分类清晰**：通过组件类型区分不同功能模块
+3. **易于监控和管理**：统一的命名格式便于Redis监控和管理
+4. **防止命名冲突**：避免不同项目或组件间的Key冲突
+
 <!-- 配置系统 section -->
 <h2 align="center">🎛️ 配置系统</h2>
 
@@ -1042,6 +1087,34 @@ asyncio.run(process.crawl('my_spider_name'))
 - [OFweek独立爬虫](examples/ofweek_standalone/) - 独立运行的爬虫示例
 - [OFweek混合模式爬虫](examples/ofweek_spider/) - 支持单机和分布式模式切换的爬虫示例
 - [高级工具示例](examples/advanced_tools_example/) - 展示Crawlo框架中各种高级工具的使用方法，包括工厂模式、批处理工具、受控爬虫混入类、大规模配置工具和大规模爬虫辅助工具
+
+---
+
+<!-- Redis键名修复说明 section -->
+<h2 align="center">🔧 Redis键名修复说明</h2>
+
+在早期版本中，Crawlo框架存在Redis队列键名生成的双重前缀问题。具体表现为：
+
+- **问题现象**：Redis队列键名出现双重"crawlo"前缀，如`crawlo:crawlo:queue:requests`而不是正确的`crawlo:{project_name}:queue:requests`
+- **影响范围**：影响分布式模式下的请求队列、处理队列和失败队列的正确识别和使用
+- **根本原因**：队列管理器中的项目名称提取逻辑未能正确处理不同格式的队列名称
+
+**修复内容**：
+
+1. **队列管理器优化**：
+   - 改进了[QueueConfig.from_settings](file:///Users/oscar/projects/Crawlo/crawlo/queue/queue_manager.py#L148-L180)方法，使其在`SCHEDULER_QUEUE_NAME`未设置时能正确使用基于项目名称的默认值
+   - 修复了队列管理器中从队列名称提取项目名称的逻辑，确保能正确处理各种前缀情况
+
+2. **Redis队列实现改进**：
+   - 在[RedisPriorityQueue](file:///Users/oscar/projects/Crawlo/crawlo/queue/redis_priority_queue.py#L39-L76)中添加了`_normalize_queue_name`方法来规范化队列名称
+   - 处理了多重"crawlo"前缀的情况，确保队列名称符合统一规范
+
+3. **配置文件调整**：
+   - 将`SCHEDULER_QUEUE_NAME`设置为注释状态，提供更大的配置灵活性
+   - 在所有模板和示例项目的配置文件中保持了一致性
+
+**验证测试**：
+通过专门的测试脚本验证了修复效果，确保在各种队列命名情况下都能正确生成和识别Redis键名。
 
 ---
 

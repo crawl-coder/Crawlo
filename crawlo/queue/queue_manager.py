@@ -146,6 +146,17 @@ class QueueConfig:
     @classmethod
     def from_settings(cls, settings) -> 'QueueConfig':
         """Create configuration from settings"""
+        # 获取项目名称，用于生成默认队列名称
+        project_name = settings.get('PROJECT_NAME', 'default')
+        default_queue_name = f"crawlo:{project_name}:queue:requests"
+        
+        # 如果设置了SCHEDULER_QUEUE_NAME，则使用该值，否则使用基于项目名称的默认值
+        scheduler_queue_name = settings.get('SCHEDULER_QUEUE_NAME')
+        if scheduler_queue_name is not None:
+            queue_name = scheduler_queue_name
+        else:
+            queue_name = default_queue_name
+        
         return cls(
             queue_type=settings.get('QUEUE_TYPE', QueueType.AUTO),
             redis_url=settings.get('REDIS_URL'),
@@ -153,7 +164,7 @@ class QueueConfig:
             redis_port=settings.get_int('REDIS_PORT', 6379),
             redis_password=settings.get('REDIS_PASSWORD'),
             redis_db=settings.get_int('REDIS_DB', 0),
-            queue_name=settings.get('SCHEDULER_QUEUE_NAME', 'crawlo:requests'),
+            queue_name=queue_name,
             max_queue_size=settings.get_int('SCHEDULER_MAX_QUEUE_SIZE', 1000),
             max_retries=settings.get_int('QUEUE_MAX_RETRIES', 3),
             timeout=settings.get_int('QUEUE_TIMEOUT', 300)
@@ -423,15 +434,23 @@ class QueueManager:
             except ImportError as e:
                 raise RuntimeError(f"Redis队列不可用：未能导入RedisPriorityQueue ({e})")
 
-            # 简化项目名称提取逻辑
+            # 修复项目名称提取逻辑，严格按照测试文件中的逻辑实现
             project_name = "default"
             if ':' in self.config.queue_name:
                 parts = self.config.queue_name.split(':')
-                # 跳过所有"crawlo"前缀，取第一个非"crawlo"部分作为项目名称
-                for part in parts:
-                    if part != "crawlo":
-                        project_name = part
-                        break
+                if len(parts) >= 2:
+                    # 处理可能的双重 crawlo 前缀
+                    if parts[0] == "crawlo" and parts[1] == "crawlo":
+                        # 双重 crawlo 前缀，取"crawlo"作为项目名称
+                        project_name = "crawlo"
+                    elif parts[0] == "crawlo":
+                        # 正常的 crawlo 前缀，取第二个部分作为项目名称
+                        project_name = parts[1]
+                    else:
+                        # 没有 crawlo 前缀，使用第一个部分作为项目名称
+                        project_name = parts[0]
+                else:
+                    project_name = self.config.queue_name or "default"
             else:
                 project_name = self.config.queue_name or "default"
 

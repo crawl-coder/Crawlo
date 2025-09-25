@@ -63,8 +63,8 @@ class RedisPriorityQueue:
         if queue_name is None:
             self.queue_name = f"crawlo:{module_name}:queue:requests"
         else:
-            # 保持用户提供的队列名称不变，不做修改
-            self.queue_name = queue_name
+            # 处理多重 crawlo 前缀，规范化队列名称
+            self.queue_name = self._normalize_queue_name(queue_name)
 
         # 如果未提供 processing_queue，则根据 queue_name 自动生成
         if processing_queue is None:
@@ -91,6 +91,47 @@ class RedisPriorityQueue:
         self._redis: Optional[aioredis.Redis] = None
         self._lock = asyncio.Lock()  # 用于连接初始化的锁
         self.request_serializer = RequestSerializer()  # 处理序列化
+
+    def _normalize_queue_name(self, queue_name: str) -> str:
+        """
+        规范化队列名称，处理多重 crawlo 前缀
+        
+        :param queue_name: 原始队列名称
+        :return: 规范化后的队列名称
+        """
+        # 如果队列名称已经符合规范（以 crawlo: 开头且不是 crawlo:crawlo:），则保持不变
+        if queue_name.startswith("crawlo:") and not queue_name.startswith("crawlo:crawlo:"):
+            return queue_name
+            
+        # 处理三重 crawlo 前缀，简化为标准格式
+        if queue_name.startswith("crawlo:crawlo:crawlo:"):
+            # 三重 crawlo 前缀，简化为标准 crawlo: 格式
+            remaining = queue_name[21:]  # 去掉 "crawlo:crawlo:crawlo:" 前缀
+            if remaining:
+                return f"crawlo:{remaining}"
+            else:
+                return "crawlo:requests"  # 默认名称
+                
+        # 处理双重 crawlo 前缀
+        elif queue_name.startswith("crawlo:crawlo:"):
+            # 双重 crawlo 前缀，简化为标准 crawlo: 格式
+            remaining = queue_name[14:]  # 去掉 "crawlo:crawlo:" 前缀
+            if remaining:
+                return f"crawlo:{remaining}"
+            else:
+                return "crawlo:requests"  # 默认名称
+                
+        # 处理无 crawlo 前缀的情况
+        elif not queue_name.startswith("crawlo:"):
+            # 无 crawlo 前缀，添加 crawlo: 前缀
+            if queue_name:
+                return f"crawlo:{queue_name}"
+            else:
+                return "crawlo:requests"  # 默认名称
+                
+        # 其他情况，保持不变
+        else:
+            return queue_name
 
     async def connect(self, max_retries=3, delay=1):
         """异步连接 Redis，支持重试"""

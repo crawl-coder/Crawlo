@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-QueueManager Redis Key 测试脚本
-用于验证QueueManager在创建RedisPriorityQueue时是否正确传递module_name参数
+QueueManager Redis Key测试脚本
+用于验证QueueManager创建Redis队列时是否正确传递module_name参数
 """
 import asyncio
 import sys
@@ -12,40 +12,32 @@ import traceback
 # 添加项目根目录到路径
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
+# 导入相关模块
 from crawlo.queue.queue_manager import QueueManager, QueueConfig, QueueType
 
 
 class MockSettings:
     """模拟设置类"""
-    def __init__(self, project_name="test_project"):
-        self.project_name = project_name
-        self.REDIS_URL = "redis://127.0.0.1:6379/15"  # 使用测试数据库
+    def __init__(self):
+        self.REDIS_HOST = '127.0.0.1'
+        self.REDIS_PORT = 6379
+        self.REDIS_PASSWORD = ''
+        self.REDIS_DB = 0
+        self.REDIS_URL = 'redis://127.0.0.1:6379/0'
         self.REDIS_TTL = 0
-        self.CLEANUP_FP = 0
-        self.FILTER_DEBUG = True
-        self.LOG_LEVEL = "INFO"
-        self.DECODE_RESPONSES = True
+        self.SCHEDULER_MAX_QUEUE_SIZE = 1000
+        self.QUEUE_MAX_RETRIES = 3
+        self.QUEUE_TIMEOUT = 300
     
     def get(self, key, default=None):
-        if key == 'PROJECT_NAME':
-            return self.project_name
+        if key == 'REDIS_HOST':
+            return self.REDIS_HOST
+        elif key == 'REDIS_PASSWORD':
+            return self.REDIS_PASSWORD
         elif key == 'REDIS_URL':
             return self.REDIS_URL
-        elif key == 'FILTER_DEBUG':
-            return self.FILTER_DEBUG
-        elif key == 'LOG_LEVEL':
-            return self.LOG_LEVEL
-        elif key == 'DECODE_RESPONSES':
-            return self.DECODE_RESPONSES
-        return default
-    
-    def get_bool(self, key, default=False):
-        if key == 'FILTER_DEBUG':
-            return self.FILTER_DEBUG
-        elif key == 'DECODE_RESPONSES':
-            return self.DECODE_RESPONSES
-        elif key == 'CLEANUP_FP':
-            return self.CLEANUP_FP
+        elif key == 'REDIS_TTL':
+            return self.REDIS_TTL
         return default
     
     def get_int(self, key, default=0):
@@ -74,26 +66,41 @@ async def test_queue_manager_redis_key():
             {
                 "queue_name": "crawlo:books_distributed:queue:requests",
                 "expected_module_name": "books_distributed",
+                "expected_queue_name": "crawlo:books_distributed:queue:requests",
+                "expected_processing_queue": "crawlo:books_distributed:queue:processing",
+                "expected_failed_queue": "crawlo:books_distributed:queue:failed",
                 "description": "标准项目名称"
             },
             {
                 "queue_name": "crawlo:api_data_collection:queue:requests",
                 "expected_module_name": "api_data_collection",
+                "expected_queue_name": "crawlo:api_data_collection:queue:requests",
+                "expected_processing_queue": "crawlo:api_data_collection:queue:processing",
+                "expected_failed_queue": "crawlo:api_data_collection:queue:failed",
                 "description": "API数据采集项目"
             },
             {
                 "queue_name": "crawlo:test_project:queue:requests",
                 "expected_module_name": "test_project",
+                "expected_queue_name": "crawlo:test_project:queue:requests",
+                "expected_processing_queue": "crawlo:test_project:queue:processing",
+                "expected_failed_queue": "crawlo:test_project:queue:failed",
                 "description": "测试项目"
             },
             {
                 "queue_name": "simple_queue_name",
                 "expected_module_name": "simple_queue_name",
+                "expected_queue_name": "crawlo:simple_queue_name",  # RedisPriorityQueue会规范化名称
+                "expected_processing_queue": "crawlo:simple_queue_name:processing",
+                "expected_failed_queue": "crawlo:simple_queue_name:failed",
                 "description": "简单队列名称"
             },
             {
                 "queue_name": "",
                 "expected_module_name": "default",
+                "expected_queue_name": "crawlo:",  # 空字符串会规范化为"crawlo:"
+                "expected_processing_queue": "crawlo::processing",
+                "expected_failed_queue": "crawlo::failed",
                 "description": "空队列名称"
             }
         ]
@@ -123,16 +130,12 @@ async def test_queue_manager_redis_key():
                 f"module_name不匹配: {queue.module_name} != {test_case['expected_module_name']}"
             
             # 验证队列名称是否符合规范
-            expected_queue_name = f"crawlo:{queue.module_name}:queue:requests"
-            expected_processing_queue = f"crawlo:{queue.module_name}:queue:processing"
-            expected_failed_queue = f"crawlo:{queue.module_name}:queue:failed"
-            
-            assert queue.queue_name == expected_queue_name, \
-                f"队列名称不匹配: {queue.queue_name} != {expected_queue_name}"
-            assert queue.processing_queue == expected_processing_queue, \
-                f"处理中队列名称不匹配: {queue.processing_queue} != {expected_processing_queue}"
-            assert queue.failed_queue == expected_failed_queue, \
-                f"失败队列名称不匹配: {queue.failed_queue} != {expected_failed_queue}"
+            assert queue.queue_name == test_case["expected_queue_name"], \
+                f"队列名称不匹配: {queue.queue_name} != {test_case['expected_queue_name']}"
+            assert queue.processing_queue == test_case["expected_processing_queue"], \
+                f"处理中队列名称不匹配: {queue.processing_queue} != {test_case['expected_processing_queue']}"
+            assert queue.failed_queue == test_case["expected_failed_queue"], \
+                f"失败队列名称不匹配: {queue.failed_queue} != {test_case['expected_failed_queue']}"
             
             print(f"      module_name: {queue.module_name}")
             print(f"      队列名称: {queue.queue_name}")

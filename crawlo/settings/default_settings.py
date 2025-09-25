@@ -60,7 +60,8 @@ REQUEST_GENERATION_INTERVAL = 0.01  # 请求生成间隔（秒）
 ENABLE_CONTROLLED_REQUEST_GENERATION = False  # 是否启用受控请求生成
 
 # 调度器队列名称（遵循统一命名规范）
-SCHEDULER_QUEUE_NAME = f"crawlo:{PROJECT_NAME}:queue:requests"
+# 当使用Redis队列时，取消注释并设置此值，或在项目配置文件中设置
+# SCHEDULER_QUEUE_NAME = f"crawlo:{PROJECT_NAME}:queue:requests"
 
 # 队列类型：memory/redis/auto
 QUEUE_TYPE = 'auto'
@@ -97,13 +98,12 @@ if REDIS_PASSWORD:
 else:
     REDIS_URL = f'redis://{REDIS_HOST}:{REDIS_PORT}/{REDIS_DB}'
 
-# 统一的Redis key命名规范配置
-# REDIS_KEY_PREFIX 已移至各组件中，使用统一的命名规范
-# crawlo:{PROJECT_NAME}:filter:fingerprint (请求去重)
-# crawlo:{PROJECT_NAME}:item:fingerprint (数据项去重)
-# crawlo:{PROJECT_NAME}:queue:requests (请求队列)
-# crawlo:{PROJECT_NAME}:queue:processing (处理中队列)
-# crawlo:{PROJECT_NAME}:queue:failed (失败队列)
+# Redis key命名规范已封装到框架内部组件中，用户无需手动配置：
+# - 请求去重: crawlo:{PROJECT_NAME}:filter:fingerprint
+# - 数据项去重: crawlo:{PROJECT_NAME}:item:fingerprint
+# - 请求队列: crawlo:{PROJECT_NAME}:queue:requests
+# - 处理中队列: crawlo:{PROJECT_NAME}:queue:processing
+# - 失败队列: crawlo:{PROJECT_NAME}:queue:failed
 
 REDIS_TTL = 0  # 指纹过期时间（0 表示永不过期）
 CLEANUP_FP = 0  # 程序结束时是否清理指纹（0=不清理）
