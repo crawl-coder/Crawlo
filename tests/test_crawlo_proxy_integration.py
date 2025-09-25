@@ -45,7 +45,7 @@ class ProxyTestSpider(Spider):
         
         item = TestItem(
             url=response.url,
-            status=response.status,
+            status=response.status_code,
             proxy=str(response.meta.get('proxy', 'No proxy'))
         )
         

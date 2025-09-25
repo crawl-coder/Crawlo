@@ -141,7 +141,7 @@ class LargeScaleHelperExampleSpider(Spider):
         yield {
             'id': item_id,
             'url': response.url,
-            'status': response.status
+            'status': response.status_code
         }
     
     def closed(self, reason):

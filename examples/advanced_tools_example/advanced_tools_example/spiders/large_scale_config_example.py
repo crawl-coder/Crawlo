@@ -83,7 +83,7 @@ class LargeScaleConfigExampleSpider(Spider):
         
         yield {
             'url': response.url,
-            'status': response.status,
+            'status': response.status_code,
             'title': response.css('title::text').get() or 'N/A'
         }
 

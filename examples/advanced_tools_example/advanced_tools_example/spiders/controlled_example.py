@@ -102,7 +102,7 @@ class ControlledExampleSpider(Spider, ControlledRequestMixin):
         yield {
             'id': item_id,
             'url': response.url,
-            'status': response.status,
+            'status': response.status_code,
             'timestamp': time.time()
         }
 
@@ -149,7 +149,7 @@ class AsyncControlledExampleSpider(Spider, AsyncControlledRequestMixin):
         yield {
             'id': item_id,
             'url': response.url,
-            'status': response.status,
+            'status': response.status_code,
             'timestamp': __import__('time').time()
         }
 

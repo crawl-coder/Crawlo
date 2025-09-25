@@ -57,9 +57,10 @@ class CrawloFramework:
 
         self._logger.info(f"Crawlo Framework Started {version}")
         
-        # 获取运行模式并记录日志
+        # 获取运行模式和队列类型并记录日志
         run_mode = self._settings.get('RUN_MODE', 'unknown')
-        self._logger.info(f"Run mode: {run_mode}")
+        queue_type = self._settings.get('QUEUE_TYPE', 'unknown')
+        self._logger.info(f"RunMode: {run_mode}, QueueType: {queue_type}")
         
         # 记录项目名称
         project_name = self._settings.get('PROJECT_NAME', 'unknown')
