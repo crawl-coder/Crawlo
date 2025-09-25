@@ -15,7 +15,7 @@ import hashlib
 import aiomysql
 
 from crawlo import Item
-from crawlo.exceptions import DropItem
+from crawlo.exceptions import DropItem, ItemDiscard
 from crawlo.spider import Spider
 from crawlo.utils.log import get_logger
 
@@ -133,7 +133,7 @@ class DatabaseDedupPipeline:
                 # 如果已存在，丢弃这个数据项
                 self.dropped_count += 1
                 self.logger.debug(f"Dropping duplicate item: {fingerprint[:20]}...")
-                raise DropItem(f"Duplicate item: {fingerprint}")
+                raise ItemDiscard(f"Duplicate item: {fingerprint}")
             else:
                 # 记录新数据项的指纹
                 await self._insert_fingerprint(fingerprint)
@@ -176,7 +176,7 @@ class DatabaseDedupPipeline:
                 except aiomysql.IntegrityError:
                     # 指纹已存在（并发情况下可能发生）
                     await conn.rollback()
-                    raise DropItem(f"重复的数据项: {fingerprint}")
+                    raise ItemDiscard(f"重复的数据项: {fingerprint}")
                 except Exception:
                     await conn.rollback()
                     raise
@@ -198,26 +198,3 @@ class DatabaseDedupPipeline:
             item_dict = dict(item)
         
         # 对字典进行排序以确保一致性
-        sorted_items = sorted(item_dict.items())
-        
-        # 生成指纹字符串
-        fingerprint_string = '|'.join([f"{k}={v}" for k, v in sorted_items if v is not None])
-        
-        # 使用 SHA256 生成固定长度的指纹
-        return hashlib.sha256(fingerprint_string.encode('utf-8')).hexdigest()
-
-    async def close_spider(self, spider: Spider) -> None:
-        """
-        爬虫关闭时的清理工作
-        
-        :param spider: 爬虫实例
-        """
-        try:
-            if self.pool:
-                self.pool.close()
-                await self.pool.wait_closed()
-                
-            self.logger.info(f"Spider {spider.name} closed:")
-            self.logger.info(f"  - Dropped duplicate items: {self.dropped_count}")
-        except Exception as e:
-            self.logger.error(f"Error closing spider: {e}")

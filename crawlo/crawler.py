@@ -308,6 +308,18 @@ class ModernCrawler:
                 except Exception as e:
                     self._logger.warning(f"Spider cleanup failed: {e}")
             
+            # 调用StatsCollector的close_spider方法，设置reason和spider_name
+            if self._stats and hasattr(self._stats, 'close_spider'):
+                try:
+                    # 使用默认的'finished'作为reason
+                    self._stats.close_spider(self._spider, reason='finished')
+                except Exception as e:
+                    self._logger.warning(f"Stats close_spider failed: {e}")
+            
+            # 触发spider_closed事件，通知所有订阅者（包括扩展）
+            # 传递reason参数，这里使用默认的'finished'作为reason
+            await self.subscriber.notify("spider_closed", reason='finished')
+            
             if self._stats and hasattr(self._stats, 'close'):
                 try:
                     close_result = self._stats.close()

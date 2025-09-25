@@ -28,7 +28,7 @@ else:
     REDIS_URL = f'redis://{REDIS_HOST}:{REDIS_PORT}/{REDIS_DB}'
 
 # ============================== 并发配置 ==============================
-CONCURRENCY = 32  # 从24增加到32
+CONCURRENCY = 8  # 从32降低到8以减少Redis连接数
 MAX_RUNNING_SPIDERS = 1
 DOWNLOAD_DELAY = 0.05  # 从0.1减少到0.05秒
 
@@ -39,7 +39,7 @@ DOWNLOADER = 'crawlo.downloader.aiohttp_downloader.AioHttpDownloader'
 QUEUE_TYPE = 'auto'  # 使用Redis队列
 # 队列名称遵循统一命名规范: crawlo:{PROJECT_NAME}:queue:requests
 # 当需要自定义队列名称时，取消注释并修改下面这行
-# SCHEDULER_QUEUE_NAME = f'crawlo:{PROJECT_NAME}:queue:requests'
+SCHEDULER_QUEUE_NAME = f'crawlo:{PROJECT_NAME}:queue:requests'
 SCHEDULER_MAX_QUEUE_SIZE = 200  # 从100增加到200
 
 # ============================== 背压控制配置 ==============================
@@ -47,11 +47,8 @@ BACKPRESSURE_RATIO = 0.9  # 从0.8增加到0.9
 
 # ============================== 去重过滤器 ==============================
 # 使用Redis过滤器
-FILTER_CLASS = 'crawlo.filters.aioredis_filter.AioRedisFilter'
+# FILTER_CLASS = 'crawlo.filters.aioredis_filter.AioRedisFilter'
 
-# ============================== 默认去重管道 ==============================
-# 使用Redis去重管道
-DEFAULT_DEDUP_PIPELINE = 'crawlo.pipelines.redis_dedup_pipeline.RedisDedupPipeline'
 
 # ============================== 爬虫模块配置 ==============================
 SPIDER_MODULES = ['ofweek_standalone.spiders']
@@ -74,24 +71,24 @@ DEFAULT_REQUEST_HEADERS = {
 ALLOWED_DOMAINS = ['ee.ofweek.com']
 
 # ============================== MySQL数据库配置 ==============================
-MYSQL_HOST = 'localhost'
+MYSQL_HOST = "43.139.14.225"
 MYSQL_PORT = 3306
-MYSQL_USER = 'root'
-MYSQL_PASSWORD = 'password'  # 已设置的MySQL密码
-MYSQL_DB = 'cxzx_test'  # 请根据实际情况修改数据库名
-MYSQL_TABLE = 'crawlo'  # 默认表名，会被Spider的custom_settings覆盖
+MYSQL_USER = 'picker'
+MYSQL_PASSWORD = 'kmcNbbz6TbSihttZ'  # 已设置的MySQL密码
+MYSQL_DB = 'stock_share'  # 请根据实际情况修改数据库名
+MYSQL_TABLE = 'news_items'  # 默认表名，会被Spider的custom_settings覆盖
 
 # ============================== 数据管道 ==============================
-# PIPELINES = [
-#     'crawlo.pipelines.mysql_pipeline.AsyncmyMySQLPipeline',     # MySQL 存储（使用asyncmy异步库）
-# ]
+PIPELINES = [
+    'crawlo.pipelines.mysql_pipeline.AsyncmyMySQLPipeline',     # MySQL 存储（使用asyncmy异步库）
+]
 
 # ============================== 扩展组件 ==============================
-# EXTENSIONS = [
-#     'crawlo.extension.log_interval.LogIntervalExtension',
-#     'crawlo.extension.log_stats.LogStats',
-#     'crawlo.extension.logging_extension.CustomLoggerExtension',
-# ]
+EXTENSIONS = [
+    'crawlo.extension.log_interval.LogIntervalExtension',
+    'crawlo.extension.log_stats.LogStats',
+    'crawlo.extension.logging_extension.CustomLoggerExtension',
+]
 
 # ============================== 日志配置 ==============================
 LOG_LEVEL = 'INFO'

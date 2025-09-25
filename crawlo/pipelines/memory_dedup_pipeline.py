@@ -16,7 +16,7 @@ import hashlib
 from typing import Set
 
 from crawlo import Item
-from crawlo.exceptions import DropItem
+from crawlo.exceptions import DropItem, ItemDiscard
 from crawlo.spider import Spider
 from crawlo.utils.log import get_logger
 
@@ -64,7 +64,7 @@ class MemoryDedupPipeline:
                 # 如果已存在，丢弃这个数据项
                 self.dropped_count += 1
                 self.logger.debug(f"Dropping duplicate item: {fingerprint[:20]}...")
-                raise DropItem(f"重复的数据项: {fingerprint}")
+                raise ItemDiscard(f"重复的数据项: {fingerprint}")
             else:
                 # 记录新数据项的指纹
                 self.seen_items.add(fingerprint)

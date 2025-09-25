@@ -17,7 +17,7 @@ from typing import Optional
 
 from crawlo import Item
 from crawlo.spider import Spider
-from crawlo.exceptions import DropItem
+from crawlo.exceptions import DropItem, ItemDiscard
 from crawlo.utils.log import get_logger
 
 
@@ -104,17 +104,20 @@ class RedisDedupPipeline:
             if not is_new:
                 # 如果指纹已存在，丢弃这个数据项
                 self.dropped_count += 1
-                # self.logger.debug(f"Dropping duplicate item: {fingerprint[:20]}...")  # 注释掉重复的日志
-                raise DropItem(f"Duplicate item: {fingerprint}")
+                self.logger.info(f"Dropping duplicate item: {fingerprint}")
+                raise ItemDiscard(f"Duplicate item: {fingerprint}")
             else:
                 # 如果是新数据项，继续处理
-                # self.logger.debug(f"Processing new item: {fingerprint[:20]}...")  # 注释掉重复的日志
+                self.logger.debug(f"Processing new item: {fingerprint}")
                 return item
                 
         except redis.RedisError as e:
             self.logger.error(f"Redis error: {e}")
             # 在 Redis 错误时继续处理，避免丢失数据
             return item
+        except ItemDiscard:
+            # 重新抛出ItemDiscard异常，确保管道管理器能正确处理
+            raise
         except Exception as e:
             self.logger.error(f"Error processing item: {e}")
             # 在其他错误时继续处理

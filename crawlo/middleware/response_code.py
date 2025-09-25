@@ -127,9 +127,7 @@ class ResponseCodeMiddleware(object):
         """
         status_code = response.status_code
         
-        # 记录具体状态码统计
-        self.stats.inc_value(f'response_status_code/count/{status_code}')
-        
+        # 只记录总的统计信息，不记录每个域名和每个状态码的详细信息
         # 记录状态码分类统计
         category = self._get_status_category(status_code)
         self.stats.inc_value(f'response_status_code/category/{category}')
@@ -143,17 +141,6 @@ class ResponseCodeMiddleware(object):
         # 记录响应大小统计
         if hasattr(response, 'content_length') and response.content_length:
             self.stats.inc_value('response_total_bytes', response.content_length)
-        
-        # 记录域名统计
-        try:
-            from urllib.parse import urlparse
-            parsed_url = urlparse(response.url)
-            domain = parsed_url.netloc
-            if domain:
-                self.stats.inc_value(f'response_status_code/domain/{domain}/count/{status_code}')
-                self.stats.inc_value(f'response_status_code/domain/{domain}/category/{category}')
-        except Exception:
-            self.stats.inc_value('response_status_code/domain/invalid_url/count/{status_code}')
         
         # 详细日志记录
         self.logger.debug(

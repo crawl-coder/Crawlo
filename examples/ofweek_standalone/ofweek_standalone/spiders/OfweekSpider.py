@@ -65,9 +65,9 @@ class OfweekSpider(Spider):
     allowed_domains = ['ee.ofweek.com']
     start_urls = ['https://ee.ofweek.com/']
 
-    custom_settings = {
-        "MYSQL_TABLE": "listed_balance_sheet_of_companies",
-    }
+    # custom_settings = {
+    #     "MYSQL_TABLE": "listed_balance_sheet_of_companies",
+    # }
 
     # 高级配置（可选）
     # custom_settings = {
@@ -117,7 +117,7 @@ class OfweekSpider(Spider):
         }
 
         # 减少页数以便测试
-        max_page = 30  # 原来是1851，现在改为50页进行测试
+        max_page = 4# 原来是1851，现在改为50页进行测试
         start_urls = []
         for page in range(1, max_page + 1):
             url = f'https://ee.ofweek.com/CATList-2800-8100-ee-{page}.html'
@@ -133,7 +133,8 @@ class OfweekSpider(Spider):
                     url=url,
                     callback=self.parse,
                     headers=headers,
-                    cookies=cookies
+                    cookies=cookies,
+                    dont_filter=True
                 )
             except Exception as e:
                 self.logger.error(f"创建请求失败: {url}, 错误: {e}")
