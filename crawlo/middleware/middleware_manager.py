@@ -86,7 +86,7 @@ class MiddlewareManager:
             response = await self._process_exception(request, exp)
         else:
             create_task(self.crawler.subscriber.notify(response_received, response, self.crawler.spider))
-            # self.crawler.stats.inc_value('response_received_count')
+            self._stats.inc_value('response_received_count')
         if isinstance(response, Response):
             response = await self._process_response(request, response)
         if isinstance(response, Request):
