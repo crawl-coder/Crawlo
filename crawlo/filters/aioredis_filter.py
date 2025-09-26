@@ -206,9 +206,32 @@ class AioRedisFilter(BaseFilter):
             self.logger.error(f"添加指纹失败: {fp[:20]}... - {e}")
             return False
 
-    async def __contains__(self, fp: str) -> bool:
+    def __contains__(self, fp: str) -> bool:
         """
-        检查指纹是否存在于Redis集合中
+        检查指纹是否存在于Redis集合中（同步方法）
+        
+        注意：Python的魔术方法__contains__不能是异步的，
+        所以这个方法提供同步接口，仅用于基本的存在性检查。
+        对于需要异步检查的场景，请使用 contains_async() 方法。
+        
+        :param fp: 请求指纹字符串
+        :return: 是否存在
+        """
+        # 由于__contains__不能是异步的，我们只能提供一个基本的同步检查
+        # 如果Redis客户端未初始化，返回False
+        if self.redis is None:
+            return False
+            
+        # 对于同步场景，我们无法进行真正的Redis查询
+        # 所以返回False，避免阻塞调用
+        # 真正的异步检查应该使用 contains_async() 方法
+        return False
+    
+    async def contains_async(self, fp: str) -> bool:
+        """
+        异步检查指纹是否存在于Redis集合中
+        
+        这是真正的异步检查方法，应该优先使用这个方法而不是__contains__
         
         :param fp: 请求指纹字符串
         :return: 是否存在

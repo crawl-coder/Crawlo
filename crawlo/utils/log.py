@@ -1,147 +1,80 @@
-import os
-from logging import (
-    Formatter,
-    StreamHandler,
-    FileHandler,
-    Logger,
-    DEBUG,
-    INFO,
-    getLevelName,
-)
+# ==================== 向后兼容的日志接口 ====================
+# 主要功能已迁移到 crawlo.logging 模块
+# 本文件提供向后兼容接口，同时支持新的日志系统功能
+
+import logging
+from typing import Optional, Any
+
+# 向后兼容：导入新的日志系统
+try:
+    from crawlo.logging import get_logger as new_get_logger, configure_logging
+
+    _NEW_LOGGING_AVAILABLE = True
+except ImportError:
+    _NEW_LOGGING_AVAILABLE = False
+    new_get_logger = None
+    configure_logging = None
 
 LOG_FORMAT = '%(asctime)s - [%(name)s] - %(levelname)s: %(message)s'
 
 
-class LoggerManager:
-    """日志管理器，提供统一的日志配置和获取接口"""
-    logger_cache = {}
-    _default_filename = None
-    _default_level = DEBUG  # 设置为最低级别，由handler控制实际输出
-    _default_file_level = DEBUG  # 默认为DEBUG级别，确保所有INFO级别日志都能写入文件
-    _default_console_level = DEBUG  # 默认为DEBUG级别
-    _default_log_format = LOG_FORMAT
-    _default_encoding = 'utf-8'
-    _configured = False  # 标记是否已配置
+# 向后兼容的日志函数
+def get_logger(name: str = 'default', level: Optional[int] = None):
+    """获取Logger实例 - 向后兼容函数"""
+    if _NEW_LOGGING_AVAILABLE and new_get_logger:
+        # 使用新的日志系统
+        return new_get_logger(name)
+    else:
+        # 降级到基本的Python logging
+        logger = logging.getLogger(name)
+        if not logger.handlers:
+            handler = logging.StreamHandler()
+            formatter = logging.Formatter(LOG_FORMAT)
+            handler.setFormatter(formatter)
+            logger.addHandler(handler)
+            logger.setLevel(level or logging.INFO)
+        return logger
 
-    @classmethod
-    def _to_level(cls, level):
-        """安全转换为日志级别 int"""
-        if level is None:
-            return INFO
-        if isinstance(level, int):
-            return level
-        if isinstance(level, str):
-            # 使用logging模块内置的级别转换
-            level_value = getLevelName(level.upper())
-            # getLevelName在无效级别时返回字符串，我们需要返回数字
-            if isinstance(level_value, int):
-                return level_value
+
+def get_component_logger(component_class: Any, settings: Optional[Any] = None, level: Optional[str] = None):
+    """
+    获取组件Logger - 推荐的组件日志创建方式
+    
+    Args:
+        component_class: 组件类
+        settings: 配置对象，用于读取日志级别配置
+        level: 日志级别（优先级低于settings中的配置）
+        
+    Returns:
+        logging.Logger: 配置好的Logger实例
+    """
+    # 获取组件名称
+    if hasattr(component_class, '__name__'):
+        component_name = component_class.__name__
+    else:
+        component_name = str(component_class)
+    
+    # 如果新日志系统可用，使用新系统
+    if _NEW_LOGGING_AVAILABLE and new_get_logger:
+        return new_get_logger(component_name)
+    
+    # 否则使用向后兼容方式
+    # 从settings中获取日志级别（如果提供）
+    if settings is not None:
+        # 尝试从settings获取组件特定的日志级别
+        if hasattr(settings, 'get'):
+            # 检查是否有组件特定的日志级别配置
+            component_level = settings.get(f'LOG_LEVEL_{component_name}')
+            if component_level is not None:
+                level = component_level
             else:
-                return INFO
-        if hasattr(level, 'get'):  # 如 SettingManager 或 dict
-            lv = level.get('LOG_LEVEL')
-            if isinstance(lv, int):
-                return lv
-            if isinstance(lv, str):
-                level_value = getLevelName(lv.upper())
-                if isinstance(level_value, int):
-                    return level_value
-                else:
-                    return INFO
-        return INFO
-
-    @classmethod
-    def configure(cls, settings=None, **kwargs):
-        """
-        使用 settings 对象或关键字参数配置日志
-        """
-        # 优先使用 settings，否则用 kwargs
-        get_val = settings.get if hasattr(settings, 'get') else (lambda k, d=None: kwargs.get(k, d))
-
-        filename = get_val('LOG_FILE')
-        level = get_val('LOG_LEVEL', 'INFO')  # 默认为INFO级别
-        file_level = get_val('LOG_FILE_LEVEL', level)  # 默认继承LOG_LEVEL的值
-        # 根据项目规范，已完全移除LOG_CONSOLE_LEVEL支持，统一使用LOG_LEVEL控制控制台和文件的日志输出级别
-        log_format = get_val('LOG_FORMAT', LOG_FORMAT)
-        encoding = get_val('LOG_ENCODING', 'utf-8')
-
-        cls._default_filename = filename
-        cls._default_level = cls._to_level(level)
-        cls._default_file_level = cls._to_level(file_level)
-        # 控制台日志级别直接使用LOG_LEVEL的值，不再支持LOG_CONSOLE_LEVEL
-        cls._default_console_level = cls._default_level
-        cls._default_log_format = log_format
-        cls._default_encoding = encoding
-
-        cls._configured = True
-
-    @classmethod
-    def get_logger(cls, name='default', level=None, filename=None):
-        """
-        获取logger实例
-        """
-        # 确定最终参数
-        # 如果传入了level参数，则使用它，否则使用默认级别
-        if level is not None:
-            final_level = cls._to_level(level)
-        else:
-            # Logger级别设置为DEBUG（最低级别），由handler控制实际输出
-            final_level = DEBUG
-
-        final_filename = filename if filename is not None else cls._default_filename
-
-        # 安全的字符串化 key，避免任何 unhashable 类型
-        key_parts = [
-            name,
-            str(final_level),
-            final_filename or 'no_file',
-        ]
-        key = '|'.join(key_parts)  # 如 "my_spider|20|logs/app.log"
-
-        if key in cls.logger_cache:
-            # 更新logger级别
-            cls.logger_cache[key].setLevel(final_level)
-            return cls.logger_cache[key]
-
-        # 创建 logger
-        _logger = Logger(name=name)
-        _logger.setLevel(final_level)
-
-        formatter = Formatter(cls._default_log_format)
-
-        # 控制台
-        if cls._default_console_level is not False:
-            ch = StreamHandler()
-            ch.setFormatter(formatter)
-            ch.setLevel(cls._default_console_level)
-            _logger.addHandler(ch)
-
-        # 文件
-        if final_filename:
-            try:
-                log_dir = os.path.dirname(final_filename)
-                if log_dir and not os.path.exists(log_dir):
-                    os.makedirs(log_dir, exist_ok=True)
-
-                # 使用普通文件处理器（移除日志轮转功能）
-                fh = FileHandler(final_filename, mode='a', encoding=cls._default_encoding)
-
-                fh.setFormatter(formatter)
-                fh.setLevel(cls._default_file_level)
-                _logger.addHandler(fh)
-            except (PermissionError, FileNotFoundError) as e:
-                print(f"[Logger] 无法创建日志文件 {final_filename}: {e}")
-            except Exception as e:
-                print(f"[Logger] 创建日志文件时发生未知错误 {final_filename}: {e}")
-
-        cls.logger_cache[key] = _logger
-        return _logger
-
-    @classmethod
-    def is_configured(cls):
-        """检查日志系统是否已配置"""
-        return cls._configured
-
-
-# 全局快捷函数
-get_logger = LoggerManager.get_logger
+                # 检查通用日志级别
+                general_level = settings.get('LOG_LEVEL')
+                if general_level is not None:
+                    level = general_level
+    
+    # 转换日志级别
+    if isinstance(level, str):
+        level = getattr(logging, level.upper(), logging.INFO)
+    
+    return get_logger(component_name, level)

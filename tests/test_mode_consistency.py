@@ -22,7 +22,7 @@ class TestSpider(Spider):
         yield Request("https://httpbin.org/get")
     
     def parse(self, response):
-        yield {"url": response.url, "status": response.status}
+        yield {"url": response.url, "status": response.status_code}  # 修复：使用status_code而不是status
 
 
 async def test_mode_consistency():

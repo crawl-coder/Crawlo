@@ -26,7 +26,26 @@ class ModeManager:
     """运行模式管理器"""
 
     def __init__(self):
-        pass
+        # 延迟初始化logger，避免循环依赖
+        self._logger = None
+        self._debug("运行模式管理器初始化完成")
+    
+    def _get_logger(self):
+        """延迟获取logger实例"""
+        if self._logger is None:
+            try:
+                from crawlo.utils.log import get_logger
+                self._logger = get_logger(__name__)
+            except Exception:
+                # 如果日志系统尚未初始化，返回None
+                pass
+        return self._logger
+    
+    def _debug(self, message: str):
+        """调试日志"""
+        logger = self._get_logger()
+        if logger:
+            logger.debug(message)
 
     @staticmethod
     def get_standalone_settings() -> Dict[str, Any]:
@@ -94,12 +113,14 @@ class ModeManager:
         Returns:
             Dict[str, Any]: 配置字典
         """
+        self._debug(f"解析运行模式: {mode}")
         mode = RunMode(mode.lower())
         mode_info = None
 
         if mode == RunMode.STANDALONE:
             mode_info = "使用单机模式 - 简单快速，适合开发和中小规模爬取"
             settings = self.get_standalone_settings()
+            self._debug("应用单机模式配置")
 
         elif mode == RunMode.DISTRIBUTED:
             mode_info = "使用分布式模式 - 支持多节点扩展，适合大规模爬取"
@@ -110,10 +131,12 @@ class ModeManager:
                 redis_db=kwargs.get('redis_db', 0),  # 添加 redis_db 参数
                 project_name=kwargs.get('project_name', 'crawlo')
             )
+            self._debug("应用分布式模式配置")
 
         elif mode == RunMode.AUTO:
             mode_info = "使用自动检测模式 - 智能选择最佳运行方式"
             settings = self.get_auto_settings()
+            self._debug("应用自动检测模式配置")
 
         else:
             raise ValueError(f"不支持的运行模式: {mode}")
@@ -122,10 +145,12 @@ class ModeManager:
         user_settings = {k: v for k, v in kwargs.items()
                          if k not in ['redis_host', 'redis_port', 'redis_password', 'project_name']}
         settings.update(user_settings)
+        self._debug(f"合并用户自定义配置: {list(user_settings.keys())}")
 
         # 将模式信息添加到配置中，供后续使用
         settings['_mode_info'] = mode_info
 
+        self._debug(f"运行模式解析完成: {mode}")
         return settings
 
     def from_environment(self) -> Dict[str, Any]:

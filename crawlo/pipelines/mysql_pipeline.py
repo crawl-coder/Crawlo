@@ -20,7 +20,14 @@ class AsyncmyMySQLPipeline:
         self._pool_lock = asyncio.Lock()
         self._pool_initialized = False
         self.pool = None
+        
+        # 优先从爬虫的custom_settings中获取表名，如果没有则使用默认值
+        spider_table_name = None
+        if hasattr(crawler, 'spider') and crawler.spider and hasattr(crawler.spider, 'custom_settings'):
+            spider_table_name = crawler.spider.custom_settings.get('MYSQL_TABLE')
+            
         self.table_name = (
+                spider_table_name or
                 self.settings.get('MYSQL_TABLE') or
                 getattr(crawler.spider, 'mysql_table', None) or
                 f"{crawler.spider.name}_items"

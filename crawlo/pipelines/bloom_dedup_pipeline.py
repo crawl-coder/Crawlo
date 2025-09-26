@@ -39,7 +39,7 @@ except ImportError:
 from crawlo import Item
 from crawlo.spider import Spider
 from crawlo.utils.log import get_logger
-from crawlo.exceptions import DropItem
+from crawlo.exceptions import DropItem, ItemDiscard
 
 
 class BloomDedupPipeline:
@@ -101,7 +101,7 @@ class BloomDedupPipeline:
                 # 如果可能已存在（Bloom Filter 可能有误判），丢弃这个数据项
                 self.dropped_count += 1
                 self.logger.debug(f"Possibly dropping duplicate item: {fingerprint[:20]}...")
-                raise DropItem(f"可能重复的数据项: {fingerprint}")
+                raise ItemDiscard(f"可能重复的数据项: {fingerprint}")
             else:
                 # 添加指纹到 Bloom Filter
                 self.bloom_filter.add(fingerprint)

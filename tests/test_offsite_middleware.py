@@ -2,16 +2,27 @@
 # -*- coding:UTF-8 -*-
 """
 OffsiteMiddleware 测试文件
-用于测试站外请求过滤中间件的功能
+用于测试站点过滤中间件的功能，特别是多个域名的情况
 """
 
-import asyncio
 import unittest
 from unittest.mock import Mock, patch
 
 from crawlo.middleware.offsite import OffsiteMiddleware
-from crawlo.exceptions import NotConfiguredError, IgnoreRequestError
 from crawlo.settings.setting_manager import SettingManager
+from crawlo.exceptions import IgnoreRequestError, NotConfiguredError
+
+
+class MockStats:
+    """Mock Stats 类，用于测试统计信息"""
+    def __init__(self):
+        self.stats = {}
+
+    def inc_value(self, key, value=1):
+        if key in self.stats:
+            self.stats[key] += value
+        else:
+            self.stats[key] = value
 
 
 class MockLogger:
@@ -34,18 +45,6 @@ class MockLogger:
         self.logs.append(('error', msg))
 
 
-class MockStats:
-    """Mock Stats 类，用于测试统计信息"""
-    def __init__(self):
-        self.stats = {}
-
-    def inc_value(self, key, value=1):
-        if key in self.stats:
-            self.stats[key] += value
-        else:
-            self.stats[key] = value
-
-
 class TestOffsiteMiddleware(unittest.TestCase):
     """OffsiteMiddleware 测试类"""
 
@@ -58,165 +57,189 @@ class TestOffsiteMiddleware(unittest.TestCase):
         self.crawler = Mock()
         self.crawler.settings = self.settings
         self.crawler.stats = MockStats()
-        self.crawler.logger = Mock()
 
-    @patch('crawlo.utils.log.get_logger')
-    def test_middleware_initialization_without_allowed_domains(self, mock_get_logger):
-        """测试没有配置允许域名时中间件初始化"""
-        mock_get_logger.return_value = MockLogger('OffsiteMiddleware')
-        
-        # 应该抛出NotConfiguredError异常
-        with self.assertRaises(NotConfiguredError):
-            OffsiteMiddleware.create_instance(self.crawler)
+    def test_middleware_initialization_without_domains(self):
+        """测试没有设置ALLOWED_DOMAINS时中间件初始化"""
+        # 不设置ALLOWED_DOMAINS
+        logger = MockLogger('OffsiteMiddleware')
+        with patch('crawlo.middleware.offsite.get_logger', return_value=logger):
+            # 应该抛出NotConfiguredError异常
+            with self.assertRaises(NotConfiguredError) as context:
+                OffsiteMiddleware.create_instance(self.crawler)
+            
+            self.assertIn("未配置ALLOWED_DOMAINS，OffsiteMiddleware已禁用", str(context.exception))
 
-    @patch('crawlo.utils.log.get_logger')
-    def test_middleware_initialization_with_allowed_domains(self, mock_get_logger):
-        """测试配置允许域名时中间件初始化"""
-        # 设置允许的域名
-        self.settings.set('ALLOWED_DOMAINS', ['example.com', 'test.com'])
-        self.settings.set('LOG_LEVEL', 'INFO')
-        
-        mock_get_logger.return_value = MockLogger('OffsiteMiddleware')
-        
-        # 应该正常创建实例
-        middleware = OffsiteMiddleware.create_instance(self.crawler)
-        self.assertIsInstance(middleware, OffsiteMiddleware)
-        self.assertEqual(len(middleware.allowed_domains), 2)
-        self.assertIn('example.com', middleware.allowed_domains)
-        self.assertIn('test.com', middleware.allowed_domains)
-
-    def test_is_offsite_request_with_valid_domain(self):
-        """测试有效域名的站外请求判断"""
-        # 设置允许的域名
-        self.settings.set('ALLOWED_DOMAINS', ['example.com'])
-        self.settings.set('LOG_LEVEL', 'INFO')
-        
-        # 创建中间件实例
-        middleware = OffsiteMiddleware(
-            stats=MockStats(),
-            log_level='INFO',
-            allowed_domains=['example.com']
-        )
-        middleware._compile_domains()
-        
-        # 创建请求对象
-        request = Mock()
-        request.url = 'http://example.com/page'
-        
-        # 应该不是站外请求
-        self.assertFalse(middleware._is_offsite_request(request))
-
-    def test_is_offsite_request_with_subdomain(self):
-        """测试子域名的站外请求判断"""
-        # 设置允许的域名
-        self.settings.set('ALLOWED_DOMAINS', ['example.com'])
-        self.settings.set('LOG_LEVEL', 'INFO')
-        
-        # 创建中间件实例
-        middleware = OffsiteMiddleware(
-            stats=MockStats(),
-            log_level='INFO',
-            allowed_domains=['example.com']
-        )
-        middleware._compile_domains()
-        
-        # 创建请求对象（子域名）
-        request = Mock()
-        request.url = 'http://sub.example.com/page'
-        
-        # 应该不是站外请求（子域名应该被允许）
-        self.assertFalse(middleware._is_offsite_request(request))
-
-    def test_is_offsite_request_with_invalid_domain(self):
-        """测试无效域名的站外请求判断"""
-        # 设置允许的域名
-        self.settings.set('ALLOWED_DOMAINS', ['example.com'])
-        self.settings.set('LOG_LEVEL', 'INFO')
-        
-        # 创建中间件实例
-        middleware = OffsiteMiddleware(
-            stats=MockStats(),
-            log_level='INFO',
-            allowed_domains=['example.com']
-        )
-        middleware._compile_domains()
-        
-        # 创建请求对象
-        request = Mock()
-        request.url = 'http://other.com/page'
-        
-        # 应该是站外请求
-        self.assertTrue(middleware._is_offsite_request(request))
-
-    def test_is_offsite_request_with_invalid_url(self):
-        """测试无效URL的站外请求判断"""
-        # 设置允许的域名
-        self.settings.set('ALLOWED_DOMAINS', ['example.com'])
-        self.settings.set('LOG_LEVEL', 'INFO')
-        
-        # 创建中间件实例
-        middleware = OffsiteMiddleware(
-            stats=MockStats(),
-            log_level='INFO',
-            allowed_domains=['example.com']
-        )
-        middleware._compile_domains()
-        
-        # 创建请求对象（无效URL）
-        request = Mock()
-        request.url = 'invalid-url'
-        
-        # 应该是站外请求
-        self.assertTrue(middleware._is_offsite_request(request))
-
-    @patch('crawlo.utils.log.get_logger')
-    def test_process_request_with_offsite_request(self, mock_get_logger):
-        """测试处理站外请求"""
-        # 设置允许的域名
-        self.settings.set('ALLOWED_DOMAINS', ['example.com'])
+    def test_middleware_initialization_with_global_domains(self):
+        """测试使用全局ALLOWED_DOMAINS设置时中间件初始化"""
+        # 设置全局ALLOWED_DOMAINS
+        self.settings.set('ALLOWED_DOMAINS', ['ee.ofweek.com', 'www.baidu.com'])
         self.settings.set('LOG_LEVEL', 'DEBUG')
         
-        mock_logger = MockLogger('OffsiteMiddleware')
-        mock_get_logger.return_value = mock_logger
-        
-        # 创建中间件实例
-        middleware = OffsiteMiddleware.create_instance(self.crawler)
-        
-        # 创建请求对象（站外请求）
-        request = Mock()
-        request.url = 'http://other.com/page'
-        
-        # 应该抛出IgnoreRequestError异常
-        with self.assertRaises(IgnoreRequestError):
-            asyncio.run(middleware.process_request(request, Mock()))
-        
-        # 验证统计信息
-        self.assertIn('offsite_request_count', self.crawler.stats.stats)
-        self.assertEqual(self.crawler.stats.stats['offsite_request_count'], 1)
+        logger = MockLogger('OffsiteMiddleware')
+        with patch('crawlo.middleware.offsite.get_logger', return_value=logger):
+            # 应该正常创建实例
+            middleware = OffsiteMiddleware.create_instance(self.crawler)
+            self.assertIsInstance(middleware, OffsiteMiddleware)
+            self.assertEqual(len(middleware.allowed_domains), 2)
+            self.assertIn('ee.ofweek.com', middleware.allowed_domains)
+            self.assertIn('www.baidu.com', middleware.allowed_domains)
 
-    @patch('crawlo.utils.log.get_logger')
-    def test_process_request_with_valid_request(self, mock_get_logger):
-        """测试处理有效请求"""
-        # 设置允许的域名
-        self.settings.set('ALLOWED_DOMAINS', ['example.com'])
+    def test_middleware_initialization_with_spider_domains(self):
+        """测试使用Spider实例allowed_domains属性时中间件初始化"""
+        # 设置Spider实例的allowed_domains
+        spider = Mock()
+        spider.allowed_domains = ['ee.ofweek.com', 'www.baidu.com']
+        
+        self.crawler.spider = spider
         self.settings.set('LOG_LEVEL', 'DEBUG')
         
-        mock_logger = MockLogger('OffsiteMiddleware')
-        mock_get_logger.return_value = mock_logger
+        logger = MockLogger('OffsiteMiddleware')
+        with patch('crawlo.middleware.offsite.get_logger', return_value=logger):
+            # 应该正常创建实例，使用Spider的allowed_domains
+            middleware = OffsiteMiddleware.create_instance(self.crawler)
+            self.assertIsInstance(middleware, OffsiteMiddleware)
+            self.assertEqual(len(middleware.allowed_domains), 2)
+            self.assertIn('ee.ofweek.com', middleware.allowed_domains)
+            self.assertIn('www.baidu.com', middleware.allowed_domains)
+
+    def test_is_offsite_request_with_allowed_domains(self):
+        """测试允许域名内的请求"""
+        # 设置ALLOWED_DOMAINS
+        self.settings.set('ALLOWED_DOMAINS', ['ee.ofweek.com', 'www.baidu.com'])
+        self.settings.set('LOG_LEVEL', 'DEBUG')
         
-        # 创建中间件实例
-        middleware = OffsiteMiddleware.create_instance(self.crawler)
+        logger = MockLogger('OffsiteMiddleware')
+        with patch('crawlo.middleware.offsite.get_logger', return_value=logger):
+            middleware = OffsiteMiddleware.create_instance(self.crawler)
+            
+            # 创建允许的请求
+            request1 = Mock()
+            request1.url = 'https://ee.ofweek.com/news/article1.html'
+            
+            request2 = Mock()
+            request2.url = 'https://www.baidu.com/s?wd=test'
+            
+            # 这些请求应该不被认为是站外请求
+            self.assertFalse(middleware._is_offsite_request(request1))
+            self.assertFalse(middleware._is_offsite_request(request2))
+
+    def test_is_offsite_request_with_subdomains(self):
+        """测试子域名的请求"""
+        # 设置ALLOWED_DOMAINS
+        self.settings.set('ALLOWED_DOMAINS', ['ofweek.com', 'baidu.com'])
+        self.settings.set('LOG_LEVEL', 'DEBUG')
         
-        # 创建请求对象（有效请求）
-        request = Mock()
-        request.url = 'http://example.com/page'
+        logger = MockLogger('OffsiteMiddleware')
+        with patch('crawlo.middleware.offsite.get_logger', return_value=logger):
+            middleware = OffsiteMiddleware.create_instance(self.crawler)
+            
+            # 创建子域名的请求
+            request1 = Mock()
+            request1.url = 'https://news.ofweek.com/article1.html'
+            
+            request2 = Mock()
+            request2.url = 'https://map.baidu.com/location'
+            
+            # 这些请求应该不被认为是站外请求（因为允许了根域名）
+            self.assertFalse(middleware._is_offsite_request(request1))
+            self.assertFalse(middleware._is_offsite_request(request2))
+
+    def test_is_offsite_request_with_disallowed_domains(self):
+        """测试不允许域名的请求"""
+        # 设置ALLOWED_DOMAINS
+        self.settings.set('ALLOWED_DOMAINS', ['ee.ofweek.com', 'www.baidu.com'])
+        self.settings.set('LOG_LEVEL', 'DEBUG')
         
-        # 应该正常处理，不抛出异常
-        result = asyncio.run(middleware.process_request(request, Mock()))
+        logger = MockLogger('OffsiteMiddleware')
+        with patch('crawlo.middleware.offsite.get_logger', return_value=logger):
+            middleware = OffsiteMiddleware.create_instance(self.crawler)
+            
+            # 创建不允许的请求
+            request1 = Mock()
+            request1.url = 'https://www.google.com/search?q=test'
+            
+            request2 = Mock()
+            request2.url = 'https://github.com/user/repo'
+            
+            # 这些请求应该被认为是站外请求
+            self.assertTrue(middleware._is_offsite_request(request1))
+            self.assertTrue(middleware._is_offsite_request(request2))
+
+    def test_process_request_with_allowed_domain(self):
+        """测试处理允许域名内的请求"""
+        # 设置ALLOWED_DOMAINS
+        self.settings.set('ALLOWED_DOMAINS', ['ee.ofweek.com', 'www.baidu.com'])
+        self.settings.set('LOG_LEVEL', 'DEBUG')
         
-        # 返回None表示继续处理
-        self.assertIsNone(result)
+        logger = MockLogger('OffsiteMiddleware')
+        with patch('crawlo.middleware.offsite.get_logger', return_value=logger):
+            middleware = OffsiteMiddleware.create_instance(self.crawler)
+            
+            # 创建允许的请求
+            request = Mock()
+            request.url = 'https://ee.ofweek.com/news/article1.html'
+            spider = Mock()
+            
+            # 处理请求，应该不抛出异常
+            result = middleware.process_request(request, spider)
+            self.assertIsNone(result)  # 应该返回None，表示请求被允许
+            
+            # 检查没有增加统计计数
+            self.assertNotIn('offsite_request_count', self.crawler.stats.stats)
+
+    def test_process_request_with_disallowed_domain(self):
+        """测试处理不允许域名的请求"""
+        # 设置ALLOWED_DOMAINS
+        self.settings.set('ALLOWED_DOMAINS', ['ee.ofweek.com', 'www.baidu.com'])
+        self.settings.set('LOG_LEVEL', 'DEBUG')
+        
+        logger = MockLogger('OffsiteMiddleware')
+        with patch('crawlo.middleware.offsite.get_logger', return_value=logger):
+            middleware = OffsiteMiddleware.create_instance(self.crawler)
+            
+            # 创建不允许的请求
+            request = Mock()
+            request.url = 'https://www.google.com/search?q=test'
+            spider = Mock()
+            
+            # 处理请求，应该抛出IgnoreRequestError异常
+            with self.assertRaises(IgnoreRequestError) as context:
+                middleware.process_request(request, spider)
+            
+            self.assertIn("站外请求被过滤", str(context.exception))
+            
+            # 检查增加了统计计数
+            self.assertIn('offsite_request_count', self.crawler.stats.stats)
+            self.assertEqual(self.crawler.stats.stats['offsite_request_count'], 1)
+            self.assertIn('offsite_request_count/www.google.com', self.crawler.stats.stats)
+
+    def test_process_request_with_invalid_url(self):
+        """测试处理无效URL的请求"""
+        # 设置ALLOWED_DOMAINS
+        self.settings.set('ALLOWED_DOMAINS', ['ee.ofweek.com', 'www.baidu.com'])
+        self.settings.set('LOG_LEVEL', 'DEBUG')
+        
+        logger = MockLogger('OffsiteMiddleware')
+        with patch('crawlo.middleware.offsite.get_logger', return_value=logger):
+            middleware = OffsiteMiddleware.create_instance(self.crawler)
+            
+            # 创建无效URL的请求
+            request = Mock()
+            request.url = 'not_a_valid_url'
+            spider = Mock()
+            
+            # 处理请求，应该抛出IgnoreRequestError异常
+            with self.assertRaises(IgnoreRequestError) as context:
+                middleware.process_request(request, spider)
+            
+            self.assertIn("站外请求被过滤", str(context.exception))
+            
+            # 检查增加了统计计数
+            self.assertIn('offsite_request_count', self.crawler.stats.stats)
+            self.assertEqual(self.crawler.stats.stats['offsite_request_count'], 1)
+            self.assertIn('offsite_request_count/invalid_url', self.crawler.stats.stats)
 
 
 if __name__ == '__main__':
+    # 直接创建一个OffsiteMiddleware实例进行测试，绕过create_instance的复杂逻辑
     unittest.main()

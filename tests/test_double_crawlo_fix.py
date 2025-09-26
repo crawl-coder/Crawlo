@@ -34,18 +34,18 @@ async def test_redis_queue_naming():
         {
             "name": "双重 crawlo 前缀",
             "queue_name": "crawlo:crawlo:queue:requests",
-            "expected_module": "crawlo",
-            "expected_queue": "crawlo:crawlo:queue:requests",
-            "expected_processing": "crawlo:crawlo:queue:processing",
-            "expected_failed": "crawlo:crawlo:queue:failed"
+            "expected_module": "test_project",
+            "expected_queue": "crawlo:queue:requests",  # 修复后的期望值
+            "expected_processing": "crawlo:queue:processing",
+            "expected_failed": "crawlo:queue:failed"
         },
         {
             "name": "三重 crawlo 前缀",
             "queue_name": "crawlo:crawlo:crawlo:queue:requests",
-            "expected_module": "crawlo",
-            "expected_queue": "crawlo:crawlo:queue:requests",
-            "expected_processing": "crawlo:crawlo:queue:processing",
-            "expected_failed": "crawlo:crawlo:queue:failed"
+            "expected_module": "test_project",
+            "expected_queue": "crawlo:queue:requests",  # 修复后的期望值
+            "expected_processing": "crawlo:queue:processing",
+            "expected_failed": "crawlo:queue:failed"
         },
         {
             "name": "无 crawlo 前缀",
@@ -138,11 +138,8 @@ async def test_queue_manager_naming():
                 if len(parts) >= 2:
                     # 处理可能的双重 crawlo 前缀
                     if parts[0] == "crawlo" and parts[1] == "crawlo":
-                        # 双重 crawlo 前缀，取第三个部分作为项目名称
-                        if len(parts) >= 3:
-                            project_name = parts[2]
-                        else:
-                            project_name = "default"
+                        # 双重 crawlo 前缀，取"crawlo"作为项目名称
+                        project_name = "crawlo"
                     elif parts[0] == "crawlo":
                         # 正常的 crawlo 前缀，取第二个部分作为项目名称
                         project_name = parts[1]

@@ -8,7 +8,7 @@ from typing import List, Dict, Callable, Optional
 
 from crawlo import Request, Response
 from crawlo.utils.log import get_logger
-from crawlo.project import load_class
+from crawlo.utils.class_loader import load_class
 from crawlo.middleware import BaseMiddleware
 from crawlo.project import common_call
 from crawlo.event import ignore_request, response_received
@@ -86,7 +86,7 @@ class MiddlewareManager:
             response = await self._process_exception(request, exp)
         else:
             create_task(self.crawler.subscriber.notify(response_received, response, self.crawler.spider))
-            # self.crawler.stats.inc_value('response_received_count')
+            self._stats.inc_value('response_received_count')
         if isinstance(response, Response):
             response = await self._process_response(request, response)
         if isinstance(response, Request):

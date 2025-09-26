@@ -77,7 +77,13 @@ class SpiderMeta(type):
 
         # 注册爬虫
         _DEFAULT_SPIDER_REGISTRY[spider_name] = cls
-        get_logger(__name__).debug(f"自动注册爬虫: {spider_name} -> {cls.__name__}")
+        # 延迟初始化logger避免模块级别阻塞
+        try:
+            from crawlo.utils.log import get_logger
+            get_logger(__name__).debug(f"自动注册爬虫: {spider_name} -> {cls.__name__}")
+        except:
+            # 如果日志系统未初始化，静默失败
+            pass
 
         return cls
 
@@ -153,12 +159,21 @@ class Spider(metaclass=SpiderMeta):
         
         # 初始化其他属性
         self.crawler = None
-        self.logger = get_logger(self.name)
+        # 延迟初始化logger避免阻塞
+        self._logger = None
         self.stats = None
         
         # 应用额外参数
         for key, value in kwargs.items():
             setattr(self, key, value)
+    
+    @property
+    def logger(self):
+        """延迟初始化logger"""
+        if self._logger is None:
+            from crawlo.utils.log import get_logger
+            self._logger = get_logger(self.name)
+        return self._logger
 
     @classmethod
     def create_instance(cls, crawler) -> 'Spider':
@@ -172,13 +187,23 @@ class Spider(metaclass=SpiderMeta):
         spider.crawler = crawler
         spider.stats = getattr(crawler, 'stats', None)
         
-        # 合并自定义设置
+        # 合并自定义设置 - 使用延迟应用避免初始化时的循环依赖
         if hasattr(spider, 'custom_settings') and spider.custom_settings:
-            for key, value in spider.custom_settings.items():
-                crawler.settings.set(key, value)
-                spider.logger.debug(f"应用自定义设置: {key} = {value}")
+            # 延迟到真正需要时才应用设置
+            spider._pending_settings = spider.custom_settings.copy()
+            spider.logger.debug(f"准备应用 {len(spider.custom_settings)} 项自定义设置")
         
         return spider
+    
+    def apply_pending_settings(self):
+        """应用待处理的设置（在初始化完成后调用）"""
+        if hasattr(self, '_pending_settings') and self._pending_settings:
+            for key, value in self._pending_settings.items():
+                if self.crawler and hasattr(self.crawler, 'settings'):
+                    self.crawler.settings.set(key, value)
+                    self.logger.debug(f"应用自定义设置: {key} = {value}")
+            # 清除待处理的设置
+            delattr(self, '_pending_settings')
 
     def start_requests(self) -> Iterator[Request]:
         """
@@ -349,17 +374,10 @@ class Spider(metaclass=SpiderMeta):
         可用于:
         - 清理资源
         - 关闭数据库连接
-        - 输出统计信息
         """
-        if self.stats:
-            stats_summary = {
-                'total_requests': self.stats.get('total_requests', 0),
-                'total_items': self.stats.get('total_items', 0),
-                'success_rate': self.stats.get('success_rate', 'N/A')
-            }
-            self.logger.info(f"Spider {self.name} closed, stats: {stats_summary}")
-        else:
-            self.logger.info(f"Spider {self.name} closed")
+        # 不再输出任何信息，避免与统计信息重复
+        # 统计信息由StatsCollector负责输出
+        pass
 
     def __str__(self) -> str:
         return f"{self.__class__.__name__}(name='{self.name}')"

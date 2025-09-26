@@ -1,9 +1,16 @@
 from typing import Any
 from crawlo.exceptions import NotConfigured
-from crawlo.utils.log import LoggerManager
+from crawlo.utils.log import get_logger
 
-# 使用全局logger，避免每个模块都创建自己的延迟初始化函数
-logger = LoggerManager.get_logger(__name__)
+# 延迟获取logger，确保在日志系统配置之后获取
+_logger = None
+
+def logger():
+    """延迟获取logger实例，确保在日志系统配置之后获取"""
+    global _logger
+    if _logger is None:
+        _logger = get_logger(__name__)
+    return _logger
 
 
 class CustomLoggerExtension:
@@ -14,8 +21,17 @@ class CustomLoggerExtension:
 
     def __init__(self, settings: Any):
         self.settings = settings
-        # 初始化全局日志配置
-        LoggerManager.configure(settings)
+        # 使用新的日志系统，但要简化配置传递
+        try:
+            from crawlo.logging import configure_logging
+            # 直接传递settings对象，让日志系统内部处理
+            configure_logging(settings)
+        except Exception as e:
+            # 如果日志系统配置失败，不应该阻止扩展加载
+            # 使用基本日志输出错误信息
+            import logging
+            logging.getLogger(__name__).warning(f"Failed to configure logging system: {e}")
+            # 不抛出异常，让扩展继续加载
 
     @classmethod
     def create_instance(cls, crawler: Any, *args: Any, **kwargs: Any) -> 'CustomLoggerExtension':
@@ -34,9 +50,9 @@ class CustomLoggerExtension:
         return cls(crawler.settings)
 
     def spider_opened(self, spider: Any) -> None:
-        logger = LoggerManager.get_logger(__name__)
+        logger_instance = logger()
         try:
-            logger.info(
+            logger_instance.info(
                 f"CustomLoggerExtension: Logging initialized. "
                 f"LOG_FILE={self.settings.get('LOG_FILE')}, "
                 f"LOG_LEVEL={self.settings.get('LOG_LEVEL')}"

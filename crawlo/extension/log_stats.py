@@ -1,52 +1,43 @@
 #!/usr/bin/python
 # -*- coding:UTF-8 -*-
+"""
+日志统计扩展
+提供详细的爬虫运行统计信息
+"""
+import asyncio
 from typing import Any
 
-from crawlo import event
-from crawlo.tools.date_tools import now, time_diff
+from crawlo.utils.log import get_logger
+from crawlo.utils import now, time_diff
 
 
-class LogStats(object):
+class LogStats:
+    """
+    日志统计扩展，记录和输出爬虫运行过程中的各种统计信息
+    """
 
-    def __init__(self, stats: Any):
-        self._stats = stats
+    def __init__(self, crawler):
+        self.crawler = crawler
+        self.logger = get_logger(self.__class__.__name__, crawler.settings.get('LOG_LEVEL'))
+        self._stats = crawler.stats
+        self._stats['start_time'] = now(fmt='%Y-%m-%d %H:%M:%S')
 
     @classmethod
-    def create_instance(cls, crawler: Any) -> 'LogStats':
-        o = cls(crawler.stats)
-        # 订阅所有需要的事件
-        event_subscriptions = [
-            (o.spider_opened, event.spider_opened),
-            (o.spider_closed, event.spider_closed),
-            (o.item_successful, event.item_successful),
-            (o.item_discard, event.item_discard),
-            (o.response_received, event.response_received),
-            (o.request_scheduled, event.request_scheduled),
-        ]
-        
-        for handler, evt in event_subscriptions:
-            try:
-                crawler.subscriber.subscribe(handler, event=evt)
-            except Exception as e:
-                # 获取日志记录器并记录错误
-                from crawlo.utils.log import get_logger
-                logger = get_logger(cls.__name__)
-                logger.error(f"Failed to subscribe to event {evt}: {e}")
+    def from_crawler(cls, crawler):
+        return cls(crawler)
 
-        return o
+    @classmethod
+    def create_instance(cls, crawler):
+        return cls.from_crawler(crawler)
 
-    async def spider_opened(self) -> None:
-        try:
-            self._stats['start_time'] = now(fmt='%Y-%m-%d %H:%M:%S')
-        except Exception as e:
-            # 静默处理，避免影响爬虫运行
-            pass
-
-    async def spider_closed(self) -> None:
+    async def spider_closed(self, reason: str = 'finished') -> None:
         try:
             self._stats['end_time'] = now(fmt='%Y-%m-%d %H:%M:%S')
             self._stats['cost_time(s)'] = time_diff(start=self._stats['start_time'], end=self._stats['end_time'])
+            self._stats['reason'] = reason
         except Exception as e:
+            # 添加日志以便调试
+            self.logger.error(f"Error in spider_closed: {e}")
             # 静默处理，避免影响爬虫运行
             pass
 
@@ -59,10 +50,8 @@ class LogStats(object):
 
     async def item_discard(self, _item: Any, exc: Any, _spider: Any) -> None:
         try:
+            # 只增加总的丢弃计数，不记录每个丢弃项目的原因详情
             self._stats.inc_value('item_discard_count')
-            reason = getattr(exc, 'msg', None)  # 更安全地获取属性
-            if reason:
-                self._stats.inc_value(f"item_discard/{reason}")
         except Exception as e:
             # 静默处理，避免影响爬虫运行
             pass

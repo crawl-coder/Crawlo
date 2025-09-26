@@ -57,7 +57,7 @@ class AuthProxySpider(Spider):
         # 创建结果项
         item = ProxyItem(
             url=response.url,
-            status=response.status,
+            status=response.status_code,  # 修复：使用status_code而不是status
             proxy=str(proxy_info),
             response_time=response.meta.get('download_latency', 0)
         )

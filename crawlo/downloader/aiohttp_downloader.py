@@ -39,8 +39,8 @@ class AioHttpDownloader(DownloaderBase):
         # 读取配置
         timeout_secs = self.crawler.settings.get_int("DOWNLOAD_TIMEOUT", 30)
         verify_ssl = self.crawler.settings.get_bool("VERIFY_SSL", True)
-        pool_limit = self.crawler.settings.get_int("CONNECTION_POOL_LIMIT", 100)
-        pool_per_host = self.crawler.settings.get_int("CONNECTION_POOL_LIMIT_PER_HOST", 20)
+        pool_limit = self.crawler.settings.get_int("CONNECTION_POOL_LIMIT", 300)  # 从200增加到300
+        pool_per_host = self.crawler.settings.get_int("CONNECTION_POOL_LIMIT_PER_HOST", 100)  # 从50增加到100
         self.max_download_size = self.crawler.settings.get_int("DOWNLOAD_MAXSIZE", 10 * 1024 * 1024)  # 10MB
 
         # 创建连接器
@@ -51,6 +51,8 @@ class AioHttpDownloader(DownloaderBase):
             ttl_dns_cache=300,
             keepalive_timeout=15,
             force_close=False,
+            use_dns_cache=True,  # 启用DNS缓存
+            family=0,  # 允许IPv4和IPv6
         )
 
         # 超时控制
