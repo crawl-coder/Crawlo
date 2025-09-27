@@ -25,7 +25,7 @@ def test_mode_log_level():
     
     try:
         # 初始化框架
-        from crawlo.core.framework_initializer import initialize_framework
+        from crawlo.initialization import initialize_framework
         settings = initialize_framework(test_settings)
         
         print(f"设置初始化完成: {settings.get('PROJECT_NAME')}")

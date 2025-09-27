@@ -7,7 +7,7 @@ import sys
 import os
 sys.path.insert(0, '/')
 
-from crawlo.core.framework_initializer import initialize_framework
+from crawlo.initialization import initialize_framework
 from crawlo.utils.log import LoggerManager, get_logger
 import logging
 

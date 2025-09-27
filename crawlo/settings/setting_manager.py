@@ -53,15 +53,7 @@ class SettingManager(MutableMapping):
                         merged_pipelines.append(pipeline)
                 self.attributes['PIPELINES'] = merged_pipelines
 
-        # 特殊处理PIPELINES，确保去重管道在最前面
-        dedup_pipeline = self.attributes.get('DEFAULT_DEDUP_PIPELINE')
-        if dedup_pipeline:
-            pipelines = self.attributes.get('PIPELINES', [])
-            # 移除所有去重管道实例（如果存在）
-            pipelines = [item for item in pipelines if item != dedup_pipeline]
-            # 在开头插入去重管道
-            pipelines.insert(0, dedup_pipeline)
-            self.attributes['PIPELINES'] = pipelines
+
 
         # 合并扩展配置
         if 'EXTENSIONS' in user_config:
@@ -82,6 +74,19 @@ class SettingManager(MutableMapping):
         for key, value in user_config.items():
             if key not in ['MIDDLEWARES', 'PIPELINES', 'EXTENSIONS']:
                 self.attributes[key] = value
+        
+        # 特殊处理PIPELINES，确保去重管道在最前面（在所有配置更新后执行）
+        dedup_pipeline = self.attributes.get('DEFAULT_DEDUP_PIPELINE')
+        if dedup_pipeline:
+            pipelines = self.attributes.get('PIPELINES', [])
+            # 移除所有去重管道实例（如果存在）
+            # 移除内存和Redis去重管道
+            pipelines = [item for item in pipelines 
+                       if item not in ('crawlo.pipelines.memory_dedup_pipeline.MemoryDedupPipeline', 
+                                     'crawlo.pipelines.redis_dedup_pipeline.RedisDedupPipeline')]
+            # 在开头插入去重管道
+            pipelines.insert(0, dedup_pipeline)
+            self.attributes['PIPELINES'] = pipelines
 
     def set_settings(self, module):
         if isinstance(module, str):

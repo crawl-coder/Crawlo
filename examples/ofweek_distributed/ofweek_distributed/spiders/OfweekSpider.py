@@ -115,7 +115,7 @@ class OfweekSpider(Spider):
 
         # 更可靠的翻页方案：先检查网站实际的页数范围
         # 根据网站实际情况调整页数范围，避免请求不存在的页面
-        max_page = 1851  # 减少页数以便测试
+        max_page = 20  # 减少页数以便测试
         start_urls = []
         for page in range(1, max_page + 1):
             url = f'https://ee.ofweek.com/CATList-2800-8100-ee-{page}.html'

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: UTF-8 -*-
 """
-ofweek_standalone 项目运行脚本
+test_project 项目运行脚本
 ============================
 基于 Crawlo 框架的简化爬虫启动器。
 
@@ -18,11 +18,11 @@ def main():
     """主函数：运行爬虫"""
     try:
         # 指定爬虫模块路径，框架会自动导入并注册所有爬虫
-        spider_modules = ['ofweek_standalone.spiders']
+        spider_modules = ['test_project.spiders']
         process = CrawlerProcess(spider_modules=spider_modules)
 
-        # 运行指定的爬虫
-        asyncio.run(process.crawl('of_week_standalone'))
+        # TODO 运行指定的爬虫
+        asyncio.run(process.crawl('of_week_dis'))
 
     except Exception as e:
         print(f"❌ 运行失败: {e}")

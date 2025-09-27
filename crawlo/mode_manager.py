@@ -119,6 +119,7 @@ class ModeManager:
 
         if mode == RunMode.STANDALONE:
             mode_info = "使用单机模式 - 简单快速，适合开发和中小规模爬取"
+            # 对于单机模式，如果用户设置了QUEUE_TYPE为'auto'，应该保留用户的设置
             settings = self.get_standalone_settings()
             self._debug("应用单机模式配置")
 

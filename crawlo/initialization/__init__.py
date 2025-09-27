@@ -16,22 +16,26 @@ from .context import InitializationContext
 from .core import CoreInitializer
 from .phases import InitializationPhase
 
+
 # 公共接口
 def initialize_framework(settings=None, **kwargs):
     """初始化框架的主要入口"""
     return CoreInitializer().initialize(settings, **kwargs)
 
+
 def is_framework_ready():
     """检查框架是否已准备就绪"""
     return CoreInitializer().is_ready
+
 
 def get_framework_context():
     """获取框架初始化上下文"""
     return CoreInitializer().context
 
+
 __all__ = [
     'InitializerRegistry',
-    'InitializationContext', 
+    'InitializationContext',
     'CoreInitializer',
     'InitializationPhase',
     'initialize_framework',

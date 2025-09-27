@@ -26,6 +26,7 @@ from urllib.parse import urljoin
 
 from crawlo.spider import Spider
 from crawlo import Request
+from crawlo.utils.log import get_logger
 from ..items import NewsItem
 
 
@@ -116,7 +117,7 @@ class OfweekSpider(Spider):
         }
 
         # 减少页数以便测试
-        max_page = 2# 原来是1851，现在改为50页进行测试
+        max_page = 20# 原来是1851，现在改为50页进行测试
         start_urls = []
         for page in range(1, max_page + 1):
             url = f'https://ee.ofweek.com/CATList-2800-8100-ee-{page}.html'

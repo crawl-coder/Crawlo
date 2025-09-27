@@ -26,12 +26,14 @@ from urllib.parse import urljoin
 
 from crawlo.spider import Spider
 from crawlo import Request
+from crawlo.utils.log import get_logger
 from ..items import NewsItem
+
 
 
 class OfweekSpider(Spider):
     """
-    爬虫：of_week
+    爬虫：of_week_distributed
     
     功能说明：
     - 支持并发爬取
@@ -60,14 +62,10 @@ class OfweekSpider(Spider):
     - 优化去重性能
     - 增加监控和故障恢复机制
     """
-    name = 'of_week_standalone'
+    name = 'of_week_distributed'  # 修改为与类名一致
     allowed_domains = ['ee.ofweek.com']
     start_urls = ['https://ee.ofweek.com/']
-
-    # custom_settings = {
-    #     "MYSQL_TABLE": "listed_balance_sheet_of_companies",
-    # }
-
+    
     # 高级配置（可选）
     # custom_settings = {
     #     'DOWNLOAD_DELAY': 1.0,  # Can reduce delay in distributed environment
@@ -115,8 +113,9 @@ class OfweekSpider(Spider):
             "index_burying_point": "c64d6c31e69d560efe319cc9f8be279f"
         }
 
-        # 减少页数以便测试
-        max_page = 2# 原来是1851，现在改为50页进行测试
+        # 更可靠的翻页方案：先检查网站实际的页数范围
+        # 根据网站实际情况调整页数范围，避免请求不存在的页面
+        max_page = 1851  # 减少页数以便测试
         start_urls = []
         for page in range(1, max_page + 1):
             url = f'https://ee.ofweek.com/CATList-2800-8100-ee-{page}.html'
@@ -132,13 +131,10 @@ class OfweekSpider(Spider):
                     url=url,
                     callback=self.parse,
                     headers=headers,
-                    cookies=cookies,
-                    dont_filter=True
+                    cookies=cookies
                 )
             except Exception as e:
                 self.logger.error(f"创建请求失败: {url}, 错误: {e}")
-        
-        self.logger.info("start_requests方法执行完成")
 
     def parse(self, response):
         """

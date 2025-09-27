@@ -49,7 +49,7 @@ ENABLE_CONTROLLED_REQUEST_GENERATION = False  # 是否启用受控请求生成
 
 # 队列配置
 QUEUE_TYPE = 'auto'  # 队列类型：memory/redis/auto
-SCHEDULER_QUEUE_NAME = f"crawlo:{PROJECT_NAME}:queue:requests"  # 调度器队列名称（遵循统一命名规范）
+# SCHEDULER_QUEUE_NAME = f"crawlo:{PROJECT_NAME}:queue:requests"  # 调度器队列名称（遵循统一命名规范）
 QUEUE_MAX_RETRIES = 3  # 队列操作最大重试次数
 QUEUE_TIMEOUT = 300  # 队列操作超时时间（秒）
 

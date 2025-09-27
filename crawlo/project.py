@@ -289,11 +289,22 @@ def _load_project_settings(custom_settings: Optional[dict] = None) -> SettingMan
     if run_mode:
         from crawlo.mode_manager import ModeManager
         mode_manager = ModeManager()
-        mode_settings = mode_manager.resolve_mode_settings(run_mode)
-        # 合并模式配置，但不覆盖用户已设置的配置
+        # 获取项目名称并传递给模式配置
+        project_name = settings.get('PROJECT_NAME', 'crawlo')
+        mode_settings = mode_manager.resolve_mode_settings(run_mode, project_name=project_name)
+        
+        # 特殊处理：如果用户在settings.py中明确设置了QUEUE_TYPE为'auto'，
+        # 即使在单机模式下也应该保留这个设置
+        user_queue_type = settings.get('QUEUE_TYPE')
+        if user_queue_type == 'auto' and run_mode == 'standalone':
+            mode_settings['QUEUE_TYPE'] = 'auto'
+        
+        # 合并模式配置
         for key, value in mode_settings.items():
-            # 只有当用户没有设置该配置项时才应用模式配置
-            if key not in settings.attributes:
+            # 对于特定的配置项，模式配置应该优先于用户配置
+            # 特别是与运行模式密切相关的配置项
+            priority_keys = ['QUEUE_TYPE', 'FILTER_CLASS', 'DEFAULT_DEDUP_PIPELINE']
+            if key in priority_keys or key not in settings.attributes:
                 settings.set(key, value)
         _temp_debug(f"🔧 已应用 {run_mode} 模式配置")
 
@@ -311,9 +322,9 @@ def get_settings(custom_settings: Optional[dict] = None) -> SettingManager:
     获取配置管理器实例（主入口函数）
     
     注意：这个函数现在作为向后兼容的入口，实际的初始化逻辑已经移到
-    crawlo.core.framework_initializer 模块中。建议使用新的初始化方式：
+    crawlo.initialization 模块中。建议使用新的初始化方式：
     
-    >>> from crawlo.core.framework_initializer import initialize_framework
+    >>> from crawlo.initialization import initialize_framework
     >>> settings = initialize_framework(custom_settings)
 
     Args:
@@ -323,5 +334,5 @@ def get_settings(custom_settings: Optional[dict] = None) -> SettingManager:
         SettingManager: 已加载配置的实例
     """
     # 使用新的统一初始化管理器
-    from crawlo.core.framework_initializer import initialize_framework
+    from crawlo.initialization import initialize_framework
     return initialize_framework(custom_settings)

@@ -1,29 +1,32 @@
 # -*- coding: UTF-8 -*-
 """
-ofweek_distributed 项目配置文件
+test_project 项目配置文件（分布式版）
 =============================
-基于 Crawlo 框架的爬虫项目配置。
+基于 Crawlo 框架的分布式爬虫项目配置。
+适合大规模数据采集和多节点部署。
 """
 
 import os
 
 # ============================== 项目基本信息 ==============================
-PROJECT_NAME = 'ofweek_distributed'
+PROJECT_NAME = 'test_project'
 
 # ============================== 运行模式 ==============================
-# 可选值: 'standalone', 'distributed', 'auto'
 RUN_MODE = 'distributed'
 
 # ============================== 并发配置 ==============================
-CONCURRENCY = 8
-MAX_RUNNING_SPIDERS = 1
+CONCURRENCY = 16
+MAX_RUNNING_SPIDERS = 5
 DOWNLOAD_DELAY = 1.0
 
 # ============================== 下载器配置 ==============================
+# 可选下载器:
+# DOWNLOADER = 'crawlo.downloader.aiohttp_downloader.AioHttpDownloader'
+# DOWNLOADER = 'crawlo.downloader.httpx_downloader.HttpXDownloader'
+# DOWNLOADER = 'crawlo.downloader.cffi_downloader.CurlCffiDownloader'
 DOWNLOADER = 'crawlo.downloader.aiohttp_downloader.AioHttpDownloader'
 
 # ============================== 队列配置 ==============================
-# 队列类型: 'memory', 'redis', 'auto'
 QUEUE_TYPE = 'redis'
 # 当使用Redis队列时，可自定义队列名称
 # 队列名称遵循统一命名规范: crawlo:{PROJECT_NAME}:queue:requests
@@ -36,7 +39,7 @@ FILTER_CLASS = 'crawlo.filters.aioredis_filter.AioRedisFilter'
 DEFAULT_DEDUP_PIPELINE = 'crawlo.pipelines.redis_dedup_pipeline.RedisDedupPipeline'
 
 # ============================== 爬虫模块配置 ==============================
-SPIDER_MODULES = ['ofweek_distributed.spiders']
+SPIDER_MODULES = ['test_project.spiders']
 
 # ============================== 中间件 ==============================
 # MIDDLEWARES = [
@@ -69,7 +72,7 @@ DEFAULT_REQUEST_HEADERS = {
 
 # ============================== 日志配置 ==============================
 LOG_LEVEL = 'INFO'
-LOG_FILE = 'logs/ofweek_distributed.log'
+LOG_FILE = 'logs/test_project.log'
 LOG_ENCODING = 'utf-8'  # 明确指定日志文件编码
 STATS_DUMP = True
 
@@ -77,10 +80,10 @@ STATS_DUMP = True
 OUTPUT_DIR = 'output'
 
 # ============================== Redis配置 ==============================
-REDIS_HOST = '127.0.0.1'
-REDIS_PORT = 6379
-REDIS_PASSWORD = ''
-REDIS_DB = 0
+REDIS_HOST = os.getenv('REDIS_HOST', '127.0.0.1')
+REDIS_PORT = int(os.getenv('REDIS_PORT', 6379))
+REDIS_PASSWORD = os.getenv('REDIS_PASSWORD', '')
+REDIS_DB = int(os.getenv('REDIS_DB', 0))
 
 # 根据是否有密码生成 URL
 if REDIS_PASSWORD:
@@ -93,19 +96,19 @@ MYSQL_HOST = os.getenv('MYSQL_HOST', '127.0.0.1')
 MYSQL_PORT = int(os.getenv('MYSQL_PORT', 3306))
 MYSQL_USER = os.getenv('MYSQL_USER', 'root')
 MYSQL_PASSWORD = os.getenv('MYSQL_PASSWORD', '123456')
-MYSQL_DB = os.getenv('MYSQL_DB', 'ofweek_distributed')
-MYSQL_TABLE = 'ofweek_distributed_data'
+MYSQL_DB = os.getenv('MYSQL_DB', 'test_project')
+MYSQL_TABLE = 'test_project_data'
 MYSQL_BATCH_SIZE = 100
-MYSQL_USE_BATCH = False  # 是否启用批量插入
+MYSQL_USE_BATCH = True  # 是否启用批量插入
 
 # ============================== MongoDB配置 ==============================
 MONGO_URI = os.getenv('MONGO_URI', 'mongodb://localhost:27017')
-MONGO_DATABASE = 'ofweek_distributed_db'
-MONGO_COLLECTION = 'ofweek_distributed_items'
+MONGO_DATABASE = 'test_project_db'
+MONGO_COLLECTION = 'test_project_items'
 MONGO_MAX_POOL_SIZE = 200
 MONGO_MIN_POOL_SIZE = 20
 MONGO_BATCH_SIZE = 100  # 批量插入条数
-MONGO_USE_BATCH = False  # 是否启用批量插入
+MONGO_USE_BATCH = True  # 是否启用批量插入
 
 # ============================== 代理配置 ==============================
 # 代理功能默认不启用，如需使用请在项目配置文件中启用并配置相关参数
