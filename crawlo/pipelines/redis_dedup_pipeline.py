@@ -18,6 +18,7 @@ from typing import Optional
 from crawlo import Item
 from crawlo.spider import Spider
 from crawlo.exceptions import DropItem, ItemDiscard
+from crawlo.utils.fingerprint import FingerprintGenerator
 from crawlo.utils.log import get_logger
 
 
@@ -132,21 +133,7 @@ class RedisDedupPipeline:
         :param item: 数据项
         :return: 指纹字符串
         """
-        # 将数据项转换为可序列化的字典
-        try:
-            item_dict = item.to_dict()
-        except AttributeError:
-            # 兼容没有to_dict方法的Item实现
-            item_dict = dict(item)
-        
-        # 对字典进行排序以确保一致性
-        sorted_items = sorted(item_dict.items())
-        
-        # 生成指纹字符串
-        fingerprint_string = '|'.join([f"{k}={v}" for k, v in sorted_items if v is not None])
-        
-        # 使用 SHA256 生成固定长度的指纹
-        return hashlib.sha256(fingerprint_string.encode('utf-8')).hexdigest()
+        return FingerprintGenerator.item_fingerprint(item)
 
     def close_spider(self, spider: Spider) -> None:
         """

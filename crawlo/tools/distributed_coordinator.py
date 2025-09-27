@@ -13,6 +13,8 @@ from datetime import datetime
 from typing import Dict, Any, Optional, Tuple, List, Set
 from urllib.parse import urlparse
 
+from crawlo.utils.fingerprint import FingerprintGenerator
+
 
 class TaskDistributor:
     """任务分发工具类"""
@@ -99,15 +101,9 @@ class DeduplicationTool:
             data (Any): 数据
             
         Returns:
-            str: 数据指纹（MD5哈希）
+            str: 数据指纹（SHA256哈希）
         """
-        if isinstance(data, dict):
-            # 对于字典，排序键以确保一致性
-            data_str = str(sorted(data.items()))
-        else:
-            data_str = str(data)
-
-        return hashlib.md5(data_str.encode('utf-8')).hexdigest()
+        return FingerprintGenerator.data_fingerprint(data)
 
     def is_duplicate(self, data: Any) -> bool:
         """

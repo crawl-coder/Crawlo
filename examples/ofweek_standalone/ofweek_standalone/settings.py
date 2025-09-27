@@ -36,7 +36,7 @@ DOWNLOAD_DELAY = 0.05  # 从0.1减少到0.05秒
 DOWNLOADER = 'crawlo.downloader.aiohttp_downloader.AioHttpDownloader'
 
 # ============================== 队列配置 ==============================
-QUEUE_TYPE = 'auto'  # 使用Redis队列
+QUEUE_TYPE = 'memory'  # 使用Redis队列
 # 队列名称遵循统一命名规范: crawlo:{PROJECT_NAME}:queue:requests
 # 当需要自定义队列名称时，取消注释并修改下面这行
 SCHEDULER_QUEUE_NAME = f'crawlo:{PROJECT_NAME}:queue:requests'
