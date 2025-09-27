@@ -28,7 +28,7 @@ DOWNLOADER = 'crawlo.downloader.aiohttp_downloader.AioHttpDownloader'
 
 # ============================== 队列配置 ==============================
 # 队列类型: 'memory', 'redis', 'auto'
-QUEUE_TYPE = 'memory'
+QUEUE_TYPE = 'auto'
 # 当使用Redis队列时，可自定义队列名称
 # 队列名称遵循统一命名规范: crawlo:{PROJECT_NAME}:queue:requests
 # SCHEDULER_QUEUE_NAME = f'crawlo:{PROJECT_NAME}:queue:requests'
@@ -60,9 +60,9 @@ DEFAULT_REQUEST_HEADERS = {
 # ALLOWED_DOMAINS = ['example.com']
 
 # ============================== 数据管道 ==============================
-# PIPELINES = [
-#     'crawlo.pipelines.mysql_pipeline.AsyncmyMySQLPipeline',     # MySQL 存储（使用asyncmy异步库）
-# ]
+PIPELINES = [
+    'crawlo.pipelines.mysql_pipeline.AsyncmyMySQLPipeline',     # MySQL 存储（使用asyncmy异步库）
+]
 
 # ============================== 扩展组件 ==============================
 # EXTENSIONS = [
