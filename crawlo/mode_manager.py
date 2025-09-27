@@ -7,7 +7,7 @@
 
 支持的运行模式：
 1. standalone - 单机模式（默认）
-2. distributed - 分布式模式  
+2. distributed - 分布式模式
 3. auto - 自动检测模式
 """
 import os
@@ -29,7 +29,7 @@ class ModeManager:
         # 延迟初始化logger，避免循环依赖
         self._logger = None
         self._debug("运行模式管理器初始化完成")
-    
+
     def _get_logger(self):
         """延迟获取logger实例"""
         if self._logger is None:
@@ -40,7 +40,7 @@ class ModeManager:
                 # 如果日志系统尚未初始化，返回None
                 pass
         return self._logger
-    
+
     def _debug(self, message: str):
         """调试日志"""
         logger = self._get_logger()
@@ -73,7 +73,7 @@ class ModeManager:
             redis_url = f'redis://:{redis_password}@{redis_host}:{redis_port}/{redis_db}'
         else:
             redis_url = f'redis://{redis_host}:{redis_port}/{redis_db}'
-            
+
         return {
             'QUEUE_TYPE': 'redis',
             'FILTER_CLASS': 'crawlo.filters.aioredis_filter.AioRedisFilter',
@@ -143,8 +143,13 @@ class ModeManager:
             raise ValueError(f"不支持的运行模式: {mode}")
 
         # 合并用户自定义配置
-        user_settings = {k: v for k, v in kwargs.items()
-                         if k not in ['redis_host', 'redis_port', 'redis_password', 'project_name']}
+        user_settings = {
+            k: v for k,
+            v in kwargs.items() if k not in [
+                'redis_host',
+                'redis_port',
+                'redis_password',
+                'project_name']}
         settings.update(user_settings)
         self._debug(f"合并用户自定义配置: {list(user_settings.keys())}")
 

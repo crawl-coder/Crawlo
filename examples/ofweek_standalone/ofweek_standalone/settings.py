@@ -60,9 +60,9 @@ DEFAULT_REQUEST_HEADERS = {
 # ALLOWED_DOMAINS = ['example.com']
 
 # ============================== 数据管道 ==============================
-PIPELINES = [
-    'crawlo.pipelines.mysql_pipeline.AsyncmyMySQLPipeline',     # MySQL 存储（使用asyncmy异步库）
-]
+# PIPELINES = [
+#     'crawlo.pipelines.mysql_pipeline.AsyncmyMySQLPipeline',     # MySQL 存储（使用asyncmy异步库）
+# ]
 
 # ============================== 扩展组件 ==============================
 # EXTENSIONS = [

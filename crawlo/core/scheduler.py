@@ -77,8 +77,8 @@ class Scheduler:
             # 只有在确实需要更新配置时才重新创建过滤器实例
             # 检查是否真的进行了配置更新
             filter_updated = (
-                (self.queue_manager._queue_type == QueueType.REDIS and 'memory_filter' in self.crawler.settings.get('FILTER_CLASS', '')) or
-                (self.queue_manager._queue_type == QueueType.MEMORY and ('aioredis_filter' in self.crawler.settings.get('FILTER_CLASS', '') or 'redis_filter' in self.crawler.settings.get('FILTER_CLASS', '')))
+                (self.queue_manager._queue_type == QueueType.REDIS and 'aioredis_filter' in self.crawler.settings.get('FILTER_CLASS', '')) or
+                (self.queue_manager._queue_type == QueueType.MEMORY and 'memory_filter' in self.crawler.settings.get('FILTER_CLASS', ''))
             )
             
             if needs_config_update or filter_updated:
