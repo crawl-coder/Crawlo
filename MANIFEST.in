@@ -1,0 +1,17 @@
+include README.md
+include LICENSE
+include requirements.txt  # 如果根目录有全局requirements.txt
+include VERSION           # 如果根目录有全局VERSION文件
+
+# 包内文件包含
+recursive-include crawlo/utils/js *
+recursive-include crawlo/templates *
+
+# 测试文件（如果需要在分发包中包含测试）
+recursive-include tests *
+
+# 排除项
+global-exclude __pycache__ *.py[cod] .DS_Store *.so
+global-exclude *.bak *.swp *.orig *.rej
+prune samples              # 排除示例目录
+prune docs                 # 排除文档目录

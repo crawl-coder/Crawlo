@@ -1,0 +1,170 @@
+# -*- coding: UTF-8 -*-
+"""
+test_project 项目配置文件（分布式版）
+=============================
+基于 Crawlo 框架的分布式爬虫项目配置。
+适合大规模数据采集和多节点部署。
+"""
+
+import os
+
+# ============================== 项目基本信息 ==============================
+PROJECT_NAME = 'test_project'
+
+# ============================== 运行模式 ==============================
+RUN_MODE = 'distributed'
+
+# ============================== 并发配置 ==============================
+CONCURRENCY = 16
+MAX_RUNNING_SPIDERS = 5
+DOWNLOAD_DELAY = 1.0
+
+# ============================== 下载器配置 ==============================
+# 可选下载器:
+# DOWNLOADER = 'crawlo.downloader.aiohttp_downloader.AioHttpDownloader'
+# DOWNLOADER = 'crawlo.downloader.httpx_downloader.HttpXDownloader'
+# DOWNLOADER = 'crawlo.downloader.cffi_downloader.CurlCffiDownloader'
+DOWNLOADER = 'crawlo.downloader.aiohttp_downloader.AioHttpDownloader'
+
+# ============================== 队列配置 ==============================
+QUEUE_TYPE = 'redis'
+# 当使用Redis队列时，可自定义队列名称
+# 队列名称遵循统一命名规范: crawlo:{PROJECT_NAME}:queue:requests
+# SCHEDULER_QUEUE_NAME = f'crawlo:{PROJECT_NAME}:queue:requests'
+
+# ============================== 去重过滤器 ==============================
+FILTER_CLASS = 'crawlo.filters.aioredis_filter.AioRedisFilter'
+
+# ============================== 默认去重管道 ==============================
+DEFAULT_DEDUP_PIPELINE = 'crawlo.pipelines.redis_dedup_pipeline.RedisDedupPipeline'
+
+# ============================== 爬虫模块配置 ==============================
+SPIDER_MODULES = ['test_project.spiders']
+
+# ============================== 中间件 ==============================
+# MIDDLEWARES = [
+#     'crawlo.middleware.simple_proxy.SimpleProxyMiddleware',
+# ]
+
+# ============================== 默认请求头配置 ==============================
+# 为DefaultHeaderMiddleware配置默认请求头
+DEFAULT_REQUEST_HEADERS = {
+    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+    'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
+    'Accept-Encoding': 'gzip, deflate, br',
+}
+
+# ============================== 允许的域名 ==============================
+# 为OffsiteMiddleware配置允许的域名
+# ALLOWED_DOMAINS = ['example.com']
+
+# ============================== 数据管道 ==============================
+# PIPELINES = [
+#     'crawlo.pipelines.mysql_pipeline.AsyncmyMySQLPipeline',     # MySQL 存储（使用asyncmy异步库）
+# ]
+
+# ============================== 扩展组件 ==============================
+# EXTENSIONS = [
+#     'crawlo.extension.log_interval.LogIntervalExtension',
+#     'crawlo.extension.log_stats.LogStats',
+#     'crawlo.extension.logging_extension.CustomLoggerExtension',
+# ]
+
+# ============================== 日志配置 ==============================
+LOG_LEVEL = 'INFO'
+LOG_FILE = 'logs/test_project.log'
+LOG_ENCODING = 'utf-8'  # 明确指定日志文件编码
+STATS_DUMP = True
+
+# ============================== 输出配置 ==============================
+OUTPUT_DIR = 'output'
+
+# ============================== Redis配置 ==============================
+REDIS_HOST = os.getenv('REDIS_HOST', '127.0.0.1')
+REDIS_PORT = int(os.getenv('REDIS_PORT', 6379))
+REDIS_PASSWORD = os.getenv('REDIS_PASSWORD', '')
+REDIS_DB = int(os.getenv('REDIS_DB', 0))
+
+# 根据是否有密码生成 URL
+if REDIS_PASSWORD:
+    REDIS_URL = f'redis://:{REDIS_PASSWORD}@{REDIS_HOST}:{REDIS_PORT}/{REDIS_DB}'
+else:
+    REDIS_URL = f'redis://{REDIS_HOST}:{REDIS_PORT}/{REDIS_DB}'
+
+# ============================== MySQL配置 ==============================
+MYSQL_HOST = os.getenv('MYSQL_HOST', '127.0.0.1')
+MYSQL_PORT = int(os.getenv('MYSQL_PORT', 3306))
+MYSQL_USER = os.getenv('MYSQL_USER', 'root')
+MYSQL_PASSWORD = os.getenv('MYSQL_PASSWORD', '123456')
+MYSQL_DB = os.getenv('MYSQL_DB', 'test_project')
+MYSQL_TABLE = 'test_project_data'
+MYSQL_BATCH_SIZE = 100
+MYSQL_USE_BATCH = True  # 是否启用批量插入
+
+# ============================== MongoDB配置 ==============================
+MONGO_URI = os.getenv('MONGO_URI', 'mongodb://localhost:27017')
+MONGO_DATABASE = 'test_project_db'
+MONGO_COLLECTION = 'test_project_items'
+MONGO_MAX_POOL_SIZE = 200
+MONGO_MIN_POOL_SIZE = 20
+MONGO_BATCH_SIZE = 100  # 批量插入条数
+MONGO_USE_BATCH = True  # 是否启用批量插入
+
+# ============================== 代理配置 ==============================
+# 代理功能默认不启用，如需使用请在项目配置文件中启用并配置相关参数
+PROXY_ENABLED = False  # 是否启用代理
+
+# 简化版代理配置（适用于SimpleProxyMiddleware）
+PROXY_LIST = []  # 代理列表，例如: ["http://proxy1:8080", "http://proxy2:8080"]
+
+# 高级代理配置（适用于ProxyMiddleware）
+PROXY_API_URL = ""  # 代理获取接口（请替换为真实地址）
+
+# 代理提取方式（支持字段路径或函数）
+# 示例: "proxy" 适用于 {"proxy": "http://1.1.1.1:8080"}
+# 示例: "data.proxy" 适用于 {"data": {"proxy": "http://1.1.1.1:8080"}}
+PROXY_EXTRACTOR = "proxy"
+
+# 代理刷新控制
+PROXY_REFRESH_INTERVAL = 60  # 代理刷新间隔（秒）
+PROXY_API_TIMEOUT = 10  # 请求代理 API 超时时间
+
+# ============================== Curl-Cffi 特有配置 ==============================
+# 浏览器指纹模拟（仅 CurlCffi 下载器有效）
+CURL_BROWSER_TYPE = "chrome"  # 可选: chrome, edge, safari, firefox 或版本如 chrome136
+
+# 自定义浏览器版本映射（可覆盖默认行为）
+CURL_BROWSER_VERSION_MAP = {
+    "chrome": "chrome136",
+    "edge": "edge101",
+    "safari": "safari184",
+    "firefox": "firefox135",
+}
+
+# ============================== 下载器优化配置 ==============================
+# 下载器健康检查
+DOWNLOADER_HEALTH_CHECK = True  # 是否启用下载器健康检查
+HEALTH_CHECK_INTERVAL = 60  # 健康检查间隔（秒）
+
+# 请求统计配置
+REQUEST_STATS_ENABLED = True  # 是否启用请求统计
+STATS_RESET_ON_START = False  # 启动时是否重置统计
+
+# HttpX 下载器专用配置
+HTTPX_HTTP2 = True  # 是否启用HTTP/2支持
+HTTPX_FOLLOW_REDIRECTS = True  # 是否自动跟随重定向
+
+# AioHttp 下载器专用配置
+AIOHTTP_AUTO_DECOMPRESS = True  # 是否自动解压响应
+AIOHTTP_FORCE_CLOSE = False  # 是否强制关闭连接
+
+# 通用优化配置
+CONNECTION_TTL_DNS_CACHE = 300  # DNS缓存TTL（秒）
+CONNECTION_KEEPALIVE_TIMEOUT = 15  # Keep-Alive超时（秒）
+
+# ============================== 内存监控配置 ==============================
+# 内存监控扩展默认不启用，如需使用请在项目配置文件中启用
+MEMORY_MONITOR_ENABLED = False  # 是否启用内存监控
+MEMORY_MONITOR_INTERVAL = 60  # 内存监控检查间隔（秒）
+MEMORY_WARNING_THRESHOLD = 80.0  # 内存使用率警告阈值（百分比）
+MEMORY_CRITICAL_THRESHOLD = 90.0  # 内存使用率严重阈值（百分比）

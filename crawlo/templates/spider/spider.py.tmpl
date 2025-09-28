@@ -1,0 +1,144 @@
+# -*- coding: UTF-8 -*-
+"""
+{{project_name}}.spiders.{{spider_name}}
+=======================================
+由 `crawlo genspider` 命令生成的爬虫。
+基于 Crawlo 框架，支持异步并发、分布式爬取等功能。
+
+使用示例：
+    crawlo crawl {{spider_name}}
+"""
+
+from crawlo.spider import Spider
+from crawlo import Request
+from ..items import ExampleItem
+
+
+class {{class_name}}(Spider):
+    """
+    爬虫：{{spider_name}}
+    
+    功能说明：
+    - 支持并发爬取
+    - 自动去重过滤
+    - 错误重试机制
+    - 数据管道处理
+    """
+    name = '{{spider_name}}'
+    allowed_domains = ['{{domain}}']
+    start_urls = ['https://{{domain}}/']
+    
+    # 高级配置（可选）
+    # custom_settings = {
+    #     'DOWNLOAD_DELAY': 2.0,
+    #     'CONCURRENCY': 4,
+    #     'RETRY_HTTP_CODES': [500, 502, 503, 504, 408, 429],
+    #     'ALLOWED_RESPONSE_CODES': [200, 301, 302],  # 只允许特定状态码
+    #     'DENIED_RESPONSE_CODES': [403, 404],        # 拒绝特定状态码
+    # }
+
+    def start_requests(self):
+        """
+        生成初始请求。
+        
+        支持自定义请求头、代理、优先级等。
+        """
+        headers = {
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+            'Accept-Language': 'zh-CN,zh;q=0.8,en-US;q=0.5,en;q=0.3',
+        }
+        
+        for url in self.start_urls:
+            yield Request(
+                url=url,
+                callback=self.parse,
+                headers=headers,
+                # meta={'proxy': 'http://proxy.example.com:8080'},  # 自定义代理
+                # priority=10,  # 请求优先级（数字越大优先级越高）
+            )
+
+    def parse(self, response):
+        """
+        解析响应的主方法。
+        
+        Args:
+            response: 响应对象，包含页面内容和元数据
+            
+        Yields:
+            Request: 新的请求对象（用于深度爬取）
+            Item: 数据项对象（用于数据存储）
+        """
+        self.logger.info(f'正在解析页面: {response.url}')
+        
+        # ================== 数据提取示例 ==================
+        
+        # 提取数据并创建 Item
+        # item = {{item_class}}()
+        # item['title'] = response.xpath('//title/text()').get(default='')
+        # item['url'] = response.url
+        # item['content'] = response.xpath('//div[@class="content"]//text()').getall()
+        # yield item
+        
+        # 直接返回字典（简单数据）
+        yield {
+            'title': response.xpath('//title/text()').get(default=''),
+            'url': response.url,
+            'status_code': response.status_code,
+            # 'description': response.xpath('//meta[@name="description"]/@content').get(),
+            # 'keywords': response.xpath('//meta[@name="keywords"]/@content').get(),
+        }
+        
+        # ================== 链接提取示例 ==================
+        
+        # 提取并跟进链接
+        # links = response.xpath('//a/@href').getall()
+        # for link in links:
+        #     # 过滤有效链接
+        #     if link and not link.startswith(('javascript:', 'mailto:', '#')):
+        #         yield response.follow(
+        #             link,
+        #             callback=self.parse_detail,  # 或者 self.parse 继续递归
+        #             meta={'parent_url': response.url}  # 传递父页面信息
+        #         )
+        
+        # 用 CSS 选择器提取链接
+        # for link in response.css('a.item-link::attr(href)').getall():
+        #     yield response.follow(link, callback=self.parse_detail)
+        
+        # ================== 分页处理示例 ==================
+        
+        # 处理分页
+        # next_page = response.xpath('//a[@class="next"]/@href').get()
+        # if next_page:
+        #     yield response.follow(next_page, callback=self.parse)
+        
+        # 数字分页
+        # current_page = int(response.meta.get('page', 1))
+        # max_pages = 100  # 设置最大页数
+        # if current_page < max_pages:
+        #     next_url = f'https://{{domain}}/page/{current_page + 1}'
+        #     yield Request(
+        #         url=next_url,
+        #         callback=self.parse,
+        #         meta={'page': current_page + 1}
+        #     )
+
+    def parse_detail(self, response):
+        """
+        解析详情页面的方法（可选）。
+        
+        用于处理从列表页跳转而来的详情页。
+        """
+        self.logger.info(f'正在解析详情页: {response.url}')
+        
+        # parent_url = response.meta.get('parent_url', '')
+        # 
+        # yield {
+        #     'title': response.xpath('//h1/text()').get(default=''),
+        #     'content': '\n'.join(response.xpath('//div[@class="content"]//text()').getall()),
+        #     'url': response.url,
+        #     'parent_url': parent_url,
+        #     'publish_time': response.xpath('//time/@datetime').get(),
+        # }
+        
+        pass

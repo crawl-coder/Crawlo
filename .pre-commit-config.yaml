@@ -1,0 +1,12 @@
+repos:
+  - repo: local
+    hooks:
+      - id: crawlo-check
+        name: Crawlo Spider Compliance Check
+        description: 检查所有爬虫是否符合规范（仅在 Crawlo 项目中运行）
+        entry: bash -c 'if [ -f "crawlo.cfg" ]; then crawlo check --ci; else echo "ℹ️  Not a Crawlo project, skipping check."; fi'
+        language: system
+        pass_filenames: false
+        always_run: true
+        verbose: true
+        stages: [pre-commit]

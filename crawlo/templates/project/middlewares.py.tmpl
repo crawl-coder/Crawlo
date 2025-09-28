@@ -1,0 +1,119 @@
+# -*- coding: UTF-8 -*-
+"""
+{{project_name}}.middlewares
+============================
+自定义中间件，用于在请求/响应/异常处理过程中插入自定义逻辑。
+
+这是一个简单的示例中间件，您可以根据需要添加更多中间件。
+"""
+
+import random
+from crawlo import Request, Response
+from crawlo.utils.log import get_logger
+
+
+class ExampleMiddleware:
+    """
+    示例中间件，演示如何处理请求、响应和异常。
+    
+    此中间件会：
+    1. 为请求添加随机 User-Agent
+    2. 记录请求和响应信息
+    3. 处理异常情况
+    """
+    
+    def __init__(self):
+        self.logger = get_logger(self.__class__.__name__)
+        self.user_agents = [
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36',
+            'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36',
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:135.0) Gecko/20100101 Firefox/135.0',
+            'Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:135.0) Gecko/20100101 Firefox/135.0',
+        ]
+
+    def process_request(self, request, spider):
+        """
+        在请求被下载器执行前调用。
+        
+        Args:
+            request: 请求对象
+            spider: 爬虫实例
+            
+        Returns:
+            None: 继续处理请求
+            Response: 返回响应对象（短路处理）
+            Request: 返回新请求对象（替换原请求）
+        """
+        # 为请求添加随机 User-Agent
+        if 'User-Agent' not in request.headers:
+            ua = random.choice(self.user_agents)
+            request.headers['User-Agent'] = ua
+            self.logger.debug(f"为请求 {request.url} 设置 User-Agent: {ua[:50]}...")
+        
+        return None
+
+    def process_response(self, request, response, spider):
+        """
+        在响应被 Spider 处理前调用。
+        
+        Args:
+            request: 原始请求对象
+            response: 响应对象
+            spider: 爬虫实例
+            
+        Returns:
+            Response: 处理后的响应对象
+        """
+        # 记录响应信息
+        self.logger.info(f"收到响应: {request.url} - 状态码: {response.status_code}")
+        
+        # 可以在这里处理特殊状态码
+        if response.status_code == 403:
+            self.logger.warning(f"访问被拒绝: {request.url}")
+        
+        return response
+
+    def process_exception(self, request, exception, spider):
+        """
+        在下载或处理过程中发生异常时调用。
+        
+        Args:
+            request: 请求对象
+            exception: 异常对象
+            spider: 爬虫实例
+            
+        Returns:
+            None: 异常将继续传播
+            Response: 返回响应对象（处理异常）
+            Request: 返回新请求对象（重试请求）
+        """
+        self.logger.error(f"请求异常: {request.url} - {exception}")
+        return None
+
+
+# ======================== 使用说明 ========================
+# 
+# 在 settings.py 中启用中间件：
+# MIDDLEWARES = [
+#     '{{project_name}}.middlewares.ExampleMiddleware',
+# ]
+# 
+# 您可以根据需要添加更多中间件，例如：
+# 1. 请求处理中间件（修改请求头、设置代理等）
+# 2. 响应处理中间件（解析、过滤等）
+# 3. 异常处理中间件（重试、记录等）
+# 
+# 每个中间件可以实现以下方法：
+# - process_request: 处理请求
+# - process_response: 处理响应
+# - process_exception: 处理异常
+# 
+# 注意：Crawlo框架提供了许多内置中间件，您可以直接使用：
+# - DownloadDelayMiddleware: 控制请求延迟
+# - ResponseCodeMiddleware: 处理HTTP状态码并记录统计信息
+# - ResponseFilterMiddleware: 过滤特定状态码的响应
+# - DefaultHeaderMiddleware: 添加默认请求头
+# - ProxyMiddleware: 设置代理
+# - RetryMiddleware: 处理重试逻辑
+# - OffsiteMiddleware: 过滤站外请求
+# ======================== 使用说明 ========================

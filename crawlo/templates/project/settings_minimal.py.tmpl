@@ -1,0 +1,66 @@
+# -*- coding: UTF-8 -*-
+"""
+{{project_name}} 项目配置文件（最小版）
+=============================
+基于 Crawlo 框架的最小爬虫项目配置。
+仅包含最基本和常用的配置项。
+"""
+
+# ============================== 项目基本信息 ==============================
+PROJECT_NAME = '{{project_name}}'
+
+# ============================== 运行模式 ==============================
+RUN_MODE = 'standalone'
+
+# ============================== 并发配置 ==============================
+CONCURRENCY = 4
+MAX_RUNNING_SPIDERS = 1
+DOWNLOAD_DELAY = 1.0
+
+# ============================== 下载器配置 ==============================
+DOWNLOADER = 'crawlo.downloader.aiohttp_downloader.AioHttpDownloader'
+
+# ============================== 队列配置 ==============================
+QUEUE_TYPE = 'memory'
+
+# ============================== 去重过滤器 ==============================
+FILTER_CLASS = 'crawlo.filters.memory_filter.MemoryFilter'
+
+# ============================== 默认去重管道 ==============================
+DEFAULT_DEDUP_PIPELINE = 'crawlo.pipelines.memory_dedup_pipeline.MemoryDedupPipeline'
+
+# ============================== 爬虫模块配置 ==============================
+SPIDER_MODULES = ['{{project_name}}.spiders']
+
+# ============================== 默认请求头配置 ==============================
+# 为DefaultHeaderMiddleware配置默认请求头
+DEFAULT_REQUEST_HEADERS = {
+    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+    'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
+    'Accept-Encoding': 'gzip, deflate, br',
+}
+
+# ============================== 允许的域名 ==============================
+# 为OffsiteMiddleware配置允许的域名
+# ALLOWED_DOMAINS = ['example.com']
+
+# ============================== 数据管道 ==============================
+PIPELINES = [
+    'crawlo.pipelines.json_pipeline.JsonPipeline',
+]
+
+# ============================== 扩展组件 ==============================
+# EXTENSIONS = [
+#     'crawlo.extension.log_interval.LogIntervalExtension',
+#     'crawlo.extension.log_stats.LogStats',
+#     'crawlo.extension.logging_extension.CustomLoggerExtension',
+# ]
+
+# ============================== 日志配置 ==============================
+LOG_LEVEL = 'INFO'
+LOG_FILE = 'logs/{{project_name}}.log'
+LOG_ENCODING = 'utf-8'  # 明确指定日志文件编码
+STATS_DUMP = True
+
+# ============================== 输出配置 ==============================
+OUTPUT_DIR = 'output'

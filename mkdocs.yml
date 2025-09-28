@@ -1,0 +1,232 @@
+site_name: Crawlo Documentation
+site_url: https://crawlo.readthedocs.io/
+site_description: An asynchronous distributed web crawling framework
+site_author: Crawlo Team
+
+repo_url: https://github.com/crawl-coder/Crawlo
+edit_uri: ""
+
+theme:
+  name: material
+  language: zh
+  palette:
+    - scheme: default
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - scheme: slate
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - toc.integrate
+    - navigation.top
+    - search.suggest
+    - search.highlight
+    - content.tabs.link
+    - content.code.annotation
+    - content.code.copy
+  icon:
+    repo: fontawesome/brands/github
+
+nav:
+  - 首页: 
+    - 简介: README.md
+    - 快速开始: 
+      - 中文: modules/quickstart/index.md
+      - English: modules/quickstart/index_en.md
+    - 安装指南: 
+      - 中文: modules/installation/index.md
+      - English: modules/installation/index_en.md
+  - 核心概念:
+    - 架构概述: 
+      - 中文: modules/architecture/index.md
+      - English: modules/architecture/index_en.md
+    - 运行模式: 
+      - 中文: modules/architecture/modes.md
+      - English: modules/architecture/modes_en.md
+    - 配置系统: 
+      - 中文: modules/configuration/index.md
+      - English: modules/configuration/index_en.md
+  - 核心模块:
+    - 引擎 (Engine): 
+      - 中文: modules/core/engine.md
+      - English: modules/core/engine_en.md
+    - 调度器 (Scheduler): 
+      - 中文: modules/core/scheduler.md
+      - English: modules/core/scheduler_en.md
+    - 处理器 (Processor): 
+      - 中文: modules/core/processor.md
+      - English: modules/core/processor_en.md
+    - 爬虫基类 (Spider): 
+      - 中文: modules/core/spider.md
+      - English: modules/core/spider_en.md
+  - 功能模块:
+    - 下载器 (Downloader):
+      - 概述: 
+        - 中文: modules/downloader/index.md
+        - English: modules/downloader/index_en.md
+      - AioHttpDownloader: 
+        - 中文: modules/downloader/aiohttp.md
+        - English: modules/downloader/aiohttp_en.md
+      - HttpXDownloader: 
+        - 中文: modules/downloader/httpx.md
+        - English: modules/downloader/httpx_en.md
+      - CurlCffiDownloader: 
+        - 中文: modules/downloader/curl_cffi.md
+        - English: modules/downloader/curl_cffi_en.md
+      - SeleniumDownloader: 
+        - 中文: modules/downloader/selenium.md
+        - English: modules/downloader/selenium_en.md
+      - PlaywrightDownloader: 
+        - 中文: modules/downloader/playwright.md
+        - English: modules/downloader/playwright_en.md
+    - 队列 (Queue):
+      - 概述: 
+        - 中文: modules/queue/index.md
+        - English: modules/queue/index_en.md
+      - QueueManager: 
+        - 中文: modules/queue/manager.md
+        - English: modules/queue/manager_en.md
+      - 内存队列: 
+        - 中文: modules/queue/memory.md
+        - English: modules/queue/memory_en.md
+      - Redis队列: 
+        - 中文: modules/queue/redis.md
+        - English: modules/queue/redis_en.md
+    - 过滤器 (Filter):
+      - 概述: 
+        - 中文: modules/filter/index.md
+        - English: modules/filter/index_en.md
+      - BaseFilter: 
+        - 中文: modules/filter/base.md
+        - English: modules/filter/base_en.md
+      - 内存过滤器: 
+        - 中文: modules/filter/memory.md
+        - English: modules/filter/memory_en.md
+      - Redis过滤器: 
+        - 中文: modules/filter/redis.md
+        - English: modules/filter/redis_en.md
+      - Bloom过滤器: 
+        - 中文: modules/filter/bloom.md
+        - English: modules/filter/bloom_en.md
+    - 中间件 (Middleware):
+      - 概述: 
+        - 中文: modules/middleware/index.md
+        - English: modules/middleware/index_en.md
+      - MiddlewareManager: 
+        - 中文: modules/middleware/manager.md
+        - English: modules/middleware/manager_en.md
+      - 内置中间件: 
+        - 中文: modules/middleware/built_in.md
+        - English: modules/middleware/built_in_en.md
+      - 自定义中间件: 
+        - 中文: modules/middleware/custom.md
+        - English: modules/middleware/custom_en.md
+    - 管道 (Pipeline):
+      - 概述: 
+        - 中文: modules/pipeline/index.md
+        - English: modules/pipeline/index_en.md
+      - PipelineManager: 
+        - 中文: modules/pipeline/manager.md
+        - English: modules/pipeline/manager_en.md
+      - 内置管道: 
+        - 中文: modules/pipeline/built_in.md
+        - English: modules/pipeline/built_in_en.md
+      - 自定义管道: 
+        - 中文: modules/pipeline/custom.md
+        - English: modules/pipeline/custom_en.md
+    - 扩展 (Extension):
+      - 概述: 
+        - 中文: modules/extension/index.md
+        - English: modules/extension/index_en.md
+      - ExtensionManager: 
+        - 中文: modules/extension/manager.md
+        - English: modules/extension/manager_en.md
+      - 内置扩展: 
+        - 中文: modules/extension/built_in.md
+        - English: modules/extension/built_in_en.md
+      - 自定义扩展: 
+        - 中文: modules/extension/custom.md
+        - English: modules/extension/custom_en.md
+  - 命令行工具:
+    - CLI 概述: 
+      - 中文: modules/cli/index.md
+      - English: modules/cli/index_en.md
+    - startproject: 
+      - 中文: modules/cli/startproject.md
+      - English: modules/cli/startproject_en.md
+    - genspider: 
+      - 中文: modules/cli/genspider.md
+      - English: modules/cli/genspider_en.md
+    - run: 
+      - 中文: modules/cli/run.md
+      - English: modules/cli/run_en.md
+    - list: 
+      - 中文: modules/cli/list.md
+      - English: modules/cli/list_en.md
+    - check: 
+      - 中文: modules/cli/check.md
+      - English: modules/cli/check_en.md
+    - stats: 
+      - 中文: modules/cli/stats.md
+      - English: modules/cli/stats_en.md
+  - 高级主题:
+    - 分布式部署: 
+      - 中文: modules/advanced/distributed.md
+      - English: modules/advanced/distributed_en.md
+    - 性能优化: 
+      - 中文: modules/advanced/performance.md
+      - English: modules/advanced/performance_en.md
+    - 故障排除: 
+      - 中文: modules/advanced/troubleshooting.md
+      - English: modules/advanced/troubleshooting_en.md
+    - 最佳实践: 
+      - 中文: modules/advanced/best_practices.md
+      - English: modules/advanced/best_practices_en.md
+  - API 参考:
+    - crawlo: api/crawlo___init__.md
+    - crawlo.crawler: api/crawlo_crawler.md
+    - crawlo.spider: api/crawlo_spider___init__.md
+    - crawlo.request: api/crawlo_network_request.md
+    - crawlo.response: api/crawlo_network_response.md
+    - crawlo.items: api/crawlo_items_items.md
+    - crawlo.pipelines: api/crawlo_pipelines___init__.md
+    - crawlo.pipelines.RedisDedupPipeline: api/crawlo_pipelines_redis_dedup_pipeline.md
+    - crawlo.pipelines.MemoryDedupPipeline: api/crawlo_pipelines_memory_dedup_pipeline.md
+    - crawlo.pipelines.BloomDedupPipeline: api/crawlo_pipelines_bloom_dedup_pipeline.md
+    - crawlo.pipelines.DatabaseDedupPipeline: api/crawlo_pipelines_database_dedup_pipeline.md
+    - crawlo.pipelines.ConsolePipeline: api/crawlo_pipelines_console_pipeline.md
+    - crawlo.pipelines.JsonPipeline: api/crawlo_pipelines_json_pipeline.md
+    - crawlo.pipelines.CsvPipeline: api/crawlo_pipelines_csv_pipeline.md
+    - crawlo.pipelines.AsyncmyMySQLPipeline: api/crawlo_pipelines_mysql_pipeline.md
+    - crawlo.pipelines.MongoPipeline: api/crawlo_pipelines_mongo_pipeline.md
+    - crawlo.middleware: api/crawlo_middleware___init__.md
+    - crawlo.extensions: api/crawlo_extension___init__.md
+    - crawlo.filters: api/crawlo_filters___init__.md
+    - crawlo.downloader: api/crawlo_downloader___init__.md
+    - crawlo.scheduler: api/crawlo_core_scheduler.md
+    - crawlo.queues: api/crawlo_queue___init__.md
+    - crawlo.utils: api/crawlo_utils_log.md
+
+plugins:
+  - search
+
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/crawl-coder/Crawlo
+
+# Extensions
+markdown_extensions:
+  - pymdownx.highlight
+  - pymdownx.superfences
+  - pymdownx.tabbed:
+      alternate_style: true
+  - admonition
+  - pymdownx.details
+  - pymdownx.emoji:
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg

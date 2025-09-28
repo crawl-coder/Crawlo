@@ -1,0 +1,97 @@
+# -*- coding: UTF-8 -*-
+"""
+{{project_name}}.pipelines
+==========================
+数据管道，用于处理 Spider 返回的 Item。
+例如：清理、验证、去重、保存到数据库等。
+
+这是一个简单的示例管道，您可以根据需要添加更多管道。
+"""
+
+from datetime import datetime
+from crawlo.exceptions import DropItem
+from crawlo.utils.log import get_logger
+
+
+class ExamplePipeline:
+    """
+    示例管道，演示如何处理数据项。
+    
+    此管道会：
+    1. 验证必要字段
+    2. 清理数据
+    3. 添加时间戳
+    4. 记录处理日志
+    """
+    
+    def __init__(self):
+        self.logger = get_logger(self.__class__.__name__)
+        self.item_count = 0
+
+    def process_item(self, item, spider):
+        """
+        处理数据项。
+        
+        Args:
+            item: 要处理的数据项
+            spider: 爬虫实例
+            
+        Returns:
+            处理后的数据项
+            
+        Raises:
+            DropItem: 如果数据项无效则抛出此异常
+        """
+        # 验证必要字段
+        if not item.get('title') or not item.get('url'):
+            raise DropItem("缺少必要字段: title 或 url")
+        
+        # 数据清理
+        item['title'] = str(item['title']).strip()
+        
+        # 添加处理时间戳
+        item['processed_at'] = datetime.now().isoformat()
+        
+        # 计数器
+        self.item_count += 1
+        
+        # 记录日志
+        self.logger.info(f"处理第 {self.item_count} 个数据项: {item['title']}")
+        
+        return item
+
+    def open_spider(self, spider):
+        """
+        爬虫启动时调用。
+        
+        Args:
+            spider: 爬虫实例
+        """
+        self.logger.info(f"管道已启动，准备处理爬虫 '{spider.name}' 的数据")
+
+    def close_spider(self, spider):
+        """
+        爬虫关闭时调用。
+        
+        Args:
+            spider: 爬虫实例
+        """
+        self.logger.info(f"管道已关闭，共处理了 {self.item_count} 个数据项")
+
+
+# ======================== 使用说明 ========================
+# 
+# 在 settings.py 中启用管道：
+# PIPELINES = [
+#     '{{project_name}}.pipelines.ExamplePipeline',
+# ]
+# 
+# 您可以根据需要添加更多管道，例如：
+# 1. 数据验证管道
+# 2. 去重管道
+# 3. 数据存储管道（数据库、文件等）
+# 4. 数据转换管道
+# 
+# 每个管道都应该实现 process_item 方法，
+# 可选实现 open_spider 和 close_spider 方法。
+# ======================== 使用说明 ========================
