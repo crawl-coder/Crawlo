@@ -80,8 +80,8 @@ class BloomDedupPipeline:
         settings = crawler.settings
         
         return cls(
-            capacity=settings.getint('BLOOM_FILTER_CAPACITY', 1000000),
-            error_rate=settings.getfloat('BLOOM_FILTER_ERROR_RATE', 0.001),
+            capacity=settings.get_int('BLOOM_FILTER_CAPACITY', 1000000),
+            error_rate=settings.get_float('BLOOM_FILTER_ERROR_RATE', 0.001),
             log_level=settings.get('LOG_LEVEL', 'INFO')
         )
 

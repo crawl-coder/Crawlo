@@ -293,16 +293,27 @@ def _load_project_settings(custom_settings: Optional[dict] = None) -> SettingMan
         project_name = settings.get('PROJECT_NAME', 'crawlo')
         mode_settings = mode_manager.resolve_mode_settings(run_mode, project_name=project_name)
         
-        # 特殊处理：如果用户在settings.py中明确设置了QUEUE_TYPE为'auto'，
-        # 即使在单机模式下也应该保留这个设置
+        # 特殊处理：如果用户在settings.py中明确设置了QUEUE_TYPE，
+        # 应该尊重用户的设置，除非是standalone模式下的redis设置
         user_queue_type = settings.get('QUEUE_TYPE')
-        if user_queue_type == 'auto' and run_mode == 'standalone':
-            mode_settings['QUEUE_TYPE'] = 'auto'
+        if user_queue_type and run_mode == 'standalone' and user_queue_type != 'memory':
+            # 在单机模式下，如果用户明确设置了QUEUE_TYPE（且不是memory），应该保留用户的设置
+            # 但需要确保配置的一致性
+            mode_settings['QUEUE_TYPE'] = user_queue_type
+            
+            # 根据QUEUE_TYPE更新其他相关配置
+            if user_queue_type == 'redis':
+                mode_settings['FILTER_CLASS'] = 'crawlo.filters.aioredis_filter.AioRedisFilter'
+                mode_settings['DEFAULT_DEDUP_PIPELINE'] = 'crawlo.pipelines.redis_dedup_pipeline.RedisDedupPipeline'
+            elif user_queue_type == 'auto':
+                mode_settings['FILTER_CLASS'] = settings.get('FILTER_CLASS', 'crawlo.filters.memory_filter.MemoryFilter')
+                mode_settings['DEFAULT_DEDUP_PIPELINE'] = settings.get('DEFAULT_DEDUP_PIPELINE', 'crawlo.pipelines.memory_dedup_pipeline.MemoryDedupPipeline')
         
         # 合并模式配置
         for key, value in mode_settings.items():
             # 对于特定的配置项，模式配置应该优先于用户配置
             # 特别是与运行模式密切相关的配置项
+            # 但如果用户明确设置了某些关键配置且与运行模式不冲突，则应保留用户设置
             priority_keys = ['QUEUE_TYPE', 'FILTER_CLASS', 'DEFAULT_DEDUP_PIPELINE']
             if key in priority_keys or key not in settings.attributes:
                 settings.set(key, value)

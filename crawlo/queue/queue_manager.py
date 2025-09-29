@@ -404,20 +404,23 @@ class QueueManager:
                 return QueueType.MEMORY
 
         elif self.config.queue_type == QueueType.REDIS:
-            if not REDIS_AVAILABLE:
-                raise RuntimeError("Redis 队列不可用：未安装 redis 依赖")
-            if not self.config.redis_url:
-                raise RuntimeError("Redis 队列不可用：未配置 REDIS_URL")
-            # 测试 Redis 连接
-            try:
-                from crawlo.queue.redis_priority_queue import RedisPriorityQueue
-                test_queue = RedisPriorityQueue(self.config.redis_url)
-                await test_queue.connect()
-                await test_queue.close()
-                return QueueType.REDIS
-            except Exception as e:
-                # 如果强制使用Redis但连接失败，则抛出异常
-                raise RuntimeError(f"Redis 队列不可用：无法连接到 Redis ({e})")
+            # 当 QUEUE_TYPE = 'redis' 时，行为等同于 'auto' 模式
+            # 优先使用 Redis（如果可用），如果不可用则回退到内存队列
+            if REDIS_AVAILABLE and self.config.redis_url:
+                # 测试 Redis 连接
+                try:
+                    from crawlo.queue.redis_priority_queue import RedisPriorityQueue
+                    test_queue = RedisPriorityQueue(self.config.redis_url)
+                    await test_queue.connect()
+                    await test_queue.close()
+                    self.logger.debug("Redis mode: Redis available, using distributed queue")
+                    return QueueType.REDIS
+                except Exception as e:
+                    self.logger.debug(f"Redis mode: Redis unavailable ({e}), falling back to memory queue")
+                    return QueueType.MEMORY
+            else:
+                self.logger.debug("Redis mode: Redis not configured, falling back to memory queue")
+                return QueueType.MEMORY
 
         elif self.config.queue_type == QueueType.MEMORY:
             return QueueType.MEMORY
@@ -488,7 +491,8 @@ class QueueManager:
             self.logger.warning(f"Queue health check failed: {e}")
             self._health_status = "unhealthy"
             # 如果是Redis队列且健康检查失败，尝试切换到内存队列
-            if self._queue_type == QueueType.REDIS and self.config.queue_type == QueueType.AUTO:
+            # 对于 AUTO 和 REDIS 模式都允许回退
+            if self._queue_type == QueueType.REDIS and self.config.queue_type in [QueueType.AUTO, QueueType.REDIS]:
                 self.logger.info("Redis queue unavailable, attempting to switch to memory queue...")
                 try:
                     await self._queue.close()

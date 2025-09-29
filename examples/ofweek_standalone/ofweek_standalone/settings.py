@@ -38,6 +38,7 @@ FILTER_CLASS = 'crawlo.filters.memory_filter.MemoryFilter'
 
 # ============================== 默认去重管道 ==============================
 DEFAULT_DEDUP_PIPELINE = 'crawlo.pipelines.memory_dedup_pipeline.MemoryDedupPipeline'
+# DEFAULT_DEDUP_PIPELINE = 'crawlo.pipelines.bloom_dedup_pipeline.BloomDedupPipeline'
 
 # ============================== 爬虫模块配置 ==============================
 SPIDER_MODULES = ['ofweek_standalone.spiders']

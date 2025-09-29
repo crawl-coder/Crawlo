@@ -11,6 +11,22 @@ from crawlo.project import common_call
 from crawlo.exceptions import PipelineInitError, ItemDiscard, InvalidOutputError, DropItem
 
 
+def get_dedup_pipeline_classes():
+    """获取所有已知的去重管道类名"""
+    return [
+        'crawlo.pipelines.memory_dedup_pipeline.MemoryDedupPipeline',
+        'crawlo.pipelines.redis_dedup_pipeline.RedisDedupPipeline',
+        'crawlo.pipelines.bloom_dedup_pipeline.BloomDedupPipeline',
+        'crawlo.pipelines.database_dedup_pipeline.DatabaseDedupPipeline'
+    ]
+
+
+def remove_dedup_pipelines(pipelines: List[str]) -> List[str]:
+    """从管道列表中移除所有去重管道"""
+    dedup_classes = get_dedup_pipeline_classes()
+    return [pipeline for pipeline in pipelines if pipeline not in dedup_classes]
+
+
 class PipelineManager:
 
     def __init__(self, crawler):
@@ -29,7 +45,7 @@ class PipelineManager:
         # 确保DEFAULT_DEDUP_PIPELINE被添加到管道列表开头
         if dedup_pipeline:
             # 移除所有去重管道实例（如果存在）
-            pipelines = [item for item in pipelines if item != dedup_pipeline]
+            pipelines = remove_dedup_pipelines(pipelines)
             # 在开头插入去重管道
             self.logger.debug(f"{dedup_pipeline} insert successful")
             pipelines.insert(0, dedup_pipeline)
