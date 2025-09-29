@@ -1,35 +1,3 @@
-<!-- markdownlint-disable MD033 MD041 -->
-<div align="center">
-  <h1 align="center">Crawlo</h1>
-  <p align="center">异步分布式爬虫框架</p>
-  <p align="center"><strong>基于 asyncio 的高性能异步分布式爬虫框架，支持单机和分布式部署</strong></p>
-  
-  <p align="center">
-    <a href="https://www.python.org/downloads/">
-      <img src="https://img.shields.io/badge/python-%3C%3D3.12-blue" alt="Python Version">
-    </a>
-    <a href="LICENSE">
-      <img src="https://img.shields.io/badge/license-MIT-green" alt="License">
-    </a>
-    <a href="https://crawlo.readthedocs.io/">
-      <img src="https://img.shields.io/badge/docs-latest-brightgreen" alt="Documentation">
-    </a>
-    <a href="https://github.com/crawlo/crawlo/actions">
-      <img src="https://github.com/crawlo/crawlo/workflows/CI/badge.svg" alt="CI Status">
-    </a>
-  </p>
-  
-  <p align="center">
-    <a href="#-特性">特性</a> •
-    <a href="#-快速开始">快速开始</a> •
-    <a href="#-命令行工具">命令行工具</a> •
-    <a href="#-示例项目">示例项目</a>
-  </p>
-</div>
-
-<br />
-
-```
 # Crawlo 爬虫框架
 
 Crawlo 是一个高性能、可扩展的 Python 爬虫框架，支持单机和分布式部署。
@@ -74,6 +42,78 @@ class MySpider(Spider):
 
 # 运行爬虫
 # crawlo run example
+```
+
+## 日志系统
+
+Crawlo 拥有一个功能强大的日志系统，支持多种配置选项：
+
+### 基本配置
+
+```python
+from crawlo.logging import configure_logging, get_logger
+
+# 配置日志系统
+configure_logging(
+    LOG_LEVEL='INFO',
+    LOG_FILE='logs/app.log',
+    LOG_MAX_BYTES=10*1024*1024,  # 10MB
+    LOG_BACKUP_COUNT=5
+)
+
+# 获取logger
+logger = get_logger('my_module')
+logger.info('这是一条日志消息')
+```
+
+### 高级配置
+
+```python
+# 分别配置控制台和文件日志级别
+configure_logging(
+    LOG_LEVEL='INFO',
+    LOG_CONSOLE_LEVEL='WARNING',  # 控制台只显示WARNING及以上级别
+    LOG_FILE_LEVEL='DEBUG',       # 文件记录DEBUG及以上级别
+    LOG_FILE='logs/app.log',
+    LOG_INCLUDE_THREAD_ID=True,   # 包含线程ID
+    LOG_INCLUDE_PROCESS_ID=True   # 包含进程ID
+)
+
+# 模块特定日志级别
+configure_logging(
+    LOG_LEVEL='WARNING',
+    LOG_LEVELS={
+        'my_module.debug': 'DEBUG',
+        'my_module.info': 'INFO'
+    }
+)
+```
+
+### 性能监控
+
+```python
+from crawlo.logging import get_monitor
+
+# 启用日志性能监控
+monitor = get_monitor()
+monitor.enable_monitoring()
+
+# 获取性能报告
+report = monitor.get_performance_report()
+print(report)
+```
+
+### 日志采样
+
+```python
+from crawlo.logging import get_sampler
+
+# 设置采样率（只记录30%的日志）
+sampler = get_sampler()
+sampler.set_sample_rate('my_module', 0.3)
+
+# 设置速率限制（每秒最多100条日志）
+sampler.set_rate_limit('my_module', 100)
 ```
 
 ## Windows 兼容性说明

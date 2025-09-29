@@ -14,6 +14,7 @@ Crawlo统一日志系统
 from .manager import LogManager
 from .factory import LoggerFactory
 from .config import LogConfig
+from .monitor import LogPerformanceMonitor
 
 # 统一的公共接口
 def get_logger(name: str = 'default'):
@@ -28,11 +29,18 @@ def is_configured() -> bool:
     """检查日志系统是否已配置"""
     return LogManager().is_configured
 
+def get_monitor() -> LogPerformanceMonitor:
+    """获取日志性能监控器"""
+    from .monitor import get_monitor as _get_monitor
+    return _get_monitor()
+
 __all__ = [
     'LogManager',
     'LoggerFactory', 
     'LogConfig',
+    'LogPerformanceMonitor',
     'get_logger',
     'configure_logging',
-    'is_configured'
+    'is_configured',
+    'get_monitor'
 ]

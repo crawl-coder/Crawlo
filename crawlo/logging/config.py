@@ -27,6 +27,15 @@ class LogConfig:
     console_enabled: bool = True
     file_enabled: bool = True
     
+    # 分别控制台和文件的日志级别
+    console_level: Optional[str] = None
+    file_level: Optional[str] = None
+    
+    # 上下文信息配置
+    include_thread_id: bool = False
+    include_process_id: bool = False
+    include_module_path: bool = False
+    
     # 模块级别配置
     module_levels: Dict[str, str] = field(default_factory=dict)
     
@@ -54,13 +63,43 @@ class LogConfig:
             backup_count=get_val('LOG_BACKUP_COUNT', 5),
             console_enabled=get_val('LOG_CONSOLE_ENABLED', True),
             file_enabled=get_val('LOG_FILE_ENABLED', True),
+            console_level=get_val('LOG_CONSOLE_LEVEL'),  # 允许单独设置控制台级别
+            file_level=get_val('LOG_FILE_LEVEL'),  # 允许单独设置文件级别
+            include_thread_id=get_val('LOG_INCLUDE_THREAD_ID', False),
+            include_process_id=get_val('LOG_INCLUDE_PROCESS_ID', False),
+            include_module_path=get_val('LOG_INCLUDE_MODULE_PATH', False),
             module_levels=get_val('LOG_LEVELS', {})
         )
     
     @classmethod
     def from_dict(cls, config_dict: Dict[str, Any]) -> 'LogConfig':
         """从字典创建配置"""
-        return cls(**{k: v for k, v in config_dict.items() if k in cls.__annotations__})
+        # 映射字典键到类属性名
+        key_mapping = {
+            'LOG_LEVEL': 'level',
+            'LOG_FORMAT': 'format',
+            'LOG_ENCODING': 'encoding',
+            'LOG_FILE': 'file_path',
+            'LOG_MAX_BYTES': 'max_bytes',
+            'LOG_BACKUP_COUNT': 'backup_count',
+            'LOG_CONSOLE_ENABLED': 'console_enabled',
+            'LOG_FILE_ENABLED': 'file_enabled',
+            'LOG_CONSOLE_LEVEL': 'console_level',
+            'LOG_FILE_LEVEL': 'file_level',
+            'LOG_INCLUDE_THREAD_ID': 'include_thread_id',
+            'LOG_INCLUDE_PROCESS_ID': 'include_process_id',
+            'LOG_INCLUDE_MODULE_PATH': 'include_module_path',
+            'LOG_LEVELS': 'module_levels'
+        }
+        
+        # 应用键映射
+        mapped_dict = {}
+        for k, v in config_dict.items():
+            mapped_key = key_mapping.get(k, k)
+            if mapped_key in cls.__annotations__:
+                mapped_dict[mapped_key] = v
+                
+        return cls(**mapped_dict)
     
     def get_module_level(self, module_name: str) -> str:
         """获取模块的日志级别"""
@@ -78,11 +117,72 @@ class LogConfig:
         # 返回默认级别
         return self.level
     
+    def get_console_level(self) -> str:
+        """获取控制台日志级别"""
+        return self.console_level or self.level
+    
+    def get_file_level(self) -> str:
+        """获取文件日志级别"""
+        return self.file_level or self.level
+    
+    def get_format(self) -> str:
+        """
+        获取日志格式，包含上下文信息
+        
+        Returns:
+            日志格式字符串
+        """
+        base_format = self.format
+        
+        # 添加线程ID
+        if self.include_thread_id:
+            if '[%(thread)d]' not in base_format:
+                # 在时间戳后添加线程ID
+                base_format = base_format.replace(
+                    '%(asctime)s', 
+                    '%(asctime)s [%(thread)d]'
+                )
+                
+        # 添加进程ID
+        if self.include_process_id:
+            if '[%(process)d]' not in base_format:
+                # 在时间戳后添加进程ID（如果已经有线程ID，则在线程ID后添加）
+                if '[%(thread)d]' in base_format:
+                    base_format = base_format.replace(
+                        '%(asctime)s [%(thread)d]', 
+                        '%(asctime)s [%(thread)d] [%(process)d]'
+                    )
+                else:
+                    base_format = base_format.replace(
+                        '%(asctime)s', 
+                        '%(asctime)s [%(process)d]'
+                    )
+                
+        # 添加模块路径
+        if self.include_module_path:
+            if '%(pathname)s:%(lineno)d' not in base_format:
+                # 在消息前添加文件路径和行号
+                base_format = base_format.replace(
+                    '%(message)s', 
+                    '%(pathname)s:%(lineno)d - %(message)s'
+                )
+                
+        return base_format
+    
     def validate(self) -> bool:
         """验证配置有效性"""
         valid_levels = {'DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'}
         
+        # 验证主级别
         if self.level.upper() not in valid_levels:
+            return False
+        
+        # 验证控制台级别
+        if self.console_level and self.console_level.upper() not in valid_levels:
+            return False
+        
+        # 验证文件级别
+        if self.file_level and self.file_level.upper() not in valid_levels:
             return False
         
         # 确保日志目录存在

@@ -80,15 +80,17 @@ class LoggerFactory:
         
         # 获取模块级别
         module_level = config.get_module_level(name)
-        level = getattr(logging, module_level.upper(), logging.INFO)
         
         # 创建formatter
-        formatter = logging.Formatter(config.format)
+        formatter = logging.Formatter(config.get_format())
         
         # 添加控制台Handler
         if config.console_enabled:
             console_handler = logging.StreamHandler()
             console_handler.setFormatter(formatter)
+            # 使用专门的控制台级别或模块级别
+            console_level = config.get_console_level()
+            level = getattr(logging, console_level.upper(), logging.INFO)
             console_handler.setLevel(level)
             logger.addHandler(console_handler)
         
@@ -132,6 +134,9 @@ class LoggerFactory:
                     )
                 
                 file_handler.setFormatter(formatter)
+                # 使用专门的文件级别或模块级别
+                file_level = config.get_file_level()
+                level = getattr(logging, file_level.upper(), logging.INFO)
                 file_handler.setLevel(level)
                 logger.addHandler(file_handler)
             except Exception as e:

@@ -47,7 +47,7 @@ class LargeScaleConfig:
             'MAX_RETRY_TIMES': 2,
             
             # 使用增强引擎
-            'ENGINE_CLASS': 'crawlo.core.enhanced_engine.EnhancedEngine'
+            'ENGINE_CLASS': 'crawlo.core.engine.Engine'
         })
         
         return config
@@ -87,7 +87,7 @@ class LargeScaleConfig:
             'MAX_RETRY_TIMES': 3,
             
             # 使用增强引擎
-            'ENGINE_CLASS': 'crawlo.core.enhanced_engine.EnhancedEngine'
+            'ENGINE_CLASS': 'crawlo.core.engine.Engine'
         })
         
         return config
@@ -127,7 +127,7 @@ class LargeScaleConfig:
             'MAX_RETRY_TIMES': 5,
             
             # 使用增强引擎
-            'ENGINE_CLASS': 'crawlo.core.enhanced_engine.EnhancedEngine'
+            'ENGINE_CLASS': 'crawlo.core.engine.Engine'
         })
         
         return config
@@ -167,7 +167,7 @@ class LargeScaleConfig:
             'MAX_RETRY_TIMES': 2,
             
             # 使用增强引擎
-            'ENGINE_CLASS': 'crawlo.core.enhanced_engine.EnhancedEngine'
+            'ENGINE_CLASS': 'crawlo.core.engine.Engine'
         })
         
         return config
