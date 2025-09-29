@@ -190,7 +190,10 @@ class RedisPriorityQueue:
         """放入请求到队列"""
         try:
             await self._ensure_connection()
-            score = -priority
+            # 修复优先级行为一致性问题
+            # 原来: score = -priority （导致priority大的先出队）
+            # 现在: score = priority （确保priority小的先出队，与内存队列一致）
+            score = priority
             key = self._get_request_key(request)
 
             # 🔥 使用专用的序列化工具清理 Request
