@@ -6,77 +6,84 @@
 对目标网站友好，适合长期运行。
 """
 
-# ============================== 项目基本信息 ==============================
+# =================================== 基础配置 ===================================
+
+# 项目基本信息
 PROJECT_NAME = '{{project_name}}'
 
-# ============================== 运行模式 ==============================
+# 运行模式
 RUN_MODE = 'standalone'
 
-# ============================== 并发配置 ==============================
+# 并发配置
 CONCURRENCY = 2
 MAX_RUNNING_SPIDERS = 1
 DOWNLOAD_DELAY = 3.0  # 增加延迟以降低目标网站压力
 RANDOMNESS = True  # 启用随机延迟
 RANDOM_RANGE = [0.5, 1.5]  # 随机延迟范围因子
 
-# ============================== 下载器配置 ==============================
+# =================================== 核心组件配置 ===================================
+
+# 下载器配置
 # 可选下载器:
-# DOWNLOADER = 'crawlo.downloader.aiohttp_downloader.AioHttpDownloader'
 # DOWNLOADER = 'crawlo.downloader.httpx_downloader.HttpXDownloader'
 # DOWNLOADER = 'crawlo.downloader.cffi_downloader.CurlCffiDownloader'
 DOWNLOADER = 'crawlo.downloader.aiohttp_downloader.AioHttpDownloader'
 
-# ============================== 队列配置 ==============================
+# 队列配置
 QUEUE_TYPE = 'memory'
 
-# ============================== 去重过滤器 ==============================
+# 去重过滤器
 FILTER_CLASS = 'crawlo.filters.memory_filter.MemoryFilter'
 
-# ============================== 默认去重管道 ==============================
+# 默认去重管道
 DEFAULT_DEDUP_PIPELINE = 'crawlo.pipelines.memory_dedup_pipeline.MemoryDedupPipeline'
 
-# ============================== 爬虫模块配置 ==============================
+# =================================== 爬虫配置 ===================================
+
+# 爬虫模块配置
 SPIDER_MODULES = ['{{project_name}}.spiders']
 
-# ============================== 中间件 ==============================
-# MIDDLEWARES = [
-#     'crawlo.middleware.simple_proxy.SimpleProxyMiddleware',
-# ]
-
-# ============================== 默认请求头配置 ==============================
+# 默认请求头配置
 # 为DefaultHeaderMiddleware配置默认请求头
-DEFAULT_REQUEST_HEADERS = {
-    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-    'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
-    'Accept-Encoding': 'gzip, deflate, br',
-}
+# DEFAULT_REQUEST_HEADERS = {}
 
-# ============================== 允许的域名 ==============================
+# 允许的域名
 # 为OffsiteMiddleware配置允许的域名
-# ALLOWED_DOMAINS = ['example.com']
+# ALLOWED_DOMAINS = []
 
-# ============================== 数据管道 ==============================
+# 数据管道
+# 如需添加自定义管道，请取消注释并添加
 # PIPELINES = [
-#     'crawlo.pipelines.mysql_pipeline.AsyncmyMySQLPipeline',     # MySQL 存储（使用asyncmy异步库）
+#     'crawlo.pipelines.mysql_pipeline.AsyncmyMySQLPipeline',  # MySQL 存储（使用asyncmy异步库）
+#     # '{{project_name}}.pipelines.CustomPipeline',  # 用户自定义管道示例
 # ]
 
-# ============================== 扩展组件 ==============================
+# =================================== 系统配置 ===================================
+
+# 扩展组件
+# 如需添加自定义扩展，请取消注释并添加
 # EXTENSIONS = [
-#     'crawlo.extension.log_interval.LogIntervalExtension',
-#     'crawlo.extension.log_stats.LogStats',
-#     'crawlo.extension.logging_extension.CustomLoggerExtension',
+#     # '{{project_name}}.extensions.CustomExtension',  # 用户自定义扩展示例
 # ]
 
-# ============================== 日志配置 ==============================
+# 中间件
+# 如需添加自定义中间件，请取消注释并添加
+# MIDDLEWARES = [
+#     # '{{project_name}}.middlewares.CustomMiddleware',  # 用户自定义中间件示例
+# ]
+
+# 日志配置
 LOG_LEVEL = 'INFO'
 LOG_FILE = 'logs/{{project_name}}.log'
 LOG_ENCODING = 'utf-8'  # 明确指定日志文件编码
 STATS_DUMP = True
 
-# ============================== 输出配置 ==============================
+# 输出配置
 OUTPUT_DIR = 'output'
 
-# ============================== Redis配置 ==============================
+# =================================== 数据库配置 ===================================
+
+# Redis配置
 REDIS_HOST = '127.0.0.1'
 REDIS_PORT = 6379
 REDIS_PASSWORD = ''
@@ -88,7 +95,7 @@ if REDIS_PASSWORD:
 else:
     REDIS_URL = f'redis://{REDIS_HOST}:{REDIS_PORT}/{REDIS_DB}'
 
-# ============================== MySQL配置 ==============================
+# MySQL配置
 MYSQL_HOST = '127.0.0.1'
 MYSQL_PORT = 3306
 MYSQL_USER = 'root'
@@ -98,7 +105,7 @@ MYSQL_TABLE = '{{project_name}}_data'
 MYSQL_BATCH_SIZE = 100
 MYSQL_USE_BATCH = False  # 是否启用批量插入
 
-# ============================== MongoDB配置 ==============================
+# MongoDB配置
 MONGO_URI = 'mongodb://localhost:27017'
 MONGO_DATABASE = '{{project_name}}_db'
 MONGO_COLLECTION = '{{project_name}}_items'
@@ -107,7 +114,9 @@ MONGO_MIN_POOL_SIZE = 20
 MONGO_BATCH_SIZE = 100  # 批量插入条数
 MONGO_USE_BATCH = False  # 是否启用批量插入
 
-# ============================== 代理配置 ==============================
+# =================================== 网络配置 ===================================
+
+# 代理配置
 # 代理功能默认不启用，如需使用请在项目配置文件中启用并配置相关参数
 PROXY_ENABLED = False  # 是否启用代理
 
@@ -126,7 +135,6 @@ PROXY_EXTRACTOR = "proxy"
 PROXY_REFRESH_INTERVAL = 60  # 代理刷新间隔（秒）
 PROXY_API_TIMEOUT = 10  # 请求代理 API 超时时间
 
-# ============================== Curl-Cffi 特有配置 ==============================
 # 浏览器指纹模拟（仅 CurlCffi 下载器有效）
 CURL_BROWSER_TYPE = "chrome"  # 可选: chrome, edge, safari, firefox 或版本如 chrome136
 
@@ -138,7 +146,7 @@ CURL_BROWSER_VERSION_MAP = {
     "firefox": "firefox135",
 }
 
-# ============================== 下载器优化配置 ==============================
+# 下载器优化配置
 # 下载器健康检查
 DOWNLOADER_HEALTH_CHECK = True  # 是否启用下载器健康检查
 HEALTH_CHECK_INTERVAL = 60  # 健康检查间隔（秒）
@@ -159,7 +167,7 @@ AIOHTTP_FORCE_CLOSE = False  # 是否强制关闭连接
 CONNECTION_TTL_DNS_CACHE = 300  # DNS缓存TTL（秒）
 CONNECTION_KEEPALIVE_TIMEOUT = 15  # Keep-Alive超时（秒）
 
-# ============================== 内存监控配置 ==============================
+# 内存监控配置
 # 内存监控扩展默认不启用，如需使用请在项目配置文件中启用
 MEMORY_MONITOR_ENABLED = False  # 是否启用内存监控
 MEMORY_MONITOR_INTERVAL = 60  # 内存监控检查间隔（秒）

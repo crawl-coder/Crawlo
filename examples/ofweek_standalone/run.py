@@ -6,7 +6,7 @@ ofweek_standalone 项目运行脚本
 基于 Crawlo 框架的简化爬虫启动器。
 
 框架会自动处理爬虫模块的导入和注册，用户无需手动导入。
-只需指定spider_modules参数，框架会自动扫描并导入所有爬虫。
+框架会自动从settings.py中读取SPIDER_MODULES配置。
 """
 import sys
 import asyncio
@@ -17,9 +17,8 @@ from crawlo.crawler import CrawlerProcess
 def main():
     """主函数：运行爬虫"""
     try:
-        # 指定爬虫模块路径，框架会自动导入并注册所有爬虫
-        spider_modules = ['ofweek_standalone.spiders']
-        process = CrawlerProcess(spider_modules=spider_modules)
+        # CrawlerProcess会自动从settings.py中读取SPIDER_MODULES配置
+        process = CrawlerProcess()
 
         # 运行指定的爬虫
         asyncio.run(process.crawl('of_week_standalone'))
@@ -33,3 +32,9 @@ def main():
 
 if __name__ == '__main__':
     main()
+
+
+    """
+    1、html 标签以<!DOCTYPE html开头，共31,320条，已软删。
+    2、content 内容存在datalist 共6条，已软删。
+    """

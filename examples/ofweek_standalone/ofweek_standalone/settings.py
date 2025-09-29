@@ -30,7 +30,7 @@ RANDOMNESS = True  # 是否启用随机延迟
 
 # ============================== 队列配置 ==============================
 # 队列类型: 'memory', 'redis', 'auto'
-QUEUE_TYPE = 'auto'
+QUEUE_TYPE = 'memory'
 # 当使用Redis队列时，可自定义队列名称
 # 队列名称遵循统一命名规范: crawlo:{PROJECT_NAME}:queue:requests
 # SCHEDULER_QUEUE_NAME = f'crawlo:{PROJECT_NAME}:queue:requests'
@@ -66,6 +66,11 @@ DEFAULT_REQUEST_HEADERS = {
 # PIPELINES = [
 #     'crawlo.pipelines.mysql_pipeline.AsyncmyMySQLPipeline',     # MySQL 存储（使用asyncmy异步库）
 # ]
+
+# PIPELINES = [
+#     'ofweek_standalone.pipelines.MySQLPipeline',     # MySQL 存储（使用asyncmy异步库）
+# ]
+
 
 # ============================== 扩展组件 ==============================
 # EXTENSIONS = [

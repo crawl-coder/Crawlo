@@ -350,6 +350,12 @@ class CrawlerProcess:
         self._crawlers: List[ModernCrawler] = []
         self._semaphore = asyncio.Semaphore(max_concurrency)
         self._logger = get_logger('crawler.process')
+        
+        # 如果没有显式提供spider_modules，则从settings中获取
+        if spider_modules is None and self._settings:
+            spider_modules = self._settings.get('SPIDER_MODULES')
+            self._logger.debug(f"从settings中获取SPIDER_MODULES: {spider_modules}")
+        
         self._spider_modules = spider_modules  # 保存spider_modules
         
         # 如果提供了spider_modules，自动注册这些模块中的爬虫
