@@ -74,40 +74,49 @@ class Scheduler:
                         self._update_filter_config_if_needed()
                         updated_configs.append("内存")
             
-            # 只有在确实需要更新配置时才重新创建过滤器实例
-            # 检查是否真的进行了配置更新
-            filter_updated = (
-                (self.queue_manager._queue_type == QueueType.REDIS and 'aioredis_filter' in self.crawler.settings.get('FILTER_CLASS', '')) or
-                (self.queue_manager._queue_type == QueueType.MEMORY and 'memory_filter' in self.crawler.settings.get('FILTER_CLASS', ''))
+            # 检查配置是否与队列类型匹配
+            current_filter_class = self.crawler.settings.get('FILTER_CLASS', '')
+            filter_matches_queue_type = (
+                (self.queue_manager._queue_type == QueueType.REDIS and ('aioredis_filter' in current_filter_class or 'redis_filter' in current_filter_class)) or
+                (self.queue_manager._queue_type == QueueType.MEMORY and 'memory_filter' in current_filter_class)
             )
             
-            if needs_config_update or filter_updated:
-                # 重新创建过滤器实例，确保使用更新后的配置
-                filter_cls = load_class(self.crawler.settings.get('FILTER_CLASS'))
-                self.dupe_filter = filter_cls.create_instance(self.crawler)
-                
-                # 如果配置被更新，记录警告信息
-                if filter_updated:
-                    original_mode = "distributed" if 'memory_filter' in self.crawler.settings.get('FILTER_CLASS', '') else "standalone"
-                    new_mode = "standalone" if self.queue_manager._queue_type == QueueType.MEMORY else "distributed"
-                    self.logger.warning(f"runtime mode inconsistency detected: switched from {original_mode} to {new_mode} mode")
+            # 只有在配置不匹配且需要更新时才重新创建过滤器实例
+            if needs_config_update or not filter_matches_queue_type:
+                # 如果需要更新配置，则执行更新
+                if needs_config_update:
+                    # 重新创建过滤器实例，确保使用更新后的配置
+                    filter_cls = load_class(self.crawler.settings.get('FILTER_CLASS'))
+                    self.dupe_filter = filter_cls.create_instance(self.crawler)
+                    
+                    # 记录警告信息
+                    original_mode = "standalone" if 'memory_filter' in current_filter_class else "distributed"
+                    new_mode = "distributed" if self.queue_manager._queue_type == QueueType.REDIS else "standalone"
+                    if original_mode != new_mode:
+                        self.logger.warning(f"runtime mode inconsistency detected: switched from {original_mode} to {new_mode} mode")
+                elif not filter_matches_queue_type:
+                    # 配置不匹配，需要更新
+                    if self.queue_manager._queue_type == QueueType.REDIS:
+                        self._update_filter_config_for_redis()
+                    elif self.queue_manager._queue_type == QueueType.MEMORY:
+                        self._update_filter_config_if_needed()
+                    
+                    # 重新创建过滤器实例
+                    filter_cls = load_class(self.crawler.settings.get('FILTER_CLASS'))
+                    self.dupe_filter = filter_cls.create_instance(self.crawler)
             
             # 输出关键的调度器初始化完成信息
             status = self.queue_manager.get_status()
             current_filter = self.crawler.settings.get('FILTER_CLASS')
             
-            # 输出启用的过滤器信息（类似Downloader的格式）
-            self.logger.info(f"enabled filters: \n  {current_filter}")  # 注释掉重复的日志
+            self.logger.info(f"enabled filters: \n  {current_filter}")
             
             # 优化日志输出，将多条日志合并为1条关键信息
-            # 显示完整路径的过滤器类名
             if self.crawler.settings.get('QUEUE_TYPE', 'memory') == 'auto' and updated_configs:
                 concurrency = self.crawler.settings.get('CONCURRENCY', 8)
                 delay = self.crawler.settings.get('DOWNLOAD_DELAY', 1.0)
-                # Change INFO level log to DEBUG level to avoid redundant output
                 self.logger.debug(f"Scheduler initialized [Queue type: {status['type']}, Status: {status['health']}, Concurrency: {concurrency}, Delay: {delay}s]")
             else:
-                # Change INFO level log to DEBUG level to avoid redundant output
                 self.logger.debug(f"Scheduler initialized [Queue type: {status['type']}, Status: {status['health']}]")
         except Exception as e:
             self.logger.error(f"Scheduler initialization failed: {e}")

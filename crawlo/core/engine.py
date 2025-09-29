@@ -32,13 +32,13 @@ class Engine(object):
         self.start_requests: Optional[Generator] = None
         self.task_manager: Optional[TaskManager] = TaskManager(self.settings.get_int('CONCURRENCY'))
 
-        # Enhanced control parameters
+        # 增强控制参数
         self.max_queue_size = self.settings.get_int('SCHEDULER_MAX_QUEUE_SIZE', 200)
         self.generation_batch_size = self.settings.get_int('REQUEST_GENERATION_BATCH_SIZE', 10)
         self.generation_interval = self.settings.get_float('REQUEST_GENERATION_INTERVAL', 0.01)  # 优化默认值
         self.backpressure_ratio = self.settings.get_float('BACKPRESSURE_RATIO', 0.9)  # 优化默认值
         
-        # State tracking
+        # 状态跟踪
         self._generation_paused = False
         self._last_generation_time = 0
         self._generation_stats = {
@@ -49,32 +49,32 @@ class Engine(object):
         self.logger = get_logger(name=self.__class__.__name__)
 
     def _get_downloader_cls(self):
-        """Get downloader class, supports multiple configuration methods"""
+        """获取下载器类，支持多种配置方法"""
         # 方式1: 使用 DOWNLOADER_TYPE 简化名称（推荐）
         downloader_type = self.settings.get('DOWNLOADER_TYPE')
         if downloader_type:
             try:
                 from crawlo.downloader import get_downloader_class
                 downloader_cls = get_downloader_class(downloader_type)
-                self.logger.debug(f"Using downloader type: {downloader_type} -> {downloader_cls.__name__}")
+                self.logger.debug(f"使用下载器类型: {downloader_type} -> {downloader_cls.__name__}")
                 return downloader_cls
             except (ImportError, ValueError) as e:
-                self.logger.warning(f"Unable to use downloader type '{downloader_type}': {e}, falling back to default configuration")
+                self.logger.warning(f"无法使用下载器类型 '{downloader_type}': {e}，回退到默认配置")
         
         # 方式2: 使用 DOWNLOADER 完整类路径（兼容旧版本）
         downloader_cls = load_class(self.settings.get('DOWNLOADER'))
         if not issubclass(downloader_cls, DownloaderBase):
-            raise TypeError(f'Downloader {downloader_cls.__name__} is not subclass of DownloaderBase.')
+            raise TypeError(f'下载器 {downloader_cls.__name__} 不是 DownloaderBase 的子类。')
         return downloader_cls
 
     def engine_start(self):
         self.running = True
-        # Get version number, use default value if failed to get
+        # 获取版本号，如果获取失败则使用默认值
         version = self.settings.get('VERSION', '1.0.0')
         if not version or version == 'None':
             version = '1.0.0'
-        # Change INFO level log to DEBUG level to avoid duplication with CrawlerProcess startup log
-        self.logger.debug(f"Crawlo Framework Started {version}")
+        # 将INFO级别日志改为DEBUG级别，避免与CrawlerProcess启动日志重复
+        self.logger.debug(f"Crawlo框架已启动 {version}")
 
     async def start_spider(self, spider):
         self.spider = spider
@@ -126,8 +126,7 @@ class Engine(object):
 
     async def crawl(self):
         """
-        Crawl the spider
-        Enhanced version supports intelligent request generation and backpressure control
+        支持智能请求生成和背压控制
         """
         generation_task = None
         
@@ -183,7 +182,7 @@ class Engine(object):
             await self.close_spider()
 
     async def _traditional_request_generation(self):
-        """Traditional request generation method (compatible with older versions)"""
+        """传统请求生成方法（兼容旧版本）"""
         self.logger.debug("开始处理传统请求生成")
         processed_count = 0
         while self.running:

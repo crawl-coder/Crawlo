@@ -4,9 +4,9 @@ from asyncio import Queue, create_task
 from typing import Union, Optional
 
 from crawlo import Request, Item
-from crawlo.pipelines.pipeline_manager import PipelineManager
-from crawlo.exceptions import ItemDiscard
 from crawlo.event import item_discard
+from crawlo.exceptions import ItemDiscard
+from crawlo.pipelines.pipeline_manager import PipelineManager
 
 
 class Processor(object):
@@ -32,9 +32,9 @@ class Processor(object):
         try:
             await self.pipelines.process_item(item=item)
         except ItemDiscard as exc:
-            # Item was discarded by a pipeline (e.g., deduplication pipeline)
-            # We simply ignore this item and don't pass it to subsequent pipelines
-            # The statistics system has already been notified in PipelineManager, so we don't need to notify again
+            # 项目被管道丢弃（例如，去重管道）
+            # 我们忽略这个项目，不传递给后续管道
+            # 统计系统已在PipelineManager中通知，无需再次通知
             pass
 
     async def enqueue(self, output: Union[Request, Item]):

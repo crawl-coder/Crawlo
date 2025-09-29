@@ -1,8 +1,8 @@
 #!/usr/bin/python
 # -*- coding:UTF-8 -*-
 """
-Crawlo Filters Module
-====================
+Crawlo过滤器模块
+================
 提供多种请求去重过滤器实现。
 
 过滤器类型:
@@ -90,7 +90,7 @@ class BaseFilter(ABC):
         :param request: 重复的请求对象
         """
         if self.debug:
-            self.logger.debug(f'Filtered duplicate request: {request}')
+            self.logger.debug(f'过滤重复请求: {request}')
         self.stats.inc_value(f'{self}/filtered_count')
     
     def get_stats(self) -> dict:
