@@ -1,12 +1,12 @@
 # -*- coding: UTF-8 -*-
 """
-test_project.spiders.of_week_dis
+ofweek_spider.spiders.of_week
 =======================================
 由 `crawlo genspider` 命令生成的爬虫。
 基于 Crawlo 框架，支持异步并发、分布式爬取等功能。
 
 使用示例：
-    crawlo crawl of_week_dis
+    crawlo crawl of_week
 """
 
 from crawlo.spider import Spider
@@ -14,9 +14,9 @@ from crawlo import Request
 from ..items import ExampleItem
 
 
-class OfweekdisSpider(Spider):
+class OfWeekSpider(Spider):
     """
-    爬虫：of_week_dis
+    爬虫：of_week
     
     功能说明：
     - 支持并发爬取
@@ -24,7 +24,7 @@ class OfweekdisSpider(Spider):
     - 错误重试机制
     - 数据管道处理
     """
-    name = 'of_week_dis'
+    name = 'of_week'
     allowed_domains = ['ee.ofweek.com']
     start_urls = ['https://ee.ofweek.com/']
     

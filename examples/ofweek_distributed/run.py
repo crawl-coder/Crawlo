@@ -6,7 +6,7 @@ ofweek_distributed 项目运行脚本
 基于 Crawlo 框架的简化爬虫启动器。
 
 框架会自动处理爬虫模块的导入和注册，用户无需手动导入。
-只需指定spider_modules参数，框架会自动扫描并导入所有爬虫。
+框架会自动从settings.py中读取SPIDER_MODULES配置。
 """
 import sys
 import asyncio
@@ -17,12 +17,8 @@ from crawlo.crawler import CrawlerProcess
 def main():
     """主函数：运行爬虫"""
     try:
-        # 指定爬虫模块路径，框架会自动导入并注册所有爬虫
-        spider_modules = ['ofweek_distributed.spiders']
-        process = CrawlerProcess(spider_modules=spider_modules)
-
-        # 运行指定的爬虫
-        asyncio.run(process.crawl('of_week_distributed'))
+        # TODO: 请将 'spider_name' 替换为实际要运行的爬虫名称
+        asyncio.run(CrawlerProcess().crawl('of_week_distributed'))
 
     except Exception as e:
         print(f"❌ 运行失败: {e}")

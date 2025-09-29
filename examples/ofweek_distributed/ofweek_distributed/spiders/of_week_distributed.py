@@ -1,27 +1,14 @@
 # -*- coding: UTF-8 -*-
 """
-ofweek.spiders.of_week
+ofweek_distributed.spiders.of_week_distributed
 =======================================
 由 `crawlo genspider` 命令生成的爬虫。
 基于 Crawlo 框架，支持异步并发、分布式爬取等功能。
 
 使用示例：
-<html>
-<body>
-<!--StartFragment-->
+    crawlo crawl of_week_distributed
+"""
 
-    # 使用 standalone 模式运行（单机模式）
-    python run_standalone.py
-
-    # 使用 distributed 模式运行（分布式模式）
-    python run_distributed.py
-
-    # 或者使用框架命令
-    crawlo run of_week
-
-<!--EndFragment-->
-</body>
-</html>"""
 from urllib.parse import urljoin
 
 from crawlo.spider import Spider
@@ -30,8 +17,7 @@ from crawlo.utils.log import get_logger
 from ..items import NewsItem
 
 
-
-class OfweekSpider(Spider):
+class OfweekdistributedSpider(Spider):
     """
     爬虫：of_week_distributed
     

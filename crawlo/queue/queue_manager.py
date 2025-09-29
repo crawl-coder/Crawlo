@@ -5,11 +5,10 @@
 提供简洁、一致的队列接口，自动处理不同队列类型的差异
 """
 import asyncio
+import time
 import traceback
 from enum import Enum
 from typing import Optional, Dict, Any, Union, TYPE_CHECKING
-import time
-import random
 
 if TYPE_CHECKING:
     from crawlo import Request

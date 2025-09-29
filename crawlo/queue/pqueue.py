@@ -1,12 +1,8 @@
 # -*- coding:UTF-8 -*-
-import json
-import sys
 import asyncio
+import sys
 from asyncio import PriorityQueue
-from typing import Optional, Tuple, Any
-
-
-from crawlo import Request
+from typing import Optional, Any
 
 
 class SpiderPriorityQueue(PriorityQueue):

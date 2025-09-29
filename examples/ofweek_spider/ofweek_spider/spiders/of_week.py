@@ -1,35 +1,23 @@
 # -*- coding: UTF-8 -*-
 """
-ofweek.spiders.of_week
+ofweek_spider.spiders.of_week
 =======================================
 由 `crawlo genspider` 命令生成的爬虫。
 基于 Crawlo 框架，支持异步并发、分布式爬取等功能。
 
 使用示例：
-<html>
-<body>
-<!--StartFragment-->
+    crawlo crawl of_week
+"""
 
-    # 使用 standalone 模式运行（单机模式）
-    python run_standalone.py
-
-    # 使用 distributed 模式运行（分布式模式）
-    python run_distributed.py
-
-    # 或者使用框架命令
-    crawlo run of_week
-
-<!--EndFragment-->
-</body>
-</html>"""
 from urllib.parse import urljoin
 
 from crawlo.spider import Spider
 from crawlo import Request
+from crawlo.utils.log import get_logger
 from ..items import NewsItem
 
 
-class OfweekSpider(Spider):
+class OfWeekSpider(Spider):
     """
     爬虫：of_week
     
@@ -60,14 +48,10 @@ class OfweekSpider(Spider):
     - 优化去重性能
     - 增加监控和故障恢复机制
     """
-    name = 'of_week_standalone'
+    name = 'of_week'
     allowed_domains = ['ee.ofweek.com']
     start_urls = ['https://ee.ofweek.com/']
-
-    # custom_settings = {
-    #     "MYSQL_TABLE": "listed_balance_sheet_of_companies",
-    # }
-
+    
     # 高级配置（可选）
     # custom_settings = {
     #     'DOWNLOAD_DELAY': 1.0,  # Can reduce delay in distributed environment
@@ -115,8 +99,9 @@ class OfweekSpider(Spider):
             "index_burying_point": "c64d6c31e69d560efe319cc9f8be279f"
         }
 
-        # 减少页数以便测试
-        max_page = 10# 原来是1851，现在改为50页进行测试
+        # 更可靠的翻页方案：先检查网站实际的页数范围
+        # 根据网站实际情况调整页数范围，避免请求不存在的页面
+        max_page = 100  # 减少页数以便测试
         start_urls = []
         for page in range(1, max_page + 1):
             url = f'https://ee.ofweek.com/CATList-2800-8100-ee-{page}.html'
@@ -132,13 +117,10 @@ class OfweekSpider(Spider):
                     url=url,
                     callback=self.parse,
                     headers=headers,
-                    cookies=cookies,
-                    dont_filter=True
+                    cookies=cookies
                 )
             except Exception as e:
                 self.logger.error(f"创建请求失败: {url}, 错误: {e}")
-        
-        self.logger.info("start_requests方法执行完成")
 
     def parse(self, response):
         """

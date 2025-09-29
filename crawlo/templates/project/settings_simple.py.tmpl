@@ -22,9 +22,6 @@ DOWNLOAD_DELAY = 1.0
 # =================================== 核心组件配置 ===================================
 
 # 下载器配置
-# 可选下载器:
-# DOWNLOADER = 'crawlo.downloader.httpx_downloader.HttpXDownloader'
-# DOWNLOADER = 'crawlo.downloader.cffi_downloader.CurlCffiDownloader'
 DOWNLOADER = 'crawlo.downloader.aiohttp_downloader.AioHttpDownloader'
 
 # 队列配置

@@ -4,42 +4,26 @@
 =============================
 基于 Crawlo 框架的分布式爬虫项目配置。
 适合大规模数据采集和多节点部署。
+
+此配置使用 CrawloConfig.distributed() 工厂方法创建分布式模式配置，
+支持多节点协同工作，适用于大规模数据采集任务。
 """
 
-import os
+from crawlo.config import CrawloConfig
 
-# =================================== 基础配置 ===================================
+# 使用分布式模式配置工厂创建配置
+config = CrawloConfig.distributed(
+    project_name='{{project_name}}',
+    redis_host='127.0.0.1',
+    redis_port=6379,
+    redis_password='',
+    redis_db=0,
+    concurrency=16,
+    download_delay=1.0
+)
 
-# 项目基本信息
-PROJECT_NAME = '{{project_name}}'
-
-# 运行模式
-RUN_MODE = 'distributed'
-
-# 并发配置
-CONCURRENCY = 16
-MAX_RUNNING_SPIDERS = 5
-DOWNLOAD_DELAY = 1.0
-
-# =================================== 核心组件配置 ===================================
-
-# 下载器配置
-# 可选下载器:
-# DOWNLOADER = 'crawlo.downloader.httpx_downloader.HttpXDownloader'
-# DOWNLOADER = 'crawlo.downloader.cffi_downloader.CurlCffiDownloader'
-DOWNLOADER = 'crawlo.downloader.aiohttp_downloader.AioHttpDownloader'
-
-# 队列配置
-QUEUE_TYPE = 'redis'
-# 当使用Redis队列时，可自定义队列名称
-# 队列名称遵循统一命名规范: crawlo:{PROJECT_NAME}:queue:requests
-# SCHEDULER_QUEUE_NAME = f'crawlo:{PROJECT_NAME}:queue:requests'
-
-# 去重过滤器
-FILTER_CLASS = 'crawlo.filters.aioredis_filter.AioRedisFilter'
-
-# 默认去重管道
-DEFAULT_DEDUP_PIPELINE = 'crawlo.pipelines.redis_dedup_pipeline.RedisDedupPipeline'
+# 将配置转换为当前模块的全局变量
+locals().update(config.to_dict())
 
 # =================================== 爬虫配置 ===================================
 

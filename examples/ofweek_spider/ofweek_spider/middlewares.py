@@ -10,7 +10,6 @@ ofweek_spider.middlewares
 import random
 from crawlo import Request, Response
 from crawlo.utils.log import get_logger
-from crawlo.exceptions import IgnoreRequest
 
 
 class ExampleMiddleware:
@@ -108,4 +107,13 @@ class ExampleMiddleware:
 # - process_request: 处理请求
 # - process_response: 处理响应
 # - process_exception: 处理异常
+# 
+# 注意：Crawlo框架提供了许多内置中间件，您可以直接使用：
+# - DownloadDelayMiddleware: 控制请求延迟
+# - ResponseCodeMiddleware: 处理HTTP状态码并记录统计信息
+# - ResponseFilterMiddleware: 过滤特定状态码的响应
+# - DefaultHeaderMiddleware: 添加默认请求头
+# - ProxyMiddleware: 设置代理
+# - RetryMiddleware: 处理重试逻辑
+# - OffsiteMiddleware: 过滤站外请求
 # ======================== 使用说明 ========================

@@ -8,7 +8,6 @@ ofweek_spider.pipelines
 这是一个简单的示例管道，您可以根据需要添加更多管道。
 """
 
-import json
 from datetime import datetime
 from crawlo.exceptions import DropItem
 from crawlo.utils.log import get_logger

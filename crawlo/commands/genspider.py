@@ -6,15 +6,16 @@
 # @Desc    : 命令行入口：crawlo genspider baidu，创建爬虫。
 """
 import sys
+import re
 from pathlib import Path
 import configparser
 import importlib
 from rich.console import Console
 
 from .utils import (
-    get_project_root, 
-    validate_project_environment, 
-    show_error_panel, 
+    get_project_root,
+    validate_project_environment,
+    show_error_panel,
     show_success_panel,
     validate_spider_name,
     is_valid_domain
@@ -35,6 +36,39 @@ def _render_template(tmpl_path, context):
     return content
 
 
+def generate_class_name(spider_name):
+    """
+    根据爬虫名称生成类名
+    规则：蛇形命名 → 大驼峰命名 + 'Spider'
+    示例：
+        'news_spider' → 'NewsSpider'
+        'ofweek_standalone' → 'OfweekStandaloneSpider'
+        'baidu' → 'BaiduSpider'
+    """
+    # 如果名称已包含 'spider' 后缀，先去除
+    name_clean = spider_name
+    
+    # 定义要移除的后缀列表
+    spider_suffixes = ['_spider', 'spider']
+    
+    # 检查并移除后缀
+    for suffix in spider_suffixes:
+        if spider_name.endswith(suffix):
+            name_clean = spider_name[:-len(suffix)]
+            break
+
+    # 按分隔符拆分单词
+    words = re.split(r'[_-]', name_clean)
+
+    # 将每个单词首字母大写
+    capitalized_words = [word.capitalize() for word in words if word]
+
+    # 组合成类名
+    class_name = ''.join(capitalized_words) + 'Spider'
+
+    return class_name
+
+
 def main(args):
     if len(args) < 2:
         console.print("[bold red]错误:[/bold red] 用法: [blue]crawlo genspider[/blue] <爬虫名称> <域名>")
@@ -45,11 +79,11 @@ def main(args):
 
     spider_name = args[0]
     domain = args[1]
-    
+
     # 验证爬虫名称
     if not validate_spider_name(spider_name):
         show_error_panel(
-            "无效的爬虫名称", 
+            "无效的爬虫名称",
             f"爬虫名称 '[cyan]{spider_name}[/cyan]' 无效。\n"
             "爬虫名称应:\n"
             "  • 以小写字母开头\n"
@@ -57,11 +91,11 @@ def main(args):
             "  • 是有效的Python标识符"
         )
         return 1
-    
+
     # 验证域名格式
     if not is_valid_domain(domain):
         show_error_panel(
-            "无效的域名", 
+            "无效的域名",
             f"域名 '[cyan]{domain}[/cyan]' 格式无效。\n"
             "请提供有效的域名，如 'example.com'"
         )
@@ -72,7 +106,7 @@ def main(args):
     if not is_valid:
         show_error_panel("非Crawlo项目", error_msg)
         return 1
-    
+
     project_root = get_project_root()
 
     # 确定 items 模块的路径
@@ -91,7 +125,8 @@ def main(args):
         if item_classes:
             default_item_class = item_classes[0].__name__
         else:
-            console.print("[yellow]警告:[/yellow] 在 [cyan]items.py[/cyan] 中未找到项目类，使用 [green]ExampleItem[/green]。")
+            console.print(
+                "[yellow]警告:[/yellow] 在 [cyan]items.py[/cyan] 中未找到项目类，使用 [green]ExampleItem[/green]。")
 
     except ImportError as e:
         console.print(f"[yellow]警告:[/yellow] 导入 [cyan]{items_module_path}[/cyan] 失败: {e}")
@@ -104,7 +139,7 @@ def main(args):
     spider_file = spiders_dir / f'{spider_name}.py'
     if spider_file.exists():
         show_error_panel(
-            "爬虫已存在", 
+            "爬虫已存在",
             f"爬虫 '[cyan]{spider_name}[/cyan]' 已存在于\n[green]{spider_file}[/green]"
         )
         return 1
@@ -113,13 +148,13 @@ def main(args):
     tmpl_path = TEMPLATES_DIR / 'spider' / 'spider.py.tmpl'
     if not tmpl_path.exists():
         show_error_panel(
-            "模板未找到", 
+            "模板未找到",
             f"模板文件未找到于 [cyan]{tmpl_path}[/cyan]"
         )
         return 1
 
-    # 生成类名
-    class_name = f"{spider_name.replace('_', '').capitalize()}Spider"
+    # 生成类名（使用新的转换函数）
+    class_name = generate_class_name(spider_name)
 
     context = {
         'spider_name': spider_name,
@@ -133,7 +168,7 @@ def main(args):
         content = _render_template(tmpl_path, context)
         with open(spider_file, 'w', encoding='utf-8') as f:
             f.write(content)
-        
+
         console.print(f"[green]爬虫 '[bold]{spider_name}[/bold]' 创建成功！[/green]")
         console.print(f"  → 位置: [cyan]{spider_file}[/cyan]")
         console.print(f"  → 类名: [yellow]{class_name}[/yellow]")
@@ -141,12 +176,12 @@ def main(args):
         console.print("\n[bold]下一步操作:[/bold]")
         console.print(f"  [blue]crawlo run[/blue] {spider_name}")
         console.print(f"  [blue]crawlo check[/blue] {spider_name}")
-        
+
         return 0
-        
+
     except Exception as e:
         show_error_panel(
-            "创建失败", 
+            "创建失败",
             f"创建爬虫失败: {e}"
         )
         return 1

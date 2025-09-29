@@ -3,39 +3,22 @@
 {{project_name}} 项目配置文件
 =============================
 基于 Crawlo 框架的爬虫项目配置。
+
+此配置使用 CrawloConfig.standalone() 工厂方法创建单机模式配置，
+适用于开发测试和中小规模数据采集任务。
 """
 
-# =================================== 基础配置 ===================================
+from crawlo.config import CrawloConfig
 
-# 项目基本信息
-PROJECT_NAME = '{{project_name}}'
+# 使用单机模式配置工厂创建配置
+config = CrawloConfig.auto(
+    project_name='{{project_name}}',
+    concurrency=8,
+    download_delay=1.0
+)
 
-# 运行模式
-# 可选值: 'standalone', 'distributed', 'auto'
-RUN_MODE = 'standalone'
-
-# 并发配置
-CONCURRENCY = 8
-MAX_RUNNING_SPIDERS = 1
-DOWNLOAD_DELAY = 1.0
-
-# 下载器配置
-# 可选下载器:
-# DOWNLOADER = 'crawlo.downloader.cffi_downloader.CurlCffiDownloader'
-DOWNLOADER = 'crawlo.downloader.aiohttp_downloader.AioHttpDownloader'
-
-# 队列配置
-# 队列类型: 'memory', 'redis', 'auto'
-QUEUE_TYPE = 'memory'
-# 当使用Redis队列时，可自定义队列名称
-# 队列名称遵循统一命名规范: crawlo:{PROJECT_NAME}:queue:requests
-# SCHEDULER_QUEUE_NAME = f'crawlo:{PROJECT_NAME}:queue:requests'
-
-# 去重过滤器
-FILTER_CLASS = 'crawlo.filters.memory_filter.MemoryFilter'
-
-# 默认去重管道
-DEFAULT_DEDUP_PIPELINE = 'crawlo.pipelines.memory_dedup_pipeline.MemoryDedupPipeline'
+# 将配置转换为当前模块的全局变量
+locals().update(config.to_dict())
 
 # =================================== 爬虫配置 ===================================
 

@@ -8,11 +8,12 @@ advanced_tools_example.items
 from crawlo.items import Item, Field
 
 
-class ExampleItem(Item):
+class NewsItem(Item):
     """
-    一个示例数据项。
+    新闻数据项。
     """
-    id = Field()
-    # price = Field()
-    # description = Field()
-    pass
+    title = Field()
+    publish_time = Field()
+    url = Field()
+    source = Field()
+    content = Field()

@@ -18,13 +18,8 @@ def run_spider(spider_name):
     
     # 创建爬虫进程（自动加载默认配置）
     try:
-        # 确保 spider 模块被正确导入
-        spider_modules = ['advanced_tools_example.spiders']
-        process = CrawlerProcess(spider_modules=spider_modules)
-        print("✅ 爬虫进程初始化成功")
-        
-        # 运行指定的爬虫
-        asyncio.run(process.crawl(spider_name))
+        # TODO: 请根据需要修改爬虫名称
+        asyncio.run(CrawlerProcess().crawl(spider_name))
         
         print("✅ 爬虫运行完成")
         

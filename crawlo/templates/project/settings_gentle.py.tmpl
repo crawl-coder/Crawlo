@@ -24,9 +24,6 @@ RANDOM_RANGE = [0.5, 1.5]  # 随机延迟范围因子
 # =================================== 核心组件配置 ===================================
 
 # 下载器配置
-# 可选下载器:
-# DOWNLOADER = 'crawlo.downloader.httpx_downloader.HttpXDownloader'
-# DOWNLOADER = 'crawlo.downloader.cffi_downloader.CurlCffiDownloader'
 DOWNLOADER = 'crawlo.downloader.aiohttp_downloader.AioHttpDownloader'
 
 # 队列配置
