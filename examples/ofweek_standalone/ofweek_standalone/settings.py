@@ -26,6 +26,8 @@ DOWNLOAD_DELAY = 1.0
 # DOWNLOADER = 'crawlo.downloader.cffi_downloader.CurlCffiDownloader'
 DOWNLOADER = 'crawlo.downloader.aiohttp_downloader.AioHttpDownloader'
 
+RANDOMNESS = True  # 是否启用随机延迟
+
 # ============================== 队列配置 ==============================
 # 队列类型: 'memory', 'redis', 'auto'
 QUEUE_TYPE = 'auto'
