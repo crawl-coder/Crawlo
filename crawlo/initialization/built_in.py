@@ -210,8 +210,17 @@ class SettingsInitializer(BaseInitializer):
             from crawlo.settings.setting_manager import SettingManager
             from crawlo.project import _load_project_settings
             
-            # 创建配置管理器并加载项目配置
-            settings = _load_project_settings(context.custom_settings)
+            # 如果上下文中已有设置，则使用它作为基础配置
+            if context.settings:
+                # 使用用户传递的设置作为基础配置
+                settings = context.settings
+                # 加载项目配置并合并
+                project_settings = _load_project_settings(context.custom_settings)
+                # 合并配置，用户配置优先
+                settings.update_attributes(project_settings.attributes)
+            else:
+                # 创建配置管理器并加载项目配置
+                settings = _load_project_settings(context.custom_settings)
             
             # 存储到上下文
             context.settings = settings

@@ -78,6 +78,7 @@ class CoreInitializer:
             # 创建初始化上下文
             context = InitializationContext()
             context.custom_settings = kwargs
+            context.settings = settings
             self._context = context
             
             try:

@@ -112,13 +112,15 @@ async def test_redis_queue_edge_cases():
         print("   特殊字符 URL 测试通过")
         
         # 4. 测试优先级（高优先级值应该先出队）
-        high_priority_request = Request(url="https://high-priority.com", priority=1000)
-        low_priority_request = Request(url="https://low-priority.com", priority=-1000)
+        # 注意：Request构造函数会将传入的priority值取反存储
+        # 所以priority=1000的请求实际存储为-1000，priority=-1000的请求实际存储为1000
+        high_priority_request = Request(url="https://high-priority.com", priority=1000)  # 实际存储为-1000
+        low_priority_request = Request(url="https://low-priority.com", priority=-1000)   # 实际存储为1000
         
-        await queue.put(high_priority_request)  # 高优先级值
-        await queue.put(low_priority_request)   # 低优先级值
+        await queue.put(high_priority_request, priority=high_priority_request.priority)  # 使用实际存储的priority值
+        await queue.put(low_priority_request, priority=low_priority_request.priority)    # 使用实际存储的priority值
         
-        # 高优先级值应该先出队
+        # 高优先级值应该先出队（因为score = priority，score小的先出队）
         first = await queue.get(timeout=1.0)
         assert first is not None and first.url == "https://high-priority.com", "高优先级值应该先出队"
         print("   优先级测试通过")

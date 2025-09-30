@@ -66,22 +66,22 @@ async def test_redis_queue_priority():
         await queue._redis.delete(f"{queue.queue_name}:data")
         
         # 创建不同优先级的请求
-        # 注意：Redis队列中，score = -priority
-        # 所以priority=-100的请求score=100，priority=100的请求score=-100
-        # zpopmin会弹出score最小的元素，所以priority=100的请求会先出队
-        request_low_priority = Request(url="https://low-priority.com", priority=100)   # 低优先级（数值大）
-        request_high_priority = Request(url="https://high-priority.com", priority=-100)  # 高优先级（数值小）
-        request_normal_priority = Request(url="https://normal-priority.com", priority=0)  # 正常优先级
+        # 注意：Request构造函数会将传入的priority值取反存储
+        # 所以priority=100的请求实际存储为-100，priority=-100的请求实际存储为100
+        request_low_priority = Request(url="https://low-priority.com", priority=100)   # 实际存储为-100（高优先级）
+        request_high_priority = Request(url="https://high-priority.com", priority=-100)  # 实际存储为100（低优先级）
+        request_normal_priority = Request(url="https://normal-priority.com", priority=0)  # 实际存储为0（正常优先级）
         
         # 按照正确的顺序入队以验证优先级行为
-        await queue.put(request_high_priority, priority=-100)  # 高优先级，score=100
-        await queue.put(request_normal_priority, priority=0)   # 正常优先级，score=0
-        await queue.put(request_low_priority, priority=100)    # 低优先级，score=-100
+        # 使用实际存储的priority值
+        await queue.put(request_low_priority, priority=request_low_priority.priority)    # 实际score=-100
+        await queue.put(request_normal_priority, priority=request_normal_priority.priority)   # 实际score=0
+        await queue.put(request_high_priority, priority=request_high_priority.priority)  # 实际score=100
         
         print(f"  队列大小: {await queue.qsize()}")
         
-        # 出队顺序应该按照score从小到大（priority从大到小）
-        # 所以低优先级先出队，高优先级最后出队
+        # 出队顺序应该按照score从小到大（priority从小到大）
+        # 所以request_low_priority先出队（score=-100），request_normal_priority第二个出队（score=0），request_high_priority最后出队（score=100）
         item1 = await queue.get(timeout=2.0)
         item2 = await queue.get(timeout=2.0)
         item3 = await queue.get(timeout=2.0)
@@ -91,13 +91,13 @@ async def test_redis_queue_priority():
         print(f"  第二个出队: {item2.url if item2 else None}")
         print(f"  第三个出队: {item3.url if item3 else None}")
         
-        # Redis队列中，score小的先出队，所以priority大的先出队
-        assert item1 is not None and item1.url == "https://low-priority.com", f"低优先级应该先出队，实际: {item1.url if item1 else None}"
-        assert item2 is not None and item2.url == "https://normal-priority.com", f"正常优先级应该第二个出队，实际: {item2.url if item2 else None}"
-        assert item3 is not None and item3.url == "https://high-priority.com", f"高优先级应该最后出队，实际: {item3.url if item3 else None}"
+        # Redis队列中，score小的先出队，所以priority小的先出队
+        assert item1 is not None and item1.url == "https://low-priority.com", f"低优先级请求应该先出队，实际: {item1.url if item1 else None}"
+        assert item2 is not None and item2.url == "https://normal-priority.com", f"正常优先级请求应该第二个出队，实际: {item2.url if item2 else None}"
+        assert item3 is not None and item3.url == "https://high-priority.com", f"高优先级请求应该最后出队，实际: {item3.url if item3 else None}"
         
         print("  ✅ Redis队列优先级测试通过（确认了score越小越优先的规则）")
-        print("  注意：Redis队列中score = -priority，所以priority值大的请求score小，会先出队")
+        print("  注意：Redis队列中score = priority，所以priority值小的请求score小，会先出队")
         
     except Exception as e:
         print(f"  ❌ Redis队列优先级测试失败: {e}")
@@ -196,8 +196,8 @@ async def main():
         print("\n总结:")
         print("1. 请求优先级遵循'数值越小越优先'的原则")
         print("2. 内存队列: 直接使用(priority, request)元组，priority小的先出队")
-        print("3. Redis队列: 使用score = -priority，score小的先出队，所以priority大的先出队")
-        print("   这是一个已知的行为差异，需要在使用时注意")
+        print("3. Redis队列: 使用score = priority，score小的先出队，所以priority小的先出队")
+        print("   现在内存队列和Redis队列行为一致")
         print("4. 重试中间件会根据RETRY_PRIORITY配置调整请求优先级")
         print("5. 系统内置的优先级常量: URGENT(-200) < HIGH(-100) < NORMAL(0) < LOW(100) < BACKGROUND(200)")
         print("6. Request对象构造时会将传入的priority值取反存储")
