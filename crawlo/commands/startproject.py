@@ -92,8 +92,32 @@ def _render_template(tmpl_path, context):
     """读取模板文件，替换 {{key}} 为 context 中的值"""
     with open(tmpl_path, 'r', encoding='utf-8') as f:
         content = f.read()
+    
+    # 处理简单的过滤器语法 {{key|filter}}
+    import re
+    
+    def apply_filter(value, filter_name):
+        if filter_name == 'title':
+            # 将 snake_case 转换为 TitleCase
+            words = value.replace('_', ' ').split()
+            return ''.join(word.capitalize() for word in words)
+        return value
+    
+    # 查找并替换 {{key|filter}} 格式的占位符
+    pattern = r'\{\{([^}|]+)\|([^}]+)\}\}'
+    def replace_filter_match(match):
+        key = match.group(1).strip()
+        filter_name = match.group(2).strip()
+        if key in context:
+            return str(apply_filter(context[key], filter_name))
+        return match.group(0)  # 如果找不到key，保持原样
+    
+    content = re.sub(pattern, replace_filter_match, content)
+    
+    # 处理普通的 {{key}} 占位符
     for key, value in context.items():
         content = content.replace(f'{{{{{key}}}}}', str(value))
+    
     return content
 
 

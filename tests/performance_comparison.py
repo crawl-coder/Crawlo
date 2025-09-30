@@ -170,11 +170,11 @@ def run_scrapy_test():
         # 运行Scrapy测试
         result = subprocess.run([
             'scrapy', 'runspider', 
-            '/Users/oscar/projects/Crawlo/tests/scrapy_comparison/ofweek_scrapy.py',
+            'D:/dowell/projects/Crawlo/tests/scrapy_comparison/ofweek_scrapy.py',
             '-s', 'CONCURRENT_REQUESTS=8',
             '-s', 'DOWNLOAD_DELAY=0.1',
             '-s', 'LOG_LEVEL=ERROR'
-        ], capture_output=True, text=True, timeout=300, cwd='/Users/oscar/projects/Crawlo')
+        ], capture_output=True, text=True, timeout=300, cwd='D:\dowell\projects\Crawlo')
         
         end_time = time.time()
         execution_time = end_time - start_time
@@ -204,7 +204,7 @@ def main():
     print("=== Crawlo vs Scrapy 性能对比测试 ===")
     
     # 创建测试目录
-    os.makedirs('/Users/oscar/projects/Crawlo/tests/scrapy_comparison', exist_ok=True)
+    os.makedirs(os.path.join('D:\dowell\projects\Crawlo', 'tests', 'scrapy_comparison'), exist_ok=True)
     
     # 运行测试
     crawlo_time, crawlo_pages = run_crawlo_test()
