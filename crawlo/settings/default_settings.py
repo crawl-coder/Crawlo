@@ -25,6 +25,10 @@ VERSION = get_version()  # 项目版本号 - 从框架的__version__.py文件中
 RUN_MODE = runtime_config['CRAWLO_MODE']  # 运行模式：standalone/distributed/auto
 CONCURRENCY = runtime_config['CONCURRENCY']  # 并发数配置
 
+# 爬虫模块配置
+SPIDER_MODULES = []  # 爬虫模块列表
+SPIDER_LOADER_WARN_ONLY = False  # 爬虫加载器是否只警告不报错
+
 # --------------------------------- 2. 爬虫核心配置 ------------------------------------
 
 # 下载器配置

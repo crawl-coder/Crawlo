@@ -4,14 +4,14 @@
 核心初始化器 - 协调整个初始化过程
 """
 
-import time
 import threading
+import time
 from typing import Optional, Any
 
-from .context import InitializationContext  
-from .phases import InitializationPhase, PhaseResult, get_execution_order, get_phase_definition
-from .registry import get_global_registry, BaseInitializer, register_initializer
 from .built_in import register_built_in_initializers
+from .context import InitializationContext
+from .phases import InitializationPhase, PhaseResult, get_execution_order, get_phase_definition
+from .registry import get_global_registry
 
 
 class CoreInitializer:

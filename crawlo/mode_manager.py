@@ -51,9 +51,11 @@ class ModeManager:
     def get_standalone_settings() -> Dict[str, Any]:
         """获取单机模式配置"""
         return {
+            'RUN_MODE': 'standalone',
             'QUEUE_TYPE': 'memory',
             'FILTER_CLASS': 'crawlo.filters.memory_filter.MemoryFilter',
             'DEFAULT_DEDUP_PIPELINE': 'crawlo.pipelines.memory_dedup_pipeline.MemoryDedupPipeline',
+            'PROJECT_NAME': 'crawlo',
             'CONCURRENCY': 8,
             'MAX_RUNNING_SPIDERS': 1,
             'DOWNLOAD_DELAY': 1.0,
@@ -75,6 +77,7 @@ class ModeManager:
             redis_url = f'redis://{redis_host}:{redis_port}/{redis_db}'
 
         return {
+            'RUN_MODE': 'distributed',
             'QUEUE_TYPE': 'redis',
             'FILTER_CLASS': 'crawlo.filters.aioredis_filter.AioRedisFilter',
             'DEFAULT_DEDUP_PIPELINE': 'crawlo.pipelines.redis_dedup_pipeline.RedisDedupPipeline',
@@ -95,6 +98,7 @@ class ModeManager:
         """获取自动检测模式配置"""
         # 默认使用内存队列和过滤器
         settings = ModeManager.get_standalone_settings()
+        settings['RUN_MODE'] = 'auto'
         settings['QUEUE_TYPE'] = 'auto'
         return settings
 
@@ -143,13 +147,29 @@ class ModeManager:
             raise ValueError(f"不支持的运行模式: {mode}")
 
         # 合并用户自定义配置
-        user_settings = {
-            k: v for k,
-            v in kwargs.items() if k not in [
-                'redis_host',
-                'redis_port',
-                'redis_password',
-                'project_name']}
+        # 对于分布式模式，过滤掉特定参数
+        if mode == RunMode.DISTRIBUTED:
+            user_settings = {
+                k.upper(): v for k,
+                v in kwargs.items() if k not in [
+                    'redis_host',
+                    'redis_port',
+                    'redis_password',
+                    'project_name']}
+            # 特别处理project_name
+            if 'project_name' in kwargs:
+                settings['PROJECT_NAME'] = kwargs['project_name']
+        else:
+            # 对于单机模式和自动模式，只过滤Redis相关参数
+            user_settings = {
+                k.upper(): v for k,
+                v in kwargs.items() if k not in [
+                    'redis_host',
+                    'redis_port',
+                    'redis_password']}
+            # 特别处理project_name
+            if 'project_name' in kwargs:
+                settings['PROJECT_NAME'] = kwargs['project_name']
         settings.update(user_settings)
         self._debug(f"合并用户自定义配置: {list(user_settings.keys())}")
 
@@ -182,9 +202,16 @@ class ModeManager:
 
 
 # 便利函数
-def standalone_mode(**kwargs) -> Dict[str, Any]:
+def standalone_mode(
+        project_name: str = 'crawlo',
+        **kwargs
+) -> Dict[str, Any]:
     """快速创建单机模式配置"""
-    return ModeManager().resolve_mode_settings('standalone', **kwargs)
+    return ModeManager().resolve_mode_settings(
+        'standalone',
+        project_name=project_name,
+        **kwargs
+    )
 
 
 def distributed_mode(
@@ -207,9 +234,16 @@ def distributed_mode(
     )
 
 
-def auto_mode(**kwargs) -> Dict[str, Any]:
+def auto_mode(
+        project_name: str = 'crawlo',
+        **kwargs
+) -> Dict[str, Any]:
     """快速创建自动检测模式配置"""
-    return ModeManager().resolve_mode_settings('auto', **kwargs)
+    return ModeManager().resolve_mode_settings(
+        'auto',
+        project_name=project_name,
+        **kwargs
+    )
 
 
 # 环境变量支持

@@ -1,8 +1,6 @@
+import configparser
 import os
 import sys
-import importlib
-import configparser
-from importlib import import_module
 from inspect import iscoroutinefunction
 from typing import Callable, Optional, Any
 
@@ -42,7 +40,7 @@ def load_class(path: str) -> Any:
         加载的类对象
     """
     # 使用工具模块的实现，避免循环依赖
-    from crawlo.utils.class_loader import load_class as _load_class
+    from crawlo.utils.misc import load_object as _load_class
     return _load_class(path)
 
 

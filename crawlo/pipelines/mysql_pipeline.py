@@ -5,7 +5,7 @@ from asyncmy import create_pool
 from typing import Optional, List, Dict
 
 from crawlo.exceptions import ItemDiscard
-from crawlo.utils.db_helper import make_insert_sql, make_batch_sql
+from crawlo.utils.db_helper import SQLBuilder
 from crawlo.utils.log import get_logger
 from . import BasePipeline
 
@@ -88,7 +88,7 @@ class AsyncmyMySQLPipeline:
             try:
                 await self._ensure_pool()
                 item_dict = dict(item)
-                sql = make_insert_sql(table=self.table_name, data=item_dict, **kwargs)
+                sql = SQLBuilder.make_insert(table=self.table_name, data=item_dict, **kwargs)
 
                 rowcount = await self._execute_sql(sql=sql)
                 if rowcount > 1:
@@ -141,7 +141,7 @@ class AsyncmyMySQLPipeline:
             await self._ensure_pool()
             
             # 使用批量SQL生成函数
-            batch_result = make_batch_sql(table=self.table_name, datas=self.batch_buffer)
+            batch_result = SQLBuilder.make_batch(table=self.table_name, datas=self.batch_buffer)
             if batch_result is None:
                 self.logger.warning("批量插入数据为空")
                 self.batch_buffer.clear()
@@ -254,8 +254,8 @@ class AiomysqlMySQLPipeline:
                 await self._init_pool()
 
                 item_dict = dict(item)
-                # 使用make_insert_sql工具函数生成SQL
-                sql = make_insert_sql(table=self.table_name, data=item_dict)
+                # 使用SQLBuilder生成SQL
+                sql = SQLBuilder.make_insert(table=self.table_name, data=item_dict)
 
                 async with self.pool.acquire() as conn:
                     async with conn.cursor() as cursor:
@@ -283,7 +283,7 @@ class AiomysqlMySQLPipeline:
             await self._init_pool()
             
             # 使用批量SQL生成函数
-            batch_result = make_batch_sql(table=self.table_name, datas=self.batch_buffer)
+            batch_result = SQLBuilder.make_batch(table=self.table_name, datas=self.batch_buffer)
             if batch_result is None:
                 self.logger.warning("批量插入数据为空")
                 self.batch_buffer.clear()

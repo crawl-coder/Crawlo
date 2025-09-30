@@ -22,7 +22,7 @@ pip install crawlo
 或者从源码安装：
 
 ```bash
-git clone https://github.com/your-username/crawlo.git
+git clone git@github.com:crawl-coder/Crawlo.git
 cd crawlo
 pip install -r requirements.txt
 pip install .
@@ -42,6 +42,129 @@ class MySpider(Spider):
 
 # 运行爬虫
 # crawlo run example
+```
+
+## Response 对象功能
+
+Crawlo 框架对 Response 对象进行了增强，提供了更多便捷方法：
+
+### URL 处理
+
+使用 Response 对象封装的 URL 处理方法可以方便地处理各种 URL 操作，无需手动导入 `urllib.parse` 中的函数：
+
+```python
+class MySpider(Spider):
+    def parse(self, response):
+        # 1. 处理相对URL和绝对URL
+        absolute_url = response.urljoin('/relative/path')
+        
+        # 2. 解析URL组件
+        parsed = response.urlparse()  # 解析当前响应URL
+        scheme = parsed.scheme
+        domain = parsed.netloc
+        path = parsed.path
+        
+        # 3. 解析查询参数
+        query_params = response.parse_qs()  # 解析当前URL的查询参数
+        
+        # 4. 编码查询参数
+        new_query = response.urlencode({'key': 'value', 'name': '测试'})
+        
+        # 5. URL编码/解码
+        encoded = response.quote('hello world 你好')
+        decoded = response.unquote(encoded)
+        
+        # 6. 移除URL片段
+        url_without_fragment, fragment = response.urldefrag('http://example.com/path#section')
+        
+        yield Request(url=absolute_url, callback=self.parse_detail)
+```
+
+### 编码检测优化
+
+Crawlo 框架参考 Scrapy 的设计模式对 Response 对象的编码检测功能进行了优化，提供了更准确和可靠的编码检测：
+
+```python
+class MySpider(Spider):
+    def parse(self, response):
+        # 自动检测响应编码
+        encoding = response.encoding
+        
+        # 获取声明的编码（Request编码 > BOM > HTTP头部 > HTML meta标签）
+        declared_encoding = response._declared_encoding()
+        
+        # 响应文本已自动使用正确的编码解码
+        text = response.text
+        
+        # 处理解码后的内容
+        # ...
+```
+
+编码检测优先级：
+1. Request 中指定的编码
+2. BOM 字节顺序标记
+3. HTTP Content-Type 头部
+4. HTML meta 标签声明
+5. 内容自动检测
+6. 默认编码 (utf-8)
+
+### 选择器方法优化
+
+Crawlo 框架对 Response 对象的选择器方法进行了优化，提供了更便捷的数据提取功能，方法命名更加直观和统一：
+
+```python
+class MySpider(Spider):
+    def parse(self, response):
+        # 1. 提取单个元素文本（支持CSS和XPath）
+        title = response.extract_text('title')  # CSS选择器
+        title = response.extract_text('//title')  # XPath选择器
+        
+        # 2. 提取多个元素文本
+        paragraphs = response.extract_texts('.content p')  # CSS选择器
+        paragraphs = response.extract_texts('//div[@class="content"]//p')  # XPath选择器
+        
+        # 3. 提取单个元素属性
+        link_href = response.extract_attr('a', 'href')  # CSS选择器
+        link_href = response.extract_attr('//a[@class="link"]', 'href')  # XPath选择器
+        
+        # 4. 提取多个元素属性
+        all_links = response.extract_attrs('a', 'href')  # CSS选择器
+        all_links = response.extract_attrs('//a[@class="link"]', 'href')  # XPath选择器
+        
+        yield {
+            'title': title,
+            'paragraphs': paragraphs,
+            'links': all_links
+        }
+```
+
+所有选择器方法都采用了简洁直观的命名风格，便于记忆和使用。
+
+### 工具模块
+
+Crawlo 框架提供了丰富的工具模块，用于处理各种常见任务。选择器相关的辅助函数现在位于 `crawlo.utils.selector_helper` 模块中：
+
+```python
+from crawlo.utils import (
+    extract_text,
+    extract_texts,
+    extract_attr,
+    extract_attrs,
+    is_xpath
+)
+
+# 在自定义代码中使用这些工具函数
+title_elements = response.css('title')
+title_text = extract_text(title_elements)
+
+li_elements = response.css('.list li')
+li_texts = extract_texts(li_elements)
+
+link_elements = response.css('.link')
+link_href = extract_attr(link_elements, 'href')
+
+all_links = response.css('a')
+all_hrefs = extract_attrs(all_links, 'href')
 ```
 
 ## 日志系统
@@ -130,6 +253,22 @@ Crawlo 框架会自动检测并使用这个库来提供更好的 Windows 兼容�
 ```
 PermissionError: [WinError 32] 另一个程序正在使用此文件，进程无法访问。
 ```
+
+## 爬虫自动发现
+
+Crawlo 框架支持通过 `SPIDER_MODULES` 配置自动发现和加载爬虫，类似于 Scrapy 的机制：
+
+```python
+# settings.py
+SPIDER_MODULES = [
+    'myproject.spiders',
+    'myproject.more_spiders',
+]
+
+SPIDER_LOADER_WARN_ONLY = True  # 加载错误时只警告不报错
+```
+
+框架会自动扫描配置的模块目录，发现并注册其中的爬虫类。
 
 ## 文档
 

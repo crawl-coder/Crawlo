@@ -9,8 +9,6 @@ ofweek_spider.spiders.of_week
     crawlo crawl of_week
 """
 
-from urllib.parse import urljoin
-
 from crawlo.spider import Spider
 from crawlo import Request
 from crawlo.utils.log import get_logger
@@ -167,7 +165,7 @@ class OfWeekSpider(Spider):
                         continue
 
                     # 确保 URL 是绝对路径
-                    absolute_url = urljoin(response.url, url)
+                    absolute_url = response.urljoin(url)
 
                     # 验证URL格式
                     if not absolute_url.startswith(('http://', 'https://')):

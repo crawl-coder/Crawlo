@@ -13,14 +13,14 @@
 
 import asyncio
 import time
-from contextlib import asynccontextmanager
-from dataclasses import dataclass
 from enum import Enum
+from dataclasses import dataclass
+from contextlib import asynccontextmanager
 from typing import Optional, Type, Dict, Any, List
 
+from crawlo.logging import get_logger
 from crawlo.factories import get_component_registry
 from crawlo.initialization import initialize_framework, is_framework_ready
-from crawlo.logging import get_logger
 
 
 class CrawlerState(Enum):
@@ -345,6 +345,7 @@ class CrawlerProcess:
     """
     
     def __init__(self, settings=None, max_concurrency: int = 3, spider_modules=None):
+        # 初始化框架配置
         self._settings = settings or initialize_framework()
         self._max_concurrency = max_concurrency
         self._crawlers: List[ModernCrawler] = []
@@ -353,14 +354,14 @@ class CrawlerProcess:
         
         # 如果没有显式提供spider_modules，则从settings中获取
         if spider_modules is None and self._settings:
-            spider_modules = self._settings.get('SPIDER_MODULES')
+            spider_modules = self._settings.get('SPIDER_MODULES', [])
             self._logger.debug(f"从settings中获取SPIDER_MODULES: {spider_modules}")
         
-        self._spider_modules = spider_modules  # 保存spider_modules
+        self._spider_modules = spider_modules or []  # 保存spider_modules
         
         # 如果提供了spider_modules，自动注册这些模块中的爬虫
-        if spider_modules:
-            self._register_spider_modules(spider_modules)
+        if self._spider_modules:
+            self._register_spider_modules(self._spider_modules)
         
         # 指标
         self._start_time: Optional[float] = None

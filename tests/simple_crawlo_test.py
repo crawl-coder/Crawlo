@@ -62,7 +62,6 @@ class OfweekSimpleSpider(Spider):
             yield Request(url=url, callback=self.parse, headers=headers, cookies=cookies)
 
     def parse(self, response):
-        from urllib.parse import urljoin
         rows = response.xpath("//div[@class=\"main_left\"]/div[@class=\"list_model\"]/div[@class=\"model_right model_right2\"]")
         
         for row in rows:
@@ -73,7 +72,7 @@ class OfweekSimpleSpider(Spider):
                 if not url or not title:
                     continue
 
-                absolute_url = urljoin(response.url, url)
+                absolute_url = response.urljoin(url)
                 if not absolute_url.startswith(("http://", "https://")):
                     continue
 

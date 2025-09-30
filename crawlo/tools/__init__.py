@@ -79,17 +79,6 @@ from .retry_mechanism import (
     exponential_backoff
 )
 
-# 反爬虫应对工具
-from .anti_crawler import (
-    ProxyPoolManager,
-    CaptchaHandler,
-    AntiCrawler,
-    get_random_user_agent,
-    rotate_proxy,
-    handle_captcha,
-    detect_rate_limiting
-)
-
 # 带认证代理工具
 from .authenticated_proxy import (
     AuthenticatedProxy,

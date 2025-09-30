@@ -4,11 +4,18 @@ from pprint import pformat
 from types import MethodType
 from asyncio import create_task
 from collections import defaultdict
-from typing import List, Dict, Callable, Optional
+from typing import List, Dict, Callable, Optional, TYPE_CHECKING
 
-from crawlo import Request, Response
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from crawlo import Request, Response
+else:
+    # 为 isinstance 检查导入实际的类
+    from crawlo.network.request import Request
+    from crawlo.network.response import Response
 from crawlo.utils.log import get_logger
-from crawlo.utils.class_loader import load_class
+from crawlo.utils.misc import load_object
 from crawlo.middleware import BaseMiddleware
 from crawlo.project import common_call
 from crawlo.event import ignore_request, response_received
@@ -30,7 +37,7 @@ class MiddlewareManager:
         self.download_method: Callable = crawler.engine.downloader.download
         self._stats = crawler.stats
 
-    async def _process_request(self, request: Request):
+    async def _process_request(self, request: 'Request'):
         for method in self.methods['process_request']:
             result = await common_call(method, request, self.crawler.spider)
             if result is None:
@@ -42,7 +49,7 @@ class MiddlewareManager:
             )
         return await self.download_method(request)
 
-    async def _process_response(self, request: Request, response: Response):
+    async def _process_response(self, request: 'Request', response: 'Response'):
         for method in reversed(self.methods['process_response']):
             try:
                 response = await common_call(method, request, response, self.crawler.spider)
@@ -57,7 +64,7 @@ class MiddlewareManager:
             )
         return response
 
-    async def _process_exception(self, request: Request, exp: Exception):
+    async def _process_exception(self, request: 'Request', exp: Exception):
         for method in self.methods['process_exception']:
             response = await common_call(method, request, exp, self.crawler.spider)
             if response is None:
@@ -72,7 +79,7 @@ class MiddlewareManager:
         else:
             raise exp
 
-    async def download(self, request) -> Optional[Response]:
+    async def download(self, request) -> 'Optional[Response]':
         """ called in the download method. """
         try:
             response = await self._process_request(request)
@@ -105,7 +112,7 @@ class MiddlewareManager:
             self.logger.info(f'Enabled middlewares:\n {pformat(enabled_middlewares)}')
 
     def _validate_middleware(self, middleware):
-        middleware_cls = load_class(middleware)
+        middleware_cls = load_object(middleware)
         if not hasattr(middleware_cls, 'create_instance'):
             raise MiddlewareInitError(
                 f"Middleware init failed, must inherit from `BaseMiddleware` or have a `create_instance` method"

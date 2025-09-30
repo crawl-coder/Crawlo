@@ -79,52 +79,63 @@ def request_fingerprint(
     :param include_headers: 指定要参与指纹计算的 header 名称列表（str 或 bytes）
     :return: 请求指纹（hex string）
     """
-    hash_func = hashlib.sha256()
-
-    # 基本字段
-    hash_func.update(to_bytes(request.method))
-    hash_func.update(to_bytes(canonicalize_url(request.url)))
-    hash_func.update(request.body or b'')
-
+    from crawlo.utils.fingerprint import FingerprintGenerator
+    
+    # 准备请求数据
+    method = request.method
+    url = request.url
+    body = request.body or b''
+    headers = None
+    
     # 处理 headers
-    if include_headers:
-        headers = request.headers  # 假设 headers 是类似字典或 MultiDict 的结构
+    if include_headers and hasattr(request, 'headers'):
+        headers = {}
         for header_name in include_headers:
-            name_bytes = to_bytes(header_name).lower()  # 统一转为小写进行匹配
-            value = b''
+            name_str = str(header_name).lower()  # 统一转为小写进行匹配
+            value = ''
 
             # 兼容 headers 的访问方式（如 MultiDict 或 dict）
-            if hasattr(headers, 'get_all'):
+            if hasattr(request.headers, 'get_all'):
                 # 如 scrapy.http.Headers 的 get_all 方法
-                values = headers.get_all(name_bytes)
-                value = b';'.join(values) if values else b''
-            elif hasattr(headers, '__getitem__'):
+                values = request.headers.get_all(name_str)
+                value = ';'.join(str(v) for v in values) if values else ''
+            elif hasattr(request.headers, '__getitem__'):
                 # 如普通 dict
                 try:
-                    raw_value = headers[name_bytes]
+                    raw_value = request.headers[name_str]
                     if isinstance(raw_value, list):
-                        value = b';'.join(to_bytes(v) for v in raw_value)
+                        value = ';'.join(str(v) for v in raw_value)
                     else:
-                        value = to_bytes(raw_value)
+                        value = str(raw_value)
                 except (KeyError, TypeError):
-                    value = b''
+                    value = ''
             else:
-                value = b''
-
-            hash_func.update(name_bytes + b':' + value)
-
-    return hash_func.hexdigest()
+                value = ''
+            
+            headers[name_str] = value
+    
+    # 使用统一的指纹生成器
+    return FingerprintGenerator.request_fingerprint(method, url, body, headers)
 
 
 def set_request(request: Request, priority: int) -> None:
+    """
+    设置请求的深度和优先级
+    
+    :param request: Request 对象
+    :param priority: 优先级值
+    """
+    # 增加请求深度
     request.meta['depth'] = request.meta.setdefault('depth', 0) + 1
+    
+    # 根据深度调整优先级，深度越深优先级越低
     if priority:
         request.priority -= request.meta['depth'] * priority
 
 
 def request_to_dict(request: Request, spider=None) -> Dict[str, Any]:
     """
-    将 Request 对象转换为可 JSON 序列化的字典。
+    将 Request 对象转换为可 JSON 序列化的字典，用于分布式爬虫中的请求序列化。
 
     Args:
         request: 要序列化的 Request 对象
@@ -146,28 +157,22 @@ def request_to_dict(request: Request, spider=None) -> Dict[str, Any]:
 
     # 1. 处理 callback
     #    不能直接序列化函数，所以存储其路径
-    if callable(request.callback):
+    if callable(getattr(request, 'callback', None)):
         d['_callback'] = _get_function_path(request.callback)
 
     # 2. 处理 errback
-    if callable(request.errback):
-        d['_errback'] = _get_function_path(request.errback)
+    if callable(getattr(request, 'err_back', None)):
+        d['_errback'] = _get_function_path(request.err_back)
 
     # 3. 记录原始类名，以便反序列化时创建正确的实例
     d['_class'] = request.__class__.__module__ + '.' + request.__class__.__name__
-
-    # 4. 特殊处理 FormRequest
-    #    如果是 FormRequest，需要保存 formdata
-    if isinstance(request, Request):
-        if hasattr(request, 'formdata'):
-            d['formdata'] = request.formdata
 
     return d
 
 
 def request_from_dict(d: Dict[str, Any], spider=None) -> Request:
     """
-    从字典重建 Request 对象。
+    从字典重建 Request 对象，用于分布式爬虫中的请求反序列化。
 
     Args:
         d: 由 request_to_dict 生成的字典
@@ -193,37 +198,21 @@ def request_from_dict(d: Dict[str, Any], spider=None) -> Request:
     errback_path = d.pop('_errback', None)
     errback = _get_function_from_path(errback_path, spider) if errback_path else None
 
-    # 4. 提取特殊字段
-    formdata = d.pop('formdata', None)
-
     # 5. 创建 Request 实例
-    #    注意：body 和 formdata 不能同时存在
-    if formdata is not None and cls is FormRequest:
-        # 如果是 FormRequest 且有 formdata，优先使用 formdata
-        request = FormRequest(
-            url=d['url'],
-            method=d.get('method', 'GET'),
-            headers=d.get('headers', {}),
-            formdata=formdata,
-            callback=callback,
-            errback=errback,
-            meta=d.get('meta', {}),
-            flags=d.get('flags', []),
-            cb_kwargs=d.get('cb_kwargs', {}),
-        )
-    else:
-        # 普通 Request 或没有 formdata 的情况
-        request = cls(
-            url=d['url'],
-            method=d.get('method', 'GET'),
-            headers=d.get('headers', {}),
-            body=d.get('body'),
-            callback=callback,
-            errback=errback,
-            meta=d.get('meta', {}),
-            flags=d.get('flags', []),
-            cb_kwargs=d.get('cb_kwargs', {}),
-        )
+    request = cls(
+        url=d['url'],
+        method=d.get('method', 'GET'),
+        headers=d.get('headers', {}),
+        body=d.get('body'),
+        callback=callback,
+        meta=d.get('meta', {}),
+        flags=d.get('flags', []),
+        cb_kwargs=d.get('cb_kwargs', {}),
+    )
+    
+    # 手动设置 err_back 属性
+    if errback is not None:
+        request.err_back = errback
 
     return request
 
@@ -256,7 +245,7 @@ def _get_function_from_path(path: str, spider=None) -> Optional[callable]:
             func = getattr(func, attr)
 
         # 如果 spider 存在，并且 func 是 spider 的方法
-        if spider and hasattr(spider, func.__name__):
+        if spider and hasattr(func, '__name__') and hasattr(spider, func.__name__):
             spider_method = getattr(spider, func.__name__)
             if spider_method is func:
                 return spider_method  # 返回绑定的方法

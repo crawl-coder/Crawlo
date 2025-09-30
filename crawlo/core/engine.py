@@ -11,7 +11,7 @@ from crawlo.core.scheduler import Scheduler
 from crawlo.downloader import DownloaderBase
 from crawlo.event import spider_opened, spider_error, request_scheduled
 from crawlo.exceptions import OutputError
-from crawlo.utils.class_loader import load_class
+from crawlo.utils.misc import load_object
 from crawlo.spider import Spider
 from crawlo.task_manager import TaskManager
 from crawlo.utils.func_tools import transform
@@ -62,7 +62,7 @@ class Engine(object):
                 self.logger.warning(f"无法使用下载器类型 '{downloader_type}': {e}，回退到默认配置")
         
         # 方式2: 使用 DOWNLOADER 完整类路径（兼容旧版本）
-        downloader_cls = load_class(self.settings.get('DOWNLOADER'))
+        downloader_cls = load_object(self.settings.get('DOWNLOADER'))
         if not issubclass(downloader_cls, DownloaderBase):
             raise TypeError(f'下载器 {downloader_cls.__name__} 不是 DownloaderBase 的子类。')
         return downloader_cls

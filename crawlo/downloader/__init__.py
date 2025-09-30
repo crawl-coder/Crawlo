@@ -15,11 +15,14 @@ Crawlo Downloader Module
 - ActivateRequestManager: 活跃请求管理器
 """
 from abc import abstractmethod, ABCMeta
-from typing import Final, Set, Optional
+from typing import Final, Set, Optional, TYPE_CHECKING
 from contextlib import asynccontextmanager
 
 from crawlo.utils.log import get_logger
 from crawlo.middleware.middleware_manager import MiddlewareManager
+
+if TYPE_CHECKING:
+    from crawlo import Response
 
 
 class ActivateRequestManager:
@@ -134,7 +137,7 @@ class DownloaderBase(metaclass=DownloaderMeta):
             self.logger.error(f"中间件初始化失败: {e}")
             raise
 
-    async def fetch(self, request) -> Optional['Response']:
+    async def fetch(self, request) -> 'Optional[Response]':
         """获取请求响应（经过中间件处理）"""
         if self._closed:
             raise RuntimeError(f"{self.__class__.__name__} 已关闭")

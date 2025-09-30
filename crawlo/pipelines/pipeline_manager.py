@@ -6,7 +6,7 @@ from asyncio import create_task
 
 from crawlo.utils.log import get_logger
 from crawlo.event import item_successful, item_discard
-from crawlo.utils.class_loader import load_class
+from crawlo.utils.misc import load_object
 from crawlo.project import common_call
 from crawlo.exceptions import PipelineInitError, ItemDiscard, InvalidOutputError, DropItem
 
@@ -61,7 +61,7 @@ class PipelineManager:
     def _add_pipelines(self, pipelines):
         for pipeline in pipelines:
             try:
-                pipeline_cls = load_class(pipeline)
+                pipeline_cls = load_object(pipeline)
                 if not hasattr(pipeline_cls, 'from_crawler'):
                     raise PipelineInitError(
                         f"Pipeline init failed, must inherit from `BasePipeline` or have a `from_crawler` method"

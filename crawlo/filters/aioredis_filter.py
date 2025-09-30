@@ -142,7 +142,14 @@ class AioRedisFilter(BaseFilter):
             if redis_client is None:
                 return False
             
-            fp = str(request_fingerprint(request))
+            # 使用统一的指纹生成器
+            from crawlo.utils.fingerprint import FingerprintGenerator
+            fp = str(FingerprintGenerator.request_fingerprint(
+                request.method, 
+                request.url, 
+                request.body or b'', 
+                dict(request.headers) if hasattr(request, 'headers') else None
+            ))
             self._redis_operations += 1
 
             # 使用 pipeline 优化性能

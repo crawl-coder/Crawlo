@@ -346,8 +346,8 @@ class ExtensionsInitializer(BaseInitializer):
             initialized_extensions = []
             for extension_path in extensions:
                 try:
-                    from crawlo.utils.class_loader import load_class
-                    extension_class = load_class(extension_path)
+                    from crawlo.utils.misc import load_object
+                    extension_class = load_object(extension_path)
                     extension_instance = extension_class()
                     initialized_extensions.append(extension_instance)
                 except Exception as e:

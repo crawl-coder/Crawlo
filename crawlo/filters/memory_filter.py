@@ -102,7 +102,14 @@ class MemoryFilter(BaseFilter):
         :return: 是否重复
         """
         with self._lock:
-            fp = request_fingerprint(request)
+            # 使用统一的指纹生成器
+            from crawlo.utils.fingerprint import FingerprintGenerator
+            fp = FingerprintGenerator.request_fingerprint(
+                request.method, 
+                request.url, 
+                request.body or b'', 
+                dict(request.headers) if hasattr(request, 'headers') else None
+            )
             if fp in self.fingerprints:
                 self._dupe_count += 1
                 # if self.debug:

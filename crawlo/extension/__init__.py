@@ -4,7 +4,7 @@ from typing import List, Any
 from pprint import pformat
 
 from crawlo.utils.log import get_logger
-from crawlo.utils.class_loader import load_class
+from crawlo.utils.misc import load_object
 from crawlo.exceptions import ExtensionInitError
 
 
@@ -25,7 +25,7 @@ class ExtensionManager(object):
     def _add_extensions(self, extensions: List[str]) -> None:
         for extension_path in extensions:
             try:
-                extension_cls = load_class(extension_path)
+                extension_cls = load_object(extension_path)
                 if not hasattr(extension_cls, 'create_instance'):
                     raise ExtensionInitError(
                         f"Extension '{extension_path}' init failed: Must have method 'create_instance()'"

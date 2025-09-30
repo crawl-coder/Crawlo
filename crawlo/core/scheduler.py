@@ -6,7 +6,7 @@ from typing import Optional, Callable
 from crawlo.utils.log import get_logger
 from crawlo.utils.request import set_request
 from crawlo.utils.error_handler import ErrorHandler
-from crawlo.utils.class_loader import load_class
+from crawlo.utils.misc import load_object
 from crawlo.project import common_call
 from crawlo.utils.request_serializer import RequestSerializer
 from crawlo.queue.queue_manager import QueueManager, QueueConfig, QueueType
@@ -26,7 +26,7 @@ class Scheduler:
 
     @classmethod
     def create_instance(cls, crawler):
-        filter_cls = load_class(crawler.settings.get('FILTER_CLASS'))
+        filter_cls = load_object(crawler.settings.get('FILTER_CLASS'))
         o = cls(
             crawler=crawler,
             dupe_filter=filter_cls.create_instance(crawler),
@@ -120,7 +120,7 @@ class Scheduler:
             # 如果需要更新配置，则执行更新
             if needs_config_update:
                 # 重新创建过滤器实例，确保使用更新后的配置
-                filter_cls = load_class(self.crawler.settings.get('FILTER_CLASS'))
+                filter_cls = load_object(self.crawler.settings.get('FILTER_CLASS'))
                 self.dupe_filter = filter_cls.create_instance(self.crawler)
                 
                 # 记录警告信息
@@ -136,7 +136,7 @@ class Scheduler:
                     self._switch_to_memory_config()
                 
                 # 重新创建过滤器实例
-                filter_cls = load_class(self.crawler.settings.get('FILTER_CLASS'))
+                filter_cls = load_object(self.crawler.settings.get('FILTER_CLASS'))
                 self.dupe_filter = filter_cls.create_instance(self.crawler)
     
     def _is_filter_matching_queue_type(self, current_filter_class):

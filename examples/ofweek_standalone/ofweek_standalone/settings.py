@@ -35,10 +35,10 @@ SPIDER_MODULES = ['ofweek_standalone.spiders']
 
 # 数据管道
 # 如需添加自定义管道，请取消注释并添加
-# PIPELINES = [
-#     'crawlo.pipelines.mysql_pipeline.AsyncmyMySQLPipeline',  # MySQL 存储（使用asyncmy异步库）
-#     # 'ofweek_standalone.pipelines.CustomPipeline',  # 用户自定义管道示例
-# ]
+PIPELINES = [
+    'crawlo.pipelines.mysql_pipeline.AsyncmyMySQLPipeline',  # MySQL 存储（使用asyncmy异步库）
+    # 'ofweek_standalone.pipelines.CustomPipeline',  # 用户自定义管道示例
+]
 
 # =================================== 系统配置 ===================================
 
@@ -77,13 +77,25 @@ if REDIS_PASSWORD:
 else:
     REDIS_URL = f'redis://{REDIS_HOST}:{REDIS_PORT}/{REDIS_DB}'
 
-# MySQL配置
-MYSQL_HOST = '127.0.0.1'
+
+MYSQL_HOST = "43.139.14.225"
+# 数据库端口
 MYSQL_PORT = 3306
-MYSQL_USER = 'root'
-MYSQL_PASSWORD = '123456'
-MYSQL_DB = 'ofweek_standalone'
-MYSQL_TABLE = 'ofweek_standalone_data'
+# 数据库用户名
+MYSQL_USER = "picker"
+# 数据库密码
+MYSQL_PASSWORD = "kmcNbbz6TbSihttZ"
+# 数据库名
+MYSQL_DB = "stock_share"
+MYSQL_TABLE = 'news_items'
+
+# MySQL配置
+# MYSQL_HOST = '127.0.0.1'
+# MYSQL_PORT = 3306
+# MYSQL_USER = 'root'
+# MYSQL_PASSWORD = '123456'
+# MYSQL_DB = 'ofweek_standalone'
+# MYSQL_TABLE = 'news_items'
 MYSQL_BATCH_SIZE = 100
 MYSQL_USE_BATCH = False  # 是否启用批量插入
 

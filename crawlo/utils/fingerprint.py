@@ -13,9 +13,8 @@
 """
 
 import hashlib
-import json
-from typing import Any, Dict, Union
-from collections import namedtuple
+from typing import Any, Dict
+from w3lib.url import canonicalize_url
 
 
 def generate_data_fingerprint(data: Any) -> str:
@@ -73,7 +72,7 @@ def generate_request_fingerprint(
     
     # 基本字段
     hash_func.update(method.encode('utf-8'))
-    hash_func.update(url.encode('utf-8'))
+    hash_func.update(canonicalize_url(url).encode('utf-8'))
     hash_func.update(body or b'')
     
     # 可选的 headers

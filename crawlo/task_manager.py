@@ -1,10 +1,10 @@
 #!/usr/bin/python
 # -*- coding:UTF-8 -*-
+import time
 import asyncio
-from asyncio import Task, Future, Semaphore
 from typing import Set, Final
 from collections import deque
-import time
+from asyncio import Task, Future, Semaphore
 from crawlo.utils.log import get_logger
 
 
