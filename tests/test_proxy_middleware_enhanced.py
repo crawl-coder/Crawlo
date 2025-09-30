@@ -52,12 +52,8 @@ def test_proxy_class():
 def create_mock_settings():
     """创建模拟设置"""
     settings = SettingManager()
-    settings.set("PROXY_ENABLED", True)
+    # 不再需要显式设置 PROXY_ENABLED，只要配置了 PROXY_API_URL 就会启用
     settings.set("PROXY_API_URL", "http://test.proxy.api/get")
-    settings.set("PROXY_EXTRACTOR", "proxy")
-    settings.set("PROXY_REFRESH_INTERVAL", 10)
-    settings.set("PROXY_POOL_SIZE", 3)
-    settings.set("PROXY_HEALTH_CHECK_THRESHOLD", 0.5)
     settings.set("LOG_LEVEL", "DEBUG")
     return settings
 

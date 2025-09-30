@@ -61,8 +61,14 @@ async def test_proxy_integration():
     config = CrawloConfig.standalone(
         concurrency=1,
         download_delay=0.1,
-        PROXY_ENABLED=True,
-        PROXY_API_URL="https://api.proxyprovider.com/get",  # 模拟代理API
+        # 代理配置
+        # 高级代理配置（适用于ProxyMiddleware）
+        # 只要配置了代理API URL，中间件就会自动启用
+        PROXY_API_URL="https://proxy-api.example.com/get",  # 模拟代理API
+        
+        # 代理配置（适用于ProxyMiddleware）
+        # 只要配置了代理列表，中间件就会自动启用
+        # PROXY_LIST=["http://proxy1:8080", "http://proxy2:8080"],
         LOG_LEVEL='WARNING'  # 减少日志输出
     )
     

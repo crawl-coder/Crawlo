@@ -74,14 +74,18 @@ async def main():
     config = CrawloConfig.standalone(
         concurrency=2,
         download_delay=1.0,
-        PROXY_ENABLED=True,
-        # 配置认证代理（请替换为实际的代理信息）
-        PROXY_API_URL="http://your-proxy-provider.com/api/get",  # 代理API地址
-        # 如果使用固定代理，可以直接设置：
+        # 代理配置
+        # 高级代理配置（适用于ProxyMiddleware）
+        # 只要配置了代理API URL，中间件就会自动启用
+        PROXY_API_URL="http://proxy-api.example.com/get",  # 代理API地址
+        
+        # 代理配置（适用于ProxyMiddleware）
+        # 只要配置了代理列表，中间件就会自动启用
         # PROXY_LIST=[
-        #     "http://username:password@proxy1.example.com:8080",
-        #     "http://username:password@proxy2.example.com:8080",
+        #     "http://user:pass@proxy1.example.com:8080",
+        #     "http://user:pass@proxy2.example.com:8080"
         # ],
+        
         LOG_LEVEL='INFO'
     )
     

@@ -176,15 +176,39 @@ RANDOM_USER_AGENT_ENABLED = False  # 是否启用随机用户代理
 # 站外过滤配置
 ALLOWED_DOMAINS = []  # 允许的域名列表
 
-# 代理配置
-PROXY_ENABLED = False  # 是否启用代理
-PROXY_LIST = []  # 简化版代理配置（适用于SimpleProxyMiddleware）
-PROXY_API_URL = ""  # 高级代理配置（适用于ProxyMiddleware）
-PROXY_EXTRACTOR = "proxy"  # 代理提取方式
-PROXY_REFRESH_INTERVAL = 60  # 代理刷新间隔（秒）
-PROXY_API_TIMEOUT = 10  # 请求代理 API 超时时间
-PROXY_POOL_SIZE = 5  # 代理池大小
-PROXY_HEALTH_CHECK_THRESHOLD = 0.5  # 代理健康检查阈值
+# 代理配置（通用版，支持静态代理列表和动态代理API两种模式）
+PROXY_LIST = []  # 静态代理列表配置
+PROXY_API_URL = ""  # 动态代理API配置
+# 代理提取配置，用于指定如何从API返回的数据中提取代理地址
+# 可选值：
+# - 字符串：直接作为字段名使用，如 "proxy"（默认值）
+# - 字典：包含type和value字段，支持多种提取方式
+#   - {"type": "field", "value": "data"}：从指定字段提取
+#   - {"type": "jsonpath", "value": "$.data[0].proxy"}：使用JSONPath表达式提取
+#   - {"type": "custom", "function": your_function}：使用自定义函数提取
+PROXY_EXTRACTOR = "proxy"  # 代理提取配置
+# 代理失败处理配置
+PROXY_MAX_FAILED_ATTEMPTS = 3  # 代理最大失败尝试次数，超过此次数将标记为失效
+
+# 代理使用示例：
+# 1. 静态代理列表：
+#    PROXY_LIST = ["http://proxy1:8080", "http://proxy2:8080"]
+#    PROXY_API_URL = ""  # 不使用动态代理
+#
+# 2. 动态代理API（默认字段提取）：
+#    PROXY_LIST = []  # 不使用静态代理
+#    PROXY_API_URL = "http://api.example.com/get_proxy"
+#    PROXY_EXTRACTOR = "proxy"  # 从"proxy"字段提取
+#
+# 3. 动态代理API（自定义字段提取）：
+#    PROXY_LIST = []  # 不使用静态代理
+#    PROXY_API_URL = "http://api.example.com/get_proxy"
+#    PROXY_EXTRACTOR = "data"  # 从"data"字段提取
+#
+# 4. 动态代理API（嵌套字段提取）：
+#    PROXY_LIST = []  # 不使用静态代理
+#    PROXY_API_URL = "http://api.example.com/get_proxy"
+#    PROXY_EXTRACTOR = {"type": "field", "value": "result"}  # 从"result"字段提取
 
 # 下载器通用配置
 DOWNLOAD_TIMEOUT = 30  # 下载超时时间（秒）
@@ -247,24 +271,4 @@ PLAYWRIGHT_MAX_PAGES_PER_BROWSER = 10  # 单浏览器最大页面数量
 
 # 通用优化配置
 CONNECTION_TTL_DNS_CACHE = 300  # DNS缓存TTL（秒）
-CONNECTION_KEEPALIVE_TIMEOUT = 15  # Keep-Alive超时（秒）
-
-# --------------------------------- 9. 数据存储配置 ------------------------------------
-
-# CSV管道配置
-CSV_DELIMITER = ','  # CSV分隔符
-CSV_QUOTECHAR = '"'  # CSV引号字符
-CSV_INCLUDE_HEADERS = True  # 是否包含表头
-CSV_EXTRASACTION = 'ignore'  # 额外字段处理方式：ignore, raise
-CSV_FIELDNAMES = None  # 字段名列表
-CSV_FILE = None  # CSV文件路径
-CSV_DICT_FILE = None  # CSV字典文件路径
-CSV_BATCH_SIZE = 100  # CSV批处理大小
-CSV_BATCH_FILE = None  # CSV批处理文件路径
-
-# 数据库去重管道配置
-DB_HOST = 'localhost'  # 数据库主机
-DB_PORT = 3306  # 数据库端口
-DB_USER = 'root'  # 数据库用户
-DB_PASSWORD = ''  # 数据库密码
-DB_NAME = 'crawlo'  # 数据库名称
+CONNECTION_KEEPALIVE = True  # 是否启用HTTP连接保持

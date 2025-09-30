@@ -126,9 +126,8 @@ class TestProxyMiddlewareRefactored(unittest.TestCase):
     @patch('crawlo.utils.log.get_logger')
     def test_update_proxy_pool_with_parsed_data(self, mock_get_logger):
         """测试使用解析后的代理数据更新代理池"""
-        self.settings.set('PROXY_ENABLED', True)
+        # 不再需要 PROXY_ENABLED，只要配置了 PROXY_API_URL 就会启用
         self.settings.set('PROXY_API_URL', 'http://proxy-api.example.com')
-        self.settings.set('PROXY_POOL_SIZE', 2)
         self.settings.set('LOG_LEVEL', 'INFO')
         
         mock_get_logger.return_value = Mock()
@@ -180,6 +179,30 @@ class TestProxyMiddlewareRefactored(unittest.TestCase):
         # 再次获取第一个健康代理（轮询到索引1）
         healthy_proxy = asyncio.run(middleware._get_healthy_proxy())
         self.assertEqual(healthy_proxy.proxy_str, proxy2.proxy_str)
+
+    def test_proxy_middleware_initialization(self):
+        """测试代理中间件初始化"""
+        # 不再需要 PROXY_ENABLED，只要配置了 PROXY_API_URL 就会启用
+        self.settings.set('PROXY_API_URL', 'http://test-proxy-api.com')
+        middleware = ProxyMiddleware(self.settings, "DEBUG")
+        self.assertIsInstance(middleware, ProxyMiddleware)
+        self.assertTrue(middleware.enabled)
+        self.assertEqual(middleware.api_url, 'http://test-proxy-api.com')
+
+    def test_proxy_middleware_enabled_with_api_url(self):
+        """测试配置了代理API URL时中间件启用"""
+        # 不再需要 PROXY_ENABLED，只要配置了 PROXY_API_URL 就会启用
+        self.settings.set('PROXY_API_URL', 'http://test-proxy-api.com')
+        middleware = ProxyMiddleware(self.settings, "DEBUG")
+        self.assertTrue(middleware.enabled)
+        self.assertEqual(middleware.api_url, 'http://test-proxy-api.com')
+
+    def test_proxy_middleware_disabled_without_api_url(self):
+        """测试未配置代理API URL时中间件禁用"""
+        # 不再需要 PROXY_ENABLED，只要不配置 PROXY_API_URL 就会禁用
+        self.settings.set('PROXY_API_URL', None)
+        middleware = ProxyMiddleware(self.settings, "DEBUG")
+        self.assertFalse(middleware.enabled)
 
 if __name__ == '__main__':
     unittest.main()

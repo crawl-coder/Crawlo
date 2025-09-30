@@ -116,23 +116,13 @@ MONGO_USE_BATCH = False  # 是否启用批量插入
 # =================================== 网络配置 ===================================
 
 # 代理配置
-# 代理功能默认不启用，如需使用请在项目配置文件中启用并配置相关参数
-PROXY_ENABLED = False  # 是否启用代理
-
-# 简化版代理配置（适用于SimpleProxyMiddleware）
-PROXY_LIST = []  # 代理列表，例如: ["http://proxy1:8080", "http://proxy2:8080"]
+# 代理配置（适用于ProxyMiddleware）
+# 只要配置了代理列表，中间件就会自动启用
+# PROXY_LIST = ["http://proxy1:8080", "http://proxy2:8080"]
 
 # 高级代理配置（适用于ProxyMiddleware）
-PROXY_API_URL = ""  # 代理获取接口（请替换为真实地址）
-
-# 代理提取方式（支持字段路径或函数）
-# 示例: "proxy" 适用于 {"proxy": "http://1.1.1.1:8080"}
-# 示例: "data.proxy" 适用于 {"data": {"proxy": "http://1.1.1.1:8080"}}
-PROXY_EXTRACTOR = "proxy"
-
-# 代理刷新控制
-PROXY_REFRESH_INTERVAL = 60  # 代理刷新间隔（秒）
-PROXY_API_TIMEOUT = 10  # 请求代理 API 超时时间
+# 只要配置了代理API URL，中间件就会自动启用
+# PROXY_API_URL = "http://your-proxy-api.com/get-proxy"
 
 # 浏览器指纹模拟（仅 CurlCffi 下载器有效）
 CURL_BROWSER_TYPE = "chrome"  # 可选: chrome, edge, safari, firefox 或版本如 chrome136

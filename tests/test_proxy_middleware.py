@@ -49,25 +49,27 @@ class TestProxyMiddleware(unittest.TestCase):
     @patch('crawlo.utils.log.get_logger')
     def test_middleware_initialization_without_api_url(self, mock_get_logger):
         """测试没有配置API URL时中间件初始化"""
-        self.settings.set('PROXY_ENABLED', True)
+        # 不再需要 PROXY_ENABLED，只要不配置 PROXY_API_URL 就会禁用
         self.settings.set('PROXY_API_URL', None)
         self.settings.set('LOG_LEVEL', 'INFO')
         
         mock_get_logger.return_value = MockLogger('ProxyMiddleware')
         
-        # 应该抛出NotConfiguredError异常
-        with self.assertRaises(NotConfiguredError):
-            ProxyMiddleware.create_instance(self.crawler)
+        # 应该正常创建实例，但会禁用
+        middleware = ProxyMiddleware.create_instance(self.crawler)
+        self.assertIsInstance(middleware, ProxyMiddleware)
+        self.assertFalse(middleware.enabled)
 
     @patch('crawlo.utils.log.get_logger')
     def test_middleware_initialization_with_disabled_proxy(self, mock_get_logger):
         """测试禁用代理时中间件初始化"""
-        self.settings.set('PROXY_ENABLED', False)
+        # 不再需要 PROXY_ENABLED，只要不配置 PROXY_API_URL 就会禁用
+        self.settings.set('PROXY_API_URL', None)
         self.settings.set('LOG_LEVEL', 'INFO')
         
         mock_get_logger.return_value = MockLogger('ProxyMiddleware')
         
-        # 应该正常创建实例
+        # 应该正常创建实例，但会禁用
         middleware = ProxyMiddleware.create_instance(self.crawler)
         self.assertIsInstance(middleware, ProxyMiddleware)
         self.assertFalse(middleware.enabled)
@@ -75,17 +77,47 @@ class TestProxyMiddleware(unittest.TestCase):
     @patch('crawlo.utils.log.get_logger')
     def test_middleware_initialization_with_api_url(self, mock_get_logger):
         """测试配置API URL时中间件初始化"""
-        self.settings.set('PROXY_ENABLED', True)
+        # 不再需要 PROXY_ENABLED，只要配置了 PROXY_API_URL 就会启用
         self.settings.set('PROXY_API_URL', 'http://proxy-api.example.com')
         self.settings.set('LOG_LEVEL', 'INFO')
         
         mock_get_logger.return_value = MockLogger('ProxyMiddleware')
         
-        # 应该正常创建实例
+        # 应该正常创建实例并启用
         middleware = ProxyMiddleware.create_instance(self.crawler)
         self.assertIsInstance(middleware, ProxyMiddleware)
         self.assertTrue(middleware.enabled)
         self.assertEqual(middleware.api_url, 'http://proxy-api.example.com')
+
+    def test_middleware_initialization(self):
+        """测试中间件初始化"""
+        # 配置代理API URL以启用中间件
+        self.settings.set('PROXY_API_URL', 'http://proxy-api.example.com')
+        middleware = ProxyMiddleware(self.settings, "DEBUG")
+        self.assertIsInstance(middleware, ProxyMiddleware)
+        self.assertTrue(middleware.enabled)
+        self.assertEqual(middleware.api_url, 'http://proxy-api.example.com')
+
+    def test_middleware_enabled_with_api_url(self):
+        """测试配置了代理API URL时中间件启用"""
+        self.settings.set('PROXY_API_URL', 'http://proxy-api.example.com')
+        # 不再需要显式设置 PROXY_ENABLED = True
+        middleware = ProxyMiddleware(self.settings, "DEBUG")
+        self.assertTrue(middleware.enabled)
+        self.assertEqual(middleware.api_url, 'http://proxy-api.example.com')
+
+    def test_middleware_disabled_without_api_url(self):
+        """测试未配置代理API URL时中间件禁用"""
+        # 不设置 PROXY_API_URL 或设置为空
+        self.settings.set('PROXY_API_URL', '')
+        middleware = ProxyMiddleware(self.settings, "DEBUG")
+        self.assertFalse(middleware.enabled)
+        
+    def test_middleware_disabled_explicitly(self):
+        """测试显式禁用中间件（通过不配置API URL）"""
+        # 不配置 PROXY_API_URL
+        middleware = ProxyMiddleware(self.settings, "DEBUG")
+        self.assertFalse(middleware.enabled)
 
     def test_is_https_with_https_url(self):
         """测试HTTPS URL判断"""
@@ -117,6 +149,70 @@ class TestProxyMiddleware(unittest.TestCase):
         # 应该返回False
         self.assertFalse(middleware._is_https(request))
 
+    def test_proxy_extractor_field(self):
+        """测试字段名提取方式"""
+        self.settings.set('PROXY_API_URL', 'http://test.api/proxy')
+        self.settings.set('PROXY_EXTRACTOR', 'data')  # 从data字段提取
+        
+        middleware = ProxyMiddleware(self.settings, "DEBUG")
+        self.assertEqual(middleware.proxy_extractor, 'data')
+        
+        # 测试提取逻辑
+        data = {'data': 'http://proxy-from-data:8080'}
+        proxy = middleware._extract_proxy_from_data(data)
+        self.assertEqual(proxy, 'http://proxy-from-data:8080')
+
+    def test_proxy_extractor_dict_field(self):
+        """测试字典字段提取方式"""
+        self.settings.set('PROXY_API_URL', 'http://test.api/proxy')
+        self.settings.set('PROXY_EXTRACTOR', {'type': 'field', 'value': 'result'})
+        
+        middleware = ProxyMiddleware(self.settings, "DEBUG")
+        self.assertEqual(middleware.proxy_extractor['type'], 'field')
+        self.assertEqual(middleware.proxy_extractor['value'], 'result')
+        
+        # 测试提取逻辑
+        data = {'result': 'http://proxy-from-result:8080'}
+        proxy = middleware._extract_proxy_from_data(data)
+        self.assertEqual(proxy, 'http://proxy-from-result:8080')
+
+    def test_proxy_extractor_custom_function(self):
+        """测试自定义函数提取方式"""
+        def custom_extractor(data):
+            return data.get('custom_proxy')
+            
+        self.settings.set('PROXY_API_URL', 'http://test.api/proxy')
+        self.settings.set('PROXY_EXTRACTOR', {'type': 'custom', 'function': custom_extractor})
+        
+        middleware = ProxyMiddleware(self.settings, "DEBUG")
+        
+        # 测试提取逻辑
+        data = {'custom_proxy': 'http://proxy-from-custom:8080'}
+        proxy = middleware._extract_proxy_from_data(data)
+        self.assertEqual(proxy, 'http://proxy-from-custom:8080')
+
+    def test_proxy_extractor_callable(self):
+        """测试直接函数提取方式"""
+        def direct_extractor(data):
+            return data.get('direct_proxy')
+            
+        self.settings.set('PROXY_API_URL', 'http://test.api/proxy')
+        self.settings.set('PROXY_EXTRACTOR', direct_extractor)
+        
+        middleware = ProxyMiddleware(self.settings, "DEBUG")
+        
+        # 测试提取逻辑
+        data = {'direct_proxy': 'http://proxy-from-direct:8080'}
+        proxy = middleware._extract_proxy_from_data(data)
+        self.assertEqual(proxy, 'http://proxy-from-direct:8080')
+
+    def test_middleware_disabled_without_list(self):
+        """测试未配置代理列表时代理中间件禁用"""
+        # 不设置 PROXY_LIST 或设置为空列表
+        self.settings.set('PROXY_LIST', [])
+        from crawlo.middleware.proxy import ProxyMiddleware
+        middleware = ProxyMiddleware(self.settings, "DEBUG")
+        self.assertFalse(middleware.enabled)
 
 if __name__ == '__main__':
     unittest.main()

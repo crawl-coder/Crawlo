@@ -69,5 +69,14 @@ class StatsCollector(object):
                     # 同时更新_stats中的spider_name
                     self._stats['spider_name'] = spider_name
             
+            # 对统计信息中的浮点数进行四舍五入处理
+            formatted_stats = {}
+            for key, value in self._stats.items():
+                if isinstance(value, float):
+                    # 对浮点数进行四舍五入，保留2位小数
+                    formatted_stats[key] = round(value, 2)
+                else:
+                    formatted_stats[key] = value
+            
             # 输出统计信息（这是唯一输出统计信息的地方）
-            self.logger.info(f'{spider_name} stats: \n{pformat(self._stats)}')
+            self.logger.info(f'{spider_name} stats: \n{pformat(formatted_stats)}')

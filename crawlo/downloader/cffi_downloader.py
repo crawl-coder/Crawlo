@@ -22,7 +22,9 @@ class CurlCffiDownloader(DownloaderBase):
     """
 
     def __init__(self, crawler):
-        self.crawler = crawler
+        # 调用父类初始化方法，确保 _closed 等属性被正确初始化
+        super().__init__(crawler)
+        
         self.logger = get_logger(self.__class__.__name__, crawler.settings.get('LOG_LEVEL'))
         self._active_requests = set()
 

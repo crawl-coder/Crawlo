@@ -13,7 +13,12 @@ def crawler():
     class MockSettings:
         def get(self, key, default=None):
             defaults = {
-                'PROXY_ENABLED': True,
+                # 配置代理中间件
+                custom_settings = {
+                    # 高级代理配置（适用于ProxyMiddleware）
+                    # 只要配置了代理API URL，中间件就会自动启用
+                    'PROXY_API_URL': 'http://mock-proxy-service.com/api',
+                }
                 'PROXIES': ['http://p1:8080', 'http://p2:8080'],
                 'PROXY_SELECTION_STRATEGY': 'random',
                 'PROXY_REQUEST_DELAY_ENABLED': False,

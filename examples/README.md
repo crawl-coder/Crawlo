@@ -102,15 +102,6 @@ examples/
 │           ├── __init__.py
 │           └── OfweekSpider.py      # Ofweek 网站爬虫
 │
-├── simple_proxy_example/           # 简化版代理中间件使用示例
-│   ├── run.py                       # 启动脚本
-│   └── simple_proxy_example/
-│       ├── __init__.py
-│       ├── settings.py              # 简化版代理配置
-│       └── spiders/
-│           ├── __init__.py
-│           └── example_spider.py    # 示例爬虫
-│
 ├── advanced_tools_example/         # 高级工具使用示例
 │   ├── crawlo.cfg                   # 项目配置文件
 │   ├── run.py                       # 爬虫运行脚本
@@ -220,24 +211,6 @@ python run.py large_scale_helper  # 大规模爬虫辅助工具示例
 # 或者使用独立演示脚本
 python demo_tools.py           # 演示所有工具
 python demo_tools.py factory   # 演示特定工具
-```
-
-## 简化版代理中间件示例
-
-### 项目概述
-[simple_proxy_example](simple_proxy_example/) 演示了如何使用 Crawlo 框架的简化版代理中间件，对比复杂版代理中间件的优势。
-
-### 功能特点
-- 使用简单的代理列表配置
-- 轻量级实现，代码简洁
-- 易于配置和使用
-- 适用于只需要基本代理功能的场景
-
-### 运行方式
-```bash
-cd examples/simple_proxy_example
-# 修改 settings.py 中的 PROXY_LIST 配置
-python run.py
 ```
 
 ## 📚 相关文档
