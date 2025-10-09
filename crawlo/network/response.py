@@ -106,7 +106,7 @@ class Response:
     
     def _determine_encoding(self) -> str:
         """
-        智能检测响应编码（参考 Scrapy 设计）
+        智能检测响应编码
         
         编码检测优先级：
         1. Request 中指定的编码

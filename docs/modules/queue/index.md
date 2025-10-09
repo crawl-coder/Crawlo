@@ -1,93 +1,187 @@
 # 队列模块
 
-队列模块为在独立和分布式爬取模式下管理请求队列提供统一接口。它支持多种队列实现，并根据配置自动选择。
+队列模块是 Crawlo 框架中负责管理请求队列的核心组件。它提供了统一的队列接口，支持内存队列和 Redis 队列，是实现分布式爬取的关键模块。
 
-## 目录
-- [QueueManager](manager.md) - 统一队列管理系统
-- [内存队列](memory.md) - 内存队列实现
-- [Redis队列](redis.md) - 基于Redis的分布式队列
+## 模块概述
 
-## 概述
+队列模块采用抽象设计，通过队列管理器提供统一的接口来操作不同类型的队列。这种设计使得 Crawlo 能够在单机模式和分布式模式之间无缝切换。
 
-队列模块为管理请求队列提供一致的接口，无论底层实现如何。它支持独立模式的内存队列和分布式爬取的基于Redis的队列。
+### 核心组件
 
-## 架构
+1. [QueueManager](manager.md) - 统一队列管理器
+2. [MemoryQueue](memory.md) - 内存队列实现
+3. [RedisQueue](redis.md) - Redis 队列实现
+
+## 架构设计
 
 ```mermaid
-graph TD
-    A[队列管理器] --> B[队列类型.AUTO]
-    A --> C[队列类型.MEMORY]
-    A --> D[队列类型.REDIS]
-    C --> E[爬虫优先级队列]
-    D --> F[Redis优先级队列]
+graph TB
+subgraph "队列模块"
+BaseQueue[BaseQueue<br/>基础队列接口]
+MemoryQueue[MemoryQueue<br/>内存队列实现]
+RedisQueue[RedisQueue<br/>Redis队列实现]
+QueueManager[QueueManager<br/>队列管理器]
+end
+Scheduler[调度器] --> QueueManager
+QueueManager --> BaseQueue
+BaseQueue --> MemoryQueue
+BaseQueue --> RedisQueue
+style BaseQueue fill:#f9f,stroke:#333
+style Scheduler fill:#bbf,stroke:#333
 ```
-
-## 主要特性
-
-- **统一接口**：无论队列类型如何都有一致的API
-- **自动选择**：根据配置自动选择队列类型
-- **背压控制**：防止高负载场景下的队列溢出
-- **健康监控**：监控队列状态和性能
-- **优雅降级**：如果Redis不可用则回退到内存队列
 
 ## 队列类型
 
-### 内存队列
+### 内存队列 (MemoryQueue)
 
-- **使用场景**：独立爬取、开发、测试
-- **特性**：快速、轻量、无外部依赖
-- **限制**：不适用于分布式爬取
+**适用场景:**
+- 单机模式下的简单爬取任务
+- 开发和测试环境
+- 不需要持久化队列数据的场景
 
-### Redis队列
+**特点:**
+- 基于内存存储，访问速度快
+- 实现简单，资源消耗低
+- 不支持持久化，进程重启后数据丢失
 
-- **使用场景**：分布式爬取、生产环境
-- **特性**：跨多个节点共享、持久化、可扩展
-- **要求**：Redis服务器
+### Redis 队列 (RedisQueue)
 
-### 自动选择
+**适用场景:**
+- 分布式模式下的大规模爬取任务
+- 需要队列数据持久化的场景
+- 多节点协同工作的环境
 
-- **行为**：如果可用则自动选择Redis，否则回退到内存
-- **使用场景**：可在两种模式下工作的灵活部署
+**特点:**
+- 基于 Redis 存储，支持持久化
+- 支持分布式部署
+- 支持优先级队列
 
-## 配置
+## 队列管理器
 
-队列系统可以在项目的[settings.py](https://github.com/crawl-coder/Crawlo/blob/master/examples/api_data_collection/api_data_collection/settings.py)中配置：
+[QueueManager](manager.md) 是队列模块的核心，负责根据配置创建和管理相应的队列实例。
 
-```python
-# 队列类型选择
-QUEUE_TYPE = 'auto'  # 'auto', 'memory', 或 'redis'
+### 主要功能
 
-# 内存队列设置
-SCHEDULER_MAX_QUEUE_SIZE = 2000
+1. **队列创建** - 根据配置创建合适的队列实例
+2. **队列代理** - 代理所有队列操作到实际的队列实例
+3. **配置管理** - 管理队列相关的配置参数
 
-# Redis队列设置
-REDIS_HOST = '127.0.0.1'
-REDIS_PORT = 6379
-REDIS_PASSWORD = ''
-SCHEDULER_QUEUE_NAME = 'crawlo:myproject:queue:requests'
-QUEUE_MAX_RETRIES = 3
-QUEUE_TIMEOUT = 300
-```
-
-## 使用示例
+### 使用示例
 
 ```python
-from crawlo.queue import QueueManager, QueueConfig
+from crawlo.queue import QueueManager
+from crawlo.config import CrawloConfig
 
-# 创建队列配置
-config = QueueConfig(
-    queue_type='auto',
-    redis_url='redis://localhost:6379',
-    queue_name='crawlo:myproject:queue:requests'
-)
+# 创建配置
+config = CrawloConfig.standalone(queue_type='memory')
 
-# 初始化队列管理器
+# 创建队列管理器
 queue_manager = QueueManager(config)
-await queue_manager.initialize()
+
+# 获取队列实例
+queue = queue_manager.get_queue()
 
 # 使用队列
-await queue_manager.put(request)
-request = await queue_manager.get()
+queue.enqueue_request(request)
+request = queue.next_request()
 ```
 
-有关每个队列实现的详细信息，请参阅单独的文档页面。
+## 配置选项
+
+队列模块的行为可以通过以下配置项进行调整：
+
+| 配置项 | 类型 | 默认值 | 说明 |
+|--------|------|--------|------|
+| QUEUE_TYPE | str | 'memory' | 队列类型（memory/redis） |
+| SCHEDULER_MAX_QUEUE_SIZE | int | 10000 | 调度器最大队列大小 |
+| REDIS_HOST | str | '127.0.0.1' | Redis 主机地址 |
+| REDIS_PORT | int | 6379 | Redis 端口 |
+| REDIS_PASSWORD | str | None | Redis 密码 |
+| REDIS_DB | int | 0 | Redis 数据库编号 |
+| QUEUE_PERSISTENCE | bool | True | 是否启用队列持久化 |
+
+## 性能优化
+
+### 内存队列优化
+
+```python
+# 限制队列大小防止内存溢出
+SCHEDULER_MAX_QUEUE_SIZE = 50000
+
+# 使用高效的内存数据结构
+# 内部使用 collections.deque 实现队列
+```
+
+### Redis 队列优化
+
+```python
+# 配置连接池
+REDIS_CONNECTION_POOL_SIZE = 20
+
+# 使用管道批量操作
+# 内部使用 Redis pipeline 提高性能
+```
+
+## 错误处理
+
+### 连接异常处理
+
+```python
+try:
+    queue.enqueue_request(request)
+except QueueConnectionException:
+    logger.error("队列连接失败")
+    # 可以选择重试或使用备用队列
+```
+
+### 队列满异常处理
+
+```python
+try:
+    queue.enqueue_request(request)
+except QueueFullException:
+    logger.warning("队列已满，等待处理")
+    # 可以选择等待或丢弃请求
+```
+
+## 监控和日志
+
+队列模块集成了详细的监控和日志功能：
+
+```python
+# 记录队列操作日志
+logger.info(f"请求入队: {request.url}")
+logger.debug(f"当前队列大小: {queue.size()}")
+
+# 记录异常日志
+logger.error(f"队列操作失败: {e}")
+```
+
+## 最佳实践
+
+### 根据模式选择队列类型
+
+```python
+# 单机模式使用内存队列
+config = CrawloConfig.standalone(queue_type='memory')
+
+# 分布式模式使用 Redis 队列
+config = CrawloConfig.distributed(queue_type='redis')
+```
+
+### 合理配置队列大小
+
+```python
+# 小规模爬取任务
+SCHEDULER_MAX_QUEUE_SIZE = 1000
+
+# 大规模爬取任务
+SCHEDULER_MAX_QUEUE_SIZE = 100000
+```
+
+### 启用队列持久化
+
+```python
+# 启用 Redis 队列持久化
+QUEUE_PERSISTENCE = True
+```

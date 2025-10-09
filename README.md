@@ -44,6 +44,8 @@ class MySpider(Spider):
 # crawlo run example
 ```
 
+更多示例请查看 [examples](examples/) 目录。
+
 ## Response 对象功能
 
 Crawlo 框架对 Response 对象进行了增强，提供了更多便捷方法：
@@ -82,7 +84,7 @@ class MySpider(Spider):
 
 ### 编码检测优化
 
-Crawlo 框架参考 Scrapy 的设计模式对 Response 对象的编码检测功能进行了优化，提供了更准确和可靠的编码检测：
+Crawlo 框架对 Response 对象的编码检测功能进行了优化，提供了更准确和可靠的编码检测：
 
 ```python
 class MySpider(Spider):
@@ -250,13 +252,13 @@ pip install concurrent-log-handler
 Crawlo 框架会自动检测并使用这个库来提供更好的 Windows 兼容性。
 
 如果未安装 `concurrent-log-handler`，在 Windows 上运行时可能会出现以下错误：
-```
+```bash
 PermissionError: [WinError 32] 另一个程序正在使用此文件，进程无法访问。
 ```
 
 ## 爬虫自动发现
 
-Crawlo 框架支持通过 `SPIDER_MODULES` 配置自动发现和加载爬虫，类似于 Scrapy 的机制：
+Crawlo 框架支持通过 `SPIDER_MODULES` 配置自动发现和加载爬虫，类似于其他主流爬虫框架的机制：
 
 ```python
 # settings.py
@@ -272,7 +274,76 @@ SPIDER_LOADER_WARN_ONLY = True  # 加载错误时只警告不报错
 
 ## 文档
 
-请查看 [文档](https://your-docs-url.com) 获取更多信息。
+请查看 [文档](http://localhost:8000) 获取更多信息。
+
+构建文档:
+```bash
+mkdocs serve
+```
+
+然后在浏览器中打开 http://localhost:8000 查看文档。
+
+您也可以查看在线文档：
+- [中文文档](https://crawlo.readthedocs.io/zh/latest/)
+- [English Documentation](https://crawlo.readthedocs.io/en/latest/)
+
+## 文档目录
+
+### 核心概念
+- [架构概述](docs/modules/architecture/index.md) - Crawlo 的整体架构设计
+- [运行模式](docs/modules/architecture/modes.md) - 单机与分布式模式详解
+- [配置系统](docs/modules/configuration/index.md) - 配置管理与验证
+
+### 核心模块
+- [引擎 (Engine)](docs/modules/core/engine.md) - 爬取过程的核心协调器
+- [调度器 (Scheduler)](docs/modules/core/scheduler.md) - 请求队列与去重管理
+- [处理器 (Processor)](docs/modules/core/processor.md) - 响应处理与数据提取
+- [爬虫基类 (Spider)](docs/modules/core/spider.md) - 爬虫基础类与生命周期
+
+### 功能模块
+- [下载器 (Downloader)](docs/modules/downloader/index.md) - HTTP 客户端实现
+- [队列 (Queue)](docs/modules/queue/index.md) - 请求队列管理
+- [过滤器 (Filter)](docs/modules/filter/index.md) - 请求去重功能
+- [中间件 (Middleware)](docs/modules/middleware/index.md) - 请求/响应处理组件
+- [管道 (Pipeline)](docs/modules/pipeline/index.md) - 数据处理和存储组件
+- [扩展 (Extension)](docs/modules/extension/index.md) - 附加功能和监控组件
+
+### 命令行工具
+- [CLI 概述](docs/modules/cli/index.md) - 命令行工具使用指南
+- [startproject](docs/modules/cli/startproject.md) - 项目初始化命令
+- [genspider](docs/modules/cli/genspider.md) - 爬虫生成命令
+- [run](docs/modules/cli/run.md) - 爬虫运行命令
+- [list](docs/modules/cli/list.md) - 查看爬虫列表
+- [check](docs/modules/cli/check.md) - 配置检查命令
+- [stats](docs/modules/cli/stats.md) - 统计信息查看
+
+### 高级主题
+- [分布式部署](docs/modules/advanced/distributed.md) - 分布式爬取配置与部署
+- [性能优化](docs/modules/advanced/performance.md) - 性能调优指南
+- [故障排除](docs/modules/advanced/troubleshooting.md) - 常见问题与解决方案
+- [最佳实践](docs/modules/advanced/best_practices.md) - 开发最佳实践
+
+### API 参考
+- [完整 API 文档](docs/api/) - 详细的类和方法参考
+
+## 学习路径
+
+如果您是 Crawlo 的新用户，建议按以下顺序学习：
+
+1. **入门** - 阅读快速开始指南，运行第一个示例
+2. **核心概念** - 了解框架架构和基本概念
+3. **核心模块** - 深入学习引擎、调度器、处理器等核心组件
+4. **功能模块** - 根据需求学习下载器、队列、过滤器等模块
+5. **高级主题** - 掌握分布式部署、性能优化等高级功能
+
+## 贡献
+
+我们欢迎社区贡献！如果您想为 Crawlo 做出贡献：
+
+1. Fork 项目仓库
+2. 创建功能分支
+3. 提交您的更改
+4. 发起 Pull Request
 
 ## 许可证
 

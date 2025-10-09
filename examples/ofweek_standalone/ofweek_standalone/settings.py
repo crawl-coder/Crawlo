@@ -42,10 +42,10 @@ SPIDER_MODULES = ['ofweek_standalone.spiders']
 
 # 数据管道
 # 如需添加自定义管道，请取消注释并添加
-PIPELINES = [
-    'crawlo.pipelines.mysql_pipeline.AsyncmyMySQLPipeline',  # MySQL 存储（使用asyncmy异步库）
-    # 'ofweek_standalone.pipelines.CustomPipeline',  # 用户自定义管道示例
-]
+# PIPELINES = [
+#     'crawlo.pipelines.mysql_pipeline.AsyncmyMySQLPipeline',  # MySQL 存储（使用asyncmy异步库）
+#     # 'ofweek_standalone.pipelines.CustomPipeline',  # 用户自定义管道示例
+# ]
 
 # =================================== 系统配置 ===================================
 

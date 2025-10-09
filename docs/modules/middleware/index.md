@@ -1,116 +1,258 @@
 # 中间件模块
 
-中间件模块提供了一个灵活的系统，用于在爬取过程中处理请求和响应。中间件组件可以在请求发送前修改请求，接收响应后处理响应，并处理下载过程中发生的异常。
+中间件模块是 Crawlo 框架中负责处理请求和响应的组件。它提供了一个钩子机制，允许用户在请求发送前和响应返回后执行自定义逻辑。
 
-## 目录
-- [MiddlewareManager](manager.md) - 核心中间件管理系统
-- [内置中间件](built_in.md) - 内置中间件组件概述
-- [代理中间件](proxy.md) - 代理中间件详细说明
+## 模块概述
 
-## 概述
+中间件模块采用插件化设计，支持多种中间件实现。用户可以通过配置中间件列表来扩展框架功能，实现请求处理、响应处理、错误处理等自定义逻辑。
 
-中间件组件是一个强大功能，允许您在请求/响应处理周期的各个阶段插入自定义逻辑。它们提供以下钩子：
+### 核心组件
 
-1. **请求处理**：在请求发送到下载器之前修改请求
-2. **响应处理**：在响应接收后处理响应
-3. **异常处理**：处理下载过程中发生的异常
+1. [MiddlewareManager](manager.md) - 中间件管理器
+2. [内置中间件](built_in.md) - 框架提供的内置中间件
+3. [自定义中间件](custom.md) - 用户自定义的中间件
 
-## 架构
+## 架构设计
 
 ```mermaid
-graph TD
-    A[引擎] --> B[中间件管理器]
-    B --> C[请求处理链]
-    B --> D[响应处理链]
-    B --> E[异常处理链]
-    C --> F[下载器]
-    F --> D
-    F --> E
+graph TB
+subgraph "中间件模块"
+MiddlewareBase[MiddlewareBase<br/>基础中间件类]
+UserAgentMiddleware[UserAgentMiddleware<br/>用户代理中间件]
+ProxyMiddleware[ProxyMiddleware<br/>代理中间件]
+RetryMiddleware[RetryMiddleware<br/>重试中间件]
+CustomMiddleware[CustomMiddleware<br/>自定义中间件]
+MiddlewareManager[MiddlewareManager<br/>中间件管理器]
+end
+Engine[引擎] --> MiddlewareManager
+Downloader[下载器] --> MiddlewareManager
+MiddlewareManager --> MiddlewareBase
+MiddlewareBase --> UserAgentMiddleware
+MiddlewareBase --> ProxyMiddleware
+MiddlewareBase --> RetryMiddleware
+MiddlewareBase --> CustomMiddleware
+style MiddlewareBase fill:#f9f,stroke:#333
+style Engine fill:#bbf,stroke:#333
+style Downloader fill:#6f9,stroke:#333
 ```
 
-## 主要特性
+## 中间件类型
 
-- **链式处理**：多个中间件组件可以链接在一起
-- **灵活钩子**：钩入请求、响应和异常处理
-- **易于配置**：通过设置启用/禁用中间件
-- **性能优化**：异步处理，开销最小
+### UserAgentMiddleware
 
-## 内置中间件
+**功能:**
+- 为请求添加用户代理头部
+- 支持随机用户代理
 
-Crawlo提供了几个内置中间件组件：
-
-| 中间件 | 用途 |
-|--------|------|
-| `RequestIgnoreMiddleware` | 过滤不需要的请求 |
-| `DownloadDelayMiddleware` | 在请求之间添加延迟 |
-| `DefaultHeaderMiddleware` | 为请求添加默认头部 |
-| `ProxyMiddleware` | 处理代理配置（复杂版） |
-| `SimpleProxyMiddleware` | 处理代理配置（简化版） |
-| `RetryMiddleware` | 为失败请求实现重试逻辑 |
-| `ResponseCodeMiddleware` | 处理HTTP响应码 |
-
-## 配置
-
-中间件组件在项目的[settings.py](https://github.com/crawl-coder/Crawlo/blob/master/examples/api_data_collection/api_data_collection/settings.py)中配置：
-
+**配置选项:**
 ```python
-MIDDLEWARES = [
-    'crawlo.middleware.request_ignore.RequestIgnoreMiddleware',
-    'crawlo.middleware.download_delay.DownloadDelayMiddleware',
-    'crawlo.middleware.default_header.DefaultHeaderMiddleware',
-    # 选择使用复杂版或简化版代理中间件
-    # 'crawlo.middleware.proxy.ProxyMiddleware',        # 复杂版代理中间件
-    'crawlo.middleware.simple_proxy.SimpleProxyMiddleware',  # 简化版代理中间件
-    'crawlo.middleware.retry.RetryMiddleware',
-    'crawlo.middleware.response_code.ResponseCodeMiddleware',
+# 设置用户代理
+USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+
+# 使用随机用户代理
+RANDOM_USER_AGENT = True
+```
+
+### ProxyMiddleware
+
+**功能:**
+- 为请求添加代理支持
+- 支持代理轮换
+
+**配置选项:**
+```python
+# 设置代理
+PROXY = 'http://127.0.0.1:8080'
+
+# 使用代理列表
+PROXY_LIST = [
+    'http://proxy1:8080',
+    'http://proxy2:8080',
+    'http://proxy3:8080'
 ]
 ```
 
-## 中间件处理流程
+### RetryMiddleware
 
-1. **请求处理**：按顺序调用每个中间件的[process_request](https://github.com/crawl-coder/Crawlo/blob/master/crawlo/middleware/base.py#L22)方法
-2. **下载**：请求发送到下载器
-3. **响应处理**：按相反顺序调用每个中间件的[process_response](https://github.com/crawl-coder/Crawlo/blob/master/crawlo/middleware/base.py#L28)方法
-4. **异常处理**：如果发生异常，则调用[process_exception](https://github.com/crawl-coder/Crawlo/blob/master/crawlo/middleware/base.py#L35)方法
+**功能:**
+- 自动重试失败的请求
+- 支持多种重试条件
 
-## 代理中间件选择指南
-
-Crawlo框架提供了两种代理中间件实现：
-
-1. **ProxyMiddleware（复杂版）**：
-   - 动态从API获取代理
-   - 代理池管理
-   - 健康检查和成功率统计
-   - 复杂的代理提取逻辑
-   - 适用于需要高级代理管理功能的场景
-
-2. **SimpleProxyMiddleware（简化版）**：
-   - 基于固定代理列表的简单实现
-   - 轻量级，代码简洁
-   - 易于配置和使用
-   - 适用于只需要基本代理功能的场景
-
-详细信息请参阅[代理中间件文档](proxy.md)。
-
-## 创建自定义中间件
-
-要创建自定义中间件，请继承[BaseMiddleware](https://github.com/crawl-coder/Crawlo/blob/master/crawlo/middleware/base.py#L9)并实现所需的方法：
-
+**配置选项:**
 ```python
-from crawlo.middleware import BaseMiddleware
+# 设置最大重试次数
+MAX_RETRY_TIMES = 3
 
-class CustomMiddleware(BaseMiddleware):
-    def process_request(self, request, spider):
-        # 在发送前修改请求
-        return None  # 继续处理
-    
-    def process_response(self, request, response, spider):
-        # 接收后处理响应
-        return response  # 返回处理后的响应
-    
-    def process_exception(self, request, exception, spider):
-        # 处理异常
-        return None  # 让异常传播
+# 设置重试状态码
+RETRY_STATUS_CODES = [500, 502, 503, 504, 429]
 ```
 
-有关中间件管理器和特定中间件实现的详细信息，请参阅单独的文档页面。
+## 配置选项
+
+中间件模块的行为可以通过以下配置项进行调整：
+
+| 配置项 | 类型 | 默认值 | 说明 |
+|--------|------|--------|------|
+| MIDDLEWARES | list | [] | 中间件列表 |
+| USER_AGENT | str | '' | 用户代理字符串 |
+| RANDOM_USER_AGENT | bool | False | 是否使用随机用户代理 |
+| PROXY | str | None | 代理地址 |
+| PROXY_LIST | list | [] | 代理列表 |
+| MAX_RETRY_TIMES | int | 3 | 最大重试次数 |
+| RETRY_STATUS_CODES | list | [500, 502, 503, 504, 429] | 重试状态码 |
+
+## 使用示例
+
+### 配置中间件
+
+```python
+# 在配置文件中配置中间件
+MIDDLEWARES = [
+    'crawlo.middleware.UserAgentMiddleware',
+    'crawlo.middleware.ProxyMiddleware',
+    'crawlo.middleware.RetryMiddleware',
+]
+
+# 配置中间件参数
+USER_AGENT = 'MyCrawler/1.0'
+PROXY = 'http://proxy.example.com:8080'
+MAX_RETRY_TIMES = 5
+```
+
+### 创建自定义中间件
+
+```python
+from crawlo.middleware import MiddlewareBase
+
+class CustomMiddleware(MiddlewareBase):
+    def process_request(self, request, spider):
+        """处理请求"""
+        # 在请求发送前执行自定义逻辑
+        request.headers['X-Custom-Header'] = 'custom-value'
+        return request
+    
+    def process_response(self, request, response, spider):
+        """处理响应"""
+        # 在响应返回后执行自定义逻辑
+        if response.status_code == 403:
+            # 处理 403 错误
+            self.logger.warning(f"访问被拒绝: {request.url}")
+        return response
+    
+    def process_exception(self, request, exception, spider):
+        """处理异常"""
+        # 处理请求异常
+        self.logger.error(f"请求异常: {request.url}, 错误: {exception}")
+        return None
+```
+
+## 执行顺序
+
+中间件按照配置列表中的顺序执行：
+
+1. **请求处理阶段** - 从上到下执行 [process_request](../../api/crawlo_middleware.md#process_request) 方法
+2. **响应处理阶段** - 从下到上执行 [process_response](../../api/crawlo_middleware.md#process_response) 方法
+3. **异常处理阶段** - 从下到上执行 [process_exception](../../api/crawlo_middleware.md#process_exception) 方法
+
+## 性能优化
+
+### 中间件选择
+
+```python
+# 只配置需要的中间件
+MIDDLEWARES = [
+    'crawlo.middleware.UserAgentMiddleware',  # 只有需要时才配置
+    'crawlo.middleware.RetryMiddleware',      # 只有需要重试时才配置
+]
+```
+
+### 异步支持
+
+```python
+class AsyncMiddleware(MiddlewareBase):
+    async def process_request(self, request, spider):
+        """异步处理请求"""
+        # 异步操作
+        await self.async_operation()
+        return request
+```
+
+## 错误处理
+
+### 中间件异常处理
+
+```python
+def process_request(self, request, spider):
+    try:
+        # 处理逻辑
+        return request
+    except Exception as e:
+        self.logger.error(f"中间件处理失败: {e}")
+        # 可以选择继续处理或抛出异常
+        return request
+```
+
+## 监控和日志
+
+中间件模块集成了详细的监控和日志功能：
+
+```python
+# 记录中间件操作日志
+logger.info(f"中间件处理请求: {request.url}")
+logger.debug(f"中间件添加头部: {request.headers}")
+
+# 记录异常日志
+logger.error(f"中间件执行失败: {e}")
+```
+
+## 最佳实践
+
+### 合理配置中间件
+
+```python
+# 生产环境配置
+MIDDLEWARES = [
+    'crawlo.middleware.UserAgentMiddleware',
+    'crawlo.middleware.ProxyMiddleware',
+    'crawlo.middleware.RetryMiddleware',
+]
+
+# 开发环境配置
+MIDDLEWARES = [
+    'crawlo.middleware.UserAgentMiddleware',
+]
+```
+
+### 中间件性能优化
+
+```python
+class EfficientMiddleware(MiddlewareBase):
+    def __init__(self, settings):
+        super().__init__(settings)
+        # 预处理配置，避免重复计算
+        self.cached_data = self.preprocess_settings()
+    
+    def process_request(self, request, spider):
+        # 使用缓存数据，避免重复计算
+        request.metadata['cached'] = self.cached_data
+        return request
+```
+
+### 异常处理最佳实践
+
+```python
+def process_exception(self, request, exception, spider):
+    """处理异常的最佳实践"""
+    # 记录详细错误信息
+    self.logger.error(f"请求失败: {request.url}", exc_info=True)
+    
+    # 根据异常类型采取不同措施
+    if isinstance(exception, asyncio.TimeoutError):
+        # 超时异常处理
+        request.retry_times += 1
+        if request.retry_times < self.settings.MAX_RETRY_TIMES:
+            return request  # 重新入队重试
+    
+    # 其他异常直接返回 None，不重试
+    return None
+```

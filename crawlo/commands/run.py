@@ -89,7 +89,7 @@ def main(args):
     """
     主函数：运行指定爬虫
     用法:
-        crawlo run <spider_name>|all [--json] [--no-stats]
+        crawlo run <spider_name>|all [--json] [--no-stats] [--log-level LEVEL] [--config CONFIG] [--concurrency NUM]
     """
     # 确保框架已初始化
     init_manager = get_framework_initializer()
@@ -99,7 +99,7 @@ def main(args):
 
     if len(args) < 1:
         console.print(
-            "[bold red]用法:[/bold red] [blue]crawlo run[/blue] <爬虫名称>|all [bold yellow][--json] [--no-stats][/bold yellow]")
+            "[bold red]用法:[/bold red] [blue]crawlo run[/blue] <爬虫名称>|all [bold yellow][--json] [--no-stats] [--log-level LEVEL] [--config CONFIG] [--concurrency NUM][/bold yellow]")
         console.print("示例:")
         console.print("   [blue]crawlo run baidu[/blue]")
         console.print("   [blue]crawlo run all[/blue]")
@@ -110,6 +110,36 @@ def main(args):
     spider_arg = args[0]
     show_json = "--json" in args
     no_stats = "--no-stats" in args
+    
+    # 解析日志级别参数
+    log_level = None
+    if "--log-level" in args:
+        try:
+            log_level_index = args.index("--log-level")
+            if log_level_index + 1 < len(args):
+                log_level = args[log_level_index + 1]
+        except (ValueError, IndexError):
+            pass
+    
+    # 解析配置文件参数
+    config_file = None
+    if "--config" in args:
+        try:
+            config_index = args.index("--config")
+            if config_index + 1 < len(args):
+                config_file = args[config_index + 1]
+        except (ValueError, IndexError):
+            pass
+    
+    # 解析并发数参数
+    concurrency = None
+    if "--concurrency" in args:
+        try:
+            concurrency_index = args.index("--concurrency")
+            if concurrency_index + 1 < len(args):
+                concurrency = int(args[concurrency_index + 1])
+        except (ValueError, IndexError, TypeError):
+            pass
 
     try:
         # 1. 查找项目根目录
@@ -171,7 +201,14 @@ def main(args):
                 return 1
 
         # 4. 启动框架并加载 settings
-        settings = initialize_framework()
+        # 如果指定了日志级别，则添加到自定义设置中
+        custom_settings = {}
+        if log_level:
+            custom_settings['LOG_LEVEL'] = log_level
+        if concurrency:
+            custom_settings['CONCURRENCY'] = concurrency
+        
+        settings = initialize_framework(custom_settings if custom_settings else None)
 
         # 检查Redis连接（如果是分布式模式）
         if not check_redis_connection(settings):

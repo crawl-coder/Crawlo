@@ -185,7 +185,7 @@ class MemoryFileFilter(BaseFilter):
     def __init__(self, crawler):
         """
         初始化过滤器
-        :param crawler: Scrapy Crawler对象，用于获取配置
+        :param crawler: 爬虫框架Crawler对象，用于获取配置
         """
         self.fingerprints: Set[str] = set()  # 主存储集合
         self._lock = threading.RLock()  # 线程安全锁

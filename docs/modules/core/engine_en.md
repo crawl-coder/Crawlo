@@ -1,118 +1,283 @@
 # Engine
 
-The Engine is the central component of the Crawlo framework that coordinates the entire crawling process. It manages the interaction between the scheduler, downloader, and processor components.
+The engine is the core coordinator of the Crawlo framework, responsible for scheduling requests, managing downloads and processing flows, and serves as the central execution unit of the entire crawling process.
 
 ## Overview
 
-The Engine serves as the orchestrator for all crawling activities. It is responsible for:
+The engine acts as the core execution unit of Crawlo, driving the crawling process by coordinating request fetching, response processing, and item processing. It is the central hub connecting the scheduler, downloader, and processor, ensuring data flows correctly between components.
 
-- Initializing and managing the crawling lifecycle
-- Coordinating between different components (scheduler, downloader, processor)
-- Handling request scheduling and response processing
-- Managing concurrency and backpressure
-- Tracking statistics and performance metrics
+### Core Responsibilities
 
-## Architecture
+1. **Request Scheduling** - Get the next request to process from the scheduler
+2. **Page Downloading** - Call the downloader to fetch web content
+3. **Response Processing** - Pass the downloaded response to the processor for parsing
+4. **Task Management** - Manage concurrent tasks and resource allocation
+5. **Lifecycle Management** - Control the spider's start, run, and close processes
 
-The Engine follows a modular design where it delegates specific responsibilities to specialized components:
+## Class Structure
 
 ```mermaid
-graph TD
-    A[Engine] --> B[Scheduler]
-    A --> C[Downloader]
-    A --> D[Processor]
-    E[Spider] --> A
-    B --> F[Request Queue]
-    C --> G[HTTP Client]
-    D --> H[Data Pipeline]
+classDiagram
+class Engine {
++running : bool
++normal : bool
++crawler : Crawler
++settings : Settings
++spider : Spider
++downloader : DownloaderBase
++scheduler : Scheduler
++processor : Processor
++task_manager : TaskManager
++engine_start()
++start_spider(spider)
++crawl()
++_crawl(request)
++_fetch(request)
++enqueue_request(request)
++_schedule_request(request)
++_get_next_request()
++_handle_spider_output(outputs)
++close_spider()
+}
+class Crawler {
++settings : Settings
++subscriber : Subscriber
++close()
+}
+class Scheduler {
++enqueue_request(request)
++next_request()
++idle()
++close()
+}
+class DownloaderBase {
++fetch(request)
++idle()
++close()
+}
+class Processor {
++enqueue(output)
++idle()
++open()
++close()
+}
+class TaskManager {
++create_task(coro)
++all_done()
+}
+Engine --> Crawler : "Holds"
+Engine --> Scheduler : "Uses"
+Engine --> DownloaderBase : "Uses"
+Engine --> Processor : "Uses"
+Engine --> TaskManager : "Uses"
 ```
 
-## Key Features
-
-### Concurrency Management
-
-The Engine manages concurrent operations through a task manager that respects the configured concurrency limits:
-
-```python
-# Configuration
-CONCURRENCY = 16  # Maximum concurrent requests
-```
-
-### Backpressure Control
-
-The Engine implements backpressure mechanisms to prevent overwhelming the system:
-
-- Queue size monitoring
-- Request generation throttling
-- Dynamic adjustment based on system load
+## Workflow
 
 ### Request Processing Flow
 
-1. **Request Generation**: The Engine processes start requests from spiders
-2. **Request Scheduling**: Requests are enqueued through the scheduler
-3. **Request Fetching**: The downloader fetches requests from the queue
-4. **Response Processing**: Responses are processed by the processor
-5. **Item Handling**: Extracted items are passed through the pipeline
+```mermaid
+sequenceDiagram
+participant Engine as "Engine"
+participant Scheduler as "Scheduler"
+participant Downloader as "Downloader"
+participant Spider as "Spider"
+participant Processor as "Processor"
+Engine->>Scheduler : Get next request
+Scheduler-->>Engine : Return request
+Engine->>Downloader : Initiate download
+Downloader-->>Engine : Return response
+Engine->>Spider : Call parsing function
+Spider-->>Engine : Generate output requests/items
+Engine->>Processor : Submit output
+Processor->>Processor : Distribute to pipelines
+```
 
-## API Reference
+### Startup Flow
 
-### `Engine(crawler)`
+1. **Initialization** - Create engine instance and initialize related components
+2. **Start Spider** - Call [start_spider()](#start_spider) method to start the specified spider
+3. **Engine Start** - Call [engine_start()](#engine_start) method to start the engine main loop
+4. **Task Execution** - Continuously get requests, download pages, and process responses in the main loop
+5. **Shutdown Process** - Execute shutdown process after crawling is complete to release resources
 
-Creates a new Engine instance.
+## Core Methods
+
+### engine_start()
+
+Start the engine main loop to begin processing requests.
+
+```python
+async def engine_start(self):
+    """Start the engine main loop"""
+    self.running = True
+    while self.running:
+        # Get the next request
+        request = await self._get_next_request()
+        if request:
+            # Process request
+            await self._crawl(request)
+        else:
+            # Check if all tasks are complete
+            if self.task_manager.all_done():
+                break
+            # Wait for a while and retry
+            await asyncio.sleep(0.1)
+```
+
+### start_spider(spider)
+
+Start the specified spider instance.
 
 **Parameters:**
-- `crawler`: The crawler instance that owns this engine
+- `spider` - The spider instance to start
 
-### `async start_spider(spider)`
+### crawl()
 
-Initializes the engine components for a specific spider.
+Start the crawling process and handle initial requests.
+
+### _crawl(request)
+
+Process the complete flow of a single request.
 
 **Parameters:**
-- `spider`: The spider instance to start
+- `request` - The request object to process
 
-### `async crawl()`
+### _fetch(request)
 
-Starts the crawling process. This method runs the main crawling loop that:
-- Fetches requests from the scheduler
-- Processes responses through the downloader and processor
-- Continues until all work is completed
+Get the response for the specified request.
 
-### `async close_spider()`
+**Parameters:**
+- `request` - The request object to get response for
 
-Cleans up resources and closes all components when crawling is finished.
+**Returns:**
+- Response object
+
+### enqueue_request(request)
+
+Add a request to the scheduler queue.
+
+**Parameters:**
+- `request` - The request object to queue
+
+### _get_next_request()
+
+Get the next request to process from the scheduler.
+
+**Returns:**
+- The next request object, or None if no requests available
 
 ## Configuration Options
 
-The Engine can be configured through various settings:
+The engine's behavior can be adjusted through the following configuration options:
 
-| Setting | Description | Default |
-|---------|-------------|---------|
-| `CONCURRENCY` | Maximum concurrent requests | 8 |
-| `DOWNLOAD_DELAY` | Delay between requests | 1.0 |
-| `SCHEDULER_MAX_QUEUE_SIZE` | Maximum queue size | 2000 |
-| `BACKPRESSURE_RATIO` | Queue fullness threshold for backpressure | 0.8 |
+| Configuration Item | Type | Default Value | Description |
+|--------------------|------|---------------|-------------|
+| CONCURRENCY | int | 16 | Concurrent requests |
+| DOWNLOAD_DELAY | float | 0.5 | Download delay (seconds) |
+| DOWNLOAD_TIMEOUT | int | 30 | Download timeout (seconds) |
+| MAX_RETRY_TIMES | int | 3 | Maximum retry times |
 
-## Example Usage
+## Performance Optimization
+
+### Concurrency Control
+
+The engine controls concurrent requests through the task manager to avoid putting excessive pressure on the target website:
 
 ```python
-from crawlo.core.engine import Engine
-
-# Create engine instance
-engine = Engine(crawler)
-
-# Start spider
-await engine.start_spider(my_spider)
-
-# Begin crawling
-await engine.crawl()
-
-# Cleanup
-await engine.close_spider()
+# Limit concurrency
+semaphore = asyncio.Semaphore(self.settings.CONCURRENCY)
+async with semaphore:
+    response = await self._fetch(request)
 ```
 
-## Performance Considerations
+### Backpressure Mechanism
 
-- Monitor queue sizes to avoid memory issues
-- Adjust concurrency settings based on target server capacity
-- Use appropriate download delays to be respectful to servers
-- Enable statistics collection for performance monitoring
+When the task manager is overloaded, the engine automatically pauses request generation:
+
+```python
+# Check task manager status
+if not self.task_manager.all_done():
+    # Wait for tasks to complete
+    await self.task_manager.wait_for_done()
+```
+
+## Error Handling
+
+### Exception Capture
+
+The engine captures and handles various exceptions when processing requests:
+
+```python
+try:
+    response = await self._fetch(request)
+except asyncio.TimeoutError:
+    # Handle timeout
+    self.logger.warning(f"Request timeout: {request.url}")
+except Exception as e:
+    # Handle other exceptions
+    self.logger.error(f"Request failed: {request.url}, Error: {e}")
+```
+
+### Retry Mechanism
+
+For failed requests, the engine supports automatic retry:
+
+```python
+# Increase retry count
+request.retry_times += 1
+if request.retry_times < self.settings.MAX_RETRY_TIMES:
+    # Re-queue
+    await self.enqueue_request(request)
+else:
+    # Log failed request
+    self.logger.error(f"Request retry limit reached: {request.url}")
+```
+
+## Monitoring and Logging
+
+The engine integrates detailed logging and monitoring features:
+
+```python
+# Log request processing
+self.logger.info(f"Starting to process request: {request.url}")
+self.logger.debug(f"Request details: {request.to_dict()}")
+
+# Log response information
+self.logger.info(f"Response status code: {response.status_code}")
+self.logger.debug(f"Response content size: {len(response.content)} bytes")
+```
+
+## Best Practices
+
+### Reasonable Concurrency Configuration
+
+Set appropriate concurrency based on the target website's capacity and local resources:
+
+```python
+# For high-load websites, reduce concurrency
+config = CrawloConfig.standalone(concurrency=5)
+
+# For low-load websites, increase concurrency
+config = CrawloConfig.standalone(concurrency=20)
+```
+
+### Set Appropriate Delays
+
+Set download delays to avoid putting excessive pressure on the target website:
+
+```python
+# Set 1 second delay
+config = CrawloConfig.standalone(download_delay=1.0)
+```
+
+### Monitor Engine Status
+
+Regularly monitor engine runtime status and performance metrics:
+
+```python
+# Get engine status
+status = engine.get_status()
+print(f"Current concurrency: {status['concurrency']}")
+print(f"Pending requests: {status['pending_requests']}")
+```

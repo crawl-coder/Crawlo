@@ -1,72 +1,184 @@
 # Downloader Module
 
-The downloader module provides multiple high-performance asynchronous downloaders for fetching web content. It supports various protocols and technologies to handle different types of web content.
+The downloader module is the core component in the Crawlo framework responsible for fetching web content. It provides multiple HTTP client implementations to support different use cases and requirements.
 
-## Table of Contents
-- [AioHttpDownloader](aiohttp_en.md) - High-performance downloader based on aiohttp
-- [HttpXDownloader](httpx_en.md) - HTTP/2 support with httpx
-- [CurlCffiDownloader](curl_cffi_en.md) - Browser fingerprint simulation
+## Module Overview
 
-## Overview
+The downloader module adopts a plugin-based design, supporting multiple HTTP client implementations including aiohttp, httpx, and curl-cffi. Users can choose the appropriate downloader based on specific needs.
 
-The downloader module offers a variety of downloaders to handle different web scraping scenarios:
+### Core Components
 
-1. **Protocol Downloaders**: For static content (AioHttp, HttpX, CurlCffi)
+1. [AioHttpDownloader](aiohttp_en.md) - High-performance downloader based on aiohttp
+2. [HttpXDownloader](httpx_en.md) - Downloader supporting HTTP/2
+3. [CurlCffiDownloader](curl_cffi_en.md) - Downloader supporting browser fingerprint simulation
+4. [SeleniumDownloader](selenium_en.md) - Browser automation downloader based on Selenium
+5. [PlaywrightDownloader](playwright_en.md) - Modern browser automation downloader based on Playwright
 
-## Architecture
+## Architecture Design
 
 ```mermaid
-graph TD
-    A[DownloaderBase] --> B[AioHttpDownloader]
-    A --> C[HttpXDownloader]
-    A --> D[CurlCffiDownloader]
+graph TB
+subgraph "Downloader Module"
+DownloaderBase[DownloaderBase<br/>Base Downloader Class]
+AioHttpDownloader[AioHttpDownloader<br/>aiohttp Implementation]
+HttpXDownloader[HttpXDownloader<br/>httpx Implementation]
+CurlCffiDownloader[CurlCffiDownloader<br/>curl-cffi Implementation]
+SeleniumDownloader[SeleniumDownloader<br/>Selenium Implementation]
+PlaywrightDownloader[PlaywrightDownloader<br/>Playwright Implementation]
+end
+Engine[Engine] --> DownloaderBase
+DownloaderBase --> AioHttpDownloader
+DownloaderBase --> HttpXDownloader
+DownloaderBase --> CurlCffiDownloader
+DownloaderBase --> SeleniumDownloader
+DownloaderBase --> PlaywrightDownloader
+style DownloaderBase fill:#f9f,stroke:#333
+style Engine fill:#bbf,stroke:#333
 ```
 
-## Key Features
+## Downloader Selection Guide
 
-- **Multiple Implementations**: Choose the right downloader for your needs
-- **Middleware Integration**: Process requests and responses through middleware
-- **Session Management**: Reuse connections for better performance
-- **Statistics Tracking**: Monitor download performance and errors
-- **Health Monitoring**: Automatic health checks and error handling
+### AioHttpDownloader
 
-## Configuration
+**Use Cases:**
+- High-performance, high-concurrency simple web scraping
+- Scenarios that don't require browser fingerprint simulation
+- Environments with strict resource consumption requirements
 
-The downloader can be configured in your project's `settings.py`:
+**Features:**
+- Based on asyncio, excellent performance
+- Low resource consumption
+- Supports connection pooling and session reuse
+
+### HttpXDownloader
+
+**Use Cases:**
+- Websites requiring HTTP/2 support
+- Need for better asynchronous support
+- Scenarios requiring modern HTTP features
+
+**Features:**
+- Supports HTTP/1.1 and HTTP/2
+- Better asynchronous support
+- Modern API design
+
+### CurlCffiDownloader
+
+**Use Cases:**
+- Need to bypass basic anti-crawling mechanisms
+- Need to simulate real browser fingerprints
+- Target websites with strict request header checks
+
+**Features:**
+- Simulates real browser fingerprints
+- Bypasses basic anti-crawling detection
+- Supports TLS fingerprint simulation
+
+### SeleniumDownloader
+
+**Use Cases:**
+- Complex web pages requiring JavaScript execution
+- Scenarios requiring user interaction simulation
+- Crawling tasks requiring a complete browser environment
+
+**Features:**
+- Complete browser environment
+- Supports JavaScript execution
+- Supports user interaction simulation
+
+### PlaywrightDownloader
+
+**Use Cases:**
+- Crawling tasks requiring modern browser features
+- Need for better performance and stability
+- Scenarios requiring cross-browser support
+
+**Features:**
+- Modern browser automation
+- Better performance and stability
+- Supports multiple browsers
+
+## Configuration Options
+
+The behavior of the downloader module can be adjusted through the following configuration options:
+
+| Configuration Item | Type | Default Value | Description |
+|--------------------|------|---------------|-------------|
+| DOWNLOADER_TYPE | str | 'aiohttp' | Downloader type |
+| DOWNLOAD_TIMEOUT | int | 30 | Download timeout (seconds) |
+| DOWNLOAD_DELAY | float | 0.5 | Download delay (seconds) |
+| DOWNLOADER_MIDDLEWARES | list | [] | Downloader middleware list |
+| USER_AGENT | str | '' | User agent string |
+
+## Usage Examples
+
+### Basic Usage
 
 ```python
-# Downloader selection
-DOWNLOADER = "crawlo.downloader.httpx_downloader.HttpXDownloader"
+from crawlo.config import CrawloConfig
+from crawlo.downloader import AioHttpDownloader
 
-# Downloader settings
-DOWNLOAD_TIMEOUT = 30
-VERIFY_SSL = True
-USE_SESSION = True
+# Configure to use aiohttp downloader
+config = CrawloConfig.standalone(
+    downloader_type='aiohttp',
+    download_timeout=30
+)
 
-# Performance settings
-CONNECTION_POOL_LIMIT = 50
-DOWNLOAD_MAXSIZE = 10 * 1024 * 1024
+# Create downloader instance
+downloader = AioHttpDownloader(config)
 ```
 
-## Downloader Types
-
-### Protocol Downloaders
-
-- **AioHttpDownloader**: Default high-performance downloader
-- **HttpXDownloader**: Supports HTTP/2 protocol
-- **CurlCffiDownloader**: Browser fingerprint simulation
-
-## Usage Example
+### Switching Downloaders
 
 ```python
-from crawlo.downloader import get_downloader_class
+# Switch to httpx downloader
+config = CrawloConfig.standalone(downloader_type='httpx')
 
-# Get downloader by name
-downloader_cls = get_downloader_class('httpx')
-downloader = downloader_cls(crawler)
-
-# Or configure in settings.py
-DOWNLOADER = "crawlo.downloader.httpx_downloader.HttpXDownloader"
+# Switch to curl-cffi downloader
+config = CrawloConfig.standalone(downloader_type='curl-cffi')
 ```
 
-For detailed information about each downloader implementation, see the individual documentation pages.
+## Performance Comparison
+
+| Downloader | Performance | Resource Consumption | Anti-crawling Bypass | JavaScript Support |
+|------------|-------------|---------------------|---------------------|-------------------|
+| AioHttpDownloader | High | Low | Basic | Not supported |
+| HttpXDownloader | High | Low | Basic | Not supported |
+| CurlCffiDownloader | Medium | Medium | Strong | Not supported |
+| SeleniumDownloader | Low | High | Strong | Full |
+| PlaywrightDownloader | Medium | High | Strong | Full |
+
+## Best Practices
+
+### Choosing Downloaders Based on Requirements
+
+```python
+# Use aiohttp for simple web scraping
+config = CrawloConfig.standalone(downloader_type='aiohttp')
+
+# Use curl-cffi to bypass anti-crawling
+config = CrawloConfig.standalone(downloader_type='curl-cffi')
+
+# Use playwright for JavaScript execution
+config = CrawloConfig.standalone(downloader_type='playwright')
+```
+
+### Reasonable Timeout and Delay Configuration
+
+```python
+# Configure appropriate timeout
+config = CrawloConfig.standalone(
+    download_timeout=60,  # 60 second timeout
+    download_delay=1.0    # 1 second delay
+)
+```
+
+### Using Middleware to Enhance Functionality
+
+```python
+# Configure downloader middleware
+DOWNLOADER_MIDDLEWARES = [
+    'crawlo.middleware.UserAgentMiddleware',
+    'crawlo.middleware.ProxyMiddleware',
+    'crawlo.middleware.RetryMiddleware',
+]

@@ -1,115 +1,336 @@
-# 处理器
+# 处理器 (Processor)
 
-处理器负责处理响应处理和数据项提取。它管理从下载器到管道系统的响应流。
+处理器是 Crawlo 框架中负责解析响应并将提取的数据转换为结构化项目的核心组件。它连接了下载器和数据管道，是数据流转的关键环节。
 
 ## 概述
 
-处理器作为下载器和管道系统之间的桥梁。其主要职责包括：
+处理器作为响应处理的核心，负责调用用户定义的解析函数，处理解析函数生成的输出（请求或数据项），并将数据项传递给数据管道进行存储。
 
-- 处理来自下载器的响应
-- 从响应中提取数据项
-- 管理数据项处理管道
-- 处理数据项去重和过滤
+### 核心职责
 
-## 架构
+1. **响应解析** - 调用爬虫的解析函数处理响应
+2. **输出处理** - 处理解析函数生成的请求和数据项
+3. **数据路由** - 将数据项路由到相应的数据管道
+4. **错误处理** - 处理解析过程中的异常
 
-处理器与管道管理器协同工作以处理数据项：
+## 类结构
 
 ```mermaid
-graph TD
-    A[引擎] --> B[处理器]
-    B --> C[响应处理器]
-    C --> D[数据项提取器]
-    D --> E[管道管理器]
-    E --> F[管道1]
-    E --> G[管道2]
-    E --> H[管道3]
+classDiagram
+class Processor {
++settings : Settings
++pipelines : list
++logger : Logger
++open() None
++close() None
++enqueue(output) None
++_process_item(item, spider) Item
++_process_request(request, spider) Request
++process(spider, response) list
+}
+class Item {
++fields : dict
++validate() bool
+}
+class Request {
++url : str
++callback : callable
++priority : int
+}
+class Pipeline {
++process_item(item, spider) Item
+}
+Processor --> Item : "处理"
+Processor --> Request : "处理"
+Processor --> Pipeline : "使用"
 ```
 
-## 主要特性
+## 工作流程
 
-### 响应处理
+### 响应处理流程
 
-处理器处理来自下载器的响应：
+```mermaid
+flowchart TD
+Start([开始]) --> CallParse["调用解析函数"]
+CallParse --> ProcessOutputs["处理输出"]
+ProcessOutputs --> IsItem{"是数据项?"}
+IsItem --> |是| RouteToPipeline["路由到管道"]
+IsItem --> |否| IsRequest{"是请求?"}
+IsRequest --> |是| EnqueueRequest["加入队列"]
+IsRequest --> |否| LogWarning["记录警告"]
+RouteToPipeline --> End([完成])
+EnqueueRequest --> End
+LogWarning --> End
+```
 
-- 解析响应内容
-- 根据爬虫回调提取数据
-- 管理提取的数据项到管道的流动
+### 数据项处理流程
 
-### 数据项管理
+```mermaid
+flowchart TD
+Start([开始]) --> ProcessItem["处理数据项"]
+ProcessItem --> Pipeline1["管道1"]
+Pipeline1 --> Pipeline2["管道2"]
+Pipeline2 --> PipelineN["管道N"]
+PipelineN --> End([完成])
+```
 
-处理器通过管道系统管理数据项：
+## 核心方法
 
-- 将数据项路由到配置的管道
-- 处理数据项去重
-- 跟踪数据项处理统计信息
+### process(spider, response)
 
-### 与管道集成
+处理爬虫对响应的解析。
 
-处理器与管道模块集成以提供：
+**参数:**
+- `spider` - 爬虫实例
+- `response` - 响应对象
 
-- 顺序数据项处理
-- 可配置的管道链
-- 错误处理和数据项过滤
+**返回:**
+- 解析函数生成的输出列表
 
-## API参考
+```python
+async def process(self, spider, response):
+    """处理爬虫对响应的解析"""
+    outputs = []
+    
+    # 调用爬虫的解析函数
+    try:
+        parse_output = spider.parse(response)
+        if inspect.isasyncgen(parse_output):
+            # 异步生成器
+            async for output in parse_output:
+                outputs.append(output)
+        elif inspect.isgenerator(parse_output):
+            # 同步生成器
+            for output in parse_output:
+                outputs.append(output)
+        else:
+            # 单个输出
+            if parse_output is not None:
+                outputs.append(parse_output)
+    except Exception as e:
+        self.logger.error(f"解析函数执行失败: {e}")
+        return []
+    
+    return outputs
+```
 
-### `Processor(crawler)`
+### enqueue(output)
 
-创建一个新的处理器实例。
+将输出加入处理队列。
 
-**参数：**
-- `crawler`：拥有此处理器的爬虫实例
+**参数:**
+- `output` - 解析函数生成的输出（请求或数据项）
 
-### `async enqueue(item_or_request)`
+```python
+def enqueue(self, output):
+    """将输出加入处理队列"""
+    if isinstance(output, Item):
+        # 处理数据项
+        self._process_item(output)
+    elif isinstance(output, Request):
+        # 处理请求
+        self._process_request(output)
+    else:
+        self.logger.warning(f"未知的输出类型: {type(output)}")
+```
 
-将数据项或请求添加到处理队列中。
+### _process_item(item)
 
-**参数：**
-- `item_or_request`：要处理的数据项或请求
+处理数据项并路由到管道。
 
-### `idle()`
+**参数:**
+- `item` - 要处理的数据项
 
-检查处理器是否空闲（无待处理数据项）。
+```python
+def _process_item(self, item):
+    """处理数据项并路由到管道"""
+    # 验证数据项
+    if not item.validate():
+        self.logger.warning(f"数据项验证失败: {item}")
+        return
+    
+    # 通过管道处理
+    for pipe in self.pipelines:
+        try:
+            item = pipe.process_item(item, self.spider)
+            if item is None:
+                # 管道返回 None 表示丢弃该数据项
+                return
+        except Exception as e:
+            self.logger.error(f"管道处理失败: {e}")
+            return
+```
 
-**返回：**
-- `bool`：如果处理器空闲则为True
+### _process_request(request)
 
-### `async close()`
+处理请求并加入调度器队列。
 
-在不再需要处理器时清理资源。
+**参数:**
+- `request` - 要处理的请求
+
+```python
+def _process_request(self, request):
+    """处理请求并加入调度器队列"""
+    # 可以在这里对请求进行额外处理
+    # 例如：添加默认头部、设置优先级等
+    
+    # 加入调度器队列
+    self.scheduler.enqueue_request(request)
+```
+
+### open()
+
+打开处理器，初始化相关资源。
+
+### close()
+
+关闭处理器，释放相关资源。
+
+## 管道集成
+
+处理器与数据管道紧密集成，支持多种类型的管道：
+
+### 内置管道
+
+1. **ConsolePipeline** - 将数据项输出到控制台
+2. **JsonPipeline** - 将数据项保存为 JSON 格式
+3. **CsvPipeline** - 将数据项保存为 CSV 格式
+4. **MySQLPipeline** - 将数据项存储到 MySQL 数据库
+5. **MongoPipeline** - 将数据项存储到 MongoDB 数据库
+
+### 自定义管道
+
+用户可以创建自定义管道来处理特定的数据处理需求：
+
+```python
+class CustomPipeline:
+    def process_item(self, item, spider):
+        """处理数据项"""
+        # 自定义处理逻辑
+        item.processed = True
+        return item
+```
+
+## 错误处理
+
+### 解析函数异常
+
+处理器会捕获并处理解析函数执行中的异常：
+
+```python
+try:
+    parse_output = spider.parse(response)
+except Exception as e:
+    self.logger.error(f"解析函数执行失败: {response.url}, 错误: {e}")
+    # 可以选择重试或记录失败
+```
+
+### 管道处理异常
+
+处理器会捕获并处理管道处理中的异常：
+
+```python
+for pipe in self.pipelines:
+    try:
+        item = pipe.process_item(item, self.spider)
+    except Exception as e:
+        self.logger.error(f"管道处理失败: {pipe.__class__.__name__}, 错误: {e}")
+        # 继续处理下一个管道
+```
 
 ## 配置选项
 
-处理器与管道配置协同工作：
+处理器的行为可以通过以下配置项进行调整：
 
-| 设置 | 描述 | 默认值 |
-|------|------|--------|
-| `PIPELINES` | 要使用的管道类列表 | [] |
-| `ITEM_PROCESSING_ENABLED` | 是否启用数据项处理 | True |
+| 配置项 | 类型 | 默认值 | 说明 |
+|--------|------|--------|------|
+| PIPELINES | list | [] | 数据管道列表 |
+| ITEM_PROCESSOR_DEBUG | bool | False | 是否启用数据项处理调试模式 |
 
-## 使用示例
+## 性能优化
+
+### 批量处理
+
+对于大量数据项的场景，可以使用批量处理提高效率：
 
 ```python
-from crawlo.core.processor import Processor
-
-# 创建处理器实例
-processor = Processor(crawler)
-
-# 入队数据项进行处理
-await processor.enqueue(item)
-
-# 检查是否空闲
-if processor.idle():
-    print("无待处理数据项")
-
-# 清理
-await processor.close()
+# 批量处理数据项
+items = [Item(data=i) for i in range(100)]
+for item in items:
+    processor.enqueue(item)
 ```
 
-## 性能考虑
+### 异步处理
 
-- 监控管道处理时间以识别瓶颈
-- 为数据存储需求使用适当的管道配置
-- 实现高效的数据项去重以避免处理重复数据
-- 为大数据集配置管道批处理以获得更好的性能
+支持异步解析函数以提高处理效率：
+
+```python
+class MySpider(Spider):
+    async def parse(self, response):
+        # 异步处理逻辑
+        async for item in self.extract_items(response):
+            yield item
+```
+
+## 监控和日志
+
+处理器集成了详细的日志记录功能：
+
+```python
+# 记录解析结果
+self.logger.info(f"解析完成: {response.url}, 生成 {len(outputs)} 个输出")
+
+# 记录数据项处理
+self.logger.debug(f"数据项已处理: {item}")
+
+# 记录请求处理
+self.logger.debug(f"请求已加入队列: {request.url}")
+```
+
+## 最佳实践
+
+### 管道配置
+
+合理配置数据管道以满足不同的数据存储需求：
+
+```python
+# 配置多个管道
+PIPELINES = [
+    'crawlo.pipelines.ConsolePipeline',
+    'crawlo.pipelines.JsonPipeline',
+    'crawlo.pipelines.MySQLPipeline',
+]
+```
+
+### 数据项验证
+
+在数据项中实现验证逻辑确保数据质量：
+
+```python
+class ProductItem(Item):
+    def validate(self):
+        """验证数据项"""
+        if not self.get('name'):
+            return False
+        if not self.get('price'):
+            return False
+        return True
+```
+
+### 异常处理
+
+在解析函数中实现适当的异常处理：
+
+```python
+def parse(self, response):
+    """解析响应"""
+    try:
+        # 解析逻辑
+        yield ProductItem(
+            name=response.extract_text('h1'),
+            price=response.extract_text('.price')
+        )
+    except Exception as e:
+        self.logger.error(f"解析失败: {response.url}, 错误: {e}")
+        # 可以选择重试或跳过
+```

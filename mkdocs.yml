@@ -33,7 +33,9 @@ theme:
 
 nav:
   - 首页: 
-    - 简介: README.md
+    - 简介: 
+      - 中文: index.md
+      - English: index_en.md
     - 快速开始: 
       - 中文: modules/quickstart/index.md
       - English: modules/quickstart/index_en.md
@@ -51,6 +53,9 @@ nav:
       - 中文: modules/configuration/index.md
       - English: modules/configuration/index_en.md
   - 核心模块:
+    - 概述: 
+      - 中文: modules/core/index.md
+      - English: modules/core/index_en.md
     - 引擎 (Engine): 
       - 中文: modules/core/engine.md
       - English: modules/core/engine_en.md
@@ -186,7 +191,17 @@ nav:
     - 最佳实践: 
       - 中文: modules/advanced/best_practices.md
       - English: modules/advanced/best_practices_en.md
+  - 教程:
+    - 创建第一个爬虫: 
+      - 中文: tutorials/first_spider.md
+      - English: tutorials/first_spider_en.md
+    - 分布式爬虫: 
+      - 中文: tutorials/distributed_crawling.md
+      - English: tutorials/distributed_crawling_en.md
   - API 参考:
+    - 概述: 
+      - 中文: api/index.md
+      - English: api/index_en.md
     - crawlo: api/crawlo___init__.md
     - crawlo.crawler: api/crawlo_crawler.md
     - crawlo.spider: api/crawlo_spider___init__.md

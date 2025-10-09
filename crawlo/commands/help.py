@@ -85,11 +85,13 @@ def show_help():
     
     # run 命令
     console.print("[bold cyan]run[/bold cyan] - 运行爬虫")
-    console.print("  用法: crawlo run <spider_name>|all [--json] [--no-stats]")
+    console.print("  用法: crawlo run <spider_name>|all [--json] [--no-stats] [--log-level LEVEL] [--config CONFIG] [--concurrency NUM]")
     console.print("  示例:")
     console.print("    crawlo run myspider")
     console.print("    crawlo run all")
     console.print("    crawlo run all --json --no-stats")
+    console.print("    crawlo run myspider --log-level DEBUG")
+    console.print("    crawlo run myspider --concurrency 32")
     console.print()
     
 
