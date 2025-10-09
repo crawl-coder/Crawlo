@@ -42,10 +42,10 @@ SPIDER_MODULES = ['ofweek_standalone.spiders']
 
 # 数据管道
 # 如需添加自定义管道，请取消注释并添加
-# PIPELINES = [
-#     'crawlo.pipelines.mysql_pipeline.AsyncmyMySQLPipeline',  # MySQL 存储（使用asyncmy异步库）
-#     # 'ofweek_standalone.pipelines.CustomPipeline',  # 用户自定义管道示例
-# ]
+PIPELINES = [
+    'crawlo.pipelines.mysql_pipeline.AsyncmyMySQLPipeline',  # MySQL 存储（使用asyncmy异步库）
+    # 'ofweek_standalone.pipelines.CustomPipeline',  # 用户自定义管道示例
+]
 
 # =================================== 系统配置 ===================================
 
@@ -62,7 +62,7 @@ SPIDER_MODULES = ['ofweek_standalone.spiders']
 # ]
 
 # 日志配置
-LOG_LEVEL = 'INFO'  # 设置为DEBUG以便观察代理相关信息
+LOG_LEVEL = 'INFO'  # 设置为 INFO、DEBUG 以便观察代理相关信息
 LOG_FILE = 'logs/ofweek_standalone.log'
 LOG_ENCODING = 'utf-8'  # 明确指定日志文件编码
 STATS_DUMP = True
@@ -86,14 +86,26 @@ else:
 
 
 # MySQL配置
-MYSQL_HOST = '127.0.0.1'
+# 数据库地址
+MYSQL_HOST = "127.0.0.1"
+# 数据库端口
 MYSQL_PORT = 3306
-MYSQL_USER = 'root'
-MYSQL_PASSWORD = '123456'
-MYSQL_DB = 'ofweek_standalone'
-MYSQL_TABLE = 'news_items'
+# 数据库用户名
+MYSQL_USER = "root"
+# 数据库密码
+MYSQL_PASSWORD = ""
+# 数据库名
+MYSQL_DB = "crawlo"
+# 数据库表名
+MYSQL_TABLE = "news_items"
+# 批量插入配置
 MYSQL_BATCH_SIZE = 100
 MYSQL_USE_BATCH = False  # 是否启用批量插入
+
+# MySQL SQL生成行为控制配置
+MYSQL_AUTO_UPDATE = False  # 是否使用 REPLACE INTO（完全覆盖已存在记录）
+MYSQL_INSERT_IGNORE = True  # 是否使用 INSERT IGNORE（忽略重复数据）
+MYSQL_UPDATE_COLUMNS = ()  # 冲突时需更新的列名；指定后 MYSQL_AUTO_UPDATE 失效
 
 # MongoDB配置
 MONGO_URI = 'mongodb://localhost:27017'

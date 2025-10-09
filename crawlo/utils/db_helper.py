@@ -93,7 +93,7 @@ class SQLBuilder:
     @staticmethod
     def _build_update_clause(update_columns: Union[Tuple, List]) -> str:
         """
-        构建更新子句
+        构建更新子句，使用新的 MySQL 语法避免 VALUES() 函数弃用警告
 
         Args:
             update_columns (tuple or list): 更新列名
@@ -103,7 +103,9 @@ class SQLBuilder:
         """
         if not isinstance(update_columns, (tuple, list)):
             update_columns = (update_columns,)
-        return ", ".join(f"`{key}`=VALUES(`{key}`)" for key in update_columns)
+        # 使用新的语法：INSERT ... VALUES (...) AS alias ... UPDATE ... alias.col
+        # 确保使用 excluded 别名而不是 VALUES() 函数
+        return ", ".join(f"`{key}`=`excluded`.`{key}`" for key in update_columns)
 
     @staticmethod
     def make_insert(
@@ -133,7 +135,8 @@ class SQLBuilder:
         if update_columns:
             update_clause = SQLBuilder._build_update_clause(update_columns)
             ignore_flag = " IGNORE" if insert_ignore else ""
-            sql = f"INSERT{ignore_flag} INTO `{table}` {keys_str} VALUES {values_str} ON DUPLICATE KEY UPDATE {update_clause}"
+            # 使用新的语法避免 VALUES() 函数弃用警告
+            sql = f"INSERT{ignore_flag} INTO `{table}` {keys_str} VALUES {values_str} AS `excluded` ON DUPLICATE KEY UPDATE {update_clause}"
 
         elif auto_update:
             sql = f"REPLACE INTO `{table}` {keys_str} VALUES {values_str}"
@@ -225,16 +228,19 @@ class SQLBuilder:
                 update_columns = (update_columns,)
 
             if update_columns_value:
+                # 当提供了固定值时，使用这些值进行更新
                 update_pairs = [
                     f"`{key}`={value}"
                     for key, value in zip(update_columns, update_columns_value)
                 ]
             else:
+                # 使用新的语法避免 VALUES() 函数弃用警告
+                # INSERT ... VALUES (...) AS excluded ... ON DUPLICATE KEY UPDATE col=excluded.col
                 update_pairs = [
-                    f"`{key}`=VALUES(`{key}`)" for key in update_columns
+                    f"`{key}`=`excluded`.`{key}`" for key in update_columns
                 ]
             update_clause = ", ".join(update_pairs)
-            sql = f"INSERT INTO `{table}` ({keys_str}) VALUES ({placeholders_str}) ON DUPLICATE KEY UPDATE {update_clause}"
+            sql = f"INSERT INTO `{table}` ({keys_str}) VALUES ({placeholders_str}) AS `excluded` ON DUPLICATE KEY UPDATE {update_clause}"
 
         elif auto_update:
             sql = f"REPLACE INTO `{table}` ({keys_str}) VALUES ({placeholders_str})"
