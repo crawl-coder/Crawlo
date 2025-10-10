@@ -189,7 +189,7 @@ class CustomPipeline(PipelineBase):
 
 Pipelines are executed in the order of the configuration list:
 
-1. **Item Processing** - Execute each pipeline's [process_item](../../api/crawlo_pipelines.md#process_item) method in sequence
+1. **Item Processing** - Execute each pipeline's [process_item](../../api/crawlo_pipelines.md) method in sequence
 2. **Return Value Processing** - Each pipeline can return the original item, a new item, or None
 3. **Pipeline Passing** - If an item is returned, it's passed to the next pipeline; if None is returned, the item is discarded
 

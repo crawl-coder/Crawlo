@@ -130,6 +130,9 @@ nav:
       - 自定义中间件: 
         - 中文: modules/middleware/custom.md
         - English: modules/middleware/custom_en.md
+      - 代理中间件: 
+        - 中文: modules/middleware/proxy.md
+        - English: modules/middleware/proxy_en.md
     - 管道 (Pipeline):
       - 概述: 
         - 中文: modules/pipeline/index.md
@@ -203,12 +206,14 @@ nav:
       - 中文: api/index.md
       - English: api/index_en.md
     - crawlo: api/crawlo___init__.md
+    - crawlo.config: api/crawlo_config.md
+    - crawlo.config_validator: api/crawlo_config_validator.md
     - crawlo.crawler: api/crawlo_crawler.md
     - crawlo.spider: api/crawlo_spider___init__.md
     - crawlo.request: api/crawlo_network_request.md
     - crawlo.response: api/crawlo_network_response.md
     - crawlo.items: api/crawlo_items_items.md
-    - crawlo.pipelines: api/crawlo_pipelines___init__.md
+    - crawlo.pipelines: api/crawlo_pipelines.md
     - crawlo.pipelines.RedisDedupPipeline: api/crawlo_pipelines_redis_dedup_pipeline.md
     - crawlo.pipelines.MemoryDedupPipeline: api/crawlo_pipelines_memory_dedup_pipeline.md
     - crawlo.pipelines.BloomDedupPipeline: api/crawlo_pipelines_bloom_dedup_pipeline.md
@@ -218,8 +223,8 @@ nav:
     - crawlo.pipelines.CsvPipeline: api/crawlo_pipelines_csv_pipeline.md
     - crawlo.pipelines.AsyncmyMySQLPipeline: api/crawlo_pipelines_mysql_pipeline.md
     - crawlo.pipelines.MongoPipeline: api/crawlo_pipelines_mongo_pipeline.md
-    - crawlo.middleware: api/crawlo_middleware___init__.md
-    - crawlo.extensions: api/crawlo_extension___init__.md
+    - crawlo.middleware: api/crawlo_middleware.md
+    - crawlo.extensions: api/crawlo_extension.md
     - crawlo.filters: api/crawlo_filters___init__.md
     - crawlo.downloader: api/crawlo_downloader___init__.md
     - crawlo.scheduler: api/crawlo_core_scheduler.md

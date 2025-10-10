@@ -150,9 +150,9 @@ class CustomMiddleware(MiddlewareBase):
 
 中间件按照配置列表中的顺序执行：
 
-1. **请求处理阶段** - 从上到下执行 [process_request](../../api/crawlo_middleware.md#process_request) 方法
-2. **响应处理阶段** - 从下到上执行 [process_response](../../api/crawlo_middleware.md#process_response) 方法
-3. **异常处理阶段** - 从下到上执行 [process_exception](../../api/crawlo_middleware.md#process_exception) 方法
+1. **请求处理阶段** - 从上到下执行 [process_request](../../api/crawlo_middleware.md) 方法
+2. **响应处理阶段** - 从下到上执行 [process_response](../../api/crawlo_middleware.md) 方法
+3. **异常处理阶段** - 从下到上执行 [process_exception](../../api/crawlo_middleware.md) 方法
 
 ## 性能优化
 

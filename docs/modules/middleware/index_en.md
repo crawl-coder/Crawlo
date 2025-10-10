@@ -150,9 +150,9 @@ class CustomMiddleware(MiddlewareBase):
 
 Middlewares are executed in the order of the configuration list:
 
-1. **Request Processing Phase** - Execute [process_request](../../api/crawlo_middleware.md#process_request) method from top to bottom
-2. **Response Processing Phase** - Execute [process_response](../../api/crawlo_middleware.md#process_response) method from bottom to top
-3. **Exception Processing Phase** - Execute [process_exception](../../api/crawlo_middleware.md#process_exception) method from bottom to top
+1. **Request Processing Phase** - Execute [process_request](../../api/crawlo_middleware.md) method from top to bottom
+2. **Response Processing Phase** - Execute [process_response](../../api/crawlo_middleware.md) method from bottom to top
+3. **Exception Processing Phase** - Execute [process_exception](../../api/crawlo_middleware.md) method from bottom to top
 
 ## Performance Optimization
 

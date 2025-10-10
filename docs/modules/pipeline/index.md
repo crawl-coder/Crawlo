@@ -189,7 +189,7 @@ class CustomPipeline(PipelineBase):
 
 管道按照配置列表中的顺序执行：
 
-1. **数据项处理** - 依次执行每个管道的 [process_item](../../api/crawlo_pipelines.md#process_item) 方法
+1. **数据项处理** - 依次执行每个管道的 [process_item](../../api/crawlo_pipelines.md) 方法
 2. **返回值处理** - 每个管道可以返回原数据项、新数据项或 None
 3. **流水线传递** - 如果返回数据项，则传递给下一个管道；如果返回 None，则丢弃该数据项
 

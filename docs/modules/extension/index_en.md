@@ -152,9 +152,9 @@ class CustomExtension(ExtensionBase):
 
 Extensions can implement the following lifecycle hook methods:
 
-1. **[open()](../../api/crawlo_extension.md#open)** - Called when extension starts
-2. **[close()](../../api/crawlo_extension.md#close)** - Called when extension closes
-3. **[from_crawler()](../../api/crawlo_extension.md#from_crawler)** - Create extension instance from crawler
+1. **[open()](../../api/crawlo_extension.md)** - Called when extension starts
+2. **[close()](../../api/crawlo_extension.md)** - Called when extension closes
+3. **[from_crawler()](../../api/crawlo_extension.md)** - Create extension instance from crawler
 
 ## Event System
 

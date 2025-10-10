@@ -152,9 +152,9 @@ class CustomExtension(ExtensionBase):
 
 扩展可以实现以下生命周期钩子方法：
 
-1. **[open()](../../api/crawlo_extension.md#open)** - 扩展启动时调用
-2. **[close()](../../api/crawlo_extension.md#close)** - 扩展关闭时调用
-3. **[from_crawler()](../../api/crawlo_extension.md#from_crawler)** - 从爬虫创建扩展实例
+1. **[open()](../../api/crawlo_extension.md)** - 扩展启动时调用
+2. **[close()](../../api/crawlo_extension.md)** - 扩展关闭时调用
+3. **[from_crawler()](../../api/crawlo_extension.md)** - 从爬虫创建扩展实例
 
 ## 事件系统
 

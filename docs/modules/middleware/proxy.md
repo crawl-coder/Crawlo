@@ -2,8 +2,8 @@
 
 Crawlo框架提供了两种代理中间件实现，以满足不同场景的需求：
 
-1. [ProxyMiddleware](#proxy-middleware-复杂版) - 复杂版，功能丰富但实现复杂
-2. [SimpleProxyMiddleware](#simple-proxy-middleware-简化版) - 简化版，功能基础但实现简洁
+1. [ProxyMiddleware (复杂版)](#proxy-middleware-复杂版) - 复杂版，功能丰富但实现复杂
+2. [SimpleProxyMiddleware (简化版)](#simpleproxy-middleware-简化版) - 简化版，功能基础但实现简洁
 
 ## ProxyMiddleware (复杂版)
 
