@@ -31,6 +31,16 @@ theme:
   icon:
     repo: fontawesome/brands/github
 
+# 添加多语言支持
+extra:
+  alternate:
+    - name: 中文
+      link: /zh/
+      lang: zh
+    - name: English
+      link: /en/
+      lang: en
+
 nav:
   - 首页: 
     - 简介: 
@@ -233,11 +243,6 @@ nav:
 
 plugins:
   - search
-
-extra:
-  social:
-    - icon: fontawesome/brands/github
-      link: https://github.com/crawl-coder/Crawlo
 
 # Extensions
 markdown_extensions:

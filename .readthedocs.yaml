@@ -15,10 +15,16 @@ build:
       - pip install --upgrade pip
       - pip install -r requirements.txt
       - pip install mkdocs-material
+      - pip install mkdocs-static-i18n
 
 # Build documentation in the docs/ directory with MkDocs
 mkdocs:
   configuration: mkdocs.yml
+
+# Setup languages for translations
+formats:
+  - pdf
+  - htmlzip
 
 # Optionally declare the Python requirements required to build your docs
 python:
