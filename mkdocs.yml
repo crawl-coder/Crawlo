@@ -43,178 +43,72 @@ extra:
 
 nav:
   - 首页: 
-    - 简介: 
-      - 中文: index.md
-      - English: index_en.md
-    - 快速开始: 
-      - 中文: modules/quickstart/index.md
-      - English: modules/quickstart/index_en.md
-    - 安装指南: 
-      - 中文: modules/installation/index.md
-      - English: modules/installation/index_en.md
+    - 简介: index.md
+    - 快速开始: modules/quickstart/index.md
+    - 安装指南: modules/installation/index.md
   - 核心概念:
-    - 架构概述: 
-      - 中文: modules/architecture/index.md
-      - English: modules/architecture/index_en.md
-    - 运行模式: 
-      - 中文: modules/architecture/modes.md
-      - English: modules/architecture/modes_en.md
-    - 配置系统: 
-      - 中文: modules/configuration/index.md
-      - English: modules/configuration/index_en.md
+    - 架构概述: modules/architecture/index.md
+    - 运行模式: modules/architecture/modes.md
+    - 配置系统: modules/configuration/index.md
   - 核心模块:
-    - 概述: 
-      - 中文: modules/core/index.md
-      - English: modules/core/index_en.md
-    - 引擎 (Engine): 
-      - 中文: modules/core/engine.md
-      - English: modules/core/engine_en.md
-    - 调度器 (Scheduler): 
-      - 中文: modules/core/scheduler.md
-      - English: modules/core/scheduler_en.md
-    - 处理器 (Processor): 
-      - 中文: modules/core/processor.md
-      - English: modules/core/processor_en.md
-    - 爬虫基类 (Spider): 
-      - 中文: modules/core/spider.md
-      - English: modules/core/spider_en.md
+    - 概述: modules/core/index.md
+    - 引擎 (Engine): modules/core/engine.md
+    - 调度器 (Scheduler): modules/core/scheduler.md
+    - 处理器 (Processor): modules/core/processor.md
+    - 爬虫基类 (Spider): modules/core/spider.md
   - 功能模块:
     - 下载器 (Downloader):
-      - 概述: 
-        - 中文: modules/downloader/index.md
-        - English: modules/downloader/index_en.md
-      - AioHttpDownloader: 
-        - 中文: modules/downloader/aiohttp.md
-        - English: modules/downloader/aiohttp_en.md
-      - HttpXDownloader: 
-        - 中文: modules/downloader/httpx.md
-        - English: modules/downloader/httpx_en.md
-      - CurlCffiDownloader: 
-        - 中文: modules/downloader/curl_cffi.md
-        - English: modules/downloader/curl_cffi_en.md
-      - SeleniumDownloader: 
-        - 中文: modules/downloader/selenium.md
-        - English: modules/downloader/selenium_en.md
-      - PlaywrightDownloader: 
-        - 中文: modules/downloader/playwright.md
-        - English: modules/downloader/playwright_en.md
+      - 概述: modules/downloader/index.md
+      - AioHttpDownloader: modules/downloader/aiohttp.md
+      - HttpXDownloader: modules/downloader/httpx.md
+      - CurlCffiDownloader: modules/downloader/curl_cffi.md
+      - SeleniumDownloader: modules/downloader/selenium.md
+      - PlaywrightDownloader: modules/downloader/playwright.md
     - 队列 (Queue):
-      - 概述: 
-        - 中文: modules/queue/index.md
-        - English: modules/queue/index_en.md
-      - QueueManager: 
-        - 中文: modules/queue/manager.md
-        - English: modules/queue/manager_en.md
-      - 内存队列: 
-        - 中文: modules/queue/memory.md
-        - English: modules/queue/memory_en.md
-      - Redis队列: 
-        - 中文: modules/queue/redis.md
-        - English: modules/queue/redis_en.md
+      - 概述: modules/queue/index.md
+      - QueueManager: modules/queue/manager.md
+      - 内存队列: modules/queue/memory.md
+      - Redis队列: modules/queue/redis.md
     - 过滤器 (Filter):
-      - 概述: 
-        - 中文: modules/filter/index.md
-        - English: modules/filter/index_en.md
-      - BaseFilter: 
-        - 中文: modules/filter/base.md
-        - English: modules/filter/base_en.md
-      - 内存过滤器: 
-        - 中文: modules/filter/memory.md
-        - English: modules/filter/memory_en.md
-      - Redis过滤器: 
-        - 中文: modules/filter/redis.md
-        - English: modules/filter/redis_en.md
-      - Bloom过滤器: 
-        - 中文: modules/filter/bloom.md
-        - English: modules/filter/bloom_en.md
+      - 概述: modules/filter/index.md
+      - BaseFilter: modules/filter/base.md
+      - 内存过滤器: modules/filter/memory.md
+      - Redis过滤器: modules/filter/redis.md
+      - Bloom过滤器: modules/filter/bloom.md
     - 中间件 (Middleware):
-      - 概述: 
-        - 中文: modules/middleware/index.md
-        - English: modules/middleware/index_en.md
-      - MiddlewareManager: 
-        - 中文: modules/middleware/manager.md
-        - English: modules/middleware/manager_en.md
-      - 内置中间件: 
-        - 中文: modules/middleware/built_in.md
-        - English: modules/middleware/built_in_en.md
-      - 自定义中间件: 
-        - 中文: modules/middleware/custom.md
-        - English: modules/middleware/custom_en.md
-      - 代理中间件: 
-        - 中文: modules/middleware/proxy.md
-        - English: modules/middleware/proxy_en.md
+      - 概述: modules/middleware/index.md
+      - MiddlewareManager: modules/middleware/manager.md
+      - 内置中间件: modules/middleware/built_in.md
+      - 自定义中间件: modules/middleware/custom.md
+      - 代理中间件: modules/middleware/proxy.md
     - 管道 (Pipeline):
-      - 概述: 
-        - 中文: modules/pipeline/index.md
-        - English: modules/pipeline/index_en.md
-      - PipelineManager: 
-        - 中文: modules/pipeline/manager.md
-        - English: modules/pipeline/manager_en.md
-      - 内置管道: 
-        - 中文: modules/pipeline/built_in.md
-        - English: modules/pipeline/built_in_en.md
-      - 自定义管道: 
-        - 中文: modules/pipeline/custom.md
-        - English: modules/pipeline/custom_en.md
+      - 概述: modules/pipeline/index.md
+      - PipelineManager: modules/pipeline/manager.md
+      - 内置管道: modules/pipeline/built_in.md
+      - 自定义管道: modules/pipeline/custom.md
     - 扩展 (Extension):
-      - 概述: 
-        - 中文: modules/extension/index.md
-        - English: modules/extension/index_en.md
-      - ExtensionManager: 
-        - 中文: modules/extension/manager.md
-        - English: modules/extension/manager_en.md
-      - 内置扩展: 
-        - 中文: modules/extension/built_in.md
-        - English: modules/extension/built_in_en.md
-      - 自定义扩展: 
-        - 中文: modules/extension/custom.md
-        - English: modules/extension/custom_en.md
+      - 概述: modules/extension/index.md
+      - ExtensionManager: modules/extension/manager.md
+      - 内置扩展: modules/extension/built_in.md
+      - 自定义扩展: modules/extension/custom.md
   - 命令行工具:
-    - CLI 概述: 
-      - 中文: modules/cli/index.md
-      - English: modules/cli/index_en.md
-    - startproject: 
-      - 中文: modules/cli/startproject.md
-      - English: modules/cli/startproject_en.md
-    - genspider: 
-      - 中文: modules/cli/genspider.md
-      - English: modules/cli/genspider_en.md
-    - run: 
-      - 中文: modules/cli/run.md
-      - English: modules/cli/run_en.md
-    - list: 
-      - 中文: modules/cli/list.md
-      - English: modules/cli/list_en.md
-    - check: 
-      - 中文: modules/cli/check.md
-      - English: modules/cli/check_en.md
-    - stats: 
-      - 中文: modules/cli/stats.md
-      - English: modules/cli/stats_en.md
+    - CLI 概述: modules/cli/index.md
+    - startproject: modules/cli/startproject.md
+    - genspider: modules/cli/genspider.md
+    - run: modules/cli/run.md
+    - list: modules/cli/list.md
+    - check: modules/cli/check.md
+    - stats: modules/cli/stats.md
   - 高级主题:
-    - 分布式部署: 
-      - 中文: modules/advanced/distributed.md
-      - English: modules/advanced/distributed_en.md
-    - 性能优化: 
-      - 中文: modules/advanced/performance.md
-      - English: modules/advanced/performance_en.md
-    - 故障排除: 
-      - 中文: modules/advanced/troubleshooting.md
-      - English: modules/advanced/troubleshooting_en.md
-    - 最佳实践: 
-      - 中文: modules/advanced/best_practices.md
-      - English: modules/advanced/best_practices_en.md
+    - 分布式部署: modules/advanced/distributed.md
+    - 性能优化: modules/advanced/performance.md
+    - 故障排除: modules/advanced/troubleshooting.md
+    - 最佳实践: modules/advanced/best_practices.md
   - 教程:
-    - 创建第一个爬虫: 
-      - 中文: tutorials/first_spider.md
-      - English: tutorials/first_spider_en.md
-    - 分布式爬虫: 
-      - 中文: tutorials/distributed_crawling.md
-      - English: tutorials/distributed_crawling_en.md
-  - API 参考:
-    - 概述: 
-      - 中文: api/index.md
-      - English: api/index_en.md
+    - 创建第一个爬虫: tutorials/first_spider.md
+    - 分布式爬虫: tutorials/distributed_crawling.md
+  - 详细文档:
+    - 概述: api/index.md
     - crawlo: api/crawlo___init__.md
     - crawlo.config: api/crawlo_config.md
     - crawlo.config_validator: api/crawlo_config_validator.md
