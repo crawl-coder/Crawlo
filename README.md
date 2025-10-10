@@ -284,7 +284,7 @@ mkdocs serve
 然后在浏览器中打开 http://localhost:8000 查看文档。
 
 您也可以查看在线文档：
-- [中文文档](https://crawlo.readthedocs.io/zh/latest/)
+- [中文文档](https://crawlo.readthedocs.io/en/latest/README_zh/)
 - [English Documentation](https://crawlo.readthedocs.io/en/latest/)
 
 ## 文档目录
