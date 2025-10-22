@@ -95,7 +95,7 @@ class CrawloConfig:
             'auto': '自动检测模式'
         }
         
-        queue_type = self.settings.get('QUEUE_TYPE', 'memory')
+        queue_type = self.settings.get('QUEUE_TYPE', 'auto')
         filter_class = self.settings.get('FILTER_CLASS', '').split('.')[-1]
         concurrency = self.settings.get('CONCURRENCY', 8)
         

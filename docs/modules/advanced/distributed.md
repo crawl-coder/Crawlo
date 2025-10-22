@@ -98,6 +98,10 @@ style MySQL fill:#bbf,stroke:#333
    sudo systemctl status redis
    ```
 
+### Redis 集群支持
+
+Crawlo 框架支持 Redis 集群模式，可以提供更高的可用性和性能。详细配置请参考 [Redis 集群使用指南](./redis_cluster.md)。
+
 ### 控制节点配置
 
 控制节点负责启动爬虫和分发初始任务。
@@ -385,7 +389,7 @@ MEMORY_USAGE_WARNING_THRESHOLD = 500  # 500MB
 
 ### 1. Docker 部署
 
-```dockerfile
+``dockerfile
 # Dockerfile
 FROM python:3.9
 

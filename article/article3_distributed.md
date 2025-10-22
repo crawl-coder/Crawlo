@@ -2,9 +2,7 @@
 
 ## 引言
 
-随着互联网数据规模的不断增长，单机爬虫已经难以满足大规模数据采集的需求。Crawlo框架提供了强大的分布式爬虫支持，通过Redis实现任务分发与状态共享，支持多节点并行采集，具备良好的扩展性与容错能力。
-
-Crawlo框架的源代码托管在GitHub上，您可以访问 [https://github.com/crawl-coder/Crawlo.git](https://github.com/crawl-coder/Crawlo.git) 获取最新版本和更多信息。
+随着互联网数据规模的不断增长，单机爬虫已经难以满足大规模数据采集的需求。Crawlo框架提供了分布式爬虫支持，通过Redis实现任务分发与状态共享，支持多节点并行采集，具备良好的扩展性与容错能力。
 
 本文将深入解析Crawlo分布式爬虫的工作机制，帮助开发者全面理解并高效使用该框架的分布式功能。
 
@@ -15,51 +13,68 @@ Crawlo的分布式架构基于Redis实现任务分发与状态共享，支持多
 ### 核心组件
 
 1. **Redis服务器** - 用于任务队列和状态共享
-2. **控制节点** - 负责任务分发和协调
-3. **工作节点** - 执行具体的爬取任务
-4. **数据存储** - 存储爬取结果
+2. **爬虫节点** - 执行具体的爬取任务
+3. **数据存储** - 存储爬取结果
 
 ### 架构设计
 
 ```mermaid
 graph TB
-subgraph "控制节点"
-Crawler[Crawler]
-Engine[Engine]
-Scheduler[Scheduler]
-end
-subgraph "数据存储"
+subgraph "数据存储层"
 Redis[(Redis)]
 MySQL[(MySQL/MongoDB)]
 end
-subgraph "工作节点 1"
-Worker1[Engine]
-Worker1Scheduler[Scheduler]
-Worker1Downloader[Downloader]
+
+subgraph "爬虫节点集群"
+subgraph "节点1"
+Node1[Crawler]
+Node1Engine[Engine]
+Node1Scheduler[Scheduler]
+Node1Queue[队列管理器]
+Node1Filter[去重过滤器]
 end
-subgraph "工作节点 2"
-Worker2[Engine]
-Worker2Scheduler[Scheduler]
-Worker2Downloader[Downloader]
+
+subgraph "节点2"
+Node2[Crawler]
+Node2Engine[Engine]
+Node2Scheduler[Scheduler]
+Node2Queue[队列管理器]
+Node2Filter[去重过滤器]
 end
-subgraph "工作节点 N"
-WorkerN[Engine]
-WorkerNScheduler[Scheduler]
-WorkerNDownloader[Downloader]
+
+subgraph "节点N"
+NodeN[Crawler]
+NodeNEngine[Engine]
+NodeNScheduler[Scheduler]
+NodeNQueue[队列管理器]
+NodeNFilter[去重过滤器]
 end
-Crawler --> Engine
-Engine --> Scheduler
-Scheduler --> Redis
-Worker1Scheduler --> Redis
-Worker2Scheduler --> Redis
-WorkerNScheduler --> Redis
-Worker1Downloader --> Redis
-Worker2Downloader --> Redis
-WorkerNDownloader --> Redis
+end
+
+Node1Scheduler --> Node1Queue
+Node1Queue --> Redis
+Node1Filter --> Redis
+
+Node2Scheduler --> Node2Queue
+Node2Queue --> Redis
+Node2Filter --> Redis
+
+NodeNScheduler --> NodeNQueue
+NodeNQueue --> Redis
+NodeNFilter --> Redis
+
 Redis --> MySQL
+
 style Redis fill:#f9f,stroke:#333
 style MySQL fill:#bbf,stroke:#333
 ```
+
+在这个架构中：
+
+1. **所有爬虫节点都是对等的** - 没有专门的控制节点或工作节点区分
+2. **Redis作为中心协调器** - 所有节点通过Redis共享任务队列和去重信息
+3. **分布式去重** - 每个节点的去重过滤器都连接到同一个Redis实例
+4. **任务分发** - 任意节点都可以向Redis队列添加任务，所有节点都可以从中获取任务
 
 ## 环境准备
 
@@ -107,96 +122,104 @@ sudo systemctl enable redis
 sudo systemctl status redis
 ```
 
-### 控制节点配置
+### Redis集群支持
 
-控制节点负责启动爬虫和分发初始任务。
+Crawlo框架还支持Redis集群模式，可以提供更高的可用性和扩展性。
+
+#### 配置Redis集群
+
+```bash
+# 创建集群配置文件 redis-cluster.conf
+port 7000
+cluster-enabled yes
+cluster-config-file nodes.conf
+cluster-node-timeout 5000
+appendonly yes
+```
+
+#### 启动Redis集群节点
+
+```bash
+# 启动多个Redis实例
+redis-server redis-cluster.conf --port 7000
+redis-server redis-cluster.conf --port 7001
+redis-server redis-cluster.conf --port 7002
+```
+
+#### 创建集群
+
+```bash
+# 使用redis-cli创建集群
+redis-cli --cluster create 127.0.0.1:7000 127.0.0.1:7001 127.0.0.1:7002 --cluster-replicas 0
+```
+
+### 节点配置
+
+所有爬虫节点使用相同的配置来连接Redis服务器并协同工作。
 
 ```python
 # settings_distributed.py
 from crawlo.config import CrawloConfig
 
-# 分布式配置
+# 分布式配置 - 单实例Redis
 config = CrawloConfig.distributed(
     project_name='distributed_project',
     redis_host='192.168.1.100',      # Redis服务器地址
     redis_port=6379,                 # Redis端口
     redis_password='your_password',  # Redis密码
     redis_db=0,                      # Redis数据库编号
-    concurrency=10,                  # 控制节点并发数
+    concurrency=16,                  # 节点并发数
     download_delay=1.0               # 下载延迟
 )
-```
 
-### 工作节点配置
-
-工作节点负责执行具体的爬取任务。
-
-```python
-# worker_settings.py
-from crawlo.config import CrawloConfig
-
-# 工作节点配置
+# 分布式配置 - Redis集群
 config = CrawloConfig.distributed(
     project_name='distributed_project',
-    redis_host='192.168.1.100',      # Redis服务器地址
-    redis_port=6379,                 # Redis端口
+    redis_host='192.168.1.100:7000,192.168.1.100:7001,192.168.1.100:7002',  # Redis集群节点
     redis_password='your_password',  # Redis密码
-    redis_db=0,                      # Redis数据库编号
-    concurrency=20,                  # 工作节点并发数
-    download_delay=0.5               # 下载延迟
+    concurrency=16,                  # 节点并发数
+    download_delay=1.0               # 下载延迟
 )
 ```
 
 ## 部署步骤
 
-### 1. 部署控制节点
+### 1. 配置Redis服务器
+
+确保Redis服务器已安装并运行，配置好网络访问权限。
+
+### 2. 配置爬虫节点
 
 ```bash
-# 在控制节点上创建项目
+# 在每个节点上创建或复制项目
 crawlo startproject distributed_project
 cd distributed_project
 
 # 配置 settings_distributed.py
 # 编辑爬虫文件
-
-# 启动控制节点
-crawlo run myspider --config settings_distributed.py
 ```
 
-### 2. 部署工作节点
+### 3. 启动多个爬虫节点
 
 ```bash
-# 在工作节点上复制项目代码
-git clone https://github.com/your-org/distributed_project.git
-cd distributed_project
-
-# 配置 worker_settings.py
-
-# 启动工作节点
-crawlo run myspider --config worker_settings.py
-```
-
-### 3. 启动多个工作节点
-
-```bash
-# 在不同的终端或服务器上启动多个工作节点
+# 在不同的终端或服务器上启动多个爬虫节点
 # 终端 1
-crawlo run myspider --config worker_settings.py
+crawlo run myspider --config settings_distributed.py
 
 # 终端 2
-crawlo run myspider --config worker_settings.py
+crawlo run myspider --config settings_distributed.py
 
 # 终端 3
-crawlo run myspider --config worker_settings.py
+crawlo run myspider --config settings_distributed.py
 ```
 
 ## 核心组件详解
 
 ### Redis优先级队列
 
-Redis优先级队列作为分布式任务代理运行，允许多个爬虫实例协调工作。任务使用有序集合存储在Redis中，其中分数表示优先级（取反以支持最小堆语义）。每个请求在通过`RequestSerializer`清理后使用`pickle`进行序列化。
+Redis优先级队列作为分布式任务代理运行，允许多个爬虫实例协调工作。任务使用有序集合存储在Redis中，其中分数表示优先级。每个请求在通过`RequestSerializer`清理后使用`pickle`进行序列化。
 
-当消费者获取任务时，它会从主队列中原子性地移除，并移动到带有TTL的处理队列中，以防止在崩溃期间丢失。成功完成后会触发`ack`，而失败则导致重试逻辑或归档到失败队列。
+当消费者获取任务时，它会从主队列中原子性地移除，并移动到处理队列中。成功完成后会触发`ack`，而失败则导致重试逻辑或归档到失败队列。
 
 ### AioRedis过滤器
 
@@ -206,8 +229,8 @@ AioRedis过滤器通过维护已处理请求指纹的Redis集合提供分布式�
 
 分布式协调机制通过Redis实现任务分发与状态共享，确保多节点协同工作：
 
-1. **任务分发** - 控制节点将初始任务分发到Redis队列
-2. **任务获取** - 工作节点从Redis队列中获取任务
+1. **任务分发** - 任意节点都可以将任务添加到Redis队列
+2. **任务获取** - 所有节点从Redis队列中获取任务
 3. **状态同步** - 通过Redis共享状态信息
 4. **结果存储** - 爬取结果存储到共享数据存储中
 
@@ -221,51 +244,39 @@ AioRedis过滤器通过维护已处理请求指纹的Redis集合提供分布式�
 | REDIS_PORT | int | 6379 | Redis端口 |
 | REDIS_PASSWORD | str | None | Redis密码 |
 | REDIS_DB | int | 0 | Redis数据库编号 |
-| REDIS_CONNECTION_POOL_SIZE | int | 20 | Redis连接池大小 |
-| SCHEDULER_PERSIST | bool | True | 是否持久化调度器状态 |
-| QUEUE_PERSISTENCE | bool | True | 是否持久化队列数据 |
-| STATS_PERSISTENCE | bool | True | 是否持久化统计信息 |
+| PROJECT_NAME | str | 'crawlo' | 项目名称，用于命名空间 |
+| CONCURRENCY | int | 16 | 节点并发数 |
+| DOWNLOAD_DELAY | float | 1.0 | 下载延迟 |
 
 ## 性能优化
 
-### 1. 调整并发数
+### 调整并发数
 
 ```python
-# 控制节点并发数（较低）
-config = CrawloConfig.distributed(concurrency=5)
-
-# 工作节点并发数（较高）
-config = CrawloConfig.distributed(concurrency=30)
+# 设置节点并发数
+config = CrawloConfig.distributed(concurrency=16)
 ```
 
-### 2. 优化Redis配置
+### 优化Redis配置
 
 ```python
-# 增加连接池大小
+# 配置Redis连接参数
 config = CrawloConfig.distributed(
-    redis_connection_pool_size=50
+    redis_host='192.168.1.100',
+    redis_port=6379,
+    redis_password='your_password',
+    redis_db=0
 )
-
-# 启用Redis集群模式（高级配置）
-REDIS_CLUSTER_NODES = [
-    '192.168.1.100:7000',
-    '192.168.1.101:7000',
-    '192.168.1.102:7000'
-]
 ```
 
-### 3. 负载均衡
+### Redis集群优化
 
 ```python
-# 不同工作节点使用不同的配置
-# 工作节点 1 - 高性能
-config = CrawloConfig.distributed(concurrency=50, download_delay=0.1)
-
-# 工作节点 2 - 中等性能
-config = CrawloConfig.distributed(concurrency=20, download_delay=0.5)
-
-# 工作节点 3 - 低性能（避免被封）
-config = CrawloConfig.distributed(concurrency=5, download_delay=2.0)
+# 配置Redis集群连接参数
+config = CrawloConfig.distributed(
+    redis_host='192.168.1.100:7000,192.168.1.100:7001,192.168.1.100:7002',
+    redis_password='your_password'
+)
 ```
 
 ## 监控和日志
@@ -288,8 +299,8 @@ redis-cli info clients
 ```python
 # 启用分布式统计扩展
 EXTENSIONS = [
-    'crawlo.extensions.StatsExtension',
-    'crawlo.extensions.LogStatsExtension',
+    'crawlo.extension.stats.StatsExtension',
+    'crawlo.extension.log_stats.LogStatsExtension',
 ]
 
 # 设置统计日志间隔
@@ -374,11 +385,7 @@ REQUIREPASS = 'your_strong_password'
 
 ```python
 # 合理设置并发数
-# 控制节点
-config = CrawloConfig.distributed(concurrency=5)
-
-# 工作节点
-config = CrawloConfig.distributed(concurrency=20)
+config = CrawloConfig.distributed(concurrency=16)
 
 # 设置内存限制
 MEMORY_LIMIT = '2GB'
@@ -391,10 +398,7 @@ MEMORY_LIMIT = '2GB'
 MAX_RETRY_TIMES = 5
 RETRY_STATUS_CODES = [500, 502, 503, 504, 429]
 
-# 启用自动重试扩展
-EXTENSIONS = [
-    'crawlo.extensions.RetryExtension',
-]
+# 重试功能通过RetryMiddleware自动启用，无需额外配置
 ```
 
 ### 4. 监控告警
@@ -402,9 +406,9 @@ EXTENSIONS = [
 ```python
 # 配置监控扩展
 EXTENSIONS = [
-    'crawlo.extensions.StatsExtension',
-    'crawlo.extensions.LogStatsExtension',
-    'crawlo.extensions.MemoryUsageExtension',
+    'crawlo.extension.stats.StatsExtension',
+    'crawlo.extension.log_stats.LogStatsExtension',
+    'crawlo.extension.memory_monitor.MemoryMonitorExtension',
 ]
 
 # 设置告警阈值
@@ -415,7 +419,7 @@ MEMORY_USAGE_WARNING_THRESHOLD = 500  # 500MB
 
 ### 1. Docker部署
 
-``dockerfile
+```dockerfile
 # Dockerfile
 FROM python:3.9
 
@@ -439,7 +443,7 @@ docker run -d --name worker1 crawlo-worker
 
 ### 2. Kubernetes部署
 
-``yaml
+```yaml
 # worker-deployment.yaml
 apiVersion: apps/v1
 kind: Deployment
@@ -489,8 +493,37 @@ spec:
 - 需要高可用性和容错能力的场景
 - 需要水平扩展的场景
 
+## Redis集群支持
+
+Crawlo框架现在支持Redis集群模式，提供了更高的可用性和扩展性：
+
+### 特性
+
+1. **自动故障转移** - 当主节点故障时，从节点自动接管
+2. **水平扩展** - 可以动态添加更多节点
+3. **数据分片** - 数据分布在多个节点上，提高性能
+4. **智能路由** - 自动将请求路由到正确的节点
+
+### 配置
+
+```python
+# 使用Redis集群URL格式
+config = CrawloConfig.distributed(
+    project_name='distributed_project',
+    redis_host='192.168.1.100:7000,192.168.1.100:7001,192.168.1.100:7002',
+    redis_password='your_password'
+)
+```
+
+### 优势
+
+1. **高可用性** - 即使部分节点故障，系统仍可正常运行
+2. **扩展性** - 可以根据需要添加更多节点
+3. **性能** - 数据分片提高了读写性能
+4. **透明性** - 对用户来说，使用方式与单实例Redis相同
+
 ## 总结
 
 Crawlo框架的分布式爬虫机制通过Redis实现了任务分发与状态共享，支持多节点并行采集，具备良好的扩展性与容错能力。通过合理的配置和部署，可以构建高效、稳定的分布式爬虫系统。
 
-掌握分布式爬虫的工作机制对于处理大规模数据采集任务至关重要。在下一文中，我们将详细介绍Crawlo框架的数据清洗模块设计和API.
+掌握分布式爬虫的工作机制对于处理大规模数据采集任务至关重要。现在Crawlo还支持Redis集群模式，进一步提高了系统的可用性和扩展性。
