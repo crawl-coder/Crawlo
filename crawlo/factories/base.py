@@ -6,7 +6,7 @@
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import Type, Any, Dict, Optional, Callable
+from typing import Type, Any, Dict, Callable
 
 
 @dataclass

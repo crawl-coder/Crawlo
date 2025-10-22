@@ -80,9 +80,6 @@ class AioHttpDownloader(DownloaderBase):
         # 输出下载器配置摘要
         spider_name = getattr(self.crawler.spider, 'name', 'Unknown')
         concurrency = self.crawler.settings.get('CONCURRENCY', 4)
-        # self.logger.debug(f"下载器初始化完成 [爬虫: {spider_name}, 类型: {self.__class__.__name__}, 并发数: {concurrency}]")  # 注释掉重复的日志
-
-        # self.logger.debug("AioHttpDownloader initialized.")  # 注释掉重复的日志
 
     async def download(self, request) -> Optional[Response]:
         """下载请求并返回响应"""
@@ -206,23 +203,15 @@ class AioHttpDownloader(DownloaderBase):
     # --- 请求追踪日志 ---
     async def _on_request_start(self, session, trace_config_ctx, params):
         """请求开始时的回调。"""
-        # proxy = getattr(params, "proxy", None)
-        # proxy_info = f" via {proxy}" if proxy else ""
-        # self.logger.debug(f"Requesting: {params.method} {params.url}{proxy_info}")  # 注释掉过于详细的日志
+        pass
 
     async def _on_request_end(self, session, trace_config_ctx, params):
         """请求成功结束时的回调。"""
-        # response = params.response
-        # self.logger.debug(
-        #     f"Finished: {params.method} {params.url} with status {response.status}"
-        # )  # 注释掉过于详细的日志
+        pass
 
     async def _on_request_exception(self, session, trace_config_ctx, params):
         """请求发生异常时的回调。"""
-        # exc = params.exception
-        # self.logger.warning(
-        #     f"Failed: {params.method} {params.url} with exception {type(exc).__name__}: {exc}"
-        # )  # 注释掉过于详细的日志
+        pass
 
     async def close(self) -> None:
         """关闭会话资源"""

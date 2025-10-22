@@ -108,12 +108,10 @@ class MemoryFilter(BaseFilter):
                 request.method, 
                 request.url, 
                 request.body or b'', 
-                dict(request.headers) if hasattr(request, 'headers') else None
+                dict(request.headers) if hasattr(request, 'headers') else {}
             )
             if fp in self.fingerprints:
                 self._dupe_count += 1
-                # if self.debug:
-                #     self.logger.debug(f"发现重复请求: {fp[:20]}...")  # 注释掉重复的日志
                 return True
 
             self.add_fingerprint(fp)

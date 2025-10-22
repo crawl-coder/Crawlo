@@ -5,9 +5,14 @@
 """
 
 import time
+from typing import TYPE_CHECKING
+
 from .registry import BaseInitializer, register_initializer
 from .phases import InitializationPhase, PhaseResult
 from .context import InitializationContext
+
+if TYPE_CHECKING:
+    from crawlo.logging import LogConfig
 
 
 class LoggingInitializer(BaseInitializer):
@@ -28,7 +33,7 @@ class LoggingInitializer(BaseInitializer):
             log_config = self._get_log_config(context)
             
             # 确保日志目录存在
-            if log_config.file_path and log_config.file_enabled:
+            if log_config and log_config.file_path and log_config.file_enabled:
                 import os
                 log_dir = os.path.dirname(log_config.file_path)
                 if log_dir and not os.path.exists(log_dir):
@@ -58,7 +63,7 @@ class LoggingInitializer(BaseInitializer):
                 error=e
             )
     
-    def _get_log_config(self, context: InitializationContext) -> 'LogConfig':
+    def _get_log_config(self, context: InitializationContext) -> 'LogConfig | None':
         """
         获取日志配置
         
@@ -70,6 +75,7 @@ class LoggingInitializer(BaseInitializer):
         """
         # 导入日志配置类
         from crawlo.logging import LogConfig
+        from crawlo.utils.config_utils import has_config_prefix
         
         # 按优先级获取配置：自定义配置 > 上下文配置 > 项目配置 > 默认配置
         config_sources = [
@@ -80,7 +86,7 @@ class LoggingInitializer(BaseInitializer):
         
         # 遍历配置源
         for config_source in config_sources:
-            if config_source:
+            if config_source and has_config_prefix(config_source, 'LOG_'):
                 log_config = self._create_log_config_from_source(config_source)
                 if log_config:
                     return log_config
@@ -88,7 +94,7 @@ class LoggingInitializer(BaseInitializer):
         # 使用默认配置
         return LogConfig()
     
-    def _create_log_config_from_source(self, config_source) -> 'LogConfig':
+    def _create_log_config_from_source(self, config_source) -> 'LogConfig | None':
         """
         从配置源创建日志配置
         
@@ -100,30 +106,25 @@ class LoggingInitializer(BaseInitializer):
         """
         # 导入日志配置类
         from crawlo.logging import LogConfig
+        from crawlo.utils.config_utils import get_config_value, has_config_prefix
         
         # 检查配置源是否有效
         if not config_source:
             return None
             
         # 检查是否有日志相关配置
-        has_keys_method = hasattr(config_source, 'keys')
-        if has_keys_method:
-            has_log_config = any(key.startswith('LOG_') for key in config_source.keys())
-        else:
-            has_log_config = any(key.startswith('LOG_') for key in dir(config_source))
-            
-        if not has_log_config:
+        if not has_config_prefix(config_source, 'LOG_'):
             return None
             
         # 从配置源获取日志配置
-        log_level = config_source.get('LOG_LEVEL', 'INFO')
-        log_file = config_source.get('LOG_FILE')
-        log_format = config_source.get('LOG_FORMAT', '%(asctime)s - [%(name)s] - %(levelname)s: %(message)s')
-        log_encoding = config_source.get('LOG_ENCODING', 'utf-8')
-        log_max_bytes = config_source.get('LOG_MAX_BYTES', 10 * 1024 * 1024)
-        log_backup_count = config_source.get('LOG_BACKUP_COUNT', 5)
-        log_console_enabled = config_source.get('LOG_CONSOLE_ENABLED', True)
-        log_file_enabled = config_source.get('LOG_FILE_ENABLED', True)
+        log_level = get_config_value([config_source], 'LOG_LEVEL', 'INFO')
+        log_file = get_config_value([config_source], 'LOG_FILE')
+        log_format = get_config_value([config_source], 'LOG_FORMAT', '%(asctime)s - [%(name)s] - %(levelname)s: %(message)s')
+        log_encoding = get_config_value([config_source], 'LOG_ENCODING', 'utf-8')
+        log_max_bytes = get_config_value([config_source], 'LOG_MAX_BYTES', 10 * 1024 * 1024, int)
+        log_backup_count = get_config_value([config_source], 'LOG_BACKUP_COUNT', 5, int)
+        log_console_enabled = get_config_value([config_source], 'LOG_CONSOLE_ENABLED', True, bool)
+        log_file_enabled = get_config_value([config_source], 'LOG_FILE_ENABLED', True, bool)
         
         # 创建日志配置
         return LogConfig(
@@ -176,10 +177,8 @@ class LoggingInitializer(BaseInitializer):
                         settings_module = importlib.import_module(settings_module_path)
                         
                         # 创建配置字典
-                        project_config = {}
-                        for key in dir(settings_module):
-                            if key.isupper():
-                                project_config[key] = getattr(settings_module, key)
+                        from crawlo.utils.config_utils import merge_config_sources
+                        project_config = merge_config_sources([settings_module])
                         
                         return project_config
                     
@@ -268,50 +267,8 @@ class CoreComponentsInitializer(BaseInitializer):
                 error=e
             )
     
-    def _initialize_engine(self, context: InitializationContext):
-        """初始化引擎"""
-        try:
-            # 注意：Engine需要crawler参数，不能在此阶段初始化
-            pass
-        except Exception as e:
-            context.add_error(f"Failed to initialize engine: {e}")
-            raise
-    
-    def _initialize_scheduler(self, context: InitializationContext):
-        """初始化调度器"""
-        try:
-            # 注意：Scheduler需要很多参数，不能在此阶段初始化
-            pass
-        except Exception as e:
-            context.add_error(f"Failed to initialize scheduler: {e}")
-            raise
-    
-    def _initialize_downloader(self, context: InitializationContext):
-        """初始化下载器"""
-        try:
-            # 注意：下载器类需要crawler参数，不能在此阶段初始化实例
-            pass
-        except Exception as e:
-            context.add_error(f"Failed to initialize downloader: {e}")
-            raise
-    
-    def _initialize_pipeline_manager(self, context: InitializationContext):
-        """初始化管道管理器"""
-        try:
-            # 注意：PipelineManager需要crawler参数，不能在此阶段初始化
-            pass
-        except Exception as e:
-            context.add_error(f"Failed to initialize pipeline manager: {e}")
-            raise
-    
-    def _initialize_middleware_manager(self, context: InitializationContext):
-        """初始化中间件管理器"""
-        try:
-            # 注意：MiddlewareManager需要crawler参数，不能在此阶段初始化
-            pass
-        except Exception as e:
-            context.add_error(f"Failed to initialize middleware manager: {e}")
-            raise
+# 注意：核心组件需要crawler参数，不能在此阶段初始化
+        # 实际初始化将在crawler创建时进行
 
 
 class ExtensionsInitializer(BaseInitializer):

@@ -188,11 +188,13 @@ class Engine(object):
         while self.running:
             try:
                 start_request = next(self.start_requests)
-                self.logger.debug(f"获取到请求: {getattr(start_request, 'url', 'Unknown URL')}")
+                # 将过于频繁的debug日志合并，减少输出
+                # self.logger.debug(f"获取到请求: {getattr(start_request, 'url', 'Unknown URL')}")
                 # 请求入队
                 await self.enqueue_request(start_request)
                 processed_count += 1
-                self.logger.debug(f"已处理请求数量: {processed_count}")
+                # 减少过于频繁的日志输出
+                # self.logger.debug(f"已处理请求数量: {processed_count}")
             except StopIteration:
                 self.logger.debug("所有起始请求处理完成")
                 self.start_requests = None

@@ -145,12 +145,18 @@ class RedisBatchProcessor:
                     
                     # 每达到批次大小就执行一次
                     if count % self.batch_size == 0:
-                        await pipe.execute()
+                        result = pipe.execute()
+                        # 处理可能的异步情况
+                        if asyncio.iscoroutine(result):
+                            await result
                         pipe = self.redis_client.pipeline()
             
             # 执行剩余的操作
             if count % self.batch_size != 0:
-                await pipe.execute()
+                result = pipe.execute()
+                # 处理可能的异步情况
+                if asyncio.iscoroutine(result):
+                    await result
             
             self.logger.debug(f"批量设置 {count} 个键值对")
             return count
@@ -178,7 +184,12 @@ class RedisBatchProcessor:
             for key in keys:
                 pipe.get(key)
             
-            results = await pipe.execute()
+            result = pipe.execute()
+            # 处理可能的异步情况
+            if asyncio.iscoroutine(result):
+                results = await result
+            else:
+                results = result
             
             # 构建结果字典
             result_dict = {}
@@ -216,12 +227,18 @@ class RedisBatchProcessor:
                 
                 # 每达到批次大小就执行一次
                 if count % self.batch_size == 0:
-                    await pipe.execute()
+                    result = pipe.execute()
+                    # 处理可能的异步情况
+                    if asyncio.iscoroutine(result):
+                        await result
                     pipe = self.redis_client.pipeline()
             
             # 执行剩余的操作
             if count % self.batch_size != 0:
-                await pipe.execute()
+                result = pipe.execute()
+                # 处理可能的异步情况
+                if asyncio.iscoroutine(result):
+                    await result
             
             self.logger.debug(f"批量删除 {count} 个键")
             return count

@@ -76,8 +76,9 @@ class LogManager:
                 config = LogConfig()  # 使用默认配置
             
             # 验证配置
-            if not config.validate():
-                raise ValueError("Invalid log configuration")
+            is_valid, error_msg = config.validate()
+            if not is_valid:
+                raise ValueError(f"Invalid log configuration: {error_msg}")
             
             self._config = config
             self._configured = True

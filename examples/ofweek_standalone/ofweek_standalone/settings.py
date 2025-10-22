@@ -20,6 +20,8 @@ config = CrawloConfig.standalone(
 # 将配置转换为当前模块的全局变量
 locals().update(config.to_dict())
 
+# QUEUE_TYPE = 'auto'
+
 # =================================== 爬虫配置 ===================================
 
 # 下载器配置

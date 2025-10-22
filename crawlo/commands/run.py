@@ -220,7 +220,7 @@ def main(args):
 
         # 从配置中获取SPIDER_MODULES
         spider_modules = settings.get('SPIDER_MODULES', [f"{project_package}.spiders"])
-        logger().debug(f"SPIDER_MODULES from settings: {spider_modules}")
+        # 合并重复的调试信息
         process = CrawlerProcess(settings=settings, spider_modules=spider_modules)
         
         # 不再需要手动导入爬虫模块，框架内部会自动处理
@@ -228,11 +228,11 @@ def main(args):
         from crawlo.spider import get_global_spider_registry
         registry = get_global_spider_registry()
         spider_names = list(registry.keys())
-        logger().debug(f"Registered spiders after import: {spider_names}")
-        
-        # 调试信息
-        logger().debug(f"SPIDER_MODULES: {spider_modules}")
-        logger().debug(f"Available spiders: {process.get_spider_names()}")
+        # 减少重复的调试日志输出
+        # logger().debug(f"SPIDER_MODULES from settings: {spider_modules}")
+        # logger().debug(f"Registered spiders after import: {spider_names}")
+        # logger().debug(f"SPIDER_MODULES: {spider_modules}")
+        # logger().debug(f"Available spiders: {process.get_spider_names()}")
 
         # === 情况1：运行所有爬虫 ===
         if spider_arg.lower() == "all":
@@ -297,7 +297,8 @@ def main(args):
                     panel_content.append("\n可用爬虫:\n")
                     for name in sorted(available):
                         cls = process.get_spider_class(name)
-                        panel_content.append(f"  • [cyan]{name}[/cyan] ([green]{cls.__name__}[/green])\n")
+                        class_name = cls.__name__ if cls else 'Unknown'
+                        panel_content.append(f"  • [cyan]{name}[/cyan] ([green]{class_name}[/green])\n")
                 else:
                     panel_content.append("\n未找到爬虫。请检查爬虫模块。")
 

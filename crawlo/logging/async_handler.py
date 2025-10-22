@@ -5,11 +5,11 @@
 用于提高日志写入性能
 """
 
-import asyncio
 import logging
-import threading
 import queue
+import threading
 from typing import Optional
+
 from concurrent_log_handler import ConcurrentRotatingFileHandler
 
 
