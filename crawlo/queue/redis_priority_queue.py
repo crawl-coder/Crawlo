@@ -175,9 +175,8 @@ class RedisPriorityQueue:
                     self._redis = await self._redis_pool.get_connection()
 
                     # 测试连接
-                    await self._redis.ping()
-                    # 只在调试模式下输出详细连接信息
-                    # get_module_logger().debug(f"Redis 连接成功 (Module: {self.module_name})")  # 注释掉重复的日志
+                    if self._redis:
+                        await self._redis.ping()
                     return self._redis
                 except Exception as e:
                     error_msg = f"Redis 连接失败 (尝试 {attempt + 1}/{max_retries}, Module: {self.module_name}): {e}"
@@ -252,7 +251,7 @@ class RedisPriorityQueue:
                 result = await pipe.execute()
 
             if result[0] > 0:
-                get_module_logger().debug(f"成功入队 (Module: {self.module_name}): {request.url}")  # 注释掉重复的日志
+                get_module_logger().debug(f"成功入队 (Module: {self.module_name}): {request.url}")
             return result[0] > 0
         except Exception as e:
             error_context = ErrorContext(

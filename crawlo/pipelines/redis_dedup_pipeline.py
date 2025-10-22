@@ -19,7 +19,7 @@ from crawlo import Item
 from crawlo.spider import Spider
 from crawlo.exceptions import DropItem, ItemDiscard
 from crawlo.utils.fingerprint import FingerprintGenerator
-from crawlo.utils.log import get_logger
+from crawlo.utils.log import get_logger, get_component_logger
 
 
 class RedisDedupPipeline:
@@ -44,7 +44,7 @@ class RedisDedupPipeline:
         :param redis_key: 存储指纹的 Redis 键名
         :param log_level: 日志级别
         """
-        self.logger = get_logger(self.__class__.__name__, log_level)
+        self.logger = get_component_logger(self.__class__, level=log_level)
         
         # 初始化 Redis 连接
         try:
@@ -59,8 +59,6 @@ class RedisDedupPipeline:
             )
             # 测试连接
             self.redis_client.ping()
-            # Change INFO level log to DEBUG level to avoid redundant output
-            # self.logger.debug(f"Redis connection successful: {redis_host}:{redis_port}/{redis_db}")  # 注释掉重复的日志
         except Exception as e:
             self.logger.error(f"Redis connection failed: {e}")
             raise RuntimeError(f"Redis 连接失败: {e}")
@@ -150,8 +148,12 @@ class RedisDedupPipeline:
             
             # 注意：默认情况下不清理 Redis 中的指纹
             # 如果需要清理，可以在设置中配置
-            if spider.crawler.settings.getbool('REDIS_DEDUP_CLEANUP', False):
-                deleted = self.redis_client.delete(self.redis_key)
-                self.logger.info(f"  - Cleaned fingerprints: {deleted}")
+            # 安全访问crawler和settings
+            crawler = getattr(spider, 'crawler', None)
+            if crawler and hasattr(crawler, 'settings'):
+                settings = crawler.settings
+                if settings.getbool('REDIS_DEDUP_CLEANUP', False):
+                    deleted = self.redis_client.delete(self.redis_key)
+                    self.logger.info(f"  - Cleaned fingerprints: {deleted}")
         except Exception as e:
             self.logger.error(f"Error closing spider: {e}")
