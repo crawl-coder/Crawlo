@@ -9,9 +9,8 @@ Crawlo 是一个高性能、可扩展的 Python 爬虫框架，支持单机和�
 - 内置数据清洗和验证
 - 分布式爬取支持
 - 灵活的中间件系统
-- 强大的配置管理系统
-- 详细的日志记录和监控
-- Windows 和 Linux 兼容
+
+![Crawlo 框架架构图](images/Crawlo%20框架架构图.png)
 
 ## 安装
 
@@ -81,6 +80,8 @@ class MySpider(Spider):
         
         yield Request(url=absolute_url, callback=self.parse_detail)
 ```
+
+![Crawlo 数据流图](images/Crawlo%20数据流图.png)
 
 ### 编码检测优化
 
@@ -271,6 +272,8 @@ SPIDER_LOADER_WARN_ONLY = True  # 加载错误时只警告不报错
 ```
 
 框架会自动扫描配置的模块目录，发现并注册其中的爬虫类。
+
+![Crawlo 核心架构图](images/Crawlo%20核心架构图.png)
 
 ## 文档
 
