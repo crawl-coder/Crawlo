@@ -14,6 +14,9 @@ from .phases import InitializationPhase, PhaseResult, get_execution_order, get_p
 from .registry import get_global_registry
 
 
+from crawlo.utils.singleton import singleton
+
+@singleton
 class CoreInitializer:
     """
     核心初始化器 - 协调整个框架的初始化过程
@@ -25,29 +28,13 @@ class CoreInitializer:
     4. 错误处理和降级策略
     """
     
-    _instance: Optional['CoreInitializer'] = None
-    _lock = threading.Lock()
-    
-    def __new__(cls) -> 'CoreInitializer':
-        if cls._instance is None:
-            with cls._lock:
-                if cls._instance is None:
-                    cls._instance = super(CoreInitializer, cls).__new__(cls)
-                    cls._instance._initialized = False
-        return cls._instance
-    
     def __init__(self):
-        if hasattr(self, '_initialized') and self._initialized:
-            return
-            
         self._context: Optional[InitializationContext] = None
         self._is_ready = False
         self._init_lock = threading.RLock()
         
         # 注册内置初始化器
         register_built_in_initializers()
-        
-        self._initialized = True
     
     @property
     def context(self) -> Optional[InitializationContext]:

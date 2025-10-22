@@ -13,6 +13,41 @@ from typing import Optional, Dict, Any
 class LogConfig:
     """日志配置数据类 - 简单明确的配置结构"""
     
+    # 预设配置模板
+    TEMPLATES = {
+        'minimal': {
+            'level': 'INFO',
+            'format': '%(asctime)s - %(levelname)s: %(message)s',
+            'console_enabled': True,
+            'file_enabled': False
+        },
+        'standard': {
+            'level': 'INFO',
+            'format': '%(asctime)s - [%(name)s] - %(levelname)s: %(message)s',
+            'console_enabled': True,
+            'file_enabled': True,
+            'file_path': 'logs/crawlo.log'
+        },
+        'detailed': {
+            'level': 'DEBUG',
+            'format': '%(asctime)s - [%(name)s] - %(levelname)s - %(pathname)s:%(lineno)d: %(message)s',
+            'console_enabled': True,
+            'file_enabled': True,
+            'file_path': 'logs/crawlo.log',
+            'max_bytes': 20 * 1024 * 1024,
+            'backup_count': 10
+        },
+        'production': {
+            'level': 'WARNING',
+            'format': '%(asctime)s - [%(name)s] - %(levelname)s: %(message)s',
+            'console_enabled': False,
+            'file_enabled': True,
+            'file_path': 'logs/crawlo.log',
+            'max_bytes': 50 * 1024 * 1024,
+            'backup_count': 20
+        }
+    }
+    
     # 基本配置
     level: str = "INFO"
     format: str = "%(asctime)s - [%(name)s] - %(levelname)s: %(message)s"
@@ -54,21 +89,45 @@ class LogConfig:
         # 获取默认值
         format_default_value = "%(asctime)s - [%(name)s] - %(levelname)s: %(message)s"
         
+        # 确保类型安全
+        def safe_get_str(key: str, default: str = '') -> str:
+            value = get_val(key, default)
+            return str(value) if value is not None else default
+        
+        def safe_get_int(key: str, default: int) -> int:
+            value = get_val(key, default)
+            try:
+                return int(value) if value is not None else default
+            except (ValueError, TypeError):
+                return default
+        
+        def safe_get_bool(key: str, default: bool) -> bool:
+            value = get_val(key, default)
+            if isinstance(value, bool):
+                return value
+            if isinstance(value, str):
+                return value.lower() in ('1', 'true', 'yes', 'on')
+            return bool(value) if value is not None else default
+        
+        def safe_get_dict(key: str, default: dict) -> dict:
+            value = get_val(key, default)
+            return value if isinstance(value, dict) else default
+        
         return cls(
-            level=get_val('LOG_LEVEL', 'INFO'),
-            format=get_val('LOG_FORMAT', format_default_value),
-            encoding=get_val('LOG_ENCODING', 'utf-8'),
-            file_path=get_val('LOG_FILE'),
-            max_bytes=get_val('LOG_MAX_BYTES', 10 * 1024 * 1024),
-            backup_count=get_val('LOG_BACKUP_COUNT', 5),
-            console_enabled=get_val('LOG_CONSOLE_ENABLED', True),
-            file_enabled=get_val('LOG_FILE_ENABLED', True),
-            console_level=get_val('LOG_CONSOLE_LEVEL'),  # 允许单独设置控制台级别
-            file_level=get_val('LOG_FILE_LEVEL'),  # 允许单独设置文件级别
-            include_thread_id=get_val('LOG_INCLUDE_THREAD_ID', False),
-            include_process_id=get_val('LOG_INCLUDE_PROCESS_ID', False),
-            include_module_path=get_val('LOG_INCLUDE_MODULE_PATH', False),
-            module_levels=get_val('LOG_LEVELS', {})
+            level=safe_get_str('LOG_LEVEL', 'INFO'),
+            format=safe_get_str('LOG_FORMAT', format_default_value),
+            encoding=safe_get_str('LOG_ENCODING', 'utf-8'),
+            file_path=safe_get_str('LOG_FILE'),
+            max_bytes=safe_get_int('LOG_MAX_BYTES', 10 * 1024 * 1024),
+            backup_count=safe_get_int('LOG_BACKUP_COUNT', 5),
+            console_enabled=safe_get_bool('LOG_CONSOLE_ENABLED', True),
+            file_enabled=safe_get_bool('LOG_FILE_ENABLED', True),
+            console_level=safe_get_str('LOG_CONSOLE_LEVEL'),  # 允许单独设置控制台级别
+            file_level=safe_get_str('LOG_FILE_LEVEL'),  # 允许单独设置文件级别
+            include_thread_id=safe_get_bool('LOG_INCLUDE_THREAD_ID', False),
+            include_process_id=safe_get_bool('LOG_INCLUDE_PROCESS_ID', False),
+            include_module_path=safe_get_bool('LOG_INCLUDE_MODULE_PATH', False),
+            module_levels=safe_get_dict('LOG_LEVELS', {})
         )
     
     @classmethod
@@ -100,6 +159,22 @@ class LogConfig:
                 mapped_dict[mapped_key] = v
                 
         return cls(**mapped_dict)
+    
+    @classmethod
+    def from_template(cls, template_name: str) -> 'LogConfig':
+        """从模板创建配置
+        
+        Args:
+            template_name: 模板名称 (minimal, standard, detailed, production)
+            
+        Returns:
+            LogConfig: 配置对象
+        """
+        if template_name not in cls.TEMPLATES:
+            raise ValueError(f"未知的模板名称: {template_name}，可用模板: {', '.join(cls.TEMPLATES.keys())}")
+            
+        template_config = cls.TEMPLATES[template_name]
+        return cls(**template_config)
     
     def get_module_level(self, module_name: str) -> str:
         """获取模块的日志级别"""
@@ -169,21 +244,25 @@ class LogConfig:
                 
         return base_format
     
-    def validate(self) -> bool:
-        """验证配置有效性"""
+    def validate(self) -> tuple[bool, str]:
+        """验证配置有效性
+        
+        Returns:
+            tuple[bool, str]: (是否有效, 错误信息)
+        """
         valid_levels = {'DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'}
         
         # 验证主级别
         if self.level.upper() not in valid_levels:
-            return False
+            return False, f"无效的日志级别: {self.level}，有效级别为: {', '.join(valid_levels)}"
         
         # 验证控制台级别
         if self.console_level and self.console_level.upper() not in valid_levels:
-            return False
+            return False, f"无效的控制台日志级别: {self.console_level}，有效级别为: {', '.join(valid_levels)}"
         
         # 验证文件级别
         if self.file_level and self.file_level.upper() not in valid_levels:
-            return False
+            return False, f"无效的文件日志级别: {self.file_level}，有效级别为: {', '.join(valid_levels)}"
         
         # 确保日志目录存在
         if self.file_path and self.file_enabled:
@@ -191,7 +270,8 @@ class LogConfig:
                 log_dir = os.path.dirname(self.file_path)
                 if log_dir and not os.path.exists(log_dir):
                     os.makedirs(log_dir, exist_ok=True)
-            except (OSError, PermissionError):
-                return False
+            except (OSError, PermissionError) as e:
+                log_dir = os.path.dirname(self.file_path) if self.file_path else "未知"
+                return False, f"无法创建日志目录 {log_dir}: {e}"
         
-        return True
+        return True, "配置有效"

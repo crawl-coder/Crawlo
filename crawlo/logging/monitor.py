@@ -6,7 +6,7 @@
 
 import time
 import threading
-from typing import Dict, List
+from typing import Dict, List, Optional
 from collections import defaultdict, deque
 from .manager import get_config
 
@@ -21,6 +21,11 @@ class LogPerformanceMonitor:
         self._lock = threading.Lock()
         self._log_stats: Dict[str, deque] = defaultdict(lambda: deque(maxlen=1000))
         self._enabled = False
+        
+    @property
+    def enabled(self) -> bool:
+        """获取监控是否启用"""
+        return self._enabled
         
     def enable_monitoring(self):
         """启用性能监控"""
@@ -53,7 +58,7 @@ class LogPerformanceMonitor:
             }
             self._log_stats[logger_name].append(event)
             
-    def get_statistics(self, logger_name: str = None) -> Dict:
+    def get_statistics(self, logger_name: Optional[str] = None) -> Dict:
         """
         获取日志统计信息
         

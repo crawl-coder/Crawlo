@@ -31,73 +31,74 @@ class CrawlerComponentFactory(ComponentFactory):
         return component_type.__name__ in supported_types
 
 
+# Engine组件
+def create_engine(crawler, **kwargs):
+    from crawlo.core.engine import Engine
+    return Engine(crawler)
+
+# Scheduler组件
+def create_scheduler(crawler, **kwargs):
+    from crawlo.core.scheduler import Scheduler
+    return Scheduler.create_instance(crawler)
+
+# StatsCollector组件
+def create_stats(crawler, **kwargs):
+    from crawlo.stats_collector import StatsCollector
+    return StatsCollector(crawler)
+
+# Subscriber组件
+def create_subscriber(**kwargs):
+    from crawlo.subscriber import Subscriber
+    return Subscriber()
+
+# ExtensionManager组件
+def create_extension_manager(crawler, **kwargs):
+    from crawlo.extension import ExtensionManager
+    return ExtensionManager.create_instance(crawler)
+
 def register_crawler_components():
     """注册Crawler相关组件"""
-    registry = get_component_registry()
+    from .utils import register_components
     
     # 注册工厂
+    registry = get_component_registry()
     registry.register_factory(CrawlerComponentFactory())
     
-    # 注册组件规范
+    # 批量注册组件
+    component_list = [
+        {
+            'name': 'engine',
+            'component_type': 'Engine',
+            'factory_func': create_engine,
+            'dependencies': ['crawler']
+        },
+        {
+            'name': 'scheduler',
+            'component_type': 'Scheduler',
+            'factory_func': create_scheduler,
+            'dependencies': ['crawler']
+        },
+        {
+            'name': 'stats',
+            'component_type': 'StatsCollector',
+            'factory_func': create_stats,
+            'dependencies': ['crawler']
+        },
+        {
+            'name': 'subscriber',
+            'component_type': 'Subscriber',
+            'factory_func': create_subscriber,
+            'dependencies': []
+        },
+        {
+            'name': 'extension_manager',
+            'component_type': 'ExtensionManager',
+            'factory_func': create_extension_manager,
+            'dependencies': ['crawler']
+        }
+    ]
     
-    # Engine组件
-    def create_engine(crawler, **kwargs):
-        from crawlo.core.engine import Engine
-        return Engine(crawler)
-    
-    registry.register(ComponentSpec(
-        name='engine',
-        component_type=type('Engine', (), {}),
-        factory_func=create_engine,
-        dependencies=['crawler']
-    ))
-    
-    # Scheduler组件
-    def create_scheduler(crawler, **kwargs):
-        from crawlo.core.scheduler import Scheduler
-        return Scheduler.create_instance(crawler)
-    
-    registry.register(ComponentSpec(
-        name='scheduler',
-        component_type=type('Scheduler', (), {}),
-        factory_func=create_scheduler,
-        dependencies=['crawler']
-    ))
-    
-    # StatsCollector组件
-    def create_stats(crawler, **kwargs):
-        from crawlo.stats_collector import StatsCollector
-        return StatsCollector(crawler)
-    
-    registry.register(ComponentSpec(
-        name='stats',
-        component_type=type('StatsCollector', (), {}),
-        factory_func=create_stats,
-        dependencies=['crawler']
-    ))
-    
-    # Subscriber组件
-    def create_subscriber(**kwargs):
-        from crawlo.subscriber import Subscriber
-        return Subscriber()
-    
-    registry.register(ComponentSpec(
-        name='subscriber',
-        component_type=type('Subscriber', (), {}),
-        factory_func=create_subscriber
-    ))
-    
-    # ExtensionManager组件
-    def create_extension_manager(crawler, **kwargs):
-        from crawlo.extension import ExtensionManager
-        return ExtensionManager.create_instance(crawler)
-    
-    registry.register(ComponentSpec(
-        name='extension_manager',
-        component_type=type('ExtensionManager', (), {}),
-        factory_func=create_extension_manager,
-        dependencies=['crawler']
-    ))
+    register_components(component_list)
 
 
 # 自动注册

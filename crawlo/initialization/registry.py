@@ -35,11 +35,12 @@ class BaseInitializer(Initializer):
     def _create_result(self, success: bool, duration: float = 0.0, 
                       artifacts: Optional[Dict] = None, error: Optional[Exception] = None) -> PhaseResult:
         """创建初始化结果"""
-        return PhaseResult(
+        from .utils import create_initialization_result
+        return create_initialization_result(
             phase=self.phase,
             success=success,
             duration=duration,
-            artifacts=artifacts or {},
+            artifacts=artifacts,
             error=error
         )
 
@@ -70,14 +71,11 @@ class InitializerRegistry:
                          init_func: Callable[[InitializationContext], PhaseResult]):
         """注册函数式初始化器"""
         
-        class FunctionInitializer:
+        class FunctionInitializer(Initializer):
             def __init__(self, phase: InitializationPhase, func: Callable):
+                super().__init__(phase)
                 self._phase = phase
                 self._func = func
-            
-            @property  
-            def phase(self) -> InitializationPhase:
-                return self._phase
             
             def initialize(self, context: InitializationContext) -> PhaseResult:
                 return self._func(context)

@@ -15,9 +15,11 @@ from weakref import WeakValueDictionary
 try:
     from concurrent_log_handler import ConcurrentRotatingFileHandler
     USE_CONCURRENT_HANDLER = True
+    RotatingFileHandler = ConcurrentRotatingFileHandler  # 别名以避免未绑定错误
 except ImportError:
     from logging.handlers import RotatingFileHandler
     USE_CONCURRENT_HANDLER = False
+    ConcurrentRotatingFileHandler = RotatingFileHandler  # 别名以避免未绑定错误
 
 from .manager import get_config, is_configured, configure
 from .config import LogConfig
@@ -69,7 +71,7 @@ class LoggerFactory:
         """创建新的Logger实例"""
         config = get_config()
         if not config:
-            raise RuntimeError("Log system not configured")
+            raise RuntimeError("日志系统未配置，请先调用 configure_logging() 进行配置")
         
         # 创建Logger
         logger = logging.getLogger(name)
@@ -103,6 +105,7 @@ class LoggerFactory:
                     os.makedirs(log_dir, exist_ok=True)
                 
                 # 根据平台选择合适的Handler
+                file_handler = None
                 if USE_CONCURRENT_HANDLER:
                     file_handler = ConcurrentRotatingFileHandler(
                         filename=config.file_path,
@@ -133,12 +136,14 @@ class LoggerFactory:
                         encoding=config.encoding
                     )
                 
-                file_handler.setFormatter(formatter)
-                # 使用专门的文件级别或模块级别
-                file_level = config.get_file_level()
-                level = getattr(logging, file_level.upper(), logging.INFO)
-                file_handler.setLevel(level)
-                logger.addHandler(file_handler)
+                # 添加文件处理器（如果创建成功）
+                if file_handler is not None:
+                    file_handler.setFormatter(formatter)
+                    # 使用专门的文件级别或模块级别
+                    file_level = config.get_file_level()
+                    level = getattr(logging, file_level.upper(), logging.INFO)
+                    file_handler.setLevel(level)
+                    logger.addHandler(file_handler)
             except Exception as e:
                 # 文件Handler创建失败时，至少保证控制台输出
                 console_handler = logging.StreamHandler()
