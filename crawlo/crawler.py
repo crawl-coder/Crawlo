@@ -1,14 +1,19 @@
 #!/usr/bin/python
 # -*- coding: UTF-8 -*-
 """
-重构后的Crawler系统
-==================
+Crawler系统
+==========
+
+核心组件：
+- Crawler: 爬虫核心控制器，负责单个爬虫的生命周期管理
+- CrawlerProcess: 爬虫进程管理器，支持单个/多个爬虫运行
 
 设计原则：
 1. 单一职责 - 每个类只负责一个明确的功能
 2. 依赖注入 - 通过工厂创建组件，便于测试
 3. 状态管理 - 清晰的状态转换和生命周期
 4. 错误处理 - 优雅的错误处理和恢复机制
+5. 资源管理 - 统一的资源注册和清理机制
 """
 
 import asyncio
@@ -21,6 +26,7 @@ from typing import Optional, Type, Dict, Any, List
 from crawlo.logging import get_logger
 from crawlo.factories import get_component_registry
 from crawlo.initialization import initialize_framework, is_framework_ready
+from crawlo.utils.resource_manager import ResourceManager, ResourceType
 
 
 class CrawlerState(Enum):
@@ -55,15 +61,16 @@ class CrawlerMetrics:
         return (self.success_count / total * 100) if total > 0 else 0.0
 
 
-class ModernCrawler:
+class Crawler:
     """
-    现代化的Crawler实现
+    爬虫核心控制器
     
     特点：
     1. 清晰的状态管理
     2. 依赖注入
     3. 组件化架构
     4. 完善的错误处理
+    5. 统一的资源管理
     """
     
     def __init__(self, spider_cls: Type, settings=None):
@@ -81,6 +88,9 @@ class ModernCrawler:
         
         # 指标
         self._metrics = CrawlerMetrics()
+        
+        # 资源管理器
+        self._resource_manager = ResourceManager(name=f"crawler.{spider_cls.__name__ if spider_cls else 'unknown'}")
         
         # 日志
         self._logger = get_logger(f'crawler.{spider_cls.__name__ if spider_cls else "unknown"}')
@@ -209,6 +219,14 @@ class ModernCrawler:
             
             # 创建Engine（需要crawler参数）
             self._engine = registry.create('engine', crawler=self)
+            # 注册Engine到资源管理器
+            if self._engine and hasattr(self._engine, 'close'):
+                self._resource_manager.register(
+                    self._engine,
+                    lambda e: e.close() if hasattr(e, 'close') else None,
+                    ResourceType.OTHER,
+                    name="engine"
+                )
             
             # 创建Stats（需要crawler参数）
             self._stats = registry.create('stats', crawler=self)
@@ -291,7 +309,15 @@ class ModernCrawler:
                 self._state = CrawlerState.CLOSING
         
         try:
-            # 关闭各个组件
+            # 使用资源管理器统一清理
+            self._logger.debug("开始清理Crawler资源...")
+            cleanup_result = await self._resource_manager.cleanup_all()
+            self._logger.debug(
+                f"资源清理完成: {cleanup_result['success']}成功, "
+                f"{cleanup_result['errors']}失败, 耗时{cleanup_result['duration']:.2f}s"
+            )
+            
+            # 关闭各个组件（继续兼容旧逻辑）
             if self._engine and hasattr(self._engine, 'close'):
                 try:
                     await self._engine.close()
@@ -318,7 +344,9 @@ class ModernCrawler:
             
             # 触发spider_closed事件，通知所有订阅者（包括扩展）
             # 传递reason参数，这里使用默认的'finished'作为reason
-            await self.subscriber.notify("spider_closed", reason='finished')
+            if self.subscriber:
+                from crawlo.event import CrawlerEvent
+                await self.subscriber.notify(CrawlerEvent.SPIDER_CLOSED, reason='finished')
             
             if self._stats and hasattr(self._stats, 'close'):
                 try:
@@ -348,7 +376,7 @@ class CrawlerProcess:
         # 初始化框架配置
         self._settings = settings or initialize_framework()
         self._max_concurrency = max_concurrency
-        self._crawlers: List[ModernCrawler] = []
+        self._crawlers: List[Crawler] = []
         self._semaphore = asyncio.Semaphore(max_concurrency)
         self._logger = get_logger('crawler.process')
         
@@ -497,7 +525,7 @@ class CrawlerProcess:
         logger.info(f"Starting spider: {spider_cls.name}")
         
         merged_settings = self._merge_settings(settings)
-        crawler = ModernCrawler(spider_cls, merged_settings)
+        crawler = Crawler(spider_cls, merged_settings)
         
         async with self._semaphore:
             await crawler.crawl()
@@ -526,7 +554,7 @@ class CrawlerProcess:
             tasks = []
             for spider_cls in spider_classes:
                 merged_settings = self._merge_settings(settings)
-                crawler = ModernCrawler(spider_cls, merged_settings)
+                crawler = Crawler(spider_cls, merged_settings)
                 self._crawlers.append(crawler)
                 
                 task = asyncio.create_task(self._run_with_semaphore(crawler))
@@ -543,12 +571,25 @@ class CrawlerProcess:
             return results
             
         finally:
+            # 清理所有crawler，防止资源累积
+            self._logger.debug(f"Cleaning up {len(self._crawlers)} crawler(s)...")
+            for crawler in self._crawlers:
+                try:
+                    # 确保每个crawler都被清理
+                    if hasattr(crawler, '_resource_manager'):
+                        await crawler._resource_manager.cleanup_all()
+                except Exception as e:
+                    self._logger.warning(f"Failed to cleanup crawler: {e}")
+            
+            # 清空crawlers列表，释放引用
+            self._crawlers.clear()
+            
             self._end_time = time.time()
             if self._start_time:
                 duration = self._end_time - self._start_time
                 self._logger.info(f"Total execution time: {duration:.2f}s")
     
-    async def _run_with_semaphore(self, crawler: ModernCrawler):
+    async def _run_with_semaphore(self, crawler: Crawler):
         """在信号量控制下运行爬虫"""
         async with self._semaphore:
             await crawler.crawl()

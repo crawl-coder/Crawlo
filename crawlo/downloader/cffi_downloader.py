@@ -9,7 +9,7 @@ from curl_cffi.requests import AsyncSession
 
 from crawlo.network.response import Response
 from crawlo.downloader import DownloaderBase
-from crawlo.utils.log import get_logger
+from crawlo.logging import get_logger
 
 class CurlCffiDownloader(DownloaderBase):
     """
@@ -25,7 +25,7 @@ class CurlCffiDownloader(DownloaderBase):
         # 调用父类初始化方法，确保 _closed 等属性被正确初始化
         super().__init__(crawler)
         
-        self.logger = get_logger(self.__class__.__name__, crawler.settings.get('LOG_LEVEL'))
+        self.logger = get_logger(self.__class__.__name__)
         self._active_requests = set()
 
         # --- 基础配置 ---
@@ -237,6 +237,9 @@ class CurlCffiDownloader(DownloaderBase):
                 self.logger.warning(f"关闭 curl-cffi 会话时出错: {e}")
             finally:
                 self.session = None
+                # 清空活跃请求跟踪
+                self._active_requests.clear()
+        
         self.logger.debug("CurlCffiDownloader 已关闭")
 
     def idle(self) -> bool:

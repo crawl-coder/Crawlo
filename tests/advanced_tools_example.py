@@ -22,11 +22,6 @@ from crawlo.tools import (
     handle_captcha,
     detect_rate_limiting,
     
-    # 带认证代理工具
-    AuthenticatedProxy,
-    create_proxy_config,
-    format_proxy_for_request,
-    
     # 分布式协调工具
     generate_pagination_tasks,
     distribute_tasks,
@@ -125,32 +120,6 @@ def demo_anti_crawler_tools():
     print()
 
 
-def demo_authenticated_proxy_tools():
-    """演示带认证代理工具的使用"""
-    print("=== 带认证代理工具演示 ===\n")
-    
-    # 不同类型的代理URL
-    proxy_urls = [
-        "http://user:pass@proxy1.example.com:8080",  # 带认证HTTP代理
-        "https://username:password@proxy2.example.com:443",  # 带认证HTTPS代理
-        "http://proxy3.example.com:8080"  # 不带认证代理
-    ]
-    
-    for proxy_url in proxy_urls:
-        print(f"处理代理: {proxy_url}")
-        
-        # 创建代理对象
-        proxy = AuthenticatedProxy(proxy_url)
-        
-        # 为不同下载器格式化代理配置
-        for downloader in ["aiohttp", "httpx", "curl_cffi"]:
-            config = create_proxy_config(proxy_url)
-            formatted = format_proxy_for_request(config, downloader)
-            print(f"  {downloader}格式: {formatted}")
-        
-        print()
-
-
 def demo_distributed_coordinator_tools():
     """演示分布式协调工具的使用"""
     print("=== 分布式协调工具演示 ===\n")
@@ -191,8 +160,7 @@ from crawlo.tools import (
     validate_email,
     AntiCrawler,
     DistributedCoordinator,
-    retry,
-    AuthenticatedProxy
+    retry
 )
 
 class AdvancedSpider(Spider):
@@ -200,40 +168,19 @@ class AdvancedSpider(Spider):
         super().__init__()
         self.anti_crawler = AntiCrawler()
         self.coordinator = DistributedCoordinator()
-        # 代理列表
-        self.proxy_urls = [
-            "http://user1:pass1@proxy1.example.com:8080",
-            "http://user2:pass2@proxy2.example.com:8080",
-            "http://proxy3.example.com:8080"  # 不带认证
-        ]
     
     def start_requests(self):
         # 生成分页任务
         base_url = "https://api.example.com/products"
         pagination_tasks = self.coordinator.generate_pagination_tasks(base_url, 1, 100)
         
-        for i, url in enumerate(pagination_tasks):
-            # 轮换使用代理
-            proxy_url = self.proxy_urls[i % len(self.proxy_urls)]
-            proxy = AuthenticatedProxy(proxy_url)
-            
-            request = Request(url, callback=self.parse)
-            
-            # 根据下载器类型设置代理
-            downloader_type = self.crawler.settings.get("DOWNLOADER_TYPE", "aiohttp")
-            if downloader_type == "aiohttp":
-                request.proxy = proxy.clean_url
-                auth = proxy.get_auth_credentials()
-                if auth:
-                    request.meta["proxy_auth"] = auth
-            elif downloader_type == "httpx":
-                request.proxy = proxy.clean_url
-            elif downloader_type == "curl_cffi":
-                request.proxy = proxy.proxy_dict
-                auth_header = proxy.get_auth_header()
-                if auth_header:
-                    request.headers["Proxy-Authorization"] = auth_header
-            
+        for url in pagination_tasks:
+            # 直接使用带认证的代理URL（框架原生支持）
+            request = Request(
+                url, 
+                callback=self.parse,
+                proxy="http://user:pass@proxy.example.com:8080"  # 所有下载器都支持
+            )
             yield request
     
     @retry(max_retries=3)
@@ -248,19 +195,15 @@ class AdvancedSpider(Spider):
         products = response.css('.product-item')
         for product in products:
             name = product.css('.product-name::text').get()
-            price_text = product.css('.price::text').get()
             email = product.css('.contact-email::text').get()
             
             # 数据清洗和验证
             clean_name = clean_text(name) if name else None
-            clean_price = clean_text(price_text) if price_text else None
             is_valid_email = validate_email(email) if email else False
             
             # 检查数据是否重复
-            if not await self.coordinator.is_duplicate({"name": clean_name, "price": clean_price}):
-                # 添加到去重集合
-                await self.coordinator.add_to_dedup({"name": clean_name, "price": clean_price})
-                
+            if not await self.coordinator.is_duplicate({"name": clean_name}):
+                await self.coordinator.add_to_dedup({"name": clean_name})
                 # 处理产品数据...
                 pass
     """)
@@ -271,6 +214,5 @@ if __name__ == '__main__':
     demo_data_processing_tools()
     demo_retry_mechanism()
     demo_anti_crawler_tools()
-    demo_authenticated_proxy_tools()
     demo_distributed_coordinator_tools()
     demo_in_spider()

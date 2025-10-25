@@ -1,8 +1,6 @@
 # -*- coding: UTF-8 -*-
 """
-{{project_name}}.spiders.{{spider_name}}
-=======================================
-由 `crawlo genspider` 命令生成的爬虫。
+爬虫：{{spider_name}}
 """
 
 from crawlo.spider import Spider
@@ -11,9 +9,7 @@ from ..items import {{item_class}}
 
 
 class {{class_name}}(Spider):
-    """
-    爬虫：{{spider_name}}
-    """
+    """{{spider_name}} 爬虫"""
     name = '{{spider_name}}'
     allowed_domains = ['{{domain}}']
     start_urls = ['https://{{domain}}/']
@@ -22,16 +18,12 @@ class {{class_name}}(Spider):
     custom_settings = {}
 
     def start_requests(self):
-        """
-        生成初始请求。
-        """
+        """生成初始请求"""
         for url in self.start_urls:
             yield Request(url=url, callback=self.parse)
 
     def parse(self, response):
-        """
-        解析响应的主方法。
-        """
+        """解析响应"""
         self.logger.info(f'正在解析页面: {response.url}')
         
         yield {

@@ -17,7 +17,7 @@ Crawlo过滤器模块
 from abc import ABC, abstractmethod
 from typing import Optional
 
-from crawlo.utils.request import request_fingerprint
+from crawlo.utils.fingerprint import FingerprintGenerator
 
 
 class BaseFilter(ABC):
@@ -46,6 +46,23 @@ class BaseFilter(ABC):
     def create_instance(cls, *args, **kwargs) -> 'BaseFilter':
         return cls(*args, **kwargs)
 
+    def _get_fingerprint(self, request) -> str:
+        """
+        获取请求指纹（内部辅助方法）
+        
+        使用统一的 FingerprintGenerator 生成请求指纹。
+        子类可以直接调用此方法，避免重复实现。
+        
+        :param request: 请求对象
+        :return: 请求指纹字符串
+        """
+        return FingerprintGenerator.request_fingerprint(
+            request.method,
+            request.url,
+            request.body or b'',
+            dict(request.headers) if hasattr(request, 'headers') else {}
+        )
+
     def requested(self, request) -> bool:
         """
         检查请求是否重复（主要接口）
@@ -54,7 +71,7 @@ class BaseFilter(ABC):
         :return: True 表示重复，False 表示新请求
         """
         self._request_count += 1
-        fp = request_fingerprint(request)
+        fp = self._get_fingerprint(request)
         
         if fp in self:
             self._duplicate_count += 1

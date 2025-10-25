@@ -39,8 +39,8 @@ except ImportError:
 from crawlo import Item
 from crawlo.spider import Spider
 from crawlo.utils.fingerprint import FingerprintGenerator
-from crawlo.utils.log import get_logger
-from crawlo.exceptions import DropItem, ItemDiscard
+from crawlo.logging import get_logger
+from crawlo.exceptions import ItemDiscard
 
 
 class BloomDedupPipeline:
@@ -59,7 +59,7 @@ class BloomDedupPipeline:
         :param error_rate: 误判率 (例如 0.001 表示 0.1%)
         :param log_level: 日志级别
         """
-        self.logger = get_logger(self.__class__.__name__, log_level)
+        self.logger = get_logger(self.__class__.__name__)
         
         # 初始化 Bloom Filter
         try:
@@ -91,7 +91,7 @@ class BloomDedupPipeline:
         
         :param item: 要处理的数据项
         :param spider: 爬虫实例
-        :return: 处理后的数据项或抛出 DropItem 异常
+        :return: 处理后的数据项或抛出 ItemDiscard 异常
         """
         try:
             # 生成数据项指纹

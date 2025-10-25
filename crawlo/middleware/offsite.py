@@ -7,7 +7,7 @@ OffsiteMiddleware 中间件
 import re
 from urllib.parse import urlparse
 
-from crawlo.utils.log import get_logger
+from crawlo.logging import get_logger
 from crawlo.exceptions import IgnoreRequestError
 
 
@@ -18,7 +18,7 @@ class OffsiteMiddleware:
     """
 
     def __init__(self, stats, log_level, allowed_domains=None):
-        self.logger = get_logger(self.__class__.__name__, log_level)
+        self.logger = get_logger(self.__class__.__name__)
         self.stats = stats
         self.allowed_domains = allowed_domains or []
 

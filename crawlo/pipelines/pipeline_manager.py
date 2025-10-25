@@ -4,11 +4,11 @@ from typing import List
 from pprint import pformat
 from asyncio import create_task
 
-from crawlo.utils.log import get_logger
-from crawlo.event import item_successful, item_discard
+from crawlo.logging import get_logger
+from crawlo.event import CrawlerEvent
 from crawlo.utils.misc import load_object
 from crawlo.project import common_call
-from crawlo.exceptions import PipelineInitError, ItemDiscard, InvalidOutputError, DropItem
+from crawlo.exceptions import PipelineInitError, ItemDiscard, InvalidOutputError
 
 
 def get_dedup_pipeline_classes():
@@ -34,7 +34,7 @@ class PipelineManager:
         self.pipelines: List = []
         self.methods: List = []
 
-        self.logger = get_logger(self.__class__.__name__, self.crawler.settings.get('LOG_LEVEL'))
+        self.logger = get_logger(self.__class__.__name__)
         pipelines = self.crawler.settings.get_list('PIPELINES')
         dedup_pipeline = self.crawler.settings.get('DEFAULT_DEDUP_PIPELINE')
 
@@ -88,13 +88,13 @@ class PipelineManager:
                     item = await common_call(method, item, self.crawler.spider)
                     if item is None:
                         raise InvalidOutputError(f"{method.__qualname__} return None is not supported.")
-                except (ItemDiscard, DropItem) as exc:  # 同时捕获两种异常类型
+                except ItemDiscard as exc:
                     self.logger.debug(f"Item discarded by pipeline: {exc}")
-                    create_task(self.crawler.subscriber.notify(item_discard, item, exc, self.crawler.spider))
+                    create_task(self.crawler.subscriber.notify(CrawlerEvent.ITEM_DISCARD, item, exc, self.crawler.spider))
                     # 重新抛出异常，确保上层调用者也能捕获到，并停止执行后续管道
                     raise
-        except (ItemDiscard, DropItem):
+        except ItemDiscard:
             # 异常已经被处理和通知，这里只需要重新抛出
             raise
         else:
-            create_task(self.crawler.subscriber.notify(item_successful, item, self.crawler.spider))
+            create_task(self.crawler.subscriber.notify(CrawlerEvent.ITEM_SUCCESSFUL, item, self.crawler.spider))

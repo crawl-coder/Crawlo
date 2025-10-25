@@ -4,9 +4,9 @@
 RequestIgnoreMiddleware 中间件
 用于处理和记录被忽略的请求
 """
-from crawlo.utils.log import get_logger
+from crawlo.logging import get_logger
 from crawlo.exceptions import IgnoreRequestError
-from crawlo.event import ignore_request
+from crawlo.event import CrawlerEvent
 
 
 class RequestIgnoreMiddleware(object):
@@ -23,7 +23,7 @@ class RequestIgnoreMiddleware(object):
             stats: 统计信息收集器
             log_level: 日志级别
         """
-        self.logger = get_logger(self.__class__.__name__, log_level)
+        self.logger = get_logger(self.__class__.__name__)
         self.stats = stats
 
     @classmethod
@@ -38,7 +38,7 @@ class RequestIgnoreMiddleware(object):
             RequestIgnoreMiddleware: 中间件实例
         """
         o = cls(stats=crawler.stats, log_level=crawler.settings.get('LOG_LEVEL'))
-        crawler.subscriber.subscribe(o.request_ignore, event=ignore_request)
+        crawler.subscriber.subscribe(o.request_ignore, event=CrawlerEvent.IGNORE_REQUEST)
         return o
 
     async def request_ignore(self, exc, request, _spider):

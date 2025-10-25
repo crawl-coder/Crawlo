@@ -15,7 +15,7 @@ if TYPE_CHECKING:
 
 from crawlo.queue.pqueue import SpiderPriorityQueue
 from crawlo.utils.error_handler import ErrorHandler
-from crawlo.utils.log import get_logger
+from crawlo.logging import get_logger
 from crawlo.utils.request_serializer import RequestSerializer
 
 try:
@@ -123,9 +123,11 @@ class QueueConfig:
             max_queue_size: int = 1000,
             max_retries: int = 3,
             timeout: int = 300,
+            run_mode: Optional[str] = None,  # 新增：运行模式
             **kwargs
     ):
         self.queue_type = QueueType(queue_type) if isinstance(queue_type, str) else queue_type
+        self.run_mode = run_mode  # 保存运行模式
 
         # Redis 配置
         if redis_url:
@@ -166,7 +168,8 @@ class QueueConfig:
             queue_name=queue_name,
             max_queue_size=settings.get_int('SCHEDULER_MAX_QUEUE_SIZE', 1000),
             max_retries=settings.get_int('QUEUE_MAX_RETRIES', 3),
-            timeout=settings.get_int('QUEUE_TIMEOUT', 300)
+            timeout=settings.get_int('QUEUE_TIMEOUT', 300),
+            run_mode=settings.get('RUN_MODE')  # 传递运行模式
         )
 
 
@@ -224,6 +227,17 @@ class QueueManager:
 
             return False  # 默认不需要更新配置
 
+        except RuntimeError as e:
+            # Distributed 模式下的 RuntimeError 必须重新抛出
+            if self.config.run_mode == 'distributed':
+                self.logger.error(f"Queue initialization failed: {e}")
+                self._health_status = "error"
+                raise  # 重新抛出异常
+            # 其他模式记录错误但不抛出
+            self.logger.error(f"Queue initialization failed: {e}")
+            self.logger.debug(f"详细错误信息:\n{traceback.format_exc()}")
+            self._health_status = "error"
+            return False
         except Exception as e:
             # 记录详细的错误信息和堆栈跟踪
             self.logger.error(f"Queue initialization failed: {e}")
@@ -403,23 +417,63 @@ class QueueManager:
                 return QueueType.MEMORY
 
         elif self.config.queue_type == QueueType.REDIS:
-            # 当 QUEUE_TYPE = 'redis' 时，行为等同于 'auto' 模式
-            # 优先使用 Redis（如果可用），如果不可用则回退到内存队列
-            if REDIS_AVAILABLE and self.config.redis_url:
+            # Distributed 模式：必须使用 Redis，不允许降级
+            if self.config.run_mode == 'distributed':
+                # 分布式模式必须确保 Redis 可用
+                if not REDIS_AVAILABLE:
+                    error_msg = (
+                        "Distributed 模式要求 Redis 可用，但 Redis 客户端库未安装。\n"
+                        "请安装 Redis 支持: pip install redis"
+                    )
+                    self.logger.error(error_msg)
+                    raise RuntimeError(error_msg)
+                
+                if not self.config.redis_url:
+                    error_msg = (
+                        "Distributed 模式要求配置 Redis 连接信息。\n"
+                        "请在 settings.py 中配置 REDIS_HOST、REDIS_PORT 等参数"
+                    )
+                    self.logger.error(error_msg)
+                    raise RuntimeError(error_msg)
+                
                 # 测试 Redis 连接
                 try:
                     from crawlo.queue.redis_priority_queue import RedisPriorityQueue
                     test_queue = RedisPriorityQueue(self.config.redis_url)
                     await test_queue.connect()
                     await test_queue.close()
-                    self.logger.debug("Redis mode: Redis available, using distributed queue")
+                    self.logger.debug("Distributed mode: Redis connection verified")
                     return QueueType.REDIS
                 except Exception as e:
-                    self.logger.debug(f"Redis mode: Redis unavailable ({e}), falling back to memory queue")
-                    return QueueType.MEMORY
+                    error_msg = (
+                        f"Distributed 模式要求 Redis 可用，但无法连接到 Redis 服务器。\n"
+                        f"错误信息: {e}\n"
+                        f"Redis URL: {self.config.redis_url}\n"
+                        f"请检查：\n"
+                        f"  1. Redis 服务是否正在运行\n"
+                        f"  2. Redis 连接配置是否正确\n"
+                        f"  3. 网络连接是否正常"
+                    )
+                    self.logger.error(error_msg)
+                    raise RuntimeError(error_msg) from e
             else:
-                self.logger.debug("Redis mode: Redis not configured, falling back to memory queue")
-                return QueueType.MEMORY
+                # 非 distributed 模式：QUEUE_TYPE='redis' 时允许降级到 memory
+                # 这提供了向后兼容性和更好的容错性
+                if REDIS_AVAILABLE and self.config.redis_url:
+                    # 测试 Redis 连接
+                    try:
+                        from crawlo.queue.redis_priority_queue import RedisPriorityQueue
+                        test_queue = RedisPriorityQueue(self.config.redis_url)
+                        await test_queue.connect()
+                        await test_queue.close()
+                        self.logger.debug("Redis mode: Redis available, using distributed queue")
+                        return QueueType.REDIS
+                    except Exception as e:
+                        self.logger.warning(f"Redis mode: Redis unavailable ({e}), falling back to memory queue")
+                        return QueueType.MEMORY
+                else:
+                    self.logger.warning("Redis mode: Redis not configured, falling back to memory queue")
+                    return QueueType.MEMORY
 
         elif self.config.queue_type == QueueType.MEMORY:
             return QueueType.MEMORY
@@ -489,9 +543,21 @@ class QueueManager:
         except Exception as e:
             self.logger.warning(f"Queue health check failed: {e}")
             self._health_status = "unhealthy"
-            # 如果是Redis队列且健康检查失败，尝试切换到内存队列
-            # 对于 AUTO 和 REDIS 模式都允许回退
-            if self._queue_type == QueueType.REDIS and self.config.queue_type in [QueueType.AUTO, QueueType.REDIS]:
+            
+            # Distributed 模式下 Redis 健康检查失败应该报错
+            if self.config.run_mode == 'distributed':
+                error_msg = (
+                    f"Distributed 模式下 Redis 健康检查失败。\n"
+                    f"错误信息: {e}\n"
+                    f"Redis URL: {self.config.redis_url}\n"
+                    f"分布式模式不允许降级到内存队列，请修复 Redis 连接问题。"
+                )
+                self.logger.error(error_msg)
+                raise RuntimeError(error_msg) from e
+            
+            # 非 Distributed 模式：如果是Redis队列且健康检查失败，尝试切换到内存队列
+            # 对于 AUTO 模式允许回退
+            if self._queue_type == QueueType.REDIS and self.config.queue_type == QueueType.AUTO:
                 self.logger.info("Redis queue unavailable, attempting to switch to memory queue...")
                 try:
                     await self._queue.close()

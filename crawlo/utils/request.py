@@ -73,12 +73,34 @@ def request_fingerprint(
 ) -> str:
     """
     生成请求指纹，基于方法、标准化 URL、body 和可选的 headers。
-    使用 SHA256 哈希算法以提高安全性。
-
+    
+    .. deprecated:: 1.0.0
+        此函数已废弃。请使用 :class:`crawlo.utils.fingerprint.FingerprintGenerator` 代替:
+        
+        .. code-block:: python
+        
+            from crawlo.utils.fingerprint import FingerprintGenerator
+            
+            fp = FingerprintGenerator.request_fingerprint(
+                method=request.method,
+                url=request.url,
+                body=request.body or b'',
+                headers=dict(request.headers) if hasattr(request, 'headers') else {}
+            )
+    
+    此函数保留仅为向后兼容，将在 2.0.0 版本中移除。
+    
     :param request: Request 对象（需包含 method, url, body, headers）
     :param include_headers: 指定要参与指纹计算的 header 名称列表（str 或 bytes）
     :return: 请求指纹（hex string）
     """
+    import warnings
+    warnings.warn(
+        "request_fingerprint() is deprecated. "
+        "Use FingerprintGenerator.request_fingerprint() instead.",
+        DeprecationWarning,
+        stacklevel=2
+    )
     from crawlo.utils.fingerprint import FingerprintGenerator
     
     # 准备请求数据

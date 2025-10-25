@@ -4,7 +4,7 @@
 包含 Crawlo 框架的所有默认设置项
 """
 # 添加环境变量配置工具导入
-from crawlo.utils.env_config import get_redis_config, get_runtime_config, get_version
+from crawlo.utils.config_manager import EnvConfigManager
 
 # --------------------------------- 1. 框架基础配置 ------------------------------------
 
@@ -19,9 +19,9 @@ FRAMEWORK_INIT_ORDER = [
 FRAMEWORK_INIT_STATE = 'uninitialized'
 
 # 项目基础配置
-runtime_config = get_runtime_config()
+runtime_config = EnvConfigManager.get_runtime_config()
 PROJECT_NAME = runtime_config['PROJECT_NAME']  # 项目名称（用于日志、Redis Key 等标识）
-VERSION = get_version()  # 项目版本号 - 从框架的__version__.py文件中读取，如果不存在则使用默认值
+VERSION = EnvConfigManager.get_version()  # 项目版本号 - 从框架的__version__.py文件中读取，如果不存在则使用默认值
 RUN_MODE = runtime_config['CRAWLO_MODE']  # 运行模式：standalone/distributed/auto
 CONCURRENCY = runtime_config['CONCURRENCY']  # 并发数配置
 
@@ -70,7 +70,7 @@ MYSQL_INSERT_IGNORE = False  # 是否使用 INSERT IGNORE（忽略重复数据�
 MYSQL_UPDATE_COLUMNS = ()  # 冲突时需更新的列名；指定后 MYSQL_AUTO_UPDATE 失效
 
 # Redis配置
-redis_config = get_redis_config()
+redis_config = EnvConfigManager.get_redis_config()
 REDIS_HOST = redis_config['REDIS_HOST']
 REDIS_PORT = redis_config['REDIS_PORT']
 REDIS_PASSWORD = redis_config['REDIS_PASSWORD']

@@ -9,14 +9,14 @@ from urllib.parse import urlparse
 from typing import Optional, List
 
 from crawlo.network import Request, Response
-from crawlo.utils.log import get_logger
+from crawlo.logging import get_logger
 
 
 class ProxyMiddleware:
     """通用代理中间件"""
 
     def __init__(self, settings, log_level):
-        self.logger = get_logger(self.__class__.__name__, log_level)
+        self.logger = get_logger(self.__class__.__name__)
 
         # 获取代理列表和API URL
         self.proxies: List[str] = settings.get("PROXY_LIST", [])

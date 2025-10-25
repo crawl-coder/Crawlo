@@ -16,7 +16,7 @@ from rich.text import Text
 from rich import box
 
 from crawlo.crawler import CrawlerProcess
-from crawlo.utils.log import get_logger
+from crawlo.logging import get_logger
 from .utils import validate_project_environment, show_error_panel
 
 logger = get_logger(__name__)

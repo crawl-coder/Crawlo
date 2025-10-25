@@ -8,7 +8,6 @@ import logging
 import os
 import sys
 import threading
-from typing import Dict, Optional
 from weakref import WeakValueDictionary
 
 # 尝试导入concurrent-log-handler，如果不可用则回退到标准库

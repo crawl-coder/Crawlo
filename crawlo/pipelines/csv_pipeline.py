@@ -4,7 +4,7 @@ import asyncio
 from pathlib import Path
 from typing import Optional, List
 from datetime import datetime
-from crawlo.utils.log import get_logger
+from crawlo.logging import get_logger
 from crawlo.exceptions import ItemDiscard
 
 
@@ -14,7 +14,7 @@ class CsvPipeline:
     def __init__(self, crawler):
         self.crawler = crawler
         self.settings = crawler.settings
-        self.logger = get_logger(self.__class__.__name__, self.settings.get('LOG_LEVEL'))
+        self.logger = get_logger(self.__class__.__name__)
         
         # 配置文件路径
         self.file_path = self._get_file_path()
@@ -108,7 +108,7 @@ class CsvDictPipeline:
     def __init__(self, crawler):
         self.crawler = crawler
         self.settings = crawler.settings
-        self.logger = get_logger(self.__class__.__name__, self.settings.get('LOG_LEVEL'))
+        self.logger = get_logger(self.__class__.__name__)
         
         self.file_path = self._get_file_path()
         self.file_handle = None
@@ -212,7 +212,7 @@ class CsvBatchPipeline:
     def __init__(self, crawler):
         self.crawler = crawler
         self.settings = crawler.settings
-        self.logger = get_logger(self.__class__.__name__, self.settings.get('LOG_LEVEL'))
+        self.logger = get_logger(self.__class__.__name__)
         
         self.file_path = self._get_file_path()
         self.file_handle = None

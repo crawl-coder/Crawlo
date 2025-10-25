@@ -4,14 +4,14 @@ from typing import Dict, Any
 
 from crawlo import Item
 from crawlo.spider import Spider
-from crawlo.utils.log import get_logger
+from crawlo.logging import get_logger
 
 
 class ConsolePipeline:
     """将Item内容输出到控制台的管道"""
 
     def __init__(self, log_level: str = "DEBUG"):
-        self.logger = get_logger(self.__class__.__name__, log_level)
+        self.logger = get_logger(self.__class__.__name__)
 
     @classmethod
     def from_crawler(cls, crawler):

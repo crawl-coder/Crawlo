@@ -4,7 +4,7 @@
 ResponseCodeMiddleware 中间件
 用于处理HTTP响应状态码，记录统计信息并支持特殊状态码处理
 """
-from crawlo.utils.log import get_logger
+from crawlo.logging import get_logger
 
 
 class ResponseCodeMiddleware(object):
@@ -27,7 +27,7 @@ class ResponseCodeMiddleware(object):
             stats: 统计信息收集器
             log_level: 日志级别
         """
-        self.logger = get_logger(self.__class__.__name__, log_level)
+        self.logger = get_logger(self.__class__.__name__)
         self.stats = stats
 
     @classmethod

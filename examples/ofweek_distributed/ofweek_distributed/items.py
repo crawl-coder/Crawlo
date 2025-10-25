@@ -9,9 +9,7 @@ from crawlo.items import Item, Field
 
 
 class NewsItem(Item):
-    """
-    新闻数据项。
-    """
+    """新闻数据项"""
     title = Field()
     publish_time = Field()
     url = Field()

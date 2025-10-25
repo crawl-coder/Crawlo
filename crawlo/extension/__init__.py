@@ -3,18 +3,18 @@
 from typing import List, Any
 from pprint import pformat
 
-from crawlo.utils.log import get_logger
+from crawlo.logging import get_logger
 from crawlo.utils.misc import load_object
 from crawlo.exceptions import ExtensionInitError
 
 
-class ExtensionManager(object):
+class ExtensionManager:
 
     def __init__(self, crawler: Any):
         self.crawler = crawler
         self.extensions: List = []
         extensions = self.crawler.settings.get_list('EXTENSIONS')
-        self.logger = get_logger(self.__class__.__name__, crawler.settings.get('LOG_LEVEL'))
+        self.logger = get_logger(self.__class__.__name__)
         self._add_extensions(extensions)
         self._subscribe_extensions()
 
@@ -41,24 +41,25 @@ class ExtensionManager(object):
 
     def _subscribe_extensions(self) -> None:
         """订阅扩展方法到相应的事件"""
+        from crawlo.event import CrawlerEvent
+        
         for extension in self.extensions:
             # 订阅 spider_closed 方法
             if hasattr(extension, 'spider_closed'):
-                self.crawler.subscriber.subscribe(extension.spider_closed, event="spider_closed")
+                self.crawler.subscriber.subscribe(extension.spider_closed, event=CrawlerEvent.SPIDER_CLOSED)
             
             # 订阅 item_successful 方法
             if hasattr(extension, 'item_successful'):
-                self.crawler.subscriber.subscribe(extension.item_successful, event="item_successful")
+                self.crawler.subscriber.subscribe(extension.item_successful, event=CrawlerEvent.ITEM_SUCCESSFUL)
             
             # 订阅 item_discard 方法
             if hasattr(extension, 'item_discard'):
-                self.crawler.subscriber.subscribe(extension.item_discard, event="item_discard")
+                self.crawler.subscriber.subscribe(extension.item_discard, event=CrawlerEvent.ITEM_DISCARD)
             
             # 订阅 response_received 方法
             if hasattr(extension, 'response_received'):
-                # 修复：将事件名称从 "request_received" 更正为 "response_received"
-                self.crawler.subscriber.subscribe(extension.response_received, event="response_received")
+                self.crawler.subscriber.subscribe(extension.response_received, event=CrawlerEvent.RESPONSE_RECEIVED)
             
             # 订阅 request_scheduled 方法
             if hasattr(extension, 'request_scheduled'):
-                self.crawler.subscriber.subscribe(extension.request_scheduled, event="request_scheduled")
+                self.crawler.subscriber.subscribe(extension.request_scheduled, event=CrawlerEvent.REQUEST_SCHEDULED)

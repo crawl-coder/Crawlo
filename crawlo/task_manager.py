@@ -5,7 +5,7 @@ import asyncio
 from typing import Set, Final
 from collections import deque
 from asyncio import Task, Future, Semaphore
-from crawlo.utils.log import get_logger
+from crawlo.logging import get_logger
 
 
 class DynamicSemaphore(Semaphore):

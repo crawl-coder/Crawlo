@@ -11,7 +11,7 @@
 # 项目基本信息
 PROJECT_NAME = '{{project_name}}'
 
-# 运行模式
+# 运行模式：standalone/distributed/auto
 RUN_MODE = 'standalone'
 
 # 并发配置
@@ -21,16 +21,16 @@ DOWNLOAD_DELAY = 1.0
 
 # =================================== 核心组件配置 ===================================
 
-# 下载器配置
+# 下载器：AioHttpDownloader/HttpXDownloader/CurlCffiDownloader
 DOWNLOADER = 'crawlo.downloader.aiohttp_downloader.AioHttpDownloader'
 
-# 队列配置
+# 队列类型：memory/redis/auto
 QUEUE_TYPE = 'memory'
 
-# 去重过滤器
+# 去重过滤器：MemoryFilter/AioRedisFilter
 FILTER_CLASS = 'crawlo.filters.memory_filter.MemoryFilter'
 
-# 默认去重管道
+# 默认去重管道：MemoryDedupPipeline/RedisDedupPipeline
 DEFAULT_DEDUP_PIPELINE = 'crawlo.pipelines.memory_dedup_pipeline.MemoryDedupPipeline'
 
 # =================================== 爬虫配置 ===================================
@@ -38,12 +38,10 @@ DEFAULT_DEDUP_PIPELINE = 'crawlo.pipelines.memory_dedup_pipeline.MemoryDedupPipe
 # 爬虫模块配置
 SPIDER_MODULES = ['{{project_name}}.spiders']
 
-# 默认请求头配置
-# 为DefaultHeaderMiddleware配置默认请求头
+# 默认请求头
 # DEFAULT_REQUEST_HEADERS = {}
 
 # 允许的域名
-# 为OffsiteMiddleware配置允许的域名
 # ALLOWED_DOMAINS = []
 
 # 数据管道

@@ -3,7 +3,7 @@
 import traceback
 from typing import Optional, Callable
 
-from crawlo.utils.log import get_logger
+from crawlo.logging import get_logger
 from crawlo.utils.request import set_request
 from crawlo.utils.error_handler import ErrorHandler
 from crawlo.utils.misc import load_object
@@ -13,13 +13,13 @@ from crawlo.queue.queue_manager import QueueManager, QueueConfig, QueueType
 
 
 class Scheduler:
-    def __init__(self, crawler, dupe_filter, stats, log_level, priority):
+    def __init__(self, crawler, dupe_filter, stats, priority):
         self.crawler = crawler
         self.queue_manager: Optional[QueueManager] = None
         self.request_serializer = RequestSerializer()
 
-        self.logger = get_logger(name=self.__class__.__name__, level=log_level)
-        self.error_handler = ErrorHandler(self.__class__.__name__, log_level)
+        self.logger = get_logger(self.__class__.__name__)
+        self.error_handler = ErrorHandler(self.__class__.__name__)
         self.stats = stats
         self.dupe_filter = dupe_filter
         self.priority = priority
@@ -31,7 +31,6 @@ class Scheduler:
             crawler=crawler,
             dupe_filter=filter_cls.create_instance(crawler),
             stats=crawler.stats,
-            log_level=crawler.settings.get('LOG_LEVEL'),
             priority=crawler.settings.get('DEPTH_PRIORITY')
         )
         return o

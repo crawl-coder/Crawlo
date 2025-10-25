@@ -3,51 +3,32 @@
 ofweek_spider 项目配置文件
 =============================
 基于 Crawlo 框架的爬虫项目配置。
+
+此配置使用 CrawloConfig.auto() 工厂方法创建自动检测模式配置，
+框架会自动检测Redis可用性，可用则使用分布式模式，否则使用单机模式。
 """
 
-# =================================== 基础配置 ===================================
+from crawlo.config import CrawloConfig
 
-# 项目基本信息
-PROJECT_NAME = 'ofweek_spider'
+# 使用自动检测模式配置工厂创建配置
+config = CrawloConfig.auto(
+    project_name='ofweek_spider',
+    concurrency=8,
+    download_delay=1.0
+)
 
-# 运行模式
-# 可选值: 'standalone', 'distributed', 'auto'
-RUN_MODE = 'standalone'
-
-# 并发配置
-CONCURRENCY = 8
-MAX_RUNNING_SPIDERS = 1
-DOWNLOAD_DELAY = 1.0
-
-# 下载器配置
-# 可选下载器:
-# DOWNLOADER = 'crawlo.downloader.cffi_downloader.CurlCffiDownloader'
-DOWNLOADER = 'crawlo.downloader.aiohttp_downloader.AioHttpDownloader'
-
-# 队列配置
-# 队列类型: 'memory', 'redis', 'auto'
-QUEUE_TYPE = 'memory'
-# 当使用Redis队列时，可自定义队列名称
-# 队列名称遵循统一命名规范: crawlo:{PROJECT_NAME}:queue:requests
-# SCHEDULER_QUEUE_NAME = f'crawlo:{PROJECT_NAME}:queue:requests'
-
-# 去重过滤器
-FILTER_CLASS = 'crawlo.filters.memory_filter.MemoryFilter'
-
-# 默认去重管道
-DEFAULT_DEDUP_PIPELINE = 'crawlo.pipelines.memory_dedup_pipeline.MemoryDedupPipeline'
+# 将配置转换为当前模块的全局变量
+locals().update(config.to_dict())
 
 # =================================== 爬虫配置 ===================================
 
 # 爬虫模块配置
 SPIDER_MODULES = ['ofweek_spider.spiders']
 
-# 默认请求头配置
-# 为DefaultHeaderMiddleware配置默认请求头
+# 默认请求头
 # DEFAULT_REQUEST_HEADERS = {}
 
 # 允许的域名
-# 为OffsiteMiddleware配置允许的域名
 # ALLOWED_DOMAINS = []
 
 # 数据管道
@@ -104,6 +85,11 @@ MYSQL_TABLE = 'ofweek_spider_data'
 MYSQL_BATCH_SIZE = 100
 MYSQL_USE_BATCH = False  # 是否启用批量插入
 
+# MySQL SQL生成行为控制配置
+MYSQL_AUTO_UPDATE = False  # 是否使用 REPLACE INTO（完全覆盖已存在记录）
+MYSQL_INSERT_IGNORE = False  # 是否使用 INSERT IGNORE（忽略重复数据）
+MYSQL_UPDATE_COLUMNS = ()  # 冲突时需更新的列名；指定后 MYSQL_AUTO_UPDATE 失效
+
 # MongoDB配置
 MONGO_URI = 'mongodb://localhost:27017'
 MONGO_DATABASE = 'ofweek_spider_db'
@@ -113,52 +99,12 @@ MONGO_MIN_POOL_SIZE = 20
 MONGO_BATCH_SIZE = 100  # 批量插入条数
 MONGO_USE_BATCH = False  # 是否启用批量插入
 
-# =================================== 网络配置 ===================================
+# =================================== 代理配置 ===================================
 
-# 代理配置
-# 代理配置（适用于ProxyMiddleware）
-# 只要配置了代理列表，中间件就会自动启用
+# 简单代理（SimpleProxyMiddleware）
+# 配置代理列表后中间件自动启用
 # PROXY_LIST = ["http://proxy1:8080", "http://proxy2:8080"]
 
-# 高级代理配置（适用于ProxyMiddleware）
-# 只要配置了代理API URL，中间件就会自动启用
+# 动态代理（ProxyMiddleware）
+# 配置代理API URL后中间件自动启用
 # PROXY_API_URL = "http://your-proxy-api.com/get-proxy"
-
-# 浏览器指纹模拟（仅 CurlCffi 下载器有效）
-CURL_BROWSER_TYPE = "chrome"  # 可选: chrome, edge, safari, firefox 或版本如 chrome136
-
-# 自定义浏览器版本映射（可覆盖默认行为）
-CURL_BROWSER_VERSION_MAP = {
-    "chrome": "chrome136",
-    "edge": "edge101",
-    "safari": "safari184",
-    "firefox": "firefox135",
-}
-
-# 下载器优化配置
-# 下载器健康检查
-DOWNLOADER_HEALTH_CHECK = True  # 是否启用下载器健康检查
-HEALTH_CHECK_INTERVAL = 60  # 健康检查间隔（秒）
-
-# 请求统计配置
-REQUEST_STATS_ENABLED = True  # 是否启用请求统计
-STATS_RESET_ON_START = False  # 启动时是否重置统计
-
-# HttpX 下载器专用配置
-HTTPX_HTTP2 = True  # 是否启用HTTP/2支持
-HTTPX_FOLLOW_REDIRECTS = True  # 是否自动跟随重定向
-
-# AioHttp 下载器专用配置
-AIOHTTP_AUTO_DECOMPRESS = True  # 是否自动解压响应
-AIOHTTP_FORCE_CLOSE = False  # 是否强制关闭连接
-
-# 通用优化配置
-CONNECTION_TTL_DNS_CACHE = 300  # DNS缓存TTL（秒）
-CONNECTION_KEEPALIVE_TIMEOUT = 15  # Keep-Alive超时（秒）
-
-# 内存监控配置
-# 内存监控扩展默认不启用，如需使用请在项目配置文件中启用
-MEMORY_MONITOR_ENABLED = False  # 是否启用内存监控
-MEMORY_MONITOR_INTERVAL = 60  # 内存监控检查间隔（秒）
-MEMORY_WARNING_THRESHOLD = 80.0  # 内存使用率警告阈值（百分比）
-MEMORY_CRITICAL_THRESHOLD = 90.0  # 内存使用率严重阈值（百分比）

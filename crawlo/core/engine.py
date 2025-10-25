@@ -9,13 +9,13 @@ from crawlo import Request, Item
 from crawlo.core.processor import Processor
 from crawlo.core.scheduler import Scheduler
 from crawlo.downloader import DownloaderBase
-from crawlo.event import spider_opened, spider_error, request_scheduled
+from crawlo.event import CrawlerEvent
 from crawlo.exceptions import OutputError
 from crawlo.utils.misc import load_object
 from crawlo.spider import Spider
 from crawlo.task_manager import TaskManager
 from crawlo.utils.func_tools import transform
-from crawlo.utils.log import get_logger
+from crawlo.logging import get_logger
 
 
 class Engine(object):
@@ -94,6 +94,17 @@ class Engine(object):
             else:
                 # DownloaderBase.open() 是同步方法，直接调用而不是await
                 self.downloader.open()
+        
+        # 注册下载器到资源管理器
+        if hasattr(self.crawler, '_resource_manager') and self.downloader:
+            from crawlo.utils.resource_manager import ResourceType
+            self.crawler._resource_manager.register(
+                self.downloader,
+                lambda d: d.close() if hasattr(d, 'close') else None,
+                ResourceType.DOWNLOADER,
+                name=f"downloader.{downloader_cls.__name__}"
+            )
+            self.logger.debug(f"Downloader registered to resource manager: {downloader_cls.__name__}")
 
         self.processor = Processor(self.crawler)
         if hasattr(self.processor, 'open'):
@@ -308,7 +319,7 @@ class Engine(object):
             wait_time = min(wait_time * 1.1, max_wait)
 
     async def _open_spider(self):
-        asyncio.create_task(self.crawler.subscriber.notify(spider_opened))
+        asyncio.create_task(self.crawler.subscriber.notify(CrawlerEvent.SPIDER_OPENED))
         # 直接调用crawl方法而不是创建任务，确保等待完成
         await self.crawl()
 
@@ -366,7 +377,7 @@ class Engine(object):
     async def _schedule_request(self, request):
         # TODO 去重
         if await self.scheduler.enqueue_request(request):
-            asyncio.create_task(self.crawler.subscriber.notify(request_scheduled, request, self.crawler.spider))
+            asyncio.create_task(self.crawler.subscriber.notify(CrawlerEvent.REQUEST_SCHEDULED, request, self.crawler.spider))
 
     async def _get_next_request(self):
         return await self.scheduler.next_request()
@@ -377,7 +388,7 @@ class Engine(object):
                 await self.processor.enqueue(spider_output)
             elif isinstance(spider_output, Exception):
                 asyncio.create_task(
-                    self.crawler.subscriber.notify(spider_error, spider_output, self.spider)
+                    self.crawler.subscriber.notify(CrawlerEvent.SPIDER_ERROR, spider_output, self.spider)
                 )
                 raise spider_output
             else:

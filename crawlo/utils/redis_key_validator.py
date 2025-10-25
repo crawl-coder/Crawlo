@@ -7,7 +7,7 @@ Redis Key 验证工具
 """
 from typing import List, Tuple
 
-from crawlo.utils.log import get_logger
+from crawlo.logging import get_logger
 
 
 class RedisKeyValidator:

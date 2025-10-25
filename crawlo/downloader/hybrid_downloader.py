@@ -23,7 +23,7 @@ from urllib.parse import urlparse
 from crawlo.downloader import DownloaderBase
 from crawlo.network.request import Request
 from crawlo.network.response import Response
-from crawlo.utils.log import get_logger
+from crawlo.logging import get_logger
 
 # 动态导入下载器（避免循环导入）
 try:
@@ -59,7 +59,7 @@ class HybridDownloader(DownloaderBase):
 
     def __init__(self, crawler):
         super().__init__(crawler)
-        self.logger = get_logger(self.__class__.__name__, crawler.settings.get("LOG_LEVEL"))
+        self.logger = get_logger(self.__class__.__name__)
         
         # 下载器实例缓存
         self._downloaders: Dict[str, DownloaderBase] = {}

@@ -4,7 +4,7 @@ from asyncio import Queue, create_task
 from typing import Union, Optional
 
 from crawlo import Request, Item
-from crawlo.event import item_discard
+from crawlo.event import CrawlerEvent
 from crawlo.exceptions import ItemDiscard
 from crawlo.pipelines.pipeline_manager import PipelineManager
 

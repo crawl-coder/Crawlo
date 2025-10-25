@@ -77,7 +77,7 @@ class RedisConnectionPool:
     def logger(self):
         """延迟初始化logger"""
         if self._logger is None:
-            from crawlo.utils.log import get_logger
+            from crawlo.logging import get_logger
             self._logger = get_logger(self.__class__.__name__)
         return self._logger
     
@@ -321,7 +321,7 @@ class RedisBatchOperationHelper:
     def logger(self):
         """延迟初始化logger"""
         if self._logger is None:
-            from crawlo.utils.log import get_logger
+            from crawlo.logging import get_logger
             self._logger = get_logger(self.__class__.__name__)
         return self._logger
     
@@ -524,12 +524,38 @@ def get_redis_pool(redis_url: str, is_cluster: bool = False, cluster_nodes: Opti
 
 async def close_all_pools():
     """关闭所有连接池"""
+    import asyncio
     global _connection_pools
     
-    for pool in _connection_pools.values():
-        await pool.close()
+    from crawlo.logging import get_logger
+    logger = get_logger('RedisConnectionPool')
+    
+    if not _connection_pools:
+        logger.debug("No Redis connection pools to close")
+        return
+    
+    logger.info(f"Closing {len(_connection_pools)} Redis connection pool(s)...")
+    
+    close_tasks = []
+    for pool_key, pool in _connection_pools.items():
+        try:
+            close_tasks.append(pool.close())
+        except Exception as e:
+            logger.error(f"Error scheduling close for pool {pool_key}: {e}")
+    
+    # 并发关闭所有连接池
+    if close_tasks:
+        results = await asyncio.gather(*close_tasks, return_exceptions=True)
+        
+        # 检查结果
+        error_count = sum(1 for r in results if isinstance(r, Exception))
+        if error_count > 0:
+            logger.warning(f"Failed to close {error_count} pool(s)")
+        else:
+            logger.info("All Redis connection pools closed successfully")
     
     _connection_pools.clear()
+    logger.debug("Redis connection pools registry cleared")
 
 
 # 便捷函数

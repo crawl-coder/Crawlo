@@ -31,7 +31,7 @@ from selenium.webdriver.support.ui import WebDriverWait
 
 from crawlo.downloader import DownloaderBase
 from crawlo.network.response import Response
-from crawlo.utils.log import get_logger
+from crawlo.logging import get_logger
 
 
 class SeleniumDownloader(DownloaderBase):
@@ -43,7 +43,7 @@ class SeleniumDownloader(DownloaderBase):
     def __init__(self, crawler):
         super().__init__(crawler)
         self.driver: Optional[webdriver.Chrome] = None
-        self.logger = get_logger(self.__class__.__name__, crawler.settings.get("LOG_LEVEL"))
+        self.logger = get_logger(self.__class__.__name__)
         self.default_timeout = crawler.settings.get_int("SELENIUM_TIMEOUT", 30)
         self.load_timeout = crawler.settings.get_int("SELENIUM_LOAD_TIMEOUT", 10)
         self.window_width = crawler.settings.get_int("SELENIUM_WINDOW_WIDTH", 1920)
@@ -465,9 +465,23 @@ class SeleniumDownloader(DownloaderBase):
         if self.driver:
             self.logger.info("Closing SeleniumDownloader driver...")
             try:
+                # 关闭所有标签页
+                if self._window_handles:
+                    self.logger.debug(f"Closing {len(self._window_handles)} tab(s)...")
+                    for handle in self._window_handles[1:]:  # 保留第一个，其他关闭
+                        try:
+                            self.driver.switch_to.window(handle)
+                            self.driver.close()
+                        except Exception as e:
+                            self.logger.warning(f"Error closing tab {handle}: {e}")
+                    
+                    self._window_handles.clear()
+                
+                # 退出浏览器
                 self.driver.quit()
             except Exception as e:
                 self.logger.warning(f"Error closing Selenium driver: {e}")
             finally:
                 self.driver = None
+        
         self.logger.debug("SeleniumDownloader closed.")

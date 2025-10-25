@@ -7,7 +7,7 @@
 """
 from typing import Dict, Any, List, Tuple
 
-from crawlo.utils.log import get_logger
+from crawlo.logging import get_logger
 
 
 class ConfigValidator:

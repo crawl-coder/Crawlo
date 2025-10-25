@@ -9,7 +9,7 @@ from crawlo.interfaces import ISpiderLoader
 from crawlo.settings.setting_manager import SettingManager
 from crawlo.spider import Spider
 from crawlo.network.request import Request
-from crawlo.utils.log import get_logger
+from crawlo.logging import get_logger
 
 logger = get_logger(__name__)
 

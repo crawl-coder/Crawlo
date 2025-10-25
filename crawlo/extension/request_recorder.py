@@ -5,8 +5,8 @@ import json
 from typing import Any
 from datetime import datetime
 
-from crawlo import event
-from crawlo.utils.log import get_logger
+from crawlo.event import CrawlerEvent
+from crawlo.logging import get_logger
 
 
 class RequestRecorderExtension:
@@ -17,7 +17,7 @@ class RequestRecorderExtension:
 
     def __init__(self, crawler: Any):
         self.settings = crawler.settings
-        self.logger = get_logger(self.__class__.__name__, crawler.settings.get('LOG_LEVEL'))
+        self.logger = get_logger(self.__class__.__name__)
         
         # 获取配置参数
         self.enabled = self.settings.get_bool('REQUEST_RECORDER_ENABLED', False)
@@ -40,9 +40,9 @@ class RequestRecorderExtension:
         
         o = cls(crawler)
         if o.enabled:
-            crawler.subscriber.subscribe(o.request_scheduled, event=event.request_scheduled)
-            crawler.subscriber.subscribe(o.response_received, event=event.response_received)
-            crawler.subscriber.subscribe(o.spider_closed, event=event.spider_closed)
+            crawler.subscriber.subscribe(o.request_scheduled, event=CrawlerEvent.REQUEST_SCHEDULED)
+            crawler.subscriber.subscribe(o.response_received, event=CrawlerEvent.RESPONSE_RECEIVED)
+            crawler.subscriber.subscribe(o.spider_closed, event=CrawlerEvent.SPIDER_CLOSED)
         return o
 
     async def request_scheduled(self, request: Any, spider: Any) -> None:

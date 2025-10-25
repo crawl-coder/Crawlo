@@ -4,8 +4,8 @@ import asyncio
 from datetime import datetime
 from typing import Any, Optional, Dict
 
-from crawlo.event import spider_opened, spider_closed, response_received, request_scheduled
-from crawlo.utils.log import get_logger
+from crawlo.event import CrawlerEvent
+from crawlo.logging import get_logger
 
 
 class HealthCheckExtension:
@@ -16,7 +16,7 @@ class HealthCheckExtension:
 
     def __init__(self, crawler: Any):
         self.settings = crawler.settings
-        self.logger = get_logger(self.__class__.__name__, crawler.settings.get('LOG_LEVEL'))
+        self.logger = get_logger(self.__class__.__name__)
         
         # 获取配置参数
         self.enabled = self.settings.get_bool('HEALTH_CHECK_ENABLED', True)
@@ -43,10 +43,10 @@ class HealthCheckExtension:
         
         o = cls(crawler)
         if o.enabled:
-            crawler.subscriber.subscribe(o.spider_opened, event=spider_opened)
-            crawler.subscriber.subscribe(o.spider_closed, event=spider_closed)
-            crawler.subscriber.subscribe(o.response_received, event=response_received)
-            crawler.subscriber.subscribe(o.request_scheduled, event=request_scheduled)
+            crawler.subscriber.subscribe(o.spider_opened, event=CrawlerEvent.SPIDER_OPENED)
+            crawler.subscriber.subscribe(o.spider_closed, event=CrawlerEvent.SPIDER_CLOSED)
+            crawler.subscriber.subscribe(o.response_received, event=CrawlerEvent.RESPONSE_RECEIVED)
+            crawler.subscriber.subscribe(o.request_scheduled, event=CrawlerEvent.REQUEST_SCHEDULED)
         return o
 
     async def spider_opened(self) -> None:
