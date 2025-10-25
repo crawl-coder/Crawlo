@@ -79,7 +79,7 @@ class SpiderMeta(type):
         _DEFAULT_SPIDER_REGISTRY[spider_name] = cls
         # 延迟初始化logger避免模块级别阻塞
         try:
-            from crawlo.utils.log import get_logger
+            from crawlo.logging import get_logger
             get_logger(__name__).debug(f"自动注册爬虫: {spider_name} -> {cls.__name__}")
         except:
             # 如果日志系统未初始化，静默失败
@@ -171,7 +171,7 @@ class Spider(metaclass=SpiderMeta):
     def logger(self):
         """延迟初始化logger"""
         if self._logger is None:
-            from crawlo.utils.log import get_logger
+            from crawlo.logging import get_logger
             self._logger = get_logger(self.name)
         return self._logger
 

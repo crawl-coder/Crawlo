@@ -8,7 +8,7 @@ import json
 import time
 from typing import Generator, List, Dict, Any
 
-from crawlo.utils.log import get_logger
+from crawlo.logging import get_logger
 
 
 class LargeScaleHelper:

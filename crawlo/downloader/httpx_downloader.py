@@ -6,7 +6,7 @@ from httpx import AsyncClient, Timeout, Limits
 
 from crawlo.network.response import Response
 from crawlo.downloader import DownloaderBase
-from crawlo.utils.log import get_logger
+from crawlo.logging import get_logger
 
 # 尝试导入 httpx 异常，用于更精确地捕获
 try:
@@ -48,7 +48,7 @@ class HttpXDownloader(DownloaderBase):
         self._timeout: Optional[Timeout] = None
         self._limits: Optional[Limits] = None
         # --- 获取 logger 实例 ---
-        self.logger = get_logger(self.__class__.__name__, crawler.settings.get("LOG_LEVEL"))
+        self.logger = get_logger(self.__class__.__name__)
 
     def open(self):
         super().open()

@@ -9,7 +9,7 @@ from functools import wraps
 from typing import List, Callable, Any, Optional, Dict
 
 from crawlo.utils.error_handler import ErrorHandler
-from crawlo.utils.log import get_logger
+from crawlo.logging import get_logger
 
 
 class BatchProcessor:

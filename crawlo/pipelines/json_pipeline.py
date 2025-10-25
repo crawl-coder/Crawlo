@@ -4,7 +4,7 @@ import asyncio
 from pathlib import Path
 from typing import Optional
 from datetime import datetime
-from crawlo.utils.log import get_logger
+from crawlo.logging import get_logger
 from crawlo.exceptions import ItemDiscard
 
 
@@ -14,7 +14,7 @@ class JsonPipeline:
     def __init__(self, crawler):
         self.crawler = crawler
         self.settings = crawler.settings
-        self.logger = get_logger(self.__class__.__name__, self.settings.get('LOG_LEVEL'))
+        self.logger = get_logger(self.__class__.__name__)
         
         # 配置文件路径
         self.file_path = self._get_file_path()
@@ -85,7 +85,7 @@ class JsonLinesPipeline:
     def __init__(self, crawler):
         self.crawler = crawler
         self.settings = crawler.settings
-        self.logger = get_logger(self.__class__.__name__, self.settings.get('LOG_LEVEL'))
+        self.logger = get_logger(self.__class__.__name__)
         
         self.file_path = self._get_file_path()
         self.file_handle = None
@@ -162,7 +162,7 @@ class JsonArrayPipeline:
     def __init__(self, crawler):
         self.crawler = crawler
         self.settings = crawler.settings
-        self.logger = get_logger(self.__class__.__name__, self.settings.get('LOG_LEVEL'))
+        self.logger = get_logger(self.__class__.__name__)
         
         self.file_path = self._get_file_path()
         self.items = []  # 内存中暂存所有items

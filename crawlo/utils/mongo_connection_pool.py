@@ -17,7 +17,7 @@ MongoDB 连接池管理器
 import asyncio
 from typing import Dict, Optional, Any
 from motor.motor_asyncio import AsyncIOMotorClient
-from crawlo.utils.log import get_logger
+from crawlo.logging import get_logger
 
 
 class MongoConnectionPoolManager:

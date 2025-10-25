@@ -9,7 +9,7 @@ from functools import wraps
 from datetime import datetime
 from typing import Optional, Callable, Any, Dict, List
 
-from crawlo.utils.log import get_logger
+from crawlo.logging import get_logger
 
 
 class ErrorContext:
@@ -66,7 +66,7 @@ class EnhancedErrorHandler:
     """增强版错误处理器"""
     
     def __init__(self, logger_name: str = __name__, log_level: str = 'ERROR'):
-        self.logger = get_logger(logger_name, log_level)
+        self.logger = get_logger(logger_name)
         self.error_history: List[Dict] = []  # 错误历史记录
         self.max_history_size = 100  # 最大历史记录数
     

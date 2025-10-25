@@ -14,7 +14,7 @@ from aiohttp import (
 )
 
 from crawlo.network.response import Response
-from crawlo.utils.log import get_logger
+from crawlo.logging import get_logger
 from crawlo.downloader import DownloaderBase
 
 
@@ -32,7 +32,7 @@ class AioHttpDownloader(DownloaderBase):
         super().__init__(crawler)
         self.session: Optional[ClientSession] = None
         self.max_download_size: int = 0
-        self.logger = get_logger(self.__class__.__name__, crawler.settings.get("LOG_LEVEL"))
+        self.logger = get_logger(self.__class__.__name__)
 
     def open(self):
         super().open()

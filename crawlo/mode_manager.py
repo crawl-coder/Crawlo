@@ -34,7 +34,7 @@ class ModeManager:
         """延迟获取logger实例"""
         if self._logger is None:
             try:
-                from crawlo.utils.log import get_logger
+                from crawlo.logging import get_logger
                 self._logger = get_logger(__name__)
             except Exception:
                 # 如果日志系统尚未初始化，返回None

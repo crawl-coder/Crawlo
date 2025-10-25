@@ -23,7 +23,7 @@ from playwright.async_api import async_playwright, Playwright, Browser, Page, Br
 
 from crawlo.downloader import DownloaderBase
 from crawlo.network.response import Response
-from crawlo.utils.log import get_logger
+from crawlo.logging import get_logger
 
 
 class PlaywrightDownloader(DownloaderBase):
@@ -37,7 +37,7 @@ class PlaywrightDownloader(DownloaderBase):
         self.playwright: Optional[Playwright] = None
         self.browser: Optional[Browser] = None
         self.context: Optional[BrowserContext] = None
-        self.logger = get_logger(self.__class__.__name__, crawler.settings.get("LOG_LEVEL"))
+        self.logger = get_logger(self.__class__.__name__)
         self.default_timeout = crawler.settings.get_int("PLAYWRIGHT_TIMEOUT", 30000)  # 毫秒
         self.load_timeout = crawler.settings.get_int("PLAYWRIGHT_LOAD_TIMEOUT", 10000)  # 毫秒
         self.browser_type = crawler.settings.get("PLAYWRIGHT_BROWSER_TYPE", "chromium").lower()

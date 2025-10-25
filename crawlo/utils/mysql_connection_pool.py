@@ -18,7 +18,7 @@ import asyncio
 import aiomysql
 from asyncmy import create_pool as asyncmy_create_pool
 from typing import Dict, Optional, Any
-from crawlo.utils.log import get_logger
+from crawlo.logging import get_logger
 
 
 class MySQLConnectionPoolManager:

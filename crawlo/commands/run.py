@@ -24,7 +24,7 @@ from crawlo.project import get_settings, _find_project_root
 # 使用新的统一初始化系统
 from crawlo.initialization import initialize_framework
 from crawlo.core import get_framework_initializer
-from crawlo.utils.log import get_logger
+from crawlo.logging import get_logger
 
 # 延迟获取logger，确保在日志系统配置之后获取
 _logger = None

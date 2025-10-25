@@ -5,7 +5,7 @@ from typing import Any, Union, List, Dict, Tuple, Optional
 from datetime import date, time, datetime
 from enum import Enum
 
-from crawlo.utils.log import get_logger
+from crawlo.logging import get_logger
 
 logger = get_logger(__name__)
 

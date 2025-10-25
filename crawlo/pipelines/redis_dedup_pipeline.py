@@ -19,7 +19,7 @@ from crawlo import Item
 from crawlo.spider import Spider
 from crawlo.exceptions import ItemDiscard
 from crawlo.utils.fingerprint import FingerprintGenerator
-from crawlo.utils.log import get_logger, get_component_logger
+from crawlo.logging import get_logger
 
 
 class RedisDedupPipeline:
@@ -31,8 +31,7 @@ class RedisDedupPipeline:
             redis_port: int = 6379,
             redis_db: int = 0,
             redis_password: Optional[str] = None,
-            redis_key: str = 'crawlo:item_fingerprints',
-            log_level: str = "INFO"
+            redis_key: str = 'crawlo:item_fingerprints'
     ):
         """
         初始化 Redis 去重管道
@@ -42,9 +41,8 @@ class RedisDedupPipeline:
         :param redis_db: Redis 数据库编号
         :param redis_password: Redis 密码
         :param redis_key: 存储指纹的 Redis 键名
-        :param log_level: 日志级别
         """
-        self.logger = get_component_logger(self.__class__, level=log_level)
+        self.logger = get_logger(self.__class__.__name__)
         
         # 初始化 Redis 连接
         try:
@@ -80,8 +78,7 @@ class RedisDedupPipeline:
             redis_port=settings.get_int('REDIS_PORT', 6379),
             redis_db=settings.get_int('REDIS_DB', 0),
             redis_password=settings.get('REDIS_PASSWORD') or None,
-            redis_key=redis_key,
-            log_level=settings.get('LOG_LEVEL', 'INFO')
+            redis_key=redis_key
         )
 
     def process_item(self, item: Item, spider: Spider) -> Item:

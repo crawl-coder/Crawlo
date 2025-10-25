@@ -12,7 +12,7 @@ import psutil
 from typing import Dict, List, Any, Optional
 from collections import defaultdict
 
-from crawlo.utils.log import get_logger
+from crawlo.logging import get_logger
 
 
 class ResourceSnapshot:

@@ -8,7 +8,7 @@ import gc
 import logging
 import pickle
 
-from crawlo.utils.log import get_logger
+from crawlo.logging import get_logger
 
 
 class RequestSerializer:

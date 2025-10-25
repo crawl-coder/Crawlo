@@ -12,7 +12,7 @@ from typing import Dict, Any
 import psutil
 
 from crawlo.utils.error_handler import ErrorHandler
-from crawlo.utils.log import get_logger
+from crawlo.logging import get_logger
 
 
 class PerformanceMonitor:

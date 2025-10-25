@@ -23,7 +23,7 @@ from typing import Dict, Any, Optional
 
 from crawlo.config_validator import validate_config
 from crawlo.mode_manager import standalone_mode, distributed_mode, auto_mode, from_env
-from crawlo.utils.log import get_logger
+from crawlo.logging import get_logger
 
 
 class CrawloConfig:

@@ -77,7 +77,7 @@ class RedisConnectionPool:
     def logger(self):
         """延迟初始化logger"""
         if self._logger is None:
-            from crawlo.utils.log import get_logger
+            from crawlo.logging import get_logger
             self._logger = get_logger(self.__class__.__name__)
         return self._logger
     
@@ -321,7 +321,7 @@ class RedisBatchOperationHelper:
     def logger(self):
         """延迟初始化logger"""
         if self._logger is None:
-            from crawlo.utils.log import get_logger
+            from crawlo.logging import get_logger
             self._logger = get_logger(self.__class__.__name__)
         return self._logger
     
@@ -527,7 +527,7 @@ async def close_all_pools():
     import asyncio
     global _connection_pools
     
-    from crawlo.utils.log import get_logger
+    from crawlo.logging import get_logger
     logger = get_logger('RedisConnectionPool')
     
     if not _connection_pools:

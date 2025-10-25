@@ -4,7 +4,7 @@ from typing import List
 from pprint import pformat
 from asyncio import create_task
 
-from crawlo.utils.log import get_logger
+from crawlo.logging import get_logger
 from crawlo.event import CrawlerEvent
 from crawlo.utils.misc import load_object
 from crawlo.project import common_call
@@ -34,7 +34,7 @@ class PipelineManager:
         self.pipelines: List = []
         self.methods: List = []
 
-        self.logger = get_logger(self.__class__.__name__, self.crawler.settings.get('LOG_LEVEL'))
+        self.logger = get_logger(self.__class__.__name__)
         pipelines = self.crawler.settings.get_list('PIPELINES')
         dedup_pipeline = self.crawler.settings.get('DEFAULT_DEDUP_PIPELINE')
 

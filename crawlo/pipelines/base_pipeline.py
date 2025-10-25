@@ -47,7 +47,7 @@ from typing import Optional, Any, Callable
 
 from crawlo.items import Item
 from crawlo.spider import Spider
-from crawlo.utils.log import get_logger
+from crawlo.logging import get_logger
 from crawlo.utils.resource_manager import ResourceManager, ResourceType
 
 
@@ -100,7 +100,7 @@ class ResourceManagedPipeline(BasePipeline):
         self.settings = crawler.settings
         self.logger = get_logger(
             self.__class__.__name__, 
-            self.settings.get('LOG_LEVEL', 'INFO')
+            self.settings.get('LOG_LEVEL')
         )
         
         # 资源管理器

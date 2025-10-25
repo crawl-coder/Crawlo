@@ -6,7 +6,7 @@
 # @Desc    :   统计信息收集器
 """
 from pprint import pformat
-from crawlo.utils.log import get_logger
+from crawlo.logging import get_logger
 
 
 class StatsCollector(object):
@@ -15,7 +15,7 @@ class StatsCollector(object):
         self.crawler = crawler
         self._dump = self.crawler.settings.get_bool('STATS_DUMP')
         self._stats = {}
-        self.logger = get_logger(self.__class__.__name__, "INFO")
+        self.logger = get_logger(self.__class__.__name__)
 
     def inc_value(self, key, count=1, start=0):
         self._stats[key] = self._stats.setdefault(key, start) + count

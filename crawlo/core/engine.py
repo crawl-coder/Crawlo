@@ -15,7 +15,7 @@ from crawlo.utils.misc import load_object
 from crawlo.spider import Spider
 from crawlo.task_manager import TaskManager
 from crawlo.utils.func_tools import transform
-from crawlo.utils.log import get_logger
+from crawlo.logging import get_logger
 
 
 class Engine(object):

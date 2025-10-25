@@ -5,7 +5,7 @@ from inspect import iscoroutinefunction
 from typing import Callable, Optional, Any
 
 from crawlo.settings.setting_manager import SettingManager
-from crawlo.utils.log import get_logger
+from crawlo.logging import get_logger
 
 # 使用全局logger，避免每个模块都创建自己的延迟初始化函数
 # 延迟获取logger，确保在日志系统配置之后获取

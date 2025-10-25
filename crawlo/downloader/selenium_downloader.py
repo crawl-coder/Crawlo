@@ -31,7 +31,7 @@ from selenium.webdriver.support.ui import WebDriverWait
 
 from crawlo.downloader import DownloaderBase
 from crawlo.network.response import Response
-from crawlo.utils.log import get_logger
+from crawlo.logging import get_logger
 
 
 class SeleniumDownloader(DownloaderBase):
@@ -43,7 +43,7 @@ class SeleniumDownloader(DownloaderBase):
     def __init__(self, crawler):
         super().__init__(crawler)
         self.driver: Optional[webdriver.Chrome] = None
-        self.logger = get_logger(self.__class__.__name__, crawler.settings.get("LOG_LEVEL"))
+        self.logger = get_logger(self.__class__.__name__)
         self.default_timeout = crawler.settings.get_int("SELENIUM_TIMEOUT", 30)
         self.load_timeout = crawler.settings.get_int("SELENIUM_LOAD_TIMEOUT", 10)
         self.window_width = crawler.settings.get_int("SELENIUM_WINDOW_WIDTH", 1920)

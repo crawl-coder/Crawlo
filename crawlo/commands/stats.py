@@ -16,7 +16,7 @@ from rich.panel import Panel
 from rich.text import Text
 from rich import box
 
-from crawlo.utils.log import get_logger
+from crawlo.logging import get_logger
 
 
 logger = get_logger(__name__)

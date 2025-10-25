@@ -16,7 +16,7 @@ import traceback
 from typing import Any, Callable, List, Tuple, Optional, Dict
 from enum import Enum
 
-from crawlo.utils.log import get_logger
+from crawlo.logging import get_logger
 
 
 class ResourceType(Enum):

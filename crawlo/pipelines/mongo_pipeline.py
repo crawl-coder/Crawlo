@@ -2,7 +2,7 @@
 from typing import Optional, List, Dict
 from motor.motor_asyncio import AsyncIOMotorClient
 from pymongo.errors import PyMongoError
-from crawlo.utils.log import get_logger
+from crawlo.logging import get_logger
 from crawlo.utils.mongo_connection_pool import MongoConnectionPoolManager
 from crawlo.exceptions import ItemDiscard
 
@@ -11,7 +11,7 @@ class MongoPipeline:
     def __init__(self, crawler):
         self.crawler = crawler
         self.settings = crawler.settings
-        self.logger = get_logger(self.__class__.__name__, self.settings.get('LOG_LEVEL'))
+        self.logger = get_logger(self.__class__.__name__)
 
         # 初始化连接参数
         self.client = None

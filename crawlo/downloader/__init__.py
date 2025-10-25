@@ -18,7 +18,7 @@ from abc import abstractmethod, ABCMeta
 from typing import Final, Set, Optional, TYPE_CHECKING
 from contextlib import asynccontextmanager
 
-from crawlo.utils.log import get_logger
+from crawlo.logging import get_logger
 from crawlo.middleware.middleware_manager import MiddlewareManager
 
 if TYPE_CHECKING:
@@ -108,7 +108,7 @@ class DownloaderBase(metaclass=DownloaderMeta):
         self.crawler = crawler
         self._active = ActivateRequestManager()
         self.middleware: Optional[MiddlewareManager] = None
-        self.logger = get_logger(self.__class__.__name__, crawler.settings.get("LOG_LEVEL"))
+        self.logger = get_logger(self.__class__.__name__)
         self._closed = False
         self._stats_enabled = crawler.settings.get_bool("DOWNLOADER_STATS", True)
 

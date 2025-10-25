@@ -8,7 +8,7 @@ import async_timeout
 from crawlo.exceptions import ItemDiscard
 from crawlo.items import Item
 from crawlo.utils.db_helper import SQLBuilder
-from crawlo.utils.log import get_logger
+from crawlo.logging import get_logger
 from crawlo.utils.mysql_connection_pool import MySQLConnectionPoolManager
 from . import BasePipeline
 
@@ -19,7 +19,7 @@ class BaseMySQLPipeline(BasePipeline, ABC):
     def __init__(self, crawler):
         self.crawler = crawler
         self.settings = crawler.settings
-        self.logger = get_logger(self.__class__.__name__, self.settings.get('LOG_LEVEL'))
+        self.logger = get_logger(self.__class__.__name__)
 
         # 记录管道初始化
         self.logger.info(f"MySQL pipeline initialized: {self.__class__.__name__}")

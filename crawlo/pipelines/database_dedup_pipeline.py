@@ -18,7 +18,7 @@ from crawlo import Item
 from crawlo.exceptions import ItemDiscard
 from crawlo.spider import Spider
 from crawlo.utils.fingerprint import FingerprintGenerator
-from crawlo.utils.log import get_logger
+from crawlo.logging import get_logger
 
 
 class DatabaseDedupPipeline:
@@ -45,7 +45,7 @@ class DatabaseDedupPipeline:
         :param table_name: 存储指纹的表名
         :param log_level: 日志级别
         """
-        self.logger = get_logger(self.__class__.__name__, log_level)
+        self.logger = get_logger(self.__class__.__name__)
         
         # 数据库连接参数
         self.db_config = {

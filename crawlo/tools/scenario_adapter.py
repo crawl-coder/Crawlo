@@ -24,7 +24,7 @@ import re
 from typing import Dict, Any
 from urllib.parse import urlparse
 
-from crawlo.utils.log import get_logger
+from crawlo.logging import get_logger
 
 
 class DynamicLoadingScenarioAdapter:
