@@ -11,7 +11,7 @@ import os
 import sys
 from typing import Type, Optional, List, Union
 
-from .crawler import ModernCrawler, CrawlerProcess
+from .crawler import Crawler, CrawlerProcess
 from .initialization import initialize_framework
 from .logging import get_logger
 from .utils.env_config import get_version
@@ -201,7 +201,7 @@ class CrawloFramework:
             # 清理全局Redis连接池
             await self._cleanup_global_resources()
 
-    def create_crawler(self, spider_cls: Type, settings=None) -> ModernCrawler:
+    def create_crawler(self, spider_cls: Type, settings=None) -> Crawler:
         """
         创建Crawler实例
         
@@ -210,10 +210,10 @@ class CrawloFramework:
             settings: 额外配置
             
         Returns:
-            ModernCrawler实例
+            Crawler实例
         """
         merged_settings = self._merge_settings(settings)
-        return ModernCrawler(spider_cls, merged_settings)
+        return Crawler(spider_cls, merged_settings)
 
     def _merge_settings(self, additional_settings):
         """合并配置"""
@@ -293,7 +293,7 @@ async def run_spiders(spider_classes_or_names: List[Union[Type, str]],
     return await framework.run_multiple(spider_classes_or_names)
 
 
-def create_crawler(spider_cls: Type, settings=None, **kwargs) -> ModernCrawler:
+def create_crawler(spider_cls: Type, settings=None, **kwargs) -> Crawler:
     """创建Crawler的便捷函数"""
     framework = get_framework(settings, **kwargs)
     return framework.create_crawler(spider_cls)

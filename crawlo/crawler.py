@@ -1,14 +1,19 @@
 #!/usr/bin/python
 # -*- coding: UTF-8 -*-
 """
-重构后的Crawler系统
-==================
+Crawler系统
+==========
+
+核心组件：
+- Crawler: 爬虫核心控制器，负责单个爬虫的生命周期管理
+- CrawlerProcess: 爬虫进程管理器，支持单个/多个爬虫运行
 
 设计原则：
 1. 单一职责 - 每个类只负责一个明确的功能
 2. 依赖注入 - 通过工厂创建组件，便于测试
 3. 状态管理 - 清晰的状态转换和生命周期
 4. 错误处理 - 优雅的错误处理和恢复机制
+5. 资源管理 - 统一的资源注册和清理机制
 """
 
 import asyncio
@@ -56,15 +61,16 @@ class CrawlerMetrics:
         return (self.success_count / total * 100) if total > 0 else 0.0
 
 
-class ModernCrawler:
+class Crawler:
     """
-    现代化的Crawler实现
+    爬虫核心控制器
     
     特点：
     1. 清晰的状态管理
     2. 依赖注入
     3. 组件化架构
     4. 完善的错误处理
+    5. 统一的资源管理
     """
     
     def __init__(self, spider_cls: Type, settings=None):
@@ -369,7 +375,7 @@ class CrawlerProcess:
         # 初始化框架配置
         self._settings = settings or initialize_framework()
         self._max_concurrency = max_concurrency
-        self._crawlers: List[ModernCrawler] = []
+        self._crawlers: List[Crawler] = []
         self._semaphore = asyncio.Semaphore(max_concurrency)
         self._logger = get_logger('crawler.process')
         
@@ -518,7 +524,7 @@ class CrawlerProcess:
         logger.info(f"Starting spider: {spider_cls.name}")
         
         merged_settings = self._merge_settings(settings)
-        crawler = ModernCrawler(spider_cls, merged_settings)
+        crawler = Crawler(spider_cls, merged_settings)
         
         async with self._semaphore:
             await crawler.crawl()
@@ -547,7 +553,7 @@ class CrawlerProcess:
             tasks = []
             for spider_cls in spider_classes:
                 merged_settings = self._merge_settings(settings)
-                crawler = ModernCrawler(spider_cls, merged_settings)
+                crawler = Crawler(spider_cls, merged_settings)
                 self._crawlers.append(crawler)
                 
                 task = asyncio.create_task(self._run_with_semaphore(crawler))
@@ -582,7 +588,7 @@ class CrawlerProcess:
                 duration = self._end_time - self._start_time
                 self._logger.info(f"Total execution time: {duration:.2f}s")
     
-    async def _run_with_semaphore(self, crawler: ModernCrawler):
+    async def _run_with_semaphore(self, crawler: Crawler):
         """在信号量控制下运行爬虫"""
         async with self._semaphore:
             await crawler.crawl()
