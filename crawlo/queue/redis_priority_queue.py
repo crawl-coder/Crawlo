@@ -19,7 +19,7 @@ if TYPE_CHECKING:
     from crawlo import Request
 
 from crawlo.utils.error_handler import ErrorHandler, ErrorContext
-from crawlo.utils.log import get_logger
+from crawlo.logging import get_logger
 from crawlo.utils.redis_connection_pool import get_redis_pool, RedisConnectionPool
 from crawlo.utils.request_serializer import RequestSerializer
 

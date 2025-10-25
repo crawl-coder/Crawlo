@@ -15,7 +15,7 @@ if TYPE_CHECKING:
 
 from crawlo.queue.pqueue import SpiderPriorityQueue
 from crawlo.utils.error_handler import ErrorHandler
-from crawlo.utils.log import get_logger
+from crawlo.logging import get_logger
 from crawlo.utils.request_serializer import RequestSerializer
 
 try:
