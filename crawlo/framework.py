@@ -14,7 +14,7 @@ from typing import Type, Optional, List, Union
 from .crawler import Crawler, CrawlerProcess
 from .initialization import initialize_framework
 from .logging import get_logger
-from .utils.env_config import get_version
+from .utils.config_manager import EnvConfigManager
 
 
 class CrawloFramework:
@@ -50,7 +50,7 @@ class CrawloFramework:
         self._logger = get_logger('crawlo.framework')
 
         # 获取版本号
-        version = get_version()
+        version = EnvConfigManager.get_version()
 
         # 创建进程管理器
         self._process = CrawlerProcess(self._settings)

@@ -3,6 +3,7 @@ from typing import Optional, List, Dict
 from motor.motor_asyncio import AsyncIOMotorClient
 from pymongo.errors import PyMongoError
 from crawlo.utils.log import get_logger
+from crawlo.utils.mongo_connection_pool import MongoConnectionPoolManager
 from crawlo.exceptions import ItemDiscard
 
 
@@ -43,17 +44,21 @@ class MongoPipeline:
     async def _ensure_connection(self):
         """确保连接已建立"""
         if self.client is None:
-            # 使用连接池配置创建客户端
-            self.client = AsyncIOMotorClient(
-                self.mongo_uri,
-                maxPoolSize=self.max_pool_size,
-                minPoolSize=self.min_pool_size,
-                connectTimeoutMS=self.connect_timeout_ms,
-                socketTimeoutMS=self.socket_timeout_ms
+            # 使用单例连接池管理器
+            self.client = await MongoConnectionPoolManager.get_client(
+                mongo_uri=self.mongo_uri,
+                db_name=self.db_name,
+                max_pool_size=self.max_pool_size,
+                min_pool_size=self.min_pool_size,
+                connect_timeout_ms=self.connect_timeout_ms,
+                socket_timeout_ms=self.socket_timeout_ms
             )
             self.db = self.client[self.db_name]
             self.collection = self.db[self.collection_name]
-            self.logger.info(f"MongoDB连接建立 (集合: {self.collection_name})")
+            self.logger.info(
+                f"MongoDB连接建立 (集合: {self.collection_name}, "
+                f"使用全局共享连接池)"
+            )
 
     async def process_item(self, item, spider) -> Optional[dict]:
         """处理item的核心方法（带重试机制）"""
@@ -126,7 +131,10 @@ class MongoPipeline:
         # 在关闭前刷新剩余的批量数据
         if self.use_batch and self.batch_buffer:
             await self._flush_batch(self.crawler.spider)
-            
+        
+        # 注意：不再关闭客户端，因为客户端是全局共享的
+        # 客户端的关闭由 MongoConnectionPoolManager.close_all_clients() 统一管理
         if self.client:
-            self.client.close()
-            self.logger.info("MongoDB连接已关闭")
+            self.logger.info(
+                f"MongoDB Pipeline 关闭，但保留全局共享连接池以供其他爬虫使用"
+            )

@@ -433,35 +433,10 @@ def apply_large_scale_config(
     return config
 
 
-# ============================================================================
-# 便捷函数 - 向后兼容和快速访问
-# ============================================================================
-
-# ConfigUtils 便捷函数
-get_config_value = ConfigUtils.get_config_value
-has_config_prefix = ConfigUtils.has_config_prefix
-merge_config_sources = ConfigUtils.merge_config_sources
-
-# EnvConfigManager 便捷函数
-get_env_var = EnvConfigManager.get_env_var
-get_redis_config = EnvConfigManager.get_redis_config
-get_runtime_config = EnvConfigManager.get_runtime_config
-get_version = EnvConfigManager.get_version
-
-
 # 导出所有公共API
 __all__ = [
-    # 类
     'ConfigUtils',
     'EnvConfigManager',
     'LargeScaleConfig',
-    # 便捷函数
-    'get_config_value',
-    'has_config_prefix',
-    'merge_config_sources',
-    'get_env_var',
-    'get_redis_config',
-    'get_runtime_config',
-    'get_version',
     'apply_large_scale_config',
 ]

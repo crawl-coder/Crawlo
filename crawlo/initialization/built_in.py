@@ -75,7 +75,7 @@ class LoggingInitializer(BaseInitializer):
         """
         # 导入日志配置类
         from crawlo.logging import LogConfig
-        from crawlo.utils.config_manager import has_config_prefix
+        from crawlo.utils.config_manager import ConfigUtils
         
         # 按优先级获取配置：自定义配置 > 上下文配置 > 项目配置 > 默认配置
         config_sources = [
@@ -86,7 +86,7 @@ class LoggingInitializer(BaseInitializer):
         
         # 遍历配置源
         for config_source in config_sources:
-            if config_source and has_config_prefix(config_source, 'LOG_'):
+            if config_source and ConfigUtils.has_config_prefix(config_source, 'LOG_'):
                 log_config = self._create_log_config_from_source(config_source)
                 if log_config:
                     return log_config
@@ -106,25 +106,25 @@ class LoggingInitializer(BaseInitializer):
         """
         # 导入日志配置类
         from crawlo.logging import LogConfig
-        from crawlo.utils.config_manager import get_config_value, has_config_prefix
+        from crawlo.utils.config_manager import ConfigUtils
         
         # 检查配置源是否有效
         if not config_source:
             return None
             
         # 检查是否有日志相关配置
-        if not has_config_prefix(config_source, 'LOG_'):
+        if not ConfigUtils.has_config_prefix(config_source, 'LOG_'):
             return None
             
         # 从配置源获取日志配置
-        log_level = get_config_value([config_source], 'LOG_LEVEL', 'INFO')
-        log_file = get_config_value([config_source], 'LOG_FILE')
-        log_format = get_config_value([config_source], 'LOG_FORMAT', '%(asctime)s - [%(name)s] - %(levelname)s: %(message)s')
-        log_encoding = get_config_value([config_source], 'LOG_ENCODING', 'utf-8')
-        log_max_bytes = get_config_value([config_source], 'LOG_MAX_BYTES', 10 * 1024 * 1024, int)
-        log_backup_count = get_config_value([config_source], 'LOG_BACKUP_COUNT', 5, int)
-        log_console_enabled = get_config_value([config_source], 'LOG_CONSOLE_ENABLED', True, bool)
-        log_file_enabled = get_config_value([config_source], 'LOG_FILE_ENABLED', True, bool)
+        log_level = ConfigUtils.get_config_value([config_source], 'LOG_LEVEL', 'INFO')
+        log_file = ConfigUtils.get_config_value([config_source], 'LOG_FILE')
+        log_format = ConfigUtils.get_config_value([config_source], 'LOG_FORMAT', '%(asctime)s - [%(name)s] - %(levelname)s: %(message)s')
+        log_encoding = ConfigUtils.get_config_value([config_source], 'LOG_ENCODING', 'utf-8')
+        log_max_bytes = ConfigUtils.get_config_value([config_source], 'LOG_MAX_BYTES', 10 * 1024 * 1024, int)
+        log_backup_count = ConfigUtils.get_config_value([config_source], 'LOG_BACKUP_COUNT', 5, int)
+        log_console_enabled = ConfigUtils.get_config_value([config_source], 'LOG_CONSOLE_ENABLED', True, bool)
+        log_file_enabled = ConfigUtils.get_config_value([config_source], 'LOG_FILE_ENABLED', True, bool)
         
         # 创建日志配置
         return LogConfig(
@@ -177,8 +177,8 @@ class LoggingInitializer(BaseInitializer):
                         settings_module = importlib.import_module(settings_module_path)
                         
                         # 创建配置字典
-                        from crawlo.utils.config_manager import merge_config_sources
-                        project_config = merge_config_sources([settings_module])
+                        from crawlo.utils.config_manager import ConfigUtils
+                        project_config = ConfigUtils.merge_config_sources([settings_module])
                         
                         return project_config
                     

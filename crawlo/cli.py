@@ -4,12 +4,12 @@
 import sys
 import argparse
 from crawlo.commands import get_commands
-from crawlo.utils.config_manager import get_version
+from crawlo.utils.config_manager import EnvConfigManager
 
 
 def main():
     # 获取框架版本号
-    VERSION = get_version()
+    VERSION = EnvConfigManager.get_version()
 
     # 获取所有可用命令
     commands = get_commands()

@@ -1,15 +1,15 @@
 # -*- coding: utf-8 -*-
 import asyncio
-import aiomysql
-from asyncmy import create_pool
-from typing import Optional, List, Dict, Any
 from abc import ABC, abstractmethod
+from typing import List, Dict, Any
+
 import async_timeout
 
-from crawlo.items import Item
 from crawlo.exceptions import ItemDiscard
+from crawlo.items import Item
 from crawlo.utils.db_helper import SQLBuilder
 from crawlo.utils.log import get_logger
+from crawlo.utils.mysql_connection_pool import MySQLConnectionPoolManager
 from . import BasePipeline
 
 
@@ -203,20 +203,13 @@ class BaseMySQLPipeline(BasePipeline, ABC):
                 await self._flush_batch(spider_name)
             except Exception as e:
                 self.logger.error(f"关闭爬虫时刷新批量数据失败: {e}")
-            
+        
+        # 注意：不再关闭连接池，因为连接池是全局共享的
+        # 连接池的关闭由 MySQLConnectionPoolManager.close_all_pools() 统一管理
         if self.pool:
-            try:
-                pool_stats = {
-                    'size': getattr(self.pool, 'size', 'unknown'),
-                    'minsize': getattr(self.pool, 'minsize', 'unknown'),
-                    'maxsize': getattr(self.pool, 'maxsize', 'unknown')
-                }
-                self.logger.info(f"正在关闭MySQL连接池，当前状态: {pool_stats}")
-                self.pool.close()
-                await self.pool.wait_closed()
-                self.logger.info("MySQL连接池已关闭")
-            except Exception as e:
-                self.logger.error(f"关闭MySQL连接池时发生错误: {e}")
+            self.logger.info(
+                f"MySQL Pipeline 关闭，但保留全局共享连接池以供其他爬虫使用"
+            )
             
     async def _make_insert_sql(self, item_dict: Dict, **kwargs) -> str:
         """生成插入SQL语句，子类可以重写此方法"""
@@ -253,9 +246,9 @@ class AsyncmyMySQLPipeline(BaseMySQLPipeline):
 
     async def _ensure_pool(self):
         """确保连接池已初始化（线程安全）"""
-        if self._pool_initialized:
+        if self._pool_initialized and self.pool:
             # 检查连接池是否仍然有效
-            if self.pool and hasattr(self.pool, 'closed') and not self.pool.closed:
+            if hasattr(self.pool, 'closed') and not self.pool.closed:
                 return
             else:
                 self.logger.warning("连接池已初始化但无效，重新初始化")
@@ -263,7 +256,9 @@ class AsyncmyMySQLPipeline(BaseMySQLPipeline):
         async with self._pool_lock:
             if not self._pool_initialized:  # 双重检查避免竞争条件
                 try:
-                    self.pool = await create_pool(
+                    # 使用单例连接池管理器
+                    self.pool = await MySQLConnectionPoolManager.get_pool(
+                        pool_type='asyncmy',
                         host=self.settings.get('MYSQL_HOST', 'localhost'),
                         port=self.settings.get_int('MYSQL_PORT', 3306),
                         user=self.settings.get('MYSQL_USER', 'root'),
@@ -274,11 +269,10 @@ class AsyncmyMySQLPipeline(BaseMySQLPipeline):
                         echo=self.settings.get_bool('MYSQL_ECHO', False)
                     )
                     self._pool_initialized = True
-                    pool_stats = {
-                        'minsize': getattr(self.pool, 'minsize', 'unknown'),
-                        'maxsize': getattr(self.pool, 'maxsize', 'unknown')
-                    }
-                    self.logger.info(f"MySQL连接池初始化完成（表: {self.table_name}, 配置: {pool_stats}）")
+                    self.logger.info(
+                        f"MySQL连接池初始化完成（表: {self.table_name}, "
+                        f"使用全局共享连接池）"
+                    )
                 except Exception as e:
                     self.logger.error(f"MySQL连接池初始化失败: {e}")
                     # 重置状态以便重试
@@ -391,9 +385,9 @@ class AiomysqlMySQLPipeline(BaseMySQLPipeline):
 
     async def _ensure_pool(self):
         """延迟初始化连接池（线程安全）"""
-        if self._pool_initialized:
+        if self._pool_initialized and self.pool:
             # 检查连接池是否仍然有效
-            if self.pool and hasattr(self.pool, 'closed') and not self.pool.closed:
+            if hasattr(self.pool, 'closed') and not self.pool.closed:
                 return
             else:
                 self.logger.warning("连接池已初始化但无效，重新初始化")
@@ -401,23 +395,22 @@ class AiomysqlMySQLPipeline(BaseMySQLPipeline):
         async with self._pool_lock:
             if not self._pool_initialized:
                 try:
-                    self.pool = await aiomysql.create_pool(
+                    # 使用单例连接池管理器
+                    self.pool = await MySQLConnectionPoolManager.get_pool(
+                        pool_type='aiomysql',
                         host=self.settings.get('MYSQL_HOST', 'localhost'),
                         port=self.settings.get_int('MYSQL_PORT', 3306),
                         user=self.settings.get('MYSQL_USER', 'root'),
                         password=self.settings.get('MYSQL_PASSWORD', ''),
                         db=self.settings.get('MYSQL_DB', 'scrapy_db'),
                         minsize=self.settings.get_int('MYSQL_POOL_MIN', 2),
-                        maxsize=self.settings.get_int('MYSQL_POOL_MAX', 5),
-                        cursorclass=aiomysql.DictCursor,
-                        autocommit=False
+                        maxsize=self.settings.get_int('MYSQL_POOL_MAX', 5)
                     )
                     self._pool_initialized = True
-                    pool_stats = {
-                        'minsize': getattr(self.pool, 'minsize', 'unknown'),
-                        'maxsize': getattr(self.pool, 'maxsize', 'unknown')
-                    }
-                    self.logger.info(f"aiomysql连接池已初始化（表: {self.table_name}, 配置: {pool_stats}）")
+                    self.logger.info(
+                        f"aiomysql连接池已初始化（表: {self.table_name}, "
+                        f"使用全局共享连接池）"
+                    )
                 except Exception as e:
                     self.logger.error(f"aiomysql连接池初始化失败: {e}")
                     # 重置状态以便重试
