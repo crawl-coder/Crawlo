@@ -345,7 +345,8 @@ class Crawler:
             # 触发spider_closed事件，通知所有订阅者（包括扩展）
             # 传递reason参数，这里使用默认的'finished'作为reason
             if self.subscriber:
-                await self.subscriber.notify("spider_closed", reason='finished')
+                from crawlo.event import CrawlerEvent
+                await self.subscriber.notify(CrawlerEvent.SPIDER_CLOSED, reason='finished')
             
             if self._stats and hasattr(self._stats, 'close'):
                 try:

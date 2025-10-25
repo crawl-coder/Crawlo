@@ -68,12 +68,16 @@ class ActivateRequestManager:
     
     def get_stats(self) -> dict:
         """获取请求统计信息"""
+        completed = self._completed_requests + self._failed_requests
         return {
             'active_requests': len(self._active),
             'total_requests': self._total_requests,
             'completed_requests': self._completed_requests,
             'failed_requests': self._failed_requests,
-            'success_rate': self._completed_requests / max(1, self._total_requests - len(self._active))
+            'success_rate': (
+                self._completed_requests / completed * 100 
+                if completed > 0 else 100.0  # 无完成请求时返回100%
+            )
         }
     
     def reset_stats(self):

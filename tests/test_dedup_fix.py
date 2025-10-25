@@ -19,7 +19,7 @@ from crawlo.pipelines.redis_dedup_pipeline import RedisDedupPipeline
 from crawlo.pipelines.memory_dedup_pipeline import MemoryDedupPipeline
 from crawlo.pipelines.bloom_dedup_pipeline import BloomDedupPipeline
 from crawlo.pipelines.pipeline_manager import PipelineManager
-from crawlo.exceptions import ItemDiscard, DropItem
+from crawlo.exceptions import ItemDiscard
 
 
 class TestDedupFix(unittest.TestCase):
@@ -61,7 +61,7 @@ class TestDedupFix(unittest.TestCase):
                 log_level='INFO'
             )
             
-            # 验证抛出的是ItemDiscard异常而不是DropItem异常
+            # 验证抛出的是ItemDiscard异常
             with self.assertRaises(ItemDiscard) as context:
                 pipeline.process_item(self.test_item, Mock())
             
@@ -77,7 +77,7 @@ class TestDedupFix(unittest.TestCase):
         fingerprint = pipeline._generate_item_fingerprint(self.test_item)
         pipeline.seen_items.add(fingerprint)
         
-        # 验证抛出的是ItemDiscard异常而不是DropItem异常
+        # 验证抛出的是ItemDiscard异常
         with self.assertRaises(ItemDiscard) as context:
             pipeline.process_item(self.test_item, Mock())
         
@@ -93,7 +93,7 @@ class TestDedupFix(unittest.TestCase):
         fingerprint = pipeline._generate_item_fingerprint(self.test_item)
         pipeline.bloom_filter.add(fingerprint)
         
-        # 验证抛出的是ItemDiscard异常而不是DropItem异常
+        # 验证抛出的是ItemDiscard异常
         with self.assertRaises(ItemDiscard) as context:
             pipeline.process_item(self.test_item, Mock())
         
@@ -101,7 +101,7 @@ class TestDedupFix(unittest.TestCase):
         self.assertIn("可能重复的数据项:", str(context.exception))
 
     async def test_pipeline_manager_exception_handling(self):
-        """测试管道管理器能正确处理两种异常类型"""
+        """测试管道管理器能正确处理ItemDiscard异常"""
         # 创建管道管理器实例
         pipeline_manager = PipelineManager(self.mock_crawler)
         
@@ -148,7 +148,7 @@ class TestDedupFix(unittest.TestCase):
             mock_mysql_method.assert_not_called()
 
     async def test_pipeline_manager_dropitem_exception_handling(self):
-        """测试管道管理器能正确处理DropItem异常"""
+        """测试管道管理器能正确处理ItemDiscard异常（重复测试）"""
         # 创建管道管理器实例
         pipeline_manager = PipelineManager(self.mock_crawler)
         
@@ -162,9 +162,9 @@ class TestDedupFix(unittest.TestCase):
         # 模拟管道方法列表
         pipeline_manager.methods = []
         
-        # 创建模拟的去重管道方法（抛出DropItem异常）
+        # 创建模拟的去重管道方法（抛出ItemDiscard异常）
         mock_dedup_method = Mock()
-        mock_dedup_method.side_effect = DropItem("测试DropItem异常")
+        mock_dedup_method.side_effect = ItemDiscard("测试ItemDiscard异常")
         
         # 创建模拟的MySQL管道方法
         mock_mysql_method = Mock()
@@ -179,7 +179,7 @@ class TestDedupFix(unittest.TestCase):
             # 设置common_call的副作用来模拟异常
             async def mock_common_call_func(method, *args, **kwargs):
                 if method == mock_dedup_method:
-                    raise DropItem("测试DropItem异常")
+                    raise ItemDiscard("测试ItemDiscard异常")
                 return test_item
                 
             mock_common_call.side_effect = mock_common_call_func
@@ -187,7 +187,7 @@ class TestDedupFix(unittest.TestCase):
             # 调用处理方法
             await pipeline_manager.process_item(test_item)
             
-            # 验证DropItem异常被正确处理
+            # 验证ItemDiscard异常被正确处理
             # 验证create_task被调用了一次（item_discard事件）
             self.assertEqual(mock_create_task.call_count, 1)
             

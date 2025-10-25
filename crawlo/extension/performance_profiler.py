@@ -9,7 +9,7 @@ from typing import Any, Optional
 
 from crawlo.utils.log import get_logger
 from crawlo.utils.error_handler import ErrorHandler
-from crawlo.event import spider_opened, spider_closed
+from crawlo.event import CrawlerEvent
 
 
 class PerformanceProfilerExtension:
@@ -44,8 +44,8 @@ class PerformanceProfilerExtension:
         
         o = cls(crawler)
         if o.enabled:
-            crawler.subscriber.subscribe(o.spider_opened, event=spider_opened)
-            crawler.subscriber.subscribe(o.spider_closed, event=spider_closed)
+            crawler.subscriber.subscribe(o.spider_opened, event=CrawlerEvent.SPIDER_OPENED)
+            crawler.subscriber.subscribe(o.spider_closed, event=CrawlerEvent.SPIDER_CLOSED)
         return o
 
     async def spider_opened(self) -> None:

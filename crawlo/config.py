@@ -51,13 +51,21 @@ class CrawloConfig:
         return self.settings.get(key, default)
     
     def set(self, key: str, value: Any) -> 'CrawloConfig':
-        """设置配置项（链式调用）"""
+        """设置配置项（链式调用）
+        
+        注意：设置后会自动验证配置合法性
+        """
         self.settings[key] = value
+        self._validate_settings()  # 自动验证
         return self
     
     def update(self, settings: Dict[str, Any]) -> 'CrawloConfig':
-        """更新配置（链式调用）"""
+        """更新配置（链式调用）
+        
+        注意：更新后会自动验证配置合法性
+        """
         self.settings.update(settings)
+        self._validate_settings()  # 自动验证
         return self
     
     def set_concurrency(self, concurrency: int) -> 'CrawloConfig':

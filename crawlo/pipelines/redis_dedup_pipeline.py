@@ -17,7 +17,7 @@ from typing import Optional
 
 from crawlo import Item
 from crawlo.spider import Spider
-from crawlo.exceptions import DropItem, ItemDiscard
+from crawlo.exceptions import ItemDiscard
 from crawlo.utils.fingerprint import FingerprintGenerator
 from crawlo.utils.log import get_logger, get_component_logger
 
@@ -90,7 +90,7 @@ class RedisDedupPipeline:
         
         :param item: 要处理的数据项
         :param spider: 爬虫实例
-        :return: 处理后的数据项或抛出 DropItem 异常
+        :return: 处理后的数据项或抛出 ItemDiscard 异常
         """
         try:
             # 生成数据项指纹

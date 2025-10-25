@@ -6,7 +6,7 @@ RequestIgnoreMiddleware 中间件
 """
 from crawlo.utils.log import get_logger
 from crawlo.exceptions import IgnoreRequestError
-from crawlo.event import ignore_request
+from crawlo.event import CrawlerEvent
 
 
 class RequestIgnoreMiddleware(object):
@@ -38,7 +38,7 @@ class RequestIgnoreMiddleware(object):
             RequestIgnoreMiddleware: 中间件实例
         """
         o = cls(stats=crawler.stats, log_level=crawler.settings.get('LOG_LEVEL'))
-        crawler.subscriber.subscribe(o.request_ignore, event=ignore_request)
+        crawler.subscriber.subscribe(o.request_ignore, event=CrawlerEvent.IGNORE_REQUEST)
         return o
 
     async def request_ignore(self, exc, request, _spider):

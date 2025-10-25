@@ -248,6 +248,40 @@ def auto_mode(
 
 # 环境变量支持
 def from_env(default_mode: str = 'standalone') -> Dict[str, Any]:
-    """从环境变量创建配置"""
-    # 移除直接使用 os.getenv()，要求通过 settings 配置
-    raise RuntimeError("环境变量配置已移除，请在 settings 中配置相关参数")
+    """从环境变量创建配置
+    
+    支持的环境变量：
+    - CRAWLO_MODE: 运行模式 (standalone/distributed/auto)
+    - CRAWLO_REDIS_HOST: Redis主机地址
+    - CRAWLO_REDIS_PORT: Redis端口
+    - CRAWLO_REDIS_PASSWORD: Redis密码
+    - CRAWLO_REDIS_DB: Redis数据库编号
+    - CRAWLO_PROJECT_NAME: 项目名称
+    - CRAWLO_CONCURRENCY: 并发数
+    
+    Args:
+        default_mode: 默认运行模式（当未设置环境变量时使用）
+    
+    Returns:
+        配置字典
+    """
+    mode = os.getenv('CRAWLO_MODE', default_mode).lower()
+    
+    kwargs = {}
+    
+    # 分布式模式特有配置
+    if mode == 'distributed':
+        kwargs['redis_host'] = os.getenv('CRAWLO_REDIS_HOST', '127.0.0.1')
+        kwargs['redis_port'] = int(os.getenv('CRAWLO_REDIS_PORT', '6379'))
+        if password := os.getenv('CRAWLO_REDIS_PASSWORD'):
+            kwargs['redis_password'] = password
+        kwargs['redis_db'] = int(os.getenv('CRAWLO_REDIS_DB', '0'))
+    
+    # 通用配置
+    if project_name := os.getenv('CRAWLO_PROJECT_NAME'):
+        kwargs['project_name'] = project_name
+    
+    if concurrency := os.getenv('CRAWLO_CONCURRENCY'):
+        kwargs['CONCURRENCY'] = int(concurrency)
+    
+    return ModeManager().resolve_mode_settings(mode, **kwargs)

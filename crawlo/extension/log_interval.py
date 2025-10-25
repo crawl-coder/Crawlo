@@ -4,7 +4,7 @@ import asyncio
 from typing import Any, Optional
 
 from crawlo.utils.log import get_logger
-from crawlo.event import spider_opened, spider_closed
+from crawlo.event import CrawlerEvent
 
 
 class LogIntervalExtension(object):
@@ -36,8 +36,8 @@ class LogIntervalExtension(object):
     @classmethod
     def create_instance(cls, crawler: Any) -> 'LogIntervalExtension':
         o = cls(crawler)
-        crawler.subscriber.subscribe(o.spider_opened, event=spider_opened)
-        crawler.subscriber.subscribe(o.spider_closed, event=spider_closed)
+        crawler.subscriber.subscribe(o.spider_opened, event=CrawlerEvent.SPIDER_OPENED)
+        crawler.subscriber.subscribe(o.spider_closed, event=CrawlerEvent.SPIDER_CLOSED)
         return o
 
     async def spider_opened(self) -> None:

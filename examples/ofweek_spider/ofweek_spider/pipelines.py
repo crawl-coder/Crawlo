@@ -9,7 +9,7 @@ ofweek_spider.pipelines
 """
 
 from datetime import datetime
-from crawlo.exceptions import DropItem
+from crawlo.exceptions import ItemDiscard
 from crawlo.utils.log import get_logger
 
 
@@ -40,11 +40,11 @@ class ExamplePipeline:
             处理后的数据项
             
         Raises:
-            DropItem: 如果数据项无效则抛出此异常
+            ItemDiscard: 如果数据项无效则抛出此异常
         """
         # 验证必要字段
         if not item.get('title') or not item.get('url'):
-            raise DropItem("缺少必要字段: title 或 url")
+            raise ItemDiscard("缺少必要字段: title 或 url")
         
         # 数据清理
         item['title'] = str(item['title']).strip()
