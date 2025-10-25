@@ -6,7 +6,7 @@
 
 from enum import Enum
 from dataclasses import dataclass
-from typing import List, Optional
+from typing import List, Optional, Dict
 
 
 class InitializationPhase(Enum):
@@ -147,3 +147,84 @@ def validate_dependencies() -> bool:
                 return False
     
     return True
+
+
+def detect_circular_dependencies() -> Optional[List[InitializationPhase]]:
+    """
+    检测循环依赖
+    
+    使用DFS（深度优先搜索）算法检测初始化阶段的循环依赖。
+    
+    Returns:
+        Optional[List[InitializationPhase]]: 如果存在循环，返回循环路径；否则返回None
+    
+    算法说明：
+        使用三色标记法：
+        - 白色(0)：未访问
+        - 灰色(1)：正在访问（在当前DFS路径中）
+        - 黑色(2)：已完成访问
+        
+        如果在DFS过程中遇到灰色节点，说明存在循环依赖。
+    """
+    # 构建依赖图
+    dependency_graph: Dict[InitializationPhase, List[InitializationPhase]] = {}
+    for definition in PHASE_DEFINITIONS:
+        dependency_graph[definition.phase] = definition.dependencies.copy()
+    
+    # 三色标记：0-白色(未访问)，1-灰色(访问中)，2-黑色(已完成)
+    color: Dict[InitializationPhase, int] = {phase: 0 for phase in dependency_graph}
+    parent: Dict[InitializationPhase, Optional[InitializationPhase]] = {phase: None for phase in dependency_graph}
+    
+    def dfs(node: InitializationPhase) -> Optional[List[InitializationPhase]]:
+        """DFS遍历检测循环"""
+        color[node] = 1  # 标记为灰色（访问中）
+        
+        for neighbor in dependency_graph.get(node, []):
+            if color[neighbor] == 1:  # 遇到灰色节点，发现循环
+                # 重建循环路径
+                cycle = [neighbor]
+                current: Optional[InitializationPhase] = node
+                while current is not None and current != neighbor:
+                    cycle.append(current)
+                    current = parent.get(current)
+                cycle.append(neighbor)
+                cycle.reverse()
+                return cycle
+            
+            if color[neighbor] == 0:  # 未访问的节点
+                parent[neighbor] = node
+                result = dfs(neighbor)
+                if result:
+                    return result
+        
+        color[node] = 2  # 标记为黑色（已完成）
+        return None
+    
+    # 对所有未访问的节点执行DFS
+    for phase in dependency_graph:
+        if color[phase] == 0:
+            cycle = dfs(phase)
+            if cycle:
+                return cycle
+    
+    return None
+
+
+def validate_phase_dependencies() -> tuple[bool, Optional[str]]:
+    """
+    全面验证阶段依赖关系
+    
+    Returns:
+        tuple[bool, Optional[str]]: (是否有效, 错误信息)
+    """
+    # 1. 检查依赖是否存在
+    if not validate_dependencies():
+        return False, "存在未定义的依赖阶段"
+    
+    # 2. 检查循环依赖
+    cycle = detect_circular_dependencies()
+    if cycle:
+        cycle_path = ' -> '.join([phase.value for phase in cycle])
+        return False, f"检测到循环依赖: {cycle_path}"
+    
+    return True, None

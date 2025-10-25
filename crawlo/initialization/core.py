@@ -6,11 +6,12 @@
 
 import threading
 import time
+import signal
 from typing import Optional, Any
 
 from .built_in import register_built_in_initializers
 from .context import InitializationContext
-from .phases import InitializationPhase, PhaseResult, get_execution_order, get_phase_definition
+from .phases import InitializationPhase, PhaseResult, get_execution_order, get_phase_definition, validate_phase_dependencies
 from .registry import get_global_registry
 
 
@@ -32,6 +33,11 @@ class CoreInitializer:
         self._context: Optional[InitializationContext] = None
         self._is_ready = False
         self._init_lock = threading.RLock()
+        
+        # 在注册内置初始化器之前，先验证阶段依赖关系
+        is_valid, error_msg = validate_phase_dependencies()
+        if not is_valid:
+            raise RuntimeError(f"初始化阶段配置错误: {error_msg}")
         
         # 注册内置初始化器
         register_built_in_initializers()
@@ -115,10 +121,10 @@ class CoreInitializer:
                     # 可选阶段，跳过
                     continue
             
-            # 执行阶段
+            # 执行阶段（带超时控制）
             start_time = time.time()
             try:
-                result = registry.execute_phase(phase, context)
+                result = self._execute_phase_with_timeout(phase, context, registry)
                 result.duration = time.time() - start_time
                 
                 context.mark_phase_completed(phase, result)
@@ -138,6 +144,59 @@ class CoreInitializer:
                 
                 if not self._is_phase_optional(phase):
                     raise
+    
+    def _execute_phase_with_timeout(self, phase: InitializationPhase, 
+                                    context: InitializationContext,
+                                    registry) -> PhaseResult:
+        """
+        执行阶段并支持超时控制
+        
+        Args:
+            phase: 初始化阶段
+            context: 初始化上下文
+            registry: 初始化器注册表
+            
+        Returns:
+            PhaseResult: 阶段执行结果
+            
+        Raises:
+            TimeoutError: 阶段执行超时
+        """
+        phase_def = get_phase_definition(phase)
+        timeout = phase_def.timeout if phase_def else 30.0
+        
+        # 使用线程执行，支持超时
+        result_container: list[Optional[PhaseResult]] = [None]
+        exception_container: list[Optional[Exception]] = [None]
+        
+        def execute_in_thread():
+            try:
+                result_container[0] = registry.execute_phase(phase, context)
+            except Exception as e:
+                exception_container[0] = e
+        
+        thread = threading.Thread(target=execute_in_thread, daemon=True)
+        thread.start()
+        thread.join(timeout=timeout)
+        
+        if thread.is_alive():
+            # 超时了
+            error_msg = f"Phase {phase.value} execution timeout after {timeout} seconds"
+            context.add_warning(error_msg)
+            return PhaseResult(
+                phase=phase,
+                success=False,
+                error=TimeoutError(error_msg)
+            )
+        
+        # 检查是否有异常
+        if exception_container[0]:
+            raise exception_container[0]
+        
+        # 返回结果（已经确保不为None）
+        if result_container[0] is None:
+            raise RuntimeError(f"Phase {phase.value} returned None result")
+        return result_container[0]
     
     def _check_dependencies(self, phase: InitializationPhase, 
                           context: InitializationContext) -> bool:
