@@ -4,7 +4,7 @@ import asyncio
 import psutil
 from typing import Any, Optional
 
-from crawlo.utils.log import get_logger
+from crawlo.logging import get_logger
 from crawlo.utils.error_handler import ErrorHandler
 from crawlo.event import CrawlerEvent
 
@@ -19,7 +19,7 @@ class MemoryMonitorExtension:
         self.task: Optional[asyncio.Task] = None
         self.process = psutil.Process()
         self.settings = crawler.settings
-        self.logger = get_logger(self.__class__.__name__, crawler.settings.get('LOG_LEVEL'))
+        self.logger = get_logger(self.__class__.__name__)
         self.error_handler = ErrorHandler(self.__class__.__name__, crawler.settings.get('LOG_LEVEL'))
         
         # 获取配置参数

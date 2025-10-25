@@ -3,11 +3,11 @@
 import asyncio
 from typing import Any, Optional
 
-from crawlo.utils.log import get_logger
+from crawlo.logging import get_logger
 from crawlo.event import CrawlerEvent
 
 
-class LogIntervalExtension(object):
+class LogIntervalExtension:
 
     def __init__(self, crawler: Any):
         self.task: Optional[asyncio.Task] = None
@@ -30,7 +30,7 @@ class LogIntervalExtension(object):
         else:
             self.interval_display = str(self.interval)
 
-        self.logger = get_logger(self.__class__.__name__, crawler.settings.get('LOG_LEVEL'))
+        self.logger = get_logger(self.__class__.__name__)
         self.logger.info(f"LogIntervalExtension initialized with interval: {self.seconds} seconds")
 
     @classmethod

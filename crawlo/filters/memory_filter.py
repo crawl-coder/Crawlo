@@ -15,8 +15,7 @@ from weakref import WeakSet
 from typing import Set, TextIO, Optional
 
 from crawlo.filters import BaseFilter
-from crawlo.utils.log import get_logger
-from crawlo.utils.request import request_fingerprint
+from crawlo.logging import get_logger
 
 
 class MemoryFilter(BaseFilter):
@@ -47,10 +46,7 @@ class MemoryFilter(BaseFilter):
 
         # 初始化日志和统计
         debug = crawler.settings.get_bool('FILTER_DEBUG', False)
-        logger = get_logger(
-            self.__class__.__name__,
-            crawler.settings.get('LOG_LEVEL', 'INFO')
-        )
+        logger = get_logger(self.__class__.__name__)
         super().__init__(logger, crawler.stats, debug)
 
         # 性能计数器
@@ -102,14 +98,8 @@ class MemoryFilter(BaseFilter):
         :return: 是否重复
         """
         with self._lock:
-            # 使用统一的指纹生成器
-            from crawlo.utils.fingerprint import FingerprintGenerator
-            fp = FingerprintGenerator.request_fingerprint(
-                request.method, 
-                request.url, 
-                request.body or b'', 
-                dict(request.headers) if hasattr(request, 'headers') else {}
-            )
+            # 使用基类的指纹生成方法
+            fp = self._get_fingerprint(request)
             if fp in self.fingerprints:
                 self._dupe_count += 1
                 return True
@@ -190,10 +180,7 @@ class MemoryFileFilter(BaseFilter):
         self._file: Optional[TextIO] = None  # 文件句柄
 
         debug = crawler.settings.get_bool("FILTER_DEBUG", False)
-        logger = get_logger(
-            self.__class__.__name__,  # 使用类名作为日志标识
-            crawler.settings.get("LOG_LEVEL", "INFO")
-        )
+        logger = get_logger(self.__class__.__name__)
         super().__init__(logger, crawler.stats, debug)
 
         # 初始化文件存储

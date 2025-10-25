@@ -7,7 +7,7 @@
 import asyncio
 from typing import Any
 
-from crawlo.utils.log import get_logger
+from crawlo.logging import get_logger
 from crawlo.utils import now, time_diff
 
 
@@ -18,7 +18,7 @@ class LogStats:
 
     def __init__(self, crawler):
         self.crawler = crawler
-        self.logger = get_logger(self.__class__.__name__, crawler.settings.get('LOG_LEVEL'))
+        self.logger = get_logger(self.__class__.__name__)
         self._stats = crawler.stats
         self._stats['start_time'] = now(fmt='%Y-%m-%d %H:%M:%S')
 

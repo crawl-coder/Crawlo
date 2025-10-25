@@ -5,7 +5,7 @@ from datetime import datetime
 from typing import Any, Optional, Dict
 
 from crawlo.event import CrawlerEvent
-from crawlo.utils.log import get_logger
+from crawlo.logging import get_logger
 
 
 class HealthCheckExtension:
@@ -16,7 +16,7 @@ class HealthCheckExtension:
 
     def __init__(self, crawler: Any):
         self.settings = crawler.settings
-        self.logger = get_logger(self.__class__.__name__, crawler.settings.get('LOG_LEVEL'))
+        self.logger = get_logger(self.__class__.__name__)
         
         # 获取配置参数
         self.enabled = self.settings.get_bool('HEALTH_CHECK_ENABLED', True)

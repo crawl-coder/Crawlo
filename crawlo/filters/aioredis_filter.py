@@ -12,8 +12,7 @@ except ImportError:
     REDIS_CLUSTER_AVAILABLE = False
 
 from crawlo.filters import BaseFilter
-from crawlo.utils.log import get_logger
-from crawlo.utils.request import request_fingerprint
+from crawlo.logging import get_logger
 from crawlo.utils.redis_connection_pool import get_redis_pool, RedisConnectionPool
 
 
@@ -50,7 +49,7 @@ class AioRedisFilter(BaseFilter):
         :param cleanup_fp: 关闭时是否清理指纹
         :param ttl: 指纹过期时间（秒）
         """
-        self.logger = get_logger(self.__class__.__name__, log_level)
+        self.logger = get_logger(self.__class__.__name__)
         super().__init__(self.logger, stats, debug)
 
         self.redis_key = redis_key
@@ -173,14 +172,8 @@ class AioRedisFilter(BaseFilter):
             if redis_client is None:
                 return False
             
-            # 使用统一的指纹生成器
-            from crawlo.utils.fingerprint import FingerprintGenerator
-            fp = str(FingerprintGenerator.request_fingerprint(
-                request.method, 
-                request.url, 
-                request.body or b'', 
-                dict(request.headers) if hasattr(request, 'headers') else {}
-            ))
+            # 使用基类的指纹生成方法
+            fp = str(self._get_fingerprint(request))
             self._redis_operations += 1
 
             # 检查指纹是否存在

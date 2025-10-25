@@ -3,18 +3,18 @@
 from typing import List, Any
 from pprint import pformat
 
-from crawlo.utils.log import get_logger
+from crawlo.logging import get_logger
 from crawlo.utils.misc import load_object
 from crawlo.exceptions import ExtensionInitError
 
 
-class ExtensionManager(object):
+class ExtensionManager:
 
     def __init__(self, crawler: Any):
         self.crawler = crawler
         self.extensions: List = []
         extensions = self.crawler.settings.get_list('EXTENSIONS')
-        self.logger = get_logger(self.__class__.__name__, crawler.settings.get('LOG_LEVEL'))
+        self.logger = get_logger(self.__class__.__name__)
         self._add_extensions(extensions)
         self._subscribe_extensions()
 
