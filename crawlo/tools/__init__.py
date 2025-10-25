@@ -35,16 +35,6 @@ from .text_cleaner import (
     extract_urls
 )
 
-# 带认证代理工具
-from .authenticated_proxy import (
-    AuthenticatedProxy,
-    create_proxy_config,
-    format_proxy_for_request,
-    parse_proxy_url,
-    validate_proxy_url,
-    get_proxy_info
-)
-
 # 分布式协调工具
 from .distributed_coordinator import (
     TaskDistributor,
@@ -83,14 +73,6 @@ __all__ = [
     "extract_numbers",
     "extract_emails",
     "extract_urls",
-    
-    # 带认证代理工具
-    "AuthenticatedProxy",
-    "create_proxy_config",
-    "format_proxy_for_request",
-    "parse_proxy_url",
-    "validate_proxy_url",
-    "get_proxy_info",
     
     # 分布式协调工具
     "TaskDistributor",
