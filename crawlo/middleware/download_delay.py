@@ -7,7 +7,7 @@ DownloadDelayMiddleware 中间件
 
 from asyncio import sleep
 from random import uniform
-from crawlo.utils.log import get_logger
+from crawlo.logging import get_logger
 from crawlo.exceptions import NotConfiguredError
 
 
@@ -51,7 +51,7 @@ class DownloadDelayMiddleware(object):
             # 如果配置不完整，使用默认值
             self.floor, self.upper = 0.5, 1.5
             
-        self.logger = get_logger(self.__class__.__name__, log_level)
+        self.logger = get_logger(self.__class__.__name__)
         self.stats = stats
 
     @classmethod

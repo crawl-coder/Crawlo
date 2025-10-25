@@ -14,7 +14,7 @@ else:
     # 为 isinstance 检查导入实际的类
     from crawlo.network.request import Request
     from crawlo.network.response import Response
-from crawlo.utils.log import get_logger
+from crawlo.logging import get_logger
 from crawlo.utils.misc import load_object
 from crawlo.middleware import BaseMiddleware
 from crawlo.project import common_call
@@ -27,7 +27,7 @@ class MiddlewareManager:
 
     def __init__(self, crawler):
         self.crawler = crawler
-        self.logger = get_logger(self.__class__.__name__, crawler.settings.get('LOG_LEVEL'))
+        self.logger = get_logger(self.__class__.__name__)
         self.middlewares: List = []
         self.methods: Dict[str, List[MethodType]] = defaultdict(list)
         middlewares = self.crawler.settings.get_list('MIDDLEWARES')

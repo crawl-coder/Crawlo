@@ -4,7 +4,7 @@
 ResponseFilterMiddleware 中间件
 用于过滤不符合要求的HTTP响应，支持自定义允许的状态码
 """
-from crawlo.utils.log import get_logger
+from crawlo.logging import get_logger
 from crawlo.exceptions import IgnoreRequestError
 
 
@@ -47,7 +47,7 @@ class ResponseFilterMiddleware:
                 except (ValueError, TypeError):
                     pass  # 忽略无效的状态码
                     
-        self.logger = get_logger(self.__class__.__name__, log_level)
+        self.logger = get_logger(self.__class__.__name__)
 
     @classmethod
     def create_instance(cls, crawler):

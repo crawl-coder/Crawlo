@@ -6,7 +6,7 @@ DefaultHeaderMiddleware 中间件
 """
 
 import random
-from crawlo.utils.log import get_logger
+from crawlo.logging import get_logger
 from crawlo.exceptions import NotConfiguredError
 # 导入User-Agent数据
 from crawlo.data.user_agents import get_user_agents
@@ -22,7 +22,7 @@ class DefaultHeaderMiddleware(object):
         """
         初始化中间件
         """
-        self.logger = get_logger(self.__class__.__name__, log_level)
+        self.logger = get_logger(self.__class__.__name__)
 
         # 获取默认请求头配置
         self.headers = settings.get_dict('DEFAULT_REQUEST_HEADERS', {})
