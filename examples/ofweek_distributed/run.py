@@ -18,7 +18,7 @@ def main():
     """主函数：运行爬虫"""
     try:
         # TODO: 请将 'spider_name' 替换为实际要运行的爬虫名称
-        asyncio.run(CrawlerProcess().crawl('of_week_distributed'))
+        asyncio.run(CrawlerProcess().crawl('spider_name'))
 
     except Exception as e:
         print(f"❌ 运行失败: {e}")
