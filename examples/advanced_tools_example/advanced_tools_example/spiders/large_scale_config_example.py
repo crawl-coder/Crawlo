@@ -26,7 +26,7 @@ custom_settings = {
 
 # 使用大规模配置工具重构后
 # 在settings.py中
-from crawlo.utils.large_scale_config import apply_large_scale_config
+from crawlo.utils.config_manager import apply_large_scale_config
 
 # 根据环境变量选择配置类型
 import os
@@ -51,7 +51,7 @@ for key, value in settings.items():
 
 from crawlo.spider import Spider
 from crawlo.network import Request
-from crawlo.utils.large_scale_config import LargeScaleConfig, apply_large_scale_config
+from crawlo.utils.config_manager import LargeScaleConfig, apply_large_scale_config
 from crawlo.utils.log import get_logger
 
 

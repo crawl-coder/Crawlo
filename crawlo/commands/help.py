@@ -11,7 +11,7 @@ from rich.table import Table
 from rich.panel import Panel
 from rich.text import Text
 from rich import box
-from crawlo.utils.env_config import get_version
+from crawlo.utils.config_manager import get_version
 
 # 获取框架版本号
 VERSION = get_version()

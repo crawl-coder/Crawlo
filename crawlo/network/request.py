@@ -16,7 +16,7 @@ from urllib.parse import urlencode, urlparse, urlunparse, parse_qsl
 from w3lib.url import safe_url_string
 from typing import Dict, Optional, Callable, Union, Any, TypeVar, List
 
-from crawlo.utils.url import escape_ajax
+from crawlo.utils.url_utils import escape_ajax
 
 
 _Request = TypeVar("_Request", bound="Request")

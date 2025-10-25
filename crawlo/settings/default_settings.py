@@ -4,7 +4,7 @@
 包含 Crawlo 框架的所有默认设置项
 """
 # 添加环境变量配置工具导入
-from crawlo.utils.env_config import get_redis_config, get_runtime_config, get_version
+from crawlo.utils.config_manager import get_redis_config, get_runtime_config, get_version
 
 # --------------------------------- 1. 框架基础配置 ------------------------------------
 

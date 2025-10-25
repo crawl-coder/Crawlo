@@ -4,7 +4,7 @@
 import sys
 import argparse
 from crawlo.commands import get_commands
-from crawlo.utils.env_config import get_version
+from crawlo.utils.config_manager import get_version
 
 
 def main():

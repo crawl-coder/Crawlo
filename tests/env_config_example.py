@@ -10,7 +10,7 @@ import sys
 # 添加项目根目录到Python路径
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
-from crawlo.utils.env_config import get_env_var, get_redis_config, get_runtime_config
+from crawlo.utils.config_manager import get_env_var, get_redis_config, get_runtime_config
 from crawlo.settings.setting_manager import SettingManager
 from crawlo.settings import default_settings
 
