@@ -483,9 +483,30 @@ class RedisPriorityQueue:
     async def close(self):
         """关闭连接"""
         try:
-            # 连接池会自动管理连接，这里不需要显式关闭单个连接
-            self._redis = None
+            # 显式关闭Redis连接
+            if self._redis is not None:
+                try:
+                    # 尝试关闭连接
+                    if hasattr(self._redis, 'close'):
+                        close_result = self._redis.close()
+                        if asyncio.iscoroutine(close_result):
+                            await close_result
+                    
+                    # 等待连接关闭完成
+                    if hasattr(self._redis, 'wait_closed'):
+                        wait_result = self._redis.wait_closed()
+                        if asyncio.iscoroutine(wait_result):
+                            await wait_result
+                except Exception as close_error:
+                    get_module_logger().warning(
+                        f"Error closing Redis connection (Module: {self.module_name}): {close_error}"
+                    )
+                finally:
+                    self._redis = None
+            
+            # 释放连接池引用（连接池由全局管理器管理）
             self._redis_pool = None
+            
             get_module_logger().debug(f"Redis 连接已释放 (Module: {self.module_name})")
         except Exception as e:
             error_context = ErrorContext(

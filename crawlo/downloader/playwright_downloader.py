@@ -319,25 +319,48 @@ class PlaywrightDownloader(DownloaderBase):
         """关闭 Playwright 资源"""
         try:
             # 关闭所有页面
-            for page in self._page_pool:
-                try:
-                    await page.close()
-                except:
-                    pass
-            self._page_pool.clear()
-            self._used_pages.clear()
-            
-            if self.context:
-                await self.context.close()
-            if self.browser:
-                await self.browser.close()
-            if self.playwright:
-                await self.playwright.stop()
+            if self._page_pool:
+                self.logger.debug(f"Closing {len(self._page_pool)} page(s)...")
+                for page in self._page_pool:
+                    try:
+                        await page.close()
+                    except Exception as e:
+                        self.logger.warning(f"Error closing page: {e}")
                 
+                self._page_pool.clear()
+                self._used_pages.clear()
+            
+            # 关闭上下文
+            if self.context:
+                try:
+                    await self.context.close()
+                except Exception as e:
+                    self.logger.warning(f"Error closing context: {e}")
+                finally:
+                    self.context = None
+            
+            # 关闭浏览器
+            if self.browser:
+                try:
+                    await self.browser.close()
+                except Exception as e:
+                    self.logger.warning(f"Error closing browser: {e}")
+                finally:
+                    self.browser = None
+            
+            # 停止 Playwright
+            if self.playwright:
+                try:
+                    await self.playwright.stop()
+                except Exception as e:
+                    self.logger.warning(f"Error stopping playwright: {e}")
+                finally:
+                    self.playwright = None
+                    
             self.logger.info("PlaywrightDownloader closed.")
         except Exception as e:
-            self.logger.warning(f"Error closing Playwright resources: {e}")
-        finally:
+            self.logger.error(f"Error during Playwright cleanup: {e}", exc_info=True)
+            # 确保资源被清空
             self.context = None
             self.browser = None
             self.playwright = None

@@ -255,5 +255,11 @@ class HttpXDownloader(DownloaderBase):
         """关闭主客户端"""
         if self._client:
             self.logger.info("Closing HttpXDownloader client...")
-            await self._client.aclose()
+            try:
+                await self._client.aclose()
+            except Exception as e:
+                self.logger.warning(f"Error during client close: {e}")
+            finally:
+                self._client = None
+        
         self.logger.debug("HttpXDownloader closed.")

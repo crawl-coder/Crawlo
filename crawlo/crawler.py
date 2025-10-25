@@ -21,6 +21,7 @@ from typing import Optional, Type, Dict, Any, List
 from crawlo.logging import get_logger
 from crawlo.factories import get_component_registry
 from crawlo.initialization import initialize_framework, is_framework_ready
+from crawlo.utils.resource_manager import ResourceManager, ResourceType
 
 
 class CrawlerState(Enum):
@@ -81,6 +82,9 @@ class ModernCrawler:
         
         # 指标
         self._metrics = CrawlerMetrics()
+        
+        # 资源管理器
+        self._resource_manager = ResourceManager(name=f"crawler.{spider_cls.__name__ if spider_cls else 'unknown'}")
         
         # 日志
         self._logger = get_logger(f'crawler.{spider_cls.__name__ if spider_cls else "unknown"}')
@@ -209,6 +213,14 @@ class ModernCrawler:
             
             # 创建Engine（需要crawler参数）
             self._engine = registry.create('engine', crawler=self)
+            # 注册Engine到资源管理器
+            if self._engine and hasattr(self._engine, 'close'):
+                self._resource_manager.register(
+                    self._engine,
+                    lambda e: e.close() if hasattr(e, 'close') else None,
+                    ResourceType.OTHER,
+                    name="engine"
+                )
             
             # 创建Stats（需要crawler参数）
             self._stats = registry.create('stats', crawler=self)
@@ -291,7 +303,15 @@ class ModernCrawler:
                 self._state = CrawlerState.CLOSING
         
         try:
-            # 关闭各个组件
+            # 使用资源管理器统一清理
+            self._logger.debug("开始清理Crawler资源...")
+            cleanup_result = await self._resource_manager.cleanup_all()
+            self._logger.debug(
+                f"资源清理完成: {cleanup_result['success']}成功, "
+                f"{cleanup_result['errors']}失败, 耗时{cleanup_result['duration']:.2f}s"
+            )
+            
+            # 关闭各个组件（继续兼容旧逻辑）
             if self._engine and hasattr(self._engine, 'close'):
                 try:
                     await self._engine.close()
@@ -318,7 +338,8 @@ class ModernCrawler:
             
             # 触发spider_closed事件，通知所有订阅者（包括扩展）
             # 传递reason参数，这里使用默认的'finished'作为reason
-            await self.subscriber.notify("spider_closed", reason='finished')
+            if self.subscriber:
+                await self.subscriber.notify("spider_closed", reason='finished')
             
             if self._stats and hasattr(self._stats, 'close'):
                 try:
@@ -543,6 +564,19 @@ class CrawlerProcess:
             return results
             
         finally:
+            # 清理所有crawler，防止资源累积
+            self._logger.debug(f"Cleaning up {len(self._crawlers)} crawler(s)...")
+            for crawler in self._crawlers:
+                try:
+                    # 确保每个crawler都被清理
+                    if hasattr(crawler, '_resource_manager'):
+                        await crawler._resource_manager.cleanup_all()
+                except Exception as e:
+                    self._logger.warning(f"Failed to cleanup crawler: {e}")
+            
+            # 清空crawlers列表，释放引用
+            self._crawlers.clear()
+            
             self._end_time = time.time()
             if self._start_time:
                 duration = self._end_time - self._start_time

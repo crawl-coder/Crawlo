@@ -237,6 +237,9 @@ class CurlCffiDownloader(DownloaderBase):
                 self.logger.warning(f"关闭 curl-cffi 会话时出错: {e}")
             finally:
                 self.session = None
+                # 清空活跃请求跟踪
+                self._active_requests.clear()
+        
         self.logger.debug("CurlCffiDownloader 已关闭")
 
     def idle(self) -> bool:

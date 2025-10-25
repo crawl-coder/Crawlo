@@ -195,7 +195,11 @@ class CrawloFramework:
         
         self._logger.info(f"Starting spiders: {', '.join(spider_names)}")
         
-        return await self._process.crawl_multiple(spider_classes_or_names, settings)
+        try:
+            return await self._process.crawl_multiple(spider_classes_or_names, settings)
+        finally:
+            # 清理全局Redis连接池
+            await self._cleanup_global_resources()
 
     def create_crawler(self, spider_cls: Type, settings=None) -> ModernCrawler:
         """
@@ -234,6 +238,16 @@ class CrawloFramework:
     def get_metrics(self) -> dict:
         """获取框架指标"""
         return self._process.get_metrics()
+    
+    async def _cleanup_global_resources(self):
+        """清理全局资源（Redis连接池等）"""
+        try:
+            # 清理全局Redis连接池
+            from crawlo.utils.redis_connection_pool import close_all_pools
+            await close_all_pools()
+            self._logger.debug("Global resources cleaned up")
+        except Exception as e:
+            self._logger.warning(f"Failed to cleanup global resources: {e}")
 
 
 # 全局框架实例

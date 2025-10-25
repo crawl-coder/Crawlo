@@ -1,5 +1,6 @@
 #!/usr/bin/python
 # -*- coding: UTF-8 -*-
+import asyncio
 from yarl import URL
 from typing import Optional
 from aiohttp import (
@@ -216,7 +217,17 @@ class AioHttpDownloader(DownloaderBase):
     async def close(self) -> None:
         """关闭会话资源"""
         if self.session and not self.session.closed:
-            # 恢复关键的下载器关闭信息为INFO级别
             self.logger.info("Closing AioHttpDownloader session...")
-            await self.session.close()
+            try:
+                # 关闭 session
+                await self.session.close()
+                
+                # 等待一小段时间确保连接完全关闭
+                # 参考: https://docs.aiohttp.org/en/stable/client_advanced.html#graceful-shutdown
+                await asyncio.sleep(0.25)
+            except Exception as e:
+                self.logger.warning(f"Error during session close: {e}")
+            finally:
+                self.session = None
+        
         self.logger.debug("AioHttpDownloader closed.")

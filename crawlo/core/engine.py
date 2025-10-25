@@ -94,6 +94,17 @@ class Engine(object):
             else:
                 # DownloaderBase.open() 是同步方法，直接调用而不是await
                 self.downloader.open()
+        
+        # 注册下载器到资源管理器
+        if hasattr(self.crawler, '_resource_manager') and self.downloader:
+            from crawlo.utils.resource_manager import ResourceType
+            self.crawler._resource_manager.register(
+                self.downloader,
+                lambda d: d.close() if hasattr(d, 'close') else None,
+                ResourceType.DOWNLOADER,
+                name=f"downloader.{downloader_cls.__name__}"
+            )
+            self.logger.debug(f"Downloader registered to resource manager: {downloader_cls.__name__}")
 
         self.processor = Processor(self.crawler)
         if hasattr(self.processor, 'open'):
