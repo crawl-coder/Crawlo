@@ -53,7 +53,7 @@ class OfWeekDistributedSpider(Spider):
             "index_burying_point": "c64d6c31e69d560efe319cc9f8be279f"
         }
 
-        max_page = 100
+        max_page = 20
         start_urls = []
         for page in range(1, max_page + 1):
             url = f'https://ee.ofweek.com/CATList-2800-8100-ee-{page}.html'
