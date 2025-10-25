@@ -12,8 +12,9 @@ HTTP Request 封装模块
 """
 import json
 from copy import deepcopy
-from urllib.parse import urlencode, urlparse, urlunparse, parse_qsl
+from enum import IntEnum
 from w3lib.url import safe_url_string
+from urllib.parse import urlencode, urlparse, urlunparse, parse_qsl
 from typing import Dict, Optional, Callable, Union, Any, TypeVar, List
 
 from crawlo.utils.url_utils import escape_ajax
@@ -22,32 +23,21 @@ from crawlo.utils.url_utils import escape_ajax
 _Request = TypeVar("_Request", bound="Request")
 
 
-class RequestPriority:
-    """请求优先级常量和工具类"""
+class RequestPriority(IntEnum):
+    """
+    请求优先级枚举。
+    
+    数值越小，优先级越高。使用 IntEnum 确保可以直接当作整数使用。
+    
+    Examples:
+        >>> request = Request(url, priority=RequestPriority.HIGH)
+        >>> request.priority = RequestPriority.URGENT
+    """
     URGENT = -200      # 紧急任务
     HIGH = -100        # 高优先级  
     NORMAL = 0         # 正常优先级(默认)
     LOW = 100          # 低优先级
     BACKGROUND = 200   # 后台任务
-    
-    @classmethod
-    def get_all_priorities(cls) -> Dict[str, int]:
-        """获取所有优先级常量"""
-        return {
-            'URGENT': cls.URGENT,
-            'HIGH': cls.HIGH,
-            'NORMAL': cls.NORMAL,
-            'LOW': cls.LOW,
-            'BACKGROUND': cls.BACKGROUND
-        }
-    
-    @classmethod
-    def from_string(cls, priority_str: str) -> int:
-        """从字符串获取优先级值"""
-        priorities = cls.get_all_priorities()
-        if priority_str.upper() not in priorities:
-            raise ValueError(f"不支持的优先级: {priority_str}, 支持: {list(priorities.keys())}")
-        return priorities[priority_str.upper()]
 
 
 class Request:
@@ -87,6 +77,7 @@ class Request:
         self,
         url: str,
         callback: Optional[Callable] = None,
+        err_back: Optional[Callable] = None,
         method: Optional[str] = 'GET',
         headers: Optional[Dict[str, str]] = None,
         body: Optional[Union[bytes, str, Dict[Any, Any]]] = None,
@@ -114,6 +105,7 @@ class Request:
 
         :param url: 请求 URL（必须）
         :param callback: 成功回调函数
+        :param err_back: 错误回调函数
         :param method: HTTP 方法，默认 GET
         :param headers: 请求头
         :param body: 原始请求体（bytes/str），若为 dict 且未使用 json_body/form_data，则自动转为 JSON
@@ -134,6 +126,7 @@ class Request:
         :param encoding: 字符编码，默认 utf-8
         """
         self.callback = callback
+        self.err_back = err_back
         self.method = str(method).upper()
         self.headers = headers or {}
         self.cookies = cookies or {}
@@ -229,7 +222,7 @@ class Request:
         """安全地 deepcopy meta，移除 logger 后再复制"""
         import logging
         
-        def clean_logger_recursive(obj):
+        def clean_logger_recursive(obj: Any) -> Any:
             """递归移除 logger 对象"""
             if isinstance(obj, logging.Logger):
                 return None
@@ -251,6 +244,9 @@ class Request:
         
         # 先清理 logger，再 deepcopy
         cleaned_meta = clean_logger_recursive(meta)
+        # 确保返回字典类型
+        if not isinstance(cleaned_meta, dict):
+            return {}
         return deepcopy(cleaned_meta)
 
     def copy(self: _Request) -> _Request:
