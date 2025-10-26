@@ -1,6 +1,20 @@
-# Crawlo
+<p align="center">
+  <img src="assets/logo.svg" alt="Crawlo Logo" width="150"/>
+</p>
 
-一个基于 asyncio 的现代化、高性能 Python 异步爬虫框架。
+<h1 align="center">Crawlo</h1>
+
+<p align="center">
+  <strong>一个基于 asyncio 的现代化、高性能 Python 异步爬虫框架。</strong>
+</p>
+
+<p align="center">
+  <a href="#核心特性">核心特性</a> •
+  <a href="#项目架构">架构</a> •
+  <a href="#安装">安装</a> •
+  <a href="#配置模式详解">配置模式</a> •
+  <a href="https://github.com/yourusername/crawlo">文档</a>
+</p>
 
 ## 核心特性
 
@@ -212,6 +226,134 @@ RuntimeError: Distributed 模式要求 Redis 可用，但无法连接到 Redis �
 | 大规模爬取 | **Auto** 或 **Distributed** | 性能和可靠性 |
 
 > 📖 **完整文档**：更多详细信息请参考 [配置模式完全指南](docs/tutorials/configuration_modes.md)
+
+## 配置优先级
+
+Crawlo 框架支持多层级的配置系统，了解配置优先级对于正确使用框架至关重要。
+
+### 配置来源与优先级
+
+从**低到高**的优先级顺序：
+
+```
+1. default_settings.py (框架默认配置)                    ⭐
+   ↓
+2. 环境变量 (CRAWLO_*)                                   ⭐⭐
+   (在 default_settings.py 中通过 EnvConfigManager 读取)
+   ↓
+3. 用户 settings.py (项目配置文件)                       ⭐⭐⭐
+   ↓
+4. Spider.custom_settings (Spider 自定义配置)            ⭐⭐⭐⭐
+   ↓
+5. 运行时 settings 参数 (crawl() 传入的配置)             ⭐⭐⭐⭐⭐
+```
+
+### 环境变量配置
+
+所有环境变量都使用 `CRAWLO_` 前缀：
+
+```bash
+# 基础配置
+export CRAWLO_MODE=auto                    # 运行模式
+export CRAWLO_PROJECT_NAME=myproject       # 项目名称
+export CRAWLO_CONCURRENCY=16               # 并发数
+
+# Redis 配置
+export CRAWLO_REDIS_HOST=127.0.0.1         # Redis 主机
+export CRAWLO_REDIS_PORT=6379              # Redis 端口
+export CRAWLO_REDIS_PASSWORD=your_password # Redis 密码
+export CRAWLO_REDIS_DB=0                   # Redis 数据库
+```
+
+### 配置合并策略
+
+**普通配置**（如 `CONCURRENCY`）：采用**覆盖策略**
+```python
+# 假设各处都有定义
+default_settings.py:  8   →
+环境变量:  12  →
+settings.py:  16  →
+Spider.custom_settings:  24  →
+crawl(settings={...}):  32  ✅ 最终值 = 32
+```
+
+**列表配置**（如 `MIDDLEWARES`、`PIPELINES`、`EXTENSIONS`）：采用**合并策略**
+```python
+# default_settings.py
+PIPELINES = ['crawlo.pipelines.console_pipeline.ConsolePipeline']
+
+# settings.py
+PIPELINES = ['myproject.pipelines.MySQLPipeline']
+
+# 最终结果（合并）
+PIPELINES = [
+    'crawlo.pipelines.console_pipeline.ConsolePipeline',  # 保留默认
+    'myproject.pipelines.MySQLPipeline',                   # 追加用户
+]
+```
+
+### Spider 级别配置
+
+在 Spider 类中可以覆盖项目配置：
+
+```python
+class MySpider(Spider):
+    name = 'myspider'
+    
+    custom_settings = {
+        'CONCURRENCY': 32,           # 覆盖项目配置
+        'DOWNLOAD_DELAY': 2.0,       # 覆盖项目配置
+        'PIPELINES': [               # 会与默认管道合并
+            'myproject.pipelines.SpecialPipeline',
+        ]
+    }
+```
+
+### 运行时动态配置
+
+```python
+from crawlo import CrawlerProcess
+
+process = CrawlerProcess()
+await process.crawl(
+    MySpider,
+    settings={
+        'CONCURRENCY': 64,        # 最高优先级
+        'DOWNLOAD_DELAY': 0.1,
+    }
+)
+```
+
+### ⚠️ 常见陷阱
+
+**陷阱1：环境变量被项目配置覆盖**
+```python
+# 环境变量
+export CRAWLO_REDIS_HOST=192.168.1.100
+
+# settings.py（这会覆盖环境变量！）
+REDIS_HOST = 'localhost'  # ❌ 会覆盖环境变量
+
+# 解决方案：不在 settings.py 中重复设置，或使用 CrawloConfig.auto()
+```
+
+**陷阱2：误以为列表配置会被清空**
+```python
+# settings.py
+PIPELINES = ['myproject.pipelines.MySQLPipeline']
+
+# 实际结果（默认管道会被保留并合并）
+PIPELINES = [
+    'crawlo.pipelines.console_pipeline.ConsolePipeline',  # 默认保留
+    'myproject.pipelines.MySQLPipeline',                   # 用户追加
+]
+
+# 如果想完全替换，需要先清空
+PIPELINES = []  # 清空
+PIPELINES.append('myproject.pipelines.MySQLPipeline')
+```
+
+> 📖 **详细文档**：完整的配置优先级说明请参考 [配置优先级详解](docs/配置优先级详解.md)
 
 ## 快速开始
 

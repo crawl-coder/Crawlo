@@ -177,10 +177,10 @@ class EnvConfigManager:
             Redis 配置字典
         """
         return {
-            'REDIS_HOST': EnvConfigManager.get_env_var('REDIS_HOST', '127.0.0.1', str),
-            'REDIS_PORT': EnvConfigManager.get_env_var('REDIS_PORT', 6379, int),
-            'REDIS_PASSWORD': EnvConfigManager.get_env_var('REDIS_PASSWORD', '', str),
-            'REDIS_DB': EnvConfigManager.get_env_var('REDIS_DB', 0, int),
+            'REDIS_HOST': EnvConfigManager.get_env_var('CRAWLO_REDIS_HOST', '127.0.0.1', str),
+            'REDIS_PORT': EnvConfigManager.get_env_var('CRAWLO_REDIS_PORT', 6379, int),
+            'REDIS_PASSWORD': EnvConfigManager.get_env_var('CRAWLO_REDIS_PASSWORD', '', str),
+            'REDIS_DB': EnvConfigManager.get_env_var('CRAWLO_REDIS_DB', 0, int),
         }
     
     @staticmethod
@@ -193,8 +193,8 @@ class EnvConfigManager:
         """
         return {
             'CRAWLO_MODE': EnvConfigManager.get_env_var('CRAWLO_MODE', 'standalone', str),
-            'PROJECT_NAME': EnvConfigManager.get_env_var('PROJECT_NAME', 'crawlo', str),
-            'CONCURRENCY': EnvConfigManager.get_env_var('CONCURRENCY', 8, int),
+            'PROJECT_NAME': EnvConfigManager.get_env_var('CRAWLO_PROJECT_NAME', 'crawlo', str),
+            'CONCURRENCY': EnvConfigManager.get_env_var('CRAWLO_CONCURRENCY', 8, int),
         }
 
     @staticmethod

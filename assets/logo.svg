@@ -1,0 +1,67 @@
+<svg width="200" height="200" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+  <!-- 定义渐变色 -->
+  <defs>
+    <linearGradient id="spiderGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#4F46E5;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#7C3AED;stop-opacity:1" />
+    </linearGradient>
+    
+    <linearGradient id="boltGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#FBBF24;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#F59E0B;stop-opacity:1" />
+    </linearGradient>
+    
+    <!-- 发光效果 -->
+    <filter id="glow">
+      <feGaussianBlur stdDeviation="3" result="coloredBlur"/>
+      <feMerge>
+        <feMergeNode in="coloredBlur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+  
+  <!-- 圆形背景 -->
+  <circle cx="100" cy="100" r="95" fill="#F8FAFC" stroke="url(#spiderGradient)" stroke-width="2"/>
+  
+  <!-- 蜘蛛身体（中心圆） -->
+  <circle cx="100" cy="100" r="25" fill="url(#spiderGradient)" filter="url(#glow)"/>
+  
+  <!-- 蜘蛛头部 -->
+  <ellipse cx="100" cy="80" rx="15" ry="18" fill="url(#spiderGradient)"/>
+  
+  <!-- 蜘蛛眼睛 -->
+  <circle cx="95" cy="75" r="3" fill="#FFFFFF"/>
+  <circle cx="105" cy="75" r="3" fill="#FFFFFF"/>
+  
+  <!-- 蜘蛛腿（8条，体现爬虫特性） -->
+  <!-- 左侧腿 -->
+  <path d="M 75 90 Q 40 70 30 60" stroke="url(#spiderGradient)" stroke-width="4" fill="none" stroke-linecap="round"/>
+  <path d="M 75 100 Q 35 90 25 85" stroke="url(#spiderGradient)" stroke-width="4" fill="none" stroke-linecap="round"/>
+  <path d="M 75 110 Q 35 115 25 125" stroke="url(#spiderGradient)" stroke-width="4" fill="none" stroke-linecap="round"/>
+  <path d="M 80 120 Q 45 135 35 145" stroke="url(#spiderGradient)" stroke-width="4" fill="none" stroke-linecap="round"/>
+  
+  <!-- 右侧腿 -->
+  <path d="M 125 90 Q 160 70 170 60" stroke="url(#spiderGradient)" stroke-width="4" fill="none" stroke-linecap="round"/>
+  <path d="M 125 100 Q 165 90 175 85" stroke="url(#spiderGradient)" stroke-width="4" fill="none" stroke-linecap="round"/>
+  <path d="M 125 110 Q 165 115 175 125" stroke="url(#spiderGradient)" stroke-width="4" fill="none" stroke-linecap="round"/>
+  <path d="M 120 120 Q 155 135 165 145" stroke="url(#spiderGradient)" stroke-width="4" fill="none" stroke-linecap="round"/>
+  
+  <!-- 闪电符号（代表速度和异步） -->
+  <path d="M 110 95 L 95 105 L 105 105 L 90 120 L 100 108 L 92 108 L 107 95 Z" 
+        fill="url(#boltGradient)" 
+        filter="url(#glow)"
+        opacity="0.9"/>
+  
+  <!-- 连接节点（代表分布式） -->
+  <circle cx="60" cy="60" r="4" fill="#4F46E5" opacity="0.6"/>
+  <circle cx="140" cy="60" r="4" fill="#4F46E5" opacity="0.6"/>
+  <circle cx="60" cy="140" r="4" fill="#4F46E5" opacity="0.6"/>
+  <circle cx="140" cy="140" r="4" fill="#4F46E5" opacity="0.6"/>
+  
+  <!-- 连接线 -->
+  <line x1="60" y1="60" x2="100" y2="80" stroke="#4F46E5" stroke-width="1" opacity="0.3"/>
+  <line x1="140" y1="60" x2="100" y2="80" stroke="#4F46E5" stroke-width="1" opacity="0.3"/>
+  <line x1="60" y1="140" x2="100" y2="120" stroke="#4F46E5" stroke-width="1" opacity="0.3"/>
+  <line x1="140" y1="140" x2="100" y2="120" stroke="#4F46E5" stroke-width="1" opacity="0.3"/>
+</svg>

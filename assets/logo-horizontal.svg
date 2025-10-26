@@ -1,0 +1,53 @@
+<svg width="400" height="100" viewBox="0 0 400 100" xmlns="http://www.w3.org/2000/svg">
+  <!-- 定义渐变色 -->
+  <defs>
+    <linearGradient id="spiderGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#4F46E5;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#7C3AED;stop-opacity:1" />
+    </linearGradient>
+    
+    <linearGradient id="boltGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#FBBF24;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#F59E0B;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+  
+  <!-- Logo 图标部分 -->
+  <g transform="translate(10, 10)">
+    <!-- 蜘蛛身体 -->
+    <circle cx="40" cy="40" r="12" fill="url(#spiderGradient)"/>
+    
+    <!-- 蜘蛛头部 -->
+    <ellipse cx="40" cy="32" rx="8" ry="10" fill="url(#spiderGradient)"/>
+    
+    <!-- 蜘蛛眼睛 -->
+    <circle cx="37" cy="30" r="2" fill="#FFFFFF"/>
+    <circle cx="43" cy="30" r="2" fill="#FFFFFF"/>
+    
+    <!-- 蜘蛛腿（简化版） -->
+    <path d="M 28 36 Q 15 30 10 25" stroke="url(#spiderGradient)" stroke-width="2" fill="none" stroke-linecap="round"/>
+    <path d="M 28 40 Q 12 38 8 38" stroke="url(#spiderGradient)" stroke-width="2" fill="none" stroke-linecap="round"/>
+    <path d="M 28 44 Q 12 48 8 52" stroke="url(#spiderGradient)" stroke-width="2" fill="none" stroke-linecap="round"/>
+    <path d="M 30 48 Q 18 55 13 60" stroke="url(#spiderGradient)" stroke-width="2" fill="none" stroke-linecap="round"/>
+    
+    <path d="M 52 36 Q 65 30 70 25" stroke="url(#spiderGradient)" stroke-width="2" fill="none" stroke-linecap="round"/>
+    <path d="M 52 40 Q 68 38 72 38" stroke="url(#spiderGradient)" stroke-width="2" fill="none" stroke-linecap="round"/>
+    <path d="M 52 44 Q 68 48 72 52" stroke="url(#spiderGradient)" stroke-width="2" fill="none" stroke-linecap="round"/>
+    <path d="M 50 48 Q 62 55 67 60" stroke="url(#spiderGradient)" stroke-width="2" fill="none" stroke-linecap="round"/>
+    
+    <!-- 闪电符号 -->
+    <path d="M 44 38 L 36 42 L 41 42 L 34 48 L 40 43 L 36 43 L 43 38 Z" 
+          fill="url(#boltGradient)" 
+          opacity="0.9"/>
+  </g>
+  
+  <!-- 文字部分 -->
+  <text x="100" y="60" font-family="Arial, sans-serif" font-size="48" font-weight="bold" fill="url(#spiderGradient)">
+    Crawlo
+  </text>
+  
+  <!-- 副标题 -->
+  <text x="100" y="80" font-family="Arial, sans-serif" font-size="14" fill="#64748B">
+    High-Performance Async Crawler Framework
+  </text>
+</svg>
