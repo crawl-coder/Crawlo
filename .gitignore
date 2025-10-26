@@ -6,7 +6,8 @@ __pycache__/
 
 # C extensions
 *.so
-article/
+articles/
+benchmark/
 
 # Distribution / packaging
 .Python

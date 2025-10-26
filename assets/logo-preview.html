@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Crawlo Logo 预览</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Helvetica', 'Arial', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 2rem;
+            min-height: 100vh;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        
+        h1 {
+            color: white;
+            text-align: center;
+            margin-bottom: 3rem;
+            font-size: 3rem;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.2);
+        }
+        
+        .logo-section {
+            background: white;
+            border-radius: 20px;
+            padding: 3rem;
+            margin-bottom: 2rem;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        }
+        
+        .logo-section h2 {
+            color: #4F46E5;
+            margin-bottom: 2rem;
+            padding-bottom: 1rem;
+            border-bottom: 3px solid #E0E7FF;
+        }
+        
+        .logo-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 2rem;
+            margin-bottom: 2rem;
+        }
+        
+        .logo-item {
+            text-align: center;
+            padding: 2rem;
+            background: #F8FAFC;
+            border-radius: 12px;
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+        
+        .logo-item:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 30px rgba(79, 70, 229, 0.2);
+        }
+        
+        .logo-item h3 {
+            color: #64748B;
+            margin-bottom: 1rem;
+            font-size: 1.2rem;
+        }
+        
+        .logo-item img {
+            max-width: 100%;
+            height: auto;
+            margin-bottom: 1rem;
+        }
+        
+        .logo-item p {
+            color: #94A3B8;
+            font-size: 0.9rem;
+            line-height: 1.6;
+        }
+        
+        .backgrounds {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 1.5rem;
+        }
+        
+        .bg-demo {
+            padding: 3rem;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 200px;
+        }
+        
+        .bg-white {
+            background: #FFFFFF;
+            border: 2px solid #E2E8F0;
+        }
+        
+        .bg-light {
+            background: #F1F5F9;
+        }
+        
+        .bg-blue {
+            background: #DBEAFE;
+        }
+        
+        .bg-dark {
+            background: #1E293B;
+        }
+        
+        .bg-gradient {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+        
+        .size-examples {
+            display: flex;
+            align-items: center;
+            justify-content: space-around;
+            flex-wrap: wrap;
+            gap: 2rem;
+            padding: 2rem;
+            background: #F8FAFC;
+            border-radius: 12px;
+        }
+        
+        .size-item {
+            text-align: center;
+        }
+        
+        .size-label {
+            color: #64748B;
+            margin-top: 0.5rem;
+            font-size: 0.85rem;
+        }
+        
+        .footer {
+            text-align: center;
+            color: white;
+            margin-top: 3rem;
+            padding: 2rem;
+            font-size: 0.9rem;
+            opacity: 0.9;
+        }
+        
+        .footer a {
+            color: white;
+            text-decoration: underline;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🕷️ Crawlo Logo 设计展示</h1>
+        
+        <!-- 主要版本 -->
+        <div class="logo-section">
+            <h2>📦 Logo 版本</h2>
+            <div class="logo-grid">
+                <div class="logo-item">
+                    <h3>标准版 Logo</h3>
+                    <img src="logo.svg" alt="Crawlo Logo" style="max-width: 200px;">
+                    <p><strong>文件：</strong>logo.svg<br>
+                    <strong>尺寸：</strong>200 × 200 px<br>
+                    <strong>用途：</strong>文档封面、项目主页</p>
+                </div>
+                
+                <div class="logo-item">
+                    <h3>横版 Logo</h3>
+                    <img src="logo-horizontal.svg" alt="Crawlo Horizontal" style="max-width: 100%;">
+                    <p><strong>文件：</strong>logo-horizontal.svg<br>
+                    <strong>尺寸：</strong>400 × 100 px<br>
+                    <strong>用途：</strong>网站 Header、README</p>
+                </div>
+                
+                <div class="logo-item">
+                    <h3>图标版 Logo</h3>
+                    <img src="logo-icon.svg" alt="Crawlo Icon" style="max-width: 120px;">
+                    <p><strong>文件：</strong>logo-icon.svg<br>
+                    <strong>尺寸：</strong>64 × 64 px<br>
+                    <strong>用途：</strong>Favicon、应用图标</p>
+                </div>
+            </div>
+        </div>
+        
+        <!-- 不同背景下的效果 -->
+        <div class="logo-section">
+            <h2>🎨 背景适配展示</h2>
+            <div class="backgrounds">
+                <div class="bg-demo bg-white">
+                    <img src="logo.svg" alt="Crawlo" style="width: 100px;">
+                </div>
+                <div class="bg-demo bg-light">
+                    <img src="logo.svg" alt="Crawlo" style="width: 100px;">
+                </div>
+                <div class="bg-demo bg-blue">
+                    <img src="logo.svg" alt="Crawlo" style="width: 100px;">
+                </div>
+                <div class="bg-demo bg-dark">
+                    <img src="logo.svg" alt="Crawlo" style="width: 100px;">
+                </div>
+            </div>
+        </div>
+        
+        <!-- 尺寸变化展示 -->
+        <div class="logo-section">
+            <h2>📐 尺寸缩放展示</h2>
+            <div class="size-examples">
+                <div class="size-item">
+                    <img src="logo.svg" alt="Crawlo" style="width: 32px;">
+                    <div class="size-label">32px</div>
+                </div>
+                <div class="size-item">
+                    <img src="logo.svg" alt="Crawlo" style="width: 48px;">
+                    <div class="size-label">48px</div>
+                </div>
+                <div class="size-item">
+                    <img src="logo.svg" alt="Crawlo" style="width: 64px;">
+                    <div class="size-label">64px</div>
+                </div>
+                <div class="size-item">
+                    <img src="logo.svg" alt="Crawlo" style="width: 96px;">
+                    <div class="size-label">96px</div>
+                </div>
+                <div class="size-item">
+                    <img src="logo.svg" alt="Crawlo" style="width: 128px;">
+                    <div class="size-label">128px</div>
+                </div>
+                <div class="size-item">
+                    <img src="logo.svg" alt="Crawlo" style="width: 200px;">
+                    <div class="size-label">200px</div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- 设计说明 -->
+        <div class="logo-section">
+            <h2>💡 设计说明</h2>
+            <div style="line-height: 1.8; color: #475569;">
+                <h3 style="color: #4F46E5; margin-bottom: 1rem;">设计元素</h3>
+                <ul style="margin-left: 2rem; margin-bottom: 1.5rem;">
+                    <li><strong>🕷️ 蜘蛛图形：</strong>代表爬虫（Crawler）核心概念，8条腿象征全方位的数据采集能力</li>
+                    <li><strong>⚡ 闪电符号：</strong>体现高速异步处理能力，金色渐变代表性能和效率</li>
+                    <li><strong>🔗 分布式节点：</strong>四角的连接节点代表分布式架构和可扩展性</li>
+                </ul>
+                
+                <h3 style="color: #4F46E5; margin-bottom: 1rem;">配色方案</h3>
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; margin-bottom: 1.5rem;">
+                    <div style="background: linear-gradient(135deg, #4F46E5, #7C3AED); padding: 1.5rem; border-radius: 8px; color: white;">
+                        <strong>主色调</strong><br>
+                        Indigo 渐变<br>
+                        #4F46E5 → #7C3AED
+                    </div>
+                    <div style="background: linear-gradient(135deg, #FBBF24, #F59E0B); padding: 1.5rem; border-radius: 8px; color: white;">
+                        <strong>强调色</strong><br>
+                        Amber 渐变<br>
+                        #FBBF24 → #F59E0B
+                    </div>
+                </div>
+                
+                <h3 style="color: #4F46E5; margin-bottom: 1rem;">设计特点</h3>
+                <ul style="margin-left: 2rem;">
+                    <li><strong>可扩展性：</strong>SVG 矢量格式，任意缩放不失真</li>
+                    <li><strong>现代感：</strong>渐变色设计符合现代审美，发光效果增强科技感</li>
+                    <li><strong>辨识度：</strong>独特的蜘蛛 + 闪电组合，鲜明的配色方案</li>
+                    <li><strong>专业性：</strong>符合技术产品的视觉规范，与 Python 生态风格统一</li>
+                </ul>
+            </div>
+        </div>
+        
+        <div class="footer">
+            <p>✨ <strong>Crawlo</strong> - High-Performance Async Crawler Framework</p>
+            <p style="margin-top: 0.5rem;">查看完整设计规范：<a href="README.md">Logo 设计说明文档</a></p>
+        </div>
+    </div>
+</body>
+</html>
