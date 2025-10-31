@@ -286,7 +286,7 @@ class Crawler:
             
             self._metrics.crawl_duration = time.time() - crawl_start
             
-            self._logger.info(f"Crawler completed successfully in {self._metrics.crawl_duration:.2f}s")
+            self._logger.debug(f"Crawler completed successfully in {self._metrics.crawl_duration:.2f}s")
             
         except Exception as e:
             self._metrics.crawl_duration = time.time() - crawl_start
