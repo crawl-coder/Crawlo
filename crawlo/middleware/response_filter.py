@@ -21,14 +21,13 @@ class ResponseFilterMiddleware:
     - 支持按域名配置不同的过滤规则
     """
 
-    def __init__(self, allowed_codes, denied_codes, log_level):
+    def __init__(self, allowed_codes, denied_codes):
         """
         初始化中间件
         
         Args:
             allowed_codes: 允许的状态码列表
             denied_codes: 拒绝的状态码列表
-            log_level: 日志级别
         """
         # 确保状态码是整数类型
         self.allowed_codes = set()
@@ -62,8 +61,7 @@ class ResponseFilterMiddleware:
         """
         o = cls(
             allowed_codes=crawler.settings.get_list('ALLOWED_RESPONSE_CODES'),
-            denied_codes=crawler.settings.get_list('DENIED_RESPONSE_CODES'),
-            log_level=crawler.settings.get('LOG_LEVEL')
+            denied_codes=crawler.settings.get_list('DENIED_RESPONSE_CODES')
         )
         return o
 
