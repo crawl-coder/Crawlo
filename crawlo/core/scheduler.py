@@ -4,10 +4,10 @@ import traceback
 from typing import Optional, Callable
 
 from crawlo.logging import get_logger
+from crawlo.project import common_call
+from crawlo.utils.misc import load_object
 from crawlo.utils.request import set_request
 from crawlo.utils.error_handler import ErrorHandler
-from crawlo.utils.misc import load_object
-from crawlo.project import common_call
 from crawlo.utils.request_serializer import RequestSerializer
 from crawlo.queue.queue_manager import QueueManager, QueueConfig, QueueType
 
