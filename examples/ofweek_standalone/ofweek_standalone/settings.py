@@ -11,10 +11,10 @@ ofweek_standalone 项目配置文件
 from crawlo.config import CrawloConfig
 
 # 使用自动检测模式配置工厂创建配置
-config = CrawloConfig.standalone(
+config = CrawloConfig.auto(
     project_name='ofweek_standalone',
     concurrency=8,
-    download_delay=1.0
+    download_delay=1.0,
 )
 
 # 将配置转换为当前模块的全局变量
@@ -72,12 +72,12 @@ REDIS_HOST = '127.0.0.1'
 REDIS_PORT = 6379
 REDIS_PASSWORD = ''
 REDIS_DB = 0
-
-# 根据是否有密码生成 URL
-if REDIS_PASSWORD:
-    REDIS_URL = f'redis://:{REDIS_PASSWORD}@{REDIS_HOST}:{REDIS_PORT}/{REDIS_DB}'
-else:
-    REDIS_URL = f'redis://{REDIS_HOST}:{REDIS_PORT}/{REDIS_DB}'
+#
+# # 根据是否有密码生成 URL
+# if REDIS_PASSWORD:
+#     REDIS_URL = f'redis://:{REDIS_PASSWORD}@{REDIS_HOST}:{REDIS_PORT}/{REDIS_DB}'
+# else:
+#     REDIS_URL = f'redis://{REDIS_HOST}:{REDIS_PORT}/{REDIS_DB}'
 
 # MySQL配置
 MYSQL_HOST = '127.0.0.1'

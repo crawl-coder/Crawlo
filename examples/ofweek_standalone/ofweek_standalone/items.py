@@ -1,15 +1,15 @@
 # -*- coding: UTF-8 -*-
 """
-ofweek_standalone.items
-======================
-定义你抓取的数据结构。
+数据项定义
 """
 
 from crawlo.items import Item, Field
 
 
-class NewsItem(Item):
-    """新闻数据项"""
+class OfWeekStandaloneItem(Item):
+    """
+    ofweek_standalone 项目的数据项。
+    """
     title = Field()
     publish_time = Field()
     url = Field()
