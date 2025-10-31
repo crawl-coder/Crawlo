@@ -1,21 +1,21 @@
 #!/usr/bin/python
 # -*- coding:UTF-8 -*-
-import asyncio
 import time
+import asyncio
 from inspect import iscoroutine
 from typing import Optional, Generator, Callable
 
+from crawlo.spider import Spider
 from crawlo import Request, Item
+from crawlo.event import CrawlerEvent
+from crawlo.logging import get_logger
 from crawlo.core.processor import Processor
 from crawlo.core.scheduler import Scheduler
 from crawlo.downloader import DownloaderBase
-from crawlo.event import CrawlerEvent
 from crawlo.exceptions import OutputError
-from crawlo.utils.misc import load_object
-from crawlo.spider import Spider
 from crawlo.task_manager import TaskManager
+from crawlo.utils.misc import load_object
 from crawlo.utils.func_tools import transform
-from crawlo.logging import get_logger
 
 
 class Engine(object):
@@ -199,13 +199,9 @@ class Engine(object):
         while self.running:
             try:
                 start_request = next(self.start_requests)
-                # 将过于频繁的debug日志合并，减少输出
-                # self.logger.debug(f"获取到请求: {getattr(start_request, 'url', 'Unknown URL')}")
                 # 请求入队
                 await self.enqueue_request(start_request)
                 processed_count += 1
-                # 减少过于频繁的日志输出
-                # self.logger.debug(f"已处理请求数量: {processed_count}")
             except StopIteration:
                 self.logger.debug("所有起始请求处理完成")
                 self.start_requests = None
@@ -214,9 +210,6 @@ class Engine(object):
                 self.logger.error(f"处理请求时发生异常: {exp}")
                 import traceback
                 self.logger.error(traceback.format_exc())
-                # 1. All requests have been processed
-                # 2. Is scheduler idle
-                # 3. Is downloader idle
                 if not await self._exit():
                     continue
                 self.running = False
@@ -375,7 +368,6 @@ class Engine(object):
         await self._schedule_request(start_request)
 
     async def _schedule_request(self, request):
-        # TODO 去重
         if await self.scheduler.enqueue_request(request):
             asyncio.create_task(self.crawler.subscriber.notify(CrawlerEvent.REQUEST_SCHEDULED, request, self.crawler.spider))
 
@@ -429,7 +421,7 @@ class Engine(object):
                     downloader_idle and 
                     task_manager_done and 
                     processor_idle):
-                    self.logger.info("所有组件都空闲，准备退出")
+                    self.logger.info("All components are idle, preparing to exit")
                     return True
         else:
             self.logger.debug("start_requests 不为 None，不退出")
@@ -437,8 +429,6 @@ class Engine(object):
         return False
 
     async def close_spider(self):
-        # 不再调用crawler.close()，避免重复清理
-        # 清理工作应该由crawler的_lifecycle_manager上下文管理器来处理
         await asyncio.gather(*self.task_manager.current_task)
         await self.scheduler.close()
         await self.downloader.close()

@@ -1,10 +1,9 @@
 #!/usr/bin/python
 # -*- coding:UTF-8 -*-
-from asyncio import Queue, create_task
+from asyncio import Queue
 from typing import Union, Optional
 
 from crawlo import Request, Item
-from crawlo.event import CrawlerEvent
 from crawlo.exceptions import ItemDiscard
 from crawlo.pipelines.pipeline_manager import PipelineManager
 
