@@ -31,6 +31,21 @@ from .selector_helper import (
     is_xpath
 )
 
+from .encoding_helper import (
+    html_body_declared_encoding,
+    http_content_type_encoding,
+    read_bom,
+    resolve_encoding,
+    html_to_unicode
+)
+
+from .response_helper import (
+    parse_cookies,
+    regex_search,
+    regex_findall,
+    get_header_value
+)
+
 __all__ = [
     "TimeUtils",
     "parse_time",
@@ -47,5 +62,14 @@ __all__ = [
     "extract_texts",
     "extract_attr",
     "extract_attrs",
-    "is_xpath"
+    "is_xpath",
+    "html_body_declared_encoding",
+    "http_content_type_encoding",
+    "read_bom",
+    "resolve_encoding",
+    "html_to_unicode",
+    "parse_cookies",
+    "regex_search",
+    "regex_findall",
+    "get_header_value"
 ]

@@ -11,14 +11,13 @@
 - 适用性广: 支持多种数据库后端
 - 可扩展: 支持自定义表结构和字段
 """
-import hashlib
 import aiomysql
 
 from crawlo import Item
 from crawlo.exceptions import ItemDiscard
+from crawlo.logging import get_logger
 from crawlo.spider import Spider
 from crawlo.utils.fingerprint import FingerprintGenerator
-from crawlo.logging import get_logger
 
 
 class DatabaseDedupPipeline:

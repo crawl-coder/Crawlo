@@ -26,7 +26,7 @@
   - **Auto 模式**：智能检测 Redis 可用性，自动选择最佳配置（推荐）
 - 📦 **丰富的组件生态**：
   - 内置 Redis 和 MongoDB 支持
-  - MySQL 异步连接池（基于 asyncmy）
+  - MySQL 异步连接池（基于 asyncmy和aiomysql分别实现）
   - 多种过滤器和去重管道（Memory/Redis）
   - 代理中间件支持（简单代理/动态代理）
   - 多种下载器（aiohttp、httpx、curl-cffi）

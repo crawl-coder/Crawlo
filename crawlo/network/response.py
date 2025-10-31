@@ -11,12 +11,9 @@ HTTP Response 封装模块
 - Cookie 处理
 """
 import re
-from http.cookies import SimpleCookie
-from typing import Dict, Any, List, Optional, Tuple
-from urllib.parse import urljoin as _urljoin, urlparse as _urlparse, urlsplit as _urlsplit, parse_qs as _parse_qs, \
-    urlencode as _urlencode, quote as _quote, unquote as _unquote, urldefrag as _urldefrag
-
 import ujson
+from typing import Dict, Any, List, Optional
+from urllib.parse import urljoin as _urljoin
 from parsel import Selector, SelectorList
 
 # 尝试导入 w3lib 编码检测函数
@@ -31,6 +28,14 @@ try:
     W3LIB_AVAILABLE = True
 except ImportError:
     W3LIB_AVAILABLE = False
+    # 当 w3lib 不可用时，从 utils 导入替代函数
+    from crawlo.utils import (
+        html_body_declared_encoding,
+        html_to_unicode,
+        http_content_type_encoding,
+        read_bom,
+        resolve_encoding,
+    )
 
 from crawlo.exceptions import DecodeError
 from crawlo.utils import (
@@ -38,7 +43,11 @@ from crawlo.utils import (
     extract_texts,
     extract_attr,
     extract_attrs,
-    is_xpath
+    is_xpath,
+    parse_cookies,
+    regex_search,
+    regex_findall,
+    get_header_value
 )
 
 
@@ -74,10 +83,10 @@ class Response:
             self,
             url: str,
             *,
-            headers: Dict[str, Any] = None,
+            headers: Optional[Dict[str, Any]] = None,
             body: bytes = b"",
             method: str = 'GET',
-            request: 'Request' = None,  # 使用字符串注解避免循环导入
+            request: Optional['Request'] = None,  # 使用字符串注解避免循环导入
             status_code: int = 200,
     ):
         # 基本属性
@@ -184,15 +193,19 @@ class Response:
     def _bom_encoding(self) -> Optional[str]:
         """BOM 字节顺序标记编码检测"""
         if not W3LIB_AVAILABLE:
-            return None
+            # 使用替代函数
+            encoding, _ = read_bom(self.body)
+            return encoding
         return read_bom(self.body)[0]
 
     @memoize_method_noargs
     def _headers_encoding(self) -> Optional[str]:
         """HTTP Content-Type 头部编码检测"""
         if not W3LIB_AVAILABLE:
-            return None
-        content_type = self.headers.get(b"Content-Type", b"") or self.headers.get("content-type", b"")
+            # 使用替代函数
+            content_type = self.headers.get("content-type", "") or self.headers.get("Content-Type", "")
+            return http_content_type_encoding(content_type)
+        content_type = self.headers.get("Content-Type", b"") or self.headers.get("content-type", b"")
         if isinstance(content_type, bytes):
             content_type = content_type.decode('latin-1')
         return http_content_type_encoding(content_type)
@@ -201,23 +214,26 @@ class Response:
     def _body_declared_encoding(self) -> Optional[str]:
         """HTML meta 标签声明编码检测"""
         if not W3LIB_AVAILABLE:
-            return None
+            # 使用替代函数
+            return html_body_declared_encoding(self.body)
         return html_body_declared_encoding(self.body)
 
     @memoize_method_noargs
     def _body_inferred_encoding(self) -> str:
         """内容自动检测编码"""
         if not W3LIB_AVAILABLE:
-            # 回退到简单的自动检测
-            for enc in (self._DEFAULT_ENCODING, "utf-8", "cp1252"):
-                try:
-                    self.body.decode(enc)
-                except UnicodeError:
-                    continue
-                return enc
-            return self._DEFAULT_ENCODING
+            # 使用替代函数
+            content_type = self.headers.get("content-type", "") or self.headers.get("Content-Type", "")
+            # 使用 html_to_unicode 函数进行编码检测
+            encoding, _ = html_to_unicode(
+                content_type,
+                self.body,
+                auto_detect_fun=self._auto_detect_fun,
+                default_encoding=self._DEFAULT_ENCODING,
+            )
+            return encoding
 
-        content_type = self.headers.get(b"Content-Type", b"") or self.headers.get("content-type", b"")
+        content_type = self.headers.get("Content-Type", b"") or self.headers.get("content-type", b"")
         if isinstance(content_type, bytes):
             content_type = content_type.decode('latin-1')
         
@@ -233,6 +249,13 @@ class Response:
     def _auto_detect_fun(self, text: bytes) -> Optional[str]:
         """自动检测编码的回调函数"""
         if not W3LIB_AVAILABLE:
+            # 使用替代函数
+            for enc in (self._DEFAULT_ENCODING, "utf-8", "cp1252"):
+                try:
+                    text.decode(enc)
+                except UnicodeError:
+                    continue
+                return resolve_encoding(enc)
             return None
         for enc in (self._DEFAULT_ENCODING, "utf-8", "cp1252"):
             try:
@@ -255,7 +278,7 @@ class Response:
         # 如果可用，使用 w3lib 进行更准确的解码
         if W3LIB_AVAILABLE:
             try:
-                content_type = self.headers.get(b"Content-Type", b"") or self.headers.get("content-type", b"")
+                content_type = self.headers.get("Content-Type", b"") or self.headers.get("content-type", b"")
                 if isinstance(content_type, bytes):
                     content_type = content_type.decode('latin-1')
                 
@@ -268,6 +291,20 @@ class Response:
                 return self._text_cache
             except Exception:
                 # 如果 w3lib 解码失败，回退到原有方法
+                pass
+        else:
+            # 使用替代函数
+            try:
+                content_type = self.headers.get("content-type", "") or self.headers.get("Content-Type", "")
+                # 使用 html_to_unicode 函数
+                _, self._text_cache = html_to_unicode(
+                    content_type,
+                    self.body,
+                    default_encoding=self.encoding
+                )
+                return self._text_cache
+            except Exception:
+                # 如果解码失败，回退到原有方法
                 pass
 
         # 尝试多种编码
@@ -323,12 +360,12 @@ class Response:
     @property
     def content_type(self) -> str:
         """获取响应的 Content-Type"""
-        return self.headers.get('content-type', '') or self.headers.get('Content-Type', '')
+        return get_header_value(self.headers, 'content-type', '')
 
     @property
     def content_length(self) -> Optional[int]:
         """获取响应的 Content-Length"""
-        length = self.headers.get('content-length') or self.headers.get('Content-Length')
+        length = get_header_value(self.headers, 'content-length')
         return int(length) if length else None
 
     # ==================== JSON处理方法 ====================
@@ -412,7 +449,7 @@ class Response:
         except Exception:
             return default
 
-    def extract_texts(self, xpath_or_css: str, join_str: str = " ", default: List[str] = None) -> List[str]:
+    def extract_texts(self, xpath_or_css: str, join_str: str = " ", default: Optional[List[str]] = None) -> List[str]:
         """
         提取多个元素的文本内容列表，支持CSS和XPath选择器
 
@@ -475,7 +512,7 @@ class Response:
         except Exception:
             return default
 
-    def extract_attrs(self, xpath_or_css: str, attr_name: str, default: List[Any] = None) -> List[Any]:
+    def extract_attrs(self, xpath_or_css: str, attr_name: str, default: Optional[List[Any]] = None) -> List[Any]:
         """
         提取多个元素的属性值列表，支持CSS和XPath选择器
 
@@ -513,26 +550,18 @@ class Response:
     
     def re_search(self, pattern: str, flags: int = re.DOTALL) -> Optional[re.Match]:
         """在响应文本上执行正则表达式搜索。"""
-        if not isinstance(pattern, str):
-            raise TypeError("Pattern must be a string")
-        return re.search(pattern, self.text, flags=flags)
+        return regex_search(pattern, self.text, flags)
 
     def re_findall(self, pattern: str, flags: int = re.DOTALL) -> List[Any]:
         """在响应文本上执行正则表达式查找。"""
-        if not isinstance(pattern, str):
-            raise TypeError("Pattern must be a string")
-        return re.findall(pattern, self.text, flags=flags)
+        return regex_findall(pattern, self.text, flags)
 
     # ==================== Cookie处理方法 ====================
     
     def get_cookies(self) -> Dict[str, str]:
         """从响应头中解析并返回Cookies。"""
         cookie_header = self.headers.get("Set-Cookie", "")
-        if isinstance(cookie_header, list):
-            cookie_header = ", ".join(cookie_header)
-        cookies = SimpleCookie()
-        cookies.load(cookie_header)
-        return {key: morsel.value for key, morsel in cookies.items()}
+        return parse_cookies(cookie_header)
 
     # ==================== 请求相关方法 ====================
     

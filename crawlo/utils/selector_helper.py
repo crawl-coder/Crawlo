@@ -15,8 +15,9 @@
 所有方法都采用了简洁直观的命名风格，便于记忆和使用。
 """
 
-from typing import List, Any, Optional
-from parsel import Selector, SelectorList
+from typing import List, Any
+
+from parsel import SelectorList
 
 
 def extract_text(elements: SelectorList, join_str: str = " ") -> str:

@@ -149,8 +149,11 @@ STATS_DUMP = True  # 是否周期性输出统计信息
 LOG_FILE = None  # 日志文件路径，将在项目配置中设置
 LOG_FORMAT = '%(asctime)s - [%(name)s] - %(levelname)s: %(message)s'
 LOG_ENCODING = 'utf-8'
-LOG_MAX_BYTES = 10 * 1024 * 1024  # 日志轮转大小（字节）
-LOG_BACKUP_COUNT = 5  # 日志备份数量
+LOG_MAX_BYTES = 10 * 1024 * 1024  # 日志轮转大小（字节），推荐20MB用于生产环境
+LOG_BACKUP_COUNT = 5  # 日志备份数量，推荐10个用于生产环境
+# 如果用户不想要日志轮转，可以设置 LOG_MAX_BYTES = 0 来禁用轮转功能
+# 注意：当LOG_MAX_BYTES或LOG_BACKUP_COUNT为0时，日志轮转永远不会发生，日志文件会持续增长
+# 需要通过其他方式管理磁盘空间，如系统级日志轮转工具(logrotate等)
 
 # 日志间隔配置
 INTERVAL = 60  # 日志输出间隔（秒）

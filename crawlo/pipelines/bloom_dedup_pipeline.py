@@ -14,7 +14,6 @@
 注意: Bloom Filter 有误判率，可能会错误地丢弃一些未见过的数据项。
 """
 
-import hashlib
 try:
     from pybloom_live import BloomFilter
     BLOOM_FILTER_AVAILABLE = True
@@ -37,10 +36,10 @@ except ImportError:
             return item in self._data
 
 from crawlo import Item
+from crawlo.exceptions import ItemDiscard
+from crawlo.logging import get_logger
 from crawlo.spider import Spider
 from crawlo.utils.fingerprint import FingerprintGenerator
-from crawlo.logging import get_logger
-from crawlo.exceptions import ItemDiscard
 
 
 class BloomDedupPipeline:
