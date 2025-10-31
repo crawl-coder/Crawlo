@@ -91,7 +91,7 @@ class OfWeekStandaloneSpider(Spider):
         }
 
         # 中等规模测试：爬取30页（用于性能对比测试）
-        max_page = 30
+        max_page = 1851
         start_urls = []
         for page in range(1, max_page + 1):
             url = f'https://ee.ofweek.com/CATList-2800-8100-ee-{page}.html'

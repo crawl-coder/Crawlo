@@ -1,9 +1,8 @@
 # -*- coding: utf-8 -*-
 import asyncio
+import async_timeout
 from abc import ABC, abstractmethod
 from typing import List, Dict, Any
-
-import async_timeout
 
 from crawlo.exceptions import ItemDiscard
 from crawlo.items import Item

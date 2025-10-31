@@ -12,14 +12,13 @@
 - 低延迟: 内存操作无网络开销
 """
 
-import hashlib
 from typing import Set
 
 from crawlo import Item
 from crawlo.exceptions import ItemDiscard
+from crawlo.logging import get_logger
 from crawlo.spider import Spider
 from crawlo.utils.fingerprint import FingerprintGenerator
-from crawlo.logging import get_logger
 
 
 class MemoryDedupPipeline:
