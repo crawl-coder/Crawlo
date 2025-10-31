@@ -40,7 +40,7 @@
 
 Crawlo 框架采用模块化设计，核心组件包括：
 
-![Crawlo 框架架构图](images/Crawlo%20框架架构图.png)
+![Crawlo 框架架构图](assets/Crawlo%20框架架构图.png)
 
 - **Engine**：核心引擎，协调各个组件工作
 - **Scheduler**：调度器，管理请求队列和去重
@@ -49,7 +49,7 @@ Crawlo 框架采用模块化设计，核心组件包括：
 - **Pipeline**：数据管道，处理和存储数据
 - **Middleware**：中间件，处理请求和响应
 
-![Crawlo 数据流图](images/Crawlo%20数据流图.png)
+![Crawlo 数据流图](assets/Crawlo%20数据流图.png)
 
 ## 示例项目
 
@@ -621,7 +621,7 @@ Crawlo 在 Windows、macOS、Linux 上均可无缝运行：
 > pip install concurrent-log-handler
 > ```
 
-![Crawlo 核心架构图](images/Crawlo%20核心架构图.png)
+![Crawlo 核心架构图](assets/Crawlo%20核心架构图.png)
 
 ## 文档
 

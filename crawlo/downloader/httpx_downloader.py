@@ -254,7 +254,7 @@ class HttpXDownloader(DownloaderBase):
     async def close(self) -> None:
         """关闭主客户端"""
         if self._client:
-            self.logger.info("Closing HttpXDownloader client...")
+            self.logger.debug("Closing HttpXDownloader client...")
             try:
                 await self._client.aclose()
             except Exception as e:
