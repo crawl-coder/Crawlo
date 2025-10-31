@@ -76,18 +76,14 @@ REDIS_PORT = redis_config['REDIS_PORT']
 REDIS_PASSWORD = redis_config['REDIS_PASSWORD']
 REDIS_DB = redis_config['REDIS_DB']
 
+# Redis URL将由框架内部根据以上配置自动生成，无需在此处手动构建
+
 # Redis集群支持说明：
 # Crawlo框架支持Redis单实例和集群模式的智能切换
 # 集群模式配置方式：
 # 1. 使用逗号分隔的节点列表：'192.168.1.100:7000,192.168.1.101:7000,192.168.1.102:7000'
 # 2. 使用集群URL格式：'redis-cluster://192.168.1.100:7000,192.168.1.101:7000,192.168.1.102:7000'
 # 框架会自动检测URL格式并选择合适的模式
-
-# 根据是否有密码生成不同的 URL 格式
-if REDIS_PASSWORD:
-    REDIS_URL = f'redis://:{REDIS_PASSWORD}@{REDIS_HOST}:{REDIS_PORT}/{REDIS_DB}'
-else:
-    REDIS_URL = f'redis://{REDIS_HOST}:{REDIS_PORT}/{REDIS_DB}'
 
 # Redis key命名规范已封装到框架内部组件中，用户无需手动配置：
 # - 请求去重: crawlo:{PROJECT_NAME}:filter:fingerprint

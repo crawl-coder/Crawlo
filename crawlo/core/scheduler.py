@@ -231,9 +231,21 @@ class Scheduler:
 
     async def enqueue_request(self, request):
         """Add request to queue"""
-        if not request.dont_filter and await common_call(self.dupe_filter.requested, request):
-            self.dupe_filter.log_stats(request)
-            return False
+        # 修改调度器逻辑以正确处理Redis过滤器
+        if not request.dont_filter:
+            # 检查过滤器是否为Redis过滤器且有异步方法
+            if hasattr(self.dupe_filter, 'requested_async'):
+                # 对于Redis过滤器，使用异步方法
+                is_duplicate = await self.dupe_filter.requested_async(request)
+                if is_duplicate:
+                    self.dupe_filter.log_stats(request)
+                    return False
+            else:
+                # 对于其他过滤器，使用同步方法
+                is_duplicate = await common_call(self.dupe_filter.requested, request)
+                if is_duplicate:
+                    self.dupe_filter.log_stats(request)
+                    return False
 
         if not self.queue_manager:
             self.logger.error("Queue manager not initialized")

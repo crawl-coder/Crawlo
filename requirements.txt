@@ -1,9 +1,9 @@
 aiohttp~=3.12.14
+httpx[http2]==0.27.0
 aiomysql==0.3.0
 asyncmy==0.2.10
 cssselect==1.2.0
 dateparser==1.2.2
-httpx[http2]==0.27.0
 curl-cffi==0.13.0
 lxml==5.2.1
 motor==3.7.0
