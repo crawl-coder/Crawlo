@@ -19,13 +19,12 @@ class ResponseCodeMiddleware(object):
     - 支持状态码分类统计(2xx, 3xx, 4xx, 5xx)
     """
 
-    def __init__(self, stats, log_level):
+    def __init__(self, stats):
         """
         初始化中间件
         
         Args:
             stats: 统计信息收集器
-            log_level: 日志级别
         """
         self.logger = get_logger(self.__class__.__name__)
         self.stats = stats
@@ -41,7 +40,7 @@ class ResponseCodeMiddleware(object):
         Returns:
             ResponseCodeMiddleware: 中间件实例
         """
-        o = cls(stats=crawler.stats, log_level=crawler.settings.get('LOG_LEVEL'))
+        o = cls(stats=crawler.stats)
         return o
 
     def _get_status_category(self, status_code):

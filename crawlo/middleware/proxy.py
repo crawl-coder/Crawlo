@@ -15,7 +15,7 @@ from crawlo.logging import get_logger
 class ProxyMiddleware:
     """通用代理中间件"""
 
-    def __init__(self, settings, log_level):
+    def __init__(self, settings):
         self.logger = get_logger(self.__class__.__name__)
 
         # 获取代理列表和API URL
@@ -47,7 +47,7 @@ class ProxyMiddleware:
 
     @classmethod
     def create_instance(cls, crawler):
-        return cls(settings=crawler.settings, log_level=crawler.settings.get("LOG_LEVEL"))
+        return cls(settings=crawler.settings)
 
     async def _fetch_proxy_from_api(self) -> Optional[str]:
         """从代理API获取代理"""

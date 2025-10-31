@@ -15,13 +15,12 @@ class RequestIgnoreMiddleware(object):
     用于处理和记录被忽略的请求，提供详细的统计信息
     """
 
-    def __init__(self, stats, log_level):
+    def __init__(self, stats):
         """
         初始化中间件
         
         Args:
             stats: 统计信息收集器
-            log_level: 日志级别
         """
         self.logger = get_logger(self.__class__.__name__)
         self.stats = stats
@@ -37,7 +36,7 @@ class RequestIgnoreMiddleware(object):
         Returns:
             RequestIgnoreMiddleware: 中间件实例
         """
-        o = cls(stats=crawler.stats, log_level=crawler.settings.get('LOG_LEVEL'))
+        o = cls(stats=crawler.stats)
         crawler.subscriber.subscribe(o.request_ignore, event=CrawlerEvent.IGNORE_REQUEST)
         return o
 

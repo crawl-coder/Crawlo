@@ -18,7 +18,7 @@ class DefaultHeaderMiddleware(object):
     用于为所有请求添加默认请求头，包括User-Agent等，支持随机更换功能
     """
 
-    def __init__(self, settings, log_level):
+    def __init__(self, settings):
         """
         初始化中间件
         """
@@ -69,8 +69,7 @@ class DefaultHeaderMiddleware(object):
         创建中间件实例
         """
         o = cls(
-            settings=crawler.settings,
-            log_level=crawler.settings.get('LOG_LEVEL')
+            settings=crawler.settings
         )
         return o
 

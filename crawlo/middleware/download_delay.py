@@ -23,13 +23,12 @@ class DownloadDelayMiddleware(object):
     - 记录延迟统计信息
     """
 
-    def __init__(self, settings, log_level, stats=None):
+    def __init__(self, settings, stats=None):
         """
         初始化中间件
         
         Args:
             settings: 设置管理器
-            log_level: 日志级别
             stats: 统计信息收集器（可选）
         """
         self.delay = settings.get_float("DOWNLOAD_DELAY")
@@ -66,8 +65,7 @@ class DownloadDelayMiddleware(object):
             DownloadDelayMiddleware: 中间件实例
         """
         o = cls(
-            settings=crawler.settings, 
-            log_level=crawler.settings.get('LOG_LEVEL'),
+            settings=crawler.settings,
             stats=getattr(crawler, 'stats', None)
         )
         return o
