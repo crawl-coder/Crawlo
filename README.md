@@ -616,9 +616,14 @@ Crawlo 在 Windows、macOS、Linux 上均可无缝运行：
 - **macOS/Linux**：使用默认的 SelectorEventLoop
 - 兼容不同平台的路径格式
 
-> 💡 **Windows 用户提示**：如需日志轮转功能，建议安装 `concurrent-log-handler`：
+> 💡 **Windows 用户提示**：框架默认已禁用日志轮转功能以避免文件锁定问题。如需启用日志轮转，建议安装 `concurrent-log-handler`：
 > ```bash
 > pip install concurrent-log-handler
+> ```
+> 然后在 settings.py 中设置：
+> ```python
+> LOG_MAX_BYTES = 10 * 1024 * 1024  # 10MB
+> LOG_BACKUP_COUNT = 5
 > ```
 
 ![Crawlo 核心架构图](assets/Crawlo%20核心架构图.png)
