@@ -17,7 +17,7 @@ class OffsiteMiddleware:
     用于过滤掉不在指定域名范围内的请求，防止爬虫爬取到不相关的网站
     """
 
-    def __init__(self, stats, log_level, allowed_domains=None):
+    def __init__(self, stats, allowed_domains=None):
         self.logger = get_logger(self.__class__.__name__)
         self.stats = stats
         self.allowed_domains = allowed_domains or []
@@ -45,8 +45,7 @@ class OffsiteMiddleware:
             raise NotConfiguredError("未配置ALLOWED_DOMAINS，OffsiteMiddleware已禁用")
             
         o = cls(
-            stats=crawler.stats, 
-            log_level=crawler.settings.get('LOG_LEVEL'),
+            stats=crawler.stats,
             allowed_domains=allowed_domains
         )
         

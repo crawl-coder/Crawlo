@@ -16,6 +16,27 @@ from crawlo.logging import get_logger
 from crawlo.utils.redis_connection_pool import get_redis_pool, RedisConnectionPool
 
 
+def generate_redis_url_from_settings(settings) -> str:
+    """
+    根据设置生成Redis URL
+    
+    Args:
+        settings: 配置对象
+        
+    Returns:
+        str: Redis URL
+    """
+    redis_host = settings.get('REDIS_HOST', 'localhost')
+    redis_port = settings.get('REDIS_PORT', 6379)
+    redis_password = settings.get('REDIS_PASSWORD', '')
+    redis_db = settings.get('REDIS_DB', 0)
+    
+    if redis_password:
+        return f'redis://:{redis_password}@{redis_host}:{redis_port}/{redis_db}'
+    else:
+        return f'redis://{redis_host}:{redis_port}/{redis_db}'
+
+
 class AioRedisFilter(BaseFilter):
     """
     基于Redis集合实现的异步请求去重过滤器
@@ -70,7 +91,13 @@ class AioRedisFilter(BaseFilter):
     @classmethod
     def create_instance(cls, crawler) -> 'BaseFilter':
         """从爬虫配置创建过滤器实例"""
-        redis_url = crawler.settings.get('REDIS_URL', 'redis://localhost:6379')
+        # 首先尝试直接获取REDIS_URL
+        redis_url = crawler.settings.get('REDIS_URL')
+        
+        # 如果没有直接设置REDIS_URL，则根据其他参数生成
+        if not redis_url:
+            redis_url = generate_redis_url_from_settings(crawler.settings)
+        
         # 确保 decode_responses=False 以避免编码问题
         decode_responses = False  # crawler.settings.get_bool('DECODE_RESPONSES', False)
         ttl_setting = crawler.settings.get_int('REDIS_TTL')
@@ -149,14 +176,19 @@ class AioRedisFilter(BaseFilter):
         """
         检查请求是否已存在（同步方法）
         
+        对于Redis过滤器，我们采用特殊处理：
+        1. 同步方法返回False，表示不重复（避免阻塞）
+        2. 实际的重复检查在异步方法requested_async中进行
+        3. 这样可以避免在同步上下文中阻塞Redis操作
+        
         :param request: 请求对象
-        :return: True 表示重复，False 表示新请求
+        :return: False 表示不重复（总是返回False以避免阻塞）
         """
-        # 这个方法需要同步实现，但Redis操作是异步的
-        # 在实际使用中，应该通过异步方式调用 _requested_async
-        # 由于BaseFilter要求同步方法，我们在这里返回False表示不重复
+        # Redis过滤器的同步requested方法总是返回False
+        # 实际的重复检查应该在异步方法requested_async中进行
+        # 这是为了避免在同步上下文中阻塞Redis操作
         return False
-
+        
     async def requested_async(self, request) -> bool:
         """
         异步检查请求是否已存在

@@ -14,8 +14,7 @@ from crawlo.logging import get_logger
 
 class ProxyMiddleware:
     """通用代理中间件"""
-
-    def __init__(self, settings, log_level):
+    def __init__(self, settings):
         self.logger = get_logger(self.__class__.__name__)
 
         # 获取代理列表和API URL
@@ -47,7 +46,7 @@ class ProxyMiddleware:
 
     @classmethod
     def create_instance(cls, crawler):
-        return cls(settings=crawler.settings, log_level=crawler.settings.get("LOG_LEVEL"))
+        return cls(settings=crawler.settings)
 
     async def _fetch_proxy_from_api(self) -> Optional[str]:
         """从代理API获取代理"""
@@ -83,10 +82,10 @@ class ProxyMiddleware:
                 # 如果返回的是字典，尝试提取http或https字段
                 if isinstance(proxy_value, dict):
                     if "http" in proxy_value:
-                        return proxy_value["http"]
+                        return str(proxy_value["http"])
                     elif "https" in proxy_value:
-                        return proxy_value["https"]
-                return proxy_value
+                        return str(proxy_value["https"])
+                return str(proxy_value) if proxy_value is not None else None
         elif isinstance(self.proxy_extractor, dict):
             # 复杂提取规则
             extractor_type = self.proxy_extractor.get("type", "field")
@@ -99,35 +98,37 @@ class ProxyMiddleware:
                     # 如果返回的是字典，尝试提取http或https字段
                     if isinstance(proxy_value, dict):
                         if "http" in proxy_value:
-                            return proxy_value["http"]
+                            return str(proxy_value["http"])
                         elif "https" in proxy_value:
-                            return proxy_value["https"]
-                    return proxy_value
+                            return str(proxy_value["https"])
+                    return str(proxy_value) if proxy_value is not None else None
             elif extractor_type == "jsonpath":
                 # JSON路径提取（需要安装jsonpath库）
                 try:
                     import jsonpath
                     matches = jsonpath.jsonpath(data, extractor_value)
                     if matches:
-                        return matches[0]
+                        return str(matches[0]) if matches[0] is not None else None
                 except ImportError:
                     self.logger.warning("jsonpath library not installed, falling back to default extraction")
                     if "proxy" in data:
                         proxy_value = data["proxy"]
                         if isinstance(proxy_value, dict):
                             if "http" in proxy_value:
-                                return proxy_value["http"]
+                                return str(proxy_value["http"])
                             elif "https" in proxy_value:
-                                return proxy_value["https"]
-                        return proxy_value
+                                return str(proxy_value["https"])
+                        return str(proxy_value) if proxy_value is not None else None
             elif extractor_type == "custom":
                 # 自定义提取函数（需要用户提供）
                 custom_func = self.proxy_extractor.get("function")
                 if callable(custom_func):
-                    return custom_func(data)
+                    result = custom_func(data)
+                    return str(result) if result is not None else None
         elif callable(self.proxy_extractor):
             # 直接调用用户提供的函数
-            return self.proxy_extractor(data)
+            result = self.proxy_extractor(data)
+            return str(result) if result is not None else None
         
         # 默认提取方式（向后兼容）
         if "proxy" in data:
@@ -135,10 +136,10 @@ class ProxyMiddleware:
             # 如果返回的是字典，尝试提取http或https字段
             if isinstance(proxy_value, dict):
                 if "http" in proxy_value:
-                    return proxy_value["http"]
+                    return str(proxy_value["http"])
                 elif "https" in proxy_value:
-                    return proxy_value["https"]
-            return proxy_value
+                    return str(proxy_value["https"])
+            return str(proxy_value) if proxy_value is not None else None
         
         return None
 

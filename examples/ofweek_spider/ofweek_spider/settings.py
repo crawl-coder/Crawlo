@@ -56,6 +56,10 @@ SPIDER_MODULES = ['ofweek_spider.spiders']
 LOG_LEVEL = 'INFO'
 LOG_FILE = 'logs/ofweek_spider.log'
 LOG_ENCODING = 'utf-8'  # 明确指定日志文件编码
+LOG_MAX_BYTES = 20 * 1024 * 1024  # 20MB，推荐值
+LOG_BACKUP_COUNT = 10  # 10个备份文件，推荐值
+# 如果不想要日志轮转，可以设置 LOG_MAX_BYTES = 0
+# 当LOG_MAX_BYTES或LOG_BACKUP_COUNT为0时，日志轮转将被禁用，文件会持续增长
 STATS_DUMP = True
 
 # 输出配置
@@ -68,12 +72,6 @@ REDIS_HOST = '127.0.0.1'
 REDIS_PORT = 6379
 REDIS_PASSWORD = ''
 REDIS_DB = 0
-
-# 根据是否有密码生成 URL
-if REDIS_PASSWORD:
-    REDIS_URL = f'redis://:{REDIS_PASSWORD}@{REDIS_HOST}:{REDIS_PORT}/{REDIS_DB}'
-else:
-    REDIS_URL = f'redis://{REDIS_HOST}:{REDIS_PORT}/{REDIS_DB}'
 
 # MySQL配置
 MYSQL_HOST = '127.0.0.1'

@@ -28,10 +28,11 @@ Crawlo Spider Module
             yield Item(data=response.json())
 """
 from __future__ import annotations
-from typing import Type, Any, Optional, List, Dict, Union, Iterator, AsyncIterator
-from ..network.request import Request
-from ..utils.log import get_logger
 
+from typing import Type, Any, Optional, List, Dict, Iterator
+
+from ..logging import get_logger
+from ..network.request import Request
 
 # 全局爬虫注册表
 _DEFAULT_SPIDER_REGISTRY: dict[str, Type[Spider]] = {}

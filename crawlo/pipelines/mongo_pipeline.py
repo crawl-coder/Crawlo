@@ -1,10 +1,11 @@
 # -*- coding: utf-8 -*-
 from typing import Optional, List, Dict
-from motor.motor_asyncio import AsyncIOMotorClient
+
 from pymongo.errors import PyMongoError
+
+from crawlo.exceptions import ItemDiscard
 from crawlo.logging import get_logger
 from crawlo.utils.mongo_connection_pool import MongoConnectionPoolManager
-from crawlo.exceptions import ItemDiscard
 
 
 class MongoPipeline:

@@ -76,18 +76,14 @@ REDIS_PORT = redis_config['REDIS_PORT']
 REDIS_PASSWORD = redis_config['REDIS_PASSWORD']
 REDIS_DB = redis_config['REDIS_DB']
 
+# Redis URL将由框架内部根据以上配置自动生成，无需在此处手动构建
+
 # Redis集群支持说明：
 # Crawlo框架支持Redis单实例和集群模式的智能切换
 # 集群模式配置方式：
 # 1. 使用逗号分隔的节点列表：'192.168.1.100:7000,192.168.1.101:7000,192.168.1.102:7000'
 # 2. 使用集群URL格式：'redis-cluster://192.168.1.100:7000,192.168.1.101:7000,192.168.1.102:7000'
 # 框架会自动检测URL格式并选择合适的模式
-
-# 根据是否有密码生成不同的 URL 格式
-if REDIS_PASSWORD:
-    REDIS_URL = f'redis://:{REDIS_PASSWORD}@{REDIS_HOST}:{REDIS_PORT}/{REDIS_DB}'
-else:
-    REDIS_URL = f'redis://{REDIS_HOST}:{REDIS_PORT}/{REDIS_DB}'
 
 # Redis key命名规范已封装到框架内部组件中，用户无需手动配置：
 # - 请求去重: crawlo:{PROJECT_NAME}:filter:fingerprint
@@ -149,8 +145,11 @@ STATS_DUMP = True  # 是否周期性输出统计信息
 LOG_FILE = None  # 日志文件路径，将在项目配置中设置
 LOG_FORMAT = '%(asctime)s - [%(name)s] - %(levelname)s: %(message)s'
 LOG_ENCODING = 'utf-8'
-LOG_MAX_BYTES = 10 * 1024 * 1024  # 日志轮转大小（字节）
-LOG_BACKUP_COUNT = 5  # 日志备份数量
+LOG_MAX_BYTES = 10 * 1024 * 1024  # 日志轮转大小（字节），推荐20MB用于生产环境
+LOG_BACKUP_COUNT = 5  # 日志备份数量，推荐10个用于生产环境
+# 如果用户不想要日志轮转，可以设置 LOG_MAX_BYTES = 0 来禁用轮转功能
+# 注意：当LOG_MAX_BYTES或LOG_BACKUP_COUNT为0时，日志轮转永远不会发生，日志文件会持续增长
+# 需要通过其他方式管理磁盘空间，如系统级日志轮转工具(logrotate等)
 
 # 日志间隔配置
 INTERVAL = 60  # 日志输出间隔（秒）

@@ -22,6 +22,25 @@ class RunMode(Enum):
     AUTO = "auto"  # 自动检测模式
 
 
+def generate_redis_url(host: str, port: int, password: Optional[str], db: int) -> str:
+    """
+    根据Redis连接参数生成Redis URL
+    
+    Args:
+        host: Redis主机地址
+        port: Redis端口
+        password: Redis密码（可选）
+        db: Redis数据库编号
+        
+    Returns:
+        str: Redis URL
+    """
+    if password:
+        return f'redis://:{password}@{host}:{port}/{db}'
+    else:
+        return f'redis://{host}:{port}/{db}'
+
+
 class ModeManager:
     """运行模式管理器"""
 
@@ -71,10 +90,7 @@ class ModeManager:
     ) -> Dict[str, Any]:
         """获取分布式模式配置"""
         # 构建 Redis URL
-        if redis_password:
-            redis_url = f'redis://:{redis_password}@{redis_host}:{redis_port}/{redis_db}'
-        else:
-            redis_url = f'redis://{redis_host}:{redis_port}/{redis_db}'
+        redis_url = generate_redis_url(redis_host, redis_port, redis_password, redis_db)
 
         return {
             'RUN_MODE': 'distributed',
@@ -118,16 +134,16 @@ class ModeManager:
             Dict[str, Any]: 配置字典
         """
         self._debug(f"解析运行模式: {mode}")
-        mode = RunMode(mode.lower())
+        mode_enum = RunMode(mode.lower())
         mode_info = None
 
-        if mode == RunMode.STANDALONE:
+        if mode_enum == RunMode.STANDALONE:
             mode_info = "使用单机模式 - 简单快速，适合开发和中小规模爬取"
             # 对于单机模式，如果用户设置了QUEUE_TYPE为'auto'，应该保留用户的设置
             settings = self.get_standalone_settings()
             self._debug("应用单机模式配置")
 
-        elif mode == RunMode.DISTRIBUTED:
+        elif mode_enum == RunMode.DISTRIBUTED:
             mode_info = "使用分布式模式 - 支持多节点扩展，适合大规模爬取"
             settings = self.get_distributed_settings(
                 redis_host=kwargs.get('redis_host', '127.0.0.1'),
@@ -138,7 +154,7 @@ class ModeManager:
             )
             self._debug("应用分布式模式配置")
 
-        elif mode == RunMode.AUTO:
+        elif mode_enum == RunMode.AUTO:
             mode_info = "使用自动检测模式 - 智能选择最佳运行方式"
             settings = self.get_auto_settings()
             self._debug("应用自动检测模式配置")
@@ -148,7 +164,7 @@ class ModeManager:
 
         # 合并用户自定义配置
         # 对于分布式模式，过滤掉特定参数
-        if mode == RunMode.DISTRIBUTED:
+        if mode_enum == RunMode.DISTRIBUTED:
             user_settings = {
                 k.upper(): v for k,
                 v in kwargs.items() if k not in [

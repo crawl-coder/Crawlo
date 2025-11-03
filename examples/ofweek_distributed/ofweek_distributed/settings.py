@@ -1,11 +1,12 @@
 # -*- coding: UTF-8 -*-
 """
-ofweek_distributed 项目配置文件
+ofweek_distributed 项目配置文件（分布式版）
 =============================
-基于 Crawlo 框架的爬虫项目配置。
+基于 Crawlo 框架的分布式爬虫项目配置。
+适合大规模数据采集和多节点部署。
 
 此配置使用 CrawloConfig.distributed() 工厂方法创建分布式模式配置，
-强制使用Redis作为队列和过滤器后端，适用于多节点协同采集场景。
+支持多节点协同工作，适用于大规模数据采集任务。
 """
 
 from crawlo.config import CrawloConfig
@@ -13,10 +14,6 @@ from crawlo.config import CrawloConfig
 # 使用分布式模式配置工厂创建配置
 config = CrawloConfig.distributed(
     project_name='ofweek_distributed',
-    redis_host='127.0.0.1',
-    redis_port=6379,
-    redis_password='',
-    redis_db=0,
     concurrency=16,
     download_delay=1.0
 )
@@ -60,6 +57,10 @@ SPIDER_MODULES = ['ofweek_distributed.spiders']
 LOG_LEVEL = 'INFO'
 LOG_FILE = 'logs/ofweek_distributed.log'
 LOG_ENCODING = 'utf-8'  # 明确指定日志文件编码
+LOG_MAX_BYTES = 20 * 1024 * 1024  # 20MB，推荐值
+LOG_BACKUP_COUNT = 10  # 10个备份文件，推荐值
+# 如果不想要日志轮转，可以设置 LOG_MAX_BYTES = 0
+# 当LOG_MAX_BYTES或LOG_BACKUP_COUNT为0时，日志轮转将被禁用，文件会持续增长
 STATS_DUMP = True
 
 # 输出配置
@@ -72,12 +73,6 @@ REDIS_HOST = '127.0.0.1'
 REDIS_PORT = 6379
 REDIS_PASSWORD = ''
 REDIS_DB = 0
-
-# 根据是否有密码生成 URL
-if REDIS_PASSWORD:
-    REDIS_URL = f'redis://:{REDIS_PASSWORD}@{REDIS_HOST}:{REDIS_PORT}/{REDIS_DB}'
-else:
-    REDIS_URL = f'redis://{REDIS_HOST}:{REDIS_PORT}/{REDIS_DB}'
 
 # MySQL配置
 MYSQL_HOST = '127.0.0.1'
