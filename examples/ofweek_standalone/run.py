@@ -22,3 +22,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+    """
+    python -m build
+    twine upload dist/*
+    """
