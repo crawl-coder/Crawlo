@@ -78,7 +78,9 @@ class HealthCheckExtension:
         """记录调度的请求"""
         if not self.enabled:
             return
-        self.stats['total_requests'] += 1
+        # 检查是否为重试请求，如果是则不计入统计
+        if not request.meta.get('is_retry', False):
+            self.stats['total_requests'] += 1
 
     async def response_received(self, response: Any, spider: Any) -> None:
         """记录接收到的响应"""

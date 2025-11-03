@@ -119,6 +119,8 @@ class RetryMiddleware(object):
             request.meta['dont_retry'] = True
             request.priority = request.priority + self.retry_priority
             self.stats.inc_value("retry_count")
+            # 添加重试标识，用于统计时识别
+            request.meta['is_retry'] = True
             return request
         else:
             self.logger.warning(f"{spider} {request} {reason} retry max {self.max_retry_times} times, give up.")

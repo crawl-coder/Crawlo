@@ -14,6 +14,7 @@ from crawlo.logging import get_logger
 
 class ProxyMiddleware:
     """通用代理中间件"""
+
     def __init__(self, settings):
         self.logger = get_logger(self.__class__.__name__)
 

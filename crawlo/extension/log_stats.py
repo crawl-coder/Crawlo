@@ -65,7 +65,9 @@ class LogStats:
 
     async def request_scheduled(self, _request: Any, _spider: Any) -> None:
         try:
-            self._stats.inc_value('request_scheduler_count')
+            # 检查是否为重试请求，如果是则不计入统计
+            if not _request.meta.get('is_retry', False):
+                self._stats.inc_value('request_scheduler_count')
         except Exception as e:
             # 静默处理，避免影响爬虫运行
             pass
