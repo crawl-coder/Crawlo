@@ -32,78 +32,17 @@ class Engine(object):
         self.start_requests: Optional[Generator] = None
         
         # 安全获取CONCURRENCY设置，提供默认值
-        concurrency = 8
-        if self.settings is not None:
-            if hasattr(self.settings, 'get_int') and callable(getattr(self.settings, 'get_int', None)):
-                try:
-                    concurrency = self.settings.get_int('CONCURRENCY', 8)
-                except Exception:
-                    concurrency = 8
-            elif isinstance(self.settings, dict):
-                concurrency = int(self.settings.get('CONCURRENCY', 8))
-            else:
-                # 如果settings是其他类型，尝试直接获取
-                try:
-                    concurrency = int(getattr(self.settings, 'CONCURRENCY', 8))
-                except (ValueError, TypeError, AttributeError):
-                    concurrency = 8
-        else:
-            concurrency = 8
+        from crawlo.utils.misc import safe_get_config
+        concurrency = safe_get_config(self.settings, 'CONCURRENCY', 8, int)
         
         self.task_manager: Optional[TaskManager] = TaskManager(concurrency)
 
         # 增强控制参数
         # 安全获取其他设置
-        max_queue_size = 200
-        generation_batch_size = 10
-        generation_interval = 0.01
-        backpressure_ratio = 0.9
-        
-        if self.settings is not None:
-            if hasattr(self.settings, 'get_int') and callable(getattr(self.settings, 'get_int', None)):
-                try:
-                    max_queue_size = self.settings.get_int('SCHEDULER_MAX_QUEUE_SIZE', 200)
-                    generation_batch_size = self.settings.get_int('REQUEST_GENERATION_BATCH_SIZE', 10)
-                except Exception:
-                    max_queue_size = 200
-                    generation_batch_size = 10
-            elif isinstance(self.settings, dict):
-                max_queue_size = int(self.settings.get('SCHEDULER_MAX_QUEUE_SIZE', 200))
-                generation_batch_size = int(self.settings.get('REQUEST_GENERATION_BATCH_SIZE', 10))
-            else:
-                # 如果settings是其他类型，尝试直接获取
-                try:
-                    max_queue_size = int(getattr(self.settings, 'SCHEDULER_MAX_QUEUE_SIZE', 200))
-                    generation_batch_size = int(getattr(self.settings, 'REQUEST_GENERATION_BATCH_SIZE', 10))
-                except (ValueError, TypeError, AttributeError):
-                    max_queue_size = 200
-                    generation_batch_size = 10
-        else:
-            max_queue_size = 200
-            generation_batch_size = 10
-            
-        if self.settings is not None:
-            if hasattr(self.settings, 'get_float') and callable(getattr(self.settings, 'get_float', None)):
-                try:
-                    generation_interval = self.settings.get_float('REQUEST_GENERATION_INTERVAL', 0.01)
-                    backpressure_ratio = self.settings.get_float('BACKPRESSURE_RATIO', 0.9)
-                except Exception:
-                    generation_interval = 0.01
-                    backpressure_ratio = 0.9
-            elif isinstance(self.settings, dict):
-                generation_interval = float(self.settings.get('REQUEST_GENERATION_INTERVAL', 0.01))
-                backpressure_ratio = float(self.settings.get('BACKPRESSURE_RATIO', 0.9))
-            else:
-                # 如果settings是其他类型，尝试直接获取
-                try:
-                    generation_interval = float(getattr(self.settings, 'REQUEST_GENERATION_INTERVAL', 0.01))
-                    backpressure_ratio = float(getattr(self.settings, 'BACKPRESSURE_RATIO', 0.9))
-                except (ValueError, TypeError, AttributeError):
-                    generation_interval = 0.01
-                    backpressure_ratio = 0.9
-        else:
-            generation_interval = 0.01
-            backpressure_ratio = 0.9
+        max_queue_size = safe_get_config(self.settings, 'SCHEDULER_MAX_QUEUE_SIZE', 200, int)
+        generation_batch_size = safe_get_config(self.settings, 'REQUEST_GENERATION_BATCH_SIZE', 10, int)
+        generation_interval = safe_get_config(self.settings, 'REQUEST_GENERATION_INTERVAL', 0.01, float)
+        backpressure_ratio = safe_get_config(self.settings, 'BACKPRESSURE_RATIO', 0.9, float)
         
         self.max_queue_size = max_queue_size
         self.generation_batch_size = generation_batch_size
@@ -121,23 +60,16 @@ class Engine(object):
         self.logger = get_logger(name=self.__class__.__name__)
 
     def _get_downloader_cls(self):
-        """获取下载器类，支持多种配置方法"""
-        # 方式1: 使用 DOWNLOADER_TYPE 简化名称（推荐）
-        downloader_type = None
-        if self.settings is not None:
-            if hasattr(self.settings, 'get') and callable(getattr(self.settings, 'get', None)):
-                try:
-                    downloader_type = self.settings.get('DOWNLOADER_TYPE')
-                except Exception:
-                    downloader_type = None
-            elif isinstance(self.settings, dict):
-                downloader_type = self.settings.get('DOWNLOADER_TYPE')
-            else:
-                try:
-                    downloader_type = getattr(self.settings, 'DOWNLOADER_TYPE', None)
-                except AttributeError:
-                    downloader_type = None
+        """
+        获取下载器类
         
+        Returns:
+            Type[DownloaderBase]: 下载器类
+        """
+        from crawlo.utils.misc import safe_get_config
+        
+        # 方式1: 使用 DOWNLOADER_TYPE 配置（推荐）
+        downloader_type = safe_get_config(self.settings, 'DOWNLOADER_TYPE')
         if downloader_type:
             try:
                 from crawlo.downloader import get_downloader_class
@@ -148,20 +80,7 @@ class Engine(object):
                 self.logger.warning(f"无法使用下载器类型 '{downloader_type}': {e}，回退到默认配置")
         
         # 方式2: 使用 DOWNLOADER 完整类路径（兼容旧版本）
-        downloader_path = None
-        if self.settings is not None:
-            if hasattr(self.settings, 'get') and callable(getattr(self.settings, 'get', None)):
-                try:
-                    downloader_path = self.settings.get('DOWNLOADER')
-                except Exception:
-                    downloader_path = None
-            elif isinstance(self.settings, dict):
-                downloader_path = self.settings.get('DOWNLOADER')
-            else:
-                try:
-                    downloader_path = getattr(self.settings, 'DOWNLOADER', None)
-                except AttributeError:
-                    downloader_path = None
+        downloader_path = safe_get_config(self.settings, 'DOWNLOADER')
         
         # 如果没有配置下载器，使用默认下载器
         if not downloader_path:
@@ -174,22 +93,11 @@ class Engine(object):
         return downloader_cls
 
     def engine_start(self):
+        from crawlo.utils.misc import safe_get_config
+        
         self.running = True
         # 获取版本号，如果获取失败则使用默认值
-        version = '1.0.0'  # 默认值
-        if self.settings is not None:
-            if hasattr(self.settings, 'get') and callable(getattr(self.settings, 'get', None)):
-                try:
-                    version = self.settings.get('VERSION', '1.0.0')
-                except Exception:
-                    version = '1.0.0'
-            elif isinstance(self.settings, dict):
-                version = self.settings.get('VERSION', '1.0.0')
-            else:
-                try:
-                    version = getattr(self.settings, 'VERSION', '1.0.0')
-                except AttributeError:
-                    version = '1.0.0'
+        version = safe_get_config(self.settings, 'VERSION', '1.0.0')
                     
         if not version or version == 'None':
             version = '1.0.0'
@@ -265,20 +173,8 @@ class Engine(object):
         
         try:
             # 启动请求生成任务（如果启用了受控生成）
-            enable_controlled_generation = False
-            if self.settings is not None:
-                if hasattr(self.settings, 'get_bool') and callable(getattr(self.settings, 'get_bool', None)):
-                    try:
-                        enable_controlled_generation = self.settings.get_bool('ENABLE_CONTROLLED_REQUEST_GENERATION', False)
-                    except Exception:
-                        enable_controlled_generation = False
-                elif isinstance(self.settings, dict):
-                    enable_controlled_generation = bool(self.settings.get('ENABLE_CONTROLLED_REQUEST_GENERATION', False))
-                else:
-                    try:
-                        enable_controlled_generation = bool(getattr(self.settings, 'ENABLE_CONTROLLED_REQUEST_GENERATION', False))
-                    except (AttributeError, TypeError, ValueError):
-                        enable_controlled_generation = False
+            from crawlo.utils.misc import safe_get_config
+            enable_controlled_generation = safe_get_config(self.settings, 'ENABLE_CONTROLLED_REQUEST_GENERATION', False, bool)
             
             if (self.start_requests and enable_controlled_generation):
                 self.logger.debug("创建受控请求生成任务")

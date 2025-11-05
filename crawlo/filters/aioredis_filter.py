@@ -146,14 +146,15 @@ class AioRedisFilter(BaseFilter):
         project_name = settings.get('PROJECT_NAME', 'default') if hasattr(settings, 'get') else 'default'
         redis_key = f"crawlo:{project_name}:filter:fingerprint"
 
+        from crawlo.utils.misc import safe_get_config
         instance = cls(
             redis_key=redis_key,
             client=redis_client,
             stats=crawler.stats,
-            cleanup_fp=bool(settings.get('CLEANUP_FP', False) if hasattr(settings, 'get') else False),
+            cleanup_fp=safe_get_config(settings, 'CLEANUP_FP', False, bool),
             ttl=ttl,
-            debug=bool(settings.get('FILTER_DEBUG', False) if hasattr(settings, 'get') else False),
-            log_level=getattr(settings, 'LOG_LEVEL_NUM', 20) if hasattr(settings, '__dict__') else 20  # 默认INFO级别
+            debug=safe_get_config(settings, 'FILTER_DEBUG', False, bool),
+            log_level=safe_get_config(settings, 'LOG_LEVEL_NUM', 20, int)  # 默认INFO级别
         )
         
         # 保存连接池引用，以便在需要时获取连接

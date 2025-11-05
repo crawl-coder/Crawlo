@@ -53,11 +53,12 @@ class AioHttpDownloader(DownloaderBase):
         super().open()
         # 恢复关键的下载器启动信息为INFO级别
         # 读取配置
-        timeout_secs = self.crawler.settings.get_int("DOWNLOAD_TIMEOUT", 30)
-        verify_ssl = self.crawler.settings.get_bool("VERIFY_SSL", True)
-        pool_limit = self.crawler.settings.get_int("CONNECTION_POOL_LIMIT", 300)  # 从200增加到300
-        pool_per_host = self.crawler.settings.get_int("CONNECTION_POOL_LIMIT_PER_HOST", 100)  # 从50增加到100
-        self.max_download_size = self.crawler.settings.get_int("DOWNLOAD_MAXSIZE", 10 * 1024 * 1024)  # 10MB
+        from crawlo.utils.misc import safe_get_config
+        timeout_secs = safe_get_config(self.crawler.settings, "DOWNLOAD_TIMEOUT", 30, int)
+        verify_ssl = safe_get_config(self.crawler.settings, "VERIFY_SSL", True, bool)
+        pool_limit = safe_get_config(self.crawler.settings, "CONNECTION_POOL_LIMIT", 300, int)  # 从200增加到300
+        pool_per_host = safe_get_config(self.crawler.settings, "CONNECTION_POOL_LIMIT_PER_HOST", 100, int)  # 从50增加到100
+        self.max_download_size = safe_get_config(self.crawler.settings, "DOWNLOAD_MAXSIZE", 10 * 1024 * 1024, int)  # 10MB
 
         # 创建连接器
         connector = TCPConnector(
@@ -95,7 +96,7 @@ class AioHttpDownloader(DownloaderBase):
 
         # 输出下载器配置摘要
         spider_name = getattr(self.crawler.spider, 'name', 'Unknown')
-        concurrency = self.crawler.settings.get('CONCURRENCY', 4)
+        concurrency = safe_get_config(self.crawler.settings, 'CONCURRENCY', 4, int)
 
     async def download(self, request: 'Request') -> Response:
         """

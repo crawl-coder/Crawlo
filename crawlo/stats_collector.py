@@ -14,23 +14,8 @@ class StatsCollector(object):
     def __init__(self, crawler):
         self.crawler = crawler
         # 安全获取STATS_DUMP设置
-        self._dump = True
-        if self.crawler and self.crawler.settings is not None:
-            if hasattr(self.crawler.settings, 'get_bool') and callable(getattr(self.crawler.settings, 'get_bool', None)):
-                try:
-                    self._dump = self.crawler.settings.get_bool('STATS_DUMP')
-                except Exception:
-                    self._dump = True
-            elif isinstance(self.crawler.settings, dict):
-                self._dump = bool(self.crawler.settings.get('STATS_DUMP', True))
-            else:
-                # 如果settings是其他类型，尝试直接获取
-                try:
-                    self._dump = bool(getattr(self.crawler.settings, 'STATS_DUMP', True))
-                except (ValueError, TypeError, AttributeError):
-                    self._dump = True
-        else:
-            self._dump = True
+        from crawlo.utils.misc import safe_get_config
+        self._dump = safe_get_config(self.crawler.settings, 'STATS_DUMP', True, bool)
             
         self._stats = {}
         self.logger = get_logger(self.__class__.__name__)

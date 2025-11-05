@@ -112,22 +112,8 @@ class DownloaderBase(metaclass=DownloaderMeta):
         self._closed = False
         
         # 安全获取DOWNLOADER_STATS配置
-        self._stats_enabled = True
-        if crawler and crawler.settings is not None:
-            if hasattr(crawler.settings, 'get_bool') and callable(getattr(crawler.settings, 'get_bool', None)):
-                try:
-                    self._stats_enabled = crawler.settings.get_bool("DOWNLOADER_STATS", True)
-                except Exception:
-                    self._stats_enabled = True
-            elif isinstance(crawler.settings, dict):
-                self._stats_enabled = bool(crawler.settings.get("DOWNLOADER_STATS", True))
-            else:
-                try:
-                    self._stats_enabled = bool(getattr(crawler.settings, "DOWNLOADER_STATS", True))
-                except (AttributeError, TypeError, ValueError):
-                    self._stats_enabled = True
-        else:
-            self._stats_enabled = True
+        from crawlo.utils.misc import safe_get_config
+        self._stats_enabled = safe_get_config(crawler.settings, "DOWNLOADER_STATS", True, bool)
 
     @classmethod
     def create_instance(cls, *args, **kwargs):

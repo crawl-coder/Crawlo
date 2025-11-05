@@ -32,33 +32,8 @@ class MiddlewareManager:
         self.methods: Dict[str, List[MethodType]] = defaultdict(list)
         
         # 安全获取MIDDLEWARES配置
-        middlewares = []
-        if self.crawler and self.crawler.settings is not None:
-            if hasattr(self.crawler.settings, 'get_list') and callable(getattr(self.crawler.settings, 'get_list', None)):
-                try:
-                    middlewares = self.crawler.settings.get_list('MIDDLEWARES')
-                except Exception:
-                    middlewares = []
-            elif isinstance(self.crawler.settings, dict):
-                try:
-                    middlewares_val = self.crawler.settings.get('MIDDLEWARES', [])
-                    if isinstance(middlewares_val, str):
-                        middlewares = [v.strip() for v in middlewares_val.split(',') if v.strip()]
-                    else:
-                        middlewares = list(middlewares_val)
-                except (TypeError, ValueError):
-                    middlewares = []
-            else:
-                try:
-                    middlewares_val = getattr(self.crawler.settings, 'MIDDLEWARES', [])
-                    if isinstance(middlewares_val, str):
-                        middlewares = [v.strip() for v in middlewares_val.split(',') if v.strip()]
-                    else:
-                        middlewares = list(middlewares_val)
-                except (AttributeError, TypeError, ValueError):
-                    middlewares = []
-        else:
-            middlewares = []
+        from crawlo.utils.misc import safe_get_config
+        middlewares = safe_get_config(self.crawler.settings, 'MIDDLEWARES', [], list)
             
         self._add_middleware(middlewares)
         self._add_method()
