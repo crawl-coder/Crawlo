@@ -29,13 +29,17 @@ Crawlo Spider Module
 """
 from __future__ import annotations
 
-from typing import Type, Any, Optional, List, Dict, Iterator
+from typing import Type, Any, Optional, List, Dict, Iterator, TYPE_CHECKING, Union, cast
+import time
 
-from ..logging import get_logger
-from ..network.request import Request
+if TYPE_CHECKING:
+    from crawlo.network.request import Request
+    from crawlo.network.response import Response
+    from crawlo.crawler import Crawler
+    from crawlo.settings.setting_manager import SettingManager
 
 # 全局爬虫注册表
-_DEFAULT_SPIDER_REGISTRY: dict[str, Type[Spider]] = {}
+_DEFAULT_SPIDER_REGISTRY: Dict[str, Type['Spider']] = {}
 
 
 class SpiderMeta(type):
@@ -48,7 +52,7 @@ class SpiderMeta(type):
     - 提供完整的错误提示
     """
     
-    def __new__(mcs, name: str, bases: tuple[type], namespace: dict[str, Any], **kwargs):
+    def __new__(mcs, name: str, bases: tuple, namespace: Dict[str, Any], **kwargs):
         cls = super().__new__(mcs, name, bases, namespace)
 
         # 检查是否为Spider子类
@@ -77,7 +81,7 @@ class SpiderMeta(type):
             )
 
         # 注册爬虫
-        _DEFAULT_SPIDER_REGISTRY[spider_name] = cls
+        _DEFAULT_SPIDER_REGISTRY[spider_name] = cast(Type['Spider'], cls)
         # 延迟初始化logger避免模块级别阻塞
         try:
             from crawlo.logging import get_logger
@@ -131,19 +135,20 @@ class Spider(metaclass=SpiderMeta):
     """
     
     # 必须定义的属性
-    name: str = None
+    name: str
     
     # 可选属性
-    start_urls: List[str] = None
-    custom_settings: Dict[str, Any] = None
-    allowed_domains: List[str] = None
+    start_urls: Optional[List[str]]
+    custom_settings: Optional[Dict[str, Any]]
+    allowed_domains: Optional[List[str]]
 
-    def __init__(self, name: str = None, **kwargs):
+    def __init__(self, name: Optional[str] = None, **kwargs):
         """
         初始化爬虫实例
         
-        :param name: 爬虫名称（可选，默认使用类属性）
-        :param kwargs: 其他初始化参数
+        Args:
+            name: 爬虫名称（可选，默认使用类属性）
+            **kwargs: 其他初始化参数
         """
         # 初始化基本属性
         if not hasattr(self, 'start_urls') or self.start_urls is None:
@@ -154,15 +159,16 @@ class Spider(metaclass=SpiderMeta):
             self.allowed_domains = []
             
         # 设置爬虫名称
-        self.name = name or self.name
+        self.name = name or getattr(self, 'name', '')
         if not self.name:
             raise ValueError(f"爬虫 {self.__class__.__name__} 必须指定 name 属性")
         
         # 初始化其他属性
-        self.crawler = None
+        self.crawler: Optional['Crawler'] = None
         # 延迟初始化logger避免阻塞
         self._logger = None
         self.stats = None
+        self._pending_settings: Optional[Dict[str, Any]] = None
         
         # 应用额外参数
         for key, value in kwargs.items():
@@ -177,12 +183,15 @@ class Spider(metaclass=SpiderMeta):
         return self._logger
 
     @classmethod
-    def create_instance(cls, crawler) -> 'Spider':
+    def create_instance(cls, crawler: 'Crawler') -> 'Spider':
         """
         创建爬虫实例并绑定 crawler
         
-        :param crawler: Crawler 实例
-        :return: 爬虫实例
+        Args:
+            crawler: Crawler 实例
+            
+        Returns:
+            Spider: 爬虫实例
         """
         spider = cls()
         spider.crawler = crawler
@@ -196,17 +205,17 @@ class Spider(metaclass=SpiderMeta):
         
         return spider
     
-    def apply_pending_settings(self):
+    def apply_pending_settings(self) -> None:
         """应用待处理的设置（在初始化完成后调用）"""
-        if hasattr(self, '_pending_settings') and self._pending_settings:
+        if self._pending_settings:
             for key, value in self._pending_settings.items():
-                if self.crawler and hasattr(self.crawler, 'settings'):
+                if self.crawler and self.crawler.settings:
                     self.crawler.settings.set(key, value)
                     self.logger.debug(f"应用自定义设置: {key} = {value}")
             # 清除待处理的设置
-            delattr(self, '_pending_settings')
+            self._pending_settings = None
 
-    def start_requests(self) -> Iterator[Request]:
+    def start_requests(self) -> Iterator['Request']:
         """
         生成初始请求
         
@@ -216,7 +225,8 @@ class Spider(metaclass=SpiderMeta):
         - 支持单个 start_url 属性（兼容性）
         - 支持批量生成优化（大规模URL场景）
         
-        :return: Request 迭代器
+        Returns:
+            Iterator[Request]: 请求迭代器
         """
         # 检测是否为分布式模式
         is_distributed = self._is_distributed_mode()
@@ -229,6 +239,7 @@ class Spider(metaclass=SpiderMeta):
             generated_count = 0
             for url in self.start_urls:
                 if self._is_allowed_domain(url):
+                    from crawlo.network.request import Request
                     yield Request(
                         url=url, 
                         callback=self.parse,
@@ -245,6 +256,7 @@ class Spider(metaclass=SpiderMeta):
         
         # 兼容单个 start_url 属性
         elif hasattr(self, 'start_url') and isinstance(getattr(self, 'start_url'), str):
+            from crawlo.network.request import Request
             url = getattr(self, 'start_url')
             if self._is_allowed_domain(url):
                 yield Request(
@@ -268,9 +280,10 @@ class Spider(metaclass=SpiderMeta):
         
         用于大规模URL场景的性能优化
         
-        :return: 批量大小（0表示无限制）
+        Returns:
+            int: 批量大小（0表示无限制）
         """
-        if not self.crawler:
+        if not self.crawler or not self.crawler.settings:
             return 0
             
         # 从设置中获取批量大小
@@ -292,21 +305,22 @@ class Spider(metaclass=SpiderMeta):
         - FILTER_CLASS 包含 'aioredis_filter' 
         - RUN_MODE = 'distributed'
         
-        :return: 是否为分布式模式
+        Returns:
+            bool: 是否为分布式模式
         """
-        if not self.crawler:
+        if not self.crawler or not self.crawler.settings:
             return False
             
-        settings = self.crawler.settings
+        settings: 'SettingManager' = self.crawler.settings
         
         # 检查多个条件来判断是否为分布式模式
-        queue_type = settings.get('QUEUE_TYPE', 'memory')
-        filter_class = settings.get('FILTER_CLASS', '')
-        run_mode = settings.get('RUN_MODE', 'standalone')
+        queue_type = settings.get('QUEUE_TYPE', 'memory') if settings else 'memory'
+        filter_class = settings.get('FILTER_CLASS', '') if settings else ''
+        run_mode = settings.get('RUN_MODE', 'standalone') if settings else 'standalone'
         
         # 分布式模式的标志
         is_redis_queue = queue_type == 'redis'
-        is_redis_filter = 'aioredis_filter' in filter_class.lower()
+        is_redis_filter = 'aioredis_filter' in (filter_class.lower() if filter_class else '')
         is_distributed_run_mode = run_mode == 'distributed'
         
         distributed = is_redis_queue or is_redis_filter or is_distributed_run_mode
@@ -322,8 +336,11 @@ class Spider(metaclass=SpiderMeta):
         """
         检查URL是否在允许的域名列表中
         
-        :param url: 要检查的URL
-        :return: 是否允许
+        Args:
+            url: 要检查的URL
+            
+        Returns:
+            bool: 是否允许
         """
         if not self.allowed_domains:
             return True
@@ -339,12 +356,15 @@ class Spider(metaclass=SpiderMeta):
             self.logger.warning(f"URL解析失败: {url} - {e}")
             return False
 
-    def parse(self, response):
+    def parse(self, response: 'Response') -> Iterator[Union[Dict[str, Any], 'Request']]:
         """
         解析响应的主方法（必须实现）
         
-        :param response: 响应对象
-        :return: 生成的 Item 或 Request
+        Args:
+            response: 响应对象
+            
+        Returns:
+            Iterator[Union[Dict[str, Any], Request]]: 数据字典或请求对象的迭代器
         """
         raise NotImplementedError(
             f"爬虫 {self.__class__.__name__} 必须实现 parse() 方法\n"
@@ -357,7 +377,7 @@ class Spider(metaclass=SpiderMeta):
             f"        yield Request(url=link)"
         )
     
-    async def spider_opened(self):
+    async def spider_opened(self) -> None:
         """
         爬虫开启时调用的钩子函数
         
@@ -368,7 +388,7 @@ class Spider(metaclass=SpiderMeta):
         """
         self.logger.info(f"Spider {self.name} opened")
     
-    async def spider_closed(self):
+    async def spider_closed(self) -> None:
         """
         爬虫关闭时调用的钩子函数
         
@@ -390,13 +410,12 @@ class Spider(metaclass=SpiderMeta):
         """
         设置自定义配置（链式调用）
         
-        :param key: 配置键名
-        :param value: 配置值
-        :return: self（支持链式调用）
-        
-        示例:
-            spider.set_custom_setting('CONCURRENCY', 10)\
-                  .set_custom_setting('DOWNLOAD_DELAY', 1.0)
+        Args:
+            key: 配置键名
+            value: 配置值
+            
+        Returns:
+            Spider: 支持链式调用
         """
         if not hasattr(self, 'custom_settings') or self.custom_settings is None:
             self.custom_settings = {}
@@ -405,7 +424,7 @@ class Spider(metaclass=SpiderMeta):
         self.logger.debug(f"设置自定义配置: {key} = {value}")
         
         # 如果已绑定crawler，立即应用设置
-        if self.crawler:
+        if self.crawler and self.crawler.settings:
             self.crawler.settings.set(key, value)
             
         return self
@@ -414,9 +433,12 @@ class Spider(metaclass=SpiderMeta):
         """
         获取自定义配置值
         
-        :param key: 配置键名 
-        :param default: 默认值
-        :return: 配置值
+        Args:
+            key: 配置键名 
+            default: 默认值
+            
+        Returns:
+            Any: 配置值
         """
         if hasattr(self, 'custom_settings') and self.custom_settings:
             return self.custom_settings.get(key, default)
@@ -426,7 +448,8 @@ class Spider(metaclass=SpiderMeta):
         """
         获取爬虫详细信息
         
-        :return: 爬虫信息字典
+        Returns:
+            Dict[str, Any]: 爬虫信息字典
         """
         info = {
             'name': self.name,
@@ -450,15 +473,19 @@ class Spider(metaclass=SpiderMeta):
         
         return info
     
-    def make_request(self, url: str, callback=None, **kwargs) -> Request:
+    def make_request(self, url: str, callback=None, **kwargs) -> 'Request':
         """
         便捷方法：创建 Request 对象
         
-        :param url: 请求URL
-        :param callback: 回调函数（默认为parse）
-        :param kwargs: 其他Request参数
-        :return: Request对象
+        Args:
+            url: 请求URL
+            callback: 回调函数（默认为parse）
+            **kwargs: 其他Request参数
+            
+        Returns:
+            Request: Request对象
         """
+        from crawlo.network.request import Request
         return Request(
             url=url,
             callback=callback or self.parse,
@@ -475,47 +502,61 @@ class SpiderStatsTracker:
     提供详细的性能监控功能
     """
     
-    def __init__(self, spider_name: str):
-        self.spider_name = spider_name
-        self.start_time = None
-        self.end_time = None
-        self.request_count = 0
-        self.response_count = 0
-        self.item_count = 0
-        self.error_count = 0
-        self.domain_stats = {}
+    def __init__(self, spider_name: str) -> None:
+        """
+        初始化统计跟踪器
         
-    def start_tracking(self):
+        Args:
+            spider_name: 爬虫名称
+        """
+        self.spider_name: str = spider_name
+        self.start_time: Optional[float] = None
+        self.end_time: Optional[float] = None
+        self.request_count: int = 0
+        self.response_count: int = 0
+        self.item_count: int = 0
+        self.error_count: int = 0
+        self.domain_stats: Dict[str, int] = {}
+        
+    def start_tracking(self) -> None:
         """开始统计"""
-        import time
         self.start_time = time.time()
         
-    def stop_tracking(self):
+    def stop_tracking(self) -> None:
         """停止统计"""
-        import time
         self.end_time = time.time()
         
-    def record_request(self, url: str):
-        """记录请求"""
+    def record_request(self, url: str) -> None:
+        """
+        记录请求
+        
+        Args:
+            url: 请求URL
+        """
         self.request_count += 1
         from urllib.parse import urlparse
         domain = urlparse(url).netloc
         self.domain_stats[domain] = self.domain_stats.get(domain, 0) + 1
         
-    def record_response(self):
+    def record_response(self) -> None:
         """记录响应"""
         self.response_count += 1
         
-    def record_item(self):
+    def record_item(self) -> None:
         """记录Item"""
         self.item_count += 1
         
-    def record_error(self):
+    def record_error(self) -> None:
         """记录错误"""
         self.error_count += 1
         
     def get_summary(self) -> Dict[str, Any]:
-        """获取统计摘要"""
+        """
+        获取统计摘要
+        
+        Returns:
+            Dict[str, Any]: 统计摘要字典
+        """
         duration = (self.end_time - self.start_time) if (self.start_time and self.end_time) else 0
         
         return {
@@ -539,11 +580,14 @@ def create_spider_from_template(name: str, start_urls: List[str], **options) -> 
     """
     从模板快速创建爬虫类
     
-    :param name: 爬虫名称
-    :param start_urls: 起始URL列表
-    :param options: 其他选项
-    :return: 新创建的爬虫类
-    
+    Args:
+        name: 爬虫名称
+        start_urls: 起始URL列表
+        **options: 其他选项
+        
+    Returns:
+        Type[Spider]: 新创建的爬虫类
+        
     示例:
         MySpider = create_spider_from_template(
             name='quick_spider',
@@ -552,6 +596,7 @@ def create_spider_from_template(name: str, start_urls: List[str], **options) -> 
             custom_settings={'CONCURRENCY': 5}
         )
     """
+    from crawlo.logging import get_logger
     
     # 动态创建爬虫类
     class_attrs = {
@@ -582,11 +627,12 @@ def create_spider_from_template(name: str, start_urls: List[str], **options) -> 
 
 
 # === 公共只读接口 ===
-def get_global_spider_registry() -> dict[str, Type[Spider]]:
+def get_global_spider_registry() -> Dict[str, Type[Spider]]:
     """
     获取全局爬虫注册表的副本
     
-    :return: 爬虫注册表的副本
+    Returns:
+        Dict[str, Type[Spider]]: 爬虫注册表的副本
     """
     return _DEFAULT_SPIDER_REGISTRY.copy()
 
@@ -595,8 +641,11 @@ def get_spider_by_name(name: str) -> Optional[Type[Spider]]:
     """
     根据名称获取爬虫类
     
-    :param name: 爬虫名称
-    :return: 爬虫类或None
+    Args:
+        name: 爬虫名称
+        
+    Returns:
+        Optional[Type[Spider]]: 爬虫类或None
     """
     return _DEFAULT_SPIDER_REGISTRY.get(name)
 
@@ -605,7 +654,8 @@ def get_all_spider_classes() -> List[Type[Spider]]:
     """
     获取所有注册的爬虫类
     
-    :return: 爬虫类列表
+    Returns:
+        List[Type[Spider]]: 爬虫类列表
     """
     return list(set(_DEFAULT_SPIDER_REGISTRY.values()))
 
@@ -614,7 +664,8 @@ def get_spider_names() -> List[str]:
     """
     获取所有爬虫名称
     
-    :return: 爬虫名称列表
+    Returns:
+        List[str]: 爬虫名称列表
     """
     return list(_DEFAULT_SPIDER_REGISTRY.keys())
 
@@ -623,8 +674,11 @@ def is_spider_registered(name: str) -> bool:
     """
     检查爬虫是否已注册
     
-    :param name: 爬虫名称
-    :return: 是否已注册
+    Args:
+        name: 爬虫名称
+        
+    Returns:
+        bool: 是否已注册
     """
     return name in _DEFAULT_SPIDER_REGISTRY
 
@@ -633,8 +687,11 @@ def unregister_spider(name: str) -> bool:
     """
     取消注册爬虫（仅用于测试）
     
-    :param name: 爬虫名称
-    :return: 是否成功取消注册
+    Args:
+        name: 爬虫名称
+        
+    Returns:
+        bool: 是否成功取消注册
     """
     if name in _DEFAULT_SPIDER_REGISTRY:
         del _DEFAULT_SPIDER_REGISTRY[name]
@@ -655,4 +712,3 @@ __all__ = [
     'is_spider_registered',
     'unregister_spider'
 ]
-

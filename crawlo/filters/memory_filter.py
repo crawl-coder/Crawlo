@@ -44,18 +44,75 @@ class MemoryFilter(BaseFilter):
         self._temp_weak_refs = WeakSet()     # 弱引用临时存储
         self._lock = threading.RLock()       # 线程安全锁
 
-        # 初始化日志和统计
-        debug = crawler.settings.get_bool('FILTER_DEBUG', False)
+        # 安全初始化日志和统计
+        debug = False
+        if crawler and crawler.settings is not None:
+            if hasattr(crawler.settings, 'get_bool') and callable(getattr(crawler.settings, 'get_bool', None)):
+                try:
+                    debug = crawler.settings.get_bool('FILTER_DEBUG', False)
+                except Exception:
+                    debug = False
+            elif isinstance(crawler.settings, dict):
+                debug = bool(crawler.settings.get('FILTER_DEBUG', False))
+            else:
+                try:
+                    debug = bool(getattr(crawler.settings, 'FILTER_DEBUG', False))
+                except (AttributeError, TypeError, ValueError):
+                    debug = False
+        else:
+            debug = False
+            
         logger = get_logger(self.__class__.__name__)
-        super().__init__(logger, crawler.stats, debug)
+        super().__init__(logger, getattr(crawler, 'stats', None), debug)
 
         # 性能计数器
         self._dupe_count = 0
         self._unique_count = 0
         
-        # 内存优化配置
-        self._max_capacity = crawler.settings.get_int('MEMORY_FILTER_MAX_CAPACITY', 1000000)
-        self._cleanup_threshold = crawler.settings.get_float('MEMORY_FILTER_CLEANUP_THRESHOLD', 0.8)
+        # 安全获取内存优化配置
+        max_capacity = 1000000
+        cleanup_threshold = 0.8
+        
+        if crawler and crawler.settings is not None:
+            if hasattr(crawler.settings, 'get_int') and callable(getattr(crawler.settings, 'get_int', None)):
+                try:
+                    max_capacity = crawler.settings.get_int('MEMORY_FILTER_MAX_CAPACITY', 1000000)
+                except Exception:
+                    max_capacity = 1000000
+            elif isinstance(crawler.settings, dict):
+                try:
+                    capacity_val = crawler.settings.get('MEMORY_FILTER_MAX_CAPACITY', 1000000)
+                    max_capacity = int(capacity_val) if capacity_val is not None else 1000000
+                except (TypeError, ValueError):
+                    max_capacity = 1000000
+            else:
+                try:
+                    max_capacity = int(getattr(crawler.settings, 'MEMORY_FILTER_MAX_CAPACITY', 1000000))
+                except (AttributeError, TypeError, ValueError):
+                    max_capacity = 1000000
+                    
+            if hasattr(crawler.settings, 'get_float') and callable(getattr(crawler.settings, 'get_float', None)):
+                try:
+                    cleanup_threshold = crawler.settings.get_float('MEMORY_FILTER_CLEANUP_THRESHOLD', 0.8)
+                except Exception:
+                    cleanup_threshold = 0.8
+            elif isinstance(crawler.settings, dict):
+                try:
+                    threshold_val = crawler.settings.get('MEMORY_FILTER_CLEANUP_THRESHOLD', 0.8)
+                    cleanup_threshold = float(threshold_val) if threshold_val is not None else 0.8
+                except (TypeError, ValueError):
+                    cleanup_threshold = 0.8
+            else:
+                try:
+                    cleanup_threshold = float(getattr(crawler.settings, 'MEMORY_FILTER_CLEANUP_THRESHOLD', 0.8))
+                except (AttributeError, TypeError, ValueError):
+                    cleanup_threshold = 0.8
+        else:
+            max_capacity = 1000000
+            cleanup_threshold = 0.8
+            
+        self._max_capacity = max_capacity
+        self._cleanup_threshold = cleanup_threshold
 
     def add_fingerprint(self, fp: str) -> None:
         """

@@ -3,7 +3,7 @@
 import time
 import asyncio
 from inspect import iscoroutine
-from typing import Optional, Generator, Callable
+from typing import Optional, Generator, Callable, Any, Union, Dict
 
 from crawlo.spider import Spider
 from crawlo import Request, Item
@@ -24,19 +24,91 @@ class Engine(object):
         self.running = False
         self.normal = True
         self.crawler = crawler
-        self.settings = crawler.settings
+        self.settings: Union[Dict[str, Any], Any] = crawler.settings if crawler.settings is not None else {}
         self.spider: Optional[Spider] = None
         self.downloader: Optional[DownloaderBase] = None
         self.scheduler: Optional[Scheduler] = None
         self.processor: Optional[Processor] = None
         self.start_requests: Optional[Generator] = None
-        self.task_manager: Optional[TaskManager] = TaskManager(self.settings.get_int('CONCURRENCY'))
+        
+        # 安全获取CONCURRENCY设置，提供默认值
+        concurrency = 8
+        if self.settings is not None:
+            if hasattr(self.settings, 'get_int') and callable(getattr(self.settings, 'get_int', None)):
+                try:
+                    concurrency = self.settings.get_int('CONCURRENCY', 8)
+                except Exception:
+                    concurrency = 8
+            elif isinstance(self.settings, dict):
+                concurrency = int(self.settings.get('CONCURRENCY', 8))
+            else:
+                # 如果settings是其他类型，尝试直接获取
+                try:
+                    concurrency = int(getattr(self.settings, 'CONCURRENCY', 8))
+                except (ValueError, TypeError, AttributeError):
+                    concurrency = 8
+        else:
+            concurrency = 8
+        
+        self.task_manager: Optional[TaskManager] = TaskManager(concurrency)
 
         # 增强控制参数
-        self.max_queue_size = self.settings.get_int('SCHEDULER_MAX_QUEUE_SIZE', 200)
-        self.generation_batch_size = self.settings.get_int('REQUEST_GENERATION_BATCH_SIZE', 10)
-        self.generation_interval = self.settings.get_float('REQUEST_GENERATION_INTERVAL', 0.01)  # 优化默认值
-        self.backpressure_ratio = self.settings.get_float('BACKPRESSURE_RATIO', 0.9)  # 优化默认值
+        # 安全获取其他设置
+        max_queue_size = 200
+        generation_batch_size = 10
+        generation_interval = 0.01
+        backpressure_ratio = 0.9
+        
+        if self.settings is not None:
+            if hasattr(self.settings, 'get_int') and callable(getattr(self.settings, 'get_int', None)):
+                try:
+                    max_queue_size = self.settings.get_int('SCHEDULER_MAX_QUEUE_SIZE', 200)
+                    generation_batch_size = self.settings.get_int('REQUEST_GENERATION_BATCH_SIZE', 10)
+                except Exception:
+                    max_queue_size = 200
+                    generation_batch_size = 10
+            elif isinstance(self.settings, dict):
+                max_queue_size = int(self.settings.get('SCHEDULER_MAX_QUEUE_SIZE', 200))
+                generation_batch_size = int(self.settings.get('REQUEST_GENERATION_BATCH_SIZE', 10))
+            else:
+                # 如果settings是其他类型，尝试直接获取
+                try:
+                    max_queue_size = int(getattr(self.settings, 'SCHEDULER_MAX_QUEUE_SIZE', 200))
+                    generation_batch_size = int(getattr(self.settings, 'REQUEST_GENERATION_BATCH_SIZE', 10))
+                except (ValueError, TypeError, AttributeError):
+                    max_queue_size = 200
+                    generation_batch_size = 10
+        else:
+            max_queue_size = 200
+            generation_batch_size = 10
+            
+        if self.settings is not None:
+            if hasattr(self.settings, 'get_float') and callable(getattr(self.settings, 'get_float', None)):
+                try:
+                    generation_interval = self.settings.get_float('REQUEST_GENERATION_INTERVAL', 0.01)
+                    backpressure_ratio = self.settings.get_float('BACKPRESSURE_RATIO', 0.9)
+                except Exception:
+                    generation_interval = 0.01
+                    backpressure_ratio = 0.9
+            elif isinstance(self.settings, dict):
+                generation_interval = float(self.settings.get('REQUEST_GENERATION_INTERVAL', 0.01))
+                backpressure_ratio = float(self.settings.get('BACKPRESSURE_RATIO', 0.9))
+            else:
+                # 如果settings是其他类型，尝试直接获取
+                try:
+                    generation_interval = float(getattr(self.settings, 'REQUEST_GENERATION_INTERVAL', 0.01))
+                    backpressure_ratio = float(getattr(self.settings, 'BACKPRESSURE_RATIO', 0.9))
+                except (ValueError, TypeError, AttributeError):
+                    generation_interval = 0.01
+                    backpressure_ratio = 0.9
+        else:
+            generation_interval = 0.01
+            backpressure_ratio = 0.9
+        
+        self.max_queue_size = max_queue_size
+        self.generation_batch_size = generation_batch_size
+        self.generation_interval = generation_interval
+        self.backpressure_ratio = backpressure_ratio
         
         # 状态跟踪
         self._generation_paused = False
@@ -51,7 +123,21 @@ class Engine(object):
     def _get_downloader_cls(self):
         """获取下载器类，支持多种配置方法"""
         # 方式1: 使用 DOWNLOADER_TYPE 简化名称（推荐）
-        downloader_type = self.settings.get('DOWNLOADER_TYPE')
+        downloader_type = None
+        if self.settings is not None:
+            if hasattr(self.settings, 'get') and callable(getattr(self.settings, 'get', None)):
+                try:
+                    downloader_type = self.settings.get('DOWNLOADER_TYPE')
+                except Exception:
+                    downloader_type = None
+            elif isinstance(self.settings, dict):
+                downloader_type = self.settings.get('DOWNLOADER_TYPE')
+            else:
+                try:
+                    downloader_type = getattr(self.settings, 'DOWNLOADER_TYPE', None)
+                except AttributeError:
+                    downloader_type = None
+        
         if downloader_type:
             try:
                 from crawlo.downloader import get_downloader_class
@@ -62,7 +148,27 @@ class Engine(object):
                 self.logger.warning(f"无法使用下载器类型 '{downloader_type}': {e}，回退到默认配置")
         
         # 方式2: 使用 DOWNLOADER 完整类路径（兼容旧版本）
-        downloader_cls = load_object(self.settings.get('DOWNLOADER'))
+        downloader_path = None
+        if self.settings is not None:
+            if hasattr(self.settings, 'get') and callable(getattr(self.settings, 'get', None)):
+                try:
+                    downloader_path = self.settings.get('DOWNLOADER')
+                except Exception:
+                    downloader_path = None
+            elif isinstance(self.settings, dict):
+                downloader_path = self.settings.get('DOWNLOADER')
+            else:
+                try:
+                    downloader_path = getattr(self.settings, 'DOWNLOADER', None)
+                except AttributeError:
+                    downloader_path = None
+        
+        # 如果没有配置下载器，使用默认下载器
+        if not downloader_path:
+            from crawlo.downloader import HttpXDownloader
+            return HttpXDownloader
+            
+        downloader_cls = load_object(downloader_path)
         if not issubclass(downloader_cls, DownloaderBase):
             raise TypeError(f'下载器 {downloader_cls.__name__} 不是 DownloaderBase 的子类。')
         return downloader_cls
@@ -70,7 +176,21 @@ class Engine(object):
     def engine_start(self):
         self.running = True
         # 获取版本号，如果获取失败则使用默认值
-        version = self.settings.get('VERSION', '1.0.0')
+        version = '1.0.0'  # 默认值
+        if self.settings is not None:
+            if hasattr(self.settings, 'get') and callable(getattr(self.settings, 'get', None)):
+                try:
+                    version = self.settings.get('VERSION', '1.0.0')
+                except Exception:
+                    version = '1.0.0'
+            elif isinstance(self.settings, dict):
+                version = self.settings.get('VERSION', '1.0.0')
+            else:
+                try:
+                    version = getattr(self.settings, 'VERSION', '1.0.0')
+                except AttributeError:
+                    version = '1.0.0'
+                    
         if not version or version == 'None':
             version = '1.0.0'
         # 将INFO级别日志改为DEBUG级别，避免与CrawlerProcess启动日志重复
@@ -84,16 +204,19 @@ class Engine(object):
             if asyncio.iscoroutinefunction(self.scheduler.open):
                 await self.scheduler.open()
             else:
-                self.scheduler.open()
+                # 确保同步方法被正确调用
+                result = self.scheduler.open()
+                # 只有在result是协程时才await
+                if result is not None and asyncio.iscoroutine(result):
+                    await result
 
         downloader_cls = self._get_downloader_cls()
         self.downloader = downloader_cls(self.crawler)
         if hasattr(self.downloader, 'open'):
-            if asyncio.iscoroutinefunction(self.downloader.open):
-                self.downloader.open()
-            else:
-                # DownloaderBase.open() 是同步方法，直接调用而不是await
-                self.downloader.open()
+            result = self.downloader.open()
+            # 只有在result是协程时才await
+            if result is not None and asyncio.iscoroutine(result):
+                await result
         
         # 注册下载器到资源管理器
         if hasattr(self.crawler, '_resource_manager') and self.downloader:
@@ -108,11 +231,10 @@ class Engine(object):
 
         self.processor = Processor(self.crawler)
         if hasattr(self.processor, 'open'):
-            if asyncio.iscoroutinefunction(self.processor.open):
-                await self.processor.open()
-            else:
-                # Processor.open() 是同步方法
-                self.processor.open()
+            result = self.processor.open()
+            # 只有在result是协程时才await
+            if result is not None and asyncio.iscoroutine(result):
+                await result
 
         # 在处理器初始化之后初始化扩展管理器，确保日志输出顺序正确
         # 中间件 -> 管道 -> 扩展
@@ -143,8 +265,22 @@ class Engine(object):
         
         try:
             # 启动请求生成任务（如果启用了受控生成）
-            if (self.start_requests and 
-                self.settings.get_bool('ENABLE_CONTROLLED_REQUEST_GENERATION', False)):
+            enable_controlled_generation = False
+            if self.settings is not None:
+                if hasattr(self.settings, 'get_bool') and callable(getattr(self.settings, 'get_bool', None)):
+                    try:
+                        enable_controlled_generation = self.settings.get_bool('ENABLE_CONTROLLED_REQUEST_GENERATION', False)
+                    except Exception:
+                        enable_controlled_generation = False
+                elif isinstance(self.settings, dict):
+                    enable_controlled_generation = bool(self.settings.get('ENABLE_CONTROLLED_REQUEST_GENERATION', False))
+                else:
+                    try:
+                        enable_controlled_generation = bool(getattr(self.settings, 'ENABLE_CONTROLLED_REQUEST_GENERATION', False))
+                    except (AttributeError, TypeError, ValueError):
+                        enable_controlled_generation = False
+            
+            if (self.start_requests and enable_controlled_generation):
                 self.logger.debug("创建受控请求生成任务")
                 generation_task = asyncio.create_task(
                     self._controlled_request_generation()

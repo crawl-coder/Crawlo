@@ -54,11 +54,95 @@ class HttpXDownloader(DownloaderBase):
         super().open()
         self.logger.info("Opening HttpXDownloader")
 
-        # 读取配置
-        timeout_total = self.crawler.settings.get_int("DOWNLOAD_TIMEOUT", 30)
-        pool_limit = self.crawler.settings.get_int("CONNECTION_POOL_LIMIT", 100)
-        pool_per_host = self.crawler.settings.get_int("CONNECTION_POOL_LIMIT_PER_HOST", 20)
-        max_download_size = self.crawler.settings.get_int("DOWNLOAD_MAXSIZE", 10 * 1024 * 1024)  # 10MB
+        # 安全获取配置
+        timeout_total = 30
+        pool_limit = 100
+        pool_per_host = 20
+        max_download_size = 10 * 1024 * 1024  # 10MB
+        verify_ssl = True
+        
+        if self.crawler and self.crawler.settings is not None:
+            # 获取DOWNLOAD_TIMEOUT
+            if hasattr(self.crawler.settings, 'get_int') and callable(getattr(self.crawler.settings, 'get_int', None)):
+                try:
+                    timeout_total = self.crawler.settings.get_int("DOWNLOAD_TIMEOUT", 30)
+                except Exception:
+                    timeout_total = 30
+            elif isinstance(self.crawler.settings, dict):
+                try:
+                    timeout_total = int(self.crawler.settings.get("DOWNLOAD_TIMEOUT", 30))
+                except (TypeError, ValueError):
+                    timeout_total = 30
+            else:
+                try:
+                    timeout_total = int(getattr(self.crawler.settings, "DOWNLOAD_TIMEOUT", 30))
+                except (AttributeError, TypeError, ValueError):
+                    timeout_total = 30
+                    
+            # 获取CONNECTION_POOL_LIMIT
+            if hasattr(self.crawler.settings, 'get_int') and callable(getattr(self.crawler.settings, 'get_int', None)):
+                try:
+                    pool_limit = self.crawler.settings.get_int("CONNECTION_POOL_LIMIT", 100)
+                except Exception:
+                    pool_limit = 100
+            elif isinstance(self.crawler.settings, dict):
+                try:
+                    pool_limit = int(self.crawler.settings.get("CONNECTION_POOL_LIMIT", 100))
+                except (TypeError, ValueError):
+                    pool_limit = 100
+            else:
+                try:
+                    pool_limit = int(getattr(self.crawler.settings, "CONNECTION_POOL_LIMIT", 100))
+                except (AttributeError, TypeError, ValueError):
+                    pool_limit = 100
+                    
+            # 获取CONNECTION_POOL_LIMIT_PER_HOST
+            if hasattr(self.crawler.settings, 'get_int') and callable(getattr(self.crawler.settings, 'get_int', None)):
+                try:
+                    pool_per_host = self.crawler.settings.get_int("CONNECTION_POOL_LIMIT_PER_HOST", 20)
+                except Exception:
+                    pool_per_host = 20
+            elif isinstance(self.crawler.settings, dict):
+                try:
+                    pool_per_host = int(self.crawler.settings.get("CONNECTION_POOL_LIMIT_PER_HOST", 20))
+                except (TypeError, ValueError):
+                    pool_per_host = 20
+            else:
+                try:
+                    pool_per_host = int(getattr(self.crawler.settings, "CONNECTION_POOL_LIMIT_PER_HOST", 20))
+                except (AttributeError, TypeError, ValueError):
+                    pool_per_host = 20
+                    
+            # 获取DOWNLOAD_MAXSIZE
+            if hasattr(self.crawler.settings, 'get_int') and callable(getattr(self.crawler.settings, 'get_int', None)):
+                try:
+                    max_download_size = self.crawler.settings.get_int("DOWNLOAD_MAXSIZE", 10 * 1024 * 1024)
+                except Exception:
+                    max_download_size = 10 * 1024 * 1024
+            elif isinstance(self.crawler.settings, dict):
+                try:
+                    max_download_size = int(self.crawler.settings.get("DOWNLOAD_MAXSIZE", 10 * 1024 * 1024))
+                except (TypeError, ValueError):
+                    max_download_size = 10 * 1024 * 1024
+            else:
+                try:
+                    max_download_size = int(getattr(self.crawler.settings, "DOWNLOAD_MAXSIZE", 10 * 1024 * 1024))
+                except (AttributeError, TypeError, ValueError):
+                    max_download_size = 10 * 1024 * 1024
+                    
+            # 获取VERIFY_SSL
+            if hasattr(self.crawler.settings, 'get_bool') and callable(getattr(self.crawler.settings, 'get_bool', None)):
+                try:
+                    verify_ssl = self.crawler.settings.get_bool("VERIFY_SSL", True)
+                except Exception:
+                    verify_ssl = True
+            elif isinstance(self.crawler.settings, dict):
+                verify_ssl = bool(self.crawler.settings.get("VERIFY_SSL", True))
+            else:
+                try:
+                    verify_ssl = bool(getattr(self.crawler.settings, "VERIFY_SSL", True))
+                except (AttributeError, TypeError, ValueError):
+                    verify_ssl = True
 
         # 保存配置
         self.max_download_size = max_download_size
@@ -74,7 +158,7 @@ class HttpXDownloader(DownloaderBase):
             max_connections=pool_limit,
             max_keepalive_connections=pool_per_host
         )
-        self._client_verify = self.crawler.settings.get_bool("VERIFY_SSL", True)
+        self._client_verify = verify_ssl
         self._client_http2 = True  # 启用 HTTP/2 支持
         # ----------------------------
 

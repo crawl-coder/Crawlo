@@ -26,12 +26,56 @@ class Scheduler:
 
     @classmethod
     def create_instance(cls, crawler):
-        filter_cls = load_object(crawler.settings.get('FILTER_CLASS'))
+        # 安全获取配置值的辅助函数
+        def safe_get_config(settings, key, default=None, value_type=None):
+            if settings is None:
+                return default
+                
+            try:
+                # 优先使用配置对象的方法
+                if hasattr(settings, 'get') and callable(getattr(settings, 'get', None)):
+                    value = settings.get(key, default)
+                # 其次处理字典类型
+                elif isinstance(settings, dict):
+                    value = settings.get(key, default)
+                # 最后尝试直接属性访问
+                else:
+                    value = getattr(settings, key, default)
+                
+                # 如果指定了类型，进行类型转换
+                if value_type and value is not None:
+                    if value_type == int:
+                        return int(value)
+                    elif value_type == float:
+                        return float(value)
+                    elif value_type == bool:
+                        return bool(value)
+                
+                return value
+            except (TypeError, ValueError, AttributeError, Exception):
+                return default
+        
+        # 安全获取FILTER_CLASS设置 - 简化版本
+        filter_class = safe_get_config(
+            getattr(crawler, 'settings', None), 
+            'FILTER_CLASS', 
+            'crawlo.filters.memory_filter.MemoryFilter'
+        )
+        
+        # 安全获取DEPTH_PRIORITY设置
+        priority = safe_get_config(
+            getattr(crawler, 'settings', None), 
+            'DEPTH_PRIORITY', 
+            0
+        )
+            
+        filter_cls = load_object(filter_class)
+        
         o = cls(
             crawler=crawler,
             dupe_filter=filter_cls.create_instance(crawler),
-            stats=crawler.stats,
-            priority=crawler.settings.get('DEPTH_PRIORITY')
+            stats=getattr(crawler, 'stats', None),
+            priority=priority
         )
         return o
 
@@ -48,6 +92,12 @@ class Scheduler:
             # 初始化队列
             needs_config_update = await self.queue_manager.initialize()
             
+            # 初始化默认配置值
+            queue_type_setting = 'memory'  # 默认值
+            current_filter = ''  # 默认值
+            concurrency = 8  # 默认值
+            delay = 1.0  # 默认值
+            
             # 检查是否需要更新过滤器配置
             updated_configs = []
             if needs_config_update:
@@ -61,7 +111,18 @@ class Scheduler:
             else:
                 # 检查是否需要更新配置（即使队列管理器没有要求更新）
                 # 当 QUEUE_TYPE 明确设置为 redis 时，也应该检查配置一致性
-                queue_type_setting = self.crawler.settings.get('QUEUE_TYPE', 'memory')
+                
+                # 安全获取配置
+                if self.crawler and self.crawler.settings is not None:
+                    try:
+                        queue_type_setting = self.crawler.settings.get('QUEUE_TYPE', 'memory')
+                        current_filter = self.crawler.settings.get('FILTER_CLASS', '')
+                        concurrency = self.crawler.settings.get('CONCURRENCY', 8)
+                        delay = self.crawler.settings.get('DOWNLOAD_DELAY', 1.0)
+                    except Exception:
+                        # 使用默认值
+                        pass
+                
                 if queue_type_setting == 'redis' or needs_config_update:
                     updated_configs = self._check_filter_config()
                 else:
@@ -71,16 +132,12 @@ class Scheduler:
             await self._process_filter_updates(needs_config_update, updated_configs)
             
             # 输出关键的调度器初始化完成信息
-            status = self.queue_manager.get_status()
-            current_filter = self.crawler.settings.get('FILTER_CLASS')
+            status = self.queue_manager.get_status() if self.queue_manager else {'type': 'unknown', 'health': 'unknown'}
             
             self.logger.info(f"enabled filters: \n  {current_filter}")
             
             # 优化日志输出，将多条日志合并为1条关键信息
-            queue_type_setting = self.crawler.settings.get('QUEUE_TYPE', 'memory')
             if queue_type_setting in ['auto', 'redis'] and updated_configs:
-                concurrency = self.crawler.settings.get('CONCURRENCY', 8)
-                delay = self.crawler.settings.get('DOWNLOAD_DELAY', 1.0)
                 self.logger.debug(f"Scheduler initialized [Queue type: {status['type']}, Status: {status['health']}, Concurrency: {concurrency}, Delay: {delay}s]")
             else:
                 self.logger.debug(f"Scheduler initialized [Queue type: {status['type']}, Status: {status['health']}]")
@@ -93,15 +150,25 @@ class Scheduler:
         """检查并更新过滤器配置"""
         updated_configs = []
         
+        # 安全检查queue_manager是否存在
+        if not self.queue_manager:
+            return updated_configs
+            
+        # 安全获取FILTER_CLASS配置
+        current_filter_class = ''
+        if self.crawler and self.crawler.settings is not None:
+            try:
+                current_filter_class = self.crawler.settings.get('FILTER_CLASS', '')
+            except Exception:
+                current_filter_class = ''
+            
         if self.queue_manager._queue_type == QueueType.REDIS:
             # 检查当前过滤器是否为内存过滤器
-            current_filter_class = self.crawler.settings.get('FILTER_CLASS', '')
             if 'memory_filter' in current_filter_class:
                 self._switch_to_redis_config()
                 updated_configs.append("Redis")
         elif self.queue_manager._queue_type == QueueType.MEMORY:
             # 检查当前过滤器是否为Redis过滤器
-            current_filter_class = self.crawler.settings.get('FILTER_CLASS', '')
             if 'aioredis_filter' in current_filter_class or 'redis_filter' in current_filter_class:
                 self._switch_to_memory_config()
                 updated_configs.append("内存")
@@ -110,16 +177,34 @@ class Scheduler:
     
     async def _process_filter_updates(self, needs_config_update, updated_configs):
         """处理过滤器更新逻辑"""
-        # 检查配置是否与队列类型匹配
-        current_filter_class = self.crawler.settings.get('FILTER_CLASS', '')
+        # 安全检查queue_manager是否存在
+        if not self.queue_manager:
+            return
+            
+        # 安全获取FILTER_CLASS配置
+        current_filter_class = ''
+        if self.crawler and self.crawler.settings is not None:
+            try:
+                current_filter_class = self.crawler.settings.get('FILTER_CLASS', '')
+            except Exception:
+                current_filter_class = ''
+        
         filter_matches_queue_type = self._is_filter_matching_queue_type(current_filter_class)
         
         # 只有在配置不匹配且需要更新时才重新创建过滤器实例
         if needs_config_update or not filter_matches_queue_type:
             # 如果需要更新配置，则执行更新
             if needs_config_update:
+                # 安全获取FILTER_CLASS配置
+                filter_class = 'crawlo.filters.memory_filter.MemoryFilter'
+                if self.crawler and self.crawler.settings is not None:
+                    try:
+                        filter_class = self.crawler.settings.get('FILTER_CLASS', filter_class)
+                    except Exception:
+                        pass
+                
                 # 重新创建过滤器实例，确保使用更新后的配置
-                filter_cls = load_object(self.crawler.settings.get('FILTER_CLASS'))
+                filter_cls = load_object(filter_class)
                 self.dupe_filter = filter_cls.create_instance(self.crawler)
                 
                 # 记录警告信息
@@ -134,12 +219,24 @@ class Scheduler:
                 elif self.queue_manager._queue_type == QueueType.MEMORY:
                     self._switch_to_memory_config()
                 
+                # 安全获取FILTER_CLASS配置
+                filter_class = 'crawlo.filters.memory_filter.MemoryFilter'
+                if self.crawler and self.crawler.settings is not None:
+                    try:
+                        filter_class = self.crawler.settings.get('FILTER_CLASS', filter_class)
+                    except Exception:
+                        pass
+                
                 # 重新创建过滤器实例
-                filter_cls = load_object(self.crawler.settings.get('FILTER_CLASS'))
+                filter_cls = load_object(filter_class)
                 self.dupe_filter = filter_cls.create_instance(self.crawler)
     
     def _is_filter_matching_queue_type(self, current_filter_class):
         """检查过滤器配置是否与队列类型匹配"""
+        # 安全检查queue_manager是否存在
+        if not self.queue_manager:
+            return False
+            
         return (
             (self.queue_manager._queue_type == QueueType.REDIS and 
              ('aioredis_filter' in current_filter_class or 'redis_filter' in current_filter_class)) or
@@ -149,63 +246,103 @@ class Scheduler:
     
     def _switch_to_redis_config(self):
         """切换到Redis配置"""
-        if self.queue_manager and self.queue_manager._queue_type == QueueType.REDIS:
-            # 检查当前过滤器是否为内存过滤器
-            current_filter_class = self.crawler.settings.get('FILTER_CLASS', '')
-            updated_configs = []
+        # 安全检查queue_manager是否存在且类型正确
+        if not self.queue_manager or self.queue_manager._queue_type != QueueType.REDIS:
+            return
             
-            if 'memory_filter' in current_filter_class:
-                # 更新为Redis过滤器
-                self.crawler.settings.set('FILTER_CLASS', 'crawlo.filters.aioredis_filter.AioRedisFilter')
-                updated_configs.append("filter")
-            
-            # 检查当前去重管道是否为内存去重管道
-            current_dedup_pipeline = self.crawler.settings.get('DEFAULT_DEDUP_PIPELINE', '')
-            if 'memory_dedup_pipeline' in current_dedup_pipeline:
-                # 更新为Redis去重管道
-                self.crawler.settings.set('DEFAULT_DEDUP_PIPELINE', 'crawlo.pipelines.redis_dedup_pipeline.RedisDedupPipeline')
-                # 同时更新PIPELINES列表中的去重管道
+        # 安全获取FILTER_CLASS配置
+        current_filter_class = ''
+        default_dedup_pipeline = ''
+        pipelines = []
+        
+        if self.crawler and self.crawler.settings is not None:
+            try:
+                current_filter_class = self.crawler.settings.get('FILTER_CLASS', '')
+                default_dedup_pipeline = self.crawler.settings.get('DEFAULT_DEDUP_PIPELINE', '')
                 pipelines = self.crawler.settings.get('PIPELINES', [])
-                if current_dedup_pipeline in pipelines:
-                    # 找到并替换内存去重管道为Redis去重管道
-                    index = pipelines.index(current_dedup_pipeline)
-                    pipelines[index] = 'crawlo.pipelines.redis_dedup_pipeline.RedisDedupPipeline'
-                    self.crawler.settings.set('PIPELINES', pipelines)
-                updated_configs.append("dedup pipeline")
+            except Exception:
+                pass
             
-            # 合并日志输出
-            if updated_configs:
-                self.logger.info(f"configuration updated: {', '.join(updated_configs)} -> redis mode")
+        updated_configs = []
+        
+        if 'memory_filter' in current_filter_class:
+            # 更新为Redis过滤器
+            if self.crawler and self.crawler.settings is not None:
+                try:
+                    self.crawler.settings.set('FILTER_CLASS', 'crawlo.filters.aioredis_filter.AioRedisFilter')
+                    updated_configs.append("filter")
+                except Exception:
+                    pass
+        
+        # 检查当前去重管道是否为内存去重管道
+        if 'memory_dedup_pipeline' in default_dedup_pipeline:
+            # 更新为Redis去重管道
+            if self.crawler and self.crawler.settings is not None:
+                try:
+                    self.crawler.settings.set('DEFAULT_DEDUP_PIPELINE', 'crawlo.pipelines.redis_dedup_pipeline.RedisDedupPipeline')
+                    # 同时更新PIPELINES列表中的去重管道
+                    if default_dedup_pipeline in pipelines:
+                        # 找到并替换内存去重管道为Redis去重管道
+                        index = pipelines.index(default_dedup_pipeline)
+                        pipelines[index] = 'crawlo.pipelines.redis_dedup_pipeline.RedisDedupPipeline'
+                        self.crawler.settings.set('PIPELINES', pipelines)
+                    updated_configs.append("dedup pipeline")
+                except Exception:
+                    pass
+        
+        # 合并日志输出
+        if updated_configs:
+            self.logger.info(f"configuration updated: {', '.join(updated_configs)} -> redis mode")
 
     def _switch_to_memory_config(self):
         """切换到内存配置"""
-        if self.queue_manager and self.queue_manager._queue_type == QueueType.MEMORY:
-            # 检查当前过滤器是否为Redis过滤器
-            current_filter_class = self.crawler.settings.get('FILTER_CLASS', '')
-            updated_configs = []
+        # 安全检查queue_manager是否存在且类型正确
+        if not self.queue_manager or self.queue_manager._queue_type != QueueType.MEMORY:
+            return
             
-            if 'aioredis_filter' in current_filter_class or 'redis_filter' in current_filter_class:
-                # 更新为内存过滤器
-                self.crawler.settings.set('FILTER_CLASS', 'crawlo.filters.memory_filter.MemoryFilter')
-                updated_configs.append("filter")
-            
-            # 检查当前去重管道是否为Redis去重管道
-            current_dedup_pipeline = self.crawler.settings.get('DEFAULT_DEDUP_PIPELINE', '')
-            if 'redis_dedup_pipeline' in current_dedup_pipeline:
-                # 更新为内存去重管道
-                self.crawler.settings.set('DEFAULT_DEDUP_PIPELINE', 'crawlo.pipelines.memory_dedup_pipeline.MemoryDedupPipeline')
-                # 同时更新PIPELINES列表中的去重管道
+        # 安全获取FILTER_CLASS配置
+        current_filter_class = ''
+        default_dedup_pipeline = ''
+        pipelines = []
+        
+        if self.crawler and self.crawler.settings is not None:
+            try:
+                current_filter_class = self.crawler.settings.get('FILTER_CLASS', '')
+                default_dedup_pipeline = self.crawler.settings.get('DEFAULT_DEDUP_PIPELINE', '')
                 pipelines = self.crawler.settings.get('PIPELINES', [])
-                if current_dedup_pipeline in pipelines:
-                    # 找到并替换Redis去重管道为内存去重管道
-                    index = pipelines.index(current_dedup_pipeline)
-                    pipelines[index] = 'crawlo.pipelines.memory_dedup_pipeline.MemoryDedupPipeline'
-                    self.crawler.settings.set('PIPELINES', pipelines)
-                updated_configs.append("dedup pipeline")
+            except Exception:
+                pass
             
-            # 合并日志输出
-            if updated_configs:
-                self.logger.debug(f"configuration updated: {', '.join(updated_configs)} -> memory mode")
+        updated_configs = []
+        
+        if 'aioredis_filter' in current_filter_class or 'redis_filter' in current_filter_class:
+            # 更新为内存过滤器
+            if self.crawler and self.crawler.settings is not None:
+                try:
+                    self.crawler.settings.set('FILTER_CLASS', 'crawlo.filters.memory_filter.MemoryFilter')
+                    updated_configs.append("filter")
+                except Exception:
+                    pass
+        
+        # 检查当前去重管道是否为Redis去重管道
+        if 'redis_dedup_pipeline' in default_dedup_pipeline:
+            # 更新为内存去重管道
+            if self.crawler and self.crawler.settings is not None:
+                try:
+                    self.crawler.settings.set('DEFAULT_DEDUP_PIPELINE', 'crawlo.pipelines.memory_dedup_pipeline.MemoryDedupPipeline')
+                    # 同时更新PIPELINES列表中的去重管道
+                    if default_dedup_pipeline in pipelines:
+                        # 找到并替换Redis去重管道为内存去重管道
+                        index = pipelines.index(default_dedup_pipeline)
+                        pipelines[index] = 'crawlo.pipelines.memory_dedup_pipeline.MemoryDedupPipeline'
+                        self.crawler.settings.set('PIPELINES', pipelines)
+                    updated_configs.append("dedup pipeline")
+                except Exception:
+                    pass
+        
+        # 合并日志输出
+        if updated_configs:
+            self.logger.debug(f"configuration updated: {', '.join(updated_configs)} -> memory mode")
 
     async def next_request(self):
         """Get next request"""
@@ -222,9 +359,10 @@ class Scheduler:
             
             return request
         except Exception as e:
+            from crawlo.utils.error_handler import ErrorContext
             self.error_handler.handle_error(
                 e, 
-                context="Failed to get next request", 
+                context=ErrorContext(context="Failed to get next request"), 
                 raise_error=False
             )
             return None
@@ -262,9 +400,10 @@ class Scheduler:
             
             return success
         except Exception as e:
+            from crawlo.utils.error_handler import ErrorContext
             self.error_handler.handle_error(
                 e, 
-                context="Failed to enqueue request", 
+                context=ErrorContext(context="Failed to enqueue request"), 
                 raise_error=False
             )
             return False
@@ -289,9 +428,10 @@ class Scheduler:
             if self.queue_manager:
                 await self.queue_manager.close()
         except Exception as e:
+            from crawlo.utils.error_handler import ErrorContext
             self.error_handler.handle_error(
                 e, 
-                context="Failed to close scheduler", 
+                context=ErrorContext(context="Failed to close scheduler"), 
                 raise_error=False
             )
 

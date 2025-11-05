@@ -147,29 +147,150 @@ class QueueConfig:
     @classmethod
     def from_settings(cls, settings) -> 'QueueConfig':
         """Create configuration from settings"""
-        # 获取项目名称，用于生成默认队列名称
-        project_name = settings.get('PROJECT_NAME', 'default')
+        # 安全获取项目名称，用于生成默认队列名称
+        project_name = 'default'
+        if settings is not None:
+            if hasattr(settings, 'get') and callable(getattr(settings, 'get', None)):
+                try:
+                    project_name = settings.get('PROJECT_NAME', 'default')
+                except Exception:
+                    project_name = 'default'
+            elif isinstance(settings, dict):
+                project_name = settings.get('PROJECT_NAME', 'default')
+            else:
+                try:
+                    project_name = getattr(settings, 'PROJECT_NAME', 'default')
+                except AttributeError:
+                    project_name = 'default'
+        else:
+            project_name = 'default'
+            
         default_queue_name = f"crawlo:{project_name}:queue:requests"
         
-        # 如果设置了SCHEDULER_QUEUE_NAME，则使用该值，否则使用基于项目名称的默认值
-        scheduler_queue_name = settings.get('SCHEDULER_QUEUE_NAME')
-        if scheduler_queue_name is not None:
-            queue_name = scheduler_queue_name
+        # 安全获取队列名称
+        queue_name = default_queue_name
+        if settings is not None:
+            if hasattr(settings, 'get') and callable(getattr(settings, 'get', None)):
+                try:
+                    scheduler_queue_name = settings.get('SCHEDULER_QUEUE_NAME')
+                    if scheduler_queue_name is not None:
+                        queue_name = scheduler_queue_name
+                except Exception:
+                    queue_name = default_queue_name
+            elif isinstance(settings, dict):
+                scheduler_queue_name = settings.get('SCHEDULER_QUEUE_NAME')
+                if scheduler_queue_name is not None:
+                    queue_name = scheduler_queue_name
+            else:
+                try:
+                    scheduler_queue_name = getattr(settings, 'SCHEDULER_QUEUE_NAME', None)
+                    if scheduler_queue_name is not None:
+                        queue_name = scheduler_queue_name
+                except AttributeError:
+                    queue_name = default_queue_name
         else:
             queue_name = default_queue_name
         
+        # 安全获取其他配置参数
+        queue_type = QueueType.AUTO
+        redis_url = None
+        redis_host = '127.0.0.1'
+        redis_port = 6379
+        redis_password = None
+        redis_db = 0
+        max_queue_size = 1000
+        max_retries = 3
+        timeout = 300
+        run_mode = None
+        
+        if settings is not None:
+            # 获取队列类型
+            if hasattr(settings, 'get') and callable(getattr(settings, 'get', None)):
+                try:
+                    queue_type = settings.get('QUEUE_TYPE', QueueType.AUTO)
+                except Exception:
+                    queue_type = QueueType.AUTO
+            elif isinstance(settings, dict):
+                queue_type = settings.get('QUEUE_TYPE', QueueType.AUTO)
+            else:
+                try:
+                    queue_type = getattr(settings, 'QUEUE_TYPE', QueueType.AUTO)
+                except AttributeError:
+                    queue_type = QueueType.AUTO
+                    
+            # 获取Redis相关配置
+            if hasattr(settings, 'get') and callable(getattr(settings, 'get', None)):
+                try:
+                    redis_url = settings.get('REDIS_URL')
+                    redis_host = settings.get('REDIS_HOST', '127.0.0.1')
+                    redis_password = settings.get('REDIS_PASSWORD')
+                    run_mode = settings.get('RUN_MODE')
+                except Exception:
+                    pass
+            elif isinstance(settings, dict):
+                redis_url = settings.get('REDIS_URL')
+                redis_host = settings.get('REDIS_HOST', '127.0.0.1')
+                redis_password = settings.get('REDIS_PASSWORD')
+                run_mode = settings.get('RUN_MODE')
+            else:
+                try:
+                    redis_url = getattr(settings, 'REDIS_URL', None)
+                    redis_host = getattr(settings, 'REDIS_HOST', '127.0.0.1')
+                    redis_password = getattr(settings, 'REDIS_PASSWORD', None)
+                    run_mode = getattr(settings, 'RUN_MODE', None)
+                except AttributeError:
+                    pass
+                    
+            # 获取整数配置
+            if hasattr(settings, 'get_int') and callable(getattr(settings, 'get_int', None)):
+                try:
+                    redis_port = settings.get_int('REDIS_PORT', 6379)
+                    redis_db = settings.get_int('REDIS_DB', 0)
+                    max_queue_size = settings.get_int('SCHEDULER_MAX_QUEUE_SIZE', 1000)
+                    max_retries = settings.get_int('QUEUE_MAX_RETRIES', 3)
+                    timeout = settings.get_int('QUEUE_TIMEOUT', 300)
+                except Exception:
+                    pass
+            elif isinstance(settings, dict):
+                try:
+                    redis_port_val = settings.get('REDIS_PORT', 6379)
+                    redis_port = int(redis_port_val) if redis_port_val is not None else 6379
+                    
+                    redis_db_val = settings.get('REDIS_DB', 0)
+                    redis_db = int(redis_db_val) if redis_db_val is not None else 0
+                    
+                    max_queue_size_val = settings.get('SCHEDULER_MAX_QUEUE_SIZE', 1000)
+                    max_queue_size = int(max_queue_size_val) if max_queue_size_val is not None else 1000
+                    
+                    max_retries_val = settings.get('QUEUE_MAX_RETRIES', 3)
+                    max_retries = int(max_retries_val) if max_retries_val is not None else 3
+                    
+                    timeout_val = settings.get('QUEUE_TIMEOUT', 300)
+                    timeout = int(timeout_val) if timeout_val is not None else 300
+                except (TypeError, ValueError):
+                    pass
+            else:
+                try:
+                    redis_port = int(getattr(settings, 'REDIS_PORT', 6379))
+                    redis_db = int(getattr(settings, 'REDIS_DB', 0))
+                    max_queue_size = int(getattr(settings, 'SCHEDULER_MAX_QUEUE_SIZE', 1000))
+                    max_retries = int(getattr(settings, 'QUEUE_MAX_RETRIES', 3))
+                    timeout = int(getattr(settings, 'QUEUE_TIMEOUT', 300))
+                except (AttributeError, TypeError, ValueError):
+                    pass
+        
         return cls(
-            queue_type=settings.get('QUEUE_TYPE', QueueType.AUTO),
-            redis_url=settings.get('REDIS_URL'),
-            redis_host=settings.get('REDIS_HOST', '127.0.0.1'),
-            redis_port=settings.get_int('REDIS_PORT', 6379),
-            redis_password=settings.get('REDIS_PASSWORD'),
-            redis_db=settings.get_int('REDIS_DB', 0),
+            queue_type=queue_type,
+            redis_url=redis_url,
+            redis_host=redis_host,
+            redis_port=redis_port,
+            redis_password=redis_password,
+            redis_db=redis_db,
             queue_name=queue_name,
-            max_queue_size=settings.get_int('SCHEDULER_MAX_QUEUE_SIZE', 1000),
-            max_retries=settings.get_int('QUEUE_MAX_RETRIES', 3),
-            timeout=settings.get_int('QUEUE_TIMEOUT', 300),
-            run_mode=settings.get('RUN_MODE')  # 传递运行模式
+            max_queue_size=max_queue_size,
+            max_retries=max_retries,
+            timeout=timeout,
+            run_mode=run_mode
         )
 
 

@@ -2,7 +2,8 @@ import asyncio
 import pickle
 import time
 import traceback
-from typing import Optional, TYPE_CHECKING, List, Union, Any
+from typing import Optional, TYPE_CHECKING, List, Union, Any, Dict, Tuple, cast
+from typing import Awaitable
 
 import redis.asyncio as aioredis
 
@@ -50,25 +51,28 @@ class RedisPriorityQueue:
     def __init__(
             self,
             redis_url: Optional[str] = None,
-            queue_name: Optional[str] = None,  # 修改默认值为 None
-            processing_queue: Optional[str] = None,  # 修改默认值为 None
-            failed_queue: Optional[str] = None,  # 修改默认值为 None
+            queue_name: Optional[str] = None,
+            processing_queue: Optional[str] = None,
+            failed_queue: Optional[str] = None,
             max_retries: int = 3,
-            timeout: int = 300,  # 任务处理超时时间（秒）
-            max_connections: int = 10,  # 连接池大小
-            module_name: str = "default",  # 添加 module_name 参数
-            is_cluster: bool = False,  # 是否为集群模式
-            cluster_nodes: Optional[List[str]] = None  # 集群节点列表
-    ):
+            timeout: int = 300,
+            max_connections: int = 10,
+            module_name: str = "default",
+            is_cluster: bool = False,
+            cluster_nodes: Optional[List[str]] = None
+    ) -> None:
+        """
+        初始化 Redis 优先级队列
+        """
         # 移除直接使用 os.getenv()，要求通过参数传递 redis_url
         if redis_url is None:
             # 如果没有提供 redis_url，则抛出异常，要求在 settings 中配置
             raise ValueError("redis_url must be provided. Configure it in settings instead of using os.getenv()")
 
-        self.redis_url = redis_url
-        self.module_name = module_name  # 保存 module_name
-        self.is_cluster = is_cluster
-        self.cluster_nodes = cluster_nodes
+        self.redis_url: str = redis_url
+        self.module_name: str = module_name
+        self.is_cluster: bool = is_cluster
+        self.cluster_nodes: Optional[List[str]] = cluster_nodes
 
         # 如果未提供 queue_name，则根据 module_name 自动生成
         if queue_name is None:
@@ -95,20 +99,28 @@ class RedisPriorityQueue:
         else:
             self.failed_queue = failed_queue
 
-        self.max_retries = max_retries
-        self.timeout = timeout
-        self.max_connections = max_connections
+        self.max_retries: int = max_retries
+        self.timeout: int = timeout
+        self.max_connections: int = max_connections
         self._redis_pool: Optional[RedisConnectionPool] = None
         self._redis: Optional[Any] = None
-        self._lock = asyncio.Lock()  # 用于连接初始化的锁
-        self.request_serializer = RequestSerializer()  # 处理序列化
+        self._lock: asyncio.Lock = asyncio.Lock()
+        self.request_serializer: RequestSerializer = RequestSerializer()
+        
+        # 集成被动式泄漏检测
+        from crawlo.utils.passive_leak_detector import get_passive_leak_detector
+        self._leak_detector = get_passive_leak_detector(f"redis_queue_{module_name}")
+        self._leak_detector.track_object(self, "RedisPriorityQueue")
 
     def _normalize_queue_name(self, queue_name: str) -> str:
         """
         规范化队列名称，处理多重 crawlo 前缀
         
-        :param queue_name: 原始队列名称
-        :return: 规范化后的队列名称
+        Args:
+            queue_name: 原始队列名称
+            
+        Returns:
+            str: 规范化后的队列名称
         """
         # 如果队列名称已经符合规范（以 crawlo: 开头且不是 crawlo:crawlo:），则保持不变
         if queue_name.startswith("crawlo:") and not queue_name.startswith("crawlo:crawlo:"):
@@ -144,8 +156,17 @@ class RedisPriorityQueue:
         else:
             return queue_name
 
-    async def connect(self, max_retries=3, delay=1):
-        """异步连接 Redis，支持重试"""
+    async def connect(self, max_retries: int = 3, delay: int = 1) -> Optional[Any]:
+        """
+        异步连接 Redis，支持重试
+        
+        Args:
+            max_retries: 最大重试次数
+            delay: 重试延迟时间（秒）
+            
+        Returns:
+            Optional[Any]: Redis 客户端实例
+        """
         async with self._lock:
             if self._redis is not None:
                 # 如果已经连接，测试连接是否仍然有效
@@ -187,7 +208,7 @@ class RedisPriorityQueue:
                     else:
                         raise ConnectionError(f"无法连接 Redis (Module: {self.module_name}): {e}")
 
-    async def _ensure_connection(self):
+    async def _ensure_connection(self) -> None:
         """确保连接有效"""
         if self._redis is None:
             await self.connect()
@@ -200,15 +221,29 @@ class RedisPriorityQueue:
             await self.connect()
 
     def _is_cluster_mode(self) -> bool:
-        """检查是否为集群模式"""
+        """
+        检查是否为集群模式
+        
+        Returns:
+            bool: 是否为集群模式
+        """
         if REDIS_CLUSTER_AVAILABLE and RedisCluster is not None:
             # 检查 _redis 是否为 RedisCluster 实例
             if self._redis is not None and isinstance(self._redis, RedisCluster):
                 return True
         return False
 
-    async def put(self, request, priority: int = 0) -> bool:
-        """放入请求到队列"""
+    async def put(self, request: 'Request', priority: int = 0) -> bool:
+        """
+        放入请求到队列
+        
+        Args:
+            request: 请求对象
+            priority: 优先级
+            
+        Returns:
+            bool: 是否成功放入队列
+        """
         try:
             await self._ensure_connection()
             if not self._redis:
@@ -264,10 +299,15 @@ class RedisPriorityQueue:
             )
             return False
 
-    async def get(self, timeout: float = 5.0):
+    async def get(self, timeout: float = 5.0) -> Optional['Request']:
         """
         获取请求（带超时）
-        :param timeout: 最大等待时间（秒），避免无限轮询
+        
+        Args:
+            timeout: 最大等待时间（秒），避免无限轮询
+            
+        Returns:
+            Optional[Request]: 请求对象或 None
         """
         try:
             await self._ensure_connection()
@@ -360,8 +400,13 @@ class RedisPriorityQueue:
             )
             return None
 
-    async def ack(self, request: "Request"):
-        """确认任务完成"""
+    async def ack(self, request: 'Request') -> None:
+        """
+        确认任务完成
+        
+        Args:
+            request: 请求对象
+        """
         try:
             await self._ensure_connection()
             if not self._redis:
@@ -407,8 +452,14 @@ class RedisPriorityQueue:
                 raise_error=False
             )
 
-    async def fail(self, request: "Request", reason: str = ""):
-        """标记任务失败"""
+    async def fail(self, request: 'Request', reason: str = "") -> None:
+        """
+        标记任务失败
+        
+        Args:
+            request: 请求对象
+            reason: 失败原因
+        """
         try:
             await self._ensure_connection()
             if not self._redis:
@@ -452,12 +503,25 @@ class RedisPriorityQueue:
                 raise_error=False
             )
 
-    def _get_request_key(self, request) -> str:
-        """生成请求唯一键"""
+    def _get_request_key(self, request: 'Request') -> str:
+        """
+        生成请求唯一键
+        
+        Args:
+            request: 请求对象
+            
+        Returns:
+            str: 请求唯一键
+        """
         return f"{self.module_name}:url:{hash(request.url) & 0x7FFFFFFF}"  # 确保正数
 
     async def qsize(self) -> int:
-        """Get queue size"""
+        """
+        Get queue size
+        
+        Returns:
+            int: 队列大小
+        """
         try:
             await self._ensure_connection()
             if not self._redis:
@@ -480,7 +544,7 @@ class RedisPriorityQueue:
             )
             return 0
 
-    async def close(self):
+    async def close(self) -> None:
         """关闭连接"""
         try:
             # 显式关闭Redis连接
