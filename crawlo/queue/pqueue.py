@@ -37,3 +37,7 @@ class SpiderPriorityQueue(PriorityQueue):
     def qsize(self) -> int:
         """获取队列大小"""
         return super().qsize()
+        
+    async def close(self) -> None:
+        """关闭队列（空实现，用于与Redis队列接口保持一致）"""
+        pass

@@ -93,7 +93,7 @@ REDIS_DB = redis_config['REDIS_DB']
 # - 失败队列: crawlo:{PROJECT_NAME}:queue:failed
 
 REDIS_TTL = 0  # 指纹过期时间（0 表示永不过期）
-CLEANUP_FP = 0  # 程序结束时是否清理指纹（0=不清理）
+CLEANUP_REDIS_DATA = 0  # 程序结束时是否清理Redis数据（0=不清理，保留数据支持断点续爬；1=清理所有Redis数据）
 FILTER_DEBUG = True  # 是否开启去重调试日志
 DECODE_RESPONSES = True  # Redis 返回是否解码为字符串
 

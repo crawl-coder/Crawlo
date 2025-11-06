@@ -193,8 +193,8 @@ class RedisConnectionPool:
             if should_use_cluster and REDIS_CLUSTER_AVAILABLE:
                 self.logger.debug(f"Redis集群连接池初始化成功: {self.redis_url}")
             else:
-                self.logger.debug(f"Redis连接池初始化成功: {self.redis_url}")
-                self.logger.debug(f"   连接池配置: {self.config}")
+                self.logger.info(f"Redis connection pool initialized successfully: {self.redis_url}")
+                self.logger.debug(f"Connection pool configuration: {self.config}")
                 
         except Exception as e:
             from crawlo.utils.error_handler import ErrorContext

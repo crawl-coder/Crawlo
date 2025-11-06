@@ -61,7 +61,7 @@ Crawlo 框架采用模块化设计，核心组件包括：
 
 ## 安装
 
-```bash
+```
 # 基础安装
 pip install crawlo
 ```
@@ -91,7 +91,7 @@ Crawlo 提供三种配置模式，满足不同场景需求：
 
 **智能检测，自动适配，推荐用于生产环境。**
 
-```python
+``python
 from crawlo.config import CrawloConfig
 
 config = CrawloConfig.auto(
@@ -124,7 +124,7 @@ locals().update(config.to_dict())
 
 **单机模式，适合开发测试和中小规模爬取。**
 
-```python
+``python
 config = CrawloConfig.standalone(
     project_name='myproject',
     concurrency=8
@@ -159,7 +159,7 @@ locals().update(config.to_dict())
 
 **分布式模式，严格要求 Redis 可用，适合多节点协同工作。**
 
-```python
+``python
 config = CrawloConfig.distributed(
     project_name='myproject',
     redis_host='redis.example.com',
@@ -187,7 +187,7 @@ locals().update(config.to_dict())
 
 **Redis 不可用时的错误信息**：
 
-```bash
+```
 $ crawlo run my_spider
 
 2025-10-25 22:00:00 - [queue_manager] - ERROR: 
@@ -226,6 +226,85 @@ RuntimeError: Distributed 模式要求 Redis 可用，但无法连接到 Redis �
 | 大规模爬取 | **Auto** 或 **Distributed** | 性能和可靠性 |
 
 > 📖 **完整文档**：更多详细信息请参考 [配置模式完全指南](docs/tutorials/configuration_modes.md)
+
+## Redis 数据结构说明
+
+在使用 Distributed 模式或 Auto 模式且 Redis 可用时，Crawlo 框架会在 Redis 中创建以下数据结构用于管理和跟踪爬虫状态：
+
+### 核心 Redis Keys
+
+1. **`{project_name}:filter:fingerprint`** - 请求去重过滤器
+   - 类型：Redis Set
+   - 用途：存储已处理请求的指纹，避免重复抓取相同URL
+   - 示例：`crawlo:ofweek_standalone:filter:fingerprint`
+
+2. **`{project_name}:item:fingerprint`** - 数据项去重集合
+   - 类型：Redis Set
+   - 用途：存储已处理数据项的指纹，避免重复处理相同的数据
+   - 示例：`crawlo:ofweek_standalone:item:fingerprint`
+
+3. **`{project_name}:queue:requests`** - 主请求队列
+   - 类型：Redis Sorted Set
+   - 用途：存储待处理的爬虫请求，按优先级排序
+   - 示例：`crawlo:ofweek_standalone:queue:requests`
+
+4. **`{project_name}:queue:requests:data`** - 主请求队列数据
+   - 类型：Redis Hash
+   - 用途：保存请求队列中每个请求的详细序列化数据
+   - 示例：`crawlo:ofweek_standalone:queue:requests:data`
+
+5. **`{project_name}:queue:processing`** - 正在处理队列
+   - 类型：Redis Sorted Set
+   - 用途：存储当前正在处理的请求，用于故障恢复
+   - 示例：`crawlo:ofweek_standalone:queue:processing`
+
+6. **`{project_name}:queue:processing:data`** - 正在处理队列数据
+   - 类型：Redis Hash
+   - 用途：保存正在处理队列中每个请求的详细序列化数据
+   - 示例：`crawlo:ofweek_standalone:queue:processing:data`
+
+### 数据核验方法
+
+在爬虫采集完成后，您可以使用这些 Redis key 来核验数据和监控爬虫状态：
+
+```bash
+# 连接到 Redis
+redis-cli
+
+# 查看请求去重数量（已处理的唯一URL数）
+SCARD crawlo:ofweek_standalone:filter:fingerprint
+
+# 查看数据项去重数量（已处理的唯一数据项数）
+SCARD crawlo:ofweek_standalone:item:fingerprint
+
+# 查看待处理队列长度
+ZCARD crawlo:ofweek_standalone:queue:requests
+
+# 查看正在处理队列长度
+ZCARD crawlo:ofweek_standalone:queue:processing
+
+# 获取部分指纹数据进行检查
+SMEMBERS crawlo:ofweek_standalone:filter:fingerprint LIMIT 10
+
+# 获取队列中的请求信息
+ZRANGE crawlo:ofweek_standalone:queue:requests 0 -1 WITHSCORES LIMIT 10
+```
+
+### 注意事项
+
+1. **数据清理**：爬虫任务完成后，建议清理这些 Redis keys 以释放内存：
+   ```bash
+   DEL crawlo:ofweek_standalone:filter:fingerprint
+   DEL crawlo:ofweek_standalone:item:fingerprint
+   DEL crawlo:ofweek_standalone:queue:requests
+   DEL crawlo:ofweek_standalone:queue:requests:data
+   DEL crawlo:ofweek_standalone:queue:processing
+   DEL crawlo:ofweek_standalone:queue:processing:data
+   ```
+
+2. **命名空间隔离**：不同项目使用不同的 `{project_name}` 前缀，确保数据隔离
+
+3. **持久化考虑**：如果需要持久化这些数据，确保 Redis 配置了合适的持久化策略
 
 ## 配置优先级
 
@@ -311,7 +390,7 @@ class MySpider(Spider):
 
 ### 运行时动态配置
 
-```python
+```
 from crawlo import CrawlerProcess
 
 process = CrawlerProcess()
@@ -359,7 +438,7 @@ PIPELINES.append('myproject.pipelines.MySQLPipeline')
 
 ### 1. 创建项目
 
-```bash
+```
 # 创建新项目
 crawlo startproject myproject
 cd myproject
@@ -370,7 +449,7 @@ crawlo genspider example example.com
 
 ### 2. 配置项目（推荐使用 Auto 模式）
 
-```python
+```
 # myproject/settings.py
 from crawlo.config import CrawloConfig
 
@@ -422,7 +501,7 @@ config = CrawloConfig.distributed(
 
 ### 3. 编写爬虫
 
-```python
+```
 # myproject/spiders/example.py
 from crawlo import Spider
 from crawlo.http import Request
@@ -451,7 +530,7 @@ class ExampleSpider(Spider):
 
 ### 4. 运行爬虫
 
-```bash
+```
 # 运行指定爬虫
 crawlo run example
 
@@ -467,7 +546,7 @@ Crawlo 的 [`Response`](crawlo/http/response.py) 对象提供了强大的网页�
 
 **1. 智能编码检测**
 
-```python
+```
 # 自动检测并正确解码页面内容
 # 优先级：Content-Type → HTML meta → chardet → utf-8
 response.text      # 已正确解码的文本
@@ -476,7 +555,7 @@ response.encoding  # 检测到的编码
 
 **2. CSS/XPath 选择器**
 
-```python
+```
 # CSS 选择器（推荐）
 title = response.css('h1::text').get()
 links = response.css('a::attr(href)').getall()
@@ -491,7 +570,7 @@ title = response.css('h1::text').get(default='无标题')
 
 **3. URL 处理**
 
-```python
+```
 response.url          # 自动规范化（移除 fragment）
 response.original_url # 保留原始 URL
 
@@ -503,7 +582,7 @@ response.urljoin('//cdn.com/img')   # 协议相对路径
 
 **4. 便捷提取方法**
 
-```python
+```
 # 提取单个/多个元素文本
 title = response.extract_text('h1')
 paragraphs = response.extract_texts('.content p')
@@ -517,7 +596,7 @@ all_links = response.extract_attrs('a', 'href')
 
 Crawlo 提供了便捷的配置工厂方法，无需手动配置繁琐的参数：
 
-```python
+```
 from crawlo.config import CrawloConfig
 
 # Auto 模式（推荐）：智能检测，自动适配
@@ -557,7 +636,7 @@ locals().update(config.to_dict())
 
 Crawlo 提供了完善的日志系统，支持控制台和文件双输出：
 
-```python
+```
 from crawlo.logging import get_logger
 
 logger = get_logger(__name__)
@@ -570,7 +649,7 @@ logger.error('错误信息')
 
 **日志配置：**
 
-```python
+```
 # settings.py
 LOG_LEVEL = 'INFO'          # DEBUG, INFO, WARNING, ERROR, CRITICAL
 LOG_FILE = 'logs/spider.log'
@@ -580,7 +659,7 @@ STATS_DUMP = True           # 是否输出统计信息
 
 **高级功能：**
 
-```python
+```
 from crawlo.logging import configure_logging
 
 # 分别配置控制台和文件日志级别
@@ -598,7 +677,7 @@ configure_logging(
 
 Crawlo 支持自动发现爬虫，无需手动导入：
 
-```bash
+```
 # 自动发现并运行（推荐）
 crawlo run spider_name
 
@@ -689,7 +768,7 @@ Crawlo 在 Windows、macOS、Linux 上均可无缝运行：
 - [English Documentation](https://crawlo.readthedocs.io/en/latest/)
 
 **本地构建文档**：
-```bash
+```
 mkdocs serve
 # 浏览器访问 http://localhost:8000
 ```
@@ -718,7 +797,7 @@ Auto 模式在运行时智能检测：
 
 ### 4. 如何启用 MySQL 或 MongoDB 支持？
 
-```python
+```
 # settings.py
 PIPELINES = [
     'crawlo.pipelines.mysql_pipeline.AsyncmyMySQLPipeline',  # MySQL
@@ -741,7 +820,7 @@ MONGO_COLLECTION = 'items'
 
 ### 5. 如何使用代理？
 
-```python
+```
 # settings.py
 
 # 简单代理列表

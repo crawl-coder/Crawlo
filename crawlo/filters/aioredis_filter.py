@@ -151,7 +151,7 @@ class AioRedisFilter(BaseFilter):
             redis_key=redis_key,
             client=redis_client,
             stats=crawler.stats,
-            cleanup_fp=safe_get_config(settings, 'CLEANUP_FP', False, bool),
+            cleanup_fp=safe_get_config(settings, 'CLEANUP_REDIS_DATA', False, bool),
             ttl=ttl,
             debug=safe_get_config(settings, 'FILTER_DEBUG', False, bool),
             log_level=safe_get_config(settings, 'LOG_LEVEL_NUM', 20, int)  # 默认INFO级别

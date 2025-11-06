@@ -19,10 +19,8 @@ Crawlo 配置工厂
     config = CrawloConfig.from_env()
 """
 
-from typing import Dict, Any, Optional, Union, List, TYPE_CHECKING
+from typing import Dict, Any, Optional
 
-if TYPE_CHECKING:
-    from crawlo.crawler import Crawler
 
 from crawlo.config_validator import validate_config
 from crawlo.mode_manager import standalone_mode, distributed_mode, auto_mode, from_env

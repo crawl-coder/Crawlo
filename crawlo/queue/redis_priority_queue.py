@@ -19,21 +19,16 @@ except ImportError:
 if TYPE_CHECKING:
     from crawlo import Request
 
-from crawlo.utils.error_handler import ErrorHandler, ErrorContext
 from crawlo.logging import get_logger
-from crawlo.utils.redis_connection_pool import get_redis_pool, RedisConnectionPool
 from crawlo.utils.request_serializer import RequestSerializer
+from crawlo.utils.error_handler import ErrorHandler, ErrorContext
+from crawlo.utils.redis_connection_pool import get_redis_pool, RedisConnectionPool
+
+# 创建logger实例
+logger = get_logger(__name__)
 
 # 延迟初始化避免循环依赖
-_logger = None
 _error_handler = None
-
-
-def get_module_logger():
-    global _logger
-    if _logger is None:
-        _logger = get_logger(__name__)
-    return _logger
 
 
 def get_module_error_handler():
@@ -59,7 +54,8 @@ class RedisPriorityQueue:
             max_connections: int = 10,
             module_name: str = "default",
             is_cluster: bool = False,
-            cluster_nodes: Optional[List[str]] = None
+            cluster_nodes: Optional[List[str]] = None,
+            cleanup_redis_data: bool = False
     ) -> None:
         """
         初始化 Redis 优先级队列
@@ -106,11 +102,7 @@ class RedisPriorityQueue:
         self._redis: Optional[Any] = None
         self._lock: asyncio.Lock = asyncio.Lock()
         self.request_serializer: RequestSerializer = RequestSerializer()
-        
-        # 集成被动式泄漏检测
-        from crawlo.utils.passive_leak_detector import get_passive_leak_detector
-        self._leak_detector = get_passive_leak_detector(f"redis_queue_{module_name}")
-        self._leak_detector.track_object(self, "RedisPriorityQueue")
+        self._cleanup_redis_data: bool = cleanup_redis_data
 
     def _normalize_queue_name(self, queue_name: str) -> str:
         """
@@ -201,8 +193,8 @@ class RedisPriorityQueue:
                     return self._redis
                 except Exception as e:
                     error_msg = f"Redis 连接失败 (尝试 {attempt + 1}/{max_retries}, Module: {self.module_name}): {e}"
-                    get_module_logger().warning(error_msg)
-                    get_module_logger().debug(f"详细错误信息:\n{traceback.format_exc()}")
+                    logger.warning(error_msg)
+                    logger.debug(f"详细错误信息:\n{traceback.format_exc()}")
                     if attempt < max_retries - 1:
                         await asyncio.sleep(delay)
                     else:
@@ -216,7 +208,7 @@ class RedisPriorityQueue:
             if self._redis:
                 await self._redis.ping()
         except Exception as e:
-            get_module_logger().warning(f"Redis 连接失效 (Module: {self.module_name})，尝试重连...: {e}")
+            logger.warning(f"Redis 连接失效 (Module: {self.module_name})，尝试重连...: {e}")
             self._redis = None
             await self.connect()
 
@@ -264,7 +256,7 @@ class RedisPriorityQueue:
                 # 验证序列化数据可以被反序列化
                 pickle.loads(serialized)
             except Exception as serialize_error:
-                get_module_logger().error(f"请求序列化验证失败 (Module: {self.module_name}): {serialize_error}")
+                logger.error(f"请求序列化验证失败 (Module: {self.module_name}): {serialize_error}")
                 return False
 
             # 处理集群模式下的操作
@@ -286,13 +278,13 @@ class RedisPriorityQueue:
                 result = await pipe.execute()
 
             if result[0] > 0:
-                get_module_logger().debug(f"成功入队 (Module: {self.module_name}): {request.url}")
+                logger.debug(f"成功入队 (Module: {self.module_name}): {request.url}")
             return result[0] > 0
         except Exception as e:
             error_context = ErrorContext(
                 context=f"放入队列失败 (Module: {self.module_name})"
             )
-            get_module_error_handler().handle_error(
+            ErrorHandler(__name__).handle_error(
                 e,
                 context=error_context,
                 raise_error=False
@@ -338,7 +330,12 @@ class RedisPriorityQueue:
                         continue
 
                     # 移动到 processing
-                    processing_key = f"{key}:{int(time.time())}"
+                    # 修复key格式化问题：确保key是字符串而不是bytes
+                    if isinstance(key, bytes):
+                        key_str = key.decode('utf-8')
+                    else:
+                        key_str = str(key)
+                    processing_key = f"{key_str}:{int(time.time())}"
                     processing_queue = self.processing_queue
                     processing_data_key = f"{self.processing_queue}:data"
                     
@@ -371,7 +368,7 @@ class RedisPriorityQueue:
                         return request
                     except Exception as pickle_error:
                         # 如果pickle反序列化失败，记录错误并跳过这个任务
-                        get_module_logger().error(f"无法反序列化请求数据 (Module: {self.module_name}): {pickle_error}")
+                        logger.error(f"无法反序列化请求数据 (Module: {self.module_name}): {pickle_error}")
                         # 从processing队列中移除这个无效的任务
                         if self._is_cluster_mode():
                             await self._redis.zrem(processing_queue, processing_key)
@@ -393,7 +390,7 @@ class RedisPriorityQueue:
             error_context = ErrorContext(
                 context=f"获取队列任务失败 (Module: {self.module_name})"
             )
-            get_module_error_handler().handle_error(
+            ErrorHandler(__name__).handle_error(
                 e,
                 context=error_context,
                 raise_error=False
@@ -431,14 +428,18 @@ class RedisPriorityQueue:
                     if self._is_cluster_mode():
                         pipe = self._redis.pipeline()
                         for k in keys:
-                            pipe.zrem(processing_queue, k)
-                            pipe.hdel(processing_data_key, k)
+                            # zscan返回的是(key, score)元组列表，需要提取key部分
+                            key_to_remove = k[0] if isinstance(k, (list, tuple)) and len(k) > 0 else k
+                            pipe.zrem(processing_queue, key_to_remove)
+                            pipe.hdel(processing_data_key, key_to_remove)
                         await pipe.execute()
                     else:
                         pipe = self._redis.pipeline()
                         for k in keys:
-                            pipe.zrem(processing_queue, k)
-                            pipe.hdel(processing_data_key, k)
+                            # zscan返回的是(key, score)元组列表，需要提取key部分
+                            key_to_remove = k[0] if isinstance(k, (list, tuple)) and len(k) > 0 else k
+                            pipe.zrem(processing_queue, key_to_remove)
+                            pipe.hdel(processing_data_key, key_to_remove)
                         await pipe.execute()
                 if cursor == 0:
                     break
@@ -446,7 +447,7 @@ class RedisPriorityQueue:
             error_context = ErrorContext(
                 context=f"确认任务完成失败 (Module: {self.module_name})"
             )
-            get_module_error_handler().handle_error(
+            ErrorHandler(__name__).handle_error(
                 e,
                 context=error_context,
                 raise_error=False
@@ -481,7 +482,7 @@ class RedisPriorityQueue:
 
             if retries <= self.max_retries:
                 await self.put(request, priority=request.priority + 1)
-                get_module_logger().info(
+                logger.info(
                     f"任务重试 [{retries}/{self.max_retries}] (Module: {self.module_name}): {request.url}")
             else:
                 failed_data = {
@@ -492,12 +493,12 @@ class RedisPriorityQueue:
                     "request_pickle": pickle.dumps(request).hex(),  # 可选：保存完整请求
                 }
                 await self._redis.lpush(failed_queue, pickle.dumps(failed_data))
-                get_module_logger().error(f"任务彻底失败 [{retries}次] (Module: {self.module_name}): {request.url}")
+                logger.error(f"任务彻底失败 [{retries}次] (Module: {self.module_name}): {request.url}")
         except Exception as e:
             error_context = ErrorContext(
                 context=f"标记任务失败失败 (Module: {self.module_name})"
             )
-            get_module_error_handler().handle_error(
+            ErrorHandler(__name__).handle_error(
                 e,
                 context=error_context,
                 raise_error=False
@@ -550,6 +551,50 @@ class RedisPriorityQueue:
             # 显式关闭Redis连接
             if self._redis is not None:
                 try:
+                    # 检查是否需要清理Redis数据
+                    cleanup_redis_data = getattr(self, '_cleanup_redis_data', False)
+                    if cleanup_redis_data:
+                        # 清理处理队列中的残留数据
+                        # 正常情况下处理队列应该为空，但如果程序异常退出可能会有残留数据
+                        await self._ensure_connection()
+                        if self._redis:
+                            # 删除处理队列及其数据（只在关闭时清理残留数据）
+                            processing_queue = self.processing_queue
+                            processing_data_key = f"{self.processing_queue}:data"
+                            
+                            if self._is_cluster_mode():
+                                hash_tag = "{queue}"
+                                processing_queue = f"{self.processing_queue}{hash_tag}"
+                                processing_data_key = f"{self.processing_queue}:data{hash_tag}"
+                            
+                            # 调试：打印处理队列中的数据
+                            try:
+                                # 获取处理队列中的所有key
+                                processing_keys = await self._redis.zrange(processing_queue, 0, -1)
+                                processing_data = {}
+                                if processing_keys:
+                                    processing_data = await self._redis.hgetall(processing_data_key)
+                                
+                                logger.debug(
+                                    f"清理前处理队列数据 - 队列key: {processing_queue}, "
+                                    f"数据key: {processing_data_key}, "
+                                    f"队列大小: {len(processing_keys)}, "
+                                    f"数据大小: {len(processing_data)}, "
+                                    f"队列内容: {processing_keys[:10]}{'...' if len(processing_keys) > 10 else ''}, "
+                                    f"数据keys: {list(processing_data.keys())[:10]}{'...' if len(processing_data) > 10 else ''} "
+                                    f"(Module: {self.module_name})"
+                                )
+                            except Exception as debug_error:
+                                logger.warning(
+                                    f"获取处理队列调试信息失败: {debug_error} (Module: {self.module_name})"
+                                )
+                            
+                            # 删除处理队列和相关数据
+                            await self._redis.delete(processing_queue, processing_data_key)
+                            logger.info(f"处理队列已清理 (Module: {self.module_name})")
+                    else:
+                        logger.debug(f"保留Redis数据以支持断点续爬 (Module: {self.module_name})")
+                    
                     # 尝试关闭连接
                     if hasattr(self._redis, 'close'):
                         close_result = self._redis.close()
@@ -562,7 +607,7 @@ class RedisPriorityQueue:
                         if asyncio.iscoroutine(wait_result):
                             await wait_result
                 except Exception as close_error:
-                    get_module_logger().warning(
+                    logger.warning(
                         f"Error closing Redis connection (Module: {self.module_name}): {close_error}"
                     )
                 finally:
@@ -571,12 +616,12 @@ class RedisPriorityQueue:
             # 释放连接池引用（连接池由全局管理器管理）
             self._redis_pool = None
             
-            get_module_logger().debug(f"Redis 连接已释放 (Module: {self.module_name})")
+            logger.debug(f"Redis 连接已释放 (Module: {self.module_name})")
         except Exception as e:
             error_context = ErrorContext(
                 context=f"释放 Redis 连接失败 (Module: {self.module_name})"
             )
-            get_module_error_handler().handle_error(
+            ErrorHandler(__name__).handle_error(
                 e,
                 context=error_context,
                 raise_error=False

@@ -358,7 +358,6 @@ class Engine(object):
                 if self.task_manager:
                     self.task_manager.record_response_time(response_time)
                 
-                # TODO 处理output
                 if outputs:
                     await self._handle_spider_output(outputs)
             except Exception as e:
