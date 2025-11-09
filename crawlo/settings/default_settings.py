@@ -70,22 +70,7 @@ MYSQL_INSERT_IGNORE = False  # 是否使用 INSERT IGNORE（忽略重复数据�
 MYSQL_UPDATE_COLUMNS = ()  # 冲突时需更新的列名；指定后 MYSQL_AUTO_UPDATE 失效
 
 # Redis配置
-redis_config = EnvConfigManager.get_redis_config()
-REDIS_HOST = redis_config['REDIS_HOST']
-REDIS_PORT = redis_config['REDIS_PORT']
-REDIS_PASSWORD = redis_config['REDIS_PASSWORD']
-REDIS_DB = redis_config['REDIS_DB']
-
-# Redis URL将由框架内部根据以上配置自动生成，无需在此处手动构建
-
-# Redis集群支持说明：
-# Crawlo框架支持Redis单实例和集群模式的智能切换
-# 集群模式配置方式：
-# 1. 使用逗号分隔的节点列表：'192.168.1.100:7000,192.168.1.101:7000,192.168.1.102:7000'
-# 2. 使用集群URL格式：'redis-cluster://192.168.1.100:7000,192.168.1.101:7000,192.168.1.102:7000'
-# 框架会自动检测URL格式并选择合适的模式
-
-# Redis key命名规范已封装到框架内部组件中，用户无需手动配置：
+# Redis键命名规范：
 # - 请求去重: crawlo:{PROJECT_NAME}:filter:fingerprint
 # - 数据项去重: crawlo:{PROJECT_NAME}:item:fingerprint
 # - 请求队列: crawlo:{PROJECT_NAME}:queue:requests
@@ -93,7 +78,6 @@ REDIS_DB = redis_config['REDIS_DB']
 # - 失败队列: crawlo:{PROJECT_NAME}:queue:failed
 
 REDIS_TTL = 0  # 指纹过期时间（0 表示永不过期）
-CLEANUP_REDIS_DATA = 0  # 程序结束时是否清理Redis数据（0=不清理，保留数据支持断点续爬；1=清理所有Redis数据）
 FILTER_DEBUG = True  # 是否开启去重调试日志
 DECODE_RESPONSES = True  # Redis 返回是否解码为字符串
 

@@ -18,6 +18,7 @@ Crawler系统
 
 import asyncio
 import time
+import signal
 from enum import Enum
 from dataclasses import dataclass
 from contextlib import asynccontextmanager
@@ -252,9 +253,20 @@ class Crawler:
     
     async def crawl(self) -> None:
         """执行爬取任务"""
-        async with self._lifecycle_manager():
-            await self._initialize_components()
-            await self._run_crawler()
+        self._logger.info("开始爬取任务")
+        try:
+            async with self._lifecycle_manager():
+                await self._initialize_components()
+                await self._run_crawler()
+        except asyncio.CancelledError:
+            self._logger.info("爬取任务被取消")
+            # 重新抛出CancelledError以便调用者可以正确处理
+            raise
+        except Exception as e:
+            self._logger.error(f"爬取任务执行失败: {e}")
+            raise
+        finally:
+            self._logger.info("爬取任务结束")
     
     @asynccontextmanager
     async def _lifecycle_manager(self):
@@ -263,6 +275,10 @@ class Crawler:
         
         try:
             yield
+        except asyncio.CancelledError:
+            self._logger.info("爬虫任务被取消，开始清理资源...")
+            await self._cleanup()
+            raise
         except Exception as e:
             await self._handle_error(e)
             raise
@@ -474,6 +490,10 @@ class CrawlerProcess:
         self._semaphore: asyncio.Semaphore = asyncio.Semaphore(max_concurrency)
         self._logger = get_logger('crawler.process')
         
+        # 信号处理相关
+        self._shutdown_event: asyncio.Event = asyncio.Event()
+        self._shutdown_requested: bool = False
+        
         # 如果没有显式提供spider_modules，则从settings中获取
         if spider_modules is None and self._settings:
             spider_modules = self._settings.get('SPIDER_MODULES', [])
@@ -488,6 +508,55 @@ class CrawlerProcess:
         # 指标
         self._start_time: Optional[float] = None
         self._end_time: Optional[float] = None
+        
+        # 注册信号处理器
+        self._setup_signal_handlers()
+    
+    def _setup_signal_handlers(self):
+        """设置信号处理器以优雅地处理关闭信号"""
+        def signal_handler(signum, frame):
+            self._logger.info(f"Received signal {signum}, initiating graceful shutdown...")
+            self._shutdown_requested = True
+            self._shutdown_event.set()
+            
+            # 在主线程中调度关闭操作
+            asyncio.create_task(self._graceful_shutdown())
+        
+        # 注册SIGINT (Ctrl+C) 和 SIGTERM 信号处理器
+        signal.signal(signal.SIGINT, signal_handler)
+        signal.signal(signal.SIGTERM, signal_handler)
+    
+    async def _graceful_shutdown(self):
+        """优雅地关闭所有爬虫"""
+        self._logger.info("开始优雅关闭所有爬虫...")
+        
+        # 取消所有正在运行的任务
+        for crawler in self._crawlers:
+            try:
+                # 检查crawler是否正在运行
+                if hasattr(crawler, '_state') and crawler.state == CrawlerState.RUNNING:
+                    self._logger.debug(f"取消爬虫任务: {crawler.spider.name if crawler.spider else 'Unknown'}")
+                    # 取消crawler中的任务
+                    if hasattr(crawler, '_engine') and crawler._engine:
+                        # 取消engine中的任务
+                        if hasattr(crawler._engine, 'task_manager') and crawler._engine.task_manager:
+                            for task in list(crawler._engine.task_manager.current_task):
+                                if not task.done():
+                                    task.cancel()
+                                    self._logger.debug(f"已取消任务: {task}")
+            except Exception as e:
+                self._logger.warning(f"取消爬虫任务时出错: {e}")
+        
+        # 通知所有爬虫开始关闭
+        for crawler in self._crawlers:
+            try:
+                if hasattr(crawler, '_state') and crawler.state not in [CrawlerState.CLOSING, CrawlerState.CLOSED]:
+                    self._logger.debug(f"关闭爬虫: {crawler.spider.name if crawler.spider else 'Unknown'}")
+                    await crawler._cleanup()
+            except Exception as e:
+                self._logger.warning(f"关闭爬虫时出错: {e}")
+        
+        self._logger.info("所有爬虫已关闭")
     
     def _register_spider_modules(self, spider_modules: List[str]) -> None:
         """

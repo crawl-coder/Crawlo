@@ -116,7 +116,13 @@ def safe_get_config(settings, key, default=None, value_type=None):
             elif value_type == float:
                 return float(value)
             elif value_type == bool:
-                return bool(value)
+                # 特殊处理bool类型，支持字符串"0"/"1"和数字0/1的转换
+                if isinstance(value, str):
+                    return value.lower() not in ('0', 'false', 'no', 'off', '')
+                elif isinstance(value, (int, float)):
+                    return bool(value)
+                else:
+                    return bool(value)
         
         return value
     except (TypeError, ValueError, AttributeError, Exception):

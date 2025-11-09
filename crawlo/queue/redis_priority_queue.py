@@ -55,7 +55,6 @@ class RedisPriorityQueue:
             spider_name: Optional[str] = None,
             is_cluster: bool = False,
             cluster_nodes: Optional[List[str]] = None,
-            cleanup_redis_data: bool = False
     ) -> None:
         """
         初始化 Redis 优先级队列
@@ -71,7 +70,6 @@ class RedisPriorityQueue:
             spider_name: 爬虫名称（可选）
             is_cluster: 是否为集群模式
             cluster_nodes: 集群节点列表
-            cleanup_redis_data: 是否清理Redis数据
         """
         # 移除直接使用 os.getenv()，要求通过参数传递 redis_url
         if redis_url is None:
@@ -101,7 +99,6 @@ class RedisPriorityQueue:
         self._redis: Optional[Any] = None
         self._lock: asyncio.Lock = asyncio.Lock()
         self.request_serializer: RequestSerializer = RequestSerializer()
-        self._cleanup_redis_data: bool = cleanup_redis_data
 
     async def connect(self, max_retries: int = 3, delay: int = 1) -> Optional[Any]:
         """
@@ -457,7 +454,7 @@ class RedisPriorityQueue:
             # 显式关闭Redis连接
             if self._redis is not None:
                 try:
-                    # 不再自动清理Redis数据，让用户手动清理
+                    # 不再自动清理Redis数据，保留数据以支持断点续爬
                     logger.debug(f"保留Redis数据以支持断点续爬 (Project: {self.key_manager.project_name}, Spider: {self.key_manager.spider_name})")
                     
                     # 尝试关闭连接

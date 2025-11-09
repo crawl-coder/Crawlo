@@ -124,13 +124,11 @@ class QueueConfig:
             max_retries: int = 3,
             timeout: int = 300,
             run_mode: Optional[str] = None,  # 新增：运行模式
-            cleanup_redis_data: bool = False,  # 新增：是否清理Redis数据
             settings=None,  # 新增：保存settings引用
             **kwargs
     ):
         self.queue_type = QueueType(queue_type) if isinstance(queue_type, str) else queue_type
         self.run_mode = run_mode  # 保存运行模式
-        self.cleanup_redis_data = cleanup_redis_data  # 保存清理参数
         self.settings = settings  # 保存settings引用
 
         # Redis 配置
@@ -166,7 +164,6 @@ class QueueConfig:
         redis_host = safe_get_config(settings, 'REDIS_HOST', '127.0.0.1')
         redis_password = safe_get_config(settings, 'REDIS_PASSWORD')
         run_mode = safe_get_config(settings, 'RUN_MODE')
-        cleanup_redis_data = safe_get_config(settings, 'CLEANUP_REDIS_DATA', False, bool)  # 获取清理参数
         
         # 获取整数配置
         redis_port = safe_get_config(settings, 'REDIS_PORT', 6379, int)
@@ -187,7 +184,6 @@ class QueueConfig:
             max_retries=max_retries,
             timeout=timeout,
             run_mode=run_mode,
-            cleanup_redis_data=cleanup_redis_data,  # 传递清理参数
             settings=settings  # 传递settings
         )
 
@@ -587,7 +583,6 @@ class QueueManager:
                 timeout=self.config.timeout,
                 project_name=project_name,  # 使用解析后的project_name参数
                 spider_name=spider_name,    # 使用解析后的spider_name参数
-                cleanup_redis_data=getattr(self.config, 'cleanup_redis_data', False)  # 传递清理参数
             )
             # 不需要立即连接，使用 lazy connect
             return queue

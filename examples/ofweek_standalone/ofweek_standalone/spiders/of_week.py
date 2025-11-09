@@ -19,7 +19,7 @@ class OfWeekSpider(Spider):
 
     def start_requests(self):
         """生成初始请求"""
-        max_pages = 1851
+        max_pages = 10
         start_urls = []
         for page in range(1, max_pages + 1):
             url = f'https://ee.ofweek.com/CATList-2800-8100-ee-{page}.html'

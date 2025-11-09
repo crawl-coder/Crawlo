@@ -16,6 +16,7 @@ except ImportError:
 from crawlo.filters import BaseFilter
 from crawlo.logging import get_logger
 from crawlo.utils.redis_manager import get_redis_pool, RedisConnectionPool, RedisKeyManager
+from crawlo.utils.misc import safe_get_config
 
 
 def generate_redis_url_from_settings(settings: Any) -> str:
@@ -58,7 +59,6 @@ class AioRedisFilter(BaseFilter):
             stats: Optional[Dict[str, Any]] = None,
             debug: bool = False,
             log_level: int = 20,  # logging.INFO
-            cleanup_fp: bool = False,
             ttl: Optional[int] = None
     ) -> None:
         """
@@ -70,7 +70,6 @@ class AioRedisFilter(BaseFilter):
             stats: 统计信息存储
             debug: 是否启用调试模式
             log_level: 日志级别
-            cleanup_fp: 关闭时是否清理指纹
             ttl: 指纹过期时间（秒）
         """
         self.logger = get_logger(self.__class__.__name__)
@@ -78,7 +77,6 @@ class AioRedisFilter(BaseFilter):
 
         self.redis_key: str = redis_key
         self.redis = client
-        self.cleanup_fp: bool = cleanup_fp
         self.ttl: Optional[int] = ttl
         
         # 保存连接池引用（用于延迟初始化）
@@ -102,65 +100,63 @@ class AioRedisFilter(BaseFilter):
         Returns:
             BaseFilter: 过滤器实例
         """
-        # 首先尝试直接获取REDIS_URL
-        settings = crawler.settings if crawler.settings is not None else {}
-        redis_url = settings.get('REDIS_URL') if hasattr(settings, 'get') else None
+        settings = crawler.settings
         
-        # 如果没有直接设置REDIS_URL，则根据其他参数生成
+        # 从配置中获取Redis URL和其他参数
+        redis_url = safe_get_config(settings, 'REDIS_URL')
         if not redis_url:
-            redis_url = generate_redis_url_from_settings(settings)
-        
-        # 确保 decode_responses=False 以避免编码问题
-        decode_responses = False  # settings.get_bool('DECODE_RESPONSES', False) if hasattr(settings, 'get_bool') else False
-        ttl_setting = settings.get('REDIS_TTL') if hasattr(settings, 'get') else None
-
-        # 处理TTL设置
-        ttl = None
-        if ttl_setting is not None:
-            ttl = max(0, int(ttl_setting)) if ttl_setting > 0 else None
-
-        try:
-            # 使用优化的连接池，确保 decode_responses=False
-            # 降低最大连接数以避免连接过多问题
-            redis_pool = get_redis_pool(
-                redis_url,
-                max_connections=10,  # 从20降低到10
-                socket_connect_timeout=5,
-                socket_timeout=30,
-                health_check_interval=30,
-                retry_on_timeout=True,
-                decode_responses=decode_responses,  # 确保不自动解码响应
-                encoding='utf-8'
-            )
+            # 如果没有配置REDIS_URL，尝试构建
+            redis_host = safe_get_config(settings, 'REDIS_HOST', '127.0.0.1')
+            redis_port = safe_get_config(settings, 'REDIS_PORT', 6379, int)
+            redis_password = safe_get_config(settings, 'REDIS_PASSWORD')
+            redis_db = safe_get_config(settings, 'REDIS_DB', 0, int)
             
-            # 注意：这里不应该使用 await，因为 create_instance 不是异步方法
-            # 我们将在实际使用时获取连接
-            redis_client = None  # 延迟初始化
-        except Exception as e:
-            raise RuntimeError(f"Redis连接池初始化失败: {redis_url} - {str(e)}")
-
-        # 使用统一的Redis key命名规范
-        key_manager = RedisKeyManager.from_settings(settings)
-        # 如果有spider，更新key_manager中的spider_name
-        if hasattr(crawler, 'spider') and crawler.spider:
-            spider_name = getattr(crawler.spider, 'name', None)
-            if spider_name:
-                key_manager.set_spider_name(spider_name)
+            if redis_password:
+                redis_url = f"redis://:{redis_password}@{redis_host}:{redis_port}/{redis_db}"
+            else:
+                redis_url = f"redis://{redis_host}:{redis_port}/{redis_db}"
+        
+        # 获取项目名称
+        project_name = safe_get_config(settings, 'PROJECT_NAME', 'default')
+        
+        # 获取爬虫名称（可选）
+        spider_name = safe_get_config(settings, 'SPIDER_NAME')
+        
+        # 创建 Redis Key 管理器
+        key_manager = RedisKeyManager(project_name, spider_name)
+        
+        # 生成过滤器键名
         redis_key = key_manager.get_filter_fingerprint_key()
-
-        from crawlo.utils.misc import safe_get_config
+        
+        # 获取其他配置参数
+        server = safe_get_config(settings, 'REDIS_SERVER', 'localhost:6379')
+        db = safe_get_config(settings, 'REDIS_DB', 0, int)
+        redis_cls = safe_get_config(settings, 'REDIS_CLASS', 'crawlo.utils.redis_manager.get_redis_pool')
+        ttl = safe_get_config(settings, 'REDIS_TTL', 0, int)
+        decode_responses = safe_get_config(settings, 'DECODE_RESPONSES', True, bool)
+        
+        # 获取调试配置
+        debug = safe_get_config(settings, 'FILTER_DEBUG', False, bool)
+        log_level = safe_get_config(settings, 'LOG_LEVEL_NUM', 20, int)  # 默认INFO级别
+        
+        # 创建过滤器实例
         instance = cls(
             redis_key=redis_key,
-            client=redis_client,
+            client=None,
             stats=crawler.stats,
-            cleanup_fp=safe_get_config(settings, 'CLEANUP_REDIS_DATA', False, bool),
             ttl=ttl,
-            debug=safe_get_config(settings, 'FILTER_DEBUG', False, bool),
-            log_level=safe_get_config(settings, 'LOG_LEVEL_NUM', 20, int)  # 默认INFO级别
+            debug=debug,
+            log_level=log_level
         )
         
-        # 保存连接池引用，以便在需要时获取连接
-        instance._redis_pool = redis_pool
+        # 获取Redis连接池
+        try:
+            redis_pool = get_redis_pool(redis_url)
+            # 保存连接池引用，以便在需要时获取连接
+            instance._redis_pool = redis_pool
+        except Exception as e:
+            instance.logger.error(f"无法创建Redis连接池: {e}")
+        
         return instance
 
     async def _get_redis_client(self):
@@ -466,6 +462,28 @@ class AioRedisFilter(BaseFilter):
             self.logger.error(f"检查指纹存在性失败: {fp[:20]}... - {e}")
             # 在网络异常时返回False，避免丢失请求
             return False
+
+    def close(self) -> None:
+        """
+        关闭过滤器，释放资源
+        """
+        try:
+            # 关闭Redis连接
+            if self.redis is not None:
+                try:
+                    if hasattr(self.redis, 'close'):
+                        self.redis.close()
+                except Exception as e:
+                    self.logger.warning(f"关闭Redis连接时出错: {e}")
+                finally:
+                    self.redis = None
+            
+            # 清理连接池引用
+            self._redis_pool = None
+            
+            self.logger.debug("Redis过滤器已关闭")
+        except Exception as e:
+            self.logger.error(f"关闭Redis过滤器时出错: {e}")
 
 
 # 为了兼容性，确保导出类

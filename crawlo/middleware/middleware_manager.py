@@ -3,6 +3,7 @@
 from pprint import pformat
 from types import MethodType
 from asyncio import create_task
+import asyncio
 from collections import defaultdict
 from typing import List, Dict, Callable, Optional, TYPE_CHECKING
 
@@ -43,14 +44,22 @@ class MiddlewareManager:
 
     async def _process_request(self, request: 'Request'):
         for method in self.methods['process_request']:
-            result = await common_call(method, request, self.crawler.spider)
-            if result is None:
-                continue
-            if isinstance(result, (Request, Response)):
-                return result
-            raise InvalidOutputError(
-                f"{method.__self__.__class__.__name__}. must return None or Request or Response, got {type(result).__name__}"
-            )
+            try:
+                result = await common_call(method, request, self.crawler.spider)
+                if result is None:
+                    continue
+                if isinstance(result, (Request, Response)):
+                    return result
+                raise InvalidOutputError(
+                    f"{method.__self__.__class__.__name__}. must return None or Request or Response, got {type(result).__name__}"
+                )
+            except asyncio.CancelledError:
+                # 正确处理取消异常
+                self.logger.info("请求处理被取消")
+                raise
+            except Exception as e:
+                self.logger.error(f"处理请求时发生错误: {e}")
+                raise
         return await self.download_method(request)
 
     async def _process_response(self, request: 'Request', response: 'Response'):
