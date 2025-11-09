@@ -8,7 +8,7 @@ import asyncio
 import time
 import traceback
 from enum import Enum
-from typing import Optional, Dict, Any, Union, TYPE_CHECKING
+from typing import Optional, Dict, Any, Union, TYPE_CHECKING, Tuple
 
 if TYPE_CHECKING:
     from crawlo import Request
@@ -125,11 +125,13 @@ class QueueConfig:
             timeout: int = 300,
             run_mode: Optional[str] = None,  # 新增：运行模式
             cleanup_redis_data: bool = False,  # 新增：是否清理Redis数据
+            settings=None,  # 新增：保存settings引用
             **kwargs
     ):
         self.queue_type = QueueType(queue_type) if isinstance(queue_type, str) else queue_type
         self.run_mode = run_mode  # 保存运行模式
         self.cleanup_redis_data = cleanup_redis_data  # 保存清理参数
+        self.settings = settings  # 保存settings引用
 
         # Redis 配置
         if redis_url:
@@ -185,7 +187,8 @@ class QueueConfig:
             max_retries=max_retries,
             timeout=timeout,
             run_mode=run_mode,
-            cleanup_redis_data=cleanup_redis_data  # 传递清理参数
+            cleanup_redis_data=cleanup_redis_data,  # 传递清理参数
+            settings=settings  # 传递settings
         )
 
 
@@ -286,16 +289,17 @@ class QueueManager:
                 await self._queue_semaphore.acquire()
 
             # 统一的入队操作
-            if hasattr(self._queue, 'put'):
-                if self._queue_type == QueueType.REDIS:
-                    success = await self._queue.put(request, final_priority)
-                else:
-                    # 对于内存队列，我们需要手动处理优先级
-                    # 在SpiderPriorityQueue中，元素应该是(priority, item)的元组
-                    await self._queue.put((final_priority, request))
-                    success = True
+            success = False
+            # 使用明确的类型检查来确定调用哪个方法
+            from crawlo.queue.redis_priority_queue import RedisPriorityQueue
+            if isinstance(self._queue, RedisPriorityQueue):
+                # Redis队列需要两个参数
+                success = await self._queue.put(request, final_priority)
             else:
-                raise RuntimeError(f"队列类型 {self._queue_type} 不支持 put 操作")
+                # 对于内存队列，我们需要手动处理优先级
+                # 在SpiderPriorityQueue中，元素应该是(priority, item)的元组
+                await self._queue.put((final_priority, request))
+                success = True
 
             if success:
                 self.logger.debug(f"Request enqueued successfully: {request.url} with priority {final_priority}")
@@ -308,31 +312,42 @@ class QueueManager:
                 self._queue_semaphore.release()
             return False
 
-    async def get(self, timeout: float = 5.0) -> Optional["Request"]:
+    async def get(self) -> Optional["Request"]:
         """Unified dequeue interface"""
         if not self._queue:
             raise RuntimeError("队列未初始化")
 
         try:
-            request = await self._queue.get(timeout=timeout)
+            # 内存队列使用0.01秒的超时，Redis队列使用较短的超时时间
+            # 不再使用配置的超时时间，避免长时间等待
+            timeout = 0.01 if self._queue_type == QueueType.MEMORY else 0.01
+            result = await self._queue.get(timeout=timeout)
 
             # 释放信号量（仅对内存队列）
-            if self._queue_semaphore and request:
+            if self._queue_semaphore and result:
                 self._queue_semaphore.release()
 
             # 反序列化处理（仅对 Redis 队列）
-            if request and self._queue_type == QueueType.REDIS:
+            if result and self._queue_type == QueueType.REDIS:
                 # 这里需要 spider 实例，暂时返回原始请求
                 # 实际的 callback 恢复在 scheduler 中处理
-                pass
+                # 确保返回类型是Request或None
+                if hasattr(result, 'url'):  # 简单检查是否为Request对象
+                    return result
+                else:
+                    return None
 
             # 如果是内存队列，需要解包(priority, request)元组
-            if request and self._queue_type == QueueType.MEMORY:
-                if isinstance(request, tuple) and len(request) == 2:
-                    request = request[1]  # 取元组中的请求对象
+            if result and self._queue_type == QueueType.MEMORY:
+                if isinstance(result, tuple) and len(result) == 2:
+                    request_obj = result[1]  # 取元组中的请求对象
+                    # 确保返回类型是Request或None
+                    if hasattr(request_obj, 'url'):  # 简单检查是否为Request对象
+                        return request_obj
+                    else:
+                        return None
 
-            return request
-
+            return None
         except Exception as e:
             self.logger.error(f"Failed to dequeue request: {e}")
             return None
@@ -344,10 +359,21 @@ class QueueManager:
 
         try:
             if hasattr(self._queue, 'qsize'):
-                if asyncio.iscoroutinefunction(self._queue.qsize):
-                    return await self._queue.qsize()
+                qsize_func = self._queue.qsize
+                if asyncio.iscoroutinefunction(qsize_func):
+                    result = await qsize_func()  # type: ignore
+                    # 确保结果是整数
+                    if isinstance(result, int):
+                        return result
+                    else:
+                        return int(str(result))
                 else:
-                    return self._queue.qsize()
+                    result = qsize_func()
+                    # 确保结果是整数
+                    if isinstance(result, int):
+                        return result
+                    else:
+                        return int(str(result))
             return 0
         except Exception as e:
             self.logger.warning(f"Failed to get queue size: {e}")
@@ -357,7 +383,7 @@ class QueueManager:
         """Check if queue is empty (synchronous version, for compatibility)"""
         try:
             # 对于内存队列，可以同步检查
-            if self._queue_type == QueueType.MEMORY:
+            if self._queue and self._queue_type == QueueType.MEMORY:
                 # 确保正确检查队列大小
                 if hasattr(self._queue, 'qsize'):
                     return self._queue.qsize() == 0
@@ -374,11 +400,11 @@ class QueueManager:
         """Check if queue is empty (asynchronous version, more accurate)"""
         try:
             # 对于内存队列
-            if self._queue_type == QueueType.MEMORY:
+            if self._queue and self._queue_type == QueueType.MEMORY:
                 # 确保正确检查队列大小
                 if hasattr(self._queue, 'qsize'):
                     if asyncio.iscoroutinefunction(self._queue.qsize):
-                        size = await self._queue.qsize()
+                        size = await self._queue.qsize()  # type: ignore
                     else:
                         size = self._queue.qsize()
                     return size == 0
@@ -386,11 +412,27 @@ class QueueManager:
                     # 如果没有qsize方法，假设队列为空
                     return True
             # 对于 Redis 队列，使用异步检查
-            elif self._queue_type == QueueType.REDIS:
-                size = await self.size()
-                return size == 0
+            elif self._queue and self._queue_type == QueueType.REDIS:
+                # 对于 Redis 队列，使用异步检查
+                # 直接使用Redis队列的qsize方法，它会同时检查主队列和处理中队列
+                from crawlo.queue.redis_priority_queue import RedisPriorityQueue
+                if isinstance(self._queue, RedisPriorityQueue):
+                    try:
+                        size = await self._queue.qsize()
+                        is_empty = size == 0
+                        return is_empty
+                    except Exception:
+                        # 检查失败，回退到只检查主队列大小
+                        size = await self.size()
+                        is_empty = size == 0
+                        return is_empty
+                else:
+                    size = await self.size()
+                    is_empty = size == 0
+                    return is_empty
             return True
-        except Exception:
+        except Exception as e:
+            self.logger.error(f"检查队列是否为空时出错: {e}")
             return True
 
     async def close(self) -> None:
@@ -420,7 +462,10 @@ class QueueManager:
                 # 测试 Redis 连接
                 try:
                     from crawlo.queue.redis_priority_queue import RedisPriorityQueue
-                    test_queue = RedisPriorityQueue(self.config.redis_url)
+                    test_queue = RedisPriorityQueue(
+                        redis_url=self.config.redis_url,
+                        project_name="default"
+                    )
                     await test_queue.connect()
                     await test_queue.close()
                     self.logger.debug("Auto-detection: Redis available, using distributed queue")
@@ -455,7 +500,10 @@ class QueueManager:
                 # 测试 Redis 连接
                 try:
                     from crawlo.queue.redis_priority_queue import RedisPriorityQueue
-                    test_queue = RedisPriorityQueue(self.config.redis_url)
+                    test_queue = RedisPriorityQueue(
+                        redis_url=self.config.redis_url,
+                        project_name="default"
+                    )
                     await test_queue.connect()
                     await test_queue.close()
                     self.logger.debug("Distributed mode: Redis connection verified")
@@ -479,7 +527,10 @@ class QueueManager:
                     # 测试 Redis 连接
                     try:
                         from crawlo.queue.redis_priority_queue import RedisPriorityQueue
-                        test_queue = RedisPriorityQueue(self.config.redis_url)
+                        test_queue = RedisPriorityQueue(
+                            redis_url=self.config.redis_url,
+                            project_name="default"
+                        )
                         await test_queue.connect()
                         await test_queue.close()
                         self.logger.debug("Redis mode: Redis available, using distributed queue")
@@ -506,32 +557,36 @@ class QueueManager:
             except ImportError as e:
                 raise RuntimeError(f"Redis队列不可用：未能导入RedisPriorityQueue ({e})")
 
-            # 修复项目名称提取逻辑，严格按照测试文件中的逻辑实现
+            # 统一使用RedisKeyManager.from_settings来解析项目名称和爬虫名称
             project_name = "default"
-            if ':' in self.config.queue_name:
-                parts = self.config.queue_name.split(':')
-                if len(parts) >= 2:
-                    # 处理可能的双重 crawlo 前缀
-                    if parts[0] == "crawlo" and parts[1] == "crawlo":
-                        # 双重 crawlo 前缀，取"crawlo"作为项目名称
-                        project_name = "crawlo"
-                    elif parts[0] == "crawlo":
-                        # 正常的 crawlo 前缀，取第二个部分作为项目名称
-                        project_name = parts[1]
-                    else:
-                        # 没有 crawlo 前缀，使用第一个部分作为项目名称
-                        project_name = parts[0]
-                else:
-                    project_name = self.config.queue_name or "default"
-            else:
-                project_name = self.config.queue_name or "default"
+            spider_name = None
+            
+            if hasattr(self.config, 'settings') and self.config.settings:
+                try:
+                    from crawlo.utils.redis_manager import RedisKeyManager
+                    key_manager = RedisKeyManager.from_settings(self.config.settings)
+                    project_name = key_manager.project_name
+                    spider_name = key_manager.spider_name
+                except Exception as e:
+                    self.logger.warning(f"无法从配置中解析项目名称和爬虫名称: {e}")
+                    # 回退到默认值
+                    project_name = "default"
+                    spider_name = None
+            
+            # 如果没有从extra_config获取到，尝试从settings中获取
+            if not spider_name and hasattr(self.config, 'settings') and self.config.settings:
+                try:
+                    spider_name = self.config.settings.get('SPIDER_NAME', None)
+                except Exception:
+                    pass
 
             queue = RedisPriorityQueue(
                 redis_url=self.config.redis_url,
-                queue_name=self.config.queue_name,
+                queue_name=None,  # 不再使用config.queue_name，让RedisPriorityQueue自动生成
                 max_retries=self.config.max_retries,
                 timeout=self.config.timeout,
-                module_name=project_name,  # 传递项目名称作为module_name
+                project_name=project_name,  # 使用解析后的project_name参数
+                spider_name=spider_name,    # 使用解析后的spider_name参数
                 cleanup_redis_data=getattr(self.config, 'cleanup_redis_data', False)  # 传递清理参数
             )
             # 不需要立即连接，使用 lazy connect
@@ -549,9 +604,12 @@ class QueueManager:
     async def _health_check(self) -> bool:
         """Health check"""
         try:
-            if self._queue_type == QueueType.REDIS:
+            if self._queue_type == QueueType.REDIS and self._queue:
                 # 测试 Redis 连接
-                await self._queue.connect()
+                # 使用明确的类型检查确保只对Redis队列调用connect方法
+                from crawlo.queue.redis_priority_queue import RedisPriorityQueue
+                if isinstance(self._queue, RedisPriorityQueue):
+                    await self._queue.connect()
                 self._health_status = "healthy"
             else:
                 # 内存队列总是健康的
@@ -577,7 +635,8 @@ class QueueManager:
             if self._queue_type == QueueType.REDIS and self.config.queue_type == QueueType.AUTO:
                 self.logger.info("Redis queue unavailable, attempting to switch to memory queue...")
                 try:
-                    await self._queue.close()
+                    if self._queue:
+                        await self._queue.close()
                 except:
                     pass
                 self._queue = None

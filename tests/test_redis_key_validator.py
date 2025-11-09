@@ -16,7 +16,7 @@ import unittest
 # 添加项目根目录到路径
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
-from crawlo.utils.redis_key_validator import (
+from crawlo.utils.redis_manager import (
     RedisKeyValidator, 
     validate_redis_key_naming, 
     validate_multiple_redis_keys,

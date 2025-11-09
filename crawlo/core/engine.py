@@ -360,6 +360,9 @@ class Engine(object):
                 
                 if outputs:
                     await self._handle_spider_output(outputs)
+                
+                # 由于我们不再使用处理队列，不再需要确认任务完成
+                # 任务在从主队列取出时就已经被认为是完成的
             except Exception as e:
                 # 记录详细的异常信息
                 self.logger.error(
@@ -378,7 +381,8 @@ class Engine(object):
                 return None
 
         # 使用异步任务创建，遵守并发限制
-        await self.task_manager.create_task(crawl_task())
+        if self.task_manager:
+            await self.task_manager.create_task(crawl_task())
 
     async def _fetch(self, request):
         async def _successful(_response):

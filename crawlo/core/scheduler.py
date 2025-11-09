@@ -1,5 +1,6 @@
 #!/usr/bin/python
 # -*- coding:UTF-8 -*-
+import asyncio
 import traceback
 from typing import Optional, Callable
 
@@ -83,6 +84,17 @@ class Scheduler:
         """Initialize scheduler and queue"""
         self.logger.debug("开始初始化调度器...")
         try:
+            # 如果是Redis队列，设置spider_name
+            if self.crawler.spider:
+                spider_name = getattr(self.crawler.spider, 'name', None)
+                if spider_name:
+                    # 设置SPIDER_NAME到配置中，以便RedisKeyManager能够获取
+                    if hasattr(self.crawler.settings, 'set'):
+                        try:
+                            self.crawler.settings.set('SPIDER_NAME', spider_name)
+                        except Exception:
+                            pass
+            
             # 创建队列配置
             queue_config = QueueConfig.from_settings(self.crawler.settings)
             
@@ -434,6 +446,12 @@ class Scheduler:
                 context=ErrorContext(context="Failed to close scheduler"), 
                 raise_error=False
             )
+
+    async def ack_request(self, request):
+        """确认请求处理完成"""
+        # 由于我们不再使用处理队列，ack_request方法现在是一个空操作
+        # 任务在从主队列取出时就已经被认为是完成的
+        self.logger.debug(f"任务确认完成: {getattr(request, 'url', 'Unknown URL')}")
 
     def __len__(self):
         """Get queue size"""

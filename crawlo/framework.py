@@ -243,7 +243,7 @@ class CrawloFramework:
         """清理全局资源（Redis连接池等）"""
         try:
             # 清理全局Redis连接池
-            from crawlo.utils.redis_connection_pool import close_all_pools
+            from crawlo.utils.redis_manager import close_all_pools
             await close_all_pools()
             self._logger.debug("Global resources cleaned up")
         except Exception as e:

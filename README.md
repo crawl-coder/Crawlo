@@ -253,16 +253,6 @@ RuntimeError: Distributed 模式要求 Redis 可用，但无法连接到 Redis �
    - 用途：保存请求队列中每个请求的详细序列化数据
    - 示例：`crawlo:ofweek_standalone:queue:requests:data`
 
-5. **`{project_name}:queue:processing`** - 正在处理队列
-   - 类型：Redis Sorted Set
-   - 用途：存储当前正在处理的请求，用于故障恢复
-   - 示例：`crawlo:ofweek_standalone:queue:processing`
-
-6. **`{project_name}:queue:processing:data`** - 正在处理队列数据
-   - 类型：Redis Hash
-   - 用途：保存正在处理队列中每个请求的详细序列化数据
-   - 示例：`crawlo:ofweek_standalone:queue:processing:data`
-
 ### 数据核验方法
 
 在爬虫采集完成后，您可以使用这些 Redis key 来核验数据和监控爬虫状态：
@@ -280,9 +270,6 @@ SCARD crawlo:ofweek_standalone:item:fingerprint
 # 查看待处理队列长度
 ZCARD crawlo:ofweek_standalone:queue:requests
 
-# 查看正在处理队列长度
-ZCARD crawlo:ofweek_standalone:queue:processing
-
 # 获取部分指纹数据进行检查
 SMEMBERS crawlo:ofweek_standalone:filter:fingerprint LIMIT 10
 
@@ -298,11 +285,9 @@ ZRANGE crawlo:ofweek_standalone:queue:requests 0 -1 WITHSCORES LIMIT 10
    DEL crawlo:ofweek_standalone:item:fingerprint
    DEL crawlo:ofweek_standalone:queue:requests
    DEL crawlo:ofweek_standalone:queue:requests:data
-   DEL crawlo:ofweek_standalone:queue:processing
-   DEL crawlo:ofweek_standalone:queue:processing:data
    ```
 
-2. **命名空间隔离**：不同项目使用不同的 `{project_name}` 前缀，确保数据隔离
+2. **命名空间隔离**：不同项目使用不同的 `{project_name}` 前缀，确保数据隔离。对于同一项目下的不同爬虫，还可以通过 `{spider_name}` 进一步区分，确保更细粒度的数据隔离。
 
 3. **持久化考虑**：如果需要持久化这些数据，确保 Redis 配置了合适的持久化策略
 
@@ -857,6 +842,16 @@ PROXY_API_URL = "http://your-proxy-api.com/get-proxy"
 ## 许可证
 
 MIT License - 详见 [LICENSE](LICENSE) 文件
+
+## 变更日志
+
+### v1.2.0
+
+- **Redis Key 重构**：引入 `RedisKeyManager` 统一管理 Redis Key 的生成和验证
+  - 支持项目级别和爬虫级别的 Key 命名规范
+  - 支持在同一个项目下区分不同的爬虫
+  - 集成 `RedisKeyValidator` 确保 Key 命名规范一致性
+  - 详细文档请参见 [Redis Key 重构说明](docs/redis_key_refactor.md)
 
 ---
 

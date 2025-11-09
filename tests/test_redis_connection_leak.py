@@ -11,7 +11,7 @@ Redis连接泄漏测试
 
 import asyncio
 from crawlo.utils.resource_manager import get_resource_manager, ResourceType
-from crawlo.utils.redis_connection_pool import get_redis_pool
+from crawlo.utils.redis_manager import get_redis_pool
 
 
 class MockRedisClient:

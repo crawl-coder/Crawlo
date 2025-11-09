@@ -22,7 +22,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
 from crawlo.queue.redis_priority_queue import RedisPriorityQueue
 from crawlo.network.request import Request
-from crawlo.utils.redis_connection_pool import OptimizedRedisConnectionPool, get_redis_pool, close_all_pools
+from crawlo.utils.redis_manager import RedisConnectionPool as OptimizedRedisConnectionPool, get_redis_pool, close_all_pools
 from crawlo.utils.batch_processor import RedisBatchProcessor
 from crawlo.extension.memory_monitor import MemoryMonitorExtension
 

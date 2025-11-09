@@ -1,12 +1,9 @@
-from typing import Optional, Dict, Any, Union, Awaitable, Literal, TYPE_CHECKING
-import redis.asyncio as aioredis
 import asyncio
-from inspect import iscoroutinefunction
+from typing import Optional, Dict, Any, TYPE_CHECKING
 
 if TYPE_CHECKING:
     from crawlo.crawler import Crawler
     from crawlo.network.request import Request
-    from crawlo.settings.setting_manager import SettingManager
 
 # 尝试导入Redis集群支持
 try:
@@ -18,7 +15,7 @@ except ImportError:
 
 from crawlo.filters import BaseFilter
 from crawlo.logging import get_logger
-from crawlo.utils.redis_connection_pool import get_redis_pool, RedisConnectionPool
+from crawlo.utils.redis_manager import get_redis_pool, RedisConnectionPool, RedisKeyManager
 
 
 def generate_redis_url_from_settings(settings: Any) -> str:
@@ -142,9 +139,14 @@ class AioRedisFilter(BaseFilter):
         except Exception as e:
             raise RuntimeError(f"Redis连接池初始化失败: {redis_url} - {str(e)}")
 
-        # 使用统一的Redis key命名规范: crawlo:{project_name}:filter:fingerprint
-        project_name = settings.get('PROJECT_NAME', 'default') if hasattr(settings, 'get') else 'default'
-        redis_key = f"crawlo:{project_name}:filter:fingerprint"
+        # 使用统一的Redis key命名规范
+        key_manager = RedisKeyManager.from_settings(settings)
+        # 如果有spider，更新key_manager中的spider_name
+        if hasattr(crawler, 'spider') and crawler.spider:
+            spider_name = getattr(crawler.spider, 'name', None)
+            if spider_name:
+                key_manager.set_spider_name(spider_name)
+        redis_key = key_manager.get_filter_fingerprint_key()
 
         from crawlo.utils.misc import safe_get_config
         instance = cls(
@@ -199,6 +201,28 @@ class AioRedisFilter(BaseFilter):
                 return True
         return False
 
+    def _execute_with_cluster_support(self, operation_func, *args, **kwargs):
+        """
+        执行支持集群模式的操作
+        
+        Args:
+            operation_func: 要执行的操作函数
+            *args: 位置参数
+            **kwargs: 关键字参数
+            
+        Returns:
+            操作函数的返回结果
+        """
+        # 确保Redis客户端已初始化
+        if self.redis is None:
+            raise RuntimeError("Redis客户端未初始化")
+            
+        # 根据是否为集群模式执行操作
+        if self._is_cluster_mode():
+            return operation_func(cluster_mode=True, *args, **kwargs)
+        else:
+            return operation_func(cluster_mode=False, *args, **kwargs)
+
     def requested(self, request: 'Request') -> bool:
         """
         检查请求是否已存在（同步方法）
@@ -241,30 +265,33 @@ class AioRedisFilter(BaseFilter):
             fp = str(self._get_fingerprint(request))
             self._redis_operations += 1
 
-            # 检查指纹是否存在
-            if self._is_cluster_mode():
-                # 集群模式下使用哈希标签确保键在同一个slot
-                hash_tag = "{filter}"
-                redis_key_with_tag = f"{self.redis_key}{hash_tag}"
-                # 直接调用异步方法
-                result = redis_client.sismember(redis_key_with_tag, fp)
-                if asyncio.iscoroutine(result):
-                    exists = await result
+            # 定义检查指纹是否存在的操作
+            def _check_fingerprint_operation(cluster_mode=False):
+                if cluster_mode:
+                    # 集群模式下使用哈希标签确保键在同一个slot
+                    hash_tag = "{filter}"
+                    redis_key_with_tag = f"{self.redis_key}{hash_tag}"
+                    # 直接调用异步方法
+                    result = redis_client.sismember(redis_key_with_tag, fp)
                 else:
-                    exists = result
-            else:
-                # 直接调用异步方法
-                result = redis_client.sismember(self.redis_key, fp)
+                    # 直接调用异步方法
+                    result = redis_client.sismember(self.redis_key, fp)
+                
+                # 处理异步结果
                 if asyncio.iscoroutine(result):
-                    exists = await result
+                    return result
                 else:
-                    exists = result
+                    return result
+            
+            # 执行操作
+            result = self._execute_with_cluster_support(_check_fingerprint_operation)
+            exists = await result if asyncio.iscoroutine(result) else result
             
             self._pipeline_operations += 1
 
             if exists:
                 if self.debug:
-                    self.logger.debug(f"发现重复请求: {fp[:20]}...")
+                    self.logger.debug(f"发现重复请求: {fp}")
                 return bool(exists)
 
             # 如果不存在，添加指纹并设置TTL
@@ -307,39 +334,57 @@ class AioRedisFilter(BaseFilter):
             
             fp = str(fp)
             
-            # 添加指纹
-            if self._is_cluster_mode():
-                # 集群模式下使用哈希标签确保键在同一个slot
-                hash_tag = "{filter}"
-                redis_key_with_tag = f"{self.redis_key}{hash_tag}"
-                # 直接调用异步方法
-                result = redis_client.sadd(redis_key_with_tag, fp)
-                if asyncio.iscoroutine(result):
-                    added = await result
+            # 定义添加指纹的操作
+            def _add_fingerprint_operation(cluster_mode=False):
+                if cluster_mode:
+                    # 集群模式下使用哈希标签确保键在同一个slot
+                    hash_tag = "{filter}"
+                    redis_key_with_tag = f"{self.redis_key}{hash_tag}"
+                    # 直接调用异步方法
+                    result = redis_client.sadd(redis_key_with_tag, fp)
+                    if self.ttl and self.ttl > 0:
+                        expire_result = redis_client.expire(redis_key_with_tag, self.ttl)
+                        # 处理异步结果
+                        if asyncio.iscoroutine(expire_result):
+                            return result, expire_result
+                        else:
+                            return result, None
+                    return result, None
                 else:
-                    added = result
-                if self.ttl and self.ttl > 0:
-                    expire_result = redis_client.expire(redis_key_with_tag, self.ttl)
-                    if asyncio.iscoroutine(expire_result):
-                        await expire_result
-                    else:
-                        expire_result  # 不需要等待同步结果
-                added = added == 1  # sadd 返回 1 表示新添加
+                    # 直接调用异步方法
+                    result = redis_client.sadd(self.redis_key, fp)
+                    if self.ttl and self.ttl > 0:
+                        expire_result = redis_client.expire(self.redis_key, self.ttl)
+                        # 处理异步结果
+                        if asyncio.iscoroutine(expire_result):
+                            return result, expire_result
+                        else:
+                            return result, None
+                    return result, None
+            
+            # 执行操作
+            result_data = self._execute_with_cluster_support(_add_fingerprint_operation)
+            
+            # 处理结果
+            if isinstance(result_data, tuple):
+                result, expire_result = result_data
+                # 等待异步的expire操作完成
+                if asyncio.iscoroutine(expire_result):
+                    await expire_result
             else:
-                # 直接调用异步方法
-                result = redis_client.sadd(self.redis_key, fp)
-                if asyncio.iscoroutine(result):
-                    added = await result
-                else:
-                    added = result
-                if self.ttl and self.ttl > 0:
-                    expire_result = redis_client.expire(self.redis_key, self.ttl)
-                    if asyncio.iscoroutine(expire_result):
-                        await expire_result
-                    else:
-                        expire_result  # 不需要等待同步结果
+                result = result_data
+                expire_result = None
+            
+            # 处理添加结果
+            if asyncio.iscoroutine(result):
+                added = await result
+            else:
+                added = result
             
             self._pipeline_operations += 1
+            
+            # sadd 返回 1 表示新添加
+            added = added == 1
             
             if self.debug and added:
                 self.logger.debug(f"添加新指纹: {fp[:20]}...")
@@ -394,24 +439,28 @@ class AioRedisFilter(BaseFilter):
             if redis_client is None:
                 return False
             
-            # 检查指纹是否存在
-            if self._is_cluster_mode():
-                # 集群模式下使用哈希标签确保键在同一个slot
-                hash_tag = "{filter}"
-                redis_key_with_tag = f"{self.redis_key}{hash_tag}"
-                # 直接调用异步方法
-                result = redis_client.sismember(redis_key_with_tag, str(fp))
-                if asyncio.iscoroutine(result):
-                    exists = await result
+            # 定义检查指纹是否存在的操作
+            def _check_contains_operation(cluster_mode=False):
+                if cluster_mode:
+                    # 集群模式下使用哈希标签确保键在同一个slot
+                    hash_tag = "{filter}"
+                    redis_key_with_tag = f"{self.redis_key}{hash_tag}"
+                    # 直接调用异步方法
+                    result = redis_client.sismember(redis_key_with_tag, str(fp))
                 else:
-                    exists = result
-            else:
-                # 直接调用异步方法
-                result = redis_client.sismember(self.redis_key, str(fp))
+                    # 直接调用异步方法
+                    result = redis_client.sismember(self.redis_key, str(fp))
+                
+                # 处理异步结果
                 if asyncio.iscoroutine(result):
-                    exists = await result
+                    return result
                 else:
-                    exists = result
+                    return result
+            
+            # 执行操作
+            result = self._execute_with_cluster_support(_check_contains_operation)
+            exists = await result if asyncio.iscoroutine(result) else result
+            
             return bool(exists)
         except Exception as e:
             self.logger.error(f"检查指纹存在性失败: {fp[:20]}... - {e}")
