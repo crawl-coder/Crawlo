@@ -1,7 +1,9 @@
-from typing import Optional, Dict, Any, Union, Awaitable, Literal
-import redis.asyncio as aioredis
 import asyncio
-from inspect import iscoroutinefunction
+from typing import Optional, Dict, Any, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from crawlo.crawler import Crawler
+    from crawlo.network.request import Request
 
 # 尝试导入Redis集群支持
 try:
@@ -13,10 +15,11 @@ except ImportError:
 
 from crawlo.filters import BaseFilter
 from crawlo.logging import get_logger
-from crawlo.utils.redis_connection_pool import get_redis_pool, RedisConnectionPool
+from crawlo.utils.redis_manager import get_redis_pool, RedisConnectionPool, RedisKeyManager
+from crawlo.utils.misc import safe_get_config
 
 
-def generate_redis_url_from_settings(settings) -> str:
+def generate_redis_url_from_settings(settings: Any) -> str:
     """
     根据设置生成Redis URL
     
@@ -52,100 +55,117 @@ class AioRedisFilter(BaseFilter):
     def __init__(
             self,
             redis_key: str,
-            client: Optional[aioredis.Redis] = None,
+            client = None,
             stats: Optional[Dict[str, Any]] = None,
             debug: bool = False,
             log_level: int = 20,  # logging.INFO
-            cleanup_fp: bool = False,
             ttl: Optional[int] = None
-    ):
+    ) -> None:
         """
         初始化Redis过滤器
         
-        :param redis_key: Redis中存储指纹的键名
-        :param client: Redis客户端实例（可以为None，稍后初始化）
-        :param stats: 统计信息存储
-        :param debug: 是否启用调试模式
-        :param log_level: 日志级别
-        :param cleanup_fp: 关闭时是否清理指纹
-        :param ttl: 指纹过期时间（秒）
+        Args:
+            redis_key: Redis中存储指纹的键名
+            client: Redis客户端实例（可以为None，稍后初始化）
+            stats: 统计信息存储
+            debug: 是否启用调试模式
+            log_level: 日志级别
+            ttl: 指纹过期时间（秒）
         """
         self.logger = get_logger(self.__class__.__name__)
         super().__init__(self.logger, stats, debug)
 
-        self.redis_key = redis_key
+        self.redis_key: str = redis_key
         self.redis = client
-        self.cleanup_fp = cleanup_fp
-        self.ttl = ttl
+        self.ttl: Optional[int] = ttl
         
         # 保存连接池引用（用于延迟初始化）
         self._redis_pool: Optional[RedisConnectionPool] = None
         
         # 性能计数器
-        self._redis_operations = 0
-        self._pipeline_operations = 0
+        self._redis_operations: int = 0
+        self._pipeline_operations: int = 0
         
         # 连接状态标记，避免重复尝试连接失败的Redis
-        self._connection_failed = False
+        self._connection_failed: bool = False
 
     @classmethod
-    def create_instance(cls, crawler) -> 'BaseFilter':
-        """从爬虫配置创建过滤器实例"""
-        # 首先尝试直接获取REDIS_URL
-        redis_url = crawler.settings.get('REDIS_URL')
+    def create_instance(cls, crawler: 'Crawler') -> 'BaseFilter':
+        """
+        从爬虫配置创建过滤器实例
         
-        # 如果没有直接设置REDIS_URL，则根据其他参数生成
-        if not redis_url:
-            redis_url = generate_redis_url_from_settings(crawler.settings)
-        
-        # 确保 decode_responses=False 以避免编码问题
-        decode_responses = False  # crawler.settings.get_bool('DECODE_RESPONSES', False)
-        ttl_setting = crawler.settings.get_int('REDIS_TTL')
-
-        # 处理TTL设置
-        ttl = None
-        if ttl_setting is not None:
-            ttl = max(0, int(ttl_setting)) if ttl_setting > 0 else None
-
-        try:
-            # 使用优化的连接池，确保 decode_responses=False
-            redis_pool = get_redis_pool(
-                redis_url,
-                max_connections=20,
-                socket_connect_timeout=5,
-                socket_timeout=30,
-                health_check_interval=30,
-                retry_on_timeout=True,
-                decode_responses=decode_responses,  # 确保不自动解码响应
-                encoding='utf-8'
-            )
+        Args:
+            crawler: 爬虫实例
             
-            # 注意：这里不应该使用 await，因为 create_instance 不是异步方法
-            # 我们将在实际使用时获取连接
-            redis_client = None  # 延迟初始化
-        except Exception as e:
-            raise RuntimeError(f"Redis连接池初始化失败: {redis_url} - {str(e)}")
-
-        # 使用统一的Redis key命名规范: crawlo:{project_name}:filter:fingerprint
-        project_name = crawler.settings.get('PROJECT_NAME', 'default')
-        redis_key = f"crawlo:{project_name}:filter:fingerprint"
-
+        Returns:
+            BaseFilter: 过滤器实例
+        """
+        settings = crawler.settings
+        
+        # 从配置中获取Redis URL和其他参数
+        redis_url = safe_get_config(settings, 'REDIS_URL')
+        if not redis_url:
+            # 如果没有配置REDIS_URL，尝试构建
+            redis_host = safe_get_config(settings, 'REDIS_HOST', '127.0.0.1')
+            redis_port = safe_get_config(settings, 'REDIS_PORT', 6379, int)
+            redis_password = safe_get_config(settings, 'REDIS_PASSWORD')
+            redis_db = safe_get_config(settings, 'REDIS_DB', 0, int)
+            
+            if redis_password:
+                redis_url = f"redis://:{redis_password}@{redis_host}:{redis_port}/{redis_db}"
+            else:
+                redis_url = f"redis://{redis_host}:{redis_port}/{redis_db}"
+        
+        # 获取项目名称
+        project_name = safe_get_config(settings, 'PROJECT_NAME', 'default')
+        
+        # 获取爬虫名称（可选）
+        spider_name = safe_get_config(settings, 'SPIDER_NAME')
+        
+        # 创建 Redis Key 管理器
+        key_manager = RedisKeyManager(project_name, spider_name)
+        
+        # 生成过滤器键名
+        redis_key = key_manager.get_filter_fingerprint_key()
+        
+        # 获取其他配置参数
+        server = safe_get_config(settings, 'REDIS_SERVER', 'localhost:6379')
+        db = safe_get_config(settings, 'REDIS_DB', 0, int)
+        redis_cls = safe_get_config(settings, 'REDIS_CLASS', 'crawlo.utils.redis_manager.get_redis_pool')
+        ttl = safe_get_config(settings, 'REDIS_TTL', 0, int)
+        decode_responses = safe_get_config(settings, 'DECODE_RESPONSES', True, bool)
+        
+        # 获取调试配置
+        debug = safe_get_config(settings, 'FILTER_DEBUG', False, bool)
+        log_level = safe_get_config(settings, 'LOG_LEVEL_NUM', 20, int)  # 默认INFO级别
+        
+        # 创建过滤器实例
         instance = cls(
             redis_key=redis_key,
-            client=redis_client,
+            client=None,
             stats=crawler.stats,
-            cleanup_fp=crawler.settings.get_bool('CLEANUP_FP', False),
             ttl=ttl,
-            debug=crawler.settings.get_bool('FILTER_DEBUG', False),
-            log_level=getattr(crawler.settings, 'LOG_LEVEL_NUM', 20)  # 默认INFO级别
+            debug=debug,
+            log_level=log_level
         )
         
-        # 保存连接池引用，以便在需要时获取连接
-        instance._redis_pool = redis_pool
+        # 获取Redis连接池
+        try:
+            redis_pool = get_redis_pool(redis_url)
+            # 保存连接池引用，以便在需要时获取连接
+            instance._redis_pool = redis_pool
+        except Exception as e:
+            instance.logger.error(f"无法创建Redis连接池: {e}")
+        
         return instance
 
     async def _get_redis_client(self):
-        """获取Redis客户端实例（延迟初始化）"""
+        """
+        获取Redis客户端实例（延迟初始化）
+        
+        Returns:
+            Redis客户端实例
+        """
         # 如果之前连接失败，直接返回None
         if self._connection_failed:
             return None
@@ -165,14 +185,41 @@ class AioRedisFilter(BaseFilter):
         return self.redis
 
     def _is_cluster_mode(self) -> bool:
-        """检查是否为集群模式"""
+        """
+        检查是否为集群模式
+        
+        Returns:
+            bool: 是否为集群模式
+        """
         if REDIS_CLUSTER_AVAILABLE and RedisCluster is not None:
             # 检查 redis 是否为 RedisCluster 实例
             if self.redis is not None and isinstance(self.redis, RedisCluster):
                 return True
         return False
 
-    def requested(self, request) -> bool:
+    def _execute_with_cluster_support(self, operation_func, *args, **kwargs):
+        """
+        执行支持集群模式的操作
+        
+        Args:
+            operation_func: 要执行的操作函数
+            *args: 位置参数
+            **kwargs: 关键字参数
+            
+        Returns:
+            操作函数的返回结果
+        """
+        # 确保Redis客户端已初始化
+        if self.redis is None:
+            raise RuntimeError("Redis客户端未初始化")
+            
+        # 根据是否为集群模式执行操作
+        if self._is_cluster_mode():
+            return operation_func(cluster_mode=True, *args, **kwargs)
+        else:
+            return operation_func(cluster_mode=False, *args, **kwargs)
+
+    def requested(self, request: 'Request') -> bool:
         """
         检查请求是否已存在（同步方法）
         
@@ -181,20 +228,26 @@ class AioRedisFilter(BaseFilter):
         2. 实际的重复检查在异步方法requested_async中进行
         3. 这样可以避免在同步上下文中阻塞Redis操作
         
-        :param request: 请求对象
-        :return: False 表示不重复（总是返回False以避免阻塞）
+        Args:
+            request: 请求对象
+            
+        Returns:
+            False 表示不重复（总是返回False以避免阻塞）
         """
         # Redis过滤器的同步requested方法总是返回False
         # 实际的重复检查应该在异步方法requested_async中进行
         # 这是为了避免在同步上下文中阻塞Redis操作
         return False
         
-    async def requested_async(self, request) -> bool:
+    async def requested_async(self, request: 'Request') -> bool:
         """
         异步检查请求是否已存在
         
-        :param request: 请求对象
-        :return: True 表示重复，False 表示新请求
+        Args:
+            request: 请求对象
+            
+        Returns:
+            True 表示重复，False 表示新请求
         """
         try:
             # 确保Redis客户端已初始化
@@ -208,30 +261,33 @@ class AioRedisFilter(BaseFilter):
             fp = str(self._get_fingerprint(request))
             self._redis_operations += 1
 
-            # 检查指纹是否存在
-            if self._is_cluster_mode():
-                # 集群模式下使用哈希标签确保键在同一个slot
-                hash_tag = "{filter}"
-                redis_key_with_tag = f"{self.redis_key}{hash_tag}"
-                # 直接调用异步方法
-                result = redis_client.sismember(redis_key_with_tag, fp)
-                if asyncio.iscoroutine(result):
-                    exists = await result
+            # 定义检查指纹是否存在的操作
+            def _check_fingerprint_operation(cluster_mode=False):
+                if cluster_mode:
+                    # 集群模式下使用哈希标签确保键在同一个slot
+                    hash_tag = "{filter}"
+                    redis_key_with_tag = f"{self.redis_key}{hash_tag}"
+                    # 直接调用异步方法
+                    result = redis_client.sismember(redis_key_with_tag, fp)
                 else:
-                    exists = result
-            else:
-                # 直接调用异步方法
-                result = redis_client.sismember(self.redis_key, fp)
+                    # 直接调用异步方法
+                    result = redis_client.sismember(self.redis_key, fp)
+                
+                # 处理异步结果
                 if asyncio.iscoroutine(result):
-                    exists = await result
+                    return result
                 else:
-                    exists = result
+                    return result
+            
+            # 执行操作
+            result = self._execute_with_cluster_support(_check_fingerprint_operation)
+            exists = await result if asyncio.iscoroutine(result) else result
             
             self._pipeline_operations += 1
 
             if exists:
                 if self.debug:
-                    self.logger.debug(f"发现重复请求: {fp[:20]}...")
+                    self.logger.debug(f"发现重复请求: {fp}")
                 return bool(exists)
 
             # 如果不存在，添加指纹并设置TTL
@@ -247,7 +303,8 @@ class AioRedisFilter(BaseFilter):
         """
         添加新指纹到Redis集合（同步方法）
         
-        :param fp: 请求指纹字符串
+        Args:
+            fp: 请求指纹字符串
         """
         # 这个方法需要同步实现，但Redis操作是异步的
         # 在实际使用中，应该通过异步方式调用 _add_fingerprint_async
@@ -257,8 +314,11 @@ class AioRedisFilter(BaseFilter):
         """
         异步添加新指纹到Redis集合
         
-        :param fp: 请求指纹字符串
-        :return: 是否成功添加（True 表示新添加，False 表示已存在）
+        Args:
+            fp: 请求指纹字符串
+            
+        Returns:
+            bool: 是否成功添加（True 表示新添加，False 表示已存在）
         """
         try:
             # 确保Redis客户端已初始化
@@ -270,39 +330,57 @@ class AioRedisFilter(BaseFilter):
             
             fp = str(fp)
             
-            # 添加指纹
-            if self._is_cluster_mode():
-                # 集群模式下使用哈希标签确保键在同一个slot
-                hash_tag = "{filter}"
-                redis_key_with_tag = f"{self.redis_key}{hash_tag}"
-                # 直接调用异步方法
-                result = redis_client.sadd(redis_key_with_tag, fp)
-                if asyncio.iscoroutine(result):
-                    added = await result
+            # 定义添加指纹的操作
+            def _add_fingerprint_operation(cluster_mode=False):
+                if cluster_mode:
+                    # 集群模式下使用哈希标签确保键在同一个slot
+                    hash_tag = "{filter}"
+                    redis_key_with_tag = f"{self.redis_key}{hash_tag}"
+                    # 直接调用异步方法
+                    result = redis_client.sadd(redis_key_with_tag, fp)
+                    if self.ttl and self.ttl > 0:
+                        expire_result = redis_client.expire(redis_key_with_tag, self.ttl)
+                        # 处理异步结果
+                        if asyncio.iscoroutine(expire_result):
+                            return result, expire_result
+                        else:
+                            return result, None
+                    return result, None
                 else:
-                    added = result
-                if self.ttl and self.ttl > 0:
-                    expire_result = redis_client.expire(redis_key_with_tag, self.ttl)
-                    if asyncio.iscoroutine(expire_result):
-                        await expire_result
-                    else:
-                        expire_result  # 不需要等待同步结果
-                added = added == 1  # sadd 返回 1 表示新添加
+                    # 直接调用异步方法
+                    result = redis_client.sadd(self.redis_key, fp)
+                    if self.ttl and self.ttl > 0:
+                        expire_result = redis_client.expire(self.redis_key, self.ttl)
+                        # 处理异步结果
+                        if asyncio.iscoroutine(expire_result):
+                            return result, expire_result
+                        else:
+                            return result, None
+                    return result, None
+            
+            # 执行操作
+            result_data = self._execute_with_cluster_support(_add_fingerprint_operation)
+            
+            # 处理结果
+            if isinstance(result_data, tuple):
+                result, expire_result = result_data
+                # 等待异步的expire操作完成
+                if asyncio.iscoroutine(expire_result):
+                    await expire_result
             else:
-                # 直接调用异步方法
-                result = redis_client.sadd(self.redis_key, fp)
-                if asyncio.iscoroutine(result):
-                    added = await result
-                else:
-                    added = result
-                if self.ttl and self.ttl > 0:
-                    expire_result = redis_client.expire(self.redis_key, self.ttl)
-                    if asyncio.iscoroutine(expire_result):
-                        await expire_result
-                    else:
-                        expire_result  # 不需要等待同步结果
+                result = result_data
+                expire_result = None
+            
+            # 处理添加结果
+            if asyncio.iscoroutine(result):
+                added = await result
+            else:
+                added = result
             
             self._pipeline_operations += 1
+            
+            # sadd 返回 1 表示新添加
+            added = added == 1
             
             if self.debug and added:
                 self.logger.debug(f"添加新指纹: {fp[:20]}...")
@@ -321,8 +399,11 @@ class AioRedisFilter(BaseFilter):
         所以这个方法提供同步接口，仅用于基本的存在性检查。
         对于需要异步检查的场景，请使用 contains_async() 方法。
         
-        :param fp: 请求指纹字符串
-        :return: 是否存在
+        Args:
+            fp: 请求指纹字符串
+            
+        Returns:
+            bool: 是否存在
         """
         # 由于__contains__不能是异步的，我们只能提供一个基本的同步检查
         # 如果Redis客户端未初始化，返回False
@@ -340,8 +421,11 @@ class AioRedisFilter(BaseFilter):
         
         这是真正的异步检查方法，应该优先使用这个方法而不是__contains__
         
-        :param fp: 请求指纹字符串
-        :return: 是否存在
+        Args:
+            fp: 请求指纹字符串
+            
+        Returns:
+            bool: 是否存在
         """
         try:
             # 确保Redis客户端已初始化
@@ -351,29 +435,55 @@ class AioRedisFilter(BaseFilter):
             if redis_client is None:
                 return False
             
-            # 检查指纹是否存在
-            if self._is_cluster_mode():
-                # 集群模式下使用哈希标签确保键在同一个slot
-                hash_tag = "{filter}"
-                redis_key_with_tag = f"{self.redis_key}{hash_tag}"
-                # 直接调用异步方法
-                result = redis_client.sismember(redis_key_with_tag, str(fp))
-                if asyncio.iscoroutine(result):
-                    exists = await result
+            # 定义检查指纹是否存在的操作
+            def _check_contains_operation(cluster_mode=False):
+                if cluster_mode:
+                    # 集群模式下使用哈希标签确保键在同一个slot
+                    hash_tag = "{filter}"
+                    redis_key_with_tag = f"{self.redis_key}{hash_tag}"
+                    # 直接调用异步方法
+                    result = redis_client.sismember(redis_key_with_tag, str(fp))
                 else:
-                    exists = result
-            else:
-                # 直接调用异步方法
-                result = redis_client.sismember(self.redis_key, str(fp))
+                    # 直接调用异步方法
+                    result = redis_client.sismember(self.redis_key, str(fp))
+                
+                # 处理异步结果
                 if asyncio.iscoroutine(result):
-                    exists = await result
+                    return result
                 else:
-                    exists = result
+                    return result
+            
+            # 执行操作
+            result = self._execute_with_cluster_support(_check_contains_operation)
+            exists = await result if asyncio.iscoroutine(result) else result
+            
             return bool(exists)
         except Exception as e:
             self.logger.error(f"检查指纹存在性失败: {fp[:20]}... - {e}")
             # 在网络异常时返回False，避免丢失请求
             return False
+
+    def close(self) -> None:
+        """
+        关闭过滤器，释放资源
+        """
+        try:
+            # 关闭Redis连接
+            if self.redis is not None:
+                try:
+                    if hasattr(self.redis, 'close'):
+                        self.redis.close()
+                except Exception as e:
+                    self.logger.warning(f"关闭Redis连接时出错: {e}")
+                finally:
+                    self.redis = None
+            
+            # 清理连接池引用
+            self._redis_pool = None
+            
+            self.logger.debug("Redis过滤器已关闭")
+        except Exception as e:
+            self.logger.error(f"关闭Redis过滤器时出错: {e}")
 
 
 # 为了兼容性，确保导出类

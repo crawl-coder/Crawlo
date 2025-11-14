@@ -48,16 +48,15 @@ def get_bootstrap_manager():
     return get_framework_initializer()
 
 
-# 版本号：优先从元数据读取
+# 版本号：优先从 __version__.py 读取
 try:
-    from importlib.metadata import version
-
-    __version__ = version("crawlo")
-except Exception:
-    # 开发模式下可能未安装，回退到 __version__.py 或 dev
+    from crawlo.__version__ import __version__
+except ImportError:
+    # 开发模式下可能未安装，回退到元数据或 dev
     try:
-        from crawlo.__version__ import __version__
-    except ImportError:
+        from importlib.metadata import version
+        __version__ = version("crawlo")
+    except Exception:
         __version__ = "dev"
 
 # 定义对外 API

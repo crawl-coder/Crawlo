@@ -1,3 +1,8 @@
+#!/usr/bin/python
+# -*- coding: UTF-8 -*-
+import sys
+import os
+sys.path.insert(0, "/Users/oscar/projects/Crawlo")
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
@@ -8,7 +13,7 @@ import sys
 from unittest.mock import Mock
 from crawlo.core.scheduler import Scheduler
 from crawlo.network.request import Request
-from crawlo.utils.log import get_logger
+from crawlo.logging import get_logger
 
 
 class MockCrawler:

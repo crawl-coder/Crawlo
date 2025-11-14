@@ -1,8 +1,8 @@
 #!/usr/bin/python
 # -*- coding:UTF-8 -*-
 """
-批处理操作工具
-提供批量操作的统一接口和优化实现
+批处理操作工具（已弃用）
+请使用 crawlo.utils.batch_manager 替代
 """
 import asyncio
 from functools import wraps
@@ -13,13 +13,14 @@ from crawlo.logging import get_logger
 
 
 class BatchProcessor:
-    """批处理处理器"""
+    """批处理处理器（已弃用）"""
     
     def __init__(self, batch_size: int = 100, max_concurrent_batches: int = 5):
         self.batch_size = batch_size
         self.max_concurrent_batches = max_concurrent_batches
         self.logger = get_logger(self.__class__.__name__)
         self.error_handler = ErrorHandler(self.__class__.__name__)
+        self.logger.warning("BatchProcessor 已弃用，请使用 crawlo.utils.batch_manager.BatchProcessor")
     
     async def process_batch(self, items: List[Any], processor_func: Callable, 
                            *args, **kwargs) -> List[Any]:
@@ -35,26 +36,10 @@ class BatchProcessor:
         Returns:
             处理结果列表
         """
-        results = []
-        semaphore = asyncio.Semaphore(self.max_concurrent_batches)
-        
-        async def process_item(item):
-            async with semaphore:
-                try:
-                    if asyncio.iscoroutinefunction(processor_func):
-                        return await processor_func(item, *args, **kwargs)
-                    else:
-                        return processor_func(item, *args, **kwargs)
-                except Exception as e:
-                    self.logger.error(f"处理单项失败: {e}")
-                    return None
-        
-        # 并发处理批次中的所有项
-        tasks = [process_item(item) for item in items]
-        results = await asyncio.gather(*tasks, return_exceptions=True)
-        
-        # 过滤掉异常结果
-        return [result for result in results if not isinstance(result, Exception)]
+        # 为了向后兼容，仍然提供实现
+        from crawlo.utils.batch_manager import BatchProcessor as NewBatchProcessor
+        new_processor = NewBatchProcessor(self.batch_size, self.max_concurrent_batches)
+        return await new_processor.process_batch(items, processor_func, *args, **kwargs)
     
     async def process_in_batches(self, items: List[Any], processor_func: Callable,
                                 *args, **kwargs) -> List[Any]:
@@ -70,21 +55,10 @@ class BatchProcessor:
         Returns:
             所有处理结果的列表
         """
-        all_results = []
-        
-        # 将数据分批处理
-        for i in range(0, len(items), self.batch_size):
-            batch = items[i:i + self.batch_size]
-            self.logger.debug(f"处理批次 {i//self.batch_size + 1}/{(len(items)-1)//self.batch_size + 1}")
-            
-            try:
-                batch_results = await self.process_batch(batch, processor_func, *args, **kwargs)
-                all_results.extend(batch_results)
-            except Exception as e:
-                self.logger.error(f"处理批次失败: {e}")
-                # 继续处理下一个批次而不是中断
-        
-        return all_results
+        # 为了向后兼容，仍然提供实现
+        from crawlo.utils.batch_manager import BatchProcessor as NewBatchProcessor
+        new_processor = NewBatchProcessor(self.batch_size, self.max_concurrent_batches)
+        return await new_processor.process_in_batches(items, processor_func, *args, **kwargs)
     
     def batch_process_decorator(self, batch_size: Optional[int] = None):
         """
@@ -97,7 +71,8 @@ class BatchProcessor:
             @wraps(func)
             async def async_wrapper(items: List[Any], *args, **kwargs):
                 actual_batch_size = batch_size or self.batch_size
-                processor = BatchProcessor(actual_batch_size, self.max_concurrent_batches)
+                from crawlo.utils.batch_manager import BatchProcessor as NewBatchProcessor
+                processor = NewBatchProcessor(actual_batch_size, self.max_concurrent_batches)
                 return await processor.process_in_batches(items, func, *args, **kwargs)
             
             @wraps(func)
@@ -116,13 +91,14 @@ class BatchProcessor:
 
 
 class RedisBatchProcessor:
-    """Redis批处理处理器"""
+    """Redis批处理处理器（已弃用）"""
     
     def __init__(self, redis_client, batch_size: int = 100):
         self.redis_client = redis_client
         self.batch_size = batch_size
         self.logger = get_logger(self.__class__.__name__)
         self.error_handler = ErrorHandler(self.__class__.__name__)
+        self.logger.warning("RedisBatchProcessor 已弃用，请使用 crawlo.utils.batch_manager.RedisBatchProcessor")
     
     async def batch_set(self, items: List[Dict[str, Any]]) -> int:
         """
@@ -134,39 +110,10 @@ class RedisBatchProcessor:
         Returns:
             成功设置的键值对数量
         """
-        try:
-            pipe = self.redis_client.pipeline()
-            count = 0
-            
-            for item in items:
-                if 'key' in item and 'value' in item:
-                    pipe.set(item['key'], item['value'])
-                    count += 1
-                    
-                    # 每达到批次大小就执行一次
-                    if count % self.batch_size == 0:
-                        result = pipe.execute()
-                        # 处理可能的异步情况
-                        if asyncio.iscoroutine(result):
-                            await result
-                        pipe = self.redis_client.pipeline()
-            
-            # 执行剩余的操作
-            if count % self.batch_size != 0:
-                result = pipe.execute()
-                # 处理可能的异步情况
-                if asyncio.iscoroutine(result):
-                    await result
-            
-            self.logger.debug(f"批量设置 {count} 个键值对")
-            return count
-        except Exception as e:
-            self.error_handler.handle_error(
-                e, 
-                context="Redis批量设置失败", 
-                raise_error=False
-            )
-            return 0
+        # 为了向后兼容，仍然提供实现
+        from crawlo.utils.batch_manager import RedisBatchProcessor as NewRedisBatchProcessor
+        new_processor = NewRedisBatchProcessor(self.redis_client, self.batch_size)
+        return await new_processor.batch_set(items)
     
     async def batch_get(self, keys: List[str]) -> Dict[str, Any]:
         """
@@ -178,34 +125,10 @@ class RedisBatchProcessor:
         Returns:
             键值对字典
         """
-        try:
-            # 使用管道批量获取
-            pipe = self.redis_client.pipeline()
-            for key in keys:
-                pipe.get(key)
-            
-            result = pipe.execute()
-            # 处理可能的异步情况
-            if asyncio.iscoroutine(result):
-                results = await result
-            else:
-                results = result
-            
-            # 构建结果字典
-            result_dict = {}
-            for i, key in enumerate(keys):
-                if results[i] is not None:
-                    result_dict[key] = results[i]
-            
-            self.logger.debug(f"批量获取 {len(result_dict)} 个键值对")
-            return result_dict
-        except Exception as e:
-            self.error_handler.handle_error(
-                e, 
-                context="Redis批量获取失败", 
-                raise_error=False
-            )
-            return {}
+        # 为了向后兼容，仍然提供实现
+        from crawlo.utils.batch_manager import RedisBatchProcessor as NewRedisBatchProcessor
+        new_processor = NewRedisBatchProcessor(self.redis_client, self.batch_size)
+        return await new_processor.batch_get(keys)
     
     async def batch_delete(self, keys: List[str]) -> int:
         """
@@ -217,61 +140,26 @@ class RedisBatchProcessor:
         Returns:
             成功删除的键数量
         """
-        try:
-            pipe = self.redis_client.pipeline()
-            count = 0
-            
-            for key in keys:
-                pipe.delete(key)
-                count += 1
-                
-                # 每达到批次大小就执行一次
-                if count % self.batch_size == 0:
-                    result = pipe.execute()
-                    # 处理可能的异步情况
-                    if asyncio.iscoroutine(result):
-                        await result
-                    pipe = self.redis_client.pipeline()
-            
-            # 执行剩余的操作
-            if count % self.batch_size != 0:
-                result = pipe.execute()
-                # 处理可能的异步情况
-                if asyncio.iscoroutine(result):
-                    await result
-            
-            self.logger.debug(f"批量删除 {count} 个键")
-            return count
-        except Exception as e:
-            self.error_handler.handle_error(
-                e, 
-                context="Redis批量删除失败", 
-                raise_error=False
-            )
-            return 0
+        # 为了向后兼容，仍然提供实现
+        from crawlo.utils.batch_manager import RedisBatchProcessor as NewRedisBatchProcessor
+        new_processor = NewRedisBatchProcessor(self.redis_client, self.batch_size)
+        return await new_processor.batch_delete(keys)
 
 
-# 全局批处理器实例
-default_batch_processor = BatchProcessor()
-
-
-def batch_process(items: List[Any], processor_func: Callable, 
-                 batch_size: int = 100, max_concurrent_batches: int = 5,
-                 *args, **kwargs) -> List[Any]:
+# 便利函数
+async def process_in_batches(items: List[Any], processor_func: Callable,
+                            batch_size: int = 100, max_concurrent_batches: int = 5,
+                            *args, **kwargs) -> List[Any]:
     """
-    便捷函数：批处理数据项
-    
-    Args:
-        items: 要处理的数据项列表
-        processor_func: 处理函数
-        batch_size: 批次大小
-        max_concurrent_batches: 最大并发批次数量
-        *args: 传递给处理函数的额外参数
-        **kwargs: 传递给处理函数的关键字参数
-        
-    Returns:
-        所有处理结果的列表
+    便利函数：分批处理大量数据项（已弃用）
     """
-    processor = BatchProcessor(batch_size, max_concurrent_batches)
-    import asyncio
-    return asyncio.run(processor.process_in_batches(items, processor_func, *args, **kwargs))
+    from crawlo.utils.batch_manager import process_in_batches as new_process_in_batches
+    return await new_process_in_batches(items, processor_func, batch_size, max_concurrent_batches, *args, **kwargs)
+
+
+def batch_process(batch_size: int = 100, max_concurrent_batches: int = 5):
+    """
+    装饰器：将函数转换为批处理函数（已弃用）
+    """
+    from crawlo.utils.batch_manager import batch_process as new_batch_process
+    return new_batch_process(batch_size, max_concurrent_batches)

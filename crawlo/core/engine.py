@@ -1,19 +1,19 @@
 #!/usr/bin/python
 # -*- coding:UTF-8 -*-
-import time
 import asyncio
+import time
 from inspect import iscoroutine
-from typing import Optional, Generator, Callable
+from typing import Optional, Callable, Any, Union, Dict, Iterator
 
-from crawlo.spider import Spider
 from crawlo import Request, Item
+from crawlo.spider import Spider
 from crawlo.event import CrawlerEvent
 from crawlo.logging import get_logger
-from crawlo.core.processor import Processor
-from crawlo.core.scheduler import Scheduler
-from crawlo.downloader import DownloaderBase
 from crawlo.exceptions import OutputError
 from crawlo.task_manager import TaskManager
+from crawlo.downloader import DownloaderBase
+from crawlo.core.processor import Processor
+from crawlo.core.scheduler import Scheduler
 from crawlo.utils.misc import load_object
 from crawlo.utils.func_tools import transform
 
@@ -24,19 +24,29 @@ class Engine(object):
         self.running = False
         self.normal = True
         self.crawler = crawler
-        self.settings = crawler.settings
+        self.settings: Union[Dict[str, Any], Any] = crawler.settings if crawler.settings is not None else {}
         self.spider: Optional[Spider] = None
         self.downloader: Optional[DownloaderBase] = None
         self.scheduler: Optional[Scheduler] = None
         self.processor: Optional[Processor] = None
-        self.start_requests: Optional[Generator] = None
-        self.task_manager: Optional[TaskManager] = TaskManager(self.settings.get_int('CONCURRENCY'))
+        self.start_requests: Optional[Iterator] = None
+        
+        # 安全获取CONCURRENCY设置，提供默认值
+        from crawlo.utils.misc import safe_get_config
+        concurrency = safe_get_config(self.settings, 'CONCURRENCY', 8, int)
+        
+        self.task_manager: Optional[TaskManager] = TaskManager(concurrency)
 
-        # 增强控制参数
-        self.max_queue_size = self.settings.get_int('SCHEDULER_MAX_QUEUE_SIZE', 200)
-        self.generation_batch_size = self.settings.get_int('REQUEST_GENERATION_BATCH_SIZE', 10)
-        self.generation_interval = self.settings.get_float('REQUEST_GENERATION_INTERVAL', 0.01)  # 优化默认值
-        self.backpressure_ratio = self.settings.get_float('BACKPRESSURE_RATIO', 0.9)  # 优化默认值
+        # 安全获取其他设置
+        max_queue_size = safe_get_config(self.settings, 'SCHEDULER_MAX_QUEUE_SIZE', 200, int)
+        generation_batch_size = safe_get_config(self.settings, 'REQUEST_GENERATION_BATCH_SIZE', 10, int)
+        generation_interval = safe_get_config(self.settings, 'REQUEST_GENERATION_INTERVAL', 0.01, float)
+        backpressure_ratio = safe_get_config(self.settings, 'BACKPRESSURE_RATIO', 0.9, float)
+        
+        self.max_queue_size = max_queue_size
+        self.generation_batch_size = generation_batch_size
+        self.generation_interval = generation_interval
+        self.backpressure_ratio = backpressure_ratio
         
         # 状态跟踪
         self._generation_paused = False
@@ -49,9 +59,16 @@ class Engine(object):
         self.logger = get_logger(name=self.__class__.__name__)
 
     def _get_downloader_cls(self):
-        """获取下载器类，支持多种配置方法"""
-        # 方式1: 使用 DOWNLOADER_TYPE 简化名称（推荐）
-        downloader_type = self.settings.get('DOWNLOADER_TYPE')
+        """
+        获取下载器类
+        
+        Returns:
+            Type[DownloaderBase]: 下载器类
+        """
+        from crawlo.utils.misc import safe_get_config
+        
+        # 方式1: 使用 DOWNLOADER_TYPE 配置（推荐）
+        downloader_type = safe_get_config(self.settings, 'DOWNLOADER_TYPE')
         if downloader_type:
             try:
                 from crawlo.downloader import get_downloader_class
@@ -62,15 +79,25 @@ class Engine(object):
                 self.logger.warning(f"无法使用下载器类型 '{downloader_type}': {e}，回退到默认配置")
         
         # 方式2: 使用 DOWNLOADER 完整类路径（兼容旧版本）
-        downloader_cls = load_object(self.settings.get('DOWNLOADER'))
+        downloader_path = safe_get_config(self.settings, 'DOWNLOADER')
+        
+        # 如果没有配置下载器，使用默认下载器
+        if not downloader_path:
+            from crawlo.downloader import HttpXDownloader
+            return HttpXDownloader
+            
+        downloader_cls = load_object(downloader_path)
         if not issubclass(downloader_cls, DownloaderBase):
             raise TypeError(f'下载器 {downloader_cls.__name__} 不是 DownloaderBase 的子类。')
         return downloader_cls
 
     def engine_start(self):
+        from crawlo.utils.misc import safe_get_config
+        
         self.running = True
         # 获取版本号，如果获取失败则使用默认值
-        version = self.settings.get('VERSION', '1.0.0')
+        version = safe_get_config(self.settings, 'VERSION', '1.0.0')
+                    
         if not version or version == 'None':
             version = '1.0.0'
         # 将INFO级别日志改为DEBUG级别，避免与CrawlerProcess启动日志重复
@@ -84,19 +111,19 @@ class Engine(object):
             if asyncio.iscoroutinefunction(self.scheduler.open):
                 await self.scheduler.open()
             else:
-                self.scheduler.open()
+                # 确保同步方法被正确调用
+                result = self.scheduler.open()
+                # 只有在result是协程时才await
+                if result is not None and asyncio.iscoroutine(result):
+                    await result
 
         downloader_cls = self._get_downloader_cls()
         self.downloader = downloader_cls(self.crawler)
         if hasattr(self.downloader, 'open'):
-            if asyncio.iscoroutinefunction(self.downloader.open):
-                self.downloader.open()
-            else:
-                # DownloaderBase.open() 是同步方法，直接调用而不是await
-                self.downloader.open()
+            self.downloader.open()
         
         # 注册下载器到资源管理器
-        if hasattr(self.crawler, '_resource_manager') and self.downloader:
+        if hasattr(self.crawler, '_resource_manager') and self.downloader is not None:
             from crawlo.utils.resource_manager import ResourceType
             self.crawler._resource_manager.register(
                 self.downloader,
@@ -108,12 +135,7 @@ class Engine(object):
 
         self.processor = Processor(self.crawler)
         if hasattr(self.processor, 'open'):
-            if asyncio.iscoroutinefunction(self.processor.open):
-                await self.processor.open()
-            else:
-                # Processor.open() 是同步方法
-                self.processor.open()
-
+            self.processor.open()
         # 在处理器初始化之后初始化扩展管理器，确保日志输出顺序正确
         # 中间件 -> 管道 -> 扩展
         if not hasattr(self.crawler, 'extension') or not self.crawler.extension:
@@ -143,8 +165,10 @@ class Engine(object):
         
         try:
             # 启动请求生成任务（如果启用了受控生成）
-            if (self.start_requests and 
-                self.settings.get_bool('ENABLE_CONTROLLED_REQUEST_GENERATION', False)):
+            from crawlo.utils.misc import safe_get_config
+            enable_controlled_generation = safe_get_config(self.settings, 'ENABLE_CONTROLLED_REQUEST_GENERATION', False, bool)
+            
+            if self.start_requests and enable_controlled_generation:
                 self.logger.debug("创建受控请求生成任务")
                 generation_task = asyncio.create_task(
                     self._controlled_request_generation()
@@ -196,7 +220,7 @@ class Engine(object):
         """传统请求生成方法（兼容旧版本）"""
         self.logger.debug("开始处理传统请求生成")
         processed_count = 0
-        while self.running:
+        while self.running and self.start_requests is not None:
             try:
                 start_request = next(self.start_requests)
                 # 请求入队
@@ -223,6 +247,9 @@ class Engine(object):
         """Controlled request generation (enhanced features)"""
         self.logger.debug("Starting controlled request generation")
         
+        if self.start_requests is None:
+            return
+            
         batch = []
         total_generated = 0
         
@@ -326,9 +353,16 @@ class Engine(object):
                 if self.task_manager:
                     self.task_manager.record_response_time(response_time)
                 
-                # TODO 处理output
                 if outputs:
                     await self._handle_spider_output(outputs)
+                
+                # 由于我们不再使用处理队列，不再需要确认任务完成
+                # 任务在从主队列取出时就已经被认为是完成的
+            except asyncio.CancelledError:
+                # 正确处理取消异常
+                self.logger.info(f"爬取任务被取消: {getattr(request, 'url', 'Unknown URL')}")
+                # 重新抛出CancelledError以便调用者可以正确处理
+                raise
             except Exception as e:
                 # 记录详细的异常信息
                 self.logger.error(
@@ -347,10 +381,20 @@ class Engine(object):
                 return None
 
         # 使用异步任务创建，遵守并发限制
-        await self.task_manager.create_task(crawl_task())
+        if self.task_manager:
+            try:
+                await self.task_manager.create_task(crawl_task())
+            except asyncio.CancelledError:
+                self.logger.info("爬取任务被取消")
+                # 重新抛出CancelledError以便调用者可以正确处理
+                raise
+            except Exception as e:
+                self.logger.error(f"创建爬取任务时发生错误: {e}")
 
     async def _fetch(self, request):
         async def _successful(_response):
+            if self.spider is None:
+                return None
             callback: Callable = request.callback or self.spider.parse
             if _outputs := callback(_response):
                 if iscoroutine(_outputs):
@@ -358,6 +402,8 @@ class Engine(object):
                 else:
                     return transform(_outputs, _response)
 
+        if self.downloader is None:
+            return None
         _response = await self.downloader.fetch(request)
         if _response is None:
             return None
@@ -365,29 +411,39 @@ class Engine(object):
         return output
 
     async def enqueue_request(self, start_request):
-        await self._schedule_request(start_request)
+        if self.scheduler is not None:
+            await self._schedule_request(start_request)
 
     async def _schedule_request(self, request):
-        if await self.scheduler.enqueue_request(request):
-            asyncio.create_task(self.crawler.subscriber.notify(CrawlerEvent.REQUEST_SCHEDULED, request, self.crawler.spider))
+        if self.scheduler is not None and await self.scheduler.enqueue_request(request):
+            if self.crawler is not None and self.crawler.spider is not None:
+                asyncio.create_task(self.crawler.subscriber.notify(CrawlerEvent.REQUEST_SCHEDULED, request, self.crawler.spider))
 
     async def _get_next_request(self):
-        return await self.scheduler.next_request()
+        if self.scheduler is not None:
+            return await self.scheduler.next_request()
+        return None
 
     async def _handle_spider_output(self, outputs):
+        if self.processor is None:
+            return
         async for spider_output in outputs:
             if isinstance(spider_output, (Request, Item)):
                 await self.processor.enqueue(spider_output)
             elif isinstance(spider_output, Exception):
-                asyncio.create_task(
-                    self.crawler.subscriber.notify(CrawlerEvent.SPIDER_ERROR, spider_output, self.spider)
-                )
+                if self.crawler is not None and self.spider is not None:
+                    asyncio.create_task(
+                        self.crawler.subscriber.notify(CrawlerEvent.SPIDER_ERROR, spider_output, self.spider)
+                    )
                 raise spider_output
             else:
                 raise OutputError(f'{type(self.spider)} must return `Request` or `Item`.')
 
     async def _exit(self):
-        if self.scheduler.idle() and self.downloader.idle() and self.task_manager.all_done() and self.processor.idle():
+        if (self.scheduler is not None and self.scheduler.idle() and 
+            self.downloader is not None and self.downloader.idle() and 
+            self.task_manager is not None and self.task_manager.all_done() and 
+            self.processor is not None and self.processor.idle()):
             return True
         return False
 
@@ -398,10 +454,19 @@ class Engine(object):
         if self.start_requests is None:
             self.logger.debug("start_requests 为 None，检查其他组件状态")
             # 使用异步的idle检查方法以获得更精确的结果
-            scheduler_idle = await self.scheduler.async_idle() if hasattr(self.scheduler, 'async_idle') else self.scheduler.idle()
-            downloader_idle = self.downloader.idle()
-            task_manager_done = self.task_manager.all_done()
-            processor_idle = self.processor.idle()
+            scheduler_idle = False
+            downloader_idle = False
+            task_manager_done = False
+            processor_idle = False
+            
+            if self.scheduler is not None:
+                scheduler_idle = await self.scheduler.async_idle() if hasattr(self.scheduler, 'async_idle') else self.scheduler.idle()
+            if self.downloader is not None:
+                downloader_idle = self.downloader.idle()
+            if self.task_manager is not None:
+                task_manager_done = self.task_manager.all_done()
+            if self.processor is not None:
+                processor_idle = self.processor.idle()
             
             self.logger.debug(f"组件状态 - Scheduler: {scheduler_idle}, Downloader: {downloader_idle}, TaskManager: {task_manager_done}, Processor: {processor_idle}")
             
@@ -410,10 +475,14 @@ class Engine(object):
                 task_manager_done and 
                 processor_idle):
                 # 立即进行二次检查，不等待
-                scheduler_idle = await self.scheduler.async_idle() if hasattr(self.scheduler, 'async_idle') else self.scheduler.idle()
-                downloader_idle = self.downloader.idle()
-                task_manager_done = self.task_manager.all_done()
-                processor_idle = self.processor.idle()
+                if self.scheduler is not None:
+                    scheduler_idle = await self.scheduler.async_idle() if hasattr(self.scheduler, 'async_idle') else self.scheduler.idle()
+                if self.downloader is not None:
+                    downloader_idle = self.downloader.idle()
+                if self.task_manager is not None:
+                    task_manager_done = self.task_manager.all_done()
+                if self.processor is not None:
+                    processor_idle = self.processor.idle()
                 
                 self.logger.debug(f"二次检查组件状态 - Scheduler: {scheduler_idle}, Downloader: {downloader_idle}, TaskManager: {task_manager_done}, Processor: {processor_idle}")
                 
@@ -429,9 +498,12 @@ class Engine(object):
         return False
 
     async def close_spider(self):
-        await asyncio.gather(*self.task_manager.current_task)
-        await self.scheduler.close()
-        await self.downloader.close()
+        if self.task_manager is not None:
+            await asyncio.gather(*self.task_manager.current_task)
+        if self.scheduler is not None:
+            await self.scheduler.close()
+        if self.downloader is not None:
+            await self.downloader.close()
     
     def get_generation_stats(self) -> dict:
         """获取生成统计"""

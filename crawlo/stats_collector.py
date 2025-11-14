@@ -13,7 +13,10 @@ class StatsCollector(object):
 
     def __init__(self, crawler):
         self.crawler = crawler
-        self._dump = self.crawler.settings.get_bool('STATS_DUMP')
+        # 安全获取STATS_DUMP设置
+        from crawlo.utils.misc import safe_get_config
+        self._dump = safe_get_config(self.crawler.settings, 'STATS_DUMP', True, bool)
+            
         self._stats = {}
         self.logger = get_logger(self.__class__.__name__)
 

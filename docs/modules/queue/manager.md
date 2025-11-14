@@ -176,3 +176,25 @@ await queue_manager.close()
 - 为队列操作使用适当的超时值
 - 启用统计信息收集以进行性能监控
 - 考虑为分布式爬取使用Redis队列
+
+## 队列类型说明
+
+### 内存队列 (Memory Queue)
+
+- 适用于单机开发和测试
+- 数据存储在内存中，重启后丢失
+- 性能高，无外部依赖
+- 不支持分布式部署
+
+### Redis队列 (Redis Queue)
+
+- 适用于生产环境和分布式部署
+- 数据持久化存储在Redis中
+- 支持多节点共享队列
+- 需要Redis服务器
+
+Redis队列使用以下数据结构：
+1. **主队列** (`crawlo:{project_name}:queue:requests`)：Redis有序集合，存储待处理请求的指纹和优先级
+2. **数据存储** (`crawlo:{project_name}:queue:requests:data`)：Redis哈希表，存储请求指纹到完整序列化请求数据的映射
+
+注意：当前实现已取消处理中队列（processing queue），请求一旦从主队列取出即认为完成处理。

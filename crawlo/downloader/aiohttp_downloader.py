@@ -1,8 +1,10 @@
 #!/usr/bin/python
 # -*- coding: UTF-8 -*-
 import asyncio
+import time
+import socket
 from yarl import URL
-from typing import Optional
+from typing import Optional, TYPE_CHECKING, Union, Dict, Any
 from aiohttp import (
     ClientSession,
     TCPConnector,
@@ -17,6 +19,10 @@ from crawlo.network.response import Response
 from crawlo.logging import get_logger
 from crawlo.downloader import DownloaderBase
 
+if TYPE_CHECKING:
+    from crawlo.network.request import Request
+    from crawlo.crawler import Crawler
+
 
 class AioHttpDownloader(DownloaderBase):
     """
@@ -28,21 +34,31 @@ class AioHttpDownloader(DownloaderBase):
     - 内存安全防护
     """
 
-    def __init__(self, crawler):
+    def __init__(self, crawler: 'Crawler') -> None:
+        """
+        初始化 AioHttp 下载器
+        
+        Args:
+            crawler: 爬虫实例
+        """
         super().__init__(crawler)
         self.session: Optional[ClientSession] = None
         self.max_download_size: int = 0
         self.logger = get_logger(self.__class__.__name__)
 
-    def open(self):
+    def open(self) -> None:
+        """
+        打开下载器，创建 ClientSession
+        """
         super().open()
         # 恢复关键的下载器启动信息为INFO级别
         # 读取配置
-        timeout_secs = self.crawler.settings.get_int("DOWNLOAD_TIMEOUT", 30)
-        verify_ssl = self.crawler.settings.get_bool("VERIFY_SSL", True)
-        pool_limit = self.crawler.settings.get_int("CONNECTION_POOL_LIMIT", 300)  # 从200增加到300
-        pool_per_host = self.crawler.settings.get_int("CONNECTION_POOL_LIMIT_PER_HOST", 100)  # 从50增加到100
-        self.max_download_size = self.crawler.settings.get_int("DOWNLOAD_MAXSIZE", 10 * 1024 * 1024)  # 10MB
+        from crawlo.utils.misc import safe_get_config
+        timeout_secs = safe_get_config(self.crawler.settings, "DOWNLOAD_TIMEOUT", 30, int)
+        verify_ssl = safe_get_config(self.crawler.settings, "VERIFY_SSL", True, bool)
+        pool_limit = safe_get_config(self.crawler.settings, "CONNECTION_POOL_LIMIT", 300, int)  # 从200增加到300
+        pool_per_host = safe_get_config(self.crawler.settings, "CONNECTION_POOL_LIMIT_PER_HOST", 100, int)  # 从50增加到100
+        self.max_download_size = safe_get_config(self.crawler.settings, "DOWNLOAD_MAXSIZE", 10 * 1024 * 1024, int)  # 10MB
 
         # 创建连接器
         connector = TCPConnector(
@@ -53,7 +69,7 @@ class AioHttpDownloader(DownloaderBase):
             keepalive_timeout=15,
             force_close=False,
             use_dns_cache=True,  # 启用DNS缓存
-            family=0,  # 允许IPv4和IPv6
+            family=socket.AF_UNSPEC,  # 允许IPv4和IPv6
         )
 
         # 超时控制 - 增加更多超时设置
@@ -80,16 +96,23 @@ class AioHttpDownloader(DownloaderBase):
 
         # 输出下载器配置摘要
         spider_name = getattr(self.crawler.spider, 'name', 'Unknown')
-        concurrency = self.crawler.settings.get('CONCURRENCY', 4)
+        concurrency = safe_get_config(self.crawler.settings, 'CONCURRENCY', 4, int)
 
-    async def download(self, request) -> Optional[Response]:
-        """下载请求并返回响应"""
+    async def download(self, request: 'Request') -> Response:
+        """
+        下载请求并返回响应
+        
+        Args:
+            request: 请求对象
+            
+        Returns:
+            Response: 响应对象
+        """
         if not self.session or self.session.closed:
             raise RuntimeError("AioHttpDownloader session is not open.")
 
         start_time = None
         if self.crawler.settings.get_bool("DOWNLOAD_STATS", True):
-            import time
             start_time = time.time()
 
         try:
@@ -118,12 +141,19 @@ class AioHttpDownloader(DownloaderBase):
             raise
 
     @staticmethod
-    async def _send_request(session: ClientSession, request) -> ClientResponse:
+    async def _send_request(session: ClientSession, request: 'Request') -> ClientResponse:
         """
         根据请求方法和高层语义智能发送请求。
         支持中间件设置的 proxy，兼容以下格式：
             - str: "http://user:pass@host:port"
             - dict: {"http": "...", "https": "..."} （自动取 http 或 https 字段）
+            
+        Args:
+            session: ClientSession 实例
+            request: 请求对象
+            
+        Returns:
+            ClientResponse: 响应对象
         """
         method = request.method.lower()
         if not hasattr(session, method):
@@ -132,7 +162,7 @@ class AioHttpDownloader(DownloaderBase):
         method_func = getattr(session, method)
 
         # 构造参数
-        kwargs = {
+        kwargs: Dict[str, Any] = {
             "headers": request.headers,
             "cookies": request.cookies,
             "allow_redirects": request.allow_redirects,
@@ -191,8 +221,18 @@ class AioHttpDownloader(DownloaderBase):
         return await method_func(request.url, **kwargs)
 
     @staticmethod
-    def _structure_response(request, resp: ClientResponse, body: bytes) -> Response:
-        """构造框架所需的 Response 对象"""
+    def _structure_response(request: 'Request', resp: ClientResponse, body: bytes) -> Response:
+        """
+        构造框架所需的 Response 对象
+        
+        Args:
+            request: 请求对象
+            resp: aiohttp 响应对象
+            body: 响应体
+            
+        Returns:
+            Response: 框架响应对象
+        """
         return Response(
             url=str(resp.url),
             headers=dict(resp.headers),
@@ -202,16 +242,37 @@ class AioHttpDownloader(DownloaderBase):
         )
 
     # --- 请求追踪日志 ---
-    async def _on_request_start(self, session, trace_config_ctx, params):
-        """请求开始时的回调。"""
+    async def _on_request_start(self, session: ClientSession, trace_config_ctx: Any, params: Any) -> None:
+        """
+        请求开始时的回调。
+        
+        Args:
+            session: ClientSession 实例
+            trace_config_ctx: 追踪配置上下文
+            params: 参数
+        """
         pass
 
-    async def _on_request_end(self, session, trace_config_ctx, params):
-        """请求成功结束时的回调。"""
+    async def _on_request_end(self, session: ClientSession, trace_config_ctx: Any, params: Any) -> None:
+        """
+        请求成功结束时的回调。
+        
+        Args:
+            session: ClientSession 实例
+            trace_config_ctx: 追踪配置上下文
+            params: 参数
+        """
         pass
 
-    async def _on_request_exception(self, session, trace_config_ctx, params):
-        """请求发生异常时的回调。"""
+    async def _on_request_exception(self, session: ClientSession, trace_config_ctx: Any, params: Any) -> None:
+        """
+        请求发生异常时的回调。
+        
+        Args:
+            session: ClientSession 实例
+            trace_config_ctx: 追踪配置上下文
+            params: 参数
+        """
         pass
 
     async def close(self) -> None:

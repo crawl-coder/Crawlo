@@ -64,6 +64,15 @@ graph TD
 3. **Size**：获取当前队列大小
 4. **Empty**：检查队列是否为空
 
+### Redis数据结构
+
+Redis队列使用以下数据结构：
+
+1. **主队列** (`crawlo:{project_name}:queue:requests`)：Redis有序集合，存储待处理请求的指纹和优先级
+2. **数据存储** (`crawlo:{project_name}:queue:requests:data`)：Redis哈希表，存储请求指纹到完整序列化请求数据的映射
+
+注意：当前实现已取消处理中队列（processing queue），请求一旦从主队列取出即认为完成处理。
+
 ## 配置
 
 Redis队列通过QueueConfig配置：

@@ -94,6 +94,9 @@ class TaskManager:
                     # 尝试获取结果，如果有异常会被抛出
                     result = _future.result()
                     # 如果成功完成，可以在这里记录成功统计
+                except asyncio.CancelledError:
+                    # 正确处理取消异常，避免"never retrieved"警告
+                    self.logger.info("Task was cancelled")
                 except Exception as exception:
                     # 异常被正确"获取"了，不会再出现"never retrieved"警告
                     self._exception_count += 1

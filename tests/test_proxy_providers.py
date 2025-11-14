@@ -1,3 +1,8 @@
+#!/usr/bin/python
+# -*- coding: UTF-8 -*-
+import sys
+import os
+sys.path.insert(0, "/Users/oscar/projects/Crawlo")
 # tests/test_proxy_providers.py
 import pytest
 import pytest

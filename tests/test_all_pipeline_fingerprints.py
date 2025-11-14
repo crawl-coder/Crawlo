@@ -1,4 +1,9 @@
 #!/usr/bin/python
+# -*- coding: UTF-8 -*-
+import sys
+import os
+sys.path.insert(0, "/Users/oscar/projects/Crawlo")
+#!/usr/bin/python
 # -*- coding:UTF-8 -*-
 """
 所有去重管道指纹一致性测试

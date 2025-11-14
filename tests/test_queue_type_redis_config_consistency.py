@@ -1,3 +1,8 @@
+#!/usr/bin/python
+# -*- coding: UTF-8 -*-
+import sys
+import os
+sys.path.insert(0, "/Users/oscar/projects/Crawlo")
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
@@ -69,6 +74,7 @@ async def test_scheduler_redis_config_update():
         def __init__(self, settings):
             self.settings = settings
             self.stats = None
+            self.spider = None
     
     crawler = MockCrawler(settings)
     

@@ -1,4 +1,9 @@
 #!/usr/bin/python
+# -*- coding: UTF-8 -*-
+import sys
+import os
+sys.path.insert(0, "/Users/oscar/projects/Crawlo")
+#!/usr/bin/python
 # -*- coding:UTF-8 -*-
 """
 选择器辅助工具测试

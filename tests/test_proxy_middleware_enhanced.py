@@ -1,5 +1,10 @@
 #!/usr/bin/python
 # -*- coding: UTF-8 -*-
+import sys
+import os
+sys.path.insert(0, "/Users/oscar/projects/Crawlo")
+#!/usr/bin/python
+# -*- coding: UTF-8 -*-
 """
 增强版代理中间件测试
 ==================

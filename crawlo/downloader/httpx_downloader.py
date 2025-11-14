@@ -43,22 +43,27 @@ class HttpXDownloader(DownloaderBase):
         self._client_limits: Optional[Limits] = None
         self._client_verify: bool = True
         self._client_http2: bool = False
-        self.max_download_size: Optional[int] = None
+        self.max_download_size: int = 0
         # ------------------------
         self._timeout: Optional[Timeout] = None
         self._limits: Optional[Limits] = None
         # --- 获取 logger 实例 ---
         self.logger = get_logger(self.__class__.__name__)
 
-    def open(self):
+    def open(self) -> None:
+        """
+        打开下载器，创建 AsyncClient
+        """
         super().open()
-        self.logger.info("Opening HttpXDownloader")
-
-        # 读取配置
-        timeout_total = self.crawler.settings.get_int("DOWNLOAD_TIMEOUT", 30)
-        pool_limit = self.crawler.settings.get_int("CONNECTION_POOL_LIMIT", 100)
-        pool_per_host = self.crawler.settings.get_int("CONNECTION_POOL_LIMIT_PER_HOST", 20)
-        max_download_size = self.crawler.settings.get_int("DOWNLOAD_MAXSIZE", 10 * 1024 * 1024)  # 10MB
+        
+        from crawlo.utils.misc import safe_get_config
+        
+        # 读取配置 - 使用统一的安全获取方式
+        timeout_total = safe_get_config(self.crawler.settings, "DOWNLOAD_TIMEOUT", 30, int)
+        pool_limit = safe_get_config(self.crawler.settings, "CONNECTION_POOL_LIMIT", 100, int)
+        pool_per_host = safe_get_config(self.crawler.settings, "CONNECTION_POOL_LIMIT_PER_HOST", 20, int)
+        max_download_size = safe_get_config(self.crawler.settings, "DOWNLOAD_MAXSIZE", 10 * 1024 * 1024, int)
+        verify_ssl = safe_get_config(self.crawler.settings, "VERIFY_SSL", True, bool)
 
         # 保存配置
         self.max_download_size = max_download_size
@@ -74,7 +79,7 @@ class HttpXDownloader(DownloaderBase):
             max_connections=pool_limit,
             max_keepalive_connections=pool_per_host
         )
-        self._client_verify = self.crawler.settings.get_bool("VERIFY_SSL", True)
+        self._client_verify = verify_ssl
         self._client_http2 = True  # 启用 HTTP/2 支持
         # ----------------------------
 
@@ -90,7 +95,7 @@ class HttpXDownloader(DownloaderBase):
 
         self.logger.debug("HttpXDownloader initialized.")
 
-    async def download(self, request) -> Optional[Response]:
+    async def download(self, request) -> Response:
         """下载请求并返回响应，支持代理失败后的优雅降级"""
         if not self._client:
             raise RuntimeError("HttpXDownloader client is not available.")
@@ -152,9 +157,15 @@ class HttpXDownloader(DownloaderBase):
                     try:
                         # --- 4. 创建临时 client，配置代理 ---
                         # 使用在 open() 中保存的配置
+                        # 确保 _client_limits 不为 None
+                        client_limits = self._client_limits or Limits(
+                            max_connections=100,
+                            max_keepalive_connections=20
+                        )
+                        
                         temp_client = AsyncClient(
                             timeout=self._client_timeout,
-                            limits=self._client_limits,
+                            limits=client_limits,
                             verify=self._client_verify,
                             http2=self._client_http2,
                             follow_redirects=True,  # 确保继承
@@ -204,6 +215,7 @@ class HttpXDownloader(DownloaderBase):
 
             # --- 8. 记录下载统计 ---
             if start_time:
+                import time
                 download_time = time.time() - start_time
                 self.logger.debug(f"Downloaded {request.url} in {download_time:.3f}s, size: {len(body)} bytes")
 

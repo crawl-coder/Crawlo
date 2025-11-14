@@ -183,6 +183,7 @@ class ResourceManager:
             cleanup_duration = time.time() - cleanup_start
             
             # 清空资源列表
+            cleaned_count = len(self._resources)
             self._resources.clear()
             
             result = {
@@ -190,6 +191,7 @@ class ResourceManager:
                 'errors': error_count,
                 'duration': cleanup_duration,
                 'total_resources': success_count + error_count,
+                'cleaned_resources': cleaned_count
             }
             
             if error_count > 0:

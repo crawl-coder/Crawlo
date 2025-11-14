@@ -2,13 +2,13 @@
 import asyncio
 import async_timeout
 from abc import ABC, abstractmethod
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 
 from crawlo.exceptions import ItemDiscard
 from crawlo.items import Item
 from crawlo.utils.db_helper import SQLBuilder
 from crawlo.logging import get_logger
-from crawlo.utils.mysql_connection_pool import MySQLConnectionPoolManager
+from crawlo.utils.database_connection_pool import DatabaseConnectionPoolManager
 from . import BasePipeline
 
 
@@ -65,9 +65,8 @@ class BaseMySQLPipeline(BasePipeline, ABC):
         # 注册关闭事件
         crawler.subscriber.subscribe(self.spider_closed, event='spider_closed')
 
-    async def process_item(self, item: Item, spider, kwargs: Dict[str, Any] = None) -> Item:
+    async def process_item(self, item: Item, spider, **kwargs) -> Item:
         """处理item的核心方法"""
-        kwargs = kwargs or {}
         spider_name = getattr(spider, 'name', 'unknown')  # 获取爬虫名称
         
         # 如果启用批量插入，将item添加到缓冲区
@@ -125,7 +124,7 @@ class BaseMySQLPipeline(BasePipeline, ABC):
                 raise ItemDiscard(error_msg)
 
     @abstractmethod
-    async def _execute_sql(self, sql: str, values: list = None) -> int:
+    async def _execute_sql(self, sql: str, values: Optional[list] = None) -> int:
         """执行SQL语句并处理结果 - 子类需要重写此方法"""
         raise NotImplementedError("子类必须实现 _execute_sql 方法")
 
@@ -204,7 +203,7 @@ class BaseMySQLPipeline(BasePipeline, ABC):
                 self.logger.error(f"关闭爬虫时刷新批量数据失败: {e}")
         
         # 注意：不再关闭连接池，因为连接池是全局共享的
-        # 连接池的关闭由 MySQLConnectionPoolManager.close_all_pools() 统一管理
+        # 连接池的关闭由 DatabaseConnectionPoolManager.close_all_mysql_pools() 统一管理
         if self.pool:
             self.logger.info(
                 f"MySQL Pipeline 关闭，但保留全局共享连接池以供其他爬虫使用"
@@ -256,7 +255,7 @@ class AsyncmyMySQLPipeline(BaseMySQLPipeline):
             if not self._pool_initialized:  # 双重检查避免竞争条件
                 try:
                     # 使用单例连接池管理器
-                    self.pool = await MySQLConnectionPoolManager.get_pool(
+                    self.pool = await DatabaseConnectionPoolManager.get_mysql_pool(
                         pool_type='asyncmy',
                         host=self.settings.get('MYSQL_HOST', 'localhost'),
                         port=self.settings.get_int('MYSQL_PORT', 3306),
@@ -279,7 +278,7 @@ class AsyncmyMySQLPipeline(BaseMySQLPipeline):
                     self.pool = None
                     raise
 
-    async def _execute_sql(self, sql: str, values: list = None) -> int:
+    async def _execute_sql(self, sql: str, values: Optional[list] = None) -> int:
         """执行SQL语句并处理结果，包含死锁重试机制"""
         max_retries = 3
         timeout = 30  # 30秒超时
@@ -301,7 +300,7 @@ class AsyncmyMySQLPipeline(BaseMySQLPipeline):
                                 rowcount = await cursor.execute(sql)
 
                             await conn.commit()
-                            return rowcount
+                            return rowcount or 0
             except asyncio.TimeoutError:
                 self.logger.error(f"执行SQL超时 ({timeout}秒): {sql[:100]}...")
                 raise ItemDiscard(f"MySQL操作超时: {sql[:100]}...")
@@ -326,6 +325,7 @@ class AsyncmyMySQLPipeline(BaseMySQLPipeline):
                     if values:
                         self.logger.debug(f"SQL: {sql[:200]}..., Values: {values[:5] if isinstance(values, list) else '...'}")
                     raise ItemDiscard(error_msg)
+        return 0
 
     async def _execute_batch_sql(self, sql: str, values_list: list) -> int:
         """执行批量SQL语句，包含死锁重试机制"""
@@ -345,7 +345,7 @@ class AsyncmyMySQLPipeline(BaseMySQLPipeline):
                             # 执行批量插入
                             rowcount = await cursor.executemany(sql, values_list)
                             await conn.commit()
-                            return rowcount
+                            return rowcount or 0
             except asyncio.TimeoutError:
                 self.logger.error(f"执行批量SQL超时 ({timeout}秒)")
                 raise ItemDiscard(f"MySQL批量操作超时")
@@ -369,6 +369,7 @@ class AsyncmyMySQLPipeline(BaseMySQLPipeline):
                     # 记录SQL和值的概要以便调试
                     self.logger.debug(f"SQL: {sql[:200]}..., Values count: {len(values_list) if isinstance(values_list, list) else 'unknown'}")
                     raise ItemDiscard(error_msg)
+        return 0
 
 
 class AiomysqlMySQLPipeline(BaseMySQLPipeline):
@@ -395,7 +396,7 @@ class AiomysqlMySQLPipeline(BaseMySQLPipeline):
             if not self._pool_initialized:
                 try:
                     # 使用单例连接池管理器
-                    self.pool = await MySQLConnectionPoolManager.get_pool(
+                    self.pool = await DatabaseConnectionPoolManager.get_mysql_pool(
                         pool_type='aiomysql',
                         host=self.settings.get('MYSQL_HOST', 'localhost'),
                         port=self.settings.get_int('MYSQL_PORT', 3306),
@@ -417,22 +418,23 @@ class AiomysqlMySQLPipeline(BaseMySQLPipeline):
                     self.pool = None
                     raise
 
-    async def _execute_sql(self, sql: str, values: list = None) -> int:
+    async def _execute_sql(self, sql: str, values: Optional[list] = None) -> int:
         """执行SQL语句并处理结果，包含死锁重试机制"""
         max_retries = 3
         for attempt in range(max_retries):
             try:
                 # 使用aiomysql的异步上下文管理器方式
-                async with self.pool.acquire() as conn:
-                    async with conn.cursor() as cursor:
-                        # 根据是否有参数值选择不同的执行方法
-                        if values is not None:
-                            rowcount = await cursor.execute(sql, values)
-                        else:
-                            rowcount = await cursor.execute(sql)
+                if self.pool is not None:
+                    async with self.pool.acquire() as conn:
+                        async with conn.cursor() as cursor:
+                            # 根据是否有参数值选择不同的执行方法
+                            if values is not None:
+                                rowcount = await cursor.execute(sql, values)
+                            else:
+                                rowcount = await cursor.execute(sql)
 
-                        await conn.commit()
-                        return rowcount
+                            await conn.commit()
+                            return rowcount or 0
             except Exception as e:
                 # 检查是否是死锁错误
                 if "Deadlock found" in str(e) and attempt < max_retries - 1:
@@ -444,18 +446,20 @@ class AiomysqlMySQLPipeline(BaseMySQLPipeline):
                     error_msg = f"MySQL插入失败: {str(e)}"
                     self.logger.error(f"执行SQL时发生错误: {error_msg}")
                     raise ItemDiscard(error_msg)
+        return 0
 
     async def _execute_batch_sql(self, sql: str, values_list: list) -> int:
         """执行批量SQL语句，包含死锁重试机制"""
         max_retries = 3
         for attempt in range(max_retries):
             try:
-                async with self.pool.acquire() as conn:
-                    async with conn.cursor() as cursor:
-                        # 执行批量插入
-                        rowcount = await cursor.executemany(sql, values_list)
-                        await conn.commit()
-                        return rowcount
+                if self.pool is not None:
+                    async with self.pool.acquire() as conn:
+                        async with conn.cursor() as cursor:
+                            # 执行批量插入
+                            rowcount = await cursor.executemany(sql, values_list)
+                            await conn.commit()
+                            return rowcount or 0
             except Exception as e:
                 # 检查是否是死锁错误
                 if "Deadlock found" in str(e) and attempt < max_retries - 1:
@@ -467,3 +471,4 @@ class AiomysqlMySQLPipeline(BaseMySQLPipeline):
                     error_msg = f"MySQL批量插入失败: {str(e)}"
                     self.logger.error(f"执行批量SQL时发生错误: {error_msg}")
                     raise ItemDiscard(error_msg)
+        return 0

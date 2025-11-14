@@ -110,12 +110,14 @@ class ModeManager:
         }
 
     @staticmethod
-    def get_auto_settings() -> Dict[str, Any]:
+    def get_auto_settings(project_name: str = 'crawlo') -> Dict[str, Any]:
         """获取自动检测模式配置"""
         # 默认使用内存队列和过滤器
         settings = ModeManager.get_standalone_settings()
         settings['RUN_MODE'] = 'auto'
         settings['QUEUE_TYPE'] = 'auto'
+        # 使用传入的项目名称而不是硬编码的'crawlo'
+        settings['PROJECT_NAME'] = project_name
         return settings
 
     def resolve_mode_settings(
@@ -156,7 +158,10 @@ class ModeManager:
 
         elif mode_enum == RunMode.AUTO:
             mode_info = "使用自动检测模式 - 智能选择最佳运行方式"
-            settings = self.get_auto_settings()
+            # 传递项目名称给get_auto_settings
+            settings = self.get_auto_settings(
+                project_name=kwargs.get('project_name', 'crawlo')
+            )
             self._debug("应用自动检测模式配置")
 
         else:

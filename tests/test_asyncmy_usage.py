@@ -1,3 +1,8 @@
+#!/usr/bin/python
+# -*- coding: UTF-8 -*-
+import sys
+import os
+sys.path.insert(0, "/Users/oscar/projects/Crawlo")
 # -*- coding: utf-8 -*-
 import asyncio
 from asyncmy import create_pool

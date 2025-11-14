@@ -44,18 +44,28 @@ class MemoryFilter(BaseFilter):
         self._temp_weak_refs = WeakSet()     # 弱引用临时存储
         self._lock = threading.RLock()       # 线程安全锁
 
-        # 初始化日志和统计
-        debug = crawler.settings.get_bool('FILTER_DEBUG', False)
+        # 安全初始化日志和统计
+        debug = False
+        if crawler and crawler.settings is not None:
+            from crawlo.utils.misc import safe_get_config
+            debug = safe_get_config(crawler.settings, 'FILTER_DEBUG', False, bool)
+        else:
+            debug = False
+            
         logger = get_logger(self.__class__.__name__)
-        super().__init__(logger, crawler.stats, debug)
+        super().__init__(logger, getattr(crawler, 'stats', None), debug)
 
         # 性能计数器
         self._dupe_count = 0
         self._unique_count = 0
         
-        # 内存优化配置
-        self._max_capacity = crawler.settings.get_int('MEMORY_FILTER_MAX_CAPACITY', 1000000)
-        self._cleanup_threshold = crawler.settings.get_float('MEMORY_FILTER_CLEANUP_THRESHOLD', 0.8)
+        # 安全获取内存优化配置
+        from crawlo.utils.misc import safe_get_config
+        max_capacity = safe_get_config(crawler.settings, 'MEMORY_FILTER_MAX_CAPACITY', 1000000, int)
+        cleanup_threshold = safe_get_config(crawler.settings, 'MEMORY_FILTER_CLEANUP_THRESHOLD', 0.8, float)
+            
+        self._max_capacity = max_capacity
+        self._cleanup_threshold = cleanup_threshold
 
     def add_fingerprint(self, fp: str) -> None:
         """

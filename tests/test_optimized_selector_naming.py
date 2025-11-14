@@ -1,4 +1,9 @@
 #!/usr/bin/python
+# -*- coding: UTF-8 -*-
+import sys
+import os
+sys.path.insert(0, "/Users/oscar/projects/Crawlo")
+#!/usr/bin/python
 # -*- coding:UTF-8 -*-
 """
 优化后的选择器命名测试

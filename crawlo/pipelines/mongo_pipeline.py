@@ -5,7 +5,7 @@ from pymongo.errors import PyMongoError
 
 from crawlo.exceptions import ItemDiscard
 from crawlo.logging import get_logger
-from crawlo.utils.mongo_connection_pool import MongoConnectionPoolManager
+from crawlo.utils.database_connection_pool import DatabaseConnectionPoolManager
 
 
 class MongoPipeline:
@@ -46,7 +46,7 @@ class MongoPipeline:
         """确保连接已建立"""
         if self.client is None:
             # 使用单例连接池管理器
-            self.client = await MongoConnectionPoolManager.get_client(
+            self.client = await DatabaseConnectionPoolManager.get_mongo_client(
                 mongo_uri=self.mongo_uri,
                 db_name=self.db_name,
                 max_pool_size=self.max_pool_size,
@@ -54,12 +54,13 @@ class MongoPipeline:
                 connect_timeout_ms=self.connect_timeout_ms,
                 socket_timeout_ms=self.socket_timeout_ms
             )
-            self.db = self.client[self.db_name]
-            self.collection = self.db[self.collection_name]
-            self.logger.info(
-                f"MongoDB连接建立 (集合: {self.collection_name}, "
-                f"使用全局共享连接池)"
-            )
+            if self.client is not None:
+                self.db = self.client[self.db_name]
+                self.collection = self.db[self.collection_name]
+                self.logger.info(
+                    f"MongoDB连接建立 (集合: {self.collection_name}, "
+                    f"使用全局共享连接池)"
+                )
 
     async def process_item(self, item, spider) -> Optional[dict]:
         """处理item的核心方法（带重试机制）"""
@@ -76,6 +77,10 @@ class MongoPipeline:
             # 单条插入逻辑
             try:
                 await self._ensure_connection()
+                
+                # 检查连接是否有效
+                if self.client is None or self.db is None or self.collection is None:
+                    raise RuntimeError("MongoDB连接未正确初始化")
 
                 item_dict = dict(item)
 
@@ -91,7 +96,6 @@ class MongoPipeline:
                         if attempt == 2:  # 最后一次尝试仍失败
                             raise
                         self.logger.warning(f"插入重试中 [attempt {attempt + 1}]: {e}")
-
             except Exception as e:
                 # 统一使用insert_failed统计键名
                 self.crawler.stats.inc_value('mongodb/insert_failed')
@@ -105,6 +109,10 @@ class MongoPipeline:
 
         try:
             await self._ensure_connection()
+            
+            # 检查连接是否有效
+            if self.client is None or self.db is None or self.collection is None:
+                raise RuntimeError("MongoDB连接未正确初始化")
 
             # 带重试的批量插入操作
             for attempt in range(3):
@@ -134,7 +142,7 @@ class MongoPipeline:
             await self._flush_batch(self.crawler.spider)
         
         # 注意：不再关闭客户端，因为客户端是全局共享的
-        # 客户端的关闭由 MongoConnectionPoolManager.close_all_clients() 统一管理
+        # 客户端的关闭由 DatabaseConnectionPoolManager.close_all_mongo_clients() 统一管理
         if self.client:
             self.logger.info(
                 f"MongoDB Pipeline 关闭，但保留全局共享连接池以供其他爬虫使用"

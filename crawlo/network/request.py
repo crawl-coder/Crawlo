@@ -15,10 +15,11 @@ from copy import deepcopy
 from enum import IntEnum
 from urllib.parse import urldefrag, urlencode, urlparse, urlunparse, parse_qsl
 from w3lib.url import safe_url_string, add_or_replace_parameter
-from typing import Dict, Optional, Callable, Union, Any, TypeVar, List
+from typing import Dict, Optional, Callable, Union, Any, TypeVar, List, Tuple, TYPE_CHECKING, cast
 
 
-
+if TYPE_CHECKING:
+    from crawlo.network.response import Response
 
 _Request = TypeVar("_Request", bound="Request")
 
@@ -99,31 +100,34 @@ class Request:
         # 动态加载相关参数
         use_dynamic_loader: bool = False,
         dynamic_loader_options: Optional[Dict[str, Any]] = None
-    ):
+    ) -> None:
         """
         初始化请求对象。
 
-        :param url: 请求 URL（必须）
-        :param callback: 成功回调函数
-        :param err_back: 错误回调函数
-        :param method: HTTP 方法，默认 GET
-        :param headers: 请求头
-        :param body: 原始请求体（bytes/str），若为 dict 且未使用 json_body/form_data，则自动转为 JSON
-        :param form_data: 表单数据，POST请求时自动转为 application/x-www-form-urlencoded
-        :param json_body: JSON 数据，自动序列化并设置 Content-Type
-        :param params: GET请求参数，会自动附加到URL上
-        :param cb_kwargs: 传递给 callback 的额外参数
-        :param cookies: Cookies 字典
-        :param meta: 元数据（跨中间件传递数据）
-        :param priority: 优先级（数值越小越优先）
-        :param dont_filter: 是否跳过去重
-        :param timeout: 超时时间（秒）
-        :param proxy: 代理地址，如 http://127.0.0.1:8080
-        :param allow_redirects: 是否允许重定向
-        :param auth: 认证元组 (username, password)
-        :param verify: 是否验证 SSL 证书
-        :param flags: 标记（用于调试或分类）
-        :param encoding: 字符编码，默认 utf-8
+        Args:
+            url: 请求 URL（必须）
+            callback: 成功回调函数
+            err_back: 错误回调函数
+            method: HTTP 方法，默认 GET
+            headers: 请求头
+            body: 原始请求体（bytes/str），若为 dict 且未使用 json_body/form_data，则自动转为 JSON
+            form_data: 表单数据，POST请求时自动转为 application/x-www-form-urlencoded
+            json_body: JSON 数据，自动序列化并设置 Content-Type
+            params: GET请求参数，会自动附加到URL上
+            cb_kwargs: 传递给 callback 的额外参数
+            cookies: Cookies 字典
+            meta: 元数据（跨中间件传递数据）
+            priority: 优先级（数值越小越优先）
+            dont_filter: 是否跳过去重
+            timeout: 超时时间（秒）
+            proxy: 代理地址，如 http://127.0.0.1:8080
+            allow_redirects: 是否允许重定向
+            auth: 认证元组 (username, password)
+            verify: 是否验证 SSL 证书
+            flags: 标记（用于调试或分类）
+            encoding: 字符编码，默认 utf-8
+            use_dynamic_loader: 是否使用动态加载器
+            dynamic_loader_options: 动态加载器选项
         """
         self.callback = callback
         self.err_back = err_back
@@ -194,7 +198,16 @@ class Request:
 
     @staticmethod
     def _add_params_to_url(url: str, params: Dict[str, Any]) -> str:
-        """将参数添加到URL中"""
+        """
+        将参数添加到URL中
+        
+        Args:
+            url: 原始URL
+            params: 参数字典
+            
+        Returns:
+            str: 添加参数后的URL
+        """
         if not params:
             return url
             
@@ -219,7 +232,15 @@ class Request:
 
     @staticmethod
     def _safe_deepcopy_meta(meta: Dict[str, Any]) -> Dict[str, Any]:
-        """安全地 deepcopy meta，移除 logger 后再复制"""
+        """
+        安全地 deepcopy meta，移除 logger 后再复制
+        
+        Args:
+            meta: 元数据字典
+            
+        Returns:
+            Dict[str, Any]: 深拷贝后的元数据字典
+        """
         import logging
         
         def clean_logger_recursive(obj: Any) -> Any:
@@ -252,6 +273,9 @@ class Request:
     def copy(self: _Request) -> _Request:
         """
         创建当前请求的副本，保留所有高层语义（json_body/form_data/params）。
+        
+        Returns:
+            Request: 请求副本
         """
         return type(self)(
             url=self.url,
@@ -280,44 +304,111 @@ class Request:
         )
 
     def set_meta(self, key: str, value: Any) -> 'Request':
-        """设置 meta 中的某个键值，支持链式调用。"""
+        """
+        设置 meta 中的某个键值，支持链式调用。
+        
+        Args:
+            key: 键名
+            value: 键值
+            
+        Returns:
+            Request: 支持链式调用
+        """
         self._meta[key] = value
         return self
     
     def add_header(self, key: str, value: str) -> 'Request':
-        """添加请求头，支持链式调用。"""
+        """
+        添加请求头，支持链式调用。
+        
+        Args:
+            key: 请求头键名
+            value: 请求头值
+            
+        Returns:
+            Request: 支持链式调用
+        """
         self.headers[key] = value
         return self
     
     def add_headers(self, headers: Dict[str, str]) -> 'Request':
-        """批量添加请求头，支持链式调用。"""
+        """
+        批量添加请求头，支持链式调用。
+        
+        Args:
+            headers: 请求头字典
+            
+        Returns:
+            Request: 支持链式调用
+        """
         self.headers.update(headers)
         return self
     
     def set_proxy(self, proxy: str) -> 'Request':
-        """设置代理，支持链式调用。"""
+        """
+        设置代理，支持链式调用。
+        
+        Args:
+            proxy: 代理地址
+            
+        Returns:
+            Request: 支持链式调用
+        """
         self.proxy = proxy
         return self
     
     def set_timeout(self, timeout: float) -> 'Request':
-        """设置超时时间，支持链式调用。"""
+        """
+        设置超时时间，支持链式调用。
+        
+        Args:
+            timeout: 超时时间（秒）
+            
+        Returns:
+            Request: 支持链式调用
+        """
         self.timeout = timeout
         return self
     
     def add_flag(self, flag: str) -> 'Request':
-        """添加标记，支持链式调用。"""
+        """
+        添加标记，支持链式调用。
+        
+        Args:
+            flag: 标记
+            
+        Returns:
+            Request: 支持链式调用
+        """
         if flag not in self.flags:
             self.flags.append(flag)
         return self
     
     def remove_flag(self, flag: str) -> 'Request':
-        """移除标记，支持链式调用。"""
+        """
+        移除标记，支持链式调用。
+        
+        Args:
+            flag: 标记
+            
+        Returns:
+            Request: 支持链式调用
+        """
         if flag in self.flags:
             self.flags.remove(flag)
         return self
     
     def set_dynamic_loader(self, use_dynamic: bool = True, options: Optional[Dict[str, Any]] = None) -> 'Request':
-        """设置使用动态加载器，支持链式调用。"""
+        """
+        设置使用动态加载器，支持链式调用。
+        
+        Args:
+            use_dynamic: 是否使用动态加载器
+            options: 动态加载器选项
+            
+        Returns:
+            Request: 支持链式调用
+        """
         self.use_dynamic_loader = use_dynamic
         if options:
             self.dynamic_loader_options = options
@@ -326,14 +417,24 @@ class Request:
         return self
     
     def set_protocol_loader(self) -> 'Request':
-        """强制使用协议加载器，支持链式调用。"""
+        """
+        强制使用协议加载器，支持链式调用。
+        
+        Returns:
+            Request: 支持链式调用
+        """
         self.use_dynamic_loader = False
         self._meta['use_dynamic_loader'] = False
         self._meta['use_protocol_loader'] = True
         return self
 
     def _set_url(self, url: str) -> None:
-        """安全设置 URL，确保格式正确。"""
+        """
+        安全设置 URL，确保格式正确。
+        
+        Args:
+            url: URL字符串
+        """
         if not isinstance(url, str):
             raise TypeError(f"Request url 必须为字符串，当前类型: {type(url).__name__}")
         
@@ -359,10 +460,22 @@ class Request:
 
     @property
     def url(self) -> str:
+        """
+        获取URL
+        
+        Returns:
+            str: URL字符串
+        """
         return self._url
 
     @property
     def meta(self) -> Dict[str, Any]:
+        """
+        获取元数据
+        
+        Returns:
+            Dict[str, Any]: 元数据字典
+        """
         return self._meta
 
     def __str__(self) -> str:
@@ -372,7 +485,15 @@ class Request:
         return str(self)
 
     def __lt__(self, other: _Request) -> bool:
-        """用于按优先级排序"""
+        """
+        用于按优先级排序
+        
+        Args:
+            other: 另一个请求对象
+            
+        Returns:
+            bool: 是否优先级更高
+        """
         return self.priority < other.priority
 
 def escape_ajax(url: str) -> str:
@@ -396,6 +517,12 @@ def escape_ajax(url: str) -> str:
     非AJAX可爬取的URL（无#!）原样返回：
     >>> escape_ajax("www.example.com/ajax.html#normal")
     'www.example.com/ajax.html#normal'
+    
+    Args:
+        url: 原始URL
+        
+    Returns:
+        str: 转换后的URL
     """
     # 分离URL的基础部分和哈希片段
     de_frag, frag = urldefrag(url)

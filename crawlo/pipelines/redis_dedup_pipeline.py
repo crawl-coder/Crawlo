@@ -20,6 +20,7 @@ from crawlo.spider import Spider
 from crawlo.exceptions import ItemDiscard
 from crawlo.utils.fingerprint import FingerprintGenerator
 from crawlo.logging import get_logger
+from crawlo.utils.redis_manager import RedisKeyManager
 
 
 class RedisDedupPipeline:
@@ -69,9 +70,14 @@ class RedisDedupPipeline:
         """从爬虫配置创建管道实例"""
         settings = crawler.settings
         
-        # 使用统一的Redis key命名规范: crawlo:{project_name}:item:fingerprint
-        project_name = settings.get('PROJECT_NAME', 'default')
-        redis_key = f"crawlo:{project_name}:item:fingerprint"
+        # 使用统一的Redis key命名规范
+        key_manager = RedisKeyManager.from_settings(settings)
+        # 如果有spider，更新key_manager中的spider_name
+        if hasattr(crawler, 'spider') and crawler.spider:
+            spider_name = getattr(crawler.spider, 'name', None)
+            if spider_name:
+                key_manager.set_spider_name(spider_name)
+        redis_key = key_manager.get_item_fingerprint_key()
         
         return cls(
             redis_host=settings.get('REDIS_HOST', 'localhost'),

@@ -110,7 +110,10 @@ class DownloaderBase(metaclass=DownloaderMeta):
         self.middleware: Optional[MiddlewareManager] = None
         self.logger = get_logger(self.__class__.__name__)
         self._closed = False
-        self._stats_enabled = crawler.settings.get_bool("DOWNLOADER_STATS", True)
+        
+        # 安全获取DOWNLOADER_STATS配置
+        from crawlo.utils.misc import safe_get_config
+        self._stats_enabled = safe_get_config(crawler.settings, "DOWNLOADER_STATS", True, bool)
 
     @classmethod
     def create_instance(cls, *args, **kwargs):
@@ -128,10 +131,31 @@ class DownloaderBase(metaclass=DownloaderMeta):
         # 输出启用的下载器信息（类似MiddlewareManager的格式）
         self.logger.info(f"enabled downloader: \n  {downloader_class}")
         
+        # 安全获取CONCURRENCY配置
+        concurrency = 8
+        if self.crawler and self.crawler.settings is not None:
+            if hasattr(self.crawler.settings, 'get_int') and callable(getattr(self.crawler.settings, 'get_int', None)):
+                try:
+                    concurrency = self.crawler.settings.get_int('CONCURRENCY', 8)
+                except Exception:
+                    concurrency = 8
+            elif isinstance(self.crawler.settings, dict):
+                try:
+                    concurrency = int(self.crawler.settings.get('CONCURRENCY', 8))
+                except (TypeError, ValueError):
+                    concurrency = 8
+            else:
+                try:
+                    concurrency = int(getattr(self.crawler.settings, 'CONCURRENCY', 8))
+                except (AttributeError, TypeError, ValueError):
+                    concurrency = 8
+        else:
+            concurrency = 8
+        
         # 输出下载器配置摘要
         self.logger.debug(
             f"{self.crawler.spider} <下载器类：{downloader_class}> "
-            f"<并发数：{self.crawler.settings.get_int('CONCURRENCY')}>"
+            f"<并发数：{concurrency}>"
         )
         
         try:
