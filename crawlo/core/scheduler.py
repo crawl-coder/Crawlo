@@ -1,6 +1,5 @@
 #!/usr/bin/python
 # -*- coding:UTF-8 -*-
-import asyncio
 import traceback
 from typing import Optional, Callable
 
@@ -27,34 +26,8 @@ class Scheduler:
 
     @classmethod
     def create_instance(cls, crawler):
-        # 安全获取配置值的辅助函数
-        def safe_get_config(settings, key, default=None, value_type=None):
-            if settings is None:
-                return default
-                
-            try:
-                # 优先使用配置对象的方法
-                if hasattr(settings, 'get') and callable(getattr(settings, 'get', None)):
-                    value = settings.get(key, default)
-                # 其次处理字典类型
-                elif isinstance(settings, dict):
-                    value = settings.get(key, default)
-                # 最后尝试直接属性访问
-                else:
-                    value = getattr(settings, key, default)
-                
-                # 如果指定了类型，进行类型转换
-                if value_type and value is not None:
-                    if value_type == int:
-                        return int(value)
-                    elif value_type == float:
-                        return float(value)
-                    elif value_type == bool:
-                        return bool(value)
-                
-                return value
-            except (TypeError, ValueError, AttributeError, Exception):
-                return default
+        # 使用工具模块中的安全获取配置函数
+        from crawlo.utils.misc import safe_get_config
         
         # 安全获取FILTER_CLASS设置 - 简化版本
         filter_class = safe_get_config(
@@ -146,7 +119,14 @@ class Scheduler:
             # 输出关键的调度器初始化完成信息
             status = self.queue_manager.get_status() if self.queue_manager else {'type': 'unknown', 'health': 'unknown'}
             
-            self.logger.info(f"enabled filters: \n  {current_filter}")
+            # 获取更新后的过滤器配置
+            updated_filter = current_filter
+            if self.crawler and self.crawler.settings is not None:
+                try:
+                    updated_filter = self.crawler.settings.get('FILTER_CLASS', current_filter)
+                except Exception:
+                    pass
+            self.logger.info(f"enabled filters: \n  {updated_filter}")
             
             # 优化日志输出，将多条日志合并为1条关键信息
             if queue_type_setting in ['auto', 'redis'] and updated_configs:

@@ -74,6 +74,7 @@ async def test_scheduler_redis_config_update():
         def __init__(self, settings):
             self.settings = settings
             self.stats = None
+            self.spider = None
     
     crawler = MockCrawler(settings)
     

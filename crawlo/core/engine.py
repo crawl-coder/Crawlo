@@ -1,19 +1,19 @@
 #!/usr/bin/python
 # -*- coding:UTF-8 -*-
-import time
 import asyncio
+import time
 from inspect import iscoroutine
-from typing import Optional, Generator, Callable, Any, Union, Dict, Iterator
+from typing import Optional, Callable, Any, Union, Dict, Iterator
 
-from crawlo.spider import Spider
 from crawlo import Request, Item
+from crawlo.spider import Spider
 from crawlo.event import CrawlerEvent
 from crawlo.logging import get_logger
-from crawlo.core.processor import Processor
-from crawlo.core.scheduler import Scheduler
-from crawlo.downloader import DownloaderBase
 from crawlo.exceptions import OutputError
 from crawlo.task_manager import TaskManager
+from crawlo.downloader import DownloaderBase
+from crawlo.core.processor import Processor
+from crawlo.core.scheduler import Scheduler
 from crawlo.utils.misc import load_object
 from crawlo.utils.func_tools import transform
 
@@ -37,7 +37,6 @@ class Engine(object):
         
         self.task_manager: Optional[TaskManager] = TaskManager(concurrency)
 
-        # 增强控制参数
         # 安全获取其他设置
         max_queue_size = safe_get_config(self.settings, 'SCHEDULER_MAX_QUEUE_SIZE', 200, int)
         generation_batch_size = safe_get_config(self.settings, 'REQUEST_GENERATION_BATCH_SIZE', 10, int)
@@ -169,7 +168,7 @@ class Engine(object):
             from crawlo.utils.misc import safe_get_config
             enable_controlled_generation = safe_get_config(self.settings, 'ENABLE_CONTROLLED_REQUEST_GENERATION', False, bool)
             
-            if (self.start_requests and enable_controlled_generation):
+            if self.start_requests and enable_controlled_generation:
                 self.logger.debug("创建受控请求生成任务")
                 generation_task = asyncio.create_task(
                     self._controlled_request_generation()
