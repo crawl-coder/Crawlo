@@ -378,6 +378,7 @@ class Engine(object):
                         self.crawler.stats.inc_value(f'downloader/failed_urls_count')
                 
                 # 不再重新抛出异常，避免未处理的Task异常
+                # 继续处理下一个请求而不是退出整个程序
                 return None
 
         # 使用异步任务创建，遵守并发限制

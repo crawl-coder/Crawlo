@@ -109,7 +109,8 @@ class AioHttpDownloader(DownloaderBase):
             Response: 响应对象
         """
         if not self.session or self.session.closed:
-            raise RuntimeError("AioHttpDownloader session is not open.")
+            self.logger.error("AioHttpDownloader session is not open.")
+            return None
 
         start_time = None
         if self.crawler.settings.get_bool("DOWNLOAD_STATS", True):
@@ -135,10 +136,10 @@ class AioHttpDownloader(DownloaderBase):
 
         except ClientError as e:
             self.logger.error(f"Client error for {request.url}: {e}")
-            raise
+            return None
         except Exception as e:
-            self.logger.critical(f"Unexpected error for {request.url}: {e}", exc_info=True)
-            raise
+            self.logger.error(f"Unexpected error for {request.url}: {e}", exc_info=True)
+            return None
 
     @staticmethod
     async def _send_request(session: ClientSession, request: 'Request') -> ClientResponse:

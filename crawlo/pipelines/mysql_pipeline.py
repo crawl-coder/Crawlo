@@ -279,8 +279,8 @@ class AsyncmyMySQLPipeline(BaseMySQLPipeline):
                     )
                     self._pool_initialized = True
                     self.logger.info(
-                        f"MySQL连接池初始化完成（表: {self.table_name}, "
-                        f"使用全局共享连接池）"
+                        f"MySQL connection pool initialized (table: {self.table_name}, "
+                        f"using global shared pool)"
                     )
                 except Exception as e:
                     self.logger.error(f"MySQL连接池初始化失败: {e}")
@@ -430,8 +430,8 @@ class AiomysqlMySQLPipeline(BaseMySQLPipeline):
                     )
                     self._pool_initialized = True
                     self.logger.info(
-                        f"aiomysql连接池已初始化（表: {self.table_name}, "
-                        f"使用全局共享连接池）"
+                        f"Aiomysql connection pool initialized (table: {self.table_name}, "
+                        f"using global shared pool)"
                     )
                 except Exception as e:
                     self.logger.error(f"aiomysql连接池初始化失败: {e}")

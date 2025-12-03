@@ -257,7 +257,8 @@ class SeleniumDownloader(DownloaderBase):
     async def download(self, request) -> Optional[Response]:
         """下载动态内容"""
         if not self.driver:
-            raise RuntimeError("SeleniumDownloader driver is not available")
+            self.logger.error("SeleniumDownloader driver is not available")
+            return None
 
         start_time = None
         if self.crawler.settings.get_bool("DOWNLOAD_STATS", True):
@@ -313,13 +314,13 @@ class SeleniumDownloader(DownloaderBase):
 
         except TimeoutException as e:
             self.logger.error(f"Timeout error for {request.url}: {e}")
-            raise
+            return None
         except WebDriverException as e:
             self.logger.error(f"WebDriver error for {request.url}: {e}")
-            raise
+            return None
         except Exception as e:
-            self.logger.critical(f"Unexpected error for {request.url}: {e}", exc_info=True)
-            raise
+            self.logger.error(f"Unexpected error for {request.url}: {e}", exc_info=True)
+            return None
 
     async def _switch_or_create_tab(self):
         """切换到合适的标签页或创建新标签页"""
