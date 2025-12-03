@@ -163,8 +163,16 @@ class HttpXDownloader(DownloaderBase):
                             max_keepalive_connections=20
                         )
                         
+                        # 为代理请求设置更严格的超时控制
+                        proxy_timeout = Timeout(
+                            connect=5.0,  # 缩短连接超时
+                            read=20.0,    # 读取超时
+                            write=10.0,   # 写入超时
+                            pool=1.0      # 连接池超时
+                        )
+                        
                         temp_client = AsyncClient(
-                            timeout=self._client_timeout,
+                            timeout=proxy_timeout,
                             limits=client_limits,
                             verify=self._client_verify,
                             http2=self._client_http2,
@@ -173,7 +181,7 @@ class HttpXDownloader(DownloaderBase):
                         )
                         effective_client = temp_client
                         used_proxy = httpx_proxy_config  # 记录使用的代理
-                        self.logger.debug(f"Using temporary client with proxy: {httpx_proxy_config} for {request.url}")
+                        self.logger.info(f"Using temporary client with proxy: {httpx_proxy_config} for {request.url}")
                     except Exception as e:
                         self.logger.error(
                             f"Failed to create temporary client with proxy {httpx_proxy_config} for {request.url}: {e}")
@@ -202,6 +210,24 @@ class HttpXDownloader(DownloaderBase):
                     httpx_response = await effective_client.request(**kwargs)
                 else:
                     # 如果是主客户端（直连）失败，或者不是网络错误，则重新抛出
+                    raise
+            except httpx.RemoteProtocolError as remote_error:
+                # 特别处理 RemoteProtocolError
+                if temp_client is not None and effective_client is temp_client:
+                    # 代理请求出现远程协议错误，尝试直连
+                    self.logger.warning(
+                        f"代理请求远程协议错误 ({used_proxy}), 正在尝试直连: {request.url} | 错误: {repr(remote_error)}"
+                    )
+                    # 关闭失败的临时客户端
+                    await temp_client.aclose()
+                    temp_client = None  # 防止 finally 再次关闭
+
+                    # 切换到主客户端（直连）
+                    effective_client = self._client
+                    # 再次尝试发送请求
+                    httpx_response = await effective_client.request(**kwargs)
+                else:
+                    # 直连也出现远程协议错误，重新抛出
                     raise
 
             # --- 6. 安全检查：防止大响应体 ---

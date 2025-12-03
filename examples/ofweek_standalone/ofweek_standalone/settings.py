@@ -48,9 +48,10 @@ SPIDER_MODULES = ['ofweek_standalone.spiders']
 
 # 中间件
 # 如需添加自定义中间件，请取消注释并添加
-# MIDDLEWARES = [
-#     # 'ofweek_standalone.middlewares.CustomMiddleware',  # 用户自定义中间件示例
-# ]
+MIDDLEWARES = [
+    'crawlo.middleware.proxy.ProxyMiddleware',
+    # 'ofweek_standalone.middlewares.CustomMiddleware',  # 用户自定义中间件示例
+]
 
 # 日志配置
 LOG_LEVEL = 'INFO'
@@ -108,7 +109,6 @@ MONGO_USE_BATCH = False  # 是否启用批量插入
 # 简单代理（SimpleProxyMiddleware）
 # 配置代理列表后中间件自动启用
 # PROXY_LIST = ["http://proxy1:8080", "http://proxy2:8080"]
-
 # 动态代理（ProxyMiddleware）
 # 配置代理API URL后中间件自动启用
 # PROXY_API_URL = "http://your-proxy-api.com/get-proxy"

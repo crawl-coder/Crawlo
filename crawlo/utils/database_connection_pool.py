@@ -110,7 +110,7 @@ class DatabaseConnectionPoolManager:
                     **kwargs
                 }
                 cls._mysql_instances[pool_key] = instance
-                instance.logger.info(
+                instance.logger.debug(
                     f"创建新的MySQL连接池管理器: {pool_key} "
                     f"(type={pool_type}, minsize={minsize}, maxsize={maxsize})"
                 )
@@ -161,7 +161,7 @@ class DatabaseConnectionPoolManager:
                     **kwargs
                 }
                 cls._mongo_instances[pool_key] = instance
-                instance.logger.info(
+                instance.logger.debug(
                     f"创建新的 MongoDB 连接池管理器: {pool_key} "
                     f"(minPoolSize={min_pool_size}, maxPoolSize={max_pool_size})"
                 )

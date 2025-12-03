@@ -53,16 +53,31 @@ class ProxyMiddleware:
         """从代理API获取代理"""
         try:
             import aiohttp
-            async with aiohttp.ClientSession() as session:
+            # 创建带有适当配置的连接器，避免版本兼容性问题
+            connector = aiohttp.TCPConnector(limit=10, limit_per_host=5, force_close=True)
+            timeout = aiohttp.ClientTimeout(total=10)
+            
+            async with aiohttp.ClientSession(connector=connector, timeout=timeout) as session:
                 async with session.get(self.api_url) as resp:
                     if resp.status == 200:
-                        data = await resp.json()
+                        # 添加内容类型检查
+                        content_type = resp.headers.get('content-type', '')
+                        if 'application/json' in content_type:
+                            data = await resp.json()
+                        else:
+                            # 如果不是JSON，尝试作为文本处理
+                            text = await resp.text()
+                            import json
+                            data = json.loads(text)
+                        
                         # 支持多种代理提取方式
                         proxy = self._extract_proxy_from_data(data)
                         if proxy and isinstance(proxy, str) and (proxy.startswith("http://") or proxy.startswith("https://")):
                             return proxy
                     else:
                         self.logger.warning(f"Proxy API returned status {resp.status}")
+        except ImportError as e:
+            self.logger.error(f"aiohttp not installed: {repr(e)}")
         except Exception as e:
             self.logger.warning(f"Failed to fetch proxy from API: {repr(e)}")
         return None
@@ -171,7 +186,7 @@ class ProxyMiddleware:
                 self.logger.warning(f"尝试使用已知失败的代理: {proxy}，但仍会尝试")
             
             request.proxy = proxy
-            self.logger.debug(f"Assigned proxy {proxy} to {request.url}")
+            self.logger.info(f"Assigned proxy {proxy} to {request.url}")
         else:
             self.logger.warning(f"No proxy available, request connecting directly: {request.url}")
 

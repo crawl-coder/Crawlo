@@ -39,8 +39,7 @@ class PipelineManager:
         dedup_pipeline = self.crawler.settings.get('DEFAULT_DEDUP_PIPELINE')
 
         # 添加调试信息
-        self.logger.debug(f"PIPELINES from settings: {pipelines}")
-        self.logger.debug(f"DEFAULT_DEDUP_PIPELINE from settings: {dedup_pipeline}")
+        self.logger.debug(f"PIPELINES from settings: {pipelines}, DEFAULT_DEDUP_PIPELINE from settings: {dedup_pipeline}")
 
         # 确保DEFAULT_DEDUP_PIPELINE被添加到管道列表开头
         if dedup_pipeline:

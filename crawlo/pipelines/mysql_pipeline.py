@@ -246,10 +246,21 @@ class AsyncmyMySQLPipeline(BaseMySQLPipeline):
         """确保连接池已初始化（线程安全）"""
         if self._pool_initialized and self.pool:
             # 检查连接池是否仍然有效
-            if hasattr(self.pool, 'closed') and not self.pool.closed:
-                return
+            # 对于 asyncmy，使用 _closed 属性检查连接池状态
+            if hasattr(self.pool, '_closed'):
+                if not self.pool._closed:
+                    return
+                else:
+                    self.logger.warning("连接池已关闭，重新初始化")
+            # 对于 aiomysql，使用 closed 属性检查连接池状态
+            elif hasattr(self.pool, 'closed'):
+                if not self.pool.closed:
+                    return
+                else:
+                    self.logger.warning("连接池已关闭，重新初始化")
+            # 如果没有明确的关闭状态属性，假设连接池有效
             else:
-                self.logger.warning("连接池已初始化但无效，重新初始化")
+                return
 
         async with self._pool_lock:
             if not self._pool_initialized:  # 双重检查避免竞争条件
@@ -387,10 +398,21 @@ class AiomysqlMySQLPipeline(BaseMySQLPipeline):
         """延迟初始化连接池（线程安全）"""
         if self._pool_initialized and self.pool:
             # 检查连接池是否仍然有效
-            if hasattr(self.pool, 'closed') and not self.pool.closed:
-                return
+            # 对于 aiomysql，使用 closed 属性检查连接池状态
+            if hasattr(self.pool, 'closed'):
+                if not self.pool.closed:
+                    return
+                else:
+                    self.logger.warning("连接池已关闭，重新初始化")
+            # 对于 asyncmy，使用 _closed 属性检查连接池状态
+            elif hasattr(self.pool, '_closed'):
+                if not self.pool._closed:
+                    return
+                else:
+                    self.logger.warning("连接池已关闭，重新初始化")
+            # 如果没有明确的关闭状态属性，假设连接池有效
             else:
-                self.logger.warning("连接池已初始化但无效，重新初始化")
+                return
 
         async with self._pool_lock:
             if not self._pool_initialized:
