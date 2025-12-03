@@ -21,7 +21,7 @@ class BaseMySQLPipeline(BasePipeline, ABC):
         self.logger = get_logger(self.__class__.__name__)
 
         # 记录管道初始化
-        self.logger.info(f"MySQL pipeline initialized: {self.__class__.__name__}")
+        self.logger.info(f"MySQL管道初始化完成: {self.__class__.__name__}")
 
         # 使用异步锁和初始化标志确保线程安全
         self._pool_lock = asyncio.Lock()
@@ -59,7 +59,7 @@ class BaseMySQLPipeline(BasePipeline, ABC):
         
         # 验证 update_columns 是否为元组或列表
         if self.update_columns and not isinstance(self.update_columns, (tuple, list)):
-            self.logger.warning(f"update_columns should be a tuple or list, got {type(self.update_columns)}. Converting to tuple.")
+            self.logger.warning(f"更新列配置应该是一个元组或列表，当前类型为 {type(self.update_columns)}。已自动转换为元组。")
             self.update_columns = (self.update_columns,)
 
         # 注册关闭事件
@@ -104,8 +104,7 @@ class BaseMySQLPipeline(BasePipeline, ABC):
                     # MySQL 不会实际更新任何数据，rowcount 会是 0
                     if self.update_columns:
                         self.logger.info(
-                            f"爬虫 {spider_name}: SQL执行完成，使用更新列配置 {self.update_columns}，"
-                            f"可能未实际更新数据（字段值未变化）"
+                            f"爬虫 {spider_name}: 数据已存在，{self.update_columns}字段未发生变化，无需更新"
                         )
                     else:
                         self.logger.warning(
@@ -119,7 +118,7 @@ class BaseMySQLPipeline(BasePipeline, ABC):
             except Exception as e:
                 # 添加更多调试信息
                 error_msg = f"处理失败: {str(e)}"
-                self.logger.error(f"处理item时发生错误: {error_msg}")
+                self.logger.error(f"处理数据项时发生错误: {error_msg}")
                 self.crawler.stats.inc_value('mysql/insert_failed')
                 raise ItemDiscard(error_msg)
 
@@ -165,9 +164,8 @@ class BaseMySQLPipeline(BasePipeline, ABC):
                     # 当使用 MYSQL_UPDATE_COLUMNS 时，如果更新的字段值与现有记录相同，
                     # MySQL 不会实际更新任何数据，rowcount 会是 0
                     if self.update_columns:
-                        self.logger.debug(
-                            f"爬虫 {spider_name}: 批量SQL执行完成，使用更新列配置 {self.update_columns}，"
-                            f"可能未实际更新数据（字段值未变化）"
+                        self.logger.info(
+                            f"爬虫 {spider_name}: 批量数据已存在，{self.update_columns}字段未发生变化，无需更新"
                         )
                     else:
                         self.logger.warning(
@@ -183,7 +181,7 @@ class BaseMySQLPipeline(BasePipeline, ABC):
         except Exception as e:
             # 添加更多调试信息
             error_msg = f"批量插入失败: {str(e)}"
-            self.logger.error(f"批量处理时发生错误: {error_msg}")
+            self.logger.error(f"批量处理数据时发生错误: {error_msg}")
             self.crawler.stats.inc_value('mysql/batch_insert_failed')
             # 不清空缓冲区，以便可能的重试
             # 但如果错误是由于数据问题导致的，可能需要清空缓冲区以避免无限重试
@@ -236,7 +234,7 @@ class AsyncmyMySQLPipeline(BaseMySQLPipeline):
     
     def __init__(self, crawler):
         super().__init__(crawler)
-        self.logger.info(f"AsyncmyMySQLPipeline instance created, config - host: {self.settings.get('MYSQL_HOST', 'localhost')}, database: {self.settings.get('MYSQL_DB', 'scrapy_db')}, table: {self.table_name}")
+        self.logger.info(f"创建AsyncmyMySQLPipeline实例，配置信息 - 主机: {self.settings.get('MYSQL_HOST', 'localhost')}, 数据库: {self.settings.get('MYSQL_DB', 'scrapy_db')}, 表名: {self.table_name}")
 
     @classmethod
     def from_crawler(cls, crawler):
@@ -279,8 +277,7 @@ class AsyncmyMySQLPipeline(BaseMySQLPipeline):
                     )
                     self._pool_initialized = True
                     self.logger.info(
-                        f"MySQL connection pool initialized (table: {self.table_name}, "
-                        f"using global shared pool)"
+                        f"MySQL连接池初始化完成（表: {self.table_name}, 使用全局共享连接池）"
                     )
                 except Exception as e:
                     self.logger.error(f"MySQL连接池初始化失败: {e}")
@@ -388,7 +385,7 @@ class AiomysqlMySQLPipeline(BaseMySQLPipeline):
     
     def __init__(self, crawler):
         super().__init__(crawler)
-        self.logger.info(f"AiomysqlMySQLPipeline instance created, config - host: {self.settings.get('MYSQL_HOST', 'localhost')}, database: {self.settings.get('MYSQL_DB', 'scrapy_db')}, table: {self.table_name}")
+        self.logger.info(f"创建AiomysqlMySQLPipeline实例，配置信息 - 主机: {self.settings.get('MYSQL_HOST', 'localhost')}, 数据库: {self.settings.get('MYSQL_DB', 'scrapy_db')}, 表名: {self.table_name}")
 
     @classmethod
     def from_crawler(cls, crawler):
@@ -430,11 +427,10 @@ class AiomysqlMySQLPipeline(BaseMySQLPipeline):
                     )
                     self._pool_initialized = True
                     self.logger.info(
-                        f"Aiomysql connection pool initialized (table: {self.table_name}, "
-                        f"using global shared pool)"
+                        f"MySQL连接池初始化完成（表: {self.table_name}, 使用全局共享连接池）"
                     )
                 except Exception as e:
-                    self.logger.error(f"aiomysql连接池初始化失败: {e}")
+                    self.logger.error(f"Aiomysql连接池初始化失败: {e}")
                     # 重置状态以便重试
                     self._pool_initialized = False
                     self.pool = None

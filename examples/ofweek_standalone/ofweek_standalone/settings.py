@@ -48,10 +48,10 @@ SPIDER_MODULES = ['ofweek_standalone.spiders']
 
 # 中间件
 # 如需添加自定义中间件，请取消注释并添加
-MIDDLEWARES = [
-    'crawlo.middleware.proxy.ProxyMiddleware',
-    # 'ofweek_standalone.middlewares.CustomMiddleware',  # 用户自定义中间件示例
-]
+# MIDDLEWARES = [
+#     'crawlo.middleware.proxy.ProxyMiddleware',
+#     # 'ofweek_standalone.middlewares.CustomMiddleware',  # 用户自定义中间件示例
+# ]
 
 # 日志配置
 LOG_LEVEL = 'INFO'

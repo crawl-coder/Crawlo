@@ -91,21 +91,27 @@ class SQLBuilder:
         return keys, values
 
     @staticmethod
-    def _build_update_clause(update_columns: Union[Tuple, List]) -> str:
+    def _build_update_clause(update_columns: Union[Tuple, List], keys: List[str] = None) -> str:
         """
-        构建更新子句，使用新的 MySQL 语法避免 VALUES() 函数弃用警告
+        构建更新子句，兼容不同版本的 MySQL 语法
 
         Args:
             update_columns (tuple or list): 更新列名
+            keys (list): 所有列名列表，用于VALUES()语法
 
         Returns:
             str: 更新子句
         """
         if not isinstance(update_columns, (tuple, list)):
             update_columns = (update_columns,)
-        # 使用新的语法：INSERT ... VALUES (...) AS alias ... UPDATE ... alias.col
-        # 确保使用 excluded 别名而不是 VALUES() 函数
-        return ", ".join(f"`{key}`=`excluded`.`{key}`" for key in update_columns)
+        
+        # 如果提供了keys，则使用VALUES()语法以获得更好的兼容性
+        if keys:
+            return ", ".join(f"`{key}`=VALUES(`{key}`)" for key in update_columns)
+        else:
+            # 使用新的语法：INSERT ... VALUES (...) AS alias ... UPDATE ... alias.col
+            # 确保使用 excluded 别名而不是 VALUES() 函数
+            return ", ".join(f"`{key}`=`excluded`.`{key}`" for key in update_columns)
 
     @staticmethod
     def make_insert(
@@ -133,10 +139,11 @@ class SQLBuilder:
         values_str = SQLBuilder.list_to_tuple_str(values)
 
         if update_columns:
-            update_clause = SQLBuilder._build_update_clause(update_columns)
+            # 为了更好的MySQL版本兼容性，使用VALUES()语法而不是AS alias语法
+            update_clause = SQLBuilder._build_update_clause(update_columns, keys)
             ignore_flag = " IGNORE" if insert_ignore else ""
-            # 使用新的语法避免 VALUES() 函数弃用警告
-            sql = f"INSERT{ignore_flag} INTO `{table}` {keys_str} VALUES {values_str} AS `excluded` ON DUPLICATE KEY UPDATE {update_clause}"
+            # 使用VALUES()函数以获得更好的兼容性
+            sql = f"INSERT{ignore_flag} INTO `{table}` {keys_str} VALUES {values_str} ON DUPLICATE KEY UPDATE {update_clause}"
 
         elif auto_update:
             sql = f"REPLACE INTO `{table}` {keys_str} VALUES {values_str}"
@@ -234,13 +241,13 @@ class SQLBuilder:
                     for key, value in zip(update_columns, update_columns_value)
                 ]
             else:
-                # 使用新的语法避免 VALUES() 函数弃用警告
-                # INSERT ... VALUES (...) AS excluded ... ON DUPLICATE KEY UPDATE col=excluded.col
+                # 使用VALUES()函数以获得更好的兼容性
                 update_pairs = [
-                    f"`{key}`=`excluded`.`{key}`" for key in update_columns
+                    f"`{key}`=VALUES(`{key}`)" for key in update_columns
                 ]
             update_clause = ", ".join(update_pairs)
-            sql = f"INSERT INTO `{table}` ({keys_str}) VALUES ({placeholders_str}) AS `excluded` ON DUPLICATE KEY UPDATE {update_clause}"
+            # 移除 AS `excluded` 语法以提高MySQL版本兼容性
+            sql = f"INSERT INTO `{table}` ({keys_str}) VALUES ({placeholders_str}) ON DUPLICATE KEY UPDATE {update_clause}"
 
         elif auto_update:
             sql = f"REPLACE INTO `{table}` ({keys_str}) VALUES ({placeholders_str})"
