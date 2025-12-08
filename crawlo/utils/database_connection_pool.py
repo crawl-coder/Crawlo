@@ -92,8 +92,8 @@ class DatabaseConnectionPoolManager:
         Returns:
             连接池实例
         """
-        # 生成连接池唯一标识
-        pool_key = f"{pool_type}:{host}:{port}:{db}"
+        # 生成连接池唯一标识（修复：加入 user 到 key 中）
+        pool_key = f"{pool_type}:{host}:{port}:{db}:{user}"
         
         async with cls._lock:
             if pool_key not in cls._mysql_instances:
@@ -145,8 +145,9 @@ class DatabaseConnectionPoolManager:
         Returns:
             MongoDB 客户端实例
         """
-        # 生成连接池唯一标识
-        pool_key = f"{mongo_uri}:{db_name}"
+        # 生成连接池唯一标识（修复：移除 db_name，只基于 URI 和连接参数缓存 Client）
+        # 注意：如果不同的 db_name 需要不同的权限认证（写在 URI 里），URI 本身就会不同，所以逻辑依然成立。
+        pool_key = f"{mongo_uri}"
         
         async with cls._lock:
             if pool_key not in cls._mongo_instances:
