@@ -4,7 +4,7 @@
 """
 
 from crawlo.spider import Spider
-from crawlo import Request
+from crawlo import Request, Response
 from ..items import {{item_class}}
 
 
@@ -22,7 +22,7 @@ class {{class_name}}(Spider):
         for url in self.start_urls:
             yield Request(url=url, callback=self.parse)
 
-    def parse(self, response):
+    def parse(self, response: Response):
         """解析响应"""
         self.logger.info(f'正在解析页面: {response.url}')
         
