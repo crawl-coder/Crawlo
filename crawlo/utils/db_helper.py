@@ -23,39 +23,32 @@ class SQLBuilder:
     """SQL语句构建器"""
     
     @staticmethod
-    def format_value(value: Any) -> Union[str, int, float, None]:
+    def format_value(value: Any) -> Any:
         """
-        格式化 SQL 字段值，防止注入并兼容类型。
+        预处理值，主要处理 JSON 序列化。
+        不再进行字符串转义，转义交给 DB 驱动。
 
         Args:
             value (Any): 待处理的值
 
         Returns:
-            str | int | float | None: 格式化后的值，None 表示 SQL 的 NULL
+            Any: 处理后的值
         """
         if value is None:
             return None
 
-        if isinstance(value, str):
-            return value.strip()
-
-        elif isinstance(value, (list, tuple, dict)):
+        if isinstance(value, (list, tuple, dict)):
             try:
                 return json.dumps(value, ensure_ascii=False, default=str)
             except Exception as e:
-                raise ValueError(f"Failed to serialize container to JSON: {value}, error: {e}")
+                raise ValueError(f"JSON serialization failed: {e}")
 
-        elif isinstance(value, bool):
-            return int(value)
-
-        elif isinstance(value, (int, float)):
-            return value
-
-        elif isinstance(value, (date, time, datetime)):
+        # 对于日期、数字、布尔值，直接返回，驱动库通常能处理
+        # 如果驱动库对日期支持不好，可以在这里 str(value)
+        if isinstance(value, (date, time, datetime)):
             return str(value)
-
-        else:
-            raise TypeError(f"Unsupported value type: {type(value)}, value: {value}")
+            
+        return value
 
     @staticmethod
     def list_to_tuple_str(datas: List[Any]) -> str:
@@ -91,27 +84,13 @@ class SQLBuilder:
         return keys, values
 
     @staticmethod
-    def _build_update_clause(update_columns: Union[Tuple, List], keys: List[str] = None) -> str:
-        """
-        构建更新子句，兼容不同版本的 MySQL 语法
-
-        Args:
-            update_columns (tuple or list): 更新列名
-            keys (list): 所有列名列表，用于VALUES()语法
-
-        Returns:
-            str: 更新子句
-        """
+    def _build_update_clause(update_columns: Union[Tuple, List], use_values_func: bool = True) -> str:
+        """构建 ON DUPLICATE KEY UPDATE 子句"""
         if not isinstance(update_columns, (tuple, list)):
             update_columns = (update_columns,)
         
-        # 如果提供了keys，则使用VALUES()语法以获得更好的兼容性
-        if keys:
-            return ", ".join(f"`{key}`=VALUES(`{key}`)" for key in update_columns)
-        else:
-            # 使用新的语法：INSERT ... VALUES (...) AS alias ... UPDATE ... alias.col
-            # 确保使用 excluded 别名而不是 VALUES() 函数
-            return ", ".join(f"`{key}`=`excluded`.`{key}`" for key in update_columns)
+        # 推荐：使用 VALUES(col) 函数 (兼容性好)
+        return ", ".join(f"`{col}`=VALUES(`{col}`)" for col in update_columns)
 
     @staticmethod
     def make_insert(
@@ -120,70 +99,66 @@ class SQLBuilder:
         auto_update: bool = False,
         update_columns: Tuple = (),
         insert_ignore: bool = False,
-    ) -> str:
+    ) -> Tuple[str, List[Any]]:
         """
-        生成 MySQL INSERT 或 REPLACE 语句。
-
-        Args:
-            table (str): 表名
-            data (dict): 表数据，JSON 格式字典
-            auto_update (bool): 是否使用 REPLACE INTO（完全覆盖已存在记录）
-            update_columns (tuple or list): 冲突时需更新的列名；指定后 auto_update 失效
-            insert_ignore (bool): 是否使用 INSERT IGNORE，忽略重复数据
-
+        生成参数化的 INSERT/REPLACE 语句。
+        
         Returns:
-            str: 生成的 SQL 语句
+            (sql, params): 返回 SQL 模版和参数列表
         """
-        keys, values = SQLBuilder._build_key_value_pairs(data)
-        keys_str = SQLBuilder.list_to_tuple_str(keys).replace("'", "")
-        values_str = SQLBuilder.list_to_tuple_str(values)
-
+        # 1. 提取键和处理后的值
+        keys = list(data.keys())
+        values = [SQLBuilder.format_value(data[k]) for k in keys]
+        
+        # 2. 构建 SQL 片段
+        keys_str = ", ".join(f"`{k}`" for k in keys)
+        placeholders = ", ".join(["%s"] * len(keys))
+        
+        table_fmt = f"`{table}`"
+        
+        # 3. 组装 SQL
         if update_columns:
-            # 为了更好的MySQL版本兼容性，使用VALUES()语法而不是AS alias语法
-            update_clause = SQLBuilder._build_update_clause(update_columns, keys)
-            ignore_flag = " IGNORE" if insert_ignore else ""
-            # 使用VALUES()函数以获得更好的兼容性
-            sql = f"INSERT{ignore_flag} INTO `{table}` {keys_str} VALUES {values_str} ON DUPLICATE KEY UPDATE {update_clause}"
-
+            update_clause = SQLBuilder._build_update_clause(update_columns)
+            ignore = " IGNORE" if insert_ignore else ""
+            sql = f"INSERT{ignore} INTO {table_fmt} ({keys_str}) VALUES ({placeholders}) ON DUPLICATE KEY UPDATE {update_clause}"
+            
         elif auto_update:
-            sql = f"REPLACE INTO `{table}` {keys_str} VALUES {values_str}"
-
+            sql = f"REPLACE INTO {table_fmt} ({keys_str}) VALUES ({placeholders})"
+            
         else:
-            ignore_flag = " IGNORE" if insert_ignore else ""
-            sql = f"INSERT{ignore_flag} INTO `{table}` {keys_str} VALUES {values_str}"
+            ignore = " IGNORE" if insert_ignore else ""
+            sql = f"INSERT{ignore} INTO {table_fmt} ({keys_str}) VALUES ({placeholders})"
 
-        return sql.replace("None", "null")
+        # 返回元组，而不是拼接好的字符串
+        return sql, values
 
     @staticmethod
     def make_update(
         table: str,
         data: Dict[str, Any],
         condition: str,
-    ) -> str:
+        condition_args: Optional[List[Any]] = None
+    ) -> Tuple[str, List[Any]]:
         """
-        生成 MySQL UPDATE 语句。
-
-        Args:
-            table (str): 表名
-            data (dict): 更新字段的键值对，键为列名，值为新值
-            condition (str): WHERE 条件，如 "id = 1"
-
-        Returns:
-            str: 生成的 SQL 语句
+        生成参数化的 UPDATE 语句。
         """
-        key_values: List[str] = []
+        set_clauses = []
+        values = []
+        
         for key, value in data.items():
-            formatted_value = SQLBuilder.format_value(value)
-            if isinstance(formatted_value, str):
-                key_values.append(f"`{key}`={repr(formatted_value)}")
-            elif formatted_value is None:
-                key_values.append(f"`{key}`=null")
-            else:
-                key_values.append(f"`{key}`={formatted_value}")
-
-        key_values_str = ", ".join(key_values)
-        sql = f"UPDATE `{table}` SET {key_values_str} WHERE {condition}"
-        return sql
+            set_clauses.append(f"`{key}`=%s")
+            values.append(SQLBuilder.format_value(value))
+            
+        set_str = ", ".join(set_clauses)
+        
+        # 警告：condition 仍然是原生字符串，调用者需确保 condition 安全
+        # 更好的做法是 condition 也支持参数化，这里简单追加 condition_args
+        sql = f"UPDATE `{table}` SET {set_str} WHERE {condition}"
+        
+        if condition_args:
+            values.extend(condition_args)
+            
+        return sql, values
 
     @staticmethod
     def make_batch(
@@ -191,7 +166,6 @@ class SQLBuilder:
         datas: List[Dict[str, Any]],
         auto_update: bool = False,
         update_columns: Tuple = (),
-        update_columns_value: Tuple = (),
     ) -> Optional[Tuple[str, List[List[Any]]]]:
         """
         生成批量插入 SQL 及对应值列表。
@@ -209,8 +183,11 @@ class SQLBuilder:
         if not datas:
             return None
 
-        # 提取所有唯一字段名
-        keys = list({key for data in datas for key in data})
+        # 1. 确定所有列名，并排序以保证确定性
+        all_keys = set()
+        for d in datas:
+            all_keys.update(d.keys())
+        keys = sorted(list(all_keys)) # 排序，避免随机顺序
         values_list = []
 
         for data in datas:
@@ -234,20 +211,13 @@ class SQLBuilder:
             if not isinstance(update_columns, (tuple, list)):
                 update_columns = (update_columns,)
 
-            if update_columns_value:
-                # 当提供了固定值时，使用这些值进行更新
-                update_pairs = [
-                    f"`{key}`={value}"
-                    for key, value in zip(update_columns, update_columns_value)
-                ]
+            if update_columns:
+                update_clause = SQLBuilder._build_update_clause(update_columns)
+                sql = f"INSERT INTO `{table}` ({keys_str}) VALUES ({placeholders_str}) ON DUPLICATE KEY UPDATE {update_clause}"
+            elif auto_update:
+                sql = f"REPLACE INTO `{table}` ({keys_str}) VALUES ({placeholders_str})"
             else:
-                # 使用VALUES()函数以获得更好的兼容性
-                update_pairs = [
-                    f"`{key}`=VALUES(`{key}`)" for key in update_columns
-                ]
-            update_clause = ", ".join(update_pairs)
-            # 移除 AS `excluded` 语法以提高MySQL版本兼容性
-            sql = f"INSERT INTO `{table}` ({keys_str}) VALUES ({placeholders_str}) ON DUPLICATE KEY UPDATE {update_clause}"
+                sql = f"INSERT IGNORE INTO `{table}` ({keys_str}) VALUES ({placeholders_str})"
 
         elif auto_update:
             sql = f"REPLACE INTO `{table}` ({keys_str}) VALUES ({placeholders_str})"

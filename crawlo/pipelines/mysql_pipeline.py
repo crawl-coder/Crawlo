@@ -1,15 +1,17 @@
 # -*- coding: utf-8 -*-
+import re
 import asyncio
-import async_timeout
 from abc import ABC, abstractmethod
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Tuple
 
-from crawlo.exceptions import ItemDiscard
-from crawlo.items import Item
-from crawlo.utils.db_helper import SQLBuilder
-from crawlo.logging import get_logger
-from crawlo.utils.database_connection_pool import DatabaseConnectionPoolManager
+import async_timeout
+
 from . import BasePipeline
+from crawlo.items import Item
+from crawlo.logging import get_logger
+from crawlo.exceptions import ItemDiscard
+from crawlo.utils.db_helper import SQLBuilder
+from crawlo.utils.database_connection_pool import DatabaseConnectionPoolManager
 
 
 class BaseMySQLPipeline(BasePipeline, ABC):
@@ -46,6 +48,10 @@ class BaseMySQLPipeline(BasePipeline, ABC):
         
         # 清理表名，移除可能的非法字符
         self.table_name = self.table_name.strip().replace(' ', '_').replace('-', '_')
+        
+        # 使用正则只允许安全字符
+        if not re.match(r'^[a-zA-Z0-9_]+$', self.table_name):
+             raise ValueError(f"Table name contains illegal characters: {self.table_name}")
         
         # 批量插入配置
         self.batch_size = max(1, self.settings.get_int('MYSQL_BATCH_SIZE', 100))  # 确保至少为1
@@ -88,9 +94,9 @@ class BaseMySQLPipeline(BasePipeline, ABC):
                     raise RuntimeError("Database connection pool is not initialized or invalid")
                 
                 item_dict = dict(item)
-                sql = await self._make_insert_sql(item_dict, **kwargs)
+                sql, params = await self._make_insert_sql(item_dict, **kwargs)
 
-                rowcount = await self._execute_sql(sql=sql)
+                rowcount = await self._execute_sql(sql=sql, values=params)
                 if rowcount > 1:
                     self.logger.info(
                         f"爬虫 {spider_name} 成功插入 {rowcount} 条记录到表 {self.table_name}"
@@ -134,9 +140,14 @@ class BaseMySQLPipeline(BasePipeline, ABC):
 
     async def _flush_batch(self, spider_name: str):
         """刷新批量缓冲区并执行批量插入"""
+        # 立即切出数据，避免在 await 过程中 buffer 被其他协程修改
         if not self.batch_buffer:
             return
-
+            
+        # 原子性地获取并清空缓冲区
+        current_batch = self.batch_buffer
+        self.batch_buffer = []
+        
         try:
             await self._ensure_pool()
             
@@ -147,7 +158,7 @@ class BaseMySQLPipeline(BasePipeline, ABC):
             # 使用 SQLBuilder 生成批量插入 SQL
             batch_result = SQLBuilder.make_batch(
                 table=self.table_name,
-                datas=self.batch_buffer,
+                datas=current_batch,  # 使用局部变量
                 auto_update=self.auto_update,
                 update_columns=self.update_columns
             )
@@ -207,7 +218,7 @@ class BaseMySQLPipeline(BasePipeline, ABC):
                 f"MySQL Pipeline 关闭，但保留全局共享连接池以供其他爬虫使用"
             )
             
-    async def _make_insert_sql(self, item_dict: Dict, **kwargs) -> str:
+    async def _make_insert_sql(self, item_dict: Dict, **kwargs) -> Tuple[str, List[Any]]:
         """生成插入SQL语句，子类可以重写此方法"""
         # 合并管道配置和传入的kwargs参数
         sql_kwargs = {
@@ -439,29 +450,43 @@ class AiomysqlMySQLPipeline(BaseMySQLPipeline):
     async def _execute_sql(self, sql: str, values: Optional[list] = None) -> int:
         """执行SQL语句并处理结果，包含死锁重试机制"""
         max_retries = 3
+        timeout = 30  # 统一超时设置
+        
         for attempt in range(max_retries):
             try:
-                # 使用aiomysql的异步上下文管理器方式
-                if self.pool is not None:
+                if not self.pool:
+                    raise RuntimeError("Database connection pool is not available")
+
+                # 添加超时控制
+                async with async_timeout.timeout(timeout):
                     async with self.pool.acquire() as conn:
                         async with conn.cursor() as cursor:
-                            # 根据是否有参数值选择不同的执行方法
                             if values is not None:
                                 rowcount = await cursor.execute(sql, values)
                             else:
                                 rowcount = await cursor.execute(sql)
-
                             await conn.commit()
                             return rowcount or 0
+                            
+            except asyncio.TimeoutError:
+                self.logger.error(f"Aiomysql 执行SQL超时 ({timeout}秒)")
+                raise ItemDiscard(f"MySQL操作超时")
             except Exception as e:
-                # 检查是否是死锁错误
-                if "Deadlock found" in str(e) and attempt < max_retries - 1:
-                    self.logger.warning(f"检测到死锁，正在进行第 {attempt + 1} 次重试: {str(e)}")
-                    await asyncio.sleep(0.1 * (2 ** attempt))  # 指数退避
+                # 统一异常转字符串处理，防止 e 为非标准异常时报错
+                err_str = str(e)
+                # 死锁重试
+                if "Deadlock found" in err_str and attempt < max_retries - 1:
+                    self.logger.warning(f"检测到死锁，正在进行第 {attempt + 1} 次重试: {err_str}")
+                    await asyncio.sleep(0.1 * (2 ** attempt))
                     continue
+                # 断连重试 (aiomysql 抛出的通常是 OperationalError)
+                elif ("2006" in err_str or "2013" in err_str or "lost connection" in err_str.lower()) and attempt < max_retries - 1:
+                     self.logger.warning(f"检测到连接丢失，尝试重试: {err_str}")
+                     # 可以在这里尝试手动无效化池（如果管理器支持），或者直接依赖池的自动重连
+                     await asyncio.sleep(0.5 * (attempt + 1))
+                     continue
                 else:
-                    # 添加更多调试信息
-                    error_msg = f"MySQL插入失败: {str(e)}"
+                    error_msg = f"MySQL插入失败: {err_str}"
                     self.logger.error(f"执行SQL时发生错误: {error_msg}")
                     raise ItemDiscard(error_msg)
         return 0
@@ -469,24 +494,41 @@ class AiomysqlMySQLPipeline(BaseMySQLPipeline):
     async def _execute_batch_sql(self, sql: str, values_list: list) -> int:
         """执行批量SQL语句，包含死锁重试机制"""
         max_retries = 3
+        timeout = 60  # 批量操作超时设置
+        
         for attempt in range(max_retries):
             try:
-                if self.pool is not None:
+                if not self.pool:
+                    raise RuntimeError("Database connection pool is not available")
+
+                # 添加超时控制
+                async with async_timeout.timeout(timeout):
                     async with self.pool.acquire() as conn:
                         async with conn.cursor() as cursor:
                             # 执行批量插入
                             rowcount = await cursor.executemany(sql, values_list)
                             await conn.commit()
                             return rowcount or 0
+                            
+            except asyncio.TimeoutError:
+                self.logger.error(f"Aiomysql 执行批量SQL超时 ({timeout}秒)")
+                raise ItemDiscard(f"MySQL批量操作超时")
             except Exception as e:
-                # 检查是否是死锁错误
-                if "Deadlock found" in str(e) and attempt < max_retries - 1:
-                    self.logger.warning(f"检测到批量插入死锁，正在进行第 {attempt + 1} 次重试: {str(e)}")
-                    await asyncio.sleep(0.1 * (2 ** attempt))  # 指数退避
+                # 统一异常转字符串处理，防止 e 为非标准异常时报错
+                err_str = str(e)
+                # 死锁重试
+                if "Deadlock found" in err_str and attempt < max_retries - 1:
+                    self.logger.warning(f"检测到批量插入死锁，正在进行第 {attempt + 1} 次重试: {err_str}")
+                    await asyncio.sleep(0.1 * (2 ** attempt))
                     continue
+                # 断连重试 (aiomysql 抛出的通常是 OperationalError)
+                elif ("2006" in err_str or "2013" in err_str or "lost connection" in err_str.lower()) and attempt < max_retries - 1:
+                     self.logger.warning(f"检测到连接丢失，尝试重试: {err_str}")
+                     # 可以在这里尝试手动无效化池（如果管理器支持），或者直接依赖池的自动重连
+                     await asyncio.sleep(0.5 * (attempt + 1))
+                     continue
                 else:
-                    # 添加更多调试信息
-                    error_msg = f"MySQL批量插入失败: {str(e)}"
+                    error_msg = f"MySQL批量插入失败: {err_str}"
                     self.logger.error(f"执行批量SQL时发生错误: {error_msg}")
                     raise ItemDiscard(error_msg)
         return 0

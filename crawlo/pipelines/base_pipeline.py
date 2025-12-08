@@ -43,7 +43,14 @@ Pipeline体系说明：
 import asyncio
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import Optional, Any, Callable
+from typing import Optional, Any, Callable, List
+
+# 检查是否安装了aiofiles
+try:
+    import aiofiles
+    AIOFILES_AVAILABLE = True
+except ImportError:
+    AIOFILES_AVAILABLE = False
 
 from crawlo.items import Item
 from crawlo.spider import Spider
@@ -99,8 +106,7 @@ class ResourceManagedPipeline(BasePipeline):
         self.crawler = crawler
         self.settings = crawler.settings
         self.logger = get_logger(
-            self.__class__.__name__, 
-            self.settings.get('LOG_LEVEL')
+            self.__class__.__name__
         )
         
         # 资源管理器
@@ -179,6 +185,42 @@ class ResourceManagedPipeline(BasePipeline):
             f"批量缓冲区还有 {len(self.batch_buffer)} 条数据，"
             f"但未实现 _flush_batch 方法"
         )
+    
+    async def process_item_batched(self, item: Item, spider: Spider, insert_func: Callable):
+        """
+        通用的批量处理辅助方法
+        
+        Args:
+            item: 数据项
+            spider: 爬虫对象
+            insert_func: 执行批量插入的异步函数，接收 list[dict]
+        """
+        if not self.use_batch:
+            # 如果没开启批量，直接处理（需要子类自己实现单条逻辑，或者这里抛异常）
+            return item
+
+        self.batch_buffer.append(item)
+        
+        if len(self.batch_buffer) >= self.batch_size:
+            await self._flush_buffer_internal(spider, insert_func)
+        
+        return item
+
+    async def _flush_buffer_internal(self, spider, insert_func):
+        """内部刷新逻辑，处理锁和异常"""
+        if not self.batch_buffer:
+            return
+            
+        # 拷贝引用并清空原 buffer，防止在 await 期间新数据进入导致重复提交或丢失
+        items_to_save = self.batch_buffer[:]
+        self.batch_buffer = []
+        
+        try:
+            await insert_func(items_to_save)
+        except Exception as e:
+            self.logger.error(f"批量刷新失败: {e}")
+            # 可选：失败后放回缓冲区或丢弃
+            # self.batch_buffer.extend(items_to_save)
     
     async def _on_spider_closed(self):
         """
@@ -298,12 +340,22 @@ class FileBasedPipeline(ResourceManagedPipeline):
                 if self.file_path is None:
                     raise ValueError("文件路径未设置")
                 
-                self.file_handle = open(
-                    self.file_path, 
-                    mode, 
-                    encoding=kwargs.get('encoding', 'utf-8'),
-                    **{k: v for k, v in kwargs.items() if k != 'encoding'}
-                )
+                # 如果安装了aiofiles，使用异步文件操作
+                if AIOFILES_AVAILABLE:
+                    self.file_handle = await aiofiles.open(
+                        self.file_path, 
+                        mode, 
+                        encoding=kwargs.get('encoding', 'utf-8'),
+                        **{k: v for k, v in kwargs.items() if k != 'encoding'}
+                    )
+                else:
+                    # 回退到同步文件操作
+                    self.file_handle = open(
+                        self.file_path, 
+                        mode, 
+                        encoding=kwargs.get('encoding', 'utf-8'),
+                        **{k: v for k, v in kwargs.items() if k != 'encoding'}
+                    )
                 
                 # 注册文件句柄到资源管理器
                 self.register_resource(
@@ -317,9 +369,15 @@ class FileBasedPipeline(ResourceManagedPipeline):
     
     async def _close_file(self, file_handle):
         """关闭文件句柄"""
-        if file_handle and not file_handle.closed:
-            file_handle.close()
-            self.logger.info(f"文件已关闭: {self.file_path}")
+        if file_handle:
+            # 如果是aiofiles文件对象，异步关闭
+            if AIOFILES_AVAILABLE and hasattr(file_handle, 'close') and asyncio.iscoroutinefunction(file_handle.close):
+                await file_handle.close()
+                self.logger.info(f"文件已异步关闭: {self.file_path}")
+            # 否则使用同步关闭
+            elif hasattr(file_handle, 'closed') and not file_handle.closed:
+                file_handle.close()
+                self.logger.info(f"文件已同步关闭: {self.file_path}")
     
     async def _initialize_resources(self):
         """初始化文件资源"""
@@ -332,7 +390,66 @@ class FileBasedPipeline(ResourceManagedPipeline):
         pass
 
 
-class DatabasePipeline(ResourceManagedPipeline):
+class ConnectablePipeline(ResourceManagedPipeline):
+    """
+    可连接Pipeline基类
+    
+    提供连接资源操作的通用功能：
+    - 连接管理
+    - 自动重连
+    - 批量操作优化
+    """
+    
+    def __init__(self, crawler):
+        super().__init__(crawler)
+        self.connection = None
+        self._connection_lock = asyncio.Lock()
+        self._connection_initialized = False
+    
+    async def _ensure_connection_initialized(self):
+        """确保连接已初始化"""
+        if self._connection_initialized and self.connection:
+            return
+        
+        async with self._connection_lock:
+            if not self._connection_initialized:
+                await self._create_connection()
+                self._connection_initialized = True
+                self.logger.info(f"{self.__class__.__name__} 连接已初始化")
+    
+    @abstractmethod
+    async def _create_connection(self):
+        """
+        创建连接（子类实现）
+        
+        示例：
+            self.connection = await create_connection(...)
+            
+            # 注册到资源管理器
+            self.register_resource(
+                resource=self.connection,
+                cleanup_func=self._close_connection,
+                resource_type=ResourceType.NETWORK,
+                name="connection"
+            )
+        """
+        raise NotImplementedError("子类必须实现 _create_connection 方法")
+    
+    @abstractmethod
+    async def _close_connection(self, connection):
+        """关闭连接（子类实现）"""
+        raise NotImplementedError("子类必须实现 _close_connection 方法")
+    
+    async def _initialize_resources(self):
+        """初始化连接资源"""
+        await self._ensure_connection_initialized()
+    
+    async def _cleanup_resources(self):
+        """清理由ResourceManager管理的资源"""
+        # 连接由ResourceManager自动清理
+        pass
+
+class DatabasePipeline(ConnectablePipeline):
     """
     数据库Pipeline基类
     
@@ -393,7 +510,7 @@ class DatabasePipeline(ResourceManagedPipeline):
         pass
 
 
-class CacheBasedPipeline(ResourceManagedPipeline):
+class CacheBasedPipeline(ConnectablePipeline):
     """
     缓存型Pipeline基类
     
