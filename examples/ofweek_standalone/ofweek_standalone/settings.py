@@ -87,8 +87,8 @@ MYSQL_USER = 'root'
 MYSQL_PASSWORD = 'oscar&0503'
 MYSQL_DB = 'crawlo_db'
 MYSQL_TABLE = 'ofweek_news'
-MYSQL_BATCH_SIZE = 100
-MYSQL_USE_BATCH = False  # 是否启用批量插入
+MYSQL_BATCH_SIZE = 20
+MYSQL_USE_BATCH = True  # 是否启用批量插入
 
 # MySQL SQL生成行为控制配置
 MYSQL_AUTO_UPDATE = False  # 是否使用 REPLACE INTO（完全覆盖已存在记录）

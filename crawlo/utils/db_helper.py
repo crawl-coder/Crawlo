@@ -89,8 +89,9 @@ class SQLBuilder:
         if not isinstance(update_columns, (tuple, list)):
             update_columns = (update_columns,)
         
-        # 推荐：使用 VALUES(col) 函数 (兼容性好)
-        return ", ".join(f"`{col}`=VALUES(`{col}`)" for col in update_columns)
+        if use_values_func:
+            return ", ".join(f"`{col}`=VALUES(`{col}`)" for col in update_columns)
+        return ", ".join(f"`{col}`=`excluded`.`{col}`" for col in update_columns)
 
     @staticmethod
     def make_insert(
@@ -99,6 +100,7 @@ class SQLBuilder:
         auto_update: bool = False,
         update_columns: Tuple = (),
         insert_ignore: bool = False,
+        prefer_alias: bool = True,
     ) -> Tuple[str, List[Any]]:
         """
         生成参数化的 INSERT/REPLACE 语句。
@@ -118,9 +120,12 @@ class SQLBuilder:
         
         # 3. 组装 SQL
         if update_columns:
-            update_clause = SQLBuilder._build_update_clause(update_columns)
+            update_clause = SQLBuilder._build_update_clause(update_columns, use_values_func=not prefer_alias)
             ignore = " IGNORE" if insert_ignore else ""
-            sql = f"INSERT{ignore} INTO {table_fmt} ({keys_str}) VALUES ({placeholders}) ON DUPLICATE KEY UPDATE {update_clause}"
+            if prefer_alias:
+                sql = f"INSERT{ignore} INTO {table_fmt} ({keys_str}) VALUES ({placeholders}) AS `excluded` ON DUPLICATE KEY UPDATE {update_clause}"
+            else:
+                sql = f"INSERT{ignore} INTO {table_fmt} ({keys_str}) VALUES ({placeholders}) ON DUPLICATE KEY UPDATE {update_clause}"
             
         elif auto_update:
             sql = f"REPLACE INTO {table_fmt} ({keys_str}) VALUES ({placeholders})"
@@ -166,6 +171,7 @@ class SQLBuilder:
         datas: List[Dict[str, Any]],
         auto_update: bool = False,
         update_columns: Tuple = (),
+        prefer_alias: bool = True,
     ) -> Optional[Tuple[str, List[List[Any]]]]:
         """
         生成批量插入 SQL 及对应值列表。
@@ -202,6 +208,7 @@ class SQLBuilder:
                     row.append(formatted_value)
                 except Exception as e:
                     logger.error(f"{key}: {raw_value} (类型: {type(raw_value)}) -> {e}")
+                    row.append(None)  # 如果格式化失败，添加None值
             values_list.append(row)
 
         keys_str = ", ".join(f"`{key}`" for key in keys)
@@ -212,8 +219,11 @@ class SQLBuilder:
                 update_columns = (update_columns,)
 
             if update_columns:
-                update_clause = SQLBuilder._build_update_clause(update_columns)
-                sql = f"INSERT INTO `{table}` ({keys_str}) VALUES ({placeholders_str}) ON DUPLICATE KEY UPDATE {update_clause}"
+                update_clause = SQLBuilder._build_update_clause(update_columns, use_values_func=not prefer_alias)
+                if prefer_alias:
+                    sql = f"INSERT INTO `{table}` ({keys_str}) VALUES ({placeholders_str}) AS `excluded` ON DUPLICATE KEY UPDATE {update_clause}"
+                else:
+                    sql = f"INSERT INTO `{table}` ({keys_str}) VALUES ({placeholders_str}) ON DUPLICATE KEY UPDATE {update_clause}"
             elif auto_update:
                 sql = f"REPLACE INTO `{table}` ({keys_str}) VALUES ({placeholders_str})"
             else:

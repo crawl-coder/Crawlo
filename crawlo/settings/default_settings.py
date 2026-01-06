@@ -68,6 +68,7 @@ MYSQL_USE_BATCH = False  # 是否启用批量插入
 MYSQL_AUTO_UPDATE = False  # 是否使用 REPLACE INTO（完全覆盖已存在记录）
 MYSQL_INSERT_IGNORE = False  # 是否使用 INSERT IGNORE（忽略重复数据）
 MYSQL_UPDATE_COLUMNS = ()  # 冲突时需更新的列名；指定后 MYSQL_AUTO_UPDATE 失效
+MYSQL_PREFER_ALIAS = True  # 是否优先使用 AS `excluded` 语法，False 则使用 VALUES() 语法
 
 # Redis配置
 # Redis键命名规范：

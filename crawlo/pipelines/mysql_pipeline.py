@@ -77,12 +77,21 @@ class BaseMySQLPipeline(BasePipeline, ABC):
         
         # 如果启用批量插入，将item添加到缓冲区
         if self.use_batch:
-            self.batch_buffer.append(dict(item))
-            
-            # 如果缓冲区达到批量大小，执行批量插入
-            if len(self.batch_buffer) >= self.batch_size:
-                await self._flush_batch(spider_name)
+            # 在锁的保护下添加到缓冲区，确保线程安全
+            async with self._pool_lock:
+                self.batch_buffer.append(dict(item))
                 
+                # 如果缓冲区达到批量大小，执行批量插入
+                should_flush = len(self.batch_buffer) >= self.batch_size
+            
+            if should_flush:
+                try:
+                    await self._flush_batch(spider_name)
+                except Exception as e:
+                    # 即使批量刷新失败，也要确保item被返回，避免爬虫中断
+                    self.logger.error(f"批量刷新失败，但继续处理: {e}")
+                    # 这里不重新抛出异常，让爬虫可以继续运行
+            
             return item
         else:
             # 单条插入逻辑
@@ -94,9 +103,16 @@ class BaseMySQLPipeline(BasePipeline, ABC):
                     raise RuntimeError("Database connection pool is not initialized or invalid")
                 
                 item_dict = dict(item)
-                sql, params = await self._make_insert_sql(item_dict, **kwargs)
-
-                rowcount = await self._execute_sql(sql=sql, values=params)
+                sql, params = await self._make_insert_sql(item_dict, prefer_alias=True, **kwargs)
+                try:
+                    rowcount = await self._execute_sql(sql=sql, values=params)
+                except Exception as e:
+                    err_str = str(e)
+                    if self.update_columns and ("AS `excluded`" in sql) and ("You have an error in your SQL syntax" in err_str or "near 'AS" in err_str or "Unknown column 'excluded'" in err_str):
+                        sql_fallback, params_fallback = await self._make_insert_sql(item_dict, prefer_alias=False, **kwargs)
+                        rowcount = await self._execute_sql(sql=sql_fallback, values=params_fallback)
+                    else:
+                        raise
                 if rowcount > 1:
                     self.logger.info(
                         f"爬虫 {spider_name} 成功插入 {rowcount} 条记录到表 {self.table_name}"
@@ -119,6 +135,10 @@ class BaseMySQLPipeline(BasePipeline, ABC):
 
                 # 统计计数移到这里，与AiomysqlMySQLPipeline保持一致
                 self.crawler.stats.inc_value('mysql/insert_success')
+                self.crawler.stats.inc_value('mysql/rows_requested', 1)
+                self.crawler.stats.inc_value('mysql/rows_affected', rowcount or 0)
+                if self.insert_ignore and not self.update_columns and (rowcount or 0) == 0:
+                    self.crawler.stats.inc_value('mysql/rows_ignored_by_duplicate', 1)
                 return item
 
             except Exception as e:
@@ -140,13 +160,20 @@ class BaseMySQLPipeline(BasePipeline, ABC):
 
     async def _flush_batch(self, spider_name: str):
         """刷新批量缓冲区并执行批量插入"""
-        # 立即切出数据，避免在 await 过程中 buffer 被其他协程修改
-        if not self.batch_buffer:
+        # 快照当前批量，避免在 await 过程中 buffer 被其他协程修改
+        # 先在锁外获取当前批次数据，避免长时间持有锁
+        async with self._pool_lock:
+            if not self.batch_buffer:
+                return
+                
+            # 使用切片复制，避免引用同一对象；不立即清空，失败时可重试
+            current_batch = self.batch_buffer[:]
+            processed_count = len(current_batch)
+            # 立即清空缓冲区，避免重复处理
+            self.batch_buffer.clear()
+        
+        if not current_batch:  # 双重检查
             return
-            
-        # 原子性地获取并清空缓冲区
-        current_batch = self.batch_buffer
-        self.batch_buffer = []
         
         try:
             await self._ensure_pool()
@@ -160,16 +187,35 @@ class BaseMySQLPipeline(BasePipeline, ABC):
                 table=self.table_name,
                 datas=current_batch,  # 使用局部变量
                 auto_update=self.auto_update,
-                update_columns=self.update_columns
+                update_columns=self.update_columns,
+                prefer_alias=self.settings.get_bool('MYSQL_PREFER_ALIAS', True)
             )
 
             if batch_result:
                 sql, values_list = batch_result
-                rowcount = await self._execute_batch_sql(sql=sql, values_list=values_list)
+                try:
+                    rowcount = await self._execute_batch_sql(sql=sql, values_list=values_list)
+                except Exception as e:
+                    err_str = str(e)
+                    if self.update_columns and ("AS `excluded`" in sql) and ("You have an error in your SQL syntax" in err_str or "near 'AS" in err_str or "Unknown column 'excluded'" in err_str):
+                        batch_result_fb = SQLBuilder.make_batch(
+                            table=self.table_name,
+                            datas=current_batch,
+                            auto_update=self.auto_update,
+                            update_columns=self.update_columns,
+                            prefer_alias=not self.settings.get_bool('MYSQL_PREFER_ALIAS', True)
+                        )
+                        if batch_result_fb:
+                            sql_fb, values_list_fb = batch_result_fb
+                            rowcount = await self._execute_batch_sql(sql=sql_fb, values_list=values_list_fb)
+                        else:
+                            rowcount = 0
+                    else:
+                        raise
                 
                 if rowcount > 0:
                     self.logger.info(
-                        f"爬虫 {spider_name} 批量插入 {len(self.batch_buffer)} 条记录到表 {self.table_name}，实际影响 {rowcount} 行"
+                        f"爬虫 {spider_name} 批量插入 {processed_count} 条记录到表 {self.table_name}，实际影响 {rowcount} 行"
                     )
                 else:
                     # 当使用 MYSQL_UPDATE_COLUMNS 时，如果更新的字段值与现有记录相同，
@@ -183,33 +229,42 @@ class BaseMySQLPipeline(BasePipeline, ABC):
                             f"爬虫 {spider_name}: 批量SQL执行完成但未插入新记录"
                         )
 
-                # 清空缓冲区
-                self.batch_buffer.clear()
                 self.crawler.stats.inc_value('mysql/batch_insert_success')
+                self.crawler.stats.inc_value('mysql/rows_requested', processed_count)
+                self.crawler.stats.inc_value('mysql/rows_affected', rowcount or 0)
+                if self.insert_ignore and not self.update_columns and (rowcount or 0) < processed_count:
+                    self.crawler.stats.inc_value('mysql/rows_ignored_by_duplicate', processed_count - (rowcount or 0))
             else:
                 self.logger.warning(f"爬虫 {spider_name}: 批量数据为空，跳过插入")
+                # 如果没有数据要处理，重新将数据放回缓冲区
+                async with self._pool_lock:
+                    self.batch_buffer.extend(current_batch)
 
         except Exception as e:
             # 添加更多调试信息
             error_msg = f"批量插入失败: {str(e)}"
             self.logger.error(f"批量处理数据时发生错误: {error_msg}")
             self.crawler.stats.inc_value('mysql/batch_insert_failed')
-            # 不清空缓冲区，以便可能的重试
-            # 但如果错误是由于数据问题导致的，可能需要清空缓冲区以避免无限重试
-            if "Duplicate entry" in str(e) or "Data too long" in str(e):
-                self.logger.warning("由于数据问题导致的错误，清空缓冲区以避免无限重试")
-                self.batch_buffer.clear()
+            # 失败时将数据重新放回缓冲区，以便重试
+            async with self._pool_lock:
+                self.batch_buffer.extend(current_batch)
             raise ItemDiscard(error_msg)
 
     async def spider_closed(self):
         """关闭爬虫时清理资源"""
-        # 在关闭前刷新剩余的批量数据
+        # 在关闭前强制刷新剩余的批量数据
         if self.use_batch and self.batch_buffer:
             spider_name = getattr(self.crawler.spider, 'name', 'unknown')
             try:
                 await self._flush_batch(spider_name)
+                # 再次检查是否还有剩余数据（可能由于异常处理等原因）
+                if self.batch_buffer:
+                    self.logger.warning(f"爬虫关闭时仍有 {len(self.batch_buffer)} 条数据未处理")
             except Exception as e:
                 self.logger.error(f"关闭爬虫时刷新批量数据失败: {e}")
+                # 即使刷新失败，也要记录未处理的数据量
+                if self.batch_buffer:
+                    self.logger.error(f"爬虫关闭时有 {len(self.batch_buffer)} 条数据未能插入数据库")
         
         # 注意：不再关闭连接池，因为连接池是全局共享的
         # 连接池的关闭由 DatabaseConnectionPoolManager.close_all_mysql_pools() 统一管理
@@ -221,10 +276,13 @@ class BaseMySQLPipeline(BasePipeline, ABC):
     async def _make_insert_sql(self, item_dict: Dict, **kwargs) -> Tuple[str, List[Any]]:
         """生成插入SQL语句，子类可以重写此方法"""
         # 合并管道配置和传入的kwargs参数
+        # 优先使用传入的prefer_alias参数，否则从设置中获取默认值
+        prefer_alias = kwargs.pop('prefer_alias', self.settings.get_bool('MYSQL_PREFER_ALIAS', True))
         sql_kwargs = {
             'auto_update': self.auto_update,
             'insert_ignore': self.insert_ignore,
-            'update_columns': self.update_columns
+            'update_columns': self.update_columns,
+            'prefer_alias': prefer_alias
         }
         sql_kwargs.update(kwargs)
         
