@@ -5,11 +5,10 @@
 支持静态代理列表和动态代理API两种模式
 """
 import random
-from urllib.parse import urlparse
 from typing import Optional, List
 
-from crawlo.network import Request, Response
 from crawlo.logging import get_logger
+from crawlo.network import Request, Response
 
 
 class ProxyMiddleware:
@@ -86,75 +85,18 @@ class ProxyMiddleware:
         """
         从API返回的数据中提取代理
         
-        支持多种提取方式：
+        支持简单的字段提取方式：
         1. 字符串: 直接作为字段名使用
-        2. 字典: 包含type和value字段，type支持"field"和"jsonpath"
-        3. 函数: 用户自定义提取函数
         """
         if isinstance(self.proxy_extractor, str):
             # 简单字段名提取（向后兼容）
             if self.proxy_extractor in data:
                 proxy_value = data[self.proxy_extractor]
-                # 如果返回的是字典，尝试提取http或https字段
-                if isinstance(proxy_value, dict):
-                    if "http" in proxy_value:
-                        return str(proxy_value["http"])
-                    elif "https" in proxy_value:
-                        return str(proxy_value["https"])
                 return str(proxy_value) if proxy_value is not None else None
-        elif isinstance(self.proxy_extractor, dict):
-            # 复杂提取规则
-            extractor_type = self.proxy_extractor.get("type", "field")
-            extractor_value = self.proxy_extractor.get("value", "proxy")
-            
-            if extractor_type == "field":
-                # 字段提取
-                if extractor_value in data:
-                    proxy_value = data[extractor_value]
-                    # 如果返回的是字典，尝试提取http或https字段
-                    if isinstance(proxy_value, dict):
-                        if "http" in proxy_value:
-                            return str(proxy_value["http"])
-                        elif "https" in proxy_value:
-                            return str(proxy_value["https"])
-                    return str(proxy_value) if proxy_value is not None else None
-            elif extractor_type == "jsonpath":
-                # JSON路径提取（需要安装jsonpath库）
-                try:
-                    import jsonpath
-                    matches = jsonpath.jsonpath(data, extractor_value)
-                    if matches:
-                        return str(matches[0]) if matches[0] is not None else None
-                except ImportError:
-                    self.logger.warning("jsonpath library not installed, falling back to default extraction")
-                    if "proxy" in data:
-                        proxy_value = data["proxy"]
-                        if isinstance(proxy_value, dict):
-                            if "http" in proxy_value:
-                                return str(proxy_value["http"])
-                            elif "https" in proxy_value:
-                                return str(proxy_value["https"])
-                        return str(proxy_value) if proxy_value is not None else None
-            elif extractor_type == "custom":
-                # 自定义提取函数（需要用户提供）
-                custom_func = self.proxy_extractor.get("function")
-                if callable(custom_func):
-                    result = custom_func(data)
-                    return str(result) if result is not None else None
-        elif callable(self.proxy_extractor):
-            # 直接调用用户提供的函数
-            result = self.proxy_extractor(data)
-            return str(result) if result is not None else None
         
         # 默认提取方式（向后兼容）
         if "proxy" in data:
             proxy_value = data["proxy"]
-            # 如果返回的是字典，尝试提取http或https字段
-            if isinstance(proxy_value, dict):
-                if "http" in proxy_value:
-                    return str(proxy_value["http"])
-                elif "https" in proxy_value:
-                    return str(proxy_value["https"])
             return str(proxy_value) if proxy_value is not None else None
         
         return None
@@ -192,7 +134,7 @@ class ProxyMiddleware:
 
         return None
 
-    def process_response(self, request: Request, response: Response, spider) -> Response:
+    async def process_response(self, request: Request, response: Response, spider) -> Response:
         """处理响应"""
         if request.proxy:
             self.logger.debug(f"Proxy request successful: {request.proxy} | {request.url}")
@@ -203,7 +145,7 @@ class ProxyMiddleware:
                 del self.proxy_failure_count[request.proxy]
         return response
 
-    def process_exception(self, request: Request, exception: Exception, spider) -> Optional[Request]:
+    async def process_exception(self, request: Request, exception: Exception, spider) -> Optional[Request]:
         """处理异常"""
         if request.proxy:
             error_msg = f"Proxy request failed: {request.proxy} | {request.url} | {repr(exception)}"

@@ -13,7 +13,7 @@
   <a href="#项目架构">架构</a> •
   <a href="#安装">安装</a> •
   <a href="#配置模式详解">配置模式</a> •
-  <a href="https://github.com/yourusername/crawlo">文档</a>
+  <a href="https://github.com/crawl-coder/Crawlo">文档</a>
 </p>
 
 ## 核心特性
@@ -419,6 +419,57 @@ PIPELINES.append('myproject.pipelines.MySQLPipeline')
 
 > 📖 **详细文档**：完整的配置优先级说明请参考 [配置优先级详解](docs/配置优先级详解.md)
 
+## 中间件优先级策略
+
+在 crawlo 框架中，中间件的执行顺序由优先级数值决定，数值越大执行越早。以下是推荐的中间件优先级分配策略：
+
+### 1. 优先级数值范围和含义
+
+- **高优先级 (80-100)**：请求预处理阶段，如过滤、验证等
+- **中高优先级 (60-79)**：请求处理阶段，如添加请求头、代理设置等
+- **中等优先级 (40-59)**：响应处理阶段，如重试、状态码处理等
+- **低优先级 (0-39)**：响应后处理阶段，如过滤、记录等
+
+### 2. 默认中间件优先级分配
+
+```python
+# === 请求预处理阶段 ===
+'crawlo.middleware.request_ignore.RequestIgnoreMiddleware': 100  # 1. 忽略无效请求（最高优先级）
+'crawlo.middleware.download_delay.DownloadDelayMiddleware': 90   # 2. 控制请求频率
+'crawlo.middleware.default_header.DefaultHeaderMiddleware': 80   # 3. 添加默认请求头
+'crawlo.middleware.offsite.OffsiteMiddleware': 60               # 5. 站外请求过滤
+
+# === 响应处理阶段 ===
+'crawlo.middleware.retry.RetryMiddleware': 50                   # 6. 失败请求重试
+'crawlo.middleware.response_code.ResponseCodeMiddleware': 40     # 7. 处理特殊状态码
+'crawlo.middleware.response_filter.ResponseFilterMiddleware': 30  # 8. 响应内容过滤（最低优先级）
+```
+
+### 3. 用户自定义中间件优先级建议
+
+- **请求处理类中间件**：
+  - 添加请求头/代理：优先级 75-85
+  - 请求过滤/验证：优先级 85-95
+  - 请求修改/增强：优先级 60-75
+
+- **响应处理类中间件**：
+  - 响应重试/恢复：优先级 45-55
+  - 响应验证/解析：优先级 30-40
+  - 响应后处理：优先级 10-25
+
+- **特殊处理类中间件**：
+  - 安全/认证中间件：优先级 90+
+  - 日志/监控中间件：优先级 20-40
+
+### 4. 优先级设置原则
+
+1. **请求处理优先于响应处理**：请求相关中间件优先级通常高于响应处理中间件
+2. **过滤器通常优先级较高**：过滤无效请求的中间件应具有较高优先级
+3. **依赖关系**：如果中间件A的输出是中间件B的输入，A的优先级应高于B
+4. **性能考虑**：可能快速过滤请求的中间件应具有较高优先级
+
+> 💡 **提示**：`OffsiteMiddleware` 只有在配置了 `ALLOWED_DOMAINS` 时才会启用，否则会因 `NotConfiguredError` 而被禁用
+
 ## 快速开始
 
 ### 1. 创建项目
@@ -716,6 +767,7 @@ Crawlo 在 Windows、macOS、Linux 上均可无缝运行：
 - [队列 (Queue)](docs/modules/queue/index.md)
 - [过滤器 (Filter)](docs/modules/filter/index.md)
 - [中间件 (Middleware)](docs/modules/middleware/index.md)
+- [中间件优先级策略](docs/middleware_priority_guide.md)
 - [管道 (Pipeline)](docs/modules/pipeline/index.md)
 - [扩展 (Extension)](docs/modules/extension/index.md)
 
@@ -741,6 +793,10 @@ Crawlo 在 Windows、macOS、Linux 上均可无缝运行：
 - [初始化优化报告](docs/initialization_optimization_report.md)
 - [MySQL 连接池优化](docs/mysql_connection_pool_optimization.md)
 - [MongoDB 连接池优化](docs/mongo_connection_pool_optimization.md)
+
+### 🎯 中间件指南
+
+- [中间件优先级策略](docs/middleware_priority_guide.md)
 
 ### 📖 API 参考
 
@@ -831,9 +887,9 @@ PROXY_API_URL = "http://your-proxy-api.com/get-proxy"
 
 ## 贡献
 
-欢迎贡献！如果您想为 Crawlo 做出贡献：
+欢迎贡献！如果您想为 Crawlo 做出贡献，请访问我们的 [GitHub 仓库](https://github.com/crawl-coder/Crawlo)：
 
-1. Fork 项目仓库
+1. Fork [Crawlo 仓库](https://github.com/crawl-coder/Crawlo)
 2. 创建功能分支 (`git checkout -b feature/AmazingFeature`)
 3. 提交您的更改 (`git commit -m 'Add some AmazingFeature'`)
 4. 推送到分支 (`git push origin feature/AmazingFeature`)

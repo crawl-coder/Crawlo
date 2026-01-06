@@ -25,18 +25,57 @@ class SettingManager(MutableMapping):
 
         # 合并中间件配置
         if 'MIDDLEWARES' in user_config:
-            default_middlewares = self.attributes.get('MIDDLEWARES', [])
             user_middlewares = user_config['MIDDLEWARES']
-            # 如果用户配置了空列表，则仍然使用默认配置
-            if user_middlewares:
-                # 过滤掉空值和注释
-                user_middlewares = [middleware for middleware in user_middlewares if middleware and not middleware.strip().startswith('#')]
-                # 合并默认中间件和用户中间件，去重但保持顺序
-                merged_middlewares = default_middlewares[:]
-                for middleware in user_middlewares:
-                    if middleware not in merged_middlewares:
-                        merged_middlewares.append(middleware)
+            
+            # 检查用户配置是字典格式还是列表格式
+            if isinstance(user_middlewares, dict):
+                # 字典格式：{'middleware_path': priority}
+                # 获取默认中间件（也可能是字典格式）
+                default_middlewares = self.attributes.get('MIDDLEWARES', {})
+                if isinstance(default_middlewares, dict):
+                    # 合并字典格式的中间件配置
+                    # 用户配置优先级更高，会覆盖默认配置
+                    merged_middlewares = default_middlewares.copy()
+                    merged_middlewares.update(user_middlewares)
+                else:
+                    # 默认是列表格式，转换为字典格式
+                    merged_middlewares = {}
+                    # 将默认列表转换为字典（优先级为0）
+                    if isinstance(default_middlewares, (list, tuple)):
+                        for middleware in default_middlewares:
+                            if middleware and not str(middleware).strip().startswith('#'):
+                                # 如果middleware是元组格式 (path, priority)，则使用其优先级
+                                if isinstance(middleware, tuple) and len(middleware) == 2:
+                                    merged_middlewares[middleware[0]] = middleware[1]
+                                else:
+                                    merged_middlewares[middleware] = 0
+                    # 添加用户配置的中间件
+                    merged_middlewares.update(user_middlewares)
                 self.attributes['MIDDLEWARES'] = merged_middlewares
+            else:
+                # 列表格式：['middleware_path'] 或 [('middleware_path', priority)]
+                default_middlewares = self.attributes.get('MIDDLEWARES', [])
+                # 如果用户配置了非空列表，则合并
+                if user_middlewares:
+                    # 过滤掉空值和注释
+                    user_middlewares = [middleware for middleware in user_middlewares if middleware and not middleware.strip().startswith('#')]
+                    # 合并默认中间件和用户中间件，去重但保持顺序
+                    merged_middlewares = default_middlewares[:]
+                    for middleware in user_middlewares:
+                        # 检查是否已存在，如果是元组格式也要正确处理
+                        middleware_path = middleware[0] if isinstance(middleware, tuple) and len(middleware) == 2 else middleware
+                        existing_index = None
+                        for i, existing in enumerate(merged_middlewares):
+                            existing_path = existing[0] if isinstance(existing, tuple) and len(existing) == 2 else existing
+                            if existing_path == middleware_path:
+                                existing_index = i
+                                break
+                        if existing_index is not None:
+                            # 如果已存在，则替换
+                            merged_middlewares[existing_index] = middleware
+                        else:
+                            merged_middlewares.append(middleware)
+                    self.attributes['MIDDLEWARES'] = merged_middlewares
 
         # 合并管道配置
         if 'PIPELINES' in user_config:

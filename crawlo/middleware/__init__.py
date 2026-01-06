@@ -1,6 +1,7 @@
 #!/usr/bin/python
 # -*- coding:UTF-8 -*-
-from typing import TYPE_CHECKING, Optional, Union
+from typing import TYPE_CHECKING, Optional, Union, Awaitable
+import asyncio
 
 if TYPE_CHECKING:
     from crawlo import Request, Response
@@ -17,7 +18,7 @@ class BaseMiddleware:
     3. process_exception: 异常发生时处理
     """
     
-    def process_request(
+    async def process_request(
         self, 
         request: 'Request', 
         spider
@@ -35,7 +36,7 @@ class BaseMiddleware:
         """
         pass
 
-    def process_response(
+    async def process_response(
         self, 
         request: 'Request', 
         response: 'Response', 
@@ -54,7 +55,7 @@ class BaseMiddleware:
         """
         return response
 
-    def process_exception(
+    async def process_exception(
         self, 
         request: 'Request', 
         exp: Exception, 

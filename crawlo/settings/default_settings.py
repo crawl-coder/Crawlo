@@ -92,18 +92,18 @@ BLOOM_FILTER_ERROR_RATE = 0.001  # Bloom过滤器错误率
 # --------------------------------- 4. 中间件配置 ------------------------------------
 
 # 框架中间件列表（框架默认中间件 + 用户自定义中间件）
-MIDDLEWARES = [
+MIDDLEWARES = {
     # === 请求预处理阶段 ===
-    'crawlo.middleware.request_ignore.RequestIgnoreMiddleware',  # 1. 忽略无效请求
-    'crawlo.middleware.download_delay.DownloadDelayMiddleware',  # 2. 控制请求频率
-    'crawlo.middleware.default_header.DefaultHeaderMiddleware',  # 3. 添加默认请求头
-    'crawlo.middleware.offsite.OffsiteMiddleware',  # 5. 站外请求过滤
+    'crawlo.middleware.request_ignore.RequestIgnoreMiddleware': 100,  # 1. 忽略无效请求
+    'crawlo.middleware.download_delay.DownloadDelayMiddleware': 90,  # 2. 控制请求频率
+    'crawlo.middleware.default_header.DefaultHeaderMiddleware': 80,  # 3. 添加默认请求头
+    'crawlo.middleware.offsite.OffsiteMiddleware': 60,  # 5. 站外请求过滤
 
     # === 响应处理阶段 ===
-    'crawlo.middleware.retry.RetryMiddleware',  # 6. 失败请求重试
-    'crawlo.middleware.response_code.ResponseCodeMiddleware',  # 7. 处理特殊状态码
-    'crawlo.middleware.response_filter.ResponseFilterMiddleware',  # 8. 响应内容过滤
-]
+    'crawlo.middleware.retry.RetryMiddleware': 50,  # 6. 失败请求重试
+    'crawlo.middleware.response_code.ResponseCodeMiddleware': 40,  # 7. 处理特殊状态码
+    'crawlo.middleware.response_filter.ResponseFilterMiddleware': 30,  # 8. 响应内容过滤
+}
 
 # --------------------------------- 5. 管道配置 ------------------------------------
 

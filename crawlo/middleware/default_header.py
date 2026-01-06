@@ -100,7 +100,7 @@ class DefaultHeaderMiddleware(object):
                 request.headers[header_name] = header_value
                 self.logger.debug(f"为请求 {request.url} 添加随机头部: {header_name}={header_value[:50]}...")
 
-    def process_request(self, request, _spider):
+    async def process_request(self, request, _spider):
         """
         处理请求，添加默认请求头
         """

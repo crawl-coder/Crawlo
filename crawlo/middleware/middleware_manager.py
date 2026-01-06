@@ -119,10 +119,51 @@ class MiddlewareManager:
         return cls(*args, **kwargs)
 
     def _add_middleware(self, middlewares):
-        enabled_middlewares = [m for m in middlewares if self._validate_middleware(m)]
+        # 支持中间件优先级：中间件可以是字符串、元组 (middleware_path, priority) 或字典 {'middleware_path': priority}
+        processed_middlewares = []
+        
+        # 检查是否是字典格式
+        if isinstance(middlewares, dict):
+            # 字典格式: {'middleware_path': priority}
+            for middleware_path, priority in middlewares.items():
+                processed_middlewares.append((middleware_path, priority))
+        else:
+            # 传统格式：列表中包含字符串或元组
+            for item in middlewares:
+                if isinstance(item, (list, tuple)) and len(item) == 2:
+                    middleware_path, priority = item
+                    processed_middlewares.append((middleware_path, priority))
+                elif isinstance(item, str):
+                    # 默认优先级为0
+                    processed_middlewares.append((item, 0))
+                else:
+                    # 跳过无效条目
+                    continue
+        
+        # 按优先级排序（高优先级在前）
+        processed_middlewares.sort(key=lambda x: x[1], reverse=True)
+        
+        enabled_middlewares = []
+        for middleware_path, priority in processed_middlewares:
+            if self._validate_middleware(middleware_path):
+                enabled_middlewares.append((middleware_path, priority))
+        
         if enabled_middlewares:
             # 恢复INFO级别日志，保留关键的启用信息
-            self.logger.info(f'Enabled middlewares:\n {pformat(enabled_middlewares)}')
+            # 格式化中间件列表，使其更像字典格式，更易读
+            if len(enabled_middlewares) == 1:
+                # 只有一个中间件时，单行显示
+                middleware_path, priority = enabled_middlewares[0]
+                self.logger.info(f'Enabled middlewares: {{{middleware_path!r}: {priority}}}')
+            else:
+                # 多个中间件时，多行显示，类似字典格式
+                formatted_output = '{\n'
+                for i, (middleware_path, priority) in enumerate(enabled_middlewares):
+                    is_last = (i == len(enabled_middlewares) - 1)
+                    comma = ',' if not is_last else ''
+                    formatted_output += f"  {middleware_path!r}: {priority}{comma}\n"
+                formatted_output += '}'
+                self.logger.info(f'Enabled middlewares:\n{formatted_output}')
 
     def _validate_middleware(self, middleware):
         middleware_cls = load_object(middleware)

@@ -39,14 +39,15 @@ from crawlo import Item
 from crawlo.exceptions import ItemDiscard
 from crawlo.logging import get_logger
 from crawlo.spider import Spider
-from crawlo.utils.fingerprint import FingerprintGenerator
+from crawlo.pipelines.base_pipeline import DedupPipeline
 
 
-class BloomDedupPipeline:
+class BloomDedupPipeline(DedupPipeline):
     """基于 Bloom Filter 的数据项去重管道"""
 
     def __init__(
             self,
+            crawler,
             capacity: int = 1000000,
             error_rate: float = 0.001,
             log_level: str = "INFO"
@@ -54,10 +55,13 @@ class BloomDedupPipeline:
         """
         初始化 Bloom Filter 去重管道
         
+        :param crawler: Crawler实例
         :param capacity: 预期存储的元素数量
         :param error_rate: 误判率 (例如 0.001 表示 0.1%)
         :param log_level: 日志级别
         """
+        super().__init__(crawler)
+        
         self.logger = get_logger(self.__class__.__name__)
         
         # 初始化 Bloom Filter
@@ -70,7 +74,6 @@ class BloomDedupPipeline:
 
         self.capacity = capacity
         self.error_rate = error_rate
-        self.dropped_count = 0
         self.added_count = 0
 
     @classmethod
@@ -79,54 +82,43 @@ class BloomDedupPipeline:
         settings = crawler.settings
         
         return cls(
+            crawler=crawler,
             capacity=settings.get_int('BLOOM_FILTER_CAPACITY', 1000000),
             error_rate=settings.get_float('BLOOM_FILTER_ERROR_RATE', 0.001),
             log_level=settings.get('LOG_LEVEL', 'INFO')
         )
 
-    def process_item(self, item: Item, spider: Spider) -> Item:
-        """
-        处理数据项，进行去重检查
-        
-        :param item: 要处理的数据项
-        :param spider: 爬虫实例
-        :return: 处理后的数据项或抛出 ItemDiscard 异常
-        """
-        try:
-            # 生成数据项指纹
-            fingerprint = self._generate_item_fingerprint(item)
-            
-            # 检查指纹是否已存在
-            if fingerprint in self.bloom_filter:
-                # 如果可能已存在（Bloom Filter 可能有误判），丢弃这个数据项
-                self.dropped_count += 1
-                self.logger.debug(f"Possibly dropping duplicate item: {fingerprint[:20]}...")
-                raise ItemDiscard(f"可能重复的数据项: {fingerprint}")
-            else:
-                # 添加指纹到 Bloom Filter
-                self.bloom_filter.add(fingerprint)
-                self.added_count += 1
-                self.logger.debug(f"Processing new item: {fingerprint[:20]}...")
-                return item
-                
-        except ItemDiscard:
-            # 重新抛出ItemDiscard异常，确保管道管理器能正确处理
-            raise
-        except Exception as e:
-            self.logger.error(f"Error processing item: {e}")
-            # 在错误时继续处理，避免丢失数据
-            return item
+    async def _initialize_resources(self):
+        """初始化资源"""
+        # 调用父类的初始化方法
+        await super()._initialize_resources()
 
-    def _generate_item_fingerprint(self, item: Item) -> str:
+    async def _cleanup_resources(self):
+        """清理资源"""
+        # 调用父类的清理方法
+        await super()._cleanup_resources()
+
+    async def _check_fingerprint_exists(self, fingerprint: str) -> bool:
         """
-        生成数据项指纹
+        检查指纹是否已存在
         
-        基于数据项的所有字段生成唯一指纹，用于去重判断。
-        
-        :param item: 数据项
-        :return: 指纹字符串
+        Args:
+            fingerprint: 数据项指纹
+            
+        Returns:
+            是否存在
         """
-        return FingerprintGenerator.item_fingerprint(item)
+        return fingerprint in self.bloom_filter
+
+    async def _record_fingerprint(self, fingerprint: str) -> None:
+        """
+        记录指纹
+        
+        Args:
+            fingerprint: 数据项指纹
+        """
+        self.bloom_filter.add(fingerprint)
+        self.added_count += 1
 
     def close_spider(self, spider: Spider) -> None:
         """
@@ -137,6 +129,7 @@ class BloomDedupPipeline:
         self.logger.info(f"Spider {spider.name} closed:")
         self.logger.info(f"  - Processed items: {self.added_count}")
         self.logger.info(f"  - Possibly dropped duplicate items: {self.dropped_count}")
+        self.logger.info(f"  - Processed items (total): {self.processed_count}")
         
         if BLOOM_FILTER_AVAILABLE:
             # 注意：Bloom Filter 无法准确统计元素数量

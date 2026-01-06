@@ -11,7 +11,7 @@ ofweek_standalone 项目配置文件
 from crawlo.config import CrawloConfig
 
 # 使用自动检测模式配置工厂创建配置
-config = CrawloConfig.auto(
+config = CrawloConfig.standalone(
     project_name='ofweek_standalone',
     concurrency=8,
     download_delay=1.0,
@@ -48,10 +48,10 @@ PIPELINES = [
 
 # 中间件
 # 如需添加自定义中间件，请取消注释并添加
-# MIDDLEWARES = [
-#     'crawlo.middleware.proxy.ProxyMiddleware',
-#     # 'ofweek_standalone.middlewares.CustomMiddleware',  # 用户自定义中间件示例
-# ]
+# MIDDLEWARES = {
+#     # 'crawlo.middleware.proxy.ProxyMiddleware': 50,
+#     'ofweek_standalone.middlewares.OfweekStandaloneMiddleware': 40,  # 用户自定义中间件示例
+# }
 
 # 日志配置
 LOG_LEVEL = 'INFO'

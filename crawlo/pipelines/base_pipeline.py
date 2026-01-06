@@ -6,6 +6,7 @@ Pipeline基类 - 提供统一的资源管理
 Pipeline体系说明：
 - BasePipeline: 基础抽象类，定义Pipeline接口规范
 - ResourceManagedPipeline: 提供资源管理功能的基类（推荐）
+- DedupPipeline: 去重Pipeline基类，统一去重逻辑
 - FileBasedPipeline: 文件操作专用基类
 - DatabasePipeline: 数据库操作专用基类
 - CacheBasedPipeline: 缓存操作专用基类
@@ -44,6 +45,7 @@ import asyncio
 from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Optional, Any, Callable, List
+import time
 
 # 检查是否安装了aiofiles
 try:
@@ -54,8 +56,10 @@ except ImportError:
 
 from crawlo.items import Item
 from crawlo.spider import Spider
+from crawlo.exceptions import ItemDiscard
 from crawlo.logging import get_logger
 from crawlo.utils.resource_manager import ResourceManager, ResourceType
+from crawlo.utils.fingerprint import FingerprintGenerator
 
 
 class BasePipeline(ABC):
@@ -282,6 +286,125 @@ class ResourceManagedPipeline(BasePipeline):
             name=name or str(id(resource))
         )
         self.logger.debug(f"注册资源: {name} ({resource_type})")
+
+
+class DedupPipeline(ResourceManagedPipeline):
+    """
+    去重Pipeline基类
+    
+    提供统一的去重功能：
+    - 统一的指纹生成
+    - 统一的去重逻辑
+    - 统一的资源管理
+    - 统一的统计信息
+    - 性能监控
+    """
+    
+    def __init__(self, crawler):
+        super().__init__(crawler)
+        self.dropped_count = 0
+        self.processed_count = 0
+        self.debug_mode = self.settings.get_bool('DEDUP_DEBUG', False)
+        
+    async def _initialize_resources(self):
+        """初始化资源（子类实现）"""
+        # 记录初始化统计
+        self.crawler.stats.inc_value('dedup/initialization_count')
+    
+    async def _cleanup_resources(self):
+        """清理资源（子类实现）"""
+        # 记录清理统计
+        self.crawler.stats.inc_value('dedup/cleanup_count')
+    
+    async def process_item(self, item: Item, spider: Spider) -> Item:
+        """
+        处理数据项，进行去重检查
+        
+        Args:
+            item: 要处理的数据项
+            spider: 爬虫实例
+            
+        Returns:
+            处理后的数据项或抛出 ItemDiscard 异常
+        """
+        start_time = time.time()
+        self.processed_count += 1
+        
+        try:
+            # 生成数据项指纹
+            fingerprint = self._generate_item_fingerprint(item)
+            
+            # 检查指纹是否已存在
+            exists = await self._check_fingerprint_exists(fingerprint)
+            
+            if exists:
+                # 如果已存在，丢弃这个数据项
+                self.dropped_count += 1
+                self.logger.debug(f"Dropping duplicate item: {fingerprint[:20]}...")
+                self.crawler.stats.inc_value('dedup/dropped_count')
+                raise ItemDiscard(f"Duplicate item: {fingerprint}")
+            else:
+                # 记录新数据项的指纹
+                await self._record_fingerprint(fingerprint)
+                self.logger.debug(f"Processing new item: {fingerprint[:20]}...")
+                self.crawler.stats.inc_value('dedup/new_count')
+                return item
+                
+        except ItemDiscard:
+            # 重新抛出ItemDiscard异常，确保管道管理器能正确处理
+            duration = time.time() - start_time
+            self.crawler.stats.inc_value('dedup/process_discard_time', duration)
+            raise
+        except Exception as e:
+            duration = time.time() - start_time
+            self.crawler.stats.inc_value('dedup/process_error_time', duration)
+            self.logger.error(f"Error processing item: {e}")
+            # 在错误时继续处理，避免丢失数据
+            self.crawler.stats.inc_value('dedup/process_error_count')
+            return item
+        finally:
+            # 记录处理时间
+            duration = time.time() - start_time
+            self.crawler.stats.inc_value('dedup/process_time', duration)
+            if self.debug_mode:
+                self.logger.debug(f"Dedup pipeline process time: {duration:.4f}s")
+    
+    def _generate_item_fingerprint(self, item: Item) -> str:
+        """
+        生成数据项指纹
+        
+        基于数据项的所有字段生成唯一指纹，用于去重判断。
+        
+        Args:
+            item: 数据项
+            
+        Returns:
+            指纹字符串
+        """
+        return FingerprintGenerator.item_fingerprint(item)
+    
+    @abstractmethod
+    async def _check_fingerprint_exists(self, fingerprint: str) -> bool:
+        """
+        检查指纹是否已存在
+        
+        Args:
+            fingerprint: 数据项指纹
+            
+        Returns:
+            是否存在
+        """
+        raise NotImplementedError("子类必须实现 _check_fingerprint_exists 方法")
+    
+    @abstractmethod
+    async def _record_fingerprint(self, fingerprint: str) -> None:
+        """
+        记录指纹
+        
+        Args:
+            fingerprint: 数据项指纹
+        """
+        raise NotImplementedError("子类必须实现 _record_fingerprint 方法")
 
 
 class FileBasedPipeline(ResourceManagedPipeline):

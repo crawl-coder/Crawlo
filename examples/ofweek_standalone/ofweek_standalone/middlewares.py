@@ -4,18 +4,19 @@ ofweek_standalone.middlewares
 ============================
 自定义中间件示例
 """
-
-from crawlo.network import Request, Response
+from crawlo import BaseMiddleware
 from crawlo.logging import get_logger
 
 
-class OfweekStandaloneMiddleware:
+class OfweekStandaloneMiddleware(BaseMiddleware):
     """
     ofweek_standalone 项目的中间件
     """
     
     def __init__(self):
         self.logger = get_logger(self.__class__.__name__)
+
+
 
     def process_request(self, request, spider):
         """
