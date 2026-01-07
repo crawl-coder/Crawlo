@@ -214,7 +214,10 @@ DOWNLOAD_MAXSIZE = 10 * 1024 * 1024  # 最大下载大小（字节）
 DOWNLOAD_STATS = True  # 是否启用下载统计
 DOWNLOAD_WARN_SIZE = 1024 * 1024  # 下载警告大小（字节）
 DOWNLOAD_RETRY_TIMES = 3  # 下载重试次数
+# 重试配置
 MAX_RETRY_TIMES = 3  # 最大重试次数
+RETRY_PRIORITY = 10
+RETRY_HTTP_CODES = [500, 502, 503, 504, 408, 429]
 
 # 下载器健康检查
 DOWNLOADER_HEALTH_CHECK = True  # 是否启用下载器健康检查
