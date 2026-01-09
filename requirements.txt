@@ -1,6 +1,6 @@
 aiohttp~=3.12.14
 httpx[http2]==0.27.0
-aiomysql==0.3.0
+aiomysql~=0.2.0
 asyncmyo~=0.2.10
 cssselect==1.2.0
 dateparser==1.2.2
@@ -35,3 +35,5 @@ concurrent-log-handler>=0.9.16
 itemadapter~=0.12.2
 async-timeout~=5.0.1
 aiofiles~=25.1.0
+scrapy~=2.13.3
+asyncmy~=0.2.10

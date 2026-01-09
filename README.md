@@ -840,6 +840,7 @@ Auto 模式在运行时智能检测：
 
 ```
 # settings.py
+
 PIPELINES = [
     'crawlo.pipelines.mysql_pipeline.AsyncmyMySQLPipeline',  # MySQL
     # 或
@@ -853,11 +854,41 @@ MYSQL_PASSWORD = 'password'
 MYSQL_DB = 'mydb'
 MYSQL_TABLE = 'items'
 
+# MySQL 冲突处理策略（三者互斥，按优先级生效）
+MYSQL_UPDATE_COLUMNS = ('updated',)  # 优先级最高：主键冲突时更新指定列，使用 ON DUPLICATE KEY UPDATE
+MYSQL_AUTO_UPDATE = False           # 优先级中等：是否使用 REPLACE INTO（完全覆盖已存在记录）
+MYSQL_INSERT_IGNORE = False         # 优先级最低：是否使用 INSERT IGNORE（忽略重复数据）
+
+# 批量插入配置
+MYSQL_USE_BATCH = True             # 是否使用批量插入提高性能
+MYSQL_BATCH_SIZE = 100              # 批量插入大小
+
 # MongoDB 配置
 MONGO_URI = 'mongodb://localhost:27017'
 MONGO_DATABASE = 'mydb'
 MONGO_COLLECTION = 'items'
 ```
+
+**MySQL 冲突处理策略说明：**
+
+Crawlo 的 MySQL 管道支持三种冲突处理策略，它们按照以下优先级顺序生效，**高优先级会覆盖低优先级**：
+
+1. **`MYSQL_UPDATE_COLUMNS`（最高优先级）**：
+   - 设置此项时，使用 `INSERT ... ON DUPLICATE KEY UPDATE` 语句
+   - 当主键或唯一索引冲突时，仅更新指定的列
+   - 示例：`MYSQL_UPDATE_COLUMNS = ('updated', 'modified')`
+
+2. **`MYSQL_AUTO_UPDATE`（中等优先级）**：
+   - 当 `MYSQL_UPDATE_COLUMNS` 未设置时生效
+   - 使用 `REPLACE INTO` 语句，完全替换已存在的记录
+   - 设置为 `True` 时启用
+
+3. **`MYSQL_INSERT_IGNORE`（最低优先级）**：
+   - 当前两个选项都未设置时生效
+   - 使用 `INSERT IGNORE` 语句，遇到冲突时忽略重复数据
+   - 设置为 `True` 时启用
+
+**注意**：这三个参数是互斥的，只会应用优先级最高的那个设置。
 
 ### 5. 如何使用代理？
 

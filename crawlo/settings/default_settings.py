@@ -64,11 +64,12 @@ MYSQL_DB = 'crawl_pro'
 MYSQL_TABLE = 'crawlo'
 MYSQL_BATCH_SIZE = 100
 MYSQL_USE_BATCH = False  # 是否启用批量插入
+# MySQL 冲突处理策略（三者互斥，按优先级生效）
+MYSQL_UPDATE_COLUMNS = ()      # 优先级最高：主键冲突时更新指定列，使用 ON DUPLICATE KEY UPDATE
+MYSQL_AUTO_UPDATE = False      # 优先级中等：是否使用 REPLACE INTO（完全覆盖已存在记录）
+MYSQL_INSERT_IGNORE = False    # 优先级最低：是否使用 INSERT IGNORE（忽略重复数据）
 # MySQL SQL生成行为控制配置
-MYSQL_AUTO_UPDATE = False  # 是否使用 REPLACE INTO（完全覆盖已存在记录）
-MYSQL_INSERT_IGNORE = False  # 是否使用 INSERT IGNORE（忽略重复数据）
-MYSQL_UPDATE_COLUMNS = ()  # 冲突时需更新的列名；指定后 MYSQL_AUTO_UPDATE 失效
-MYSQL_PREFER_ALIAS = True  # 是否优先使用 AS `excluded` 语法，False 则使用 VALUES() 语法
+MYSQL_PREFER_ALIAS = True      # 是否优先使用 AS `excluded` 语法，False 则使用 VALUES() 语法
 
 # Redis配置
 # Redis键命名规范：

@@ -15,7 +15,8 @@
 """
 
 import asyncio
-from typing import Dict, Optional, Any
+from typing import Dict, Any
+
 from crawlo.logging import get_logger
 
 # MySQL 相关导入
@@ -175,7 +176,20 @@ class DatabaseConnectionPoolManager:
         """确保MySQL连接池已初始化（线程安全）"""
         if self._pool_initialized:
             # 检查连接池是否仍然有效
-            if self.pool and hasattr(self.pool, 'closed') and not self.pool.closed:
+            # 对于 asyncmy，使用 _closed 属性检查连接池状态
+            if self.pool and hasattr(self.pool, '_closed'):
+                if not self.pool._closed:
+                    return
+                else:
+                    self.logger.warning("MySQL连接池已关闭，重新初始化")
+            # 对于 aiomysql，使用 closed 属性检查连接池状态
+            elif self.pool and hasattr(self.pool, 'closed'):
+                if not self.pool.closed:
+                    return
+                else:
+                    self.logger.warning("MySQL连接池已关闭，重新初始化")
+            # 如果没有明确的关闭状态属性，假设连接池有效
+            elif self.pool:
                 return
             else:
                 self.logger.warning("MySQL连接池已初始化但无效，重新初始化")
@@ -264,16 +278,32 @@ class DatabaseConnectionPoolManager:
     
     @classmethod
     async def close_all_mysql_pools(cls):
-        """关闭所有MySQL连接池"""
+        """关闭所有MySQL连接池，优雅处理事件循环关闭情况"""
         logger = get_logger('DatabasePool')
         logger.info(f"开始关闭所有MySQL连接池，共 {len(cls._mysql_instances)} 个")
+        
+        # 检查事件循环状态
+        try:
+            loop = asyncio.get_event_loop()
+            loop_is_closed = loop.is_closed()
+        except RuntimeError:
+            # 没有运行中的事件循环
+            loop_is_closed = True
         
         for pool_key, instance in cls._mysql_instances.items():
             try:
                 if instance.pool:
                     logger.info(f"关闭MySQL连接池: {pool_key}")
-                    instance.pool.close()
-                    await instance.pool.wait_closed()
+                    
+                    if loop_is_closed:
+                        # 事件循环已关闭，无法执行异步操作
+                        logger.warning(f"事件循环已关闭，跳过连接池 wait_closed: {pool_key}")
+                        instance.pool.close()
+                    else:
+                        # 正常异步关闭
+                        instance.pool.close()
+                        await instance.pool.wait_closed()
+                    
                     logger.info(f"MySQL连接池已关闭: {pool_key}")
             except Exception as e:
                 logger.error(f"关闭MySQL连接池 {pool_key} 时发生错误: {e}")
@@ -283,15 +313,30 @@ class DatabaseConnectionPoolManager:
     
     @classmethod
     async def close_all_mongo_clients(cls):
-        """关闭所有 MongoDB 客户端"""
+        """关闭所有 MongoDB 客户端，优雅处理事件循环关闭情况"""
         logger = get_logger('DatabasePool')
         logger.info(f"开始关闭所有 MongoDB 客户端，共 {len(cls._mongo_instances)} 个")
+        
+        # 检查事件循环状态
+        try:
+            loop = asyncio.get_event_loop()
+            loop_is_closed = loop.is_closed()
+        except RuntimeError:
+            # 没有运行中的事件循环
+            loop_is_closed = True
         
         for pool_key, instance in cls._mongo_instances.items():
             try:
                 if instance.client:
                     logger.info(f"关闭 MongoDB 客户端: {pool_key}")
-                    instance.client.close()
+                    
+                    if loop_is_closed:
+                        # 事件循环已关闭，无法执行异步操作
+                        logger.warning(f"事件循环已关闭，跳过 MongoDB 客户端关闭: {pool_key}")
+                    else:
+                        # 正常关闭
+                        instance.client.close()
+                    
                     logger.info(f"MongoDB 客户端已关闭: {pool_key}")
             except Exception as e:
                 logger.error(f"关闭 MongoDB 客户端 {pool_key} 时发生错误: {e}")

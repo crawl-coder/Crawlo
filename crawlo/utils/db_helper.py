@@ -1,9 +1,8 @@
 # -*- coding: utf-8 -*-
 import json
-import re
-from typing import Any, Union, List, Dict, Tuple, Optional
-from datetime import date, time, datetime
 from enum import Enum
+from datetime import date, time, datetime
+from typing import Any, Union, List, Dict, Tuple, Optional
 
 from crawlo.logging import get_logger
 
@@ -118,21 +117,21 @@ class SQLBuilder:
         
         table_fmt = f"`{table}`"
         
-        # 3. 组装 SQL
-        if update_columns:
+        # 3. 组装 SQL，明确优先级：update_columns > auto_update > insert_ignore
+        if update_columns and len(update_columns) > 0:
+            # 【关键修复】当使用 ON DUPLICATE KEY UPDATE 时，不应该使用 IGNORE
+            # 因为 ON DUPLICATE KEY UPDATE 本身就是处理重复的策略
             update_clause = SQLBuilder._build_update_clause(update_columns, use_values_func=not prefer_alias)
-            ignore = " IGNORE" if insert_ignore else ""
             if prefer_alias:
-                sql = f"INSERT{ignore} INTO {table_fmt} ({keys_str}) VALUES ({placeholders}) AS `excluded` ON DUPLICATE KEY UPDATE {update_clause}"
+                sql = f"INSERT INTO {table_fmt} ({keys_str}) VALUES ({placeholders}) AS `excluded` ON DUPLICATE KEY UPDATE {update_clause}"
             else:
-                sql = f"INSERT{ignore} INTO {table_fmt} ({keys_str}) VALUES ({placeholders}) ON DUPLICATE KEY UPDATE {update_clause}"
-            
+                sql = f"INSERT INTO {table_fmt} ({keys_str}) VALUES ({placeholders}) ON DUPLICATE KEY UPDATE {update_clause}"
         elif auto_update:
             sql = f"REPLACE INTO {table_fmt} ({keys_str}) VALUES ({placeholders})"
-            
+        elif insert_ignore:
+            sql = f"INSERT IGNORE INTO {table_fmt} ({keys_str}) VALUES ({placeholders})"
         else:
-            ignore = " IGNORE" if insert_ignore else ""
-            sql = f"INSERT{ignore} INTO {table_fmt} ({keys_str}) VALUES ({placeholders})"
+            sql = f"INSERT INTO {table_fmt} ({keys_str}) VALUES ({placeholders})"
 
         # 返回元组，而不是拼接好的字符串
         return sql, values
@@ -171,68 +170,62 @@ class SQLBuilder:
         datas: List[Dict[str, Any]],
         auto_update: bool = False,
         update_columns: Tuple = (),
+        insert_ignore: bool = False,
         prefer_alias: bool = True,
-    ) -> Optional[Tuple[str, List[List[Any]]]]:
+    ) -> Optional[Tuple[str, List[Any]]]:
         """
-        生成批量插入 SQL 及对应值列表。
+        生成批量插入 SQL 及对应值列表（铺平为单个列表）。
 
         Args:
             table (str): 表名
             datas (list of dict): 数据列表
             auto_update (bool): 使用 REPLACE INTO 替代 INSERT
             update_columns (tuple or list): 主键冲突时要更新的列名
-            update_columns_value (tuple): 更新列对应的固定值
+            insert_ignore (bool): 是否使用 INSERT IGNORE
+            prefer_alias (bool): 是否使用别名语法
 
         Returns:
-            tuple[str, list[list]] | None: (SQL语句, 值列表)；若数据为空则返回 None
+            tuple[str, list] | None: (SQL语句, 铺平的值列表)；若数据为空则返回 None
         """
         if not datas:
             return None
 
-        # 1. 确定所有列名，并排序以保证确定性
-        all_keys = set()
-        for d in datas:
-            all_keys.update(d.keys())
-        keys = sorted(list(all_keys)) # 排序，避免随机顺序
-        values_list = []
-
+        # 1. 确定并排序所有列名
+        all_keys = sorted(list(set().union(*(d.keys() for d in datas))))
+        
+        # 2. 构建多行占位符和铺平后的值列表 (关键：解决2014错误)
+        flattened_values = []
+        row_placeholders = []
+        single_row_placeholder = "(" + ", ".join(["%s"] * len(all_keys)) + ")"
+        
         for data in datas:
             if not isinstance(data, dict):
                 continue  # 跳过非字典数据
-
-            row = []
-            for key in keys:
+            row_placeholders.append(single_row_placeholder)
+            for key in all_keys:
                 raw_value = data.get(key)
                 try:
                     formatted_value = SQLBuilder.format_value(raw_value)
-                    row.append(formatted_value)
+                    flattened_values.append(formatted_value)
                 except Exception as e:
                     logger.error(f"{key}: {raw_value} (类型: {type(raw_value)}) -> {e}")
-                    row.append(None)  # 如果格式化失败，添加None值
-            values_list.append(row)
+                    flattened_values.append(None)  # 如果格式化失败，添加None值
 
-        keys_str = ", ".join(f"`{key}`" for key in keys)
-        placeholders_str = ", ".join(["%s"] * len(keys))
+        all_rows_placeholders = ", ".join(row_placeholders)
+        keys_str = ", ".join(f"`{k}`" for k in all_keys)
 
-        if update_columns:
+        # 3. 优先级逻辑修复
+        if update_columns and len(update_columns) > 0:
             if not isinstance(update_columns, (tuple, list)):
                 update_columns = (update_columns,)
-
-            if update_columns:
-                update_clause = SQLBuilder._build_update_clause(update_columns, use_values_func=not prefer_alias)
-                if prefer_alias:
-                    sql = f"INSERT INTO `{table}` ({keys_str}) VALUES ({placeholders_str}) AS `excluded` ON DUPLICATE KEY UPDATE {update_clause}"
-                else:
-                    sql = f"INSERT INTO `{table}` ({keys_str}) VALUES ({placeholders_str}) ON DUPLICATE KEY UPDATE {update_clause}"
-            elif auto_update:
-                sql = f"REPLACE INTO `{table}` ({keys_str}) VALUES ({placeholders_str})"
-            else:
-                sql = f"INSERT IGNORE INTO `{table}` ({keys_str}) VALUES ({placeholders_str})"
-
+            update_clause = SQLBuilder._build_update_clause(update_columns, use_values_func=not prefer_alias)
+            alias_str = " AS `excluded`" if prefer_alias else ""
+            sql = f"INSERT INTO `{table}` ({keys_str}) VALUES {all_rows_placeholders}{alias_str} ON DUPLICATE KEY UPDATE {update_clause}"
         elif auto_update:
-            sql = f"REPLACE INTO `{table}` ({keys_str}) VALUES ({placeholders_str})"
-
+            sql = f"REPLACE INTO `{table}` ({keys_str}) VALUES {all_rows_placeholders}"
+        elif insert_ignore:
+            sql = f"INSERT IGNORE INTO `{table}` ({keys_str}) VALUES {all_rows_placeholders}"
         else:
-            sql = f"INSERT IGNORE INTO `{table}` ({keys_str}) VALUES ({placeholders_str})"
+            sql = f"INSERT INTO `{table}` ({keys_str}) VALUES {all_rows_placeholders}"
 
-        return sql, values_list
+        return sql, flattened_values
