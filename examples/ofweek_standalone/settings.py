@@ -122,7 +122,7 @@ SCHEDULER_ENABLED = True
 SCHEDULER_JOBS = [
     {
         'spider': 'of_week',           # 爬虫名称（对应spider的name属性）
-        'cron': '*/2 * * * *',       # 每2分钟执行一次
+        'cron': '*/2 * * * *',          # 每2分钟执行一次
         'enabled': True,              # 任务启用状态
         'args': {},                  # 传递给爬虫的参数
         'priority': 10               # 任务优先级
@@ -133,8 +133,3 @@ SCHEDULER_JOBS = [
 SCHEDULER_CHECK_INTERVAL = 1      # 调度器检查间隔（秒）
 SCHEDULER_MAX_CONCURRENT = 3      # 最大并发任务数
 SCHEDULER_JOB_TIMEOUT = 3600      # 单个任务超时时间（秒）
-
-# 资源监控配置（可选）
-SCHEDULER_RESOURCE_MONITOR_ENABLED = True   # 是否启用资源监控
-SCHEDULER_RESOURCE_CHECK_INTERVAL = 300   # 资源检查间隔（秒），默认5分钟
-SCHEDULER_RESOURCE_LEAK_THRESHOLD = 3600  # 资源泄露检测阈值（秒），默认1小时

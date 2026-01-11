@@ -32,6 +32,9 @@ class LogIntervalExtension:
 
         self.logger = get_logger(self.__class__.__name__)
         self.logger.info(f"LogIntervalExtension initialized with interval: {self.seconds} seconds")
+        
+        # 添加调试信息（在logger初始化之后）
+        self.logger.info(f"LogIntervalExtension: INTERVAL={self.seconds} seconds")
 
     @classmethod
     def create_instance(cls, crawler: Any) -> 'LogIntervalExtension':
@@ -41,9 +44,12 @@ class LogIntervalExtension:
         return o
 
     async def spider_opened(self) -> None:
-        self.logger.info("Spider opened, starting interval logging task")
-        self.task = asyncio.create_task(self.interval_log())
-        self.logger.info("Interval logging task started")
+        self.logger.info(f"Spider opened, starting interval logging task (instance: {id(self)})")
+        if self.task is None or self.task.done():
+            self.task = asyncio.create_task(self.interval_log())
+            self.logger.info(f"Interval logging task started (instance: {id(self)})")
+        else:
+            self.logger.warning(f"Interval logging task already running, skipping (instance: {id(self)})")
 
     async def spider_closed(self) -> None:
         self.logger.info("Spider closed, stopping interval logging task")

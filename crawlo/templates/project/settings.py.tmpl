@@ -39,7 +39,6 @@ SPIDER_MODULES = ['{{project_name}}.spiders']
 # ]
 
 # =================================== 系统配置 ===================================
-
 # 扩展组件
 # 如需添加自定义扩展，请取消注释并添加
 # EXTENSIONS = [
@@ -61,6 +60,32 @@ LOG_BACKUP_COUNT = 0  # 10个备份文件，推荐值
 # 如果不想要日志轮转，可以设置 LOG_MAX_BYTES = 0
 # 当LOG_MAX_BYTES或LOG_BACKUP_COUNT为0时，日志轮转将被禁用，文件会持续增长
 STATS_DUMP = True
+
+# =================================== 定时任务配置 ===================================
+# 定时任务基础配置
+# SCHEDULER_ENABLED = False  # 启用定时任务 - 默认禁用，取消注释以启用
+# SCHEDULER_JOBS = []  # 定时任务配置列表
+
+# 定时任务高级配置
+# SCHEDULER_CHECK_INTERVAL = 1  # 调度器检查间隔（秒）- 默认1秒
+# SCHEDULER_MAX_CONCURRENT = 3  # 最大并发任务数 - 默认3个
+# SCHEDULER_JOB_TIMEOUT = 3600  # 单个任务超时时间（秒）- 默认1小时
+
+# 定时任务资源监控配置
+# SCHEDULER_RESOURCE_MONITOR_ENABLED = True  # 是否启用资源监控 - 默认启用
+# SCHEDULER_RESOURCE_CHECK_INTERVAL = 300  # 资源检查间隔（秒）- 默认5分钟
+# SCHEDULER_RESOURCE_LEAK_THRESHOLD = 3600  # 资源泄漏检测阈值（秒）- 默认1小时
+
+# 定时任务配置示例（取消注释并修改）
+# SCHEDULER_JOBS = [
+#     {
+#         'spider': '{{project_name}}.spiders.{{spider_name}}',
+#         'cron': '*/2 * * * *',  # 每2分钟执行一次
+#         'enabled': True,
+#         'args': {},
+#         'priority': 10
+#     }
+# ]
 
 # 输出配置
 OUTPUT_DIR = 'output'

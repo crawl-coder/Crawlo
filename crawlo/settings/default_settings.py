@@ -271,3 +271,18 @@ PLAYWRIGHT_MAX_PAGES_PER_BROWSER = 10  # 单浏览器最大页面数量
 # 通用优化配置
 CONNECTION_TTL_DNS_CACHE = 300  # DNS缓存TTL（秒）
 CONNECTION_KEEPALIVE = True  # 是否启用HTTP连接保持
+
+# --------------------------------- 9. 定时任务配置 ------------------------------------
+# 定时任务基础配置
+SCHEDULER_ENABLED = False  # 启用定时任务 - 默认禁用
+SCHEDULER_JOBS = []  # 定时任务配置列表
+
+# 定时任务高级配置
+SCHEDULER_CHECK_INTERVAL = 1  # 调度器检查间隔（秒）- 默认1秒
+SCHEDULER_MAX_CONCURRENT = 3  # 最大并发任务数 - 默认3个
+SCHEDULER_JOB_TIMEOUT = 3600  # 单个任务超时时间（秒）- 默认1小时
+
+# 定时任务资源监控配置
+SCHEDULER_RESOURCE_MONITOR_ENABLED = True  # 是否启用资源监控 - 默认启用
+SCHEDULER_RESOURCE_CHECK_INTERVAL = 300  # 资源检查间隔（秒）- 默认5分钟
+SCHEDULER_RESOURCE_LEAK_THRESHOLD = 3600  # 资源泄露检测阈值（秒）- 默认1小时
