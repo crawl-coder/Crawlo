@@ -177,12 +177,13 @@ async def test_connection_pool_utils():
     print("=" * 60)
     print("测试连接池工具类...")
     
-    from crawlo.utils.database_connection_pool import DatabaseConnectionPoolManager
+    from crawlo.utils.mysql_connection_pool import AsyncmyConnectionPoolManager, AiomysqlConnectionPoolManager
+    from crawlo.utils.database_connection_pool import get_mysql_pool
     
     try:
         # 测试 asyncmy 连接池
         print("测试 asyncmy 连接池...")
-        pool1 = await DatabaseConnectionPoolManager.get_mysql_pool(
+        pool1 = await get_mysql_pool(
             pool_type='asyncmy',
             host='localhost',
             port=3306,
@@ -197,7 +198,7 @@ async def test_connection_pool_utils():
         
         # 测试 aiomysql 连接池
         print("测试 aiomysql 连接池...")
-        pool2 = await DatabaseConnectionPoolManager.get_mysql_pool(
+        pool2 = await get_mysql_pool(
             pool_type='aiomysql',
             host='localhost',
             port=3306,

@@ -6,7 +6,7 @@ from pymongo.errors import PyMongoError, BulkWriteError
 
 from crawlo.exceptions import ItemDiscard
 from crawlo.logging import get_logger
-from crawlo.utils.database_connection_pool import DatabaseConnectionPoolManager
+from crawlo.utils.mongo_connection_pool import MongoConnectionPoolManager
 
 
 class MongoPipeline:
@@ -56,7 +56,7 @@ class MongoPipeline:
         async with self._init_lock:
             if self.client is None:
                 # 使用单例连接池管理器
-                self.client = await DatabaseConnectionPoolManager.get_mongo_client(
+                self.client = await MongoConnectionPoolManager.get_client(
                     mongo_uri=self.mongo_uri,
                     db_name=self.db_name,
                     max_pool_size=self.max_pool_size,
@@ -179,7 +179,7 @@ class MongoPipeline:
             await self._flush_batch(self.crawler.spider)
         
         # 注意：不再关闭客户端，因为客户端是全局共享的
-        # 客户端的关闭由 DatabaseConnectionPoolManager.close_all_mongo_clients() 统一管理
+        # 客户端的关闭由 mongo_connection_pool.close_all_mongo_clients() 统一管理
         if self.client:
             self.logger.info(
                 f"MongoDB Pipeline 关闭，但保留全局共享连接池以供其他爬虫使用"

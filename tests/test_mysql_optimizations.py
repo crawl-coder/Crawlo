@@ -13,7 +13,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from crawlo.settings.setting_manager import SettingManager
 from crawlo.pipelines.mysql_pipeline import AsyncmyMySQLPipeline, AiomysqlMySQLPipeline
 from crawlo.items import Item, Field
-from crawlo.utils.database_connection_pool import DatabaseConnectionPoolManager
+from crawlo.utils.mysql_connection_pool import AiomysqlConnectionPoolManager, AsyncmyConnectionPoolManager
 import logging
 
 # 配置日志

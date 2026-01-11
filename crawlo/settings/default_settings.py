@@ -69,7 +69,7 @@ MYSQL_UPDATE_COLUMNS = ()      # 优先级最高：主键冲突时更新指定�
 MYSQL_AUTO_UPDATE = False      # 优先级中等：是否使用 REPLACE INTO（完全覆盖已存在记录）
 MYSQL_INSERT_IGNORE = False    # 优先级最低：是否使用 INSERT IGNORE（忽略重复数据）
 # MySQL SQL生成行为控制配置
-MYSQL_PREFER_ALIAS = True      # 是否优先使用 AS `excluded` 语法，False 则使用 VALUES() 语法
+MYSQL_PREFER_ALIAS_SYNTAX = True      # 是否优先使用 AS `alias` 语法，False 则使用 VALUES() 语法
 
 # Redis配置
 # Redis键命名规范：

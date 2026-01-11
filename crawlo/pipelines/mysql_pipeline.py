@@ -11,7 +11,10 @@ from crawlo.items import Item
 from crawlo.logging import get_logger
 from crawlo.exceptions import ItemDiscard
 from crawlo.utils.db_helper import SQLBuilder
-from crawlo.utils.database_connection_pool import DatabaseConnectionPoolManager
+from crawlo.utils.mysql_connection_pool import (
+    AiomysqlConnectionPoolManager,
+    AsyncmyConnectionPoolManager
+)
 
 
 class BaseMySQLPipeline(BasePipeline, ABC):
@@ -62,6 +65,9 @@ class BaseMySQLPipeline(BasePipeline, ABC):
         self.auto_update = self.settings.get_bool('MYSQL_AUTO_UPDATE', False)
         self.insert_ignore = self.settings.get_bool('MYSQL_INSERT_IGNORE', False)
         self.update_columns = self.settings.get('MYSQL_UPDATE_COLUMNS', ())
+        
+        # MySQL别名语法配置：True使用AS `alias`语法，False使用`table`.`column`语法
+        self.prefer_alias_syntax = self.settings.get_bool('MYSQL_PREFER_ALIAS_SYNTAX', True)
         
         # 验证 update_columns 是否为元组或列表
         if self.update_columns and not isinstance(self.update_columns, (tuple, list)):
@@ -224,7 +230,7 @@ class BaseMySQLPipeline(BasePipeline, ABC):
                 auto_update=self.auto_update,
                 update_columns=self.update_columns,
                 insert_ignore=self.insert_ignore,
-                prefer_alias=self.settings.get_bool('MYSQL_PREFER_ALIAS', True)
+                prefer_alias=self.prefer_alias_syntax
             )
 
             if batch_result:
@@ -239,7 +245,7 @@ class BaseMySQLPipeline(BasePipeline, ABC):
                             datas=current_batch,
                             auto_update=self.auto_update,
                             update_columns=self.update_columns,
-                            prefer_alias=not self.settings.get_bool('MYSQL_PREFER_ALIAS', True)
+                            prefer_alias=not self.prefer_alias_syntax
                         )
                         if batch_result_fb:
                             sql_fb, values_list_fb = batch_result_fb
@@ -302,7 +308,7 @@ class BaseMySQLPipeline(BasePipeline, ABC):
                     auto_update=self.auto_update,
                     update_columns=self.update_columns,
                     insert_ignore=self.insert_ignore,
-                    prefer_alias=self.settings.get_bool('MYSQL_PREFER_ALIAS', True)
+                    prefer_alias=self.prefer_alias_syntax
                 )
                 rowcount = await self._execute_sql(sql, params)
                 total_rows += rowcount or 0
@@ -338,7 +344,7 @@ class BaseMySQLPipeline(BasePipeline, ABC):
         self.batch_buffer.clear()
             
         # 注意：不再关闭连接池，因为连接池是全局共享的
-        # 连接池的关闭由 DatabaseConnectionPoolManager.close_all_mysql_pools() 统一管理
+        # 连接池的关闭由 mysql_connection_pool.close_all_mysql_pools() 统一管理
         self.logger.info(
             f"MySQL Pipeline {self.__class__.__name__} 已关闭并释放资源"
         )
@@ -348,7 +354,7 @@ class BaseMySQLPipeline(BasePipeline, ABC):
         """生成插入SQL语句，子类可以重写此方法"""
         # 合并管道配置和传入的kwargs参数
         # 优先使用传入的prefer_alias参数，否则从设置中获取默认值
-        prefer_alias = kwargs.pop('prefer_alias', self.settings.get_bool('MYSQL_PREFER_ALIAS', True))
+        prefer_alias = kwargs.pop('prefer_alias', self.prefer_alias_syntax)
         sql_kwargs = {
             'auto_update': self.auto_update,
             'insert_ignore': self.insert_ignore,
@@ -420,8 +426,7 @@ class AsyncmyMySQLPipeline(BaseMySQLPipeline):
             if not self._pool_initialized:  # 双重检查避免竞争条件
                 try:
                     # 使用单例连接池管理器
-                    self.pool = await DatabaseConnectionPoolManager.get_mysql_pool(
-                        pool_type='asyncmy',
+                    self.pool = await AsyncmyConnectionPoolManager.get_pool(
                         host=self.settings.get('MYSQL_HOST', 'localhost'),
                         port=self.settings.get_int('MYSQL_PORT', 3306),
                         user=self.settings.get('MYSQL_USER', 'root'),
@@ -619,8 +624,7 @@ class AiomysqlMySQLPipeline(BaseMySQLPipeline):
             if not self._pool_initialized:
                 try:
                     # 使用单例连接池管理器
-                    self.pool = await DatabaseConnectionPoolManager.get_mysql_pool(
-                        pool_type='aiomysql',
+                    self.pool = await AiomysqlConnectionPoolManager.get_pool(
                         host=self.settings.get('MYSQL_HOST', 'localhost'),
                         port=self.settings.get_int('MYSQL_PORT', 3306),
                         user=self.settings.get('MYSQL_USER', 'root'),

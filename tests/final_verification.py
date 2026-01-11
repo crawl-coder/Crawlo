@@ -13,7 +13,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from crawlo.settings.setting_manager import SettingManager
 from crawlo.pipelines.mysql_pipeline import AsyncmyMySQLPipeline, AiomysqlMySQLPipeline
 from crawlo.items import Item, Field
-from crawlo.utils.database_connection_pool import DatabaseConnectionPoolManager
+from crawlo.utils.mysql_connection_pool import AiomysqlConnectionPoolManager, AsyncmyConnectionPoolManager
 from crawlo.utils.db_helper import SQLBuilder
 import logging
 
@@ -269,7 +269,7 @@ async def verify_2014_error_handling():
     pipeline1 = AsyncmyMySQLPipeline.from_crawler(crawler)
     pipeline2 = AiomysqlMySQLPipeline.from_crawler(crawler)
     
-    # 检查源代码中是否包含 2014 错误处理逻辑
+    # 检查源代码中是否包含 2014 处理逻辑
     import inspect
     
     # 获取方法源码并检查是否包含 2014 处理逻辑
@@ -298,12 +298,12 @@ async def verify_connection_pool_optimizations():
     print("=" * 60)
     print("验证连接池优化...")
     
-    # 验证 DatabaseConnectionPoolManager 中的优化
-    from crawlo.utils.database_connection_pool import DatabaseConnectionPoolManager
+    # 验证连接池管理器中的优化
+    from crawlo.utils.mysql_connection_pool import AsyncmyConnectionPoolManager, AiomysqlConnectionPoolManager
+    import inspect
     
     # 检查源码中是否包含 _closed 和 closed 属性的处理
-    import inspect
-    source = inspect.getsource(DatabaseConnectionPoolManager._ensure_mysql_pool)
+    source = inspect.getsource(AsyncmyConnectionPoolManager._ensure_pool)
     
     has_asyncmy_handling = "_closed" in source
     has_aiomysql_handling = "closed" in source
