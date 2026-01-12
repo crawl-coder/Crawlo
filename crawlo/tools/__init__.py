@@ -48,6 +48,11 @@ from .distributed_coordinator import (
     distribute_tasks
 )
 
+# 附件下载工具
+from .attachment_downloader import (
+    AttachmentDownloader,
+)
+
 __all__ = [
     # 日期工具
     "TimeUtils",
@@ -83,5 +88,8 @@ __all__ = [
     "report_task_status",
     "get_cluster_info",
     "generate_pagination_tasks",
-    "distribute_tasks"
+    "distribute_tasks",
+    
+    # 附件下载工具
+    "AttachmentDownloader"
 ]

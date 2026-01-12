@@ -182,10 +182,21 @@ class RedisConnectionPool:
                     self.logger.warning("无法解析集群节点，回退到单实例模式")
             else:
                 # 使用单实例Redis
-                self._connection_pool = aioredis.ConnectionPool.from_url(
-                    self.redis_url,
-                    **self.config
-                )
+                # 首先尝试使用提供的URL
+                try:
+                    self._connection_pool = aioredis.ConnectionPool.from_url(
+                        self.redis_url,
+                        **self.config
+                    )
+                except Exception as e:
+                    # 如果认证失败，可能是密码错误，记录警告并继续
+                    if 'AUTH' in str(e).upper() or 'PASSWORD' in str(e).upper() or 'INVALID PASSWORD' in str(e).upper():
+                        self.logger.warning(f"Redis认证失败，可能密码不正确: {e}")
+                        self.logger.warning(f"请检查Redis密码配置: {self.redis_url}")
+                        # 尝试重新构建URL，可能URL格式有问题
+                        raise
+                    else:
+                        raise
                 
                 self._redis_client = aioredis.Redis(
                     connection_pool=self._connection_pool

@@ -42,10 +42,10 @@ Pipeline体系说明：
 """
 
 import asyncio
+import time
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import Optional, Any, Callable, List
-import time
+from typing import Optional, Any, Callable
 
 # 检查是否安装了aiofiles
 try:

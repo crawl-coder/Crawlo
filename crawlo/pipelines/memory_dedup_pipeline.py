@@ -14,11 +14,9 @@
 
 from typing import Set
 
-from crawlo import Item
-from crawlo.exceptions import ItemDiscard
 from crawlo.logging import get_logger
-from crawlo.spider import Spider
 from crawlo.pipelines.base_pipeline import DedupPipeline
+from crawlo.spider import Spider
 
 
 class MemoryDedupPipeline(DedupPipeline):

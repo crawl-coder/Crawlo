@@ -109,11 +109,18 @@ class AioRedisFilter(BaseFilter):
             redis_host = safe_get_config(settings, 'REDIS_HOST', '127.0.0.1')
             redis_port = safe_get_config(settings, 'REDIS_PORT', 6379, int)
             redis_password = safe_get_config(settings, 'REDIS_PASSWORD')
+            redis_user = safe_get_config(settings, 'REDIS_USER')  # 获取用户名配置
             redis_db = safe_get_config(settings, 'REDIS_DB', 0, int)
             
-            if redis_password:
+            # 根据是否有用户名和密码构建URL
+            if redis_user and redis_password:
+                # 包含用户名和密码的格式
+                redis_url = f"redis://{redis_user}:{redis_password}@{redis_host}:{redis_port}/{redis_db}"
+            elif redis_password:
+                # 仅包含密码的格式（标准Redis认证）
                 redis_url = f"redis://:{redis_password}@{redis_host}:{redis_port}/{redis_db}"
             else:
+                # 无认证格式
                 redis_url = f"redis://{redis_host}:{redis_port}/{redis_db}"
         
         # 获取项目名称
@@ -155,7 +162,14 @@ class AioRedisFilter(BaseFilter):
             # 保存连接池引用，以便在需要时获取连接
             instance._redis_pool = redis_pool
         except Exception as e:
-            instance.logger.error(f"无法创建Redis连接池: {e}")
+            # 如果连接池创建失败，检查是否是密码错误
+            if 'AUTH' in str(e).upper() or 'PASSWORD' in str(e).upper() or 'INVALID PASSWORD' in str(e).upper():
+                instance.logger.error(f"Redis密码认证失败: {e}")
+                instance.logger.error(f"请检查Redis密码配置: {redis_url}")
+                # 仍然尝试继续，但标记连接失败
+                instance._connection_failed = True
+            else:
+                instance.logger.error(f"无法创建Redis连接池: {e}")
         
         return instance
 

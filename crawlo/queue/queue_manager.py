@@ -8,7 +8,7 @@ import asyncio
 import time
 import traceback
 from enum import Enum
-from typing import Optional, Dict, Any, Union, TYPE_CHECKING, Tuple
+from typing import Optional, Dict, Any, Union, TYPE_CHECKING
 
 if TYPE_CHECKING:
     from crawlo import Request
@@ -118,6 +118,7 @@ class QueueConfig:
             redis_host: str = "127.0.0.1",
             redis_port: int = 6379,
             redis_password: Optional[str] = None,
+            redis_user: Optional[str] = None,  # 新增：Redis用户名
             redis_db: int = 0,
             queue_name: str = "crawlo:requests",
             max_queue_size: int = 1000,
@@ -135,9 +136,15 @@ class QueueConfig:
         if redis_url:
             self.redis_url = redis_url
         else:
-            if redis_password:
+            # 根据是否有用户名和密码构建URL
+            if redis_user and redis_password:
+                # 包含用户名和密码的格式
+                self.redis_url = f"redis://{redis_user}:{redis_password}@{redis_host}:{redis_port}/{redis_db}"
+            elif redis_password:
+                # 仅包含密码的格式（标准Redis认证）
                 self.redis_url = f"redis://:{redis_password}@{redis_host}:{redis_port}/{redis_db}"
             else:
+                # 无认证格式
                 self.redis_url = f"redis://{redis_host}:{redis_port}/{redis_db}"
 
         self.queue_name = queue_name
@@ -163,6 +170,7 @@ class QueueConfig:
         redis_url = safe_get_config(settings, 'REDIS_URL')
         redis_host = safe_get_config(settings, 'REDIS_HOST', '127.0.0.1')
         redis_password = safe_get_config(settings, 'REDIS_PASSWORD')
+        redis_user = safe_get_config(settings, 'REDIS_USER')  # 获取用户名配置
         run_mode = safe_get_config(settings, 'RUN_MODE')
         
         # 获取整数配置
@@ -178,6 +186,7 @@ class QueueConfig:
             redis_host=redis_host,
             redis_port=redis_port,
             redis_password=redis_password,
+            redis_user=redis_user,
             redis_db=redis_db,
             queue_name=queue_name,
             max_queue_size=max_queue_size,

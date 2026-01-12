@@ -73,22 +73,21 @@ LOG_MAX_BYTES = 20 * 1024 * 1024  # 20MB，推荐值
 LOG_BACKUP_COUNT = 10  # 10个备份文件，推荐值
 # 如果不想要日志轮转，可以设置 LOG_MAX_BYTES = 0
 # 当LOG_MAX_BYTES或LOG_BACKUP_COUNT为0时，日志轮转将被禁用，文件会持续增长
-STATS_DUMP = True
+
 
 # 输出配置
 OUTPUT_DIR = 'output'
 
 # =================================== 数据库配置 ===================================
 
-# MySQL配置
-MYSQL_HOST = '127.0.0.1'
-MYSQL_PORT = 3306
-MYSQL_USER = 'root'
-MYSQL_PASSWORD = '123456'
-MYSQL_DB = '{{project_name}}'
-MYSQL_TABLE = '{{project_name}}_data'
-MYSQL_BATCH_SIZE = 100
-MYSQL_USE_BATCH = False  # 是否启用批量插入
+# MongoDB配置
+# MONGO_URI = 'mongodb://localhost:27017'
+# MONGO_DATABASE = '{{project_name}}_db'
+# MONGO_COLLECTION = '{{project_name}}_items'
+# MONGO_MAX_POOL_SIZE = 200
+# MONGO_MIN_POOL_SIZE = 20
+# MONGO_BATCH_SIZE = 100  # 批量插入条数
+# MONGO_USE_BATCH = False  # 是否启用批量插入
 
 # MySQL 冲突处理策略（三者互斥，按优先级生效）
 MYSQL_UPDATE_COLUMNS = ()      # 优先级最高：主键冲突时更新指定列，使用 ON DUPLICATE KEY UPDATE

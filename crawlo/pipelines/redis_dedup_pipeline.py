@@ -11,16 +11,14 @@
 - 可配置: 支持自定义 Redis 连接参数
 - 容错设计: 网络异常时不会丢失数据
 """
-import redis
-import hashlib
 from typing import Optional
 
-from crawlo import Item
-from crawlo.spider import Spider
-from crawlo.exceptions import ItemDiscard
+import redis.asyncio as aioredis
+
 from crawlo.logging import get_logger
-from crawlo.utils.redis_manager import RedisKeyManager
 from crawlo.pipelines.base_pipeline import DedupPipeline
+from crawlo.spider import Spider
+from crawlo.utils.redis_manager import RedisKeyManager
 
 
 class RedisDedupPipeline(DedupPipeline):
@@ -33,6 +31,7 @@ class RedisDedupPipeline(DedupPipeline):
             redis_port: int = 6379,
             redis_db: int = 0,
             redis_password: Optional[str] = None,
+            redis_user: Optional[str] = None,  # 新增：Redis用户名
             redis_key: str = 'crawlo:item_fingerprints'
     ):
         """
@@ -49,22 +48,13 @@ class RedisDedupPipeline(DedupPipeline):
         
         self.logger = get_logger(self.__class__.__name__)
         
-        # 初始化 Redis 连接
-        try:
-            self.redis_client = redis.Redis(
-                host=redis_host,
-                port=redis_port,
-                db=redis_db,
-                password=redis_password,
-                decode_responses=True,
-                socket_connect_timeout=5,
-                socket_timeout=5
-            )
-            # 测试连接
-            self.redis_client.ping()
-        except Exception as e:
-            self.logger.error(f"Redis connection failed: {e}")
-            raise RuntimeError(f"Redis 连接失败: {e}")
+        # 初始化 Redis 连接参数（异步初始化在第一次使用时进行）
+        self.redis_host = redis_host
+        self.redis_port = redis_port
+        self.redis_db = redis_db
+        self.redis_password = redis_password
+        self.redis_user = redis_user
+        self.redis_client = None  # 异步初始化
 
         self.redis_key = redis_key
 
@@ -88,12 +78,48 @@ class RedisDedupPipeline(DedupPipeline):
             redis_port=settings.get_int('REDIS_PORT', 6379),
             redis_db=settings.get_int('REDIS_DB', 0),
             redis_password=settings.get('REDIS_PASSWORD') or None,
+            redis_user=settings.get('REDIS_USER') or None,  # 新增：获取Redis用户名
             redis_key=redis_key
         )
 
+    async def _ensure_redis_connection(self):
+        """确保Redis连接已建立"""
+        if self.redis_client is None:
+            try:
+                # 根据是否有用户名构建连接参数
+                if self.redis_user and self.redis_password:
+                    # 构建Redis URL以支持用户名认证
+                    redis_url = f"redis://{self.redis_user}:{self.redis_password}@{self.redis_host}:{self.redis_port}/{self.redis_db}"
+                    self.redis_client = aioredis.from_url(
+                        redis_url,
+                        decode_responses=True,
+                        socket_connect_timeout=5,
+                        socket_timeout=5
+                    )
+                else:
+                    # 使用传统的密码认证方式
+                    self.redis_client = aioredis.Redis(
+                        host=self.redis_host,
+                        port=self.redis_port,
+                        db=self.redis_db,
+                        password=self.redis_password,
+                        decode_responses=True,
+                        socket_connect_timeout=5,
+                        socket_timeout=5
+                    )
+                
+                # 测试连接
+                await self.redis_client.ping()
+                self.logger.info(f"Redis连接成功: {self.redis_host}:{self.redis_port}/{self.redis_db}")
+            except Exception as e:
+                self.logger.error(f"Redis connection failed: {e}")
+                raise RuntimeError(f"Redis 连接失败: {e}")
+
     async def _initialize_resources(self):
         """初始化资源"""
-        # Redis连接已在__init__中创建，这里可以注册到资源管理器
+        # 延迟初始化Redis连接，当第一次需要时再建立
+        await self._ensure_redis_connection()
+        
         if self.redis_client:
             self.register_resource(
                 resource=self.redis_client,
@@ -127,10 +153,12 @@ class RedisDedupPipeline(DedupPipeline):
             是否存在
         """
         try:
+            # 确保连接可用
+            await self._ensure_redis_connection()
             # 使用 Redis 的 SISMEMBER 命令检查指纹是否存在
-            exists = self.redis_client.sismember(self.redis_key, fingerprint)
+            exists = await self.redis_client.sismember(self.redis_key, fingerprint)
             return bool(exists)
-        except redis.RedisError as e:
+        except Exception as e:
             self.logger.error(f"Redis error checking fingerprint: {e}")
             # 在 Redis 错误时，假设指纹不存在，避免误删数据
             self.crawler.stats.inc_value('dedup/redis_error_count')
@@ -144,22 +172,26 @@ class RedisDedupPipeline(DedupPipeline):
             fingerprint: 数据项指纹
         """
         try:
+            # 确保连接可用
+            await self._ensure_redis_connection()
             # 使用 Redis 的 SADD 命令添加指纹
-            self.redis_client.sadd(self.redis_key, fingerprint)
-        except redis.RedisError as e:
+            await self.redis_client.sadd(self.redis_key, fingerprint)
+        except Exception as e:
             self.logger.error(f"Redis error recording fingerprint: {e}")
             self.crawler.stats.inc_value('dedup/redis_error_count')
             # 在 Redis 错误时，不抛出异常，避免影响爬虫运行
 
-    def close_spider(self, spider: Spider) -> None:
+    async def close_spider(self, spider: Spider) -> None:
         """
         爬虫关闭时的清理工作
         
         :param spider: 爬虫实例
         """
         try:
+            # 确保连接可用
+            await self._ensure_redis_connection()
             # 获取去重统计信息
-            total_items = self.redis_client.scard(self.redis_key)
+            total_items = await self.redis_client.scard(self.redis_key)
             self.logger.info(f"Spider {spider.name} closed:")
             self.logger.info(f"  - Dropped duplicate items: {self.dropped_count}")
             self.logger.info(f"  - Processed items: {self.processed_count}")
@@ -172,7 +204,7 @@ class RedisDedupPipeline(DedupPipeline):
             if crawler and hasattr(crawler, 'settings'):
                 settings = crawler.settings
                 if settings.getbool('REDIS_DEDUP_CLEANUP', False):
-                    deleted = self.redis_client.delete(self.redis_key)
+                    deleted = await self.redis_client.delete(self.redis_key)
                     self.logger.info(f"  - Cleaned fingerprints: {deleted}")
         except Exception as e:
             self.logger.error(f"Error closing spider: {e}")

@@ -11,7 +11,7 @@ ofweek_standalone 项目配置文件
 from crawlo.config import CrawloConfig
 
 # 使用自动检测模式配置工厂创建配置
-config = CrawloConfig.standalone(
+config = CrawloConfig.auto(
     project_name='ofweek_standalone',
     concurrency=8,
     download_delay=1.0,
@@ -57,8 +57,8 @@ PIPELINES = [
 LOG_LEVEL = 'INFO'
 LOG_FILE = 'logs/ofweek_standalone.log'
 LOG_ENCODING = 'utf-8'  # 明确指定日志文件编码
-LOG_MAX_BYTES = 20 * 1024 * 1024  # 20MB，推荐值
-LOG_BACKUP_COUNT = 10  # 10个备份文件，推荐值
+LOG_MAX_BYTES = 0 * 1024 * 1024  # 20MB，推荐值
+LOG_BACKUP_COUNT = 0  # 10个备份文件，推荐值
 # 如果不想要日志轮转，可以设置 LOG_MAX_BYTES = 0
 # 当LOG_MAX_BYTES或LOG_BACKUP_COUNT为0时，日志轮转将被禁用，文件会持续增长
 STATS_DUMP = True
@@ -69,25 +69,25 @@ OUTPUT_DIR = 'output'
 # =================================== 数据库配置 ===================================
 
 # Redis配置
-REDIS_HOST = '127.0.0.1'
+# REDIS_HOST = '127.0.0.1'
+# REDIS_PORT = 6379
+# REDIS_PASSWORD = ''
+# REDIS_DB = 0
+REDIS_HOST = 'r-2zer2v9lrdl75a694spd.redis.rds.aliyuncs.com'
+REDIS_USER = 'r-2zer2v9lrdl75a694s'
 REDIS_PORT = 6379
-REDIS_PASSWORD = ''
-REDIS_DB = 0
-#
-# # 根据是否有密码生成 URL
-# if REDIS_PASSWORD:
-#     REDIS_URL = f'redis://:{REDIS_PASSWORD}@{REDIS_HOST}:{REDIS_PORT}/{REDIS_DB}'
-# else:
-#     REDIS_URL = f'redis://{REDIS_HOST}:{REDIS_PORT}/{REDIS_DB}'
+REDIS_PASSWORD = 'tianmai_2018'
+REDIS_DB = 2
+
 
 # MySQL配置
 MYSQL_HOST = '127.0.0.1'
 MYSQL_PORT = 3306
-MYSQL_USER = 'crawlo'
-MYSQL_PASSWORD = 'crawlo123'
-MYSQL_DB = 'crawlo_deployer'
-MYSQL_TABLE = 'ofweek_standalone_items'
-MYSQL_BATCH_SIZE = 100
+MYSQL_USER = 'root'
+MYSQL_PASSWORD = 'oscar&0503'
+MYSQL_DB = 'crawlo_db'
+MYSQL_TABLE = 'ofweek_news'
+MYSQL_BATCH_SIZE = 20
 MYSQL_USE_BATCH = True  # 是否启用批量插入
 
 # MySQL SQL生成行为控制配置
