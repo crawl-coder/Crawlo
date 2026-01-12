@@ -69,15 +69,11 @@ OUTPUT_DIR = 'output'
 # =================================== 数据库配置 ===================================
 
 # Redis配置
-# REDIS_HOST = '127.0.0.1'
-# REDIS_PORT = 6379
-# REDIS_PASSWORD = ''
-# REDIS_DB = 0
-REDIS_HOST = 'r-2zer2v9lrdl75a694spd.redis.rds.aliyuncs.com'
-REDIS_USER = 'r-2zer2v9lrdl75a694s'
+REDIS_HOST = '127.0.0.1'
 REDIS_PORT = 6379
-REDIS_PASSWORD = 'tianmai_2018'
-REDIS_DB = 2
+REDIS_PASSWORD = ''
+REDIS_DB = 0
+
 
 
 # MySQL配置
@@ -96,13 +92,13 @@ MYSQL_INSERT_IGNORE = False  # 是否使用 INSERT IGNORE（忽略重复数据�
 MYSQL_UPDATE_COLUMNS = ()  # 冲突时需更新的列名；指定后 MYSQL_AUTO_UPDATE 失效
 
 # MongoDB配置
-MONGO_URI = 'mongodb://localhost:27017'
-MONGO_DATABASE = 'ofweek_standalone_db'
-MONGO_COLLECTION = 'ofweek_standalone_items'
-MONGO_MAX_POOL_SIZE = 200
-MONGO_MIN_POOL_SIZE = 20
-MONGO_BATCH_SIZE = 100  # 批量插入条数
-MONGO_USE_BATCH = False  # 是否启用批量插入
+# MONGO_URI = 'mongodb://localhost:27017'
+# MONGO_DATABASE = 'ofweek_standalone_db'
+# MONGO_COLLECTION = 'ofweek_standalone_items'
+# MONGO_MAX_POOL_SIZE = 200
+# MONGO_MIN_POOL_SIZE = 20
+# MONGO_BATCH_SIZE = 100  # 批量插入条数
+# MONGO_USE_BATCH = False  # 是否启用批量插入
 
 # =================================== 代理配置 ===================================
 
