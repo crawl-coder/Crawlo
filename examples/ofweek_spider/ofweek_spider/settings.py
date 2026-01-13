@@ -48,9 +48,9 @@ SPIDER_MODULES = ['ofweek_spider.spiders']
 
 # 中间件
 # 如需添加自定义中间件，请取消注释并添加
-# MIDDLEWARES = [
-#     # 'ofweek_spider.middlewares.CustomMiddleware',  # 用户自定义中间件示例
-# ]
+# MIDDLEWARES = {
+#     # 'ofweek_spider.middlewares.CustomMiddleware': 50,  # 用户自定义中间件示例
+# }
 
 # 日志配置
 LOG_LEVEL = 'INFO'

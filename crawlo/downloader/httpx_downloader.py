@@ -98,7 +98,8 @@ class HttpXDownloader(DownloaderBase):
     async def download(self, request) -> Response:
         """下载请求并返回响应，支持代理失败后的优雅降级"""
         if not self._client:
-            raise RuntimeError("HttpXDownloader client is not available.")
+            self.logger.error("HttpXDownloader client is not available.")
+            return None
 
         start_time = None
         if self.crawler.settings.get_bool("DOWNLOAD_STATS", True):
@@ -163,8 +164,16 @@ class HttpXDownloader(DownloaderBase):
                             max_keepalive_connections=20
                         )
                         
+                        # 为代理请求设置更严格的超时控制
+                        proxy_timeout = Timeout(
+                            connect=5.0,  # 缩短连接超时
+                            read=20.0,    # 读取超时
+                            write=10.0,   # 写入超时
+                            pool=1.0      # 连接池超时
+                        )
+                        
                         temp_client = AsyncClient(
-                            timeout=self._client_timeout,
+                            timeout=proxy_timeout,
                             limits=client_limits,
                             verify=self._client_verify,
                             http2=self._client_http2,
@@ -173,7 +182,7 @@ class HttpXDownloader(DownloaderBase):
                         )
                         effective_client = temp_client
                         used_proxy = httpx_proxy_config  # 记录使用的代理
-                        self.logger.debug(f"Using temporary client with proxy: {httpx_proxy_config} for {request.url}")
+                        self.logger.info(f"Using temporary client with proxy: {httpx_proxy_config} for {request.url}")
                     except Exception as e:
                         self.logger.error(
                             f"Failed to create temporary client with proxy {httpx_proxy_config} for {request.url}: {e}")
@@ -201,8 +210,32 @@ class HttpXDownloader(DownloaderBase):
                     # 再次尝试发送请求
                     httpx_response = await effective_client.request(**kwargs)
                 else:
-                    # 如果是主客户端（直连）失败，或者不是网络错误，则重新抛出
-                    raise
+                    # 如果是主客户端（直连）失败，或者不是网络错误，则记录日志并返回None
+                    self.logger.error(f"Direct connection failed for {request.url}: {repr(proxy_error)}")
+                    return None
+            except httpx.RemoteProtocolError as remote_error:
+                # 特别处理 RemoteProtocolError
+                if temp_client is not None and effective_client is temp_client:
+                    # 代理请求出现远程协议错误，尝试直连
+                    self.logger.warning(
+                        f"代理请求远程协议错误 ({used_proxy}), 正在尝试直连: {request.url} | 错误: {repr(remote_error)}"
+                    )
+                    # 关闭失败的临时客户端
+                    await temp_client.aclose()
+                    temp_client = None  # 防止 finally 再次关闭
+
+                    # 切换到主客户端（直连）
+                    effective_client = self._client
+                    # 再次尝试发送请求
+                    try:
+                        httpx_response = await effective_client.request(**kwargs)
+                    except Exception as direct_error:
+                        self.logger.error(f"Direct connection also failed for {request.url}: {repr(direct_error)}")
+                        return None
+                else:
+                    # 直连也出现远程协议错误，记录日志并返回None
+                    self.logger.error(f"Direct connection failed for {request.url}: {repr(remote_error)}")
+                    return None
 
             # --- 6. 安全检查：防止大响应体 ---
             content_length = httpx_response.headers.get("Content-Length")
@@ -224,10 +257,10 @@ class HttpXDownloader(DownloaderBase):
 
         except httpx.TimeoutException as e:
             self.logger.error(f"Timeout error for {request.url}: {e}")
-            raise
+            return None
         except httpx.NetworkError as e:
             self.logger.error(f"Network error for {request.url}: {e}")
-            raise
+            return None
         except httpx.HTTPStatusError as e:
             self.logger.warning(f"HTTP {e.response.status_code} for {request.url}: {e}")
             # 即使是 4xx/5xx，也返回 Response，由上层逻辑（如 spider）处理
@@ -240,8 +273,11 @@ class HttpXDownloader(DownloaderBase):
                 error_body = b""  # 如果读取错误响应体失败，则为空
             return self.structure_response(request=request, response=e.response, body=error_body)
         except Exception as e:
-            self.logger.critical(f"Unexpected error for {request.url}: {e}", exc_info=True)
-            raise
+            self.logger.error(f"Unexpected error for {request.url}: {e}", exc_info=True)
+            # 不重新抛出异常，而是返回 None 或适当的响应对象
+            # 这样可以避免单个请求失败导致整个爬虫进程退出
+            # 返回 None 让上层逻辑处理失败情况
+            return None
 
         finally:
             # --- 10. 清理：关闭临时 client ---

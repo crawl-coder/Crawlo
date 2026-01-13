@@ -2,10 +2,7 @@ import asyncio
 import pickle
 import time
 import traceback
-from typing import Optional, TYPE_CHECKING, List, Union, Any, Dict, Tuple, cast
-from typing import Awaitable
-
-import redis.asyncio as aioredis
+from typing import Optional, TYPE_CHECKING, List, Any
 
 # 尝试导入Redis集群支持
 try:

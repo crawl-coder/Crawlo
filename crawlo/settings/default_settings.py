@@ -64,10 +64,12 @@ MYSQL_DB = 'crawl_pro'
 MYSQL_TABLE = 'crawlo'
 MYSQL_BATCH_SIZE = 100
 MYSQL_USE_BATCH = False  # 是否启用批量插入
+# MySQL 冲突处理策略（三者互斥，按优先级生效）
+MYSQL_UPDATE_COLUMNS = ()      # 优先级最高：主键冲突时更新指定列，使用 ON DUPLICATE KEY UPDATE
+MYSQL_AUTO_UPDATE = False      # 优先级中等：是否使用 REPLACE INTO（完全覆盖已存在记录）
+MYSQL_INSERT_IGNORE = False    # 优先级最低：是否使用 INSERT IGNORE（忽略重复数据）
 # MySQL SQL生成行为控制配置
-MYSQL_AUTO_UPDATE = False  # 是否使用 REPLACE INTO（完全覆盖已存在记录）
-MYSQL_INSERT_IGNORE = False  # 是否使用 INSERT IGNORE（忽略重复数据）
-MYSQL_UPDATE_COLUMNS = ()  # 冲突时需更新的列名；指定后 MYSQL_AUTO_UPDATE 失效
+MYSQL_PREFER_ALIAS_SYNTAX = True      # 是否优先使用 AS `alias` 语法，False 则使用 VALUES() 语法
 
 # Redis配置
 # Redis键命名规范：
@@ -92,18 +94,18 @@ BLOOM_FILTER_ERROR_RATE = 0.001  # Bloom过滤器错误率
 # --------------------------------- 4. 中间件配置 ------------------------------------
 
 # 框架中间件列表（框架默认中间件 + 用户自定义中间件）
-MIDDLEWARES = [
+MIDDLEWARES = {
     # === 请求预处理阶段 ===
-    'crawlo.middleware.request_ignore.RequestIgnoreMiddleware',  # 1. 忽略无效请求
-    'crawlo.middleware.download_delay.DownloadDelayMiddleware',  # 2. 控制请求频率
-    'crawlo.middleware.default_header.DefaultHeaderMiddleware',  # 3. 添加默认请求头
-    'crawlo.middleware.offsite.OffsiteMiddleware',  # 5. 站外请求过滤
+    'crawlo.middleware.request_ignore.RequestIgnoreMiddleware': 100,  # 1. 忽略无效请求
+    'crawlo.middleware.download_delay.DownloadDelayMiddleware': 90,  # 2. 控制请求频率
+    'crawlo.middleware.default_header.DefaultHeaderMiddleware': 80,  # 3. 添加默认请求头
+    'crawlo.middleware.offsite.OffsiteMiddleware': 60,  # 5. 站外请求过滤
 
     # === 响应处理阶段 ===
-    'crawlo.middleware.retry.RetryMiddleware',  # 6. 失败请求重试
-    'crawlo.middleware.response_code.ResponseCodeMiddleware',  # 7. 处理特殊状态码
-    'crawlo.middleware.response_filter.ResponseFilterMiddleware',  # 8. 响应内容过滤
-]
+    'crawlo.middleware.retry.RetryMiddleware': 50,  # 6. 失败请求重试
+    'crawlo.middleware.response_code.ResponseCodeMiddleware': 40,  # 7. 处理特殊状态码
+    'crawlo.middleware.response_filter.ResponseFilterMiddleware': 30,  # 8. 响应内容过滤
+}
 
 # --------------------------------- 5. 管道配置 ------------------------------------
 
@@ -213,7 +215,10 @@ DOWNLOAD_MAXSIZE = 10 * 1024 * 1024  # 最大下载大小（字节）
 DOWNLOAD_STATS = True  # 是否启用下载统计
 DOWNLOAD_WARN_SIZE = 1024 * 1024  # 下载警告大小（字节）
 DOWNLOAD_RETRY_TIMES = 3  # 下载重试次数
+# 重试配置
 MAX_RETRY_TIMES = 3  # 最大重试次数
+RETRY_PRIORITY = 10
+RETRY_HTTP_CODES = [500, 502, 503, 504, 408, 429]
 
 # 下载器健康检查
 DOWNLOADER_HEALTH_CHECK = True  # 是否启用下载器健康检查

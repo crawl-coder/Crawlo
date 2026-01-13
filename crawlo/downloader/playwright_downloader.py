@@ -59,7 +59,11 @@ class PlaywrightDownloader(DownloaderBase):
     async def download(self, request) -> Optional[Response]:
         """下载动态内容"""
         if not self.playwright or not self.browser or not self.context:
-            await self._initialize_playwright()
+            try:
+                await self._initialize_playwright()
+            except Exception as e:
+                self.logger.error(f"Failed to initialize Playwright for {request.url}: {e}")
+                return None
 
         start_time = None
         if self.crawler.settings.get_bool("DOWNLOAD_STATS", True):
@@ -127,7 +131,7 @@ class PlaywrightDownloader(DownloaderBase):
 
         except Exception as e:
             self.logger.error(f"Error downloading {request.url}: {e}")
-            raise
+            return None
         finally:
             # 归还页面到池中
             if page:

@@ -48,19 +48,19 @@ SPIDER_MODULES = ['{{project_name}}.spiders']
 
 # 中间件
 # 如需添加自定义中间件，请取消注释并添加
-# MIDDLEWARES = [
-#     # '{{project_name}}.middlewares.CustomMiddleware',  # 用户自定义中间件示例
-# ]
+# MIDDLEWARES = {
+#     # '{{project_name}}.middlewares.CustomMiddleware': 50,  # 用户自定义中间件示例
+# }
 
 # 日志配置
 LOG_LEVEL = 'INFO'
 LOG_FILE = 'logs/{{project_name}}.log'
 LOG_ENCODING = 'utf-8'  # 明确指定日志文件编码
-LOG_MAX_BYTES = 20 * 1024 * 1024  # 20MB，推荐值
-LOG_BACKUP_COUNT = 10  # 10个备份文件，推荐值
+LOG_MAX_BYTES = 0  # 20MB，推荐值
+LOG_BACKUP_COUNT = 0  # 10个备份文件，推荐值
 # 如果不想要日志轮转，可以设置 LOG_MAX_BYTES = 0
 # 当LOG_MAX_BYTES或LOG_BACKUP_COUNT为0时，日志轮转将被禁用，文件会持续增长
-STATS_DUMP = True
+
 
 # 输出配置
 OUTPUT_DIR = 'output'
@@ -83,19 +83,20 @@ MYSQL_TABLE = '{{project_name}}_data'
 MYSQL_BATCH_SIZE = 100
 MYSQL_USE_BATCH = False  # 是否启用批量插入
 
-# MySQL SQL生成行为控制配置
-MYSQL_AUTO_UPDATE = False  # 是否使用 REPLACE INTO（完全覆盖已存在记录）
-MYSQL_INSERT_IGNORE = False  # 是否使用 INSERT IGNORE（忽略重复数据）
-MYSQL_UPDATE_COLUMNS = ()  # 冲突时需更新的列名；指定后 MYSQL_AUTO_UPDATE 失效
+# MySQL 冲突处理策略（三者互斥，按优先级生效）
+MYSQL_UPDATE_COLUMNS = ()      # 优先级最高：主键冲突时更新指定列，使用 ON DUPLICATE KEY UPDATE
+MYSQL_AUTO_UPDATE = False      # 优先级中等：是否使用 REPLACE INTO（完全覆盖已存在记录）
+MYSQL_INSERT_IGNORE = False    # 优先级最低：是否使用 INSERT IGNORE（忽略重复数据）
+MYSQL_PREFER_ALIAS_SYNTAX = True      # 是否优先使用 AS `alias` 语法，False 则使用 VALUES() 语法
 
 # MongoDB配置
-MONGO_URI = 'mongodb://localhost:27017'
-MONGO_DATABASE = '{{project_name}}_db'
-MONGO_COLLECTION = '{{project_name}}_items'
-MONGO_MAX_POOL_SIZE = 200
-MONGO_MIN_POOL_SIZE = 20
-MONGO_BATCH_SIZE = 100  # 批量插入条数
-MONGO_USE_BATCH = False  # 是否启用批量插入
+# MONGO_URI = 'mongodb://localhost:27017'
+# MONGO_DATABASE = '{{project_name}}_db'
+# MONGO_COLLECTION = '{{project_name}}_items'
+# MONGO_MAX_POOL_SIZE = 200
+# MONGO_MIN_POOL_SIZE = 20
+# MONGO_BATCH_SIZE = 100  # 批量插入条数
+# MONGO_USE_BATCH = False  # 是否启用批量插入
 
 # =================================== 代理配置 ===================================
 

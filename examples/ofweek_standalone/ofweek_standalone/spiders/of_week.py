@@ -4,7 +4,7 @@
 """
 
 from crawlo.spider import Spider
-from crawlo import Request
+from crawlo import Request, Response
 from ..items import OfWeekStandaloneItem
 
 
@@ -19,7 +19,7 @@ class OfWeekSpider(Spider):
 
     def start_requests(self):
         """生成初始请求"""
-        max_pages = 12
+        max_pages = 50
         start_urls = []
         for page in range(1, max_pages + 1):
             url = f'https://ee.ofweek.com/CATList-2800-8100-ee-{page}.html'
@@ -29,7 +29,7 @@ class OfWeekSpider(Spider):
         for url in start_urls:
             yield Request(url, callback=self.parse, dont_filter=True)
 
-    def parse(self, response):
+    def parse(self, response: Response):
         """解析响应"""
         # 检查响应状态
         if response.status_code != 200:

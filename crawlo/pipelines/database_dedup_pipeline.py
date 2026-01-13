@@ -13,18 +13,17 @@
 """
 import aiomysql
 
-from crawlo import Item
-from crawlo.exceptions import ItemDiscard
 from crawlo.logging import get_logger
+from crawlo.pipelines.base_pipeline import DedupPipeline
 from crawlo.spider import Spider
-from crawlo.utils.fingerprint import FingerprintGenerator
 
 
-class DatabaseDedupPipeline:
+class DatabaseDedupPipeline(DedupPipeline):
     """基于数据库的数据项去重管道"""
 
     def __init__(
             self,
+            crawler,
             db_host: str = 'localhost',
             db_port: int = 3306,
             db_user: str = 'root',
@@ -36,6 +35,7 @@ class DatabaseDedupPipeline:
         """
         初始化数据库去重管道
         
+        :param crawler: Crawler实例
         :param db_host: 数据库主机地址
         :param db_port: 数据库端口
         :param db_user: 数据库用户名
@@ -44,6 +44,8 @@ class DatabaseDedupPipeline:
         :param table_name: 存储指纹的表名
         :param log_level: 日志级别
         """
+        super().__init__(crawler)
+        
         self.logger = get_logger(self.__class__.__name__)
         
         # 数据库连接参数
@@ -57,7 +59,6 @@ class DatabaseDedupPipeline:
         }
         
         self.table_name = table_name
-        self.dropped_count = 0
         self.connection = None
         self.pool = None
 
@@ -67,6 +68,7 @@ class DatabaseDedupPipeline:
         settings = crawler.settings
         
         return cls(
+            crawler=crawler,
             db_host=settings.get('DB_HOST', 'localhost'),
             db_port=settings.getint('DB_PORT', 3306),
             db_user=settings.get('DB_USER', 'root'),
@@ -114,39 +116,31 @@ class DatabaseDedupPipeline:
                 await cursor.execute(create_table_sql)
                 await conn.commit()
 
-    async def process_item(self, item: Item, spider: Spider) -> Item:
-        """
-        处理数据项，进行去重检查
-        
-        :param item: 要处理的数据项
-        :param spider: 爬虫实例
-        :return: 处理后的数据项或抛出 ItemDiscard 异常
-        """
+    async def _initialize_resources(self):
+        """初始化资源"""
+        # 数据库连接已在open_spider中创建，这里注册到资源管理器
+        if self.pool:
+            self.register_resource(
+                resource=self.pool,
+                cleanup_func=self._close_pool,
+                name="db_pool"
+            )
+        # 调用父类的初始化方法
+        await super()._initialize_resources()
+
+    async def _close_pool(self, pool):
+        """关闭连接池"""
         try:
-            # 生成数据项指纹
-            fingerprint = self._generate_item_fingerprint(item)
-            
-            # 检查指纹是否已存在
-            exists = await self._check_fingerprint_exists(fingerprint)
-            
-            if exists:
-                # 如果已存在，丢弃这个数据项
-                self.dropped_count += 1
-                self.logger.debug(f"Dropping duplicate item: {fingerprint[:20]}...")
-                raise ItemDiscard(f"Duplicate item: {fingerprint}")
-            else:
-                # 记录新数据项的指纹
-                await self._insert_fingerprint(fingerprint)
-                self.logger.debug(f"Processing new item: {fingerprint[:20]}...")
-                return item
-                
-        except ItemDiscard:
-            # 重新抛出ItemDiscard异常，确保管道管理器能正确处理
-            raise
+            pool.close()
+            await pool.wait_closed()
+            self.logger.info("Database pool closed")
         except Exception as e:
-            self.logger.error(f"Error processing item: {e}")
-            # 在错误时继续处理，避免丢失数据
-            return item
+            self.logger.error(f"Error closing database pool: {e}")
+
+    async def _cleanup_resources(self):
+        """清理资源"""
+        # 调用父类的清理方法
+        await super()._cleanup_resources()
 
     async def _check_fingerprint_exists(self, fingerprint: str) -> bool:
         """
@@ -163,34 +157,22 @@ class DatabaseDedupPipeline:
                 result = await cursor.fetchone()
                 return result is not None
 
-    async def _insert_fingerprint(self, fingerprint: str) -> None:
+    async def _record_fingerprint(self, fingerprint: str) -> None:
         """
-        插入新指纹
+        记录指纹
         
         :param fingerprint: 数据项指纹
         """
-        insert_sql = f"INSERT INTO `{self.table_name}` (`fingerprint`) VALUES (%s)"
+        insert_sql = f"INSERT IGNORE INTO `{self.table_name}` (`fingerprint`) VALUES (%s)"
         
         async with self.pool.acquire() as conn:
             async with conn.cursor() as cursor:
                 try:
                     await cursor.execute(insert_sql, (fingerprint,))
                     await conn.commit()
-                except aiomysql.IntegrityError:
-                    # 指纹已存在（并发情况下可能发生）
+                    self.crawler.stats.inc_value('dedup/db_insert_success')
+                except Exception as e:
                     await conn.rollback()
-                    raise ItemDiscard(f"重复的数据项: {fingerprint}")
-                except Exception:
-                    await conn.rollback()
+                    self.logger.error(f"Error recording fingerprint: {e}")
+                    self.crawler.stats.inc_value('dedup/db_insert_error')
                     raise
-
-    def _generate_item_fingerprint(self, item: Item) -> str:
-        """
-        生成数据项指纹
-        
-        基于数据项的所有字段生成唯一指纹，用于去重判断。
-        
-        :param item: 数据项
-        :return: 指纹字符串
-        """
-        return FingerprintGenerator.item_fingerprint(item)

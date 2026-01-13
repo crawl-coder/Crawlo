@@ -74,7 +74,8 @@ class CurlCffiDownloader(DownloaderBase):
 
     async def download(self, request) -> Optional[Response]:
         if not self.session:
-            raise RuntimeError("CurlCffiDownloader 会话未打开")
+            self.logger.error("CurlCffiDownloader 会话未打开")
+            return None
 
         await self._apply_download_delay()
 
@@ -101,7 +102,7 @@ class CurlCffiDownloader(DownloaderBase):
                         f"请求 {request.url} 在 {max_retries} 次重试后失败: {type(e).__name__}: {e}")
             except Exception as e:
                 last_exception = e
-                self.logger.critical(f"请求 {request.url} 发生未预期错误: {e}", exc_info=True)
+                self.logger.error(f"请求 {request.url} 发生未预期错误: {e}", exc_info=True)
                 break  # 不可恢复错误，不再重试
             finally:
                 self._active_requests.discard(request_id)

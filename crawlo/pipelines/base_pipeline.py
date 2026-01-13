@@ -6,6 +6,7 @@ Pipeline基类 - 提供统一的资源管理
 Pipeline体系说明：
 - BasePipeline: 基础抽象类，定义Pipeline接口规范
 - ResourceManagedPipeline: 提供资源管理功能的基类（推荐）
+- DedupPipeline: 去重Pipeline基类，统一去重逻辑
 - FileBasedPipeline: 文件操作专用基类
 - DatabasePipeline: 数据库操作专用基类
 - CacheBasedPipeline: 缓存操作专用基类
@@ -41,14 +42,24 @@ Pipeline体系说明：
 """
 
 import asyncio
+import time
 from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Optional, Any, Callable
 
+# 检查是否安装了aiofiles
+try:
+    import aiofiles
+    AIOFILES_AVAILABLE = True
+except ImportError:
+    AIOFILES_AVAILABLE = False
+
 from crawlo.items import Item
 from crawlo.spider import Spider
+from crawlo.exceptions import ItemDiscard
 from crawlo.logging import get_logger
 from crawlo.utils.resource_manager import ResourceManager, ResourceType
+from crawlo.utils.fingerprint import FingerprintGenerator
 
 
 class BasePipeline(ABC):
@@ -99,8 +110,7 @@ class ResourceManagedPipeline(BasePipeline):
         self.crawler = crawler
         self.settings = crawler.settings
         self.logger = get_logger(
-            self.__class__.__name__, 
-            self.settings.get('LOG_LEVEL')
+            self.__class__.__name__
         )
         
         # 资源管理器
@@ -180,6 +190,42 @@ class ResourceManagedPipeline(BasePipeline):
             f"但未实现 _flush_batch 方法"
         )
     
+    async def process_item_batched(self, item: Item, spider: Spider, insert_func: Callable):
+        """
+        通用的批量处理辅助方法
+        
+        Args:
+            item: 数据项
+            spider: 爬虫对象
+            insert_func: 执行批量插入的异步函数，接收 list[dict]
+        """
+        if not self.use_batch:
+            # 如果没开启批量，直接处理（需要子类自己实现单条逻辑，或者这里抛异常）
+            return item
+
+        self.batch_buffer.append(item)
+        
+        if len(self.batch_buffer) >= self.batch_size:
+            await self._flush_buffer_internal(spider, insert_func)
+        
+        return item
+
+    async def _flush_buffer_internal(self, spider, insert_func):
+        """内部刷新逻辑，处理锁和异常"""
+        if not self.batch_buffer:
+            return
+            
+        # 拷贝引用并清空原 buffer，防止在 await 期间新数据进入导致重复提交或丢失
+        items_to_save = self.batch_buffer[:]
+        self.batch_buffer = []
+        
+        try:
+            await insert_func(items_to_save)
+        except Exception as e:
+            self.logger.error(f"批量刷新失败: {e}")
+            # 可选：失败后放回缓冲区或丢弃
+            # self.batch_buffer.extend(items_to_save)
+    
     async def _on_spider_closed(self):
         """
         爬虫关闭事件处理
@@ -242,6 +288,125 @@ class ResourceManagedPipeline(BasePipeline):
         self.logger.debug(f"注册资源: {name} ({resource_type})")
 
 
+class DedupPipeline(ResourceManagedPipeline):
+    """
+    去重Pipeline基类
+    
+    提供统一的去重功能：
+    - 统一的指纹生成
+    - 统一的去重逻辑
+    - 统一的资源管理
+    - 统一的统计信息
+    - 性能监控
+    """
+    
+    def __init__(self, crawler):
+        super().__init__(crawler)
+        self.dropped_count = 0
+        self.processed_count = 0
+        self.debug_mode = self.settings.get_bool('DEDUP_DEBUG', False)
+        
+    async def _initialize_resources(self):
+        """初始化资源（子类实现）"""
+        # 记录初始化统计
+        self.crawler.stats.inc_value('dedup/initialization_count')
+    
+    async def _cleanup_resources(self):
+        """清理资源（子类实现）"""
+        # 记录清理统计
+        self.crawler.stats.inc_value('dedup/cleanup_count')
+    
+    async def process_item(self, item: Item, spider: Spider) -> Item:
+        """
+        处理数据项，进行去重检查
+        
+        Args:
+            item: 要处理的数据项
+            spider: 爬虫实例
+            
+        Returns:
+            处理后的数据项或抛出 ItemDiscard 异常
+        """
+        start_time = time.time()
+        self.processed_count += 1
+        
+        try:
+            # 生成数据项指纹
+            fingerprint = self._generate_item_fingerprint(item)
+            
+            # 检查指纹是否已存在
+            exists = await self._check_fingerprint_exists(fingerprint)
+            
+            if exists:
+                # 如果已存在，丢弃这个数据项
+                self.dropped_count += 1
+                self.logger.debug(f"Dropping duplicate item: {fingerprint[:20]}...")
+                self.crawler.stats.inc_value('dedup/dropped_count')
+                raise ItemDiscard(f"Duplicate item: {fingerprint}")
+            else:
+                # 记录新数据项的指纹
+                await self._record_fingerprint(fingerprint)
+                self.logger.debug(f"Processing new item: {fingerprint[:20]}...")
+                self.crawler.stats.inc_value('dedup/new_count')
+                return item
+                
+        except ItemDiscard:
+            # 重新抛出ItemDiscard异常，确保管道管理器能正确处理
+            duration = time.time() - start_time
+            self.crawler.stats.inc_value('dedup/process_discard_time', duration)
+            raise
+        except Exception as e:
+            duration = time.time() - start_time
+            self.crawler.stats.inc_value('dedup/process_error_time', duration)
+            self.logger.error(f"Error processing item: {e}")
+            # 在错误时继续处理，避免丢失数据
+            self.crawler.stats.inc_value('dedup/process_error_count')
+            return item
+        finally:
+            # 记录处理时间
+            duration = time.time() - start_time
+            self.crawler.stats.inc_value('dedup/process_time', duration)
+            if self.debug_mode:
+                self.logger.debug(f"Dedup pipeline process time: {duration:.4f}s")
+    
+    def _generate_item_fingerprint(self, item: Item) -> str:
+        """
+        生成数据项指纹
+        
+        基于数据项的所有字段生成唯一指纹，用于去重判断。
+        
+        Args:
+            item: 数据项
+            
+        Returns:
+            指纹字符串
+        """
+        return FingerprintGenerator.item_fingerprint(item)
+    
+    @abstractmethod
+    async def _check_fingerprint_exists(self, fingerprint: str) -> bool:
+        """
+        检查指纹是否已存在
+        
+        Args:
+            fingerprint: 数据项指纹
+            
+        Returns:
+            是否存在
+        """
+        raise NotImplementedError("子类必须实现 _check_fingerprint_exists 方法")
+    
+    @abstractmethod
+    async def _record_fingerprint(self, fingerprint: str) -> None:
+        """
+        记录指纹
+        
+        Args:
+            fingerprint: 数据项指纹
+        """
+        raise NotImplementedError("子类必须实现 _record_fingerprint 方法")
+
+
 class FileBasedPipeline(ResourceManagedPipeline):
     """
     文件型Pipeline基类
@@ -298,12 +463,22 @@ class FileBasedPipeline(ResourceManagedPipeline):
                 if self.file_path is None:
                     raise ValueError("文件路径未设置")
                 
-                self.file_handle = open(
-                    self.file_path, 
-                    mode, 
-                    encoding=kwargs.get('encoding', 'utf-8'),
-                    **{k: v for k, v in kwargs.items() if k != 'encoding'}
-                )
+                # 如果安装了aiofiles，使用异步文件操作
+                if AIOFILES_AVAILABLE:
+                    self.file_handle = await aiofiles.open(
+                        self.file_path, 
+                        mode, 
+                        encoding=kwargs.get('encoding', 'utf-8'),
+                        **{k: v for k, v in kwargs.items() if k != 'encoding'}
+                    )
+                else:
+                    # 回退到同步文件操作
+                    self.file_handle = open(
+                        self.file_path, 
+                        mode, 
+                        encoding=kwargs.get('encoding', 'utf-8'),
+                        **{k: v for k, v in kwargs.items() if k != 'encoding'}
+                    )
                 
                 # 注册文件句柄到资源管理器
                 self.register_resource(
@@ -317,9 +492,15 @@ class FileBasedPipeline(ResourceManagedPipeline):
     
     async def _close_file(self, file_handle):
         """关闭文件句柄"""
-        if file_handle and not file_handle.closed:
-            file_handle.close()
-            self.logger.info(f"文件已关闭: {self.file_path}")
+        if file_handle:
+            # 如果是aiofiles文件对象，异步关闭
+            if AIOFILES_AVAILABLE and hasattr(file_handle, 'close') and asyncio.iscoroutinefunction(file_handle.close):
+                await file_handle.close()
+                self.logger.info(f"文件已异步关闭: {self.file_path}")
+            # 否则使用同步关闭
+            elif hasattr(file_handle, 'closed') and not file_handle.closed:
+                file_handle.close()
+                self.logger.info(f"文件已同步关闭: {self.file_path}")
     
     async def _initialize_resources(self):
         """初始化文件资源"""
@@ -332,7 +513,66 @@ class FileBasedPipeline(ResourceManagedPipeline):
         pass
 
 
-class DatabasePipeline(ResourceManagedPipeline):
+class ConnectablePipeline(ResourceManagedPipeline):
+    """
+    可连接Pipeline基类
+    
+    提供连接资源操作的通用功能：
+    - 连接管理
+    - 自动重连
+    - 批量操作优化
+    """
+    
+    def __init__(self, crawler):
+        super().__init__(crawler)
+        self.connection = None
+        self._connection_lock = asyncio.Lock()
+        self._connection_initialized = False
+    
+    async def _ensure_connection_initialized(self):
+        """确保连接已初始化"""
+        if self._connection_initialized and self.connection:
+            return
+        
+        async with self._connection_lock:
+            if not self._connection_initialized:
+                await self._create_connection()
+                self._connection_initialized = True
+                self.logger.info(f"{self.__class__.__name__} 连接已初始化")
+    
+    @abstractmethod
+    async def _create_connection(self):
+        """
+        创建连接（子类实现）
+        
+        示例：
+            self.connection = await create_connection(...)
+            
+            # 注册到资源管理器
+            self.register_resource(
+                resource=self.connection,
+                cleanup_func=self._close_connection,
+                resource_type=ResourceType.NETWORK,
+                name="connection"
+            )
+        """
+        raise NotImplementedError("子类必须实现 _create_connection 方法")
+    
+    @abstractmethod
+    async def _close_connection(self, connection):
+        """关闭连接（子类实现）"""
+        raise NotImplementedError("子类必须实现 _close_connection 方法")
+    
+    async def _initialize_resources(self):
+        """初始化连接资源"""
+        await self._ensure_connection_initialized()
+    
+    async def _cleanup_resources(self):
+        """清理由ResourceManager管理的资源"""
+        # 连接由ResourceManager自动清理
+        pass
+
+class DatabasePipeline(ConnectablePipeline):
     """
     数据库Pipeline基类
     
@@ -393,7 +633,7 @@ class DatabasePipeline(ResourceManagedPipeline):
         pass
 
 
-class CacheBasedPipeline(ResourceManagedPipeline):
+class CacheBasedPipeline(ConnectablePipeline):
     """
     缓存型Pipeline基类
     
