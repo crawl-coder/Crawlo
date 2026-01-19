@@ -6,7 +6,7 @@ from typing import List, Dict, Any, Optional, Tuple
 
 import async_timeout
 
-from . import BasePipeline
+from . import ResourceManagedPipeline
 from crawlo.items import Item
 from crawlo.logging import get_logger
 from crawlo.exceptions import ItemDiscard
@@ -15,12 +15,14 @@ from crawlo.utils.mysql_connection_pool import (
     AiomysqlConnectionPoolManager,
     AsyncmyConnectionPoolManager
 )
+from crawlo.utils.resource_manager import ResourceType
 
 
-class BaseMySQLPipeline(BasePipeline, ABC):
+class BaseMySQLPipeline(ResourceManagedPipeline, ABC):
     """MySQL管道的基类，封装公共功能"""
     
     def __init__(self, crawler):
+        super().__init__(crawler)
         self.crawler = crawler
         self.settings = crawler.settings
         self.logger = get_logger(self.__class__.__name__)
@@ -74,9 +76,6 @@ class BaseMySQLPipeline(BasePipeline, ABC):
             self.logger.warning(f"更新列配置应该是一个元组或列表，当前类型为 {type(self.update_columns)}。已自动转换为元组。")
             self.update_columns = (self.update_columns,)
 
-        # 注册关闭事件
-        crawler.subscriber.subscribe(self.spider_closed, event='spider_closed')
-        
         # 设置连接池类型标识
         self.pool_type = 'asyncmy' if 'Asyncmy' in self.__class__.__name__ else 'aiomysql'
             
@@ -115,16 +114,19 @@ class BaseMySQLPipeline(BasePipeline, ABC):
     async def process_item(self, item: Item, spider, **kwargs) -> Item:
         """处理item的核心方法"""
         spider_name = getattr(spider, 'name', 'unknown')  # 获取爬虫名称
-        
+            
+        # 确保资源已初始化
+        await self._ensure_initialized()
+            
         # 如果启用批量插入，将item添加到缓冲区
         if self.use_batch:
             # 在锁的保护下添加到缓冲区，确保线程安全
             async with self._pool_lock:
                 self.batch_buffer.append(dict(item))
-                
+                    
                 # 如果缓冲区达到批量大小，执行批量插入
                 should_flush = len(self.batch_buffer) >= self.batch_size
-            
+                
             if should_flush:
                 try:
                     await self._flush_batch(spider_name)
@@ -132,17 +134,17 @@ class BaseMySQLPipeline(BasePipeline, ABC):
                     # 即使批量刷新失败，也要确保item被返回，避免爬虫中断
                     self.logger.error(f"批量刷新失败，但继续处理: {e}")
                     # 这里不重新抛出异常，让爬虫可以继续运行
-            
+                        
             return item
         else:
             # 单条插入逻辑
             try:
                 await self._ensure_pool()
-                
+                    
                 # 检查连接池是否有效
                 if not self._pool_initialized or not self.pool:
                     raise RuntimeError("Database connection pool is not initialized or invalid")
-                
+                    
                 item_dict = dict(item)
                 sql, params = await self._make_insert_sql(item_dict, prefer_alias=True, **kwargs)
                 try:
@@ -173,7 +175,7 @@ class BaseMySQLPipeline(BasePipeline, ABC):
                         self.logger.warning(
                             f"爬虫 {spider_name}: SQL执行成功但未插入新记录"
                         )
-
+    
                 # 统计计数移到这里，与AiomysqlMySQLPipeline保持一致
                 self.crawler.stats.inc_value('mysql/insert_success')
                 self.crawler.stats.inc_value('mysql/rows_requested', 1)
@@ -181,7 +183,7 @@ class BaseMySQLPipeline(BasePipeline, ABC):
                 if self.insert_ignore and not self.update_columns and (rowcount or 0) == 0:
                     self.crawler.stats.inc_value('mysql/rows_ignored_by_duplicate', 1)
                 return item
-
+    
             except Exception as e:
                 # 添加更多调试信息
                 error_msg = f"处理失败: {str(e)}"
@@ -201,6 +203,9 @@ class BaseMySQLPipeline(BasePipeline, ABC):
 
     async def _flush_batch(self, spider_name: str):
         """刷新批量缓冲区并执行批量插入"""
+        # 确保资源已初始化
+        await self._ensure_initialized()
+        
         # 快照当前批量，避免在 await 过程中 buffer 被其他协程修改
         # 先在锁外获取当前批次数据，避免长时间持有锁
         async with self._pool_lock:
@@ -319,35 +324,40 @@ class BaseMySQLPipeline(BasePipeline, ABC):
         self.logger.info(f"降级执行完成: 成功 {len(datas)-failed_count} 条, 失败 {failed_count} 条, 影响 {total_rows} 行")
         return total_rows
 
-    async def spider_closed(self):
-        """关闭爬虫时清理资源"""
-        # 在关闭前强制刷新剩余的批量数据
-        if self.use_batch and self.batch_buffer:
-            spider_name = getattr(self.crawler.spider, 'name', 'unknown')
-            try:
-                await self._flush_batch(spider_name)
-                # 再次检查是否还有剩余数据（可能由于异常处理等原因）
-                if self.batch_buffer:
-                    self.logger.warning(f"爬虫关闭时仍有 {len(self.batch_buffer)} 条数据未处理")
-            except Exception as e:
-                self.logger.error(f"关闭爬虫时刷新批量数据失败: {e}")
-                # 即使刷新失败，也要记录未处理的数据量
-                if self.batch_buffer:
-                    self.logger.error(f"爬虫关闭时有 {len(self.batch_buffer)} 条数据未能插入数据库")
+    async def _initialize_resources(self):
+        """初始化连接池资源并注册到资源管理器"""
+        # 确保连接池已初始化
+        await self._ensure_pool()
             
-        # 释放对连接池的引用，以便在事件循环关闭前进行垃圾回收
-        # 这有助于避免 "RuntimeError: Event loop is closed" 错误（尤其是在Linux上）
-        self.pool = None
-        self._pool_initialized = False
+        # 将连接池注册到资源管理器，以便在爬虫关闭时自动清理
+        if self.pool:
+            self.register_resource(
+                resource=self.pool,
+                cleanup_func=self._close_pool,
+                resource_type=ResourceType.PIPELINE,  # 使用PIPELINE类型表示数据库连接池
+                name=f"mysql_{self.pool_type}_pool"
+            )
             
-        # 清空缓冲区
+        # 调用父类的初始化方法
+        await super()._initialize_resources()
+        
+    async def _close_pool(self, pool):
+        """关闭连接池"""
+        try:
+            if pool:
+                pool.close()
+                await pool.wait_closed()
+                self.logger.info(f"{self.pool_type} MySQL连接池已关闭")
+        except Exception as e:
+            self.logger.error(f"关闭{self.pool_type} MySQL连接池时发生错误: {e}")
+        
+    async def _cleanup_resources(self):
+        """清理资源"""
+        # 清空批量缓冲区
         self.batch_buffer.clear()
             
-        # 注意：不再关闭连接池，因为连接池是全局共享的
-        # 连接池的关闭由 mysql_connection_pool.close_all_mysql_pools() 统一管理
-        self.logger.info(
-            f"MySQL Pipeline {self.__class__.__name__} 已关闭并释放资源"
-        )
+        # 调用父类的清理方法
+        await super()._cleanup_resources()
         
             
     async def _make_insert_sql(self, item_dict: Dict, **kwargs) -> Tuple[str, List[Any]]:
@@ -417,12 +427,33 @@ class AsyncmyMySQLPipeline(BaseMySQLPipeline):
 
     async def _ensure_pool(self):
         """确保连接池已初始化（线程安全）"""
+        # 检查事件循环是否已关闭
+        try:
+            loop = asyncio.get_event_loop()
+            if loop.is_closed():
+                self.logger.warning("当前事件循环已关闭，无法初始化连接池")
+                return
+        except RuntimeError:
+            # 没有运行中的事件循环
+            self.logger.warning("没有运行中的事件循环，无法初始化连接池")
+            return
+        
         if self._pool_initialized and self.pool and self._is_pool_active(self.pool):
             return
         elif self._pool_initialized and self.pool:
             self.logger.warning("连接池已初始化但无效，重新初始化")
 
         async with self._pool_lock:
+            # 再次检查事件循环状态
+            try:
+                loop = asyncio.get_event_loop()
+                if loop.is_closed():
+                    self.logger.warning("在获取锁后，事件循环已关闭，无法初始化连接池")
+                    return
+            except RuntimeError:
+                self.logger.warning("在获取锁后，没有运行中的事件循环，无法初始化连接池")
+                return
+                
             if not self._pool_initialized:  # 双重检查避免竞争条件
                 try:
                     # 使用单例连接池管理器
@@ -615,12 +646,33 @@ class AiomysqlMySQLPipeline(BaseMySQLPipeline):
 
     async def _ensure_pool(self):
         """延迟初始化连接池（线程安全）"""
+        # 检查事件循环是否已关闭
+        try:
+            loop = asyncio.get_event_loop()
+            if loop.is_closed():
+                self.logger.warning("当前事件循环已关闭，无法初始化连接池")
+                return
+        except RuntimeError:
+            # 没有运行中的事件循环
+            self.logger.warning("没有运行中的事件循环，无法初始化连接池")
+            return
+        
         if self._pool_initialized and self.pool and self._is_pool_active(self.pool):
             return
         elif self._pool_initialized and self.pool:
             self.logger.warning("连接池已初始化但无效，重新初始化")
 
         async with self._pool_lock:
+            # 再次检查事件循环状态
+            try:
+                loop = asyncio.get_event_loop()
+                if loop.is_closed():
+                    self.logger.warning("在获取锁后，事件循环已关闭，无法初始化连接池")
+                    return
+            except RuntimeError:
+                self.logger.warning("在获取锁后，没有运行中的事件循环，无法初始化连接池")
+                return
+                
             if not self._pool_initialized:
                 try:
                     # 使用单例连接池管理器

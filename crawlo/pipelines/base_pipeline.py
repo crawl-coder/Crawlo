@@ -160,7 +160,7 @@ class ResourceManagedPipeline(BasePipeline):
             self._resource_manager.register(
                 resource=self.pool,
                 cleanup_func=self._close_pool,
-                resource_type=ResourceType.DATABASE,
+                resource_type=ResourceType.PIPELINE,
                 name="db_pool"
             )
         """
@@ -612,7 +612,7 @@ class DatabasePipeline(ConnectablePipeline):
             self.register_resource(
                 resource=self.pool,
                 cleanup_func=self._close_pool,
-                resource_type=ResourceType.DATABASE,
+                resource_type=ResourceType.PIPELINE,
                 name="db_pool"
             )
         """
