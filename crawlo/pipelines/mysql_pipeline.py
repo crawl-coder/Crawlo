@@ -19,6 +19,10 @@ from crawlo.utils.resource_manager import ResourceType
 
 
 class BaseMySQLPipeline(ResourceManagedPipeline, ABC):
+    """MySQL管道的基类，封装公共功能
+    
+    支持异步数据库操作，提供批量插入、错误重试、连接池管理等功能。
+    """
     """MySQL管道的基类，封装公共功能"""
     
     def __init__(self, crawler):
@@ -62,6 +66,18 @@ class BaseMySQLPipeline(ResourceManagedPipeline, ABC):
         self.batch_size = max(1, self.settings.get_int('MYSQL_BATCH_SIZE', 100))  # 确保至少为1
         self.use_batch = self.settings.get_bool('MYSQL_USE_BATCH', False)
         self.batch_buffer: List[Dict] = []  # 批量缓冲区
+        
+        # 连接池和执行配置
+        self.execute_max_retries = self.settings.get_int('MYSQL_EXECUTE_MAX_RETRIES', 3)
+        self.execute_timeout = self.settings.get_int('MYSQL_EXECUTE_TIMEOUT', 60)
+        self.execute_retry_delay = self.settings.get_float('MYSQL_EXECUTE_RETRY_DELAY', 0.2)
+        
+        # 配置项说明:
+        # MYSQL_BATCH_SIZE: 批量插入的大小，默认100
+        # MYSQL_USE_BATCH: 是否启用批量插入，默认False
+        # MYSQL_EXECUTE_MAX_RETRIES: SQL执行最大重试次数，默认3
+        # MYSQL_EXECUTE_TIMEOUT: SQL执行超时时间（秒），默认60
+        # MYSQL_EXECUTE_RETRY_DELAY: 重试之间的延迟系数，默认0.2
 
         # SQL生成配置
         self.auto_update = self.settings.get_bool('MYSQL_AUTO_UPDATE', False)
@@ -81,7 +97,14 @@ class BaseMySQLPipeline(ResourceManagedPipeline, ABC):
             
     @staticmethod
     def _is_pool_active(pool):
-        """检查连接池是否活跃 - 统一处理 aiomysql 和 asyncmy 的差异"""
+        """检查连接池是否活跃 - 统一处理 aiomysql 和 asyncmy 的差异
+        
+        Args:
+            pool: 数据库连接池对象
+            
+        Returns:
+            bool: 连接池是否活跃
+        """
         if not pool:
             return False
             
@@ -480,9 +503,9 @@ class AsyncmyMySQLPipeline(BaseMySQLPipeline):
 
     async def _execute_sql(self, sql: str, values: Optional[list] = None) -> int:
         """执行SQL语句并处理结果，包含死锁重试和连接同步修复"""
-        max_retries = 3
-        timeout = 60  # 增加超时时间，处理大文本数据
-
+        max_retries = self.execute_max_retries
+        timeout = self.settings.get_int('MYSQL_EXECUTE_TIMEOUT', 60)
+        
         for attempt in range(max_retries):
             conn = None
             try:
@@ -490,70 +513,97 @@ class AsyncmyMySQLPipeline(BaseMySQLPipeline):
                     raise RuntimeError("Database connection pool is not available")
 
                 async with async_timeout.timeout(timeout):
-                    # 1. 手动获取连接，而不是直接用 async with pool.acquire()
                     conn = await self.pool.acquire()
 
-                    # 2. 检查连接是否仍然活跃
+                    # 检查连接是否仍然活跃
                     if not self._is_conn_active(conn):
                         self.logger.warning("获取的连接已失效，可能需要重新获取")
                         if conn:
                             await self.pool.release(conn)
                         continue # 重试
                     
-                    # 3. 显式开启事务（部分驱动在execute时自动开启，但这里确护持干净）
-                    async with conn.cursor() as cursor:
-                        try:
-                            if values is not None:
-                                rowcount = await cursor.execute(sql, values)
-                            else:
-                                rowcount = await cursor.execute(sql)
-
-                            # 4. 成功则提交
-                            await conn.commit()
-                            return rowcount or 0
-                        except Exception as e:
-                            # 5. 【关键】失败必须显式回滚，清除该连接的待处理状态
-                            await conn.rollback()
-                            raise e
+                    # 执行SQL并处理事务
+                    rowcount = await self._execute_sql_with_transaction(conn, sql, values)
+                    return rowcount
 
             except asyncio.TimeoutError:
                 self.logger.error(f"MySQL操作超时: {sql[:100]}...")
-                # 超时可能导致同步错乱，建议断开该连接
                 if conn:
                     await self._close_conn_properly(conn)
                 raise ItemDiscard("MySQL操作超时")
 
             except Exception as e:
-                err_str = str(e)
-                # 6. 【关键】处理 2014 错误：如果报错同步问题，强制销毁连接
-                if "2014" in err_str or "Command Out of Sync" in err_str:
-                    self.logger.warning(f"检测到脏连接(2014)，正在丢弃并重试: {err_str}")
-                    if conn:
-                        await self._close_conn_properly(conn)
-                        conn = None # 标记为None，防止 finally 里再次 release
-                    continue # 进入下一次重试，重试会拿新连接
-
-                # 其他常见重试逻辑（死锁、断连）
-                if ("Deadlock found" in err_str or "2006" in err_str) and attempt < max_retries - 1:
-                    await asyncio.sleep(0.2 * (attempt + 1))
-                    continue
-
-                # 最终失败处理
-                self.logger.error(f"SQL执行最终失败: {err_str}")
-                raise ItemDiscard(f"MySQL插入失败: {err_str}")
+                if await self._handle_execute_exception(e, attempt, max_retries, conn):
+                    continue  # 继续重试
+                else:
+                    # 最终失败处理
+                    err_str = str(e)
+                    self.logger.error(f"SQL执行最终失败: {err_str}")
+                    raise ItemDiscard(f"MySQL插入失败: {err_str}")
 
             finally:
-                # 7. 归还连接给池
+                # 归还连接给池
                 if conn:
                     await self.pool.release(conn)
         return 0
+    
+    async def _execute_sql_with_transaction(self, conn, sql: str, values: Optional[list] = None) -> int:
+        """在事务中执行SQL
+        
+        Args:
+            conn: 数据库连接对象
+            sql: SQL语句
+            values: SQL参数值列表
+            
+        Returns:
+            int: 受影响的行数
+            
+        Raises:
+            Exception: SQL执行失败时抛出异常
+        """
+        async with conn.cursor() as cursor:
+            try:
+                if values is not None:
+                    rowcount = await cursor.execute(sql, values)
+                else:
+                    rowcount = await cursor.execute(sql)
+
+                # 成功则提交
+                await conn.commit()
+                return rowcount or 0
+            except Exception as e:
+                # 失败必须显式回滚
+                await conn.rollback()
+                raise e
+    
+    async def _handle_execute_exception(self, e: Exception, attempt: int, max_retries: int, conn) -> bool:
+        """处理执行异常，返回是否需要重试"""
+        err_str = str(e).lower()  # 转换为小写以确保匹配
+        
+        # 处理 2014 错误：如果报错同步问题，强制销毁连接
+        if "2014" in err_str or "command out of sync" in err_str:
+            self.logger.warning(f"检测到脏连接(2014)，正在丢弃并重试: {err_str}")
+            if conn:
+                await self._close_conn_properly(conn)
+                conn = None # 标记为None，防止在finally中再次release
+            return True  # 需要重试
+
+        # 其他常见重试逻辑（死锁、断连等）
+        if (("deadlock found" in err_str or "2006" in err_str or 
+             "2013" in err_str or "lost connection" in err_str) and 
+            attempt < max_retries - 1):
+            await asyncio.sleep(self.execute_retry_delay * (attempt + 1))
+            return True  # 需要重试
+        
+        # 不需要重试，返回False
+        return False
 
     async def _execute_batch_sql(self, sql: str, values_list: list) -> int:
         """批量执行核心，带自动降级"""
         try:
             # 高性能模式：因为 SQLBuilder 已经拼好了多行占位符，这里直接用 execute
-            max_retries = 3
-            timeout = 60  # 60秒超时，批量操作可能需要更长时间
+            max_retries = self.execute_max_retries
+            timeout = self.settings.get_int('MYSQL_EXECUTE_TIMEOUT', 60)  # 60秒超时，批量操作可能需要更长时间
 
             for attempt in range(max_retries):
                 conn = None
@@ -562,65 +612,36 @@ class AsyncmyMySQLPipeline(BaseMySQLPipeline):
                         raise RuntimeError("Database connection pool is not available")
             
                     async with async_timeout.timeout(timeout):
-                        # 1. 手动获取连接，而不是直接用 async with pool.acquire()
                         conn = await self.pool.acquire()
             
-                        # 2. 检查连接是否仍然活跃
+                        # 检查连接是否仍然活跃
                         if not self._is_conn_active(conn):
                             self.logger.warning("获取的连接已失效，可能需要重新获取")
                             if conn:
                                 await self.pool.release(conn)
                             continue # 重试
                                 
-                        # 3. 显式开启事务（部分驱动在execute时自动开启，但这里确保护持干净）
-                        async with conn.cursor() as cursor:
-                            try:
-                                # 执行批量插入 - 使用execute而不是executemany，避免2014错误
-                                rowcount = await cursor.execute(sql, values_list)
-            
-                                # 【关键修复】排空潜在结果集，防止 2014
-                                try:
-                                    while await cursor.nextset():
-                                        await cursor.fetchall()
-                                except:
-                                    pass
-            
-                                # 4. 成功则提交
-                                await conn.commit()
-                                return rowcount or 0
-                            except Exception as e:
-                                # 5. 【关键】失败必须显式回滚，清除该连接的待处理状态
-                                await conn.rollback()
-                                raise e
+                        # 执行批量SQL并处理事务
+                        rowcount = await self._execute_batch_sql_with_transaction(conn, sql, values_list)
+                        return rowcount
 
                 except asyncio.TimeoutError:
                     self.logger.error(f"MySQL批量操作超时: {sql[:100]}...")
-                    # 超时可能导致同步错乱，建议断开该连接
                     if conn:
                         await self._close_conn_properly(conn)
                     raise ItemDiscard("MySQL批量操作超时")
 
                 except Exception as e:
-                    err_str = str(e)
-                    # 5. 【关键】处理 2014 错误：如果报错同步问题，强制销毁连接
-                    if "2014" in err_str or "Command Out of Sync" in err_str:
-                        self.logger.warning(f"检测到脏连接(2014)，正在丢弃并重试: {err_str}")
-                        if conn:
-                            await self._close_conn_properly(conn)
-                            conn = None # 标记为None，防止 finally 里再次 release
-                        continue # 进入下一次重试，重试会拿新连接
-
-                    # 其他常见重试逻辑（死锁、断连）
-                    if ("Deadlock found" in err_str or "2006" in err_str) and attempt < max_retries - 1:
-                        await asyncio.sleep(0.2 * (attempt + 1))
-                        continue
-
-                    # 最终失败处理
-                    self.logger.error(f"批量SQL执行最终失败: {err_str}")
-                    raise ItemDiscard(f"MySQL批量插入失败: {err_str}")
+                    if await self._handle_batch_execute_exception(e, attempt, max_retries, conn):
+                        continue  # 继续重试
+                    else:
+                        # 最终失败处理
+                        err_str = str(e)
+                        self.logger.error(f"批量SQL执行最终失败: {err_str}")
+                        raise ItemDiscard(f"MySQL批量插入失败: {err_str}")
 
                 finally:
-                    # 6. 归还连接给池
+                    # 归还连接给池
                     if conn:
                         await self.pool.release(conn)
             return 0
@@ -631,6 +652,62 @@ class AsyncmyMySQLPipeline(BaseMySQLPipeline):
             # 注意：这里无法直接访问原始数据，需要在调用处传递
             # 因此我们不在此处实现降级，而是让错误传播并由 _flush_batch 处理
             raise e
+    
+    async def _execute_batch_sql_with_transaction(self, conn, sql: str, values_list: list) -> int:
+        """在事务中执行批量SQL
+        
+        Args:
+            conn: 数据库连接对象
+            sql: 批量SQL语句
+            values_list: 批量参数值列表
+            
+        Returns:
+            int: 受影响的行数
+            
+        Raises:
+            Exception: SQL执行失败时抛出异常
+        """
+        async with conn.cursor() as cursor:
+            try:
+                # 执行批量插入 - 使用execute而不是executemany，避免2014错误
+                rowcount = await cursor.execute(sql, values_list)
+
+                # 【关键修复】排空潜在结果集，防止 2014
+                try:
+                    while await cursor.nextset():
+                        await cursor.fetchall()
+                except:
+                    pass
+
+                # 成功则提交
+                await conn.commit()
+                return rowcount or 0
+            except Exception as e:
+                # 失败必须显式回滚
+                await conn.rollback()
+                raise e
+    
+    async def _handle_batch_execute_exception(self, e: Exception, attempt: int, max_retries: int, conn) -> bool:
+        """处理批量执行异常，返回是否需要重试"""
+        err_str = str(e).lower()  # 转换为小写以确保匹配
+        
+        # 处理 2014 错误：如果报错同步问题，强制销毁连接
+        if "2014" in err_str or "command out of sync" in err_str:
+            self.logger.warning(f"检测到脏连接(2014)，正在丢弃并重试: {err_str}")
+            if conn:
+                await self._close_conn_properly(conn)
+                conn = None # 标记为None，防止在finally中再次release
+            return True  # 需要重试
+
+        # 其他常见重试逻辑（死锁、断连等）
+        if (("deadlock found" in err_str or "2006" in err_str or 
+             "2013" in err_str or "lost connection" in err_str) and 
+            attempt < max_retries - 1):
+            await asyncio.sleep(self.execute_retry_delay * (attempt + 1))
+            return True  # 需要重试
+        
+        # 不需要重试，返回False
+        return False
 
 
 class AiomysqlMySQLPipeline(BaseMySQLPipeline):
@@ -698,9 +775,9 @@ class AiomysqlMySQLPipeline(BaseMySQLPipeline):
 
     async def _execute_sql(self, sql: str, values: Optional[list] = None) -> int:
         """执行SQL语句并处理结果，包含死锁重试和连接同步修复"""
-        max_retries = 3
-        timeout = 60  # 增加超时时间，处理大文本数据
-
+        max_retries = self.execute_max_retries
+        timeout = self.settings.get_int('MYSQL_EXECUTE_TIMEOUT', 60)
+        
         for attempt in range(max_retries):
             conn = None
             try:
@@ -708,60 +785,36 @@ class AiomysqlMySQLPipeline(BaseMySQLPipeline):
                     raise RuntimeError("Database connection pool is not available")
 
                 async with async_timeout.timeout(timeout):
-                    # 1. 手动获取连接，而不是直接用 async with pool.acquire()
                     conn = await self.pool.acquire()
 
-                    # 2. 检查连接是否仍然活跃
+                    # 检查连接是否仍然活跃
                     if not self._is_conn_active(conn):
                         self.logger.warning("获取的连接已失效，可能需要重新获取")
                         if conn:
                             await self.pool.release(conn)
                         continue # 重试
                     
-                    # 3. 显式开启事务（部分驱动在execute时自动开启，但这里确保护持干净）
-                    async with conn.cursor() as cursor:
-                        try:
-                            if values is not None:
-                                rowcount = await cursor.execute(sql, values)
-                            else:
-                                rowcount = await cursor.execute(sql)
-
-                            # 4. 成功则提交
-                            await conn.commit()
-                            return rowcount or 0
-                        except Exception as e:
-                            # 5. 【关键】失败必须显式回滚，清除该连接的待处理状态
-                            await conn.rollback()
-                            raise e
+                    # 执行SQL并处理事务
+                    rowcount = await self._execute_sql_with_transaction(conn, sql, values)
+                    return rowcount
 
             except asyncio.TimeoutError:
                 self.logger.error(f"MySQL操作超时: {sql[:100]}...")
-                # 超时可能导致同步错乱，建议断开该连接
                 if conn:
                     await self._close_conn_properly(conn)
                 raise ItemDiscard("MySQL操作超时")
 
             except Exception as e:
-                err_str = str(e)
-                # 6. 【关键】处理 2014 错误：如果报错同步问题，强制销毁连接
-                if "2014" in err_str or "Command Out of Sync" in err_str:
-                    self.logger.warning(f"检测到脏连接(2014)，正在丢弃并重试: {err_str}")
-                    if conn:
-                        await self._close_conn_properly(conn)
-                        conn = None # 标记为None，防止 finally 里再次 release
-                    continue # 进入下一次重试，重试会拿新连接
-
-                # 其他常见重试逻辑（死锁、断连）
-                if ("Deadlock found" in err_str or "2006" in err_str or "2013" in err_str or "lost connection" in err_str.lower()) and attempt < max_retries - 1:
-                    await asyncio.sleep(0.2 * (attempt + 1))
-                    continue
-
-                # 最终失败处理
-                self.logger.error(f"SQL执行最终失败: {err_str}")
-                raise ItemDiscard(f"MySQL插入失败: {err_str}")
+                if await self._handle_execute_exception(e, attempt, max_retries, conn):
+                    continue  # 继续重试
+                else:
+                    # 最终失败处理
+                    err_str = str(e)
+                    self.logger.error(f"SQL执行最终失败: {err_str}")
+                    raise ItemDiscard(f"MySQL插入失败: {err_str}")
 
             finally:
-                # 7. 归还连接给池
+                # 归还连接给池
                 if conn:
                     await self.pool.release(conn)
         return 0
@@ -770,8 +823,8 @@ class AiomysqlMySQLPipeline(BaseMySQLPipeline):
         """批量执行核心，带自动降级"""
         try:
             # 高性能模式：因为 SQLBuilder 已经拼好了多行占位符，这里直接用 execute
-            max_retries = 3
-            timeout = 60  # 60秒超时，批量操作可能需要更长时间
+            max_retries = self.execute_max_retries
+            timeout = self.settings.get_int('MYSQL_EXECUTE_TIMEOUT', 60)  # 60秒超时，批量操作可能需要更长时间
 
             for attempt in range(max_retries):
                 conn = None
@@ -780,65 +833,36 @@ class AiomysqlMySQLPipeline(BaseMySQLPipeline):
                         raise RuntimeError("Database connection pool is not available")
 
                     async with async_timeout.timeout(timeout):
-                        # 1. 手动获取连接，而不是直接用 async with pool.acquire()
                         conn = await self.pool.acquire()
 
-                        # 2. 检查连接是否仍然活跃
+                        # 检查连接是否仍然活跃
                         if not self._is_conn_active(conn):
                             self.logger.warning("获取的连接已失效，可能需要重新获取")
                             if conn:
                                 await self.pool.release(conn)
                             continue # 重试
                         
-                        # 3. 显式开启事务（部分驱动在execute时自动开启，但这里确保护持干净）
-                        async with conn.cursor() as cursor:
-                            try:
-                                # 执行批量插入 - 使用execute而不是executemany，避免2014错误
-                                rowcount = await cursor.execute(sql, values_list)
-
-                                # 【关键修复】排空潜在结果集，防止 2014
-                                try:
-                                    while await cursor.nextset():
-                                        await cursor.fetchall()
-                                except:
-                                    pass
-
-                                # 4. 成功则提交
-                                await conn.commit()
-                                return rowcount or 0
-                            except Exception as e:
-                                # 5. 【关键】失败必须显式回滚，清除该连接的待处理状态
-                                await conn.rollback()
-                                raise e
+                        # 执行批量SQL并处理事务
+                        rowcount = await self._execute_batch_sql_with_transaction(conn, sql, values_list)
+                        return rowcount
 
                 except asyncio.TimeoutError:
                     self.logger.error(f"MySQL批量操作超时: {sql[:100]}...")
-                    # 超时可能导致同步错乱，建议断开该连接
                     if conn:
                         await self._close_conn_properly(conn)
                     raise ItemDiscard("MySQL批量操作超时")
 
                 except Exception as e:
-                    err_str = str(e)
-                    # 6. 【关键】处理 2014 错误：如果报错同步问题，强制销毁连接
-                    if "2014" in err_str or "Command Out of Sync" in err_str:
-                        self.logger.warning(f"检测到脏连接(2014)，正在丢弃并重试: {err_str}")
-                        if conn:
-                            await self._close_conn_properly(conn)
-                            conn = None # 标记为None，防止 finally 里再次 release
-                        continue # 进入下一次重试，重试会拿新连接
-
-                    # 其他常见重试逻辑（死锁、断连）
-                    if ("Deadlock found" in err_str or "2006" in err_str or "2013" in err_str or "lost connection" in err_str.lower()) and attempt < max_retries - 1:
-                        await asyncio.sleep(0.2 * (attempt + 1))
-                        continue
-
-                    # 最终失败处理
-                    self.logger.error(f"批量SQL执行最终失败: {err_str}")
-                    raise ItemDiscard(f"MySQL批量插入失败: {err_str}")
+                    if await self._handle_batch_execute_exception(e, attempt, max_retries, conn):
+                        continue  # 继续重试
+                    else:
+                        # 最终失败处理
+                        err_str = str(e)
+                        self.logger.error(f"批量SQL执行最终失败: {err_str}")
+                        raise ItemDiscard(f"MySQL批量插入失败: {err_str}")
 
                 finally:
-                    # 7. 归还连接给池
+                    # 归还连接给池
                     if conn:
                         await self.pool.release(conn)
             return 0
