@@ -707,97 +707,98 @@ class CrawlerProcess:
         registry = get_global_spider_registry()
         return list(registry.keys())
     
-    async def crawl(self, spider_cls_or_name: Union[Type['Spider'], str], settings: Optional[Dict[str, Any]] = None) -> Crawler:
-        """
-        运行单个爬虫
-        
-        Args:
-            spider_cls_or_name: 爬虫类或名称
-            settings: 配置字典
-            
-        Returns:
-            Crawler: 爬虫实例
-        """
-        spider_cls = self._resolve_spider_class(spider_cls_or_name)
-        
-        # 记录启动的爬虫名称（符合规范要求）
-        from crawlo.logging import get_logger
-        logger = get_logger('crawlo.framework')
-        logger.info(f"Starting spider: {spider_cls.name}")
-        
-        merged_settings = self._merge_settings(settings)
-        crawler = Crawler(spider_cls, merged_settings)
-        
-        async with self._semaphore:
-            await crawler.crawl()
-        
-        return crawler
+
     
-    async def crawl_multiple(self, spider_classes_or_names: List[Union[Type['Spider'], str]], settings: Optional[Dict[str, Any]] = None) -> List[Union[Crawler, BaseException]]:
+    async def crawl(self, spider_cls_or_name: Union[Type['Spider'], str, List[Union[Type['Spider'], str]]], settings: Optional[Dict[str, Any]] = None) -> Union[Crawler, List[Union[Crawler, BaseException]]]:
         """
-        运行多个爬虫
+        运行爬虫（单个或多个）
         
         Args:
-            spider_classes_or_names: 爬虫类或名称列表
+            spider_cls_or_name: 爬虫类/名称或爬虫类/名称列表
             settings: 配置字典
             
         Returns:
-            List[Union[Crawler, BaseException]]: 爬虫实例或异常列表
+            Union[Crawler, List[Union[Crawler, BaseException]]]: 单个爬虫实例或爬虫实例列表
         """
-        self._start_time = time.time()
+        # Windows平台兼容性处理
+        import sys
+        if sys.platform.lower().startswith('win'):
+            asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
         
-        try:
-            spider_classes = []
-            for cls_or_name in spider_classes_or_names:
-                spider_cls = self._resolve_spider_class(cls_or_name)
-                spider_classes.append(spider_cls)
+        # 判断输入是单个还是多个爬虫
+        if not isinstance(spider_cls_or_name, list):
+            # 单个爬虫
+            spider_cls = self._resolve_spider_class(spider_cls_or_name)
             
             # 记录启动的爬虫名称（符合规范要求）
-            spider_names = [cls.name for cls in spider_classes]
             from crawlo.logging import get_logger
             logger = get_logger('crawlo.framework')
-            if len(spider_names) == 1:
-                logger.info(f"Starting spider: {spider_names[0]}")
-            else:
-                logger.info(f"Starting spiders: {', '.join(spider_names)}")
+            logger.info(f"Starting spider: {spider_cls.name}")
             
-            tasks = []
-            for spider_cls in spider_classes:
-                merged_settings = self._merge_settings(settings)
-                crawler = Crawler(spider_cls, merged_settings)
-                self._crawlers.append(crawler)
+            merged_settings = self._merge_settings(settings)
+            crawler = Crawler(spider_cls, merged_settings)
+            
+            async with self._semaphore:
+                await crawler.crawl()
+            
+            return crawler
+        else:
+            # 多个爬虫
+            spider_classes_or_names = spider_cls_or_name
+            self._start_time = time.time()
+            
+            try:
+                spider_classes = []
+                for cls_or_name in spider_classes_or_names:
+                    spider_cls = self._resolve_spider_class(cls_or_name)
+                    spider_classes.append(spider_cls)
                 
-                task = asyncio.create_task(self._run_with_semaphore(crawler))
-                tasks.append(task)
-            
-            results = await asyncio.gather(*tasks, return_exceptions=True)
-            
-            # 处理结果
-            successful = sum(1 for r in results if not isinstance(r, Exception))
-            failed = len(results) - successful
-            
-            self._logger.info(f"Crawl completed: {successful} successful, {failed} failed")
-            
-            return cast(List[Union[Crawler, BaseException]], results)
-            
-        finally:
-            # 清理所有crawler，防止资源累积
-            self._logger.debug(f"Cleaning up {len(self._crawlers)} crawler(s)...")
-            for crawler in self._crawlers:
-                try:
-                    # 确保每个crawler都被清理
-                    if hasattr(crawler, '_resource_manager'):
-                        await crawler._resource_manager.cleanup_all()
-                except Exception as e:
-                    self._logger.warning(f"Failed to cleanup crawler: {e}")
-            
-            # 清空crawlers列表，释放引用
-            self._crawlers.clear()
-            
-            self._end_time = time.time()
-            if self._start_time:
-                duration = self._end_time - self._start_time
-                self._logger.info(f"Total execution time: {duration:.2f}s")
+                # 记录启动的爬虫名称（符合规范要求）
+                spider_names = [cls.name for cls in spider_classes]
+                from crawlo.logging import get_logger
+                logger = get_logger('crawlo.framework')
+                if len(spider_names) == 1:
+                    logger.info(f"Starting spider: {spider_names[0]}")
+                else:
+                    logger.info(f"Starting spiders: {', '.join(spider_names)}")
+                
+                tasks = []
+                for spider_cls in spider_classes:
+                    merged_settings = self._merge_settings(settings)
+                    crawler = Crawler(spider_cls, merged_settings)
+                    self._crawlers.append(crawler)
+                    
+                    task = asyncio.create_task(self._run_with_semaphore(crawler))
+                    tasks.append(task)
+                
+                results = await asyncio.gather(*tasks, return_exceptions=True)
+                
+                # 处理结果
+                successful = sum(1 for r in results if not isinstance(r, Exception))
+                failed = len(results) - successful
+                
+                self._logger.info(f"Crawl completed: {successful} successful, {failed} failed")
+                
+                return cast(List[Union[Crawler, BaseException]], results)
+                
+            finally:
+                # 清理所有crawler，防止资源累积
+                self._logger.debug(f"Cleaning up {len(self._crawlers)} crawler(s)...")
+                for crawler in self._crawlers:
+                    try:
+                        # 确保每个crawler都被清理
+                        if hasattr(crawler, '_resource_manager'):
+                            await crawler._resource_manager.cleanup_all()
+                    except Exception as e:
+                        self._logger.warning(f"Failed to cleanup crawler: {e}")
+                
+                # 清空crawlers列表，释放引用
+                self._crawlers.clear()
+                
+                self._end_time = time.time()
+                if self._start_time:
+                    duration = self._end_time - self._start_time
+                    self._logger.info(f"Total execution time: {duration:.2f}s")
     
     async def _run_with_semaphore(self, crawler: Crawler) -> Crawler:
         """

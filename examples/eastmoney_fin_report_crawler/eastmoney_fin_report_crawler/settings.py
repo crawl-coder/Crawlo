@@ -11,7 +11,7 @@ eastmoney_fin_report_crawler 项目配置文件
 from crawlo.config import CrawloConfig
 
 # 使用自动检测模式配置工厂创建配置
-config = CrawloConfig.standalone(
+config = CrawloConfig.auto(
     project_name='eastmoney_fin_report_crawler',
     concurrency=8,
     download_delay=1.0
@@ -138,7 +138,7 @@ from utils.stock_loader import load_a_stocks
 # 加载A股股票列表，如果加载失败则使用默认列表
 loaded_stocks = load_a_stocks()
 if loaded_stocks:
-    STOCKS = loaded_stocks
+    STOCKS = ['603129.SH', '001298.SZ', '603130.SH'] # loaded_stocks
 else:
     # 如果数据库加载失败，使用默认的股票列表作为备选
     STOCKS = []

@@ -387,6 +387,10 @@ class Scheduler:
             # 使用统一的队列接口
             success = await self.queue_manager.put(request, priority=getattr(request, 'priority', 0))
             
+            # 更新智能调度器的统计信息
+            if hasattr(self.queue_manager, '_intelligent_scheduler'):
+                self.queue_manager._intelligent_scheduler.update_crawl_frequency(request)
+            
             if success:
                 self.logger.debug(f"Request enqueued successfully: {request.url}")
             
@@ -401,8 +405,21 @@ class Scheduler:
             return False
 
     def idle(self) -> bool:
-        """Check if queue is empty"""
-        return len(self) == 0
+        """Check if queue is empty - 使用同步方法快速判断"""
+        if not self.queue_manager:
+            return True
+        # 尝试使用同步方法判断，如果不可靠则返回False（假定队列非空）以确保准确性
+        try:
+            # 检查内存队列，同步方法比较可靠
+            if hasattr(self.queue_manager, '_queue_type') and \
+               self.queue_manager._queue_type == QueueType.MEMORY:
+                return self.queue_manager.empty()
+            else:
+                # 对于Redis队列，同步empty方法不太可靠，所以返回False让系统使用异步方法
+                # 这是为了避免在Redis队列场景下错误地认为队列为空
+                return False
+        except Exception:
+            return True
 
     async def async_idle(self) -> bool:
         """Asynchronously check if queue is empty (more accurate)"""
@@ -434,8 +451,15 @@ class Scheduler:
         self.logger.debug(f"任务确认完成: {getattr(request, 'url', 'Unknown URL')}")
 
     def __len__(self):
-        """Get queue size"""
+        """Get queue size - 同步方法，仅作为近似值"""
         if not self.queue_manager:
             return 0
-        # 返回同步的近似值，实际大小需要异步获取
-        return 0 if self.queue_manager.empty() else 1
+        # 由于queue_manager.size()是异步方法，在同步__len__方法中无法直接调用
+        # 因此只能使用同步的empty()方法来判断是否为空
+        # 这是一个近似值，主要用于idle()方法的判断
+        if self.queue_manager.empty():
+            return 0
+        else:
+            # 不能确定具体的大小，返回1作为非空的指示
+            # 实际大小应通过异步方法获取
+            return 1
