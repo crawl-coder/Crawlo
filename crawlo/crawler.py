@@ -18,15 +18,14 @@ Crawler系统
 
 import asyncio
 import time
-import signal
-from enum import Enum
-from dataclasses import dataclass
 from contextlib import asynccontextmanager
+from dataclasses import dataclass
+from enum import Enum
 from typing import Optional, Type, Dict, Any, List, Union, TYPE_CHECKING, cast
 
-from crawlo.logging import get_logger
 from crawlo.factories import get_component_registry
 from crawlo.initialization import initialize_framework, is_framework_ready
+from crawlo.logging import get_logger
 from crawlo.utils.resource_manager import ResourceManager, ResourceType
 
 if TYPE_CHECKING:
@@ -491,8 +490,10 @@ class CrawlerProcess:
         self._logger = get_logger('crawler.process')
         
         # 信号处理相关
-        self._shutdown_event: asyncio.Event = asyncio.Event()
-        self._shutdown_requested: bool = False
+        from crawlo.utils.process_utils import ProcessSignalHandler
+        self._signal_handler = ProcessSignalHandler(self._logger)
+        self._shutdown_event: asyncio.Event = self._signal_handler.shutdown_event
+        self._shutdown_requested: bool = self._signal_handler.shutdown_requested
         
         # 如果没有显式提供spider_modules，则从settings中获取
         if spider_modules is None and self._settings:
@@ -514,50 +515,12 @@ class CrawlerProcess:
     
     def _setup_signal_handlers(self):
         """设置信号处理器以优雅地处理关闭信号"""
-        def signal_handler(signum, frame):
-            self._logger.info(f"Received signal {signum}, initiating graceful shutdown...")
-            self._shutdown_requested = True
-            self._shutdown_event.set()
-            
-            # 在主线程中调度关闭操作
-            asyncio.create_task(self._graceful_shutdown())
-        
-        # 注册SIGINT (Ctrl+C) 和 SIGTERM 信号处理器
-        signal.signal(signal.SIGINT, signal_handler)
-        signal.signal(signal.SIGTERM, signal_handler)
+        self._signal_handler.setup_signal_handlers()
     
     async def _graceful_shutdown(self):
         """优雅地关闭所有爬虫"""
-        self._logger.info("开始优雅关闭所有爬虫...")
-        
-        # 取消所有正在运行的任务
-        for crawler in self._crawlers:
-            try:
-                # 检查crawler是否正在运行
-                if hasattr(crawler, '_state') and crawler.state == CrawlerState.RUNNING:
-                    self._logger.debug(f"取消爬虫任务: {crawler.spider.name if crawler.spider else 'Unknown'}")
-                    # 取消crawler中的任务
-                    if hasattr(crawler, '_engine') and crawler._engine:
-                        # 取消engine中的任务
-                        if hasattr(crawler._engine, 'task_manager') and crawler._engine.task_manager:
-                            for task in list(crawler._engine.task_manager.current_task):
-                                if not task.done():
-                                    task.cancel()
-                                    self._logger.debug(f"已取消任务: {task}")
-            except Exception as e:
-                self._logger.warning(f"取消爬虫任务时出错: {e}")
-        
-        # 通知所有爬虫开始关闭
-        for crawler in self._crawlers:
-            try:
-                if hasattr(crawler, '_state') and crawler.state not in [CrawlerState.CLOSING, CrawlerState.CLOSED]:
-                    self._logger.debug(f"关闭爬虫: {crawler.spider.name if crawler.spider else 'Unknown'}")
-                    await crawler._cleanup()
-            except Exception as e:
-                self._logger.warning(f"关闭爬虫时出错: {e}")
-        
-        self._logger.info("所有爬虫已关闭")
-    
+        await self._signal_handler.graceful_shutdown(self._crawlers)
+
     def _register_spider_modules(self, spider_modules: List[str]) -> None:
         """
         注册爬虫模块
@@ -565,37 +528,8 @@ class CrawlerProcess:
         Args:
             spider_modules: 爬虫模块列表
         """
-        try:
-            from crawlo.spider import get_global_spider_registry
-            registry = get_global_spider_registry()
-            
-            self._logger.debug(f"Registering spider modules: {spider_modules}")
-            
-            initial_spider_count = len(registry)
-            
-            for module_path in spider_modules:
-                try:
-                    # 导入模块
-                    __import__(module_path)
-                    self._logger.debug(f"Successfully imported spider module: {module_path}")
-                except ImportError as e:
-                    self._logger.warning(f"Failed to import spider module {module_path}: {e}")
-                    # 如果导入失败，尝试自动发现
-                    self._auto_discover_spider_modules([module_path])
-            
-            # 检查注册表中的爬虫
-            spider_names = list(registry.keys())
-            self._logger.debug(f"Registered spiders after import: {spider_names}")
-            
-            # 如果导入模块后没有新的爬虫被注册，则尝试自动发现
-            final_spider_count = len(registry)
-            if final_spider_count == initial_spider_count:
-                self._logger.debug("No new spiders registered after importing modules, attempting auto-discovery")
-                self._auto_discover_spider_modules(spider_modules)
-                spider_names = list(registry.keys())
-                self._logger.debug(f"Registered spiders after auto-discovery: {spider_names}")
-        except Exception as e:
-            self._logger.warning(f"Error registering spider modules: {e}")
+        from crawlo.utils.process_utils import SpiderDiscoveryUtils
+        SpiderDiscoveryUtils.register_spider_modules(spider_modules, self._logger)
     
     def _auto_discover_spider_modules(self, spider_modules: List[str]) -> None:
         """
@@ -605,68 +539,8 @@ class CrawlerProcess:
         Args:
             spider_modules: 爬虫模块列表
         """
-        try:
-            from crawlo.spider import get_global_spider_registry
-            import importlib
-            from pathlib import Path
-            import sys
-            
-            registry = get_global_spider_registry()
-            initial_spider_count = len(registry)
-            
-            for module_path in spider_modules:
-                try:
-                    # 将模块路径转换为文件系统路径
-                    # 例如: ofweek_standalone.spiders -> ofweek_standalone/spiders
-                    package_parts = module_path.split('.')
-                    if len(package_parts) < 2:
-                        continue
-                        
-                    # 获取项目根目录
-                    project_root = None
-                    for path in sys.path:
-                        if path and Path(path).exists():
-                            possible_module_path = Path(path) / package_parts[0]
-                            if possible_module_path.exists():
-                                project_root = path
-                                break
-                    
-                    if not project_root:
-                        # 尝试使用当前工作目录
-                        project_root = str(Path.cwd())
-                    
-                    # 构建模块目录路径
-                    module_dir = Path(project_root)
-                    for part in package_parts:
-                        module_dir = module_dir / part
-                    
-                    # 如果目录存在，扫描其中的Python文件
-                    if module_dir.exists() and module_dir.is_dir():
-                        # 导入目录下的所有Python文件（除了__init__.py）
-                        for py_file in module_dir.glob("*.py"):
-                            if py_file.name.startswith('_'):
-                                continue
-                                
-                            # 构造模块名
-                            module_name = py_file.stem  # 文件名（不含扩展名）
-                            full_module_path = f"{module_path}.{module_name}"
-                            
-                            try:
-                                # 导入模块以触发Spider注册
-                                importlib.import_module(full_module_path)
-                            except ImportError as e:
-                                self._logger.warning(f"Failed to auto-import spider module {full_module_path}: {e}")
-                except Exception as e:
-                    self._logger.warning(f"Error during auto-discovery for module {module_path}: {e}")
-            
-            # 检查是否有新的爬虫被注册
-            final_spider_count = len(registry)
-            if final_spider_count > initial_spider_count:
-                new_spiders = list(registry.keys())
-                self._logger.info(f"Auto-discovered {final_spider_count - initial_spider_count} new spiders: {new_spiders}")
-                
-        except Exception as e:
-            self._logger.warning(f"Error during auto-discovery of spider modules: {e}")
+        from crawlo.utils.process_utils import SpiderDiscoveryUtils
+        SpiderDiscoveryUtils.auto_discover_spider_modules(spider_modules, self._logger)
     
     def is_spider_registered(self, name: str) -> bool:
         """
@@ -706,7 +580,6 @@ class CrawlerProcess:
         from crawlo.spider import get_global_spider_registry
         registry = get_global_spider_registry()
         return list(registry.keys())
-    
 
     
     async def crawl(self, spider_cls_or_name: Union[Type['Spider'], str, List[Union[Type['Spider'], str]]], settings: Optional[Dict[str, Any]] = None) -> Union[Crawler, List[Union[Crawler, BaseException]]]:
@@ -827,71 +700,8 @@ class CrawlerProcess:
         Raises:
             ValueError: 无法解析爬虫类
         """
-        if isinstance(spider_cls_or_name, str):
-            # 从注册表中查找
-            try:
-                from crawlo.spider import get_global_spider_registry
-                registry = get_global_spider_registry()
-                if spider_cls_or_name in registry:
-                    return registry[spider_cls_or_name]
-                else:
-                    # 如果在注册表中找不到，尝试通过spider_modules导入所有模块来触发注册
-                    # 然后再次检查注册表
-                    if hasattr(self, '_spider_modules') and self._spider_modules:
-                        for module_path in self._spider_modules:
-                            try:
-                                # 导入模块来触发爬虫注册
-                                __import__(module_path)
-                            except ImportError:
-                                pass  # 忽略导入错误
-                        
-                        # 再次检查注册表
-                        if spider_cls_or_name in registry:
-                            return registry[spider_cls_or_name]
-                    
-                    # 如果仍然找不到，尝试自动发现模式
-                    if hasattr(self, '_spider_modules') and self._spider_modules:
-                        self._auto_discover_spider_modules(self._spider_modules)
-                        if spider_cls_or_name in registry:
-                            return registry[spider_cls_or_name]
-                    
-                    # 如果仍然找不到，尝试直接导入模块
-                    try:
-                        # 假设格式为 module.SpiderClass
-                        if '.' in spider_cls_or_name:
-                            module_path, class_name = spider_cls_or_name.rsplit('.', 1)
-                            module = __import__(module_path, fromlist=[class_name])
-                            spider_class = getattr(module, class_name)
-                            # 注册到全局注册表
-                            registry[spider_class.name] = spider_class
-                            return spider_class
-                        else:
-                            # 尝试在spider_modules中查找
-                            if hasattr(self, '_spider_modules') and self._spider_modules:
-                                for module_path in self._spider_modules:
-                                    try:
-                                        # 构造完整的模块路径
-                                        full_module_path = f"{module_path}.{spider_cls_or_name}"
-                                        module = __import__(full_module_path, fromlist=[spider_cls_or_name])
-                                        # 获取模块中的Spider子类
-                                        for attr_name in dir(module):
-                                            attr_value = getattr(module, attr_name)
-                                            if (isinstance(attr_value, type) and
-                                                    issubclass(attr_value, registry.__class__.__bases__[0]) and
-                                                    hasattr(attr_value, 'name') and
-                                                    attr_value.name == spider_cls_or_name):
-                                                # 注册到全局注册表
-                                                registry[spider_cls_or_name] = attr_value
-                                                return attr_value
-                                    except ImportError:
-                                        continue
-                            raise ValueError(f"Spider '{spider_cls_or_name}' not found in registry")
-                    except (ImportError, AttributeError):
-                        raise ValueError(f"Spider '{spider_cls_or_name}' not found in registry")
-            except ImportError:
-                raise ValueError(f"Cannot resolve spider name '{spider_cls_or_name}'")
-        else:
-            return spider_cls_or_name
+        from crawlo.utils.spider_resolver import SpiderResolver
+        return SpiderResolver.resolve_spider_class(spider_cls_or_name, getattr(self, '_spider_modules', None))
     
     def _merge_settings(self, additional_settings: Optional[Dict[str, Any]]) -> Optional['SettingManager']:
         """
@@ -903,21 +713,8 @@ class CrawlerProcess:
         Returns:
             Optional[SettingManager]: 合并后的配置管理器
         """
-        if not additional_settings:
-            return self._settings
-        
-        # 这里可以实现更复杂的配置合并逻辑
-        from crawlo.settings.setting_manager import SettingManager
-        merged = SettingManager()
-        
-        # 复制基础配置
-        if self._settings:
-            merged.update_attributes(self._settings.__dict__)
-        
-        # 应用额外配置
-        merged.update_attributes(additional_settings)
-        
-        return merged
+        from crawlo.utils.process_utils import SettingsUtils
+        return SettingsUtils.merge_settings(self._settings, additional_settings)
     
     def get_metrics(self) -> Dict[str, Any]:
         """

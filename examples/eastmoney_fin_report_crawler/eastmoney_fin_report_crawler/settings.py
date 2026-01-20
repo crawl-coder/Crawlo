@@ -11,7 +11,7 @@ eastmoney_fin_report_crawler 项目配置文件
 from crawlo.config import CrawloConfig
 
 # 使用自动检测模式配置工厂创建配置
-config = CrawloConfig.auto(
+config = CrawloConfig.standalone(
     project_name='eastmoney_fin_report_crawler',
     concurrency=8,
     download_delay=1.0
