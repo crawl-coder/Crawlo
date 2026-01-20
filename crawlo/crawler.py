@@ -491,7 +491,7 @@ class CrawlerProcess:
         
         # 信号处理相关
         from crawlo.utils.process_utils import ProcessSignalHandler
-        self._signal_handler = ProcessSignalHandler(self._logger)
+        self._signal_handler = ProcessSignalHandler(self._logger, self._crawlers)
         self._shutdown_event: asyncio.Event = self._signal_handler.shutdown_event
         self._shutdown_requested: bool = self._signal_handler.shutdown_requested
         
@@ -515,11 +515,13 @@ class CrawlerProcess:
     
     def _setup_signal_handlers(self):
         """设置信号处理器以优雅地处理关闭信号"""
+        self._signal_handler.set_crawlers(self._crawlers)
         self._signal_handler.setup_signal_handlers()
     
     async def _graceful_shutdown(self):
         """优雅地关闭所有爬虫"""
-        await self._signal_handler.graceful_shutdown(self._crawlers)
+        self._signal_handler.set_crawlers(self._crawlers)
+        await self._signal_handler.graceful_shutdown()
 
     def _register_spider_modules(self, spider_modules: List[str]) -> None:
         """

@@ -16,17 +16,19 @@ if TYPE_CHECKING:
 class ProcessSignalHandler:
     """处理进程信号的工具类"""
     
-    def __init__(self, logger):
+    def __init__(self, logger, crawlers=None):
         """
         初始化信号处理器
         
         Args:
             logger: 日志记录器
+            crawlers: 爬虫实例列表（可选，可通过set_crawlers方法设置）
         """
         self.logger = logger
         self.shutdown_event = asyncio.Event()
         self.shutdown_requested = False
-        
+        self.crawlers = crawlers or []
+    
     def setup_signal_handlers(self):
         """设置信号处理器以优雅地处理关闭信号"""
         def signal_handler(signum, frame):
@@ -41,16 +43,24 @@ class ProcessSignalHandler:
         signal.signal(signal.SIGINT, signal_handler)
         signal.signal(signal.SIGTERM, signal_handler)
         
-    async def graceful_shutdown(self, crawlers: List['Crawler']):
+    def set_crawlers(self, crawlers):
+        """设置爬虫列表
+        
+        Args:
+            crawlers: 爬虫实例列表
+        """
+        self.crawlers = crawlers
+    
+    async def graceful_shutdown(self):
         """优雅地关闭所有爬虫
         
         Args:
             crawlers: 爬虫实例列表
         """
         self.logger.info("开始优雅关闭所有爬虫...")
-        
+
         # 取消所有正在运行的任务
-        for crawler in crawlers:
+        for crawler in self.crawlers:
             try:
                 # 检查crawler是否正在运行
                 if hasattr(crawler, '_state') and crawler.state == getattr(crawler.__class__, 'State', {}).get('RUNNING', 'running'):
@@ -67,7 +77,7 @@ class ProcessSignalHandler:
                 self.logger.warning(f"取消爬虫任务时出错: {e}")
         
         # 通知所有爬虫开始关闭
-        for crawler in crawlers:
+        for crawler in self.crawlers:
             try:
                 # 使用字符串比较状态，避免直接引用CrawlerState
                 current_state = getattr(crawler, '_state', 'unknown')
