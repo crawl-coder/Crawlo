@@ -7,7 +7,12 @@ Request 序列化工具类
 import gc
 import logging
 import pickle
-from typing import Any, Dict, Optional, TYPE_CHECKING
+try:
+    import msgpack
+    MSGPACK_AVAILABLE = True
+except ImportError:
+    MSGPACK_AVAILABLE = False
+from typing import Any, Dict, Optional, TYPE_CHECKING, Literal, Union
 
 if TYPE_CHECKING:
     from crawlo.network.request import Request
@@ -19,10 +24,20 @@ from crawlo.logging import get_logger
 class RequestSerializer:
     """Request 序列化工具类"""
     
-    def __init__(self) -> None:
-        """初始化序列化工具类"""
+    def __init__(self, serialization_format: Literal['pickle', 'msgpack'] = 'pickle') -> None:
+        """初始化序列化工具类
+        
+        Args:
+            serialization_format: 序列化格式，'pickle' 或 'msgpack'
+        """
         # 延迟初始化logger避免循环依赖
         self._logger = None
+        self.serialization_format = serialization_format
+        
+        # 验证序列化格式支持
+        if serialization_format == 'msgpack' and not MSGPACK_AVAILABLE:
+            self.logger.warning("msgpack not available, falling back to pickle")
+            self.serialization_format = 'pickle'
     
     @property
     def logger(self):
@@ -42,6 +57,7 @@ class RequestSerializer:
         Returns:
             Request: 清理后的请求对象
         """
+        self.logger.debug(f"Preparing request for {self.serialization_format} serialization: {request.url}" if hasattr(request, 'url') else f"Preparing request for {self.serialization_format} serialization")
         try:
             # 处理 callback
             self._handle_callback(request)
@@ -277,8 +293,14 @@ class RequestSerializer:
             bool: 是否可以序列化
         """
         try:
-            pickle.dumps(request)
-            return True
+            if self.serialization_format == 'msgpack':
+                if MSGPACK_AVAILABLE:
+                    # msgpack不能序列化所有对象，所以先尝试pickle
+                    pickle.dumps(request)
+                    return True
+            else:
+                pickle.dumps(request)
+                return True
         except Exception:
             return False
     
@@ -404,7 +426,7 @@ class RequestSerializer:
                 method=getattr(original_request, 'method', 'GET'),
                 headers=safe_headers,
                 meta=safe_meta,
-                priority=-getattr(original_request, 'priority', 0),
+                priority=getattr(original_request, 'priority', 0),  # 修正优先级处理，不需要负号
                 dont_filter=getattr(original_request, 'dont_filter', False),
                 timeout=getattr(original_request, 'timeout', None),
                 encoding=getattr(original_request, 'encoding', 'utf-8')
@@ -412,7 +434,14 @@ class RequestSerializer:
             
             # 验证新 Request 可以序列化
             try:
-                pickle.dumps(clean_request)
+                if self.serialization_format == 'msgpack':
+                    if MSGPACK_AVAILABLE:
+                        # msgpack不能直接序列化Request对象，所以先用pickle测试
+                        pickle.dumps(clean_request)
+                    else:
+                        pickle.dumps(clean_request)
+                else:
+                    pickle.dumps(clean_request)
                 return clean_request
             except Exception:
                 # 如果仍然无法序列化，创建最简化的请求

@@ -42,10 +42,10 @@ Pipeline体系说明：
 """
 
 import asyncio
+import time
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import Optional, Any, Callable, List
-import time
+from typing import Optional, Any, Callable
 
 # 检查是否安装了aiofiles
 try:
@@ -160,7 +160,7 @@ class ResourceManagedPipeline(BasePipeline):
             self._resource_manager.register(
                 resource=self.pool,
                 cleanup_func=self._close_pool,
-                resource_type=ResourceType.DATABASE,
+                resource_type=ResourceType.PIPELINE,
                 name="db_pool"
             )
         """
@@ -612,7 +612,7 @@ class DatabasePipeline(ConnectablePipeline):
             self.register_resource(
                 resource=self.pool,
                 cleanup_func=self._close_pool,
-                resource_type=ResourceType.DATABASE,
+                resource_type=ResourceType.PIPELINE,
                 name="db_pool"
             )
         """

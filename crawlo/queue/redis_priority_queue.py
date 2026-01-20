@@ -2,10 +2,7 @@ import asyncio
 import pickle
 import time
 import traceback
-from typing import Optional, TYPE_CHECKING, List, Union, Any, Dict, Tuple, cast
-from typing import Awaitable
-
-import redis.asyncio as aioredis
+from typing import Optional, TYPE_CHECKING, List, Any
 
 # 尝试导入Redis集群支持
 try:
@@ -21,6 +18,11 @@ if TYPE_CHECKING:
 
 from crawlo.logging import get_logger
 from crawlo.utils.request_serializer import RequestSerializer
+try:
+    import msgpack
+    MSGPACK_AVAILABLE = True
+except ImportError:
+    MSGPACK_AVAILABLE = False
 from crawlo.utils.error_handler import ErrorHandler, ErrorContext
 from crawlo.utils.redis_manager import get_redis_pool, RedisConnectionPool, RedisKeyManager
 
@@ -55,6 +57,7 @@ class RedisPriorityQueue:
             spider_name: Optional[str] = None,
             is_cluster: bool = False,
             cluster_nodes: Optional[List[str]] = None,
+            serialization_format: str = 'pickle',  # 新增：序列化格式
     ) -> None:
         """
         初始化 Redis 优先级队列
@@ -98,7 +101,8 @@ class RedisPriorityQueue:
         self._redis_pool: Optional[RedisConnectionPool] = None
         self._redis: Optional[Any] = None
         self._lock: asyncio.Lock = asyncio.Lock()
-        self.request_serializer: RequestSerializer = RequestSerializer()
+        self.request_serializer: RequestSerializer = RequestSerializer(serialization_format=serialization_format)
+        self.serialization_format: str = serialization_format  # 新增：存储序列化格式
 
     async def connect(self, max_retries: int = 3, delay: int = 1) -> Optional[Any]:
         """
@@ -224,36 +228,68 @@ class RedisPriorityQueue:
             # 🔥 使用专用的序列化工具清理 Request
             clean_request = self.request_serializer.prepare_for_serialization(request)
 
-            # 确保序列化后的数据可以被正确反序列化
+            # 根据配置的序列化格式进行序列化
             try:
-                serialized = pickle.dumps(clean_request)
-                # 验证序列化数据可以被反序列化
-                pickle.loads(serialized)
+                if self.serialization_format == 'msgpack' and MSGPACK_AVAILABLE:
+                    # 使用msgpack序列化
+                    serialized = msgpack.packb(clean_request, default=str)
+                    # 验证序列化数据可以被反序列化
+                    msgpack.unpackb(serialized, raw=False)
+                else:
+                    # 使用pickle序列化
+                    serialized = pickle.dumps(clean_request)
+                    # 验证序列化数据可以被反序列化
+                    pickle.loads(serialized)
             except Exception as serialize_error:
                 logger.error(f"请求序列化验证失败 (Project: {self.key_manager.project_name}, Spider: {self.key_manager.spider_name}): {serialize_error}")
                 return False
 
             # 处理集群模式下的操作
-            if self._is_cluster_mode():
-                # 在集群模式下，确保所有键都在同一个slot中
-                # 可以通过在键名中添加相同的哈希标签来实现
-                hash_tag = "{queue}"  # 使用哈希标签确保键在同一个slot
-                queue_name_with_tag = f"{self.queue_name}{hash_tag}"
-                data_key_with_tag = self.key_manager.get_requests_data_key() + hash_tag
-                
-                pipe = self._redis.pipeline()
-                pipe.zadd(queue_name_with_tag, {key: score})
-                pipe.hset(data_key_with_tag, key, serialized)
-                result = await pipe.execute()
-            else:
-                pipe = self._redis.pipeline()
-                pipe.zadd(self.queue_name, {key: score})
-                pipe.hset(self.key_manager.get_requests_data_key(), key, serialized)
-                result = await pipe.execute()
+            try:
+                if self._is_cluster_mode():
+                    # 在集群模式下，确保所有键都在同一个slot中
+                    # 可以通过在键名中添加相同的哈希标签来实现
+                    hash_tag = "{queue}"  # 使用哈希标签确保键在同一个slot
+                    queue_name_with_tag = f"{self.queue_name}{hash_tag}"
+                    data_key_with_tag = self.key_manager.get_requests_data_key() + hash_tag
+                    
+                    pipe = self._redis.pipeline()
+                    pipe.zadd(queue_name_with_tag, {key: score})
+                    pipe.hset(data_key_with_tag, key, serialized)
+                    result = await pipe.execute()
+                    
+                    # 记录序列化格式信息
+                    logger.debug(f"Request enqueued with {self.serialization_format} serialization (Project: {self.key_manager.project_name}, Spider: {self.key_manager.spider_name}): {request.url}")
+                else:
+                    pipe = self._redis.pipeline()
+                    pipe.zadd(self.queue_name, {key: score})
+                    pipe.hset(self.key_manager.get_requests_data_key(), key, serialized)
+                    result = await pipe.execute()
+                    
+                    # 记录序列化格式信息
+                    logger.debug(f"Request enqueued with {self.serialization_format} serialization (Project: {self.key_manager.project_name}, Spider: {self.key_manager.spider_name}): {request.url}")
+            except Exception as e:
+                logger.error(f"Redis队列操作失败 (Project: {self.key_manager.project_name}, Spider: {self.key_manager.spider_name}): {e}")
+                logger.debug(f"详细错误信息:\n{traceback.format_exc()}")
+                return False
 
-            if result[0] > 0:
+            if result and result[0] > 0:
                 logger.debug(f"成功入队 (Project: {self.key_manager.project_name}, Spider: {self.key_manager.spider_name}): {request.url}")
-            return result[0] > 0
+                # 记录成功统计
+                if hasattr(self, '_stats'):
+                    self._stats['successful_puts'] = self._stats.get('successful_puts', 0) + 1
+                else:
+                    self._stats = {'successful_puts': 1}
+            else:
+                logger.warning(f"入队失败 (Project: {self.key_manager.project_name}, Spider: {self.key_manager.spider_name}): {request.url}")
+                # 记录失败统计
+                if hasattr(self, '_stats'):
+                    self._stats['failed_puts'] = self._stats.get('failed_puts', 0) + 1
+                else:
+                    self._stats = {'failed_puts': 1}
+            
+            success = result and result[0] > 0 if result else False
+            return success
         except Exception as e:
             error_context = ErrorContext(
                 context=f"放入队列失败 (Project: {self.key_manager.project_name}, Spider: {self.key_manager.spider_name})"
@@ -303,19 +339,23 @@ class RedisPriorityQueue:
                     if not serialized:
                         continue
 
-                    # 直接返回请求，不再移动到处理队列
-                    # 更安全的反序列化方式
+                    # 根据序列化格式进行反序列化
                     try:
-                        # 首先尝试标准的 pickle 反序列化
-                        request = pickle.loads(serialized)
+                        if self.serialization_format == 'msgpack' and MSGPACK_AVAILABLE:
+                            # 使用msgpack反序列化
+                            request = msgpack.unpackb(serialized, raw=False)
+                        else:
+                            # 使用pickle反序列化
+                            try:
+                                # 首先尝试标准的 pickle 反序列化
+                                request = pickle.loads(serialized)
+                            except UnicodeDecodeError:
+                                # 如果出现编码错误，尝试使用 latin1 解码
+                                request = pickle.loads(serialized, encoding='latin1')
                         return request
-                    except UnicodeDecodeError:
-                        # 如果出现编码错误，尝试使用 latin1 解码
-                        request = pickle.loads(serialized, encoding='latin1')
-                        return request
-                    except Exception as pickle_error:
-                        # 如果pickle反序列化失败，记录错误并跳过这个任务
-                        logger.error(f"无法反序列化请求数据 (Project: {self.key_manager.project_name}, Spider: {self.key_manager.spider_name}): {pickle_error}")
+                    except Exception as deserialize_error:
+                        # 如果反序列化失败，记录错误并跳过这个任务
+                        logger.error(f"无法反序列化请求数据 (Project: {self.key_manager.project_name}, Spider: {self.key_manager.spider_name}): {deserialize_error}")
                         # 继续尝试下一个任务
                         continue
 
@@ -488,3 +528,16 @@ class RedisPriorityQueue:
                 context=error_context,
                 raise_error=False
             )
+
+    def get_stats(self) -> dict:
+        """
+        获取队列统计信息
+        
+        Returns:
+            dict: 队列统计信息
+        """
+        stats = getattr(self, '_stats', {})
+        stats['project_name'] = self.key_manager.project_name
+        stats['spider_name'] = self.key_manager.spider_name
+        stats['queue_name'] = self.queue_name
+        return stats

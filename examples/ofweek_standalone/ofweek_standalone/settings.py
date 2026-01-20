@@ -57,8 +57,8 @@ PIPELINES = [
 LOG_LEVEL = 'INFO'
 LOG_FILE = 'logs/ofweek_standalone.log'
 LOG_ENCODING = 'utf-8'  # 明确指定日志文件编码
-LOG_MAX_BYTES = 20 * 1024 * 1024  # 20MB，推荐值
-LOG_BACKUP_COUNT = 10  # 10个备份文件，推荐值
+LOG_MAX_BYTES = 0 * 1024 * 1024  # 20MB，推荐值
+LOG_BACKUP_COUNT = 0  # 10个备份文件，推荐值
 # 如果不想要日志轮转，可以设置 LOG_MAX_BYTES = 0
 # 当LOG_MAX_BYTES或LOG_BACKUP_COUNT为0时，日志轮转将被禁用，文件会持续增长
 STATS_DUMP = True
@@ -73,36 +73,32 @@ REDIS_HOST = '127.0.0.1'
 REDIS_PORT = 6379
 REDIS_PASSWORD = ''
 REDIS_DB = 0
-#
-# # 根据是否有密码生成 URL
-# if REDIS_PASSWORD:
-#     REDIS_URL = f'redis://:{REDIS_PASSWORD}@{REDIS_HOST}:{REDIS_PORT}/{REDIS_DB}'
-# else:
-#     REDIS_URL = f'redis://{REDIS_HOST}:{REDIS_PORT}/{REDIS_DB}'
+
+
 
 # MySQL配置
 MYSQL_HOST = '127.0.0.1'
 MYSQL_PORT = 3306
-MYSQL_USER = 'crawlo'
-MYSQL_PASSWORD = 'crawlo123'
-MYSQL_DB = 'crawlo_deployer'
-MYSQL_TABLE = 'ofweek_standalone_items'
-MYSQL_BATCH_SIZE = 100
+MYSQL_USER = 'root'
+MYSQL_PASSWORD = 'oscar&0503'
+MYSQL_DB = 'crawlo_db'
+MYSQL_TABLE = 'ofweek_news'
+MYSQL_BATCH_SIZE = 20
 MYSQL_USE_BATCH = True  # 是否启用批量插入
 
 # MySQL SQL生成行为控制配置
-MYSQL_AUTO_UPDATE = True  # 是否使用 REPLACE INTO（完全覆盖已存在记录）
-MYSQL_INSERT_IGNORE = False  # 是否使用 INSERT IGNORE（忽略重复数据）
+MYSQL_AUTO_UPDATE = False  # 是否使用 REPLACE INTO（完全覆盖已存在记录）
+MYSQL_INSERT_IGNORE = True  # 是否使用 INSERT IGNORE（忽略重复数据）
 MYSQL_UPDATE_COLUMNS = ()  # 冲突时需更新的列名；指定后 MYSQL_AUTO_UPDATE 失效
 
 # MongoDB配置
-MONGO_URI = 'mongodb://localhost:27017'
-MONGO_DATABASE = 'ofweek_standalone_db'
-MONGO_COLLECTION = 'ofweek_standalone_items'
-MONGO_MAX_POOL_SIZE = 200
-MONGO_MIN_POOL_SIZE = 20
-MONGO_BATCH_SIZE = 100  # 批量插入条数
-MONGO_USE_BATCH = False  # 是否启用批量插入
+# MONGO_URI = 'mongodb://localhost:27017'
+# MONGO_DATABASE = 'ofweek_standalone_db'
+# MONGO_COLLECTION = 'ofweek_standalone_items'
+# MONGO_MAX_POOL_SIZE = 200
+# MONGO_MIN_POOL_SIZE = 20
+# MONGO_BATCH_SIZE = 100  # 批量插入条数
+# MONGO_USE_BATCH = False  # 是否启用批量插入
 
 # =================================== 代理配置 ===================================
 

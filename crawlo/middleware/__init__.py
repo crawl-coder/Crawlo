@@ -6,7 +6,6 @@ import asyncio
 if TYPE_CHECKING:
     from crawlo import Request, Response
 
-
 class BaseMiddleware:
     """中间件基类
     
@@ -86,3 +85,17 @@ class BaseMiddleware:
             中间件实例
         """
         return cls()
+
+
+# 导入并导出新添加的中间件类
+# 注意：这里不能直接导入，因为会导致循环导入
+# 所以我们使用延迟导入的方式
+
+def __getattr__(name):
+    if name == 'DownloadAttachmentMiddleware':
+        from .download_attachment_middleware import DownloadAttachmentMiddleware
+        return DownloadAttachmentMiddleware
+    raise AttributeError(f"module '{__name__}' has no attribute '{name}'")
+
+
+__all__ = ['BaseMiddleware', 'DownloadAttachmentMiddleware']

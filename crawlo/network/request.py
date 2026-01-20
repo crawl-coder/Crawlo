@@ -13,13 +13,10 @@ HTTP Request 封装模块
 import json
 from copy import deepcopy
 from enum import IntEnum
+from typing import Dict, Optional, Callable, Union, Any, TypeVar, List, TYPE_CHECKING
 from urllib.parse import urldefrag, urlencode, urlparse, urlunparse, parse_qsl
+
 from w3lib.url import safe_url_string, add_or_replace_parameter
-from typing import Dict, Optional, Callable, Union, Any, TypeVar, List, Tuple, TYPE_CHECKING, cast
-
-
-if TYPE_CHECKING:
-    from crawlo.network.response import Response
 
 _Request = TypeVar("_Request", bound="Request")
 

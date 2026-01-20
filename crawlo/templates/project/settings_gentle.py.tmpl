@@ -75,7 +75,7 @@ LOG_MAX_BYTES = 20 * 1024 * 1024  # 20MB，推荐值
 LOG_BACKUP_COUNT = 10  # 10个备份文件，推荐值
 # 如果不想要日志轮转，可以设置 LOG_MAX_BYTES = 0
 # 当LOG_MAX_BYTES或LOG_BACKUP_COUNT为0时，日志轮转将被禁用，文件会持续增长
-STATS_DUMP = True
+
 
 # =================================== 定时任务配置 ===================================
 # 定时任务基础配置
@@ -137,13 +137,13 @@ MYSQL_INSERT_IGNORE = False    # 优先级最低：是否使用 INSERT IGNORE（
 MYSQL_PREFER_ALIAS_SYNTAX = True      # 是否优先使用 AS `alias` 语法，False 则使用 VALUES() 语法
 
 # MongoDB配置
-MONGO_URI = 'mongodb://localhost:27017'
-MONGO_DATABASE = '{{project_name}}_db'
-MONGO_COLLECTION = '{{project_name}}_items'
-MONGO_MAX_POOL_SIZE = 200
-MONGO_MIN_POOL_SIZE = 20
-MONGO_BATCH_SIZE = 100  # 批量插入条数
-MONGO_USE_BATCH = False  # 是否启用批量插入
+# MONGO_URI = 'mongodb://localhost:27017'
+# MONGO_DATABASE = '{{project_name}}_db'
+# MONGO_COLLECTION = '{{project_name}}_items'
+# MONGO_MAX_POOL_SIZE = 200
+# MONGO_MIN_POOL_SIZE = 20
+# MONGO_BATCH_SIZE = 100  # 批量插入条数
+# MONGO_USE_BATCH = False  # 是否启用批量插入
 
 # =================================== 网络配置 ===================================
 
