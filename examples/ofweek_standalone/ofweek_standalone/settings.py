@@ -11,7 +11,7 @@ ofweek_standalone 项目配置文件
 from crawlo.config import CrawloConfig
 
 # 使用自动检测模式配置工厂创建配置
-config = CrawloConfig.auto(
+config = CrawloConfig.standalone(
     project_name='ofweek_standalone',
     concurrency=8,
     download_delay=1.0,
@@ -87,8 +87,8 @@ MYSQL_BATCH_SIZE = 20
 MYSQL_USE_BATCH = True  # 是否启用批量插入
 
 # MySQL SQL生成行为控制配置
-MYSQL_AUTO_UPDATE = True  # 是否使用 REPLACE INTO（完全覆盖已存在记录）
-MYSQL_INSERT_IGNORE = False  # 是否使用 INSERT IGNORE（忽略重复数据）
+MYSQL_AUTO_UPDATE = False  # 是否使用 REPLACE INTO（完全覆盖已存在记录）
+MYSQL_INSERT_IGNORE = True  # 是否使用 INSERT IGNORE（忽略重复数据）
 MYSQL_UPDATE_COLUMNS = ()  # 冲突时需更新的列名；指定后 MYSQL_AUTO_UPDATE 失效
 
 # MongoDB配置

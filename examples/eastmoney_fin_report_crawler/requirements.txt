@@ -1,0 +1,4 @@
+crawlo
+asyncmy
+aiomysql
+python-dotenv
