@@ -121,16 +121,45 @@ SCHEDULER_JOBS = [
         'cron': '*/2 * * * *',       # 每2分钟执行一次
         'enabled': True,              # 任务启用状态
         'args': {},                  # 传递给爬虫的参数
-        'priority': 10               # 任务优先级
+        'priority': 10,               # 任务优先级
+        'max_retries': 3,             # 最大重试次数
+        'retry_delay': 60,            # 重试延迟（秒）
+        'kwargs': {}                  # 传递给爬虫的额外参数
+    },
+    {
+        'spider': 'of_week',           # 爬虫名称
+        'cron': '0 2 * * *',         # 每天凌晨2点执行
+        'enabled': True,              # 任务启用状态
+        'args': {'daily': True},      # 传递给爬虫的参数
+        'priority': 20,               # 任务优先级
+        'max_retries': 2,             # 最大重试次数
+        'retry_delay': 120            # 重试延迟（秒）
     }
 ]
 
 # 定时任务高级配置（可选）
-SCHEDULER_CHECK_INTERVAL = 1      # 调度器检查间隔（秒）
-SCHEDULER_MAX_CONCURRENT = 3      # 最大并发任务数
-SCHEDULER_JOB_TIMEOUT = 3600      # 单个任务超时时间（秒）
+SCHEDULER_CHECK_INTERVAL = 1           # 调度器检查间隔（秒）
+SCHEDULER_MAX_CONCURRENT = 3           # 最大并发任务数
+SCHEDULER_JOB_TIMEOUT = 3600           # 单个任务超时时间（秒）
+SCHEDULER_RESOURCE_MONITOR_ENABLED = True  # 是否启用资源监控
+SCHEDULER_RESOURCE_CHECK_INTERVAL = 300    # 资源检查间隔（秒），默认5分钟
+SCHEDULER_RESOURCE_LEAK_THRESHOLD = 3600   # 资源泄露检测阈值（秒），默认1小时
 
-# 资源监控配置（可选）
-SCHEDULER_RESOURCE_MONITOR_ENABLED = True   # 是否启用资源监控
-SCHEDULER_RESOURCE_CHECK_INTERVAL = 300   # 资源检查间隔（秒），默认5分钟
-SCHEDULER_RESOURCE_LEAK_THRESHOLD = 3600  # 资源泄露检测阈值（秒），默认1小时
+# 调度器资源管理配置
+SCHEDULER_RESOURCE_CLEANUP_ON_STOP = True  # 停止时是否清理资源
+SCHEDULER_MAX_RESOURCE_AGE = 7200          # 资源最大存活时间（秒）
+
+# 任务执行配置
+SCHEDULER_TASK_CLEANUP_INTERVAL = 60     # 任务清理间隔（秒）
+SCHEDULER_STATS_LOGGING_INTERVAL = 300    # 统计信息记录间隔（秒）
+
+# 信号处理配置
+SCHEDULER_GRACEFUL_SHUTDOWN_TIMEOUT = 60  # 优雅关闭超时时间（秒）
+
+# 错误处理配置
+SCHEDULER_ERROR_RETRY_DELAY = 30          # 错误重试延迟（秒）
+SCHEDULER_ERROR_LOG_RETENTION_DAYS = 30    # 错误日志保留天数
+
+# 调度器性能配置
+SCHEDULER_STATS_RETENTION_HOURS = 24      # 统计信息保留小时数
+SCHEDULER_HEARTBEAT_INTERVAL = 10          # 心跳间隔（秒）
