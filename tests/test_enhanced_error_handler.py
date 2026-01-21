@@ -6,7 +6,7 @@ sys.path.insert(0, "/Users/oscar/projects/Crawlo")
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-增强版错误处理工具测试
+统一错误处理工具测试
 """
 import sys
 import os
@@ -16,7 +16,7 @@ import traceback
 # 添加项目根目录到 Python 路径
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
-from crawlo.utils.enhanced_error_handler import EnhancedErrorHandler, ErrorContext, DetailedException, handle_exception
+from crawlo.utils.error_handler import ErrorHandler, ErrorContext, DetailedException, handle_exception
 
 
 def test_basic_error_handling():
@@ -24,7 +24,7 @@ def test_basic_error_handling():
     print("1. 测试基本错误处理...")
     
     try:
-        handler = EnhancedErrorHandler("test_logger")
+        handler = ErrorHandler("test_logger")
         
         # 测试同步函数错误处理
         def failing_function():
@@ -105,7 +105,7 @@ async def test_retry_decorator():
     print("3. 测试重试装饰器...")
     
     try:
-        handler = EnhancedErrorHandler("test_retry_logger")
+        handler = ErrorHandler("test_retry_logger")
         
         # 测试同步函数重试
         attempt_count = 0
@@ -194,7 +194,7 @@ def test_error_history():
     print("5. 测试错误历史记录...")
     
     try:
-        handler = EnhancedErrorHandler("history_test_logger")
+        handler = ErrorHandler("history_test_logger")
         
         # 产生一些错误
         def error_function():

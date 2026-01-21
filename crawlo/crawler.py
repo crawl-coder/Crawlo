@@ -243,7 +243,12 @@ class Crawler:
                 registry = get_component_registry()
                 self._extension = registry.create('extension_manager', crawler=self)
             except Exception as e:
-                self._logger.warning(f"Failed to create extension manager: {e}")
+                from crawlo.exceptions import NotConfigured
+                if isinstance(e, NotConfigured):
+                    # 对于未配置启用的扩展，仅输出提示信息，不记录为错误
+                    self._logger.info(f"Extension manager not created (disabled): {e}")
+                else:
+                    self._logger.warning(f"Failed to create extension manager: {e}")
         return self._extension
     
     async def close(self) -> None:
@@ -323,7 +328,12 @@ class Crawler:
             try:
                 self._extension = registry.create('extension_manager', crawler=self)
             except Exception as e:
-                self._logger.warning(f"Failed to create extension manager: {e}")
+                from crawlo.exceptions import NotConfigured
+                if isinstance(e, NotConfigured):
+                    # 对于未配置启用的扩展，仅输出提示信息，不记录为错误
+                    self._logger.info(f"Extension manager not created (disabled): {e}")
+                else:
+                    self._logger.warning(f"Failed to create extension manager: {e}")
             
             self._metrics.initialization_duration = time.time() - init_start
             

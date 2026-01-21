@@ -48,7 +48,8 @@ class MemoryMonitorExtension:
             from crawlo.exceptions import NotConfigured
             from crawlo.logging import get_logger
             logger = get_logger(cls.__name__)
-            logger.info("MemoryMonitorExtension: MEMORY_MONITOR_ENABLED is False, skipping initialization")
+            # 使用debug级别日志，避免在正常情况下产生错误日志
+            logger.debug("MemoryMonitorExtension: MEMORY_MONITOR_ENABLED is False, skipping initialization")
             raise NotConfigured("MemoryMonitorExtension: MEMORY_MONITOR_ENABLED is False")
         
         # 检查是否已有内存监控实例在运行
@@ -100,9 +101,13 @@ class MemoryMonitorExtension:
             if not is_scheduler_mode:
                 # 不是调度任务，注销监控实例
                 monitor_manager.unregister_monitor('memory_monitor')
+                # 清空内存历史数据以防止内存泄漏
+                self.memory_history.clear()
                 self.logger.info("Memory monitor stopped.")
             else:
                 # 是调度任务，暂停监控（保持实例）
+                # 清空内存历史数据以防止内存泄漏
+                self.memory_history.clear()
                 self.logger.info("Memory monitor paused (will resume with next spider).")
 
     def _calculate_memory_trend(self) -> tuple:
@@ -130,7 +135,7 @@ class MemoryMonitorExtension:
         slope = (n * sum_xy - sum_x * sum_y) / (n * sum_x2 - sum_x * sum_x)
         
         # 判断是否在增长（考虑噪音容忍度）
-        is_increasing = slope > 0.5 * 1024 * 1024  # 0.5MB/检查间隔的增长才认为是显著增长
+        is_increasing = slope > 2.0 * 1024 * 1024  # 2.0MB/检查间隔的增长才认为是显著增长
         
         return slope, is_increasing
 

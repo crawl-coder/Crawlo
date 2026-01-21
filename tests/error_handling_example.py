@@ -2,7 +2,7 @@
 # -*- coding:UTF-8 -*-
 """
 错误处理使用示例
-展示如何在实际项目中使用增强版错误处理工具
+展示如何在实际项目中使用统一错误处理工具
 """
 import sys
 import os
@@ -13,8 +13,8 @@ from typing import Optional
 # 添加项目根目录到 Python 路径
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
-from crawlo.utils.enhanced_error_handler import (
-    EnhancedErrorHandler, 
+from crawlo.utils.error_handler import (
+    ErrorHandler, 
     ErrorContext, 
     DetailedException, 
     handle_exception
@@ -22,7 +22,7 @@ from crawlo.utils.enhanced_error_handler import (
 
 
 # 创建错误处理器实例
-error_handler = EnhancedErrorHandler("example_module")
+error_handler = ErrorHandler("example_module")
 
 
 class DatabaseConnectionError(DetailedException):

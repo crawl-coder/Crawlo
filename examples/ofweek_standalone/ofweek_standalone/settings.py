@@ -118,7 +118,7 @@ SCHEDULER_ENABLED = True
 SCHEDULER_JOBS = [
     {
         'spider': 'of_week',           # 爬虫名称（对应spider的name属性）
-        'cron': '*/2 * * * *',       # 每2分钟执行一次
+        'cron': '*/1 * * * *',       # 每2分钟执行一次
         'enabled': True,              # 任务启用状态
         'args': {},                  # 传递给爬虫的参数
         'priority': 10,               # 任务优先级
@@ -126,15 +126,15 @@ SCHEDULER_JOBS = [
         'retry_delay': 60,            # 重试延迟（秒）
         'kwargs': {}                  # 传递给爬虫的额外参数
     },
-    {
-        'spider': 'of_week',           # 爬虫名称
-        'cron': '0 2 * * *',         # 每天凌晨2点执行
-        'enabled': True,              # 任务启用状态
-        'args': {'daily': True},      # 传递给爬虫的参数
-        'priority': 20,               # 任务优先级
-        'max_retries': 2,             # 最大重试次数
-        'retry_delay': 120            # 重试延迟（秒）
-    }
+    # {
+    #     'spider': 'of_week',           # 爬虫名称
+    #     'cron': '0 2 * * *',         # 每天凌晨2点执行
+    #     'enabled': True,              # 任务启用状态
+    #     'args': {'daily': True},      # 传递给爬虫的参数
+    #     'priority': 20,               # 任务优先级
+    #     'max_retries': 2,             # 最大重试次数
+    #     'retry_delay': 120            # 重试延迟（秒）
+    # }
 ]
 
 # 关键配置参数（用户可能需要调整）

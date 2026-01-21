@@ -62,8 +62,8 @@ class DetailedException(Exception):
         }
 
 
-class EnhancedErrorHandler:
-    """增强版错误处理器"""
+class ErrorHandler:
+    """统一的错误处理器"""
     
     def __init__(self, logger_name: str = __name__, log_level: str = 'ERROR'):
         self.logger = get_logger(logger_name)
@@ -74,7 +74,7 @@ class EnhancedErrorHandler:
                      raise_error: bool = True, log_error: bool = True,
                      extra_info: Optional[Dict] = None) -> Dict:
         """
-        增强版错误处理
+        统一的错误处理
         
         Args:
             exception: 异常对象
@@ -160,7 +160,7 @@ class EnhancedErrorHandler:
                          exceptions: tuple = (Exception,), backoff_factor: float = 1.0,
                          context: Optional[ErrorContext] = None):
         """
-        装饰器：失败时重试（增强版）
+        装饰器：失败时重试
         
         Args:
             max_retries: 最大重试次数
@@ -264,22 +264,14 @@ class EnhancedErrorHandler:
         self.error_history.clear()
 
 
-# 为了向后兼容，提供与旧版error_handler.py相同的接口
-
-# 别名，保持与旧版接口一致
-ErrorHandler = EnhancedErrorHandler
-
-# 全局增强错误处理器实例
-enhanced_error_handler = EnhancedErrorHandler()
-
-# 为了向后兼容，提供默认错误处理器实例
-default_error_handler = enhanced_error_handler
+# 全局错误处理器实例
+error_handler = ErrorHandler()
 
 def handle_exception(context: str = "", module: str = "", function: str = "",
                      raise_error: bool = True, log_error: bool = True,
                      error_code: Optional[str] = None):
     """
-    装饰器：处理函数异常（增强版）
+    装饰器：处理函数异常
     
     Args:
         context: 错误上下文描述
@@ -306,7 +298,7 @@ def handle_exception(context: str = "", module: str = "", function: str = "",
                     # 确保上下文信息完整
                     if not e.context:
                         e.context = error_context
-                    enhanced_error_handler.handle_error(
+                    error_handler.handle_error(
                         e, context=e.context,
                         raise_error=raise_error, log_error=log_error
                     )
@@ -315,7 +307,7 @@ def handle_exception(context: str = "", module: str = "", function: str = "",
                     detailed_e = DetailedException(
                         str(e), context=error_context, error_code=error_code
                     )
-                    enhanced_error_handler.handle_error(
+                    error_handler.handle_error(
                         detailed_e, context=error_context,
                         raise_error=raise_error, log_error=log_error
                     )
@@ -338,7 +330,7 @@ def handle_exception(context: str = "", module: str = "", function: str = "",
                     # 确保上下文信息完整
                     if not e.context:
                         e.context = error_context
-                    enhanced_error_handler.handle_error(
+                    error_handler.handle_error(
                         e, context=e.context,
                         raise_error=raise_error, log_error=log_error
                     )
@@ -347,7 +339,7 @@ def handle_exception(context: str = "", module: str = "", function: str = "",
                     detailed_e = DetailedException(
                         str(e), context=error_context, error_code=error_code
                     )
-                    enhanced_error_handler.handle_error(
+                    error_handler.handle_error(
                         detailed_e, context=error_context,
                         raise_error=raise_error, log_error=log_error
                     )
@@ -363,49 +355,3 @@ def handle_exception(context: str = "", module: str = "", function: str = "",
     
     return decorator
 
-# 为了完全向后兼容，也提供旧版的handle_exception接口
-# 这个版本与error_handler.py中的接口完全一致
-def handle_exception_simple(context: str = "", raise_error: bool = True, log_error: bool = True):
-    """
-    装饰器：处理函数异常（简化版，与旧版接口兼容）
-    
-    Args:
-        context: 错误上下文描述
-        raise_error: 是否重新抛出异常
-        log_error: 是否记录错误日志
-    """
-    def decorator(func):
-        @wraps(func)
-        async def async_wrapper(*args, **kwargs):
-            try:
-                return await func(*args, **kwargs)
-            except Exception as e:
-                error_context = ErrorContext(context=f"{context} - {func.__name__}")
-                enhanced_error_handler.handle_error(
-                    e, context=error_context,
-                    raise_error=raise_error, log_error=log_error
-                )
-                if not raise_error:
-                    return None
-
-        @wraps(func)
-        def sync_wrapper(*args, **kwargs):
-            try:
-                return func(*args, **kwargs)
-            except Exception as e:
-                error_context = ErrorContext(context=f"{context} - {func.__name__}")
-                enhanced_error_handler.handle_error(
-                    e, context=error_context,
-                    raise_error=raise_error, log_error=log_error
-                )
-                if not raise_error:
-                    return None
-
-        # 根据函数是否为异步函数返回相应的包装器
-        import inspect
-        if inspect.iscoroutinefunction(func):
-            return async_wrapper
-        else:
-            return sync_wrapper
-
-    return decorator

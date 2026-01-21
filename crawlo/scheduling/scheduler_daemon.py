@@ -6,6 +6,7 @@ import asyncio
 import signal
 import sys
 import time
+from datetime import datetime
 import logging
 from typing import Dict, List, Any, Optional, Set
 from .job import ScheduledJob
@@ -48,6 +49,11 @@ class SchedulerDaemon:
         
         # 从配置加载定时任务
         self._load_jobs_from_settings()
+        
+        # 检查Redis可用性缓存
+        self._redis_available_cache = None
+        self._redis_check_time = 0
+        self._redis_cache_ttl = 300  # 缓存5分钟
     
     def _load_jobs_from_settings(self):
         """从配置加载定时任务"""
@@ -81,6 +87,72 @@ class SchedulerDaemon:
                     self.logger.info(f"已加载定时任务: {job.spider_name} - {job_config.get('cron', job_config.get('interval'))}")
                 except Exception as e:
                     self.logger.error(f"加载定时任务失败: {job_config}, 错误: {e}")
+        
+        # 检查Redis可用性缓存
+        self._redis_available_cache = None
+        self._redis_check_time = 0
+        self._redis_cache_ttl = 300  # 缓存5分钟
+    
+    async def _check_redis_availability(self):
+        """检查Redis是否可用，带缓存以避免频繁连接测试"""
+        import time
+        current_time = time.time()
+        
+        # 如果缓存未过期，直接返回缓存结果
+        if (self._redis_available_cache is not None and 
+            current_time - self._redis_check_time < self._redis_cache_ttl):
+            return self._redis_available_cache
+        
+        # 获取Redis配置
+        redis_url = self.settings.get('REDIS_URL', None)
+        if not redis_url:
+            # 尝试从其他Redis配置项构建URL
+            redis_host = self.settings.get('REDIS_HOST', '127.0.0.1')
+            redis_port = self.settings.get('REDIS_PORT', 6379)
+            redis_password = self.settings.get('REDIS_PASSWORD', None)
+            redis_db = self.settings.get('REDIS_DB', 0)
+            
+            if redis_password:
+                redis_url = f"redis://:{redis_password}@{redis_host}:{redis_port}/{redis_db}"
+            else:
+                redis_url = f"redis://{redis_host}:{redis_port}/{redis_db}"
+        
+        self.logger.debug(f"Attempting to connect to Redis: {redis_url}")
+        
+        try:
+            from crawlo.queue.redis_priority_queue import RedisPriorityQueue
+            
+            # 创建一个简单的异步函数来测试连接
+            test_queue = RedisPriorityQueue(
+                redis_url=redis_url,
+                project_name="scheduler_test",
+                timeout=5  # 5秒超时
+            )
+            try:
+                await test_queue.connect()
+                await test_queue.close()
+                is_available = True
+            except Exception as e:
+                self.logger.debug(f"Redis connection test failed: {e}")
+                is_available = False
+            
+            # 更新缓存
+            self._redis_available_cache = is_available
+            self._redis_check_time = current_time
+            
+            return is_available
+            
+        except ImportError:
+            # 如果Redis模块不可用，直接返回False
+            self._redis_available_cache = False
+            self._redis_check_time = current_time
+            return False
+        except Exception as e:
+            # 其他错误也返回False
+            self.logger.debug(f"Redis连接测试失败: {e}")
+            self._redis_available_cache = False
+            self._redis_check_time = current_time
+            return False
     
     async def start(self):
         """启动调度守护进程"""
@@ -122,7 +194,7 @@ class SchedulerDaemon:
         
         while self.running:
             try:
-                self.logger.debug(f"检查任务，当前时间: {time.time()}")
+                self.logger.debug(f"检查任务，当前时间: {self._format_datetime(time.time())}")
                 await self._check_and_execute_jobs()
                 await asyncio.sleep(check_interval)
             except Exception as e:
@@ -153,50 +225,118 @@ class SchedulerDaemon:
     async def _execute_job(self, job: ScheduledJob):
         """执行单个任务"""
         
-        # 保存原始参数，以便在执行完成后恢复
+        # 保存原始参数，以便参考
         original_args = dict(job.args) if job.args else {}
         
-        # 创建一个新的参数字典，只包含安全的参数
+        # 清空job.args并根据配置重新构建
         job.args = {}
         
-        # 保持原始的运行模式配置，确保在standalone模式下运行
-        # 明确设置为内存队列和过滤器，覆盖可能的Redis配置
-        job.args['QUEUE_TYPE'] = original_args.get('QUEUE_TYPE', 'memory')
-        job.args['FILTER_CLASS'] = original_args.get('FILTER_CLASS', 'crawlo.filters.memory_filter.MemoryFilter')
-        job.args['DEFAULT_DEDUP_PIPELINE'] = original_args.get('DEFAULT_DEDUP_PIPELINE', 'crawlo.pipelines.memory_dedup_pipeline.MemoryDedupPipeline')
-        job.args['RUN_MODE'] = original_args.get('RUN_MODE', 'standalone')
+        # 确定队列类型：优先使用任务参数中的QUEUE_TYPE，否则使用项目设置中的QUEUE_TYPE
+        queue_type = original_args.get('QUEUE_TYPE', self.settings.get('QUEUE_TYPE', 'auto'))
+        self.logger.debug(f"Queue type determined as: {queue_type} for job: {job.spider_name}")
         
-        # 传递其他基本配置，但排除所有Redis连接相关配置
-        # 保留监控配置，使用原始配置值而不是强制覆盖
+        # 根据队列类型和Redis可用性决定使用何种配置
+        if queue_type == 'distributed':
+            # 检查Redis是否可用
+            self.logger.debug(f"Checking Redis availability for distributed mode job: {job.spider_name}")
+            redis_available = await self._check_redis_availability()
+            self.logger.debug(f"Redis availability result for distributed mode: {redis_available} for job: {job.spider_name}")
+            if redis_available:
+                # Redis可用，使用Redis配置
+                job.args['QUEUE_TYPE'] = 'redis'
+                job.args['FILTER_CLASS'] = original_args.get('FILTER_CLASS', 'crawlo.filters.aioredis_filter.AioRedisFilter')
+                job.args['DEFAULT_DEDUP_PIPELINE'] = original_args.get('DEFAULT_DEDUP_PIPELINE', 'crawlo.pipelines.redis_dedup_pipeline.RedisDedupPipeline')
+                job.args['RUN_MODE'] = original_args.get('RUN_MODE', 'distributed')
+                self.logger.info(f"Redis available, using Redis queue for job: {job.spider_name}")
+            else:
+                # Redis不可用，分布式模式必须退出
+                error_msg = f"Distributed mode requires Redis, but Redis is unavailable for job: {job.spider_name}"
+                self.logger.error(error_msg)
+                raise RuntimeError(error_msg)
+        elif queue_type == 'auto':
+            # 检查Redis是否可用
+            self.logger.debug(f"Checking Redis availability for job: {job.spider_name}")
+            redis_available = await self._check_redis_availability()
+            self.logger.debug(f"Redis availability result: {redis_available} for job: {job.spider_name}")
+            if redis_available:
+                # Redis可用，使用Redis配置
+                job.args['QUEUE_TYPE'] = 'redis'
+                job.args['FILTER_CLASS'] = original_args.get('FILTER_CLASS', 'crawlo.filters.aioredis_filter.AioRedisFilter')
+                job.args['DEFAULT_DEDUP_PIPELINE'] = original_args.get('DEFAULT_DEDUP_PIPELINE', 'crawlo.pipelines.redis_dedup_pipeline.RedisDedupPipeline')
+                job.args['RUN_MODE'] = original_args.get('RUN_MODE', 'distributed')
+                self.logger.info(f"Redis available, using Redis queue for job: {job.spider_name}")
+            else:
+                # Redis不可用，使用内存配置
+                job.args['QUEUE_TYPE'] = 'memory'
+                job.args['FILTER_CLASS'] = original_args.get('FILTER_CLASS', 'crawlo.filters.memory_filter.MemoryFilter')
+                job.args['DEFAULT_DEDUP_PIPELINE'] = original_args.get('DEFAULT_DEDUP_PIPELINE', 'crawlo.pipelines.memory_dedup_pipeline.MemoryDedupPipeline')
+                job.args['RUN_MODE'] = original_args.get('RUN_MODE', 'standalone')
+                self.logger.info(f"Redis unavailable, using memory queue for job: {job.spider_name}")
+        elif queue_type == 'memory':
+            # 强制使用内存配置
+            job.args['QUEUE_TYPE'] = 'memory'
+            job.args['FILTER_CLASS'] = original_args.get('FILTER_CLASS', 'crawlo.filters.memory_filter.MemoryFilter')
+            job.args['DEFAULT_DEDUP_PIPELINE'] = original_args.get('DEFAULT_DEDUP_PIPELINE', 'crawlo.pipelines.memory_dedup_pipeline.MemoryDedupPipeline')
+            job.args['RUN_MODE'] = original_args.get('RUN_MODE', 'standalone')
+        else:
+            # 未知队列类型，按auto模式处理
+            redis_available = await self._check_redis_availability()
+            if redis_available:
+                # Redis可用，使用Redis配置
+                job.args['QUEUE_TYPE'] = 'redis'
+                job.args['FILTER_CLASS'] = original_args.get('FILTER_CLASS', 'crawlo.filters.aioredis_filter.AioRedisFilter')
+                job.args['DEFAULT_DEDUP_PIPELINE'] = original_args.get('DEFAULT_DEDUP_PIPELINE', 'crawlo.pipelines.redis_dedup_pipeline.RedisDedupPipeline')
+                job.args['RUN_MODE'] = original_args.get('RUN_MODE', 'distributed')
+                self.logger.info(f"Unknown QUEUE_TYPE: {queue_type}, Redis available, using Redis queue for job: {job.spider_name}")
+            else:
+                # Redis不可用，使用内存配置
+                job.args['QUEUE_TYPE'] = 'memory'
+                job.args['FILTER_CLASS'] = original_args.get('FILTER_CLASS', 'crawlo.filters.memory_filter.MemoryFilter')
+                job.args['DEFAULT_DEDUP_PIPELINE'] = original_args.get('DEFAULT_DEDUP_PIPELINE', 'crawlo.pipelines.memory_dedup_pipeline.MemoryDedupPipeline')
+                job.args['RUN_MODE'] = original_args.get('RUN_MODE', 'standalone')
+                self.logger.info(f"Unknown QUEUE_TYPE: {queue_type}, Redis unavailable, using memory queue for job: {job.spider_name}")
+        
+        # 从原始参数中复制其他配置项，但排除已处理的配置项
+        # 避免重复设置队列、过滤器、去重管道等相关配置
+        excluded_keys = {
+            'REDIS_HOST', 'REDIS_PORT', 'REDIS_PASSWORD', 'REDIS_DB', 'REDIS_URL',
+            'FILTER_CLASS', 'DEFAULT_DEDUP_PIPELINE', 'QUEUE_TYPE', 'RUN_MODE'
+        }
         for key, value in original_args.items():
-            if key not in ['REDIS_HOST', 'REDIS_PORT', 'REDIS_PASSWORD', 'REDIS_DB', 'REDIS_URL',
-                          'FILTER_CLASS', 'DEFAULT_DEDUP_PIPELINE', 'QUEUE_TYPE', 'RUN_MODE']:
+            if key not in excluded_keys:
                 job.args[key] = value
         
-        # 添加调度器内部标识，但不使用可能影响运行模式的键名
+        # 添加调度器内部标识
         job.args['_INTERNAL_SCHEDULER_TASK'] = True
         
         # 从项目配置中获取监控相关设置，如果原始配置中未设置，则使用项目配置
         # 这样可以确保使用项目settings.py中的监控设置
-        if 'MEMORY_MONITOR_ENABLED' not in job.args:
-            job.args['MEMORY_MONITOR_ENABLED'] = self.settings.get_bool('MEMORY_MONITOR_ENABLED', False)
-        if 'MEMORY_MONITOR_INTERVAL' not in job.args:
-            job.args['MEMORY_MONITOR_INTERVAL'] = self.settings.get_int('MEMORY_MONITOR_INTERVAL', 30)
-        if 'MEMORY_WARNING_THRESHOLD' not in job.args:
-            job.args['MEMORY_WARNING_THRESHOLD'] = self.settings.get_float('MEMORY_WARNING_THRESHOLD', 80.0)
-        if 'MEMORY_CRITICAL_THRESHOLD' not in job.args:
-            job.args['MEMORY_CRITICAL_THRESHOLD'] = self.settings.get_float('MEMORY_CRITICAL_THRESHOLD', 90.0)
-        if 'MYSQL_MONITOR_ENABLED' not in job.args:
-            job.args['MYSQL_MONITOR_ENABLED'] = self.settings.get_bool('MYSQL_MONITOR_ENABLED', False)
-        if 'MYSQL_MONITOR_INTERVAL' not in job.args:
-            job.args['MYSQL_MONITOR_INTERVAL'] = self.settings.get_int('MYSQL_MONITOR_INTERVAL', 60)
-        if 'REDIS_MONITOR_ENABLED' not in job.args:
-            job.args['REDIS_MONITOR_ENABLED'] = self.settings.get_bool('REDIS_MONITOR_ENABLED', False)
-        if 'REDIS_MONITOR_INTERVAL' not in job.args:
-            job.args['REDIS_MONITOR_INTERVAL'] = self.settings.get_int('REDIS_MONITOR_INTERVAL', 60)
+        monitor_configs = [
+            ('MEMORY_MONITOR_ENABLED', bool, False),
+            ('MEMORY_MONITOR_INTERVAL', int, 30),
+            ('MEMORY_WARNING_THRESHOLD', float, 80.0),
+            ('MEMORY_CRITICAL_THRESHOLD', float, 90.0),
+            ('MYSQL_MONITOR_ENABLED', bool, False),
+            ('MYSQL_MONITOR_INTERVAL', int, 60),
+            ('REDIS_MONITOR_ENABLED', bool, False),
+            ('REDIS_MONITOR_INTERVAL', int, 60),
+        ]
+        
+        for config_key, config_type, default_value in monitor_configs:
+            if config_key not in job.args:
+                if config_type == bool:
+                    job.args[config_key] = self.settings.get_bool(config_key, default_value)
+                elif config_type == int:
+                    job.args[config_key] = self.settings.get_int(config_key, default_value)
+                elif config_type == float:
+                    job.args[config_key] = self.settings.get_float(config_key, default_value)
         
         # 但强制将Redis监控设为False，防止Redis连接池初始化
+        # 在定时任务执行期间，避免重复的Redis连接池创建
         job.args['REDIS_MONITOR_ENABLED'] = False
+        
+        # 也要禁用内存监控，防止在调度模式下重复创建内存监控实例
+        job.args['MEMORY_MONITOR_ENABLED'] = False
         
         try:
             # 更新统计信息
@@ -215,23 +355,15 @@ class SchedulerDaemon:
                 self._stats['successful_executions'] += 1
                 self._stats['job_stats'][job.spider_name]['successful'] += 1
                 self._stats['job_stats'][job.spider_name]['last_success'] = time.time()
-                self.logger.info(f"定时任务完成: {job.spider_name}")
-                
-                # 显示下次运行信息
-                from datetime import datetime
-                next_time = job.trigger.get_next_time(time.time())
-                next_time_str = datetime.fromtimestamp(next_time).strftime('%Y-%m-%d %H:%M:%S')
-                self.logger.info(f"任务 [{job.spider_name}] 执行完成，下次运行时间: {next_time_str}")
+                # 显示任务完成和下次运行信息
+                self._log_task_completion(job)
                 
             except asyncio.TimeoutError:
                 self.logger.error(f"定时任务超时: {job.spider_name} (超时时间: {timeout}秒)")
                 await self._handle_job_failure(job, "timeout")
                 
-                # 显示下次运行信息
-                from datetime import datetime
-                next_time = job.trigger.get_next_time(time.time())
-                next_time_str = datetime.fromtimestamp(next_time).strftime('%Y-%m-%d %H:%M:%S')
-                self.logger.info(f"任务 [{job.spider_name}] 超时，下次运行时间: {next_time_str}")
+                # 显示任务完成和下次运行信息
+                self._log_task_completion(job)
                 
             except Exception as e:
                 self.logger.error(f"执行定时任务失败 {job.spider_name}: {e}")
@@ -239,48 +371,52 @@ class SchedulerDaemon:
                 traceback.print_exc()
                 await self._handle_job_failure(job, str(e))
                 
-                # 显示下次运行信息
-                from datetime import datetime
-                next_time = job.trigger.get_next_time(time.time())
-                next_time_str = datetime.fromtimestamp(next_time).strftime('%Y-%m-%d %H:%M:%S')
-                self.logger.info(f"任务 [{job.spider_name}] 执行失败，下次运行时间: {next_time_str}")
+                # 显示任务完成和下次运行信息
+                self._log_task_completion(job)
         finally:
             # 只标记任务执行完成，不恢复原始参数，因为爬虫已经启动
             # job.args在爬虫运行期间的修改不影响调度器本身
             job.mark_execution_finished()
-            self.logger.info(f"任务执行完成标记: {job.spider_name}\n")
     
-    def _log_next_execution(self, job: ScheduledJob):
-        """记录下次执行信息"""
-        from datetime import datetime
-        
+    @staticmethod
+    def _format_datetime(timestamp: float) -> str:
+        """格式化时间戳为字符串"""
+        return datetime.fromtimestamp(timestamp).strftime('%Y-%m-%d %H:%M:%S')
+    
+    @staticmethod
+    def _format_duration(seconds: float) -> str:
+        """格式化持续时间为易读字符串"""
+        if seconds < 60:
+            return f"{int(seconds)} 秒"
+        elif seconds < 3600:
+            minutes = int(seconds / 60)
+            remaining_seconds = int(seconds % 60)
+            return f"{minutes} 分钟" + (f" {remaining_seconds} 秒" if remaining_seconds > 0 else "")
+        elif seconds < 86400:  # 小于一天
+            hours = int(seconds / 3600)
+            remaining_minutes = int((seconds % 3600) / 60)
+            return f"{hours} 小时" + (f" {remaining_minutes} 分钟" if remaining_minutes > 0 else "")
+        else:  # 一天或以上
+            days = int(seconds / 86400)
+            remaining_hours = int((seconds % 86400) / 3600)
+            return f"{days} 天" + (f" {remaining_hours} 小时" if remaining_hours > 0 else "")
+    
+    def _log_task_completion(self, job: ScheduledJob):
+        """记录任务完成和下次运行信息"""
         # 重新计算下次执行时间
         next_time = job.trigger.get_next_time(time.time())
         current_time = time.time()
         time_diff = next_time - current_time
         
         # 格式化时间
-        next_time_str = datetime.fromtimestamp(next_time).strftime('%Y-%m-%d %H:%M:%S')
+        next_time_str = self._format_datetime(next_time)
         
         # 格式化时间差
         if time_diff > 0:
-            if time_diff < 60:
-                time_str = f"{int(time_diff)} 秒"
-            elif time_diff < 3600:
-                minutes = int(time_diff / 60)
-                seconds = int(time_diff % 60)
-                time_str = f"{minutes} 分钟" + (f" {seconds} 秒" if seconds > 0 else "")
-            elif time_diff < 86400:  # 小于一天
-                hours = int(time_diff / 3600)
-                minutes = int((time_diff % 3600) / 60)
-                time_str = f"{hours} 小时" + (f" {minutes} 分钟" if minutes > 0 else "")
-            else:  # 一天或以上
-                days = int(time_diff / 86400)
-                hours = int((time_diff % 86400) / 3600)
-                time_str = f"{days} 天" + (f" {hours} 小时" if hours > 0 else "")
-            self.logger.info(f"[{job.spider_name}] 下次运行时间: {next_time_str} (距离: {time_str})")
+            time_str = self._format_duration(time_diff)
+            self.logger.info(f"定时任务完成: {job.spider_name}, 下次运行时间: {next_time_str} (距离: {time_str})\n")
         else:
-            self.logger.info(f"[{job.spider_name}] 下次运行时间: {next_time_str} (即将执行)")
+            self.logger.info(f"定时任务完成: {job.spider_name}, 下次运行时间: {next_time_str} (即将执行)\n")
     
     async def _run_spider_job(self, job: ScheduledJob):
         """运行爬虫任务"""
@@ -346,11 +482,8 @@ class SchedulerDaemon:
                 job.current_retries = 0  # 重置重试计数
                 self.logger.info(f"任务 {job.spider_name} 重试成功")
                 
-                # 显示下次运行信息
-                from datetime import datetime
-                next_time = job.trigger.get_next_time(time.time())
-                next_time_str = datetime.fromtimestamp(next_time).strftime('%Y-%m-%d %H:%M:%S')
-                self.logger.info(f"任务 [{job.spider_name}] 重试成功，下次运行时间: {next_time_str}")
+                # 显示任务完成和下次运行信息
+                self._log_task_completion(job)
             except Exception as e:
                 self.logger.error(f"任务 {job.spider_name} 重试失败: {e}")
                 # 继续尝试重试，直到达到最大重试次数
@@ -360,11 +493,8 @@ class SchedulerDaemon:
             # 任务已达到最大重试次数，标记执行完成
             job.mark_execution_finished()
             
-            # 显示下次运行信息
-            from datetime import datetime
-            next_time = job.trigger.get_next_time(time.time())
-            next_time_str = datetime.fromtimestamp(next_time).strftime('%Y-%m-%d %H:%M:%S')
-            self.logger.info(f"任务 [{job.spider_name}] 达到最大重试次数，下次运行时间: {next_time_str}")
+            # 显示任务完成和下次运行信息
+            self._log_task_completion(job)
     
     def get_stats(self) -> Dict[str, Any]:
         """获取统计信息"""
@@ -489,13 +619,16 @@ def start_scheduler(project_root: str = None):
     import time
     from datetime import datetime
     
+    # 获取调度器日志记录器
+    logger = get_logger("SchedulerStarter")
+    
     # 如果指定了项目根目录，则切换到该目录
     if project_root:
         project_root = os.path.abspath(project_root)
         if os.path.isdir(project_root):
             os.chdir(project_root)
             sys.path.insert(0, project_root)
-            print(f"切换到项目目录: {project_root}")
+            logger.info(f"切换到项目目录: {project_root}")
         else:
             raise RuntimeError(f"项目目录不存在: {project_root}")
     
@@ -505,20 +638,20 @@ def start_scheduler(project_root: str = None):
     settings = get_settings()
     
     if not settings.get_bool('SCHEDULER_ENABLED', False):
-        print("定时任务未启用，如需启用请在配置中设置 SCHEDULER_ENABLED = True")
+        logger.info("定时任务未启用，如需启用请在配置中设置 SCHEDULER_ENABLED = True")
         return
     
     daemon = SchedulerDaemon(settings)
     
-    # 打印任务信息
-    print(f"\n{'='*80}")
-    print(f"定时任务调度器")
-    print(f"{'='*80}")
-    print(f"当前时间: {datetime.fromtimestamp(time.time()).strftime('%Y-%m-%d %H:%M:%S')}")
-    print(f"任务数量: {len(daemon.jobs)}")
+    # 记录任务信息
+    logger.info("="*80)
+    logger.info("定时任务调度器")
+    logger.info("="*80)
+    logger.info(f"当前时间: {datetime.fromtimestamp(time.time()).strftime('%Y-%m-%d %H:%M:%S')}")
+    logger.info(f"任务数量: {len(daemon.jobs)}")
     
     if len(daemon.jobs) == 0:
-        print("未配置任何定时任务")
+        logger.info("未配置任何定时任务")
     else:
         for job in daemon.jobs:
             next_time = datetime.fromtimestamp(job.next_execution_time).strftime('%Y-%m-%d %H:%M:%S')
@@ -538,25 +671,25 @@ def start_scheduler(project_root: str = None):
                     days = int(time_diff / 86400)
                     hours = int((time_diff % 86400) / 3600)
                     time_str = f"{days} 天" + (f" {hours} 小时" if hours > 0 else "")
-                print(f"\n任务: {job.spider_name}")
-                print(f"  Cron表达式: {job.cron or job.interval}")
-                print(f"  下次运行时间: {next_time}")
-                print(f"  距离下次运行: {time_str}")
+                logger.info(f"\n任务: {job.spider_name}")
+                logger.info(f"  Cron表达式: {job.cron or job.interval}")
+                logger.info(f"  下次运行时间: {next_time}")
+                logger.info(f"  距离下次运行: {time_str}")
             else:
-                print(f"\n任务: {job.spider_name}")
-                print(f"  Cron表达式: {job.cron or job.interval}")
-                print(f"  下次运行时间: {next_time}")
-                print(f"  状态: 立即执行")
+                logger.info(f"\n任务: {job.spider_name}")
+                logger.info(f"  Cron表达式: {job.cron or job.interval}")
+                logger.info(f"  下次运行时间: {next_time}")
+                logger.info(f"  状态: 立即执行")
     
-    print(f"\n{'='*80}")
-    print(f"调度器主循环启动，等待任务执行...")
-    print(f"{'='*80}\n")
+    logger.info("="*80)
+    logger.info("调度器主循环启动，等待任务执行...")
+    logger.info("="*80)
     
     try:
         asyncio.run(daemon.start())
     except KeyboardInterrupt:
-        print("\n接收到中断信号，正在停止调度器...")
+        logger.info("接收到中断信号，正在停止调度器...")
     except Exception as e:
-        print(f"调度器运行出错: {e}")
+        logger.error(f"调度器运行出错: {e}")
         import traceback
-        traceback.print_exc()
+        logger.debug(f"详细错误信息:\n{traceback.format_exc()}")

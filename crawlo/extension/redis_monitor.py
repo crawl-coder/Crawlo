@@ -45,7 +45,8 @@ class RedisMonitorExtension:
             from crawlo.exceptions import NotConfigured
             from crawlo.logging import get_logger
             logger = get_logger(cls.__name__)
-            logger.info("RedisMonitorExtension: REDIS_MONITOR_ENABLED is False, skipping initialization")
+            # 使用debug级别日志，避免在正常情况下产生错误日志
+            logger.debug("RedisMonitorExtension: REDIS_MONITOR_ENABLED is False, skipping initialization")
             raise NotConfigured("RedisMonitorExtension: REDIS_MONITOR_ENABLED is False")
         
         # 检查是否已有Redis监控实例在运行
@@ -97,9 +98,13 @@ class RedisMonitorExtension:
             if not is_scheduler_mode:
                 # 不是调度任务，注销监控实例
                 monitor_manager.unregister_monitor('redis_monitor')
+                # 清空连接池使用历史数据以防止内存泄漏
+                self.pool_usage_history.clear()
                 self.logger.info("Redis monitor stopped.")
             else:
                 # 是调度任务，暂停监控（保持实例）
+                # 清空连接池使用历史数据以防止内存泄漏
+                self.pool_usage_history.clear()
                 self.logger.info("Redis monitor paused (will resume with next spider).")
 
     def _calculate_pool_trend(self) -> tuple:
