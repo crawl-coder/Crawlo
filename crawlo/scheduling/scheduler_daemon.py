@@ -619,6 +619,18 @@ def start_scheduler(project_root: str = None):
     import time
     from datetime import datetime
     
+    # 先配置日志系统，确保SchedulerStarter日志记录器使用正确的配置
+    from crawlo.project import get_settings
+    from crawlo.logging import configure_logging
+    
+    # 尝试加载项目配置来配置日志系统
+    try:
+        temp_settings = get_settings()
+        configure_logging(temp_settings)
+    except Exception:
+        # 如果无法加载配置，使用默认配置
+        configure_logging()
+    
     # 获取调度器日志记录器
     logger = get_logger("SchedulerStarter")
     
@@ -634,8 +646,8 @@ def start_scheduler(project_root: str = None):
     
     from crawlo.project import get_settings
     
-    # 加载项目配置
-    settings = get_settings()
+    # 使用已加载的配置
+    settings = temp_settings
     
     if not settings.get_bool('SCHEDULER_ENABLED', False):
         logger.info("定时任务未启用，如需启用请在配置中设置 SCHEDULER_ENABLED = True")
@@ -671,12 +683,12 @@ def start_scheduler(project_root: str = None):
                     days = int(time_diff / 86400)
                     hours = int((time_diff % 86400) / 3600)
                     time_str = f"{days} 天" + (f" {hours} 小时" if hours > 0 else "")
-                logger.info(f"\n任务: {job.spider_name}")
+                logger.info(f"任务: {job.spider_name}")
                 logger.info(f"  Cron表达式: {job.cron or job.interval}")
                 logger.info(f"  下次运行时间: {next_time}")
                 logger.info(f"  距离下次运行: {time_str}")
             else:
-                logger.info(f"\n任务: {job.spider_name}")
+                logger.info(f"任务: {job.spider_name}")
                 logger.info(f"  Cron表达式: {job.cron or job.interval}")
                 logger.info(f"  下次运行时间: {next_time}")
                 logger.info(f"  状态: 立即执行")
