@@ -284,9 +284,6 @@ class SchedulerDaemon:
     
     async def _run_spider_job(self, job: ScheduledJob):
         """运行爬虫任务"""
-        # 导入 Crawlo 的 CrawlerProcess 来运行爬虫
-        from crawlo.crawler import CrawlerProcess
-        
         # 使用job.args作为基础，确保包含调度模式标识
         job_args = dict(job.args)  # 这已经包含了SCHEDULER_MODE和监控配置
         
@@ -301,6 +298,7 @@ class SchedulerDaemon:
             job_args['LOG_FILE'] = 'logs/crawlo.log'
         
         # 重新配置日志系统以使用爬虫的配置（特别是LOG_FILE）
+        # 这必须在创建CrawlerProcess之前完成，以确保框架初始化时使用正确的日志配置
         from crawlo.logging import configure_logging, LoggerFactory
         import logging
         
@@ -312,6 +310,9 @@ class SchedulerDaemon:
         
         # 刷新所有缓存的logger以应用新配置
         LoggerFactory.clear_cache()
+        
+        # 导入 Crawlo 的 CrawlerProcess 来运行爬虫
+        from crawlo.crawler import CrawlerProcess
         
         # 创建爬虫进程并运行指定的爬虫
         process = CrawlerProcess()
