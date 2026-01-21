@@ -12,6 +12,7 @@ from .job import ScheduledJob
 from .trigger import TimeTrigger
 from crawlo.settings.setting_manager import SettingManager as Settings
 from crawlo.utils.resource_manager import ResourceManager, ResourceType
+from crawlo.logging import get_logger
 
 
 class SchedulerDaemon:
@@ -22,7 +23,7 @@ class SchedulerDaemon:
         self.running = False
         self.jobs: List[ScheduledJob] = []
         self.loop: Optional[asyncio.AbstractEventLoop] = None
-        self.logger = logging.getLogger(__name__)
+        self.logger = get_logger("SchedulerDaemon")
         
         # 资源管理
         self._resource_manager = ResourceManager(name="scheduler_daemon")
@@ -152,40 +153,102 @@ class SchedulerDaemon:
     async def _execute_job(self, job: ScheduledJob):
         """执行单个任务"""
         
-        # 更新统计信息
-        self._stats['total_executions'] += 1
-        self._stats['job_stats'][job.spider_name]['total'] += 1
-        self._stats['job_stats'][job.spider_name]['last_execution'] = time.time()
+        # 保存原始参数，以便在执行完成后恢复
+        original_args = dict(job.args) if job.args else {}
         
-        # 获取超时配置
-        timeout = self.settings.get_int('SCHEDULER_JOB_TIMEOUT', 3600)
+        # 创建一个新的参数字典，只包含安全的参数
+        job.args = {}
+        
+        # 保持原始的运行模式配置，确保在standalone模式下运行
+        # 明确设置为内存队列和过滤器，覆盖可能的Redis配置
+        job.args['QUEUE_TYPE'] = original_args.get('QUEUE_TYPE', 'memory')
+        job.args['FILTER_CLASS'] = original_args.get('FILTER_CLASS', 'crawlo.filters.memory_filter.MemoryFilter')
+        job.args['DEFAULT_DEDUP_PIPELINE'] = original_args.get('DEFAULT_DEDUP_PIPELINE', 'crawlo.pipelines.memory_dedup_pipeline.MemoryDedupPipeline')
+        job.args['RUN_MODE'] = original_args.get('RUN_MODE', 'standalone')
+        
+        # 传递其他基本配置，但排除所有Redis连接相关配置
+        # 保留监控配置，使用原始配置值而不是强制覆盖
+        for key, value in original_args.items():
+            if key not in ['REDIS_HOST', 'REDIS_PORT', 'REDIS_PASSWORD', 'REDIS_DB', 'REDIS_URL',
+                          'FILTER_CLASS', 'DEFAULT_DEDUP_PIPELINE', 'QUEUE_TYPE', 'RUN_MODE']:
+                job.args[key] = value
+        
+        # 添加调度器内部标识，但不使用可能影响运行模式的键名
+        job.args['_INTERNAL_SCHEDULER_TASK'] = True
+        
+        # 从项目配置中获取监控相关设置，如果原始配置中未设置，则使用项目配置
+        # 这样可以确保使用项目settings.py中的监控设置
+        if 'MEMORY_MONITOR_ENABLED' not in job.args:
+            job.args['MEMORY_MONITOR_ENABLED'] = self.settings.get_bool('MEMORY_MONITOR_ENABLED', False)
+        if 'MEMORY_MONITOR_INTERVAL' not in job.args:
+            job.args['MEMORY_MONITOR_INTERVAL'] = self.settings.get_int('MEMORY_MONITOR_INTERVAL', 30)
+        if 'MEMORY_WARNING_THRESHOLD' not in job.args:
+            job.args['MEMORY_WARNING_THRESHOLD'] = self.settings.get_float('MEMORY_WARNING_THRESHOLD', 80.0)
+        if 'MEMORY_CRITICAL_THRESHOLD' not in job.args:
+            job.args['MEMORY_CRITICAL_THRESHOLD'] = self.settings.get_float('MEMORY_CRITICAL_THRESHOLD', 90.0)
+        if 'MYSQL_MONITOR_ENABLED' not in job.args:
+            job.args['MYSQL_MONITOR_ENABLED'] = self.settings.get_bool('MYSQL_MONITOR_ENABLED', False)
+        if 'MYSQL_MONITOR_INTERVAL' not in job.args:
+            job.args['MYSQL_MONITOR_INTERVAL'] = self.settings.get_int('MYSQL_MONITOR_INTERVAL', 60)
+        if 'REDIS_MONITOR_ENABLED' not in job.args:
+            job.args['REDIS_MONITOR_ENABLED'] = self.settings.get_bool('REDIS_MONITOR_ENABLED', False)
+        if 'REDIS_MONITOR_INTERVAL' not in job.args:
+            job.args['REDIS_MONITOR_INTERVAL'] = self.settings.get_int('REDIS_MONITOR_INTERVAL', 60)
+        
+        # 但强制将Redis监控设为False，防止Redis连接池初始化
+        job.args['REDIS_MONITOR_ENABLED'] = False
         
         try:
-            # 使用 asyncio.wait_for 实现超时控制
-            await asyncio.wait_for(self._run_spider_job(job), timeout=timeout)
+            # 更新统计信息
+            self._stats['total_executions'] += 1
+            self._stats['job_stats'][job.spider_name]['total'] += 1
+            self._stats['job_stats'][job.spider_name]['last_execution'] = time.time()
             
-            # 更新成功统计
-            self._stats['successful_executions'] += 1
-            self._stats['job_stats'][job.spider_name]['successful'] += 1
-            self._stats['job_stats'][job.spider_name]['last_success'] = time.time()
-            self.logger.info(f"定时任务完成: {job.spider_name}")
+            # 获取超时配置
+            timeout = self.settings.get_int('SCHEDULER_JOB_TIMEOUT', 3600)
             
-            # 显示下次运行信息
-            self._log_next_execution(job)
-            
-        except asyncio.TimeoutError:
-            self.logger.error(f"定时任务超时: {job.spider_name} (超时时间: {timeout}秒)")
-            await self._handle_job_failure(job, "timeout")
-            
-        except Exception as e:
-            self.logger.error(f"执行定时任务失败 {job.spider_name}: {e}")
-            import traceback
-            traceback.print_exc()
-            await self._handle_job_failure(job, str(e))
+            try:
+                # 使用 asyncio.wait_for 实现超时控制
+                await asyncio.wait_for(self._run_spider_job(job), timeout=timeout)
+                
+                # 更新成功统计
+                self._stats['successful_executions'] += 1
+                self._stats['job_stats'][job.spider_name]['successful'] += 1
+                self._stats['job_stats'][job.spider_name]['last_success'] = time.time()
+                self.logger.info(f"定时任务完成: {job.spider_name}")
+                
+                # 显示下次运行信息
+                from datetime import datetime
+                next_time = job.trigger.get_next_time(time.time())
+                next_time_str = datetime.fromtimestamp(next_time).strftime('%Y-%m-%d %H:%M:%S')
+                self.logger.info(f"任务 [{job.spider_name}] 执行完成，下次运行时间: {next_time_str}")
+                
+            except asyncio.TimeoutError:
+                self.logger.error(f"定时任务超时: {job.spider_name} (超时时间: {timeout}秒)")
+                await self._handle_job_failure(job, "timeout")
+                
+                # 显示下次运行信息
+                from datetime import datetime
+                next_time = job.trigger.get_next_time(time.time())
+                next_time_str = datetime.fromtimestamp(next_time).strftime('%Y-%m-%d %H:%M:%S')
+                self.logger.info(f"任务 [{job.spider_name}] 超时，下次运行时间: {next_time_str}")
+                
+            except Exception as e:
+                self.logger.error(f"执行定时任务失败 {job.spider_name}: {e}")
+                import traceback
+                traceback.print_exc()
+                await self._handle_job_failure(job, str(e))
+                
+                # 显示下次运行信息
+                from datetime import datetime
+                next_time = job.trigger.get_next_time(time.time())
+                next_time_str = datetime.fromtimestamp(next_time).strftime('%Y-%m-%d %H:%M:%S')
+                self.logger.info(f"任务 [{job.spider_name}] 执行失败，下次运行时间: {next_time_str}")
         finally:
-            # 无论成功或失败，都要标记任务执行完成
+            # 只标记任务执行完成，不恢复原始参数，因为爬虫已经启动
+            # job.args在爬虫运行期间的修改不影响调度器本身
             job.mark_execution_finished()
-            self.logger.info(f"任务执行完成标记: {job.spider_name}")
+            self.logger.info(f"任务执行完成标记: {job.spider_name}\n")
     
     def _log_next_execution(self, job: ScheduledJob):
         """记录下次执行信息"""
@@ -204,24 +267,58 @@ class SchedulerDaemon:
             if time_diff < 60:
                 time_str = f"{int(time_diff)} 秒"
             elif time_diff < 3600:
-                time_str = f"{int(time_diff/60)} 分钟"
-            else:
-                time_str = f"{int(time_diff/3600)} 小时"
-            self.logger.info(f"下次运行时间: {next_time_str} (距离: {time_str})")
+                minutes = int(time_diff / 60)
+                seconds = int(time_diff % 60)
+                time_str = f"{minutes} 分钟" + (f" {seconds} 秒" if seconds > 0 else "")
+            elif time_diff < 86400:  # 小于一天
+                hours = int(time_diff / 3600)
+                minutes = int((time_diff % 3600) / 60)
+                time_str = f"{hours} 小时" + (f" {minutes} 分钟" if minutes > 0 else "")
+            else:  # 一天或以上
+                days = int(time_diff / 86400)
+                hours = int((time_diff % 86400) / 3600)
+                time_str = f"{days} 天" + (f" {hours} 小时" if hours > 0 else "")
+            self.logger.info(f"[{job.spider_name}] 下次运行时间: {next_time_str} (距离: {time_str})")
         else:
-            self.logger.info(f"下次运行时间: {next_time_str} (即将执行)")
+            self.logger.info(f"[{job.spider_name}] 下次运行时间: {next_time_str} (即将执行)")
     
     async def _run_spider_job(self, job: ScheduledJob):
         """运行爬虫任务"""
         # 导入 Crawlo 的 CrawlerProcess 来运行爬虫
         from crawlo.crawler import CrawlerProcess
         
+        # 使用job.args作为基础，确保包含调度模式标识
+        job_args = dict(job.args)  # 这已经包含了SCHEDULER_MODE和监控配置
+        
+        # 确保使用爬虫的特定日志配置，而不是框架默认配置
+        # 优先使用原始项目配置中的日志文件设置，避免创建额外的日志文件
+        # 强制使用项目配置中的日志文件，不管job_args中是否有其他配置
+        project_log_file = self.settings.get('LOG_FILE', None)
+        if project_log_file:
+            job_args['LOG_FILE'] = project_log_file
+        elif not job_args.get('LOG_FILE'):
+            # 如果项目配置中也没有设置日志文件，使用默认值
+            job_args['LOG_FILE'] = 'logs/crawlo.log'
+        
+        # 重新配置日志系统以使用爬虫的配置（特别是LOG_FILE）
+        from crawlo.logging import configure_logging, LoggerFactory
+        import logging
+        
+        # 在重新配置前，先清除可能存在的基础配置
+        for handler in logging.root.handlers[:]:
+            logging.root.removeHandler(handler)
+        
+        configure_logging(job_args)  # 使用爬虫配置重新配置日志系统
+        
+        # 刷新所有缓存的logger以应用新配置
+        LoggerFactory.clear_cache()
+        
         # 创建爬虫进程并运行指定的爬虫
         process = CrawlerProcess()
         
-        # 传递任务参数给爬虫
+        # 传递任务参数给爬虫，包括调度模式信息和监控配置
         # CrawlerProcess.crawl方法需要爬虫类或名称，以及配置参数
-        await process.crawl(job.spider_name, settings=job.args)
+        await process.crawl(job.spider_name, settings=job_args)
     
     async def _handle_job_failure(self, job: ScheduledJob, error: str):
         """处理任务失败"""
@@ -247,6 +344,12 @@ class SchedulerDaemon:
                 self._stats['job_stats'][job.spider_name]['last_success'] = time.time()
                 job.current_retries = 0  # 重置重试计数
                 self.logger.info(f"任务 {job.spider_name} 重试成功")
+                
+                # 显示下次运行信息
+                from datetime import datetime
+                next_time = job.trigger.get_next_time(time.time())
+                next_time_str = datetime.fromtimestamp(next_time).strftime('%Y-%m-%d %H:%M:%S')
+                self.logger.info(f"任务 [{job.spider_name}] 重试成功，下次运行时间: {next_time_str}")
             except Exception as e:
                 self.logger.error(f"任务 {job.spider_name} 重试失败: {e}")
                 # 继续尝试重试，直到达到最大重试次数
@@ -255,6 +358,12 @@ class SchedulerDaemon:
             self.logger.error(f"任务 {job.spider_name} 已达到最大重试次数 ({job.max_retries})，不再重试")
             # 任务已达到最大重试次数，标记执行完成
             job.mark_execution_finished()
+            
+            # 显示下次运行信息
+            from datetime import datetime
+            next_time = job.trigger.get_next_time(time.time())
+            next_time_str = datetime.fromtimestamp(next_time).strftime('%Y-%m-%d %H:%M:%S')
+            self.logger.info(f"任务 [{job.spider_name}] 达到最大重试次数，下次运行时间: {next_time_str}")
     
     def get_stats(self) -> Dict[str, Any]:
         """获取统计信息"""
@@ -300,6 +409,14 @@ class SchedulerDaemon:
             self.logger.info("资源清理完成")
         except Exception as e:
             self.logger.error(f"资源清理失败: {e}")
+        
+        # 清理监控管理器中的所有监控实例
+        try:
+            from crawlo.utils.monitor_manager import monitor_manager
+            monitor_manager.cleanup()
+            self.logger.info("监控管理器清理完成")
+        except Exception as e:
+            self.logger.error(f"监控管理器清理失败: {e}")
         
         self.logger.info("定时任务调度器已停止")
     
@@ -399,23 +516,36 @@ def start_scheduler(project_root: str = None):
     print(f"当前时间: {datetime.fromtimestamp(time.time()).strftime('%Y-%m-%d %H:%M:%S')}")
     print(f"任务数量: {len(daemon.jobs)}")
     
-    for job in daemon.jobs:
-        next_time = datetime.fromtimestamp(job.next_execution_time).strftime('%Y-%m-%d %H:%M:%S')
-        time_diff = job.next_execution_time - time.time()
-        if time_diff > 0:
-            if time_diff < 60:
-                time_str = f"{int(time_diff)} 秒"
-            elif time_diff < 3600:
-                time_str = f"{int(time_diff/60)} 分钟"
+    if len(daemon.jobs) == 0:
+        print("未配置任何定时任务")
+    else:
+        for job in daemon.jobs:
+            next_time = datetime.fromtimestamp(job.next_execution_time).strftime('%Y-%m-%d %H:%M:%S')
+            time_diff = job.next_execution_time - time.time()
+            if time_diff > 0:
+                if time_diff < 60:
+                    time_str = f"{int(time_diff)} 秒"
+                elif time_diff < 3600:
+                    minutes = int(time_diff / 60)
+                    seconds = int(time_diff % 60)
+                    time_str = f"{minutes} 分钟" + (f" {seconds} 秒" if seconds > 0 else "")
+                elif time_diff < 86400:  # 小于一天
+                    hours = int(time_diff / 3600)
+                    minutes = int((time_diff % 3600) / 60)
+                    time_str = f"{hours} 小时" + (f" {minutes} 分钟" if minutes > 0 else "")
+                else:  # 一天或以上
+                    days = int(time_diff / 86400)
+                    hours = int((time_diff % 86400) / 3600)
+                    time_str = f"{days} 天" + (f" {hours} 小时" if hours > 0 else "")
+                print(f"\n任务: {job.spider_name}")
+                print(f"  Cron表达式: {job.cron or job.interval}")
+                print(f"  下次运行时间: {next_time}")
+                print(f"  距离下次运行: {time_str}")
             else:
-                time_str = f"{int(time_diff/3600)} 小时"
-            print(f"\n任务: {job.spider_name}")
-            print(f"  下次运行时间: {next_time}")
-            print(f"  距离下次运行: {time_str}")
-        else:
-            print(f"\n任务: {job.spider_name}")
-            print(f"  下次运行时间: {next_time}")
-            print(f"  状态: 立即执行")
+                print(f"\n任务: {job.spider_name}")
+                print(f"  Cron表达式: {job.cron or job.interval}")
+                print(f"  下次运行时间: {next_time}")
+                print(f"  状态: 立即执行")
     
     print(f"\n{'='*80}")
     print(f"调度器主循环启动，等待任务执行...")

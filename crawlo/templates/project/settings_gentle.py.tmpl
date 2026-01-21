@@ -78,33 +78,41 @@ LOG_BACKUP_COUNT = 10  # 10个备份文件，推荐值
 
 
 # =================================== 定时任务配置 ===================================
-# 定时任务基础配置
-# SCHEDULER_ENABLED = False  # 启用定时任务 - 默认禁用，取消注释以启用
-# SCHEDULER_JOBS = []  # 定时任务配置列表
 
-# 定时任务高级配置
-# SCHEDULER_CHECK_INTERVAL = 1  # 调度器检查间隔（秒）- 默认1秒
-# SCHEDULER_MAX_CONCURRENT = 3  # 最大并发任务数 - 默认3个
-# SCHEDULER_JOB_TIMEOUT = 3600  # 单个任务超时时间（秒）- 默认1小时
+# 启用定时任务 - 默认关闭
+SCHEDULER_ENABLED = False
 
-# 定时任务资源监控配置
-# SCHEDULER_RESOURCE_MONITOR_ENABLED = True  # 是否启用资源监控 - 默认启用
-# SCHEDULER_RESOURCE_CHECK_INTERVAL = 300  # 资源检查间隔（秒）- 默认5分钟
-# SCHEDULER_RESOURCE_LEAK_THRESHOLD = 3600  # 资源泄露检测阈值（秒）- 默认1小时
+# 定时任务配置
+SCHEDULER_JOBS = [
+    {
+        'spider': '{{project_name}}.spiders.{{spider_name}}',  # 爬虫名称（对应spider的name属性）
+        'cron': '*/2 * * * *',       # 每2分钟执行一次
+        'enabled': True,              # 任务启用状态
+        'priority': 10,               # 任务优先级
+        'max_retries': 3,             # 最大重试次数
+        'retry_delay': 60,            # 重试延迟（秒）
+        'args': {},                  # 传递给爬虫的参数
+        'kwargs': {}                  # 传递给爬虫的额外参数
+    },
+    {
+        'spider': '{{project_name}}.spiders.{{spider_name}}',  # 爬虫名称
+        'cron': '0 2 * * *',         # 每天凌晨2点执行
+        'enabled': True,              # 任务启用状态
+        'priority': 20,               # 任务优先级
+        'max_retries': 2,             # 最大重试次数
+        'retry_delay': 120,           # 重试延迟（秒）
+        'args': {'daily': True},      # 传递给爬虫的参数
+        'kwargs': {}                  # 传递给爬虫的额外参数
+    }
+]
 
-# 定时任务配置示例（取消注释并修改）
-# SCHEDULER_JOBS = [
-#     {
-#         'spider': '{{project_name}}.spiders.{{spider_name}}',
-#         'cron': '*/2 * * * *',  # 每2分钟执行一次
-#         'enabled': True,
-#         'args': {},
-#         'priority': 10
-#     }
-# ]
-
-# 输出配置
-OUTPUT_DIR = 'output'
+# 关键配置参数（用户可能需要调整）
+SCHEDULER_CHECK_INTERVAL = 1           # 调度器检查间隔（秒）
+SCHEDULER_MAX_CONCURRENT = 3           # 最大并发任务数
+SCHEDULER_JOB_TIMEOUT = 3600           # 单个任务超时时间（秒）
+SCHEDULER_RESOURCE_MONITOR_ENABLED = True  # 是否启用资源监控
+SCHEDULER_RESOURCE_CHECK_INTERVAL = 300    # 资源检查间隔（秒）
+SCHEDULER_RESOURCE_LEAK_THRESHOLD = 3600   # 资源泄露检测阈值（秒）
 
 # =================================== 数据库配置 ===================================
 
@@ -195,8 +203,55 @@ AIOHTTP_FORCE_CLOSE = False  # 是否强制关闭连接
 CONNECTION_TTL_DNS_CACHE = 300  # DNS缓存TTL（秒）
 CONNECTION_KEEPALIVE_TIMEOUT = 15  # Keep-Alive超时（秒）
 
+# =================================== 定时任务配置 ===================================
+
+# 启用定时任务 - 默认关闭
+SCHEDULER_ENABLED = False
+
+# 定时任务配置
+SCHEDULER_JOBS = [
+    {
+        'spider': '{{project_name}}.spiders.{{spider_name}}',  # 爬虫名称（对应spider的name属性）
+        'cron': '*/2 * * * *',       # 每2分钟执行一次
+        'enabled': True,              # 任务启用状态
+        'priority': 10,               # 任务优先级
+        'max_retries': 3,             # 最大重试次数
+        'retry_delay': 60,            # 重试延迟（秒）
+        'args': {},                  # 传递给爬虫的参数
+        'kwargs': {}                  # 传递给爬虫的额外参数
+    },
+    {
+        'spider': '{{project_name}}.spiders.{{spider_name}}',  # 爬虫名称
+        'cron': '0 2 * * *',         # 每天凌晨2点执行
+        'enabled': True,              # 任务启用状态
+        'priority': 20,               # 任务优先级
+        'max_retries': 2,             # 最大重试次数
+        'retry_delay': 120,           # 重试延迟（秒）
+        'args': {'daily': True},      # 传递给爬虫的参数
+        'kwargs': {}                  # 传递给爬虫的额外参数
+    }
+]
+
+# 关键配置参数（用户可能需要调整）
+SCHEDULER_CHECK_INTERVAL = 1           # 调度器检查间隔（秒）
+SCHEDULER_MAX_CONCURRENT = 3           # 最大并发任务数
+SCHEDULER_JOB_TIMEOUT = 3600           # 单个任务超时时间（秒）
+SCHEDULER_RESOURCE_MONITOR_ENABLED = True  # 是否启用资源监控
+SCHEDULER_RESOURCE_CHECK_INTERVAL = 300    # 资源检查间隔（秒）
+SCHEDULER_RESOURCE_LEAK_THRESHOLD = 3600   # 资源泄露检测阈值（秒）
+
+# =================================== 资源监控配置 ===================================
+
 # 内存监控配置
 MEMORY_MONITOR_ENABLED = False  # 是否启用内存监控
 MEMORY_MONITOR_INTERVAL = 60  # 内存监控检查间隔（秒）
 MEMORY_WARNING_THRESHOLD = 80.0  # 内存使用率警告阈值（百分比）
 MEMORY_CRITICAL_THRESHOLD = 90.0  # 内存使用率严重阈值（百分比）
+
+# MySQL监控配置
+# MYSQL_MONITOR_ENABLED = False  # 是否启用MySQL监控
+# MYSQL_MONITOR_INTERVAL = 120  # MySQL监控检查间隔（秒）
+
+# Redis监控配置
+# REDIS_MONITOR_ENABLED = False  # 是否启用Redis监控
+# REDIS_MONITOR_INTERVAL = 120  # Redis监控检查间隔（秒）

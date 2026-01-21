@@ -111,7 +111,7 @@ MYSQL_UPDATE_COLUMNS = ()  # 冲突时需更新的列名；指定后 MYSQL_AUTO_
 
 # =================================== 定时任务配置 ===================================
 
-# 启用定时任务
+# 启用定时任务 - 用于测试
 SCHEDULER_ENABLED = True
 
 # 定时任务配置
@@ -137,29 +137,26 @@ SCHEDULER_JOBS = [
     }
 ]
 
-# 定时任务高级配置（可选）
+# 关键配置参数（用户可能需要调整）
 SCHEDULER_CHECK_INTERVAL = 1           # 调度器检查间隔（秒）
 SCHEDULER_MAX_CONCURRENT = 3           # 最大并发任务数
 SCHEDULER_JOB_TIMEOUT = 3600           # 单个任务超时时间（秒）
 SCHEDULER_RESOURCE_MONITOR_ENABLED = True  # 是否启用资源监控
-SCHEDULER_RESOURCE_CHECK_INTERVAL = 300    # 资源检查间隔（秒），默认5分钟
-SCHEDULER_RESOURCE_LEAK_THRESHOLD = 3600   # 资源泄露检测阈值（秒），默认1小时
+SCHEDULER_RESOURCE_CHECK_INTERVAL = 300    # 资源检查间隔（秒）
+SCHEDULER_RESOURCE_LEAK_THRESHOLD = 3600   # 资源泄露检测阈值（秒）
 
-# 调度器资源管理配置
-SCHEDULER_RESOURCE_CLEANUP_ON_STOP = True  # 停止时是否清理资源
-SCHEDULER_MAX_RESOURCE_AGE = 7200          # 资源最大存活时间（秒）
+# =================================== 附加监控配置 ===================================
 
-# 任务执行配置
-SCHEDULER_TASK_CLEANUP_INTERVAL = 60     # 任务清理间隔（秒）
-SCHEDULER_STATS_LOGGING_INTERVAL = 300    # 统计信息记录间隔（秒）
+# 启用MySQL监控（用于测试）
+MYSQL_MONITOR_ENABLED = True
+MYSQL_MONITOR_INTERVAL = 60  # MySQL监控间隔（秒）
 
-# 信号处理配置
-SCHEDULER_GRACEFUL_SHUTDOWN_TIMEOUT = 60  # 优雅关闭超时时间（秒）
+# 启用Redis监控（用于测试）
+REDIS_MONITOR_ENABLED = True
+REDIS_MONITOR_INTERVAL = 60  # Redis监控间隔（秒）
 
-# 错误处理配置
-SCHEDULER_ERROR_RETRY_DELAY = 30          # 错误重试延迟（秒）
-SCHEDULER_ERROR_LOG_RETENTION_DAYS = 30    # 错误日志保留天数
-
-# 调度器性能配置
-SCHEDULER_STATS_RETENTION_HOURS = 24      # 统计信息保留小时数
-SCHEDULER_HEARTBEAT_INTERVAL = 10          # 心跳间隔（秒）
+# 启用内存监控（用于测试）
+MEMORY_MONITOR_ENABLED = True
+MEMORY_MONITOR_INTERVAL = 30  # 内存监控检查间隔（秒）
+MEMORY_WARNING_THRESHOLD = 80.0  # 内存使用率警告阈值（百分比）
+MEMORY_CRITICAL_THRESHOLD = 90.0  # 内存使用率严重阈值（百分比）

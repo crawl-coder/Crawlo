@@ -6,6 +6,7 @@ from typing import Any, Optional, Dict
 
 from crawlo.event import CrawlerEvent
 from crawlo.logging import get_logger
+from crawlo.utils.monitor_manager import monitor_manager
 
 
 class HealthCheckExtension:
@@ -33,6 +34,9 @@ class HealthCheckExtension:
         }
         
         self.task: Optional[asyncio.Task] = None
+        
+        # 监控管理器
+        self.monitor_manager = monitor_manager
 
     @classmethod
     def create_instance(cls, crawler: Any) -> 'HealthCheckExtension':
@@ -41,8 +45,19 @@ class HealthCheckExtension:
             from crawlo.exceptions import NotConfigured
             raise NotConfigured("HealthCheckExtension: HEALTH_CHECK_ENABLED is False")
         
+        # 检查是否已有健康检查实例在运行
+        existing_monitor = monitor_manager.get_monitor('health_check_monitor')
+        if existing_monitor is not None:
+            # 如果已有实例在运行，返回一个不执行任何操作的实例
+            o = cls(crawler)
+            o.enabled = False  # 禁用此实例的实际监控功能
+            return o
+        
         o = cls(crawler)
-        if o.enabled:
+        # 注册监控实例到管理器
+        registered = monitor_manager.register_monitor('health_check_monitor', o)
+        if registered:
+            # 只有在成功注册后才订阅事件
             crawler.subscriber.subscribe(o.spider_opened, event=CrawlerEvent.SPIDER_OPENED)
             crawler.subscriber.subscribe(o.spider_closed, event=CrawlerEvent.SPIDER_CLOSED)
             crawler.subscriber.subscribe(o.response_received, event=CrawlerEvent.RESPONSE_RECEIVED)
@@ -51,7 +66,9 @@ class HealthCheckExtension:
 
     async def spider_opened(self) -> None:
         """爬虫启动时初始化健康检查"""
-        if not self.enabled:
+        # 检查是否已经有一个监控实例在运行
+        if not self.enabled or monitor_manager.get_monitor('health_check_monitor') != self:
+            # 如果此实例不是主要监控实例，则不启动监控
             return
             
         self.stats['start_time'] = datetime.now()
@@ -60,19 +77,20 @@ class HealthCheckExtension:
 
     async def spider_closed(self) -> None:
         """爬虫关闭时停止健康检查"""
-        if not self.enabled:
-            return
+        # 只有主要监控实例才处理关闭
+        if monitor_manager.get_monitor('health_check_monitor') == self:
+            if self.task:
+                self.task.cancel()
+                try:
+                    await self.task
+                except asyncio.CancelledError:
+                    pass
             
-        if self.task:
-            self.task.cancel()
-            try:
-                await self.task
-            except asyncio.CancelledError:
-                pass
-        
-        # 输出最终健康状态
-        await self._check_health()
-        self.logger.info("Health check extension stopped.")
+            # 输出最终健康状态
+            await self._check_health()
+            # 从监控管理器中注销
+            monitor_manager.unregister_monitor('health_check_monitor')
+            self.logger.info("Health check extension stopped.")
 
     async def request_scheduled(self, request: Any, spider: Any) -> None:
         """记录调度的请求"""

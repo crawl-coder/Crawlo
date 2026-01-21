@@ -121,6 +121,9 @@ EXTENSIONS = [
     'crawlo.extension.log_interval.LogIntervalExtension',  # 定时日志
     'crawlo.extension.log_stats.LogStats',  # 统计信息
     'crawlo.extension.logging_extension.CustomLoggerExtension',  # 自定义日志
+    'crawlo.extension.memory_monitor.MemoryMonitorExtension',  # 内存监控
+    'crawlo.extension.mysql_monitor.MySQLMonitorExtension',  # MySQL监控
+    'crawlo.extension.redis_monitor.RedisMonitorExtension',  # Redis监控
 ]
 
 # --------------------------------- 7. 日志与监控配置 ------------------------------------
@@ -140,11 +143,21 @@ LOG_BACKUP_COUNT = 5  # 日志备份数量，推荐10个用于生产环境
 # 日志间隔配置
 INTERVAL = 60  # 日志输出间隔（秒）
 
+# --------------------------------- 8. 监控扩展配置 ------------------------------------
+
 # 内存监控配置
 MEMORY_MONITOR_ENABLED = False  # 是否启用内存监控
 MEMORY_MONITOR_INTERVAL = 60  # 内存监控检查间隔（秒）
 MEMORY_WARNING_THRESHOLD = 80.0  # 内存使用率警告阈值（百分比）
 MEMORY_CRITICAL_THRESHOLD = 90.0  # 内存使用率严重阈值（百分比）
+
+# MySQL监控配置
+MYSQL_MONITOR_ENABLED = False  # 是否启用MySQL监控
+MYSQL_MONITOR_INTERVAL = 120  # MySQL监控检查间隔（秒）
+
+# Redis监控配置
+REDIS_MONITOR_ENABLED = False  # 是否启用Redis监控
+REDIS_MONITOR_INTERVAL = 120  # Redis监控检查间隔（秒）
 
 # 性能分析配置
 PERFORMANCE_PROFILER_ENABLED = False  # 是否启用性能分析
@@ -154,7 +167,7 @@ PERFORMANCE_PROFILER_INTERVAL = 300  # 性能分析间隔（秒）
 # 健康检查配置
 HEALTH_CHECK_ENABLED = True  # 是否启用健康检查
 
-# --------------------------------- 8. 网络请求配置 ------------------------------------
+# --------------------------------- 9. 网络请求配置 ------------------------------------
 
 # 默认请求头配置
 DEFAULT_REQUEST_HEADERS = {
@@ -169,8 +182,7 @@ USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTM
 # 是否启用随机User-Agent功能（默认禁用，用户可根据需要启用）
 RANDOM_USER_AGENT_ENABLED = False  # 是否启用随机用户代理
 
-# 站外过滤配置
-ALLOWED_DOMAINS = []  # 允许的域名列表
+# --------------------------------- 10. 代理配置 ------------------------------------
 
 # 代理配置（通用版，支持静态代理列表和动态代理API两种模式）
 PROXY_LIST = []  # 静态代理列表配置
@@ -205,6 +217,13 @@ PROXY_MAX_FAILED_ATTEMPTS = 3  # 代理最大失败尝试次数，超过此次�
 #    PROXY_LIST = []  # 不使用静态代理
 #    PROXY_API_URL = "http://api.example.com/get_proxy"
 #    PROXY_EXTRACTOR = {"type": "field", "value": "result"}  # 从"result"字段提取
+
+# --------------------------------- 11. 站外过滤配置 ------------------------------------
+
+# 站外过滤配置
+ALLOWED_DOMAINS = []  # 允许的域名列表
+
+# --------------------------------- 12. 下载器配置 ------------------------------------
 
 # 下载器通用配置
 DOWNLOAD_TIMEOUT = 30  # 下载超时时间（秒）
@@ -270,9 +289,10 @@ PLAYWRIGHT_MAX_PAGES_PER_BROWSER = 10  # 单浏览器最大页面数量
 
 # 通用优化配置
 CONNECTION_TTL_DNS_CACHE = 300  # DNS缓存TTL（秒）
-CONNECTION_KEEPALIVE = True  # 是否启用HTTP连接保持
+# CONNECTION_KEEPALIVE = True  # 是否启用HTTP连接保持
 
-# --------------------------------- 9. 定时任务配置 ------------------------------------
+# --------------------------------- 13. 定时任务配置 ------------------------------------
+
 # 定时任务基础配置
 SCHEDULER_ENABLED = False  # 启用定时任务 - 默认禁用
 SCHEDULER_JOBS = []  # 定时任务配置列表
@@ -286,3 +306,14 @@ SCHEDULER_JOB_TIMEOUT = 3600  # 单个任务超时时间（秒）- 默认1小时
 SCHEDULER_RESOURCE_MONITOR_ENABLED = True  # 是否启用资源监控 - 默认启用
 SCHEDULER_RESOURCE_CHECK_INTERVAL = 300  # 资源检查间隔（秒）- 默认5分钟
 SCHEDULER_RESOURCE_LEAK_THRESHOLD = 3600  # 资源泄露检测阈值（秒）- 默认1小时
+
+# 定时任务高级配置（用户通常不需要修改）
+SCHEDULER_TASK_CLEANUP_INTERVAL = 60     # 任务清理间隔（秒）
+SCHEDULER_STATS_LOGGING_INTERVAL = 300    # 统计信息记录间隔（秒）
+SCHEDULER_GRACEFUL_SHUTDOWN_TIMEOUT = 60  # 优雅关闭超时时间（秒）
+SCHEDULER_ERROR_RETRY_DELAY = 30          # 错误重试延迟（秒）
+SCHEDULER_ERROR_LOG_RETENTION_DAYS = 30    # 错误日志保留天数
+SCHEDULER_STATS_RETENTION_HOURS = 24      # 统计信息保留小时数
+SCHEDULER_HEARTBEAT_INTERVAL = 10          # 心跳间隔（秒）
+SCHEDULER_RESOURCE_CLEANUP_ON_STOP = True  # 停止时是否清理资源
+SCHEDULER_MAX_RESOURCE_AGE = 7200          # 资源最大存活时间（秒）
