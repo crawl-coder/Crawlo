@@ -276,7 +276,7 @@ class RedisConnectionPool:
                 await self._connection_pool.disconnect()
                 self._connection_pool = None
                 
-            self.logger.info("Redis连接池已关闭")
+            self.logger.debug("Redis连接池已关闭")
         except Exception as e:
             from crawlo.utils.error_handler import ErrorContext
             error_context = ErrorContext(context="关闭Redis连接池失败")

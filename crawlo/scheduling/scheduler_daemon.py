@@ -49,11 +49,6 @@ class SchedulerDaemon:
         
         # 从配置加载定时任务
         self._load_jobs_from_settings()
-        
-        # 检查Redis可用性缓存
-        self._redis_available_cache = None
-        self._redis_check_time = 0
-        self._redis_cache_ttl = 300  # 缓存5分钟
     
     def _load_jobs_from_settings(self):
         """从配置加载定时任务"""
@@ -87,72 +82,6 @@ class SchedulerDaemon:
                     self.logger.info(f"已加载定时任务: {job.spider_name} - {job_config.get('cron', job_config.get('interval'))}")
                 except Exception as e:
                     self.logger.error(f"加载定时任务失败: {job_config}, 错误: {e}")
-        
-        # 检查Redis可用性缓存
-        self._redis_available_cache = None
-        self._redis_check_time = 0
-        self._redis_cache_ttl = 300  # 缓存5分钟
-    
-    async def _check_redis_availability(self):
-        """检查Redis是否可用，带缓存以避免频繁连接测试"""
-        import time
-        current_time = time.time()
-        
-        # 如果缓存未过期，直接返回缓存结果
-        if (self._redis_available_cache is not None and 
-            current_time - self._redis_check_time < self._redis_cache_ttl):
-            return self._redis_available_cache
-        
-        # 获取Redis配置
-        redis_url = self.settings.get('REDIS_URL', None)
-        if not redis_url:
-            # 尝试从其他Redis配置项构建URL
-            redis_host = self.settings.get('REDIS_HOST', '127.0.0.1')
-            redis_port = self.settings.get('REDIS_PORT', 6379)
-            redis_password = self.settings.get('REDIS_PASSWORD', None)
-            redis_db = self.settings.get('REDIS_DB', 0)
-            
-            if redis_password:
-                redis_url = f"redis://:{redis_password}@{redis_host}:{redis_port}/{redis_db}"
-            else:
-                redis_url = f"redis://{redis_host}:{redis_port}/{redis_db}"
-        
-        self.logger.debug(f"Attempting to connect to Redis: {redis_url}")
-        
-        try:
-            from crawlo.queue.redis_priority_queue import RedisPriorityQueue
-            
-            # 创建一个简单的异步函数来测试连接
-            test_queue = RedisPriorityQueue(
-                redis_url=redis_url,
-                project_name="scheduler_test",
-                timeout=5  # 5秒超时
-            )
-            try:
-                await test_queue.connect()
-                await test_queue.close()
-                is_available = True
-            except Exception as e:
-                self.logger.debug(f"Redis connection test failed: {e}")
-                is_available = False
-            
-            # 更新缓存
-            self._redis_available_cache = is_available
-            self._redis_check_time = current_time
-            
-            return is_available
-            
-        except ImportError:
-            # 如果Redis模块不可用，直接返回False
-            self._redis_available_cache = False
-            self._redis_check_time = current_time
-            return False
-        except Exception as e:
-            # 其他错误也返回False
-            self.logger.debug(f"Redis连接测试失败: {e}")
-            self._redis_available_cache = False
-            self._redis_check_time = current_time
-            return False
     
     async def start(self):
         """启动调度守护进程"""
@@ -228,115 +157,8 @@ class SchedulerDaemon:
         # 保存原始参数，以便参考
         original_args = dict(job.args) if job.args else {}
         
-        # 清空job.args并根据配置重新构建
-        job.args = {}
-        
-        # 确定队列类型：优先使用任务参数中的QUEUE_TYPE，否则使用项目设置中的QUEUE_TYPE
-        queue_type = original_args.get('QUEUE_TYPE', self.settings.get('QUEUE_TYPE', 'auto'))
-        self.logger.debug(f"Queue type determined as: {queue_type} for job: {job.spider_name}")
-        
-        # 根据队列类型和Redis可用性决定使用何种配置
-        if queue_type == 'distributed':
-            # 检查Redis是否可用
-            self.logger.debug(f"Checking Redis availability for distributed mode job: {job.spider_name}")
-            redis_available = await self._check_redis_availability()
-            self.logger.debug(f"Redis availability result for distributed mode: {redis_available} for job: {job.spider_name}")
-            if redis_available:
-                # Redis可用，使用Redis配置
-                job.args['QUEUE_TYPE'] = 'redis'
-                job.args['FILTER_CLASS'] = original_args.get('FILTER_CLASS', 'crawlo.filters.aioredis_filter.AioRedisFilter')
-                job.args['DEFAULT_DEDUP_PIPELINE'] = original_args.get('DEFAULT_DEDUP_PIPELINE', 'crawlo.pipelines.redis_dedup_pipeline.RedisDedupPipeline')
-                job.args['RUN_MODE'] = original_args.get('RUN_MODE', 'distributed')
-                self.logger.info(f"Redis available, using Redis queue for job: {job.spider_name}")
-            else:
-                # Redis不可用，分布式模式必须退出
-                error_msg = f"Distributed mode requires Redis, but Redis is unavailable for job: {job.spider_name}"
-                self.logger.error(error_msg)
-                raise RuntimeError(error_msg)
-        elif queue_type == 'auto':
-            # 检查Redis是否可用
-            self.logger.debug(f"Checking Redis availability for job: {job.spider_name}")
-            redis_available = await self._check_redis_availability()
-            self.logger.debug(f"Redis availability result: {redis_available} for job: {job.spider_name}")
-            if redis_available:
-                # Redis可用，使用Redis配置
-                job.args['QUEUE_TYPE'] = 'redis'
-                job.args['FILTER_CLASS'] = original_args.get('FILTER_CLASS', 'crawlo.filters.aioredis_filter.AioRedisFilter')
-                job.args['DEFAULT_DEDUP_PIPELINE'] = original_args.get('DEFAULT_DEDUP_PIPELINE', 'crawlo.pipelines.redis_dedup_pipeline.RedisDedupPipeline')
-                job.args['RUN_MODE'] = original_args.get('RUN_MODE', 'distributed')
-                self.logger.info(f"Redis available, using Redis queue for job: {job.spider_name}")
-            else:
-                # Redis不可用，使用内存配置
-                job.args['QUEUE_TYPE'] = 'memory'
-                job.args['FILTER_CLASS'] = original_args.get('FILTER_CLASS', 'crawlo.filters.memory_filter.MemoryFilter')
-                job.args['DEFAULT_DEDUP_PIPELINE'] = original_args.get('DEFAULT_DEDUP_PIPELINE', 'crawlo.pipelines.memory_dedup_pipeline.MemoryDedupPipeline')
-                job.args['RUN_MODE'] = original_args.get('RUN_MODE', 'standalone')
-                self.logger.info(f"Redis unavailable, using memory queue for job: {job.spider_name}")
-        elif queue_type == 'memory':
-            # 强制使用内存配置
-            job.args['QUEUE_TYPE'] = 'memory'
-            job.args['FILTER_CLASS'] = original_args.get('FILTER_CLASS', 'crawlo.filters.memory_filter.MemoryFilter')
-            job.args['DEFAULT_DEDUP_PIPELINE'] = original_args.get('DEFAULT_DEDUP_PIPELINE', 'crawlo.pipelines.memory_dedup_pipeline.MemoryDedupPipeline')
-            job.args['RUN_MODE'] = original_args.get('RUN_MODE', 'standalone')
-        else:
-            # 未知队列类型，按auto模式处理
-            redis_available = await self._check_redis_availability()
-            if redis_available:
-                # Redis可用，使用Redis配置
-                job.args['QUEUE_TYPE'] = 'redis'
-                job.args['FILTER_CLASS'] = original_args.get('FILTER_CLASS', 'crawlo.filters.aioredis_filter.AioRedisFilter')
-                job.args['DEFAULT_DEDUP_PIPELINE'] = original_args.get('DEFAULT_DEDUP_PIPELINE', 'crawlo.pipelines.redis_dedup_pipeline.RedisDedupPipeline')
-                job.args['RUN_MODE'] = original_args.get('RUN_MODE', 'distributed')
-                self.logger.info(f"Unknown QUEUE_TYPE: {queue_type}, Redis available, using Redis queue for job: {job.spider_name}")
-            else:
-                # Redis不可用，使用内存配置
-                job.args['QUEUE_TYPE'] = 'memory'
-                job.args['FILTER_CLASS'] = original_args.get('FILTER_CLASS', 'crawlo.filters.memory_filter.MemoryFilter')
-                job.args['DEFAULT_DEDUP_PIPELINE'] = original_args.get('DEFAULT_DEDUP_PIPELINE', 'crawlo.pipelines.memory_dedup_pipeline.MemoryDedupPipeline')
-                job.args['RUN_MODE'] = original_args.get('RUN_MODE', 'standalone')
-                self.logger.info(f"Unknown QUEUE_TYPE: {queue_type}, Redis unavailable, using memory queue for job: {job.spider_name}")
-        
-        # 从原始参数中复制其他配置项，但排除已处理的配置项
-        # 避免重复设置队列、过滤器、去重管道等相关配置
-        excluded_keys = {
-            'REDIS_HOST', 'REDIS_PORT', 'REDIS_PASSWORD', 'REDIS_DB', 'REDIS_URL',
-            'FILTER_CLASS', 'DEFAULT_DEDUP_PIPELINE', 'QUEUE_TYPE', 'RUN_MODE'
-        }
-        for key, value in original_args.items():
-            if key not in excluded_keys:
-                job.args[key] = value
-        
         # 添加调度器内部标识
         job.args['_INTERNAL_SCHEDULER_TASK'] = True
-        
-        # 从项目配置中获取监控相关设置，如果原始配置中未设置，则使用项目配置
-        # 这样可以确保使用项目settings.py中的监控设置
-        monitor_configs = [
-            ('MEMORY_MONITOR_ENABLED', bool, False),
-            ('MEMORY_MONITOR_INTERVAL', int, 30),
-            ('MEMORY_WARNING_THRESHOLD', float, 80.0),
-            ('MEMORY_CRITICAL_THRESHOLD', float, 90.0),
-            ('MYSQL_MONITOR_ENABLED', bool, False),
-            ('MYSQL_MONITOR_INTERVAL', int, 60),
-            ('REDIS_MONITOR_ENABLED', bool, False),
-            ('REDIS_MONITOR_INTERVAL', int, 60),
-        ]
-        
-        for config_key, config_type, default_value in monitor_configs:
-            if config_key not in job.args:
-                if config_type == bool:
-                    job.args[config_key] = self.settings.get_bool(config_key, default_value)
-                elif config_type == int:
-                    job.args[config_key] = self.settings.get_int(config_key, default_value)
-                elif config_type == float:
-                    job.args[config_key] = self.settings.get_float(config_key, default_value)
-        
-        # 但强制将Redis监控设为False，防止Redis连接池初始化
-        # 在定时任务执行期间，避免重复的Redis连接池创建
-        job.args['REDIS_MONITOR_ENABLED'] = False
-        
-        # 也要禁用内存监控，防止在调度模式下重复创建内存监控实例
-        job.args['MEMORY_MONITOR_ENABLED'] = False
         
         try:
             # 更新统计信息
@@ -449,13 +271,39 @@ class SchedulerDaemon:
         
         # 导入 Crawlo 的 CrawlerProcess 来运行爬虫
         from crawlo.crawler import CrawlerProcess
+        from crawlo.utils.mysql_connection_pool import close_all_mysql_pools
+        from crawlo.utils.redis_manager import close_all_pools as close_all_redis_pools
+        from crawlo.utils.mongo_connection_pool import close_all_mongo_clients
         
         # 创建爬虫进程并运行指定的爬虫
         process = CrawlerProcess()
         
-        # 传递任务参数给爬虫，包括调度模式信息和监控配置
-        # CrawlerProcess.crawl方法需要爬虫类或名称，以及配置参数
-        await process.crawl(job.spider_name, settings=job_args)
+        try:
+            # 传递任务参数给爬虫，包括调度模式信息和监控配置
+            # CrawlerProcess.crawl方法需要爬虫类或名称，以及配置参数
+            await process.crawl(job.spider_name, settings=job_args)
+        finally:
+            # 任务执行完成后，清理所有连接池资源
+            try:
+                # 清理MySQL连接池
+                await close_all_mysql_pools()
+                self.logger.debug("MySQL连接池已清理")
+            except Exception as e:
+                self.logger.warning(f"MySQL连接池清理失败: {e}")
+            
+            # 清理Redis连接池
+            try:
+                await close_all_redis_pools()
+                self.logger.debug("Redis连接池已清理")
+            except Exception as e:
+                self.logger.warning(f"Redis连接池清理失败: {e}")
+            
+            # 清理MongoDB连接池
+            try:
+                await close_all_mongo_clients()
+                self.logger.debug("MongoDB连接池已清理")
+            except Exception as e:
+                self.logger.warning(f"MongoDB连接池清理失败: {e}")
     
     async def _handle_job_failure(self, job: ScheduledJob, error: str):
         """处理任务失败"""
@@ -549,6 +397,27 @@ class SchedulerDaemon:
         except Exception as e:
             self.logger.error(f"监控管理器清理失败: {e}")
         
+        # 清理数据库连接池
+        try:
+            from crawlo.utils.mysql_connection_pool import close_all_mysql_pools
+            from crawlo.utils.redis_manager import close_all_pools as close_all_redis_pools
+            from crawlo.utils.mongo_connection_pool import close_all_mongo_clients
+            
+            # 清理MySQL连接池
+            await close_all_mysql_pools()
+            self.logger.info("MySQL连接池已清理")
+            
+            # 清理Redis连接池
+            await close_all_redis_pools()
+            self.logger.info("Redis连接池已清理")
+            
+            # 清理MongoDB连接池
+            await close_all_mongo_clients()
+            self.logger.info("MongoDB连接池已清理")
+            
+        except Exception as e:
+            self.logger.error(f"数据库连接池清理失败: {e}")
+        
         self.logger.info("定时任务调度器已停止")
     
     async def _monitor_resources(self):
@@ -574,8 +443,10 @@ class SchedulerDaemon:
                 leaks = self._resource_manager.detect_leaks(max_lifetime=self._resource_leak_threshold)
                 if leaks:
                     self.logger.warning(f"检测到 {len(leaks)} 个潜在资源泄露")
-                    for leak in leaks:
+                    for leak in leaks[:5]:  # 只显示前5个，避免日志过多
                         self.logger.warning(f"  - {leak.name} (生命周期: {leak.get_lifetime():.2f}s)")
+                    if len(leaks) > 5:
+                        self.logger.warning(f"  ... 还有 {len(leaks) - 5} 个潜在资源泄露未显示")
                 
                 # 获取系统资源使用情况
                 process = psutil.Process()
@@ -595,8 +466,8 @@ class SchedulerDaemon:
                     self.logger.info(f"资源类型分布 - {type_str}")
                 
                 # 执行垃圾回收
-                gc.collect()
-                self.logger.info(f"垃圾回收完成 - 回收对象数: {len(gc.garbage)}")
+                collected = gc.collect()
+                self.logger.info(f"垃圾回收完成 - 回收对象数: {collected}")
                 
                 # 等待下次检查
                 await asyncio.sleep(self._resource_check_interval)

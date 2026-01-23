@@ -218,26 +218,31 @@ class SettingsUtils:
     def merge_settings(base_settings, additional_settings):
         """
         合并配置
-        
+
         Args:
             base_settings: 基础配置
             additional_settings: 额外配置字典
-            
+
         Returns:
             Optional[SettingManager]: 合并后的配置管理器
         """
         if not additional_settings:
             return base_settings
-        
+
         # 这里可以实现更复杂的配置合并逻辑
         from crawlo.settings.setting_manager import SettingManager
         merged = SettingManager()
-        
+
         # 复制基础配置
         if base_settings:
-            merged.update_attributes(base_settings.__dict__)
-        
+            if hasattr(base_settings, 'attributes'):
+                # 如果 base_settings 是 SettingManager 实例，复制其 attributes
+                merged.update_attributes(base_settings.attributes)
+            else:
+                # 否则，复制其 __dict__
+                merged.update_attributes(base_settings.__dict__)
+
         # 应用额外配置
         merged.update_attributes(additional_settings)
-        
+
         return merged

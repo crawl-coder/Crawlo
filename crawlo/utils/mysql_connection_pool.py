@@ -19,6 +19,26 @@ from typing import Dict, Optional, Any
 from crawlo.logging import get_logger
 
 
+def is_pool_active(pool) -> bool:
+    """统一检查连接池是否活跃
+    
+    Args:
+        pool: 数据库连接池对象
+        
+    Returns:
+        bool: 连接池是否活跃
+    """
+    if not pool:
+        return False
+    # 优先检查 asyncmy 的 _closed 属性
+    if hasattr(pool, '_closed'):
+        return not pool._closed
+    # 其次检查 aiomysql 的 closed 属性
+    elif hasattr(pool, 'closed'):
+        return not pool.closed
+    return True
+
+
 # MySQL 相关导入
 try:
     import aiomysql
@@ -95,7 +115,7 @@ class AiomysqlConnectionPoolManager:
                     **kwargs
                 }
                 cls._instances[pool_key] = instance
-                instance.logger.info(
+                instance.logger.debug(
                     f"创建新的aiomysql连接池管理器: {pool_key} "
                     f"(minsize={minsize}, maxsize={maxsize})"
                 )
@@ -107,8 +127,8 @@ class AiomysqlConnectionPoolManager:
     async def _ensure_pool(self):
         """确保连接池已初始化（线程安全）"""
         if self._pool_initialized:
-            # 检查连接池是否仍然有效
-            if self.pool and hasattr(self.pool, 'closed') and not self.pool.closed:
+            # 检查连接池是否仍然有效 - 使用统一函数
+            if is_pool_active(self.pool):
                 return
             else:
                 self.logger.warning("aiomysql连接池已初始化但无效，重新初始化")
@@ -148,20 +168,20 @@ class AiomysqlConnectionPoolManager:
     async def close_all_pools(cls):
         """关闭所有aiomysql连接池"""
         logger = get_logger('AiomysqlPool')
-        logger.info(f"开始关闭所有aiomysql连接池，共 {len(cls._instances)} 个")
+        logger.debug(f"开始关闭所有aiomysql连接池，共 {len(cls._instances)} 个")
         
         for pool_key, instance in cls._instances.items():
             try:
                 if instance.pool:
-                    logger.info(f"关闭aiomysql连接池: {pool_key}")
+                    logger.debug(f"关闭aiomysql连接池: {pool_key}")
                     instance.pool.close()
                     await instance.pool.wait_closed()
-                    logger.info(f"aiomysql连接池已关闭: {pool_key}")
+                    logger.debug(f"aiomysql连接池已关闭: {pool_key}")
             except Exception as e:
                 logger.error(f"关闭aiomysql连接池 {pool_key} 时发生错误: {e}")
         
         cls._instances.clear()
-        logger.info("所有aiomysql连接池已关闭")
+        logger.debug("所有aiomysql连接池已关闭")
     
     @classmethod
     def get_pool_stats(cls) -> Dict[str, Any]:
@@ -253,7 +273,7 @@ class AsyncmyConnectionPoolManager:
                     **kwargs
                 }
                 cls._instances[pool_key] = instance
-                instance.logger.info(
+                instance.logger.debug(
                     f"创建新的asyncmy连接池管理器: {pool_key} "
                     f"(minsize={minsize}, maxsize={maxsize}, echo={echo})"
                 )
@@ -265,8 +285,8 @@ class AsyncmyConnectionPoolManager:
     async def _ensure_pool(self):
         """确保连接池已初始化（线程安全）"""
         if self._pool_initialized:
-            # 检查连接池是否仍然有效
-            if self.pool and hasattr(self.pool, 'closed') and not self.pool.closed:
+            # 检查连接池是否仍然有效 - 使用统一函数
+            if is_pool_active(self.pool):
                 return
             else:
                 self.logger.warning("asyncmy连接池已初始化但无效，重新初始化")
@@ -305,20 +325,20 @@ class AsyncmyConnectionPoolManager:
     async def close_all_pools(cls):
         """关闭所有asyncmy连接池"""
         logger = get_logger('AsyncmyPool')
-        logger.info(f"开始关闭所有asyncmy连接池，共 {len(cls._instances)} 个")
+        logger.debug(f"开始关闭所有asyncmy连接池，共 {len(cls._instances)} 个")
         
         for pool_key, instance in cls._instances.items():
             try:
                 if instance.pool:
-                    logger.info(f"关闭asyncmy连接池: {pool_key}")
+                    logger.debug(f"关闭asyncmy连接池: {pool_key}")
                     instance.pool.close()
                     await instance.pool.wait_closed()
-                    logger.info(f"asyncmy连接池已关闭: {pool_key}")
+                    logger.debug(f"asyncmy连接池已关闭: {pool_key}")
             except Exception as e:
                 logger.error(f"关闭asyncmy连接池 {pool_key} 时发生错误: {e}")
         
         cls._instances.clear()
-        logger.info("所有asyncmy连接池已关闭")
+        logger.debug("所有asyncmy连接池已关闭")
     
     @classmethod
     def get_pool_stats(cls) -> Dict[str, Any]:
@@ -431,7 +451,7 @@ async def get_asyncmy_pool(
 async def close_all_mysql_pools():
     """关闭所有MySQL连接池"""
     logger = get_logger('MySQLPools')
-    logger.info("开始关闭所有MySQL连接池")
+    logger.debug("开始关闭所有MySQL连接池")
     
     # 关闭所有 aiomysql 连接池
     await AiomysqlConnectionPoolManager.close_all_pools()
@@ -439,7 +459,7 @@ async def close_all_mysql_pools():
     # 关闭所有 asyncmy 连接池
     await AsyncmyConnectionPoolManager.close_all_pools()
     
-    logger.info("所有MySQL连接池已关闭")
+    logger.debug("所有MySQL连接池已关闭")
 
 
 def get_mysql_pool_stats() -> Dict[str, Any]:

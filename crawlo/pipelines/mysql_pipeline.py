@@ -12,7 +12,8 @@ from crawlo.utils.db_helper import SQLBuilder
 from crawlo.utils.resource_manager import ResourceType
 from crawlo.utils.mysql_connection_pool import (
     AiomysqlConnectionPoolManager,
-    AsyncmyConnectionPoolManager
+    AsyncmyConnectionPoolManager,
+    is_pool_active
 )
 from . import ResourceManagedPipeline
 
@@ -48,7 +49,7 @@ class BaseMySQLPipeline(ResourceManagedPipeline, ABC):
         
         # 新增配置项
         self.batch_timeout = self.settings.get_int('MYSQL_BATCH_TIMEOUT', 120)  # 批量操作超时时间，默认120秒
-        self.health_check_interval = self.settings.get_float('MYSQL_HEALTH_CHECK_INTERVAL', 60.0)  # 连接池健康检查间隔，默认60秒
+        self.health_check_interval = self.settings.get_float('MYSQL_HEALTH_CHECK_INTERVAL', 120.0)  # 连接池健康检查间隔，默认120秒
         self.pool_repair_attempts = self.settings.get_int('MYSQL_POOL_REPAIR_ATTEMPTS', 3)  # 连接池修复尝试次数，默认3次
         
         # 配置项说明:
@@ -144,18 +145,7 @@ class BaseMySQLPipeline(ResourceManagedPipeline, ABC):
         Returns:
             bool: 连接池是否活跃
         """
-        if not pool:
-            return False
-            
-        # 对于 asyncmy，使用 _closed 属性检查连接池状态
-        if hasattr(pool, '_closed'):
-            return not pool._closed
-        # 对于 aiomysql，使用 closed 属性检查连接池状态
-        elif hasattr(pool, 'closed'):
-            return not pool.closed
-        # 如果没有明确的关闭状态属性，假设连接池有效
-        else:
-            return True
+        return is_pool_active(pool)
                 
     @staticmethod
     def _is_conn_active(conn):
@@ -657,17 +647,23 @@ class BaseMySQLPipeline(ResourceManagedPipeline, ABC):
         if not self.pool or not self._is_pool_active(self.pool):
             return False
         
-        # 尝试获取连接并执行简单查询
+        # 尝试获取连接并执行简单查询，最多尝试3次
         conn = None
         try:
-            async with async_timeout.timeout(5):
-                conn = await self.pool.acquire()
-                async with conn.cursor() as cursor:
-                    await cursor.execute("SELECT 1")
-                return True
-        except Exception as e:
-            self.logger.warning(f"连接池健康检查失败: {e}")
-            return False
+            for attempt in range(3):  # 最多尝试3次
+                try:
+                    async with async_timeout.timeout(5):  # 增加超时时间到5秒
+                        conn = await self.pool.acquire()
+                        async with conn.cursor() as cursor:
+                            await cursor.execute("SELECT 1")
+                    return True
+                except Exception as e:
+                    if attempt < 2:
+                        self.logger.debug(f"健康检查重试 {attempt+1}/2: {e}")
+                        await asyncio.sleep(2)  # 增加重试间隔到2秒
+                    else:
+                        self.logger.warning(f"连接池健康检查失败: {e}")
+                        return False
         finally:
             if conn:
                 await self.pool.release(conn)
@@ -847,7 +843,7 @@ class AsyncmyMySQLPipeline(BaseMySQLPipeline):
                         echo=self.settings.get_bool('MYSQL_ECHO', False)
                     )
                     self._pool_initialized = True
-                    self.logger.info(
+                    self.logger.debug(
                         f"MySQL连接池初始化完成（表: {self.table_name}, 使用全局共享连接池）"
                     )
                 except Exception as e:
@@ -920,7 +916,7 @@ class AiomysqlMySQLPipeline(BaseMySQLPipeline):
                         echo=self.settings.get_bool('MYSQL_ECHO', False)
                     )
                     self._pool_initialized = True
-                    self.logger.info(
+                    self.logger.debug(
                         f"MySQL连接池初始化完成（表: {self.table_name}, 使用全局共享连接池）"
                     )
                 except Exception as e:
