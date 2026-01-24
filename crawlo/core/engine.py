@@ -135,7 +135,7 @@ class Engine(object):
 
         self.processor = Processor(self.crawler)
         if hasattr(self.processor, 'open'):
-            self.processor.open()
+            await self.processor.open()
         # 在处理器初始化之后初始化扩展管理器，确保日志输出顺序正确
         # 中间件 -> 管道 -> 扩展
         if not hasattr(self.crawler, 'extension') or not self.crawler.extension:

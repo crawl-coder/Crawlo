@@ -258,6 +258,15 @@ class BaseMySQLPipeline(ResourceManagedPipeline, ABC):
             try:
                 if not self.pool:
                     raise RuntimeError("Database connection pool is not available")
+                
+                # 检查连接池是否活跃
+                if not self._is_pool_active(self.pool):
+                    self.logger.warning("Connection pool is closed, attempting to reinitialize")
+                    # 尝试重新初始化连接池
+                    self._pool_initialized = False
+                    await self._ensure_pool()
+                    if not self.pool or not self._is_pool_active(self.pool):
+                        raise RuntimeError("Failed to reinitialize database connection pool")
 
                 async with async_timeout.timeout(timeout):
                     conn = await self.pool.acquire()
@@ -494,6 +503,9 @@ class BaseMySQLPipeline(ResourceManagedPipeline, ABC):
     
     async def _health_check_periodically(self):
         """定期执行健康检查"""
+        failure_count = 0
+        max_failures = 3  # 连续失败3次才标记不可用
+        
         while True:
             try:
                 # 等待指定间隔
@@ -503,13 +515,18 @@ class BaseMySQLPipeline(ResourceManagedPipeline, ABC):
                 is_healthy = await self._health_check_pool()
                 
                 if not is_healthy:
-                    self.logger.warning(f"连接池健康检查失败，尝试修复连接池 (类型: {self.pool_type})")
-                    # 尝试修复连接池
-                    await self._check_and_repair_pool()
+                    failure_count += 1
+                    self.logger.warning(f"连接池健康检查失败 ({failure_count}/{max_failures})，尝试修复连接池 (类型: {self.pool_type})")
                     
-                    # 更新健康检查统计
-                    self.crawler.stats.inc_value('mysql/pool_repaired')
+                    if failure_count >= max_failures:
+                        # 尝试修复连接池
+                        await self._check_and_repair_pool()
+                        failure_count = 0  # 重置失败计数
+                        
+                        # 更新健康检查统计
+                        self.crawler.stats.inc_value('mysql/pool_repaired')
                 else:
+                    failure_count = 0  # 重置失败计数
                     # 更新健康状态统计
                     self.crawler.stats.inc_value('mysql/pool_health_checks')
             except asyncio.CancelledError:
@@ -545,10 +562,41 @@ class BaseMySQLPipeline(ResourceManagedPipeline, ABC):
         self.logger.info(f"降级执行完成: 成功 {len(datas)-failed_count} 条, 失败 {failed_count} 条, 影响 {total_rows} 行")
         return total_rows
 
+    async def _create_table(self):
+        """创建数据表（如果不存在）"""
+        if not self.pool:
+            return
+        
+        try:
+            async with self.pool.acquire() as conn:
+                async with conn.cursor() as cursor:
+                    # 创建表的SQL语句，使用CREATE TABLE IF NOT EXISTS
+                    create_table_sql = f"""
+                    CREATE TABLE IF NOT EXISTS `{self.table_name}` (
+                        `id` BIGINT AUTO_INCREMENT PRIMARY KEY,
+                        `title` VARCHAR(255) NOT NULL,
+                        `publish_time` DATETIME,
+                        `url` VARCHAR(255) NOT NULL UNIQUE,
+                        `source` VARCHAR(100),
+                        `content` TEXT,
+                        `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        INDEX `idx_url` (`url`),
+                        INDEX `idx_publish_time` (`publish_time`)
+                    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+                    """
+                    await cursor.execute(create_table_sql)
+                    await conn.commit()
+                    self.logger.debug(f"表 {self.table_name} 检查/创建完成")
+        except Exception as e:
+            self.logger.warning(f"表 {self.table_name} 创建失败（可能已存在）: {e}")
+    
     async def _initialize_resources(self):
         """初始化连接池资源并注册到资源管理器"""
         # 确保连接池已初始化
         await self._ensure_pool()
+        
+        # 创建表（如果不存在）
+        await self._create_table()
             
         # 将连接池注册到资源管理器，以便在爬虫关闭时自动清理
         if self.pool:
@@ -559,7 +607,8 @@ class BaseMySQLPipeline(ResourceManagedPipeline, ABC):
                 name=f"mysql_{self.pool_type}_pool"
             )
             
-        # 启动健康检查定时器
+        # 启动健康检查定时器（添加延迟确保连接池完全就绪）
+        await asyncio.sleep(3)  # 等待3秒确保连接池完全就绪
         await self._start_health_check_timer()
             
         # 调用父类的初始化方法
@@ -602,6 +651,10 @@ class BaseMySQLPipeline(ResourceManagedPipeline, ABC):
             except asyncio.CancelledError:
                 pass  # 任务已被取消，这是预期行为
             self._health_check_timer_handle = None
+        
+        # 重置初始化标志，确保下次执行时能正确重新初始化连接池
+        self._pool_initialized = False
+        self.pool = None
             
         # 调用父类的清理方法
         await super()._cleanup_resources()
@@ -788,13 +841,19 @@ class BaseMySQLPipeline(ResourceManagedPipeline, ABC):
 class AsyncmyMySQLPipeline(BaseMySQLPipeline):
     """使用asyncmy库的MySQL管道实现"""
     
+    _instance = None
+    _instance_lock = asyncio.Lock()
+    
     def __init__(self, crawler):
         super().__init__(crawler)
         self.logger.info(f"创建AsyncmyMySQLPipeline实例，配置信息 - 主机: {self.settings.get('MYSQL_HOST', 'localhost')}, 数据库: {self.settings.get('MYSQL_DB', 'scrapy_db')}, 表名: {self.table_name}")
 
     @classmethod
-    def from_crawler(cls, crawler):
-        return cls(crawler)
+    async def from_crawler(cls, crawler):
+        async with cls._instance_lock:
+            if cls._instance is None:
+                cls._instance = cls(crawler)
+            return cls._instance
 
     async def _ensure_pool(self):
         """确保连接池已初始化（线程安全）"""
@@ -861,13 +920,19 @@ class AsyncmyMySQLPipeline(BaseMySQLPipeline):
 class AiomysqlMySQLPipeline(BaseMySQLPipeline):
     """使用aiomysql库的MySQL管道实现"""
     
+    _instance = None
+    _instance_lock = asyncio.Lock()
+    
     def __init__(self, crawler):
         super().__init__(crawler)
         self.logger.info(f"创建AiomysqlMySQLPipeline实例，配置信息 - 主机: {self.settings.get('MYSQL_HOST', 'localhost')}, 数据库: {self.settings.get('MYSQL_DB', 'scrapy_db')}, 表名: {self.table_name}")
 
     @classmethod
-    def from_crawler(cls, crawler):
-        return cls(crawler)
+    async def from_crawler(cls, crawler):
+        async with cls._instance_lock:
+            if cls._instance is None:
+                cls._instance = cls(crawler)
+            return cls._instance
 
     async def _ensure_pool(self):
         """延迟初始化连接池（线程安全）"""

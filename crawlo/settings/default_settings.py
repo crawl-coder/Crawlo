@@ -62,14 +62,22 @@ MYSQL_USER = 'root'
 MYSQL_PASSWORD = '123456'
 MYSQL_DB = 'crawl_pro'
 MYSQL_TABLE = 'crawlo'
-MYSQL_BATCH_SIZE = 100
-MYSQL_USE_BATCH = False  # 是否启用批量插入
+MYSQL_BATCH_SIZE = 200
+MYSQL_USE_BATCH = True  # 是否启用批量插入
+MYSQL_BATCH_TIMEOUT = 90  # 批量操作超时时间（秒）
 # MySQL 冲突处理策略（三者互斥，按优先级生效）
 MYSQL_UPDATE_COLUMNS = ()      # 优先级最高：主键冲突时更新指定列，使用 ON DUPLICATE KEY UPDATE
 MYSQL_AUTO_UPDATE = False      # 优先级中等：是否使用 REPLACE INTO（完全覆盖已存在记录）
 MYSQL_INSERT_IGNORE = False    # 优先级最低：是否使用 INSERT IGNORE（忽略重复数据）
 # MySQL SQL生成行为控制配置
 MYSQL_PREFER_ALIAS_SYNTAX = True      # 是否优先使用 AS `alias` 语法，False 则使用 VALUES() 语法
+# MySQL 连接池配置
+MYSQL_POOL_MIN = 8  # 最小连接数
+MYSQL_POOL_MAX = 30  # 最大连接数
+MYSQL_HEALTH_CHECK_INTERVAL = 60.0  # 连接池健康检查间隔（秒）
+# MySQL 执行重试配置
+MYSQL_EXECUTE_MAX_RETRIES = 4  # SQL执行最大重试次数
+MYSQL_EXECUTE_RETRY_DELAY = 0.8  # 重试之间的延迟系数
 
 # Redis配置
 # Redis键命名规范：
@@ -152,8 +160,8 @@ MEMORY_WARNING_THRESHOLD = 80.0  # 内存使用率警告阈值（百分比）
 MEMORY_CRITICAL_THRESHOLD = 90.0  # 内存使用率严重阈值（百分比）
 
 # MySQL监控配置
-MYSQL_MONITOR_ENABLED = False  # 是否启用MySQL监控
-MYSQL_MONITOR_INTERVAL = 120  # MySQL监控检查间隔（秒）
+MYSQL_MONITOR_ENABLED = True  # 是否启用MySQL监控
+MYSQL_MONITOR_INTERVAL = 60  # MySQL监控检查间隔（秒）
 
 # Redis监控配置
 REDIS_MONITOR_ENABLED = False  # 是否启用Redis监控

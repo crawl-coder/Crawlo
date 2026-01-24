@@ -283,27 +283,9 @@ class SchedulerDaemon:
             # CrawlerProcess.crawl方法需要爬虫类或名称，以及配置参数
             await process.crawl(job.spider_name, settings=job_args)
         finally:
-            # 任务执行完成后，清理所有连接池资源
-            try:
-                # 清理MySQL连接池
-                await close_all_mysql_pools()
-                self.logger.debug("MySQL连接池已清理")
-            except Exception as e:
-                self.logger.warning(f"MySQL连接池清理失败: {e}")
-            
-            # 清理Redis连接池
-            try:
-                await close_all_redis_pools()
-                self.logger.debug("Redis连接池已清理")
-            except Exception as e:
-                self.logger.warning(f"Redis连接池清理失败: {e}")
-            
-            # 清理MongoDB连接池
-            try:
-                await close_all_mongo_clients()
-                self.logger.debug("MongoDB连接池已清理")
-            except Exception as e:
-                self.logger.warning(f"MongoDB连接池清理失败: {e}")
+            # 任务执行完成后，不关闭连接池
+            # 连接池将在调度器完全停止时统一关闭
+            pass
     
     async def _handle_job_failure(self, job: ScheduledJob, error: str):
         """处理任务失败"""

@@ -613,20 +613,32 @@ class CrawlerProcess:
         # 判断输入是单个还是多个爬虫
         if not isinstance(spider_cls_or_name, list):
             # 单个爬虫
-            spider_cls = self._resolve_spider_class(spider_cls_or_name)
-            
-            # 记录启动的爬虫名称（符合规范要求）
-            from crawlo.logging import get_logger
-            logger = get_logger('crawlo.framework')
-            logger.info(f"Starting spider: {spider_cls.name}")
-            
-            merged_settings = self._merge_settings(settings)
-            crawler = Crawler(spider_cls, merged_settings)
-            
-            async with self._semaphore:
-                await crawler.crawl()
-            
-            return crawler
+            try:
+                spider_cls = self._resolve_spider_class(spider_cls_or_name)
+                
+                # 记录启动的爬虫名称（符合规范要求）
+                from crawlo.logging import get_logger
+                logger = get_logger('crawlo.framework')
+                logger.info(f"Starting spider: {spider_cls.name}")
+                
+                merged_settings = self._merge_settings(settings)
+                crawler = Crawler(spider_cls, merged_settings)
+                
+                async with self._semaphore:
+                    await crawler.crawl()
+                
+                # 清理crawler资源，防止内存泄漏
+                try:
+                    if hasattr(crawler, '_resource_manager'):
+                        await crawler._resource_manager.cleanup_all()
+                    self._logger.debug(f"Cleaned up crawler: {spider_cls.name}")
+                except Exception as e:
+                    self._logger.warning(f"Failed to cleanup crawler: {e}")
+                
+                return crawler
+            except Exception as e:
+                self._logger.error(f"Error running crawler: {e}")
+                raise
         else:
             # 多个爬虫
             spider_classes_or_names = spider_cls_or_name
