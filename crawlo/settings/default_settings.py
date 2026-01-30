@@ -79,6 +79,9 @@ MYSQL_HEALTH_CHECK_INTERVAL = 60.0  # 连接池健康检查间隔（秒）
 MYSQL_EXECUTE_MAX_RETRIES = 4  # SQL执行最大重试次数
 MYSQL_EXECUTE_RETRY_DELAY = 0.8  # 重试之间的延迟系数
 
+# MySQL表存在性检查配置
+MYSQL_CHECK_TABLE_EXISTS = True  # 是否在初始化时检查表是否存在
+
 # Redis配置
 # Redis键命名规范：
 # - 请求去重: crawlo:{PROJECT_NAME}:filter:fingerprint

@@ -200,8 +200,9 @@ class MySQLMonitorExtension:
                     issues = []
                     if pool_usage_avg > 80:  # 连接池使用率过高
                         issues.append(f"HIGH POOL USAGE ({pool_usage_avg:.2f}%)")
-                    if retry_count > 0 or batch_retry_count > 0:  # 出现重试
-                        issues.append(f"RETRY NEEDED ({retry_count}+{batch_retry_count})")
+                    # 优化：只在重试次数较多时才标记为问题
+                    if retry_count > 10 or batch_retry_count > 10:  # 出现大量重试
+                        issues.append(f"HIGH RETRY COUNT ({retry_count}+{batch_retry_count})")
                     if pool_repaired > 0:  # 连接池被修复
                         issues.append(f"POOL REPAIRED ({pool_repaired})")
                     if failed_ops > 0 and total_ops > 0 and (failed_ops / total_ops) > 0.1:  # 失败率超过10%
@@ -214,16 +215,26 @@ class MySQLMonitorExtension:
                     # 计算增长趋势描述
                     trend_desc = "STABLE" if not is_increasing else f"GROWING({trend_slope:+.2f}%/check)"
                     
-                    self.logger.info(
-                        f"MySQL Connection Pool Tracker{issue_status} - "
-                        f"Pool usage: {pool_usage_avg:.2f}%, "
-                        f"Trend: {trend_desc}, "
-                        f"Avg SQL time: {avg_sql_time:.3f}s, "
-                        f"Avg batch time: {avg_batch_time:.3f}s, "
-                        f"Retries: {retry_count}(SQL)+{batch_retry_count}(Batch), "
-                        f"Repaired: {pool_repaired}, "
-                        f"Failures: {failed_ops}/{total_ops}"
-                    )
+                    # 优化：只在有问题时记录详细日志，否则使用DEBUG级别
+                    if issues:
+                        self.logger.info(
+                            f"MySQL Connection Pool Tracker{issue_status} - "
+                            f"Pool usage: {pool_usage_avg:.2f}%, "
+                            f"Trend: {trend_desc}, "
+                            f"Avg SQL time: {avg_sql_time:.3f}s, "
+                            f"Avg batch time: {avg_batch_time:.3f}s, "
+                            f"Retries: {retry_count}(SQL)+{batch_retry_count}(Batch), "
+                            f"Repaired: {pool_repaired}, "
+                            f"Failures: {failed_ops}/{total_ops}"
+                        )
+                    else:
+                        self.logger.debug(
+                            f"MySQL Connection Pool Tracker{issue_status} - "
+                            f"Pool usage: {pool_usage_avg:.2f}%, "
+                            f"Trend: {trend_desc}, "
+                            f"Avg SQL time: {avg_sql_time:.3f}s, "
+                            f"Avg batch time: {avg_batch_time:.3f}s"
+                        )
                     
                     # 如果有严重问题，记录警告
                     critical_issues = [issue for issue in issues if 'HIGH' in issue or 'GROWING' in issue or 'POOL REPAIRED' in issue]

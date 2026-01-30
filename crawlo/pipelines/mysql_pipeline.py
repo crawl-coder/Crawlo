@@ -110,6 +110,9 @@ class BaseMySQLPipeline(ResourceManagedPipeline, ABC):
         # MySQL别名语法配置：True使用AS `alias`语法，False使用`table`.`column`语法
         self.prefer_alias_syntax = self.settings.get_bool('MYSQL_PREFER_ALIAS_SYNTAX', True)
         
+        # 检查表存在配置：默认为True，设为False可跳过表存在性检查
+        self.check_table_exists = self.settings.get_bool('MYSQL_CHECK_TABLE_EXISTS', True)
+        
         # 验证 update_columns 是否为元组或列表
         if self.update_columns and not isinstance(self.update_columns, (tuple, list)):
             self.logger.warning(f"更新列配置应该是一个元组或列表，当前类型为 {type(self.update_columns)}。已自动转换为元组。")
@@ -222,12 +225,13 @@ class BaseMySQLPipeline(ResourceManagedPipeline, ABC):
                     # 当使用 MYSQL_UPDATE_COLUMNS 时，如果更新的字段值与现有记录相同，
                     # MySQL 不会实际更新任何数据，rowcount 会是 0
                     if self.update_columns:
-                        self.logger.info(
+                        self.logger.debug(
                             f"爬虫 {spider_name}: 数据已存在，{self.update_columns}字段未发生变化，无需更新"
                         )
                     else:
-                        self.logger.warning(
-                            f"爬虫 {spider_name}: SQL执行成功但未插入新记录"
+                        # 优化：将单条插入的重复数据警告改为DEBUG级别
+                        self.logger.debug(
+                            f"爬虫 {spider_name}: SQL执行成功但未插入新记录（重复数据）"
                         )
     
                 # 统计计数移到这里，与AiomysqlMySQLPipeline保持一致
@@ -464,19 +468,27 @@ class BaseMySQLPipeline(ResourceManagedPipeline, ABC):
                     # 当使用 MYSQL_UPDATE_COLUMNS 时，如果更新的字段值与现有记录相同，
                     # MySQL 不会实际更新任何数据，rowcount 会是 0
                     if self.update_columns:
-                        self.logger.info(
+                        self.logger.debug(
                             f"爬虫 {spider_name}: 批量数据已存在，{self.update_columns}字段未发生变化，无需更新"
                         )
                     else:
-                        self.logger.warning(
-                            f"爬虫 {spider_name}: 批量SQL执行完成但未插入新记录"
+                        # 优化：将重复数据的警告改为DEBUG级别，减少日志污染
+                        # 只在DEBUG模式下记录详细信息
+                        self.logger.debug(
+                            f"爬虫 {spider_name}: 批量SQL执行完成但未插入新记录（全部为重复数据）"
                         )
 
                 self.crawler.stats.inc_value('mysql/batch_insert_success')
                 self.crawler.stats.inc_value('mysql/rows_requested', processed_count)
                 self.crawler.stats.inc_value('mysql/rows_affected', rowcount or 0)
                 if self.insert_ignore and not self.update_columns and (rowcount or 0) < processed_count:
-                    self.crawler.stats.inc_value('mysql/rows_ignored_by_duplicate', processed_count - (rowcount or 0))
+                    ignored_count = processed_count - (rowcount or 0)
+                    self.crawler.stats.inc_value('mysql/rows_ignored_by_duplicate', ignored_count)
+                    # 优化：只在重复率超过50%时记录INFO日志
+                    if ignored_count >= processed_count * 0.5:
+                        self.logger.info(
+                            f"爬虫 {spider_name}: 批量处理 {processed_count} 条记录，其中 {ignored_count} 条为重复数据（重复率: {ignored_count/processed_count*100:.1f}%）"
+                        )
             else:
                 self.logger.warning(f"爬虫 {spider_name}: 批量数据为空，跳过插入")
                 # 如果没有数据要处理，重新将数据放回缓冲区
@@ -562,41 +574,43 @@ class BaseMySQLPipeline(ResourceManagedPipeline, ABC):
         self.logger.info(f"降级执行完成: 成功 {len(datas)-failed_count} 条, 失败 {failed_count} 条, 影响 {total_rows} 行")
         return total_rows
 
-    async def _create_table(self):
-        """创建数据表（如果不存在）"""
+    async def _check_table_exists(self):
+        """检查数据表是否存在"""
         if not self.pool:
-            return
-        
+            return False
+            
         try:
             async with self.pool.acquire() as conn:
                 async with conn.cursor() as cursor:
-                    # 创建表的SQL语句，使用CREATE TABLE IF NOT EXISTS
-                    create_table_sql = f"""
-                    CREATE TABLE IF NOT EXISTS `{self.table_name}` (
-                        `id` BIGINT AUTO_INCREMENT PRIMARY KEY,
-                        `title` VARCHAR(255) NOT NULL,
-                        `publish_time` DATETIME,
-                        `url` VARCHAR(255) NOT NULL UNIQUE,
-                        `source` VARCHAR(100),
-                        `content` TEXT,
-                        `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                        INDEX `idx_url` (`url`),
-                        INDEX `idx_publish_time` (`publish_time`)
-                    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+                    # 检查表是否存在的SQL
+                    check_table_sql = f"""
+                    SELECT COUNT(*) as count FROM information_schema.tables 
+                    WHERE table_schema = DATABASE() AND table_name = '{self.table_name}'
                     """
-                    await cursor.execute(create_table_sql)
-                    await conn.commit()
-                    self.logger.debug(f"表 {self.table_name} 检查/创建完成")
+                    await cursor.execute(check_table_sql)
+                    result = await cursor.fetchone()
+                        
+                    exists = result['count'] > 0 if result else False
+                        
+                    if exists:
+                        self.logger.debug(f"表 {self.table_name} 存在")
+                    else:
+                        self.logger.warning(f"表 {self.table_name} 不存在")
+                        
+                    return exists
+            
         except Exception as e:
-            self.logger.warning(f"表 {self.table_name} 创建失败（可能已存在）: {e}")
+            self.logger.error(f"检查表 {self.table_name} 存在性时出错: {e}")
+            return False
     
     async def _initialize_resources(self):
         """初始化连接池资源并注册到资源管理器"""
         # 确保连接池已初始化
         await self._ensure_pool()
         
-        # 创建表（如果不存在）
-        await self._create_table()
+        # 根据配置决定是否检查表是否存在
+        if self.check_table_exists:
+            await self._check_table_exists()
             
         # 将连接池注册到资源管理器，以便在爬虫关闭时自动清理
         if self.pool:

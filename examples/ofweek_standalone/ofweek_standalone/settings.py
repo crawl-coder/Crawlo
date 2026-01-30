@@ -83,8 +83,10 @@ MYSQL_USER = 'root'
 MYSQL_PASSWORD = 'oscar&0503'
 MYSQL_DB = 'crawlo_db'
 MYSQL_TABLE = 'ofweek_news'
-MYSQL_BATCH_SIZE = 20
+MYSQL_BATCH_SIZE = 50  # 优化：增加批量大小以减少批量操作次数
 MYSQL_USE_BATCH = True  # 是否启用批量插入
+MYSQL_BATCH_TIMEOUT = 300  # 优化：批量操作超时时间（秒），增加到5分钟
+MYSQL_EXECUTE_TIMEOUT = 120  # 优化：SQL执行超时时间（秒），增加到2分钟
 
 # MySQL SQL生成行为控制配置
 MYSQL_AUTO_UPDATE = False  # 是否使用 REPLACE INTO（完全覆盖已存在记录）

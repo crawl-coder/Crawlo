@@ -119,7 +119,7 @@ class SchedulerDaemon:
         """调度主循环"""
         check_interval = self.settings.get_int('SCHEDULER_CHECK_INTERVAL', 1)
         
-        self.logger.info(f"调度器主循环启动，检查间隔: {check_interval} 秒")
+        self.logger.debug(f"调度器主循环启动，检查间隔: {check_interval} 秒")
         
         while self.running:
             try:
@@ -437,7 +437,7 @@ class SchedulerDaemon:
                 cpu_percent = process.cpu_percent(interval=1)
                 
                 # 打印资源使用情况
-                self.logger.info(
+                self.logger.debug(
                     f"资源监控 - 活跃资源: {active_resources}, "
                     f"内存: {memory_mb:.2f}MB, CPU: {cpu_percent:.1f}%"
                 )
@@ -445,11 +445,11 @@ class SchedulerDaemon:
                 # 打印按类型统计的资源
                 if active_by_type:
                     type_str = ", ".join([f"{k}: {v}" for k, v in active_by_type.items()])
-                    self.logger.info(f"资源类型分布 - {type_str}")
+                    self.logger.debug(f"资源类型分布 - {type_str}")
                 
                 # 执行垃圾回收
                 collected = gc.collect()
-                self.logger.info(f"垃圾回收完成 - 回收对象数: {collected}")
+                self.logger.debug(f"垃圾回收完成 - 回收对象数: {collected}")
                 
                 # 等待下次检查
                 await asyncio.sleep(self._resource_check_interval)
