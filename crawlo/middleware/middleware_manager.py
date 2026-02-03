@@ -51,7 +51,7 @@ class MiddlewareManager:
                 if isinstance(result, (Request, Response)):
                     return result
                 raise InvalidOutputError(
-                    f"{method.__self__.__class__.__name__}. must return None or Request or Response, got {type(result).__name__}"
+                    f"{self._get_method_class_name(method)}. must return None or Request or Response, got {type(result).__name__}"
                 )
             except asyncio.CancelledError:
                 # 正确处理取消异常
@@ -73,23 +73,50 @@ class MiddlewareManager:
             if isinstance(response, Response):
                 continue
             raise InvalidOutputError(
-                f"{method.__self__.__class__.__name__}. must return Request or Response, got {type(response).__name__}"
+                f"{self._get_method_class_name(method)}. must return Request or Response, got {type(response).__name__}"
             )
         return response
 
     async def _process_exception(self, request: 'Request', exp: Exception):
+        self.logger.debug(f"Processing exception {type(exp).__name__} for {request.url}")
+        # 安全地获取可用的异常处理器名称
+        handler_names = []
+        for m in self.methods['process_exception']:
+            if hasattr(m, '__self__'):
+                handler_names.append(m.__self__.__class__.__name__)
+            else:
+                handler_names.append(str(m))
+        self.logger.debug(f"Available exception handlers: {handler_names}")
         for method in self.methods['process_exception']:
+            # 安全地获取方法所属的类名
+            if hasattr(method, '__self__'):
+                class_name = method.__self__.__class__.__name__
+            else:
+                class_name = str(method)
+            self.logger.debug(f"Calling {class_name}.process_exception")
             response = await common_call(method, request, exp, self.crawler.spider)
+            # 安全地获取返回值的类型
+            if hasattr(method, '__self__'):
+                method_class_name = method.__self__.__class__.__name__
+            else:
+                method_class_name = str(method)
+            self.logger.debug(f"{method_class_name}.process_exception returned: {type(response).__name__ if response else 'None'}")
             if response is None:
                 continue
             if isinstance(response, (Request, Response)):
                 return response
             if response:
                 break
+            # 安全地获取方法所属的类名
+            if hasattr(method, '__self__'):
+                error_class_name = method.__self__.__class__.__name__
+            else:
+                error_class_name = str(method)
             raise InvalidOutputError(
-                f"{method.__self__.__class__.__name__}. must return None or Request or Response, got {type(response).__name__}"
+                f"{error_class_name}. must return None or Request or Response, got {type(response).__name__}"
             )
         else:
+            self.logger.debug(f"All exception handlers returned None, re-raising exception")
             raise exp
 
     async def download(self, request) -> 'Optional[Response]':
@@ -195,3 +222,10 @@ class MiddlewareManager:
         method = getattr(type(middleware), method_name)
         base_method = getattr(BaseMiddleware, method_name)
         return False if method == base_method else True
+
+    def _get_method_class_name(self, method):
+        """安全地获取方法所属的类名"""
+        if hasattr(method, '__self__'):
+            return method.__self__.__class__.__name__
+        else:
+            return str(method)

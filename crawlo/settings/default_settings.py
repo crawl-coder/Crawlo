@@ -245,10 +245,18 @@ DOWNLOAD_MAXSIZE = 10 * 1024 * 1024  # 最大下载大小（字节）
 DOWNLOAD_STATS = True  # 是否启用下载统计
 DOWNLOAD_WARN_SIZE = 1024 * 1024  # 下载警告大小（字节）
 DOWNLOAD_RETRY_TIMES = 3  # 下载重试次数
-# 重试配置
+# ==================================== 重试中间件配置 ====================================
+
+# 重试次数配置
 MAX_RETRY_TIMES = 3  # 最大重试次数
-RETRY_PRIORITY = 10
-RETRY_HTTP_CODES = [500, 502, 503, 504, 408, 429]
+RETRY_PRIORITY = -100  # 重试请求优先级调整（负数表示降低优先级）
+
+# HTTP 状态码重试配置
+RETRY_HTTP_CODES = [500, 502, 503, 504, 408, 429]  # 需要重试的 HTTP 状态码
+IGNORE_HTTP_CODES = [400, 401, 403, 404, 410]  # 不需要重试的 HTTP 状态码
+
+# 自定义异常重试配置
+RETRY_EXCEPTIONS = []  # 额外的自定义重试异常类型列表
 
 # 下载器健康检查
 DOWNLOADER_HEALTH_CHECK = True  # 是否启用下载器健康检查

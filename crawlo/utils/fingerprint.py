@@ -54,18 +54,20 @@ def generate_request_fingerprint(
         method: str,
         url: str,
         body: bytes = b'',
-        headers: Dict[str, str] = None
+        headers: Dict[str, str] = None,
+        meta: Dict[str, Any] = None
 ) -> str:
     """
     生成请求指纹
     
-    基于请求的方法、URL、body 和可选的 headers 生成唯一指纹。
+    基于请求的方法、URL、body、headers 和 meta 生成唯一指纹。
     使用 SHA256 算法确保安全性。
     
     :param method: HTTP方法
     :param url: 请求URL
     :param body: 请求体
     :param headers: 请求头
+    :param meta: 元数据（包含重试次数等信息）
     :return: 请求指纹（hex string）
     """
     hash_func = hashlib.sha256()
@@ -81,6 +83,20 @@ def generate_request_fingerprint(
         sorted_headers = sorted(headers.items())
         for name, value in sorted_headers:
             hash_func.update(f"{name}:{value}".encode('utf-8'))
+    
+    # 可选的 meta 信息（特别关注重试相关的信息）
+    if meta:
+        # 只包含会影响请求处理的关键 meta 字段
+        key_meta_fields = {}
+        for key in ['retry_times', 'is_retry', 'download_slot', 'proxy', 'download_timeout']:
+            if key in meta:
+                key_meta_fields[key] = meta[key]
+        
+        if key_meta_fields:
+            # 对 meta 字段进行排序以确保一致性
+            sorted_meta_items = sorted(key_meta_fields.items())
+            for key, value in sorted_meta_items:
+                hash_func.update(f"meta_{key}:{str(value)}".encode('utf-8'))
     
     return hash_func.hexdigest()
 
@@ -99,7 +115,7 @@ class FingerprintGenerator:
         return generate_data_fingerprint(item)
     
     @staticmethod
-    def request_fingerprint(method: str, url: str, body: bytes = b'', headers: Dict[str, str] = None) -> str:
+    def request_fingerprint(method: str, url: str, body: bytes = b'', headers: Dict[str, str] = None, meta: Dict[str, Any] = None) -> str:
         """
         生成请求指纹
         
@@ -107,9 +123,10 @@ class FingerprintGenerator:
         :param url: 请求URL
         :param body: 请求体
         :param headers: 请求头
+        :param meta: 元数据（包含重试次数等信息）
         :return: 指纹字符串
         """
-        return generate_request_fingerprint(method, url, body, headers)
+        return generate_request_fingerprint(method, url, body, headers, meta)
     
     @staticmethod
     def data_fingerprint(data: Any) -> str:
