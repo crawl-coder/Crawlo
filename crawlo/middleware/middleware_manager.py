@@ -137,7 +137,7 @@ class MiddlewareManager:
         if isinstance(response, Response):
             response = await self._process_response(request, response)
         if isinstance(response, Request):
-            await self.crawler.engine.enqueue_request(request)
+            await self.crawler.engine.enqueue_request(response)
             return None
         return response
 
