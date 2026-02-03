@@ -72,12 +72,6 @@ SPIDER_MODULES = ['{{project_name}}.spiders']
 LOG_LEVEL = 'INFO'
 LOG_FILE = 'logs/{{project_name}}.log'
 LOG_ENCODING = 'utf-8'  # 明确指定日志文件编码
-LOG_MAX_BYTES = 50 * 1024 * 1024  # 50MB，适用于高负载场景
-LOG_BACKUP_COUNT = 20  # 20个备份文件，适用于高负载场景
-# 如果不想要日志轮转，可以设置 LOG_MAX_BYTES = 0
-# 当LOG_MAX_BYTES或LOG_BACKUP_COUNT为0时，日志轮转将被禁用，文件会持续增长
-
-
 # =================================== 定时任务配置 ===================================
 
 # 启用定时任务 - 默认关闭

@@ -55,12 +55,6 @@ SPIDER_MODULES = ['{{project_name}}.spiders']
 LOG_LEVEL = 'INFO'
 LOG_FILE = 'logs/{{project_name}}.log'
 LOG_ENCODING = 'utf-8'  # 明确指定日志文件编码
-LOG_MAX_BYTES = 0  # 20MB，推荐值
-LOG_BACKUP_COUNT = 0  # 10个备份文件，推荐值
-# 如果不想要日志轮转，可以设置 LOG_MAX_BYTES = 0
-# 当LOG_MAX_BYTES或LOG_BACKUP_COUNT为0时，日志轮转将被禁用，文件会持续增长
-
-
 # =================================== 数据库配置 ===================================
 
 # Redis配置

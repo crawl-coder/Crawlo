@@ -8,7 +8,13 @@ listed_companies_market_value_info 项目配置文件
 框架会自动检测Redis可用性，可用则使用分布式模式，否则使用单机模式。
 """
 
+import os
 from crawlo.config import CrawloConfig
+
+# 获取示例项目的根目录（上一级目录，即run.py所在的位置）
+# 当前文件路径: .../examples/listed_companies_market_value_info/listed_companies_market_value_info/settings.py
+# 项目根目录: .../examples/listed_companies_market_value_info/
+_PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 # 使用自动检测模式配置工厂创建配置
 config = CrawloConfig.standalone(
@@ -53,12 +59,11 @@ MIDDLEWARES = {
 
 # 日志配置
 LOG_LEVEL = 'INFO'#'DEBUG'
-LOG_FILE = 'logs/listed_companies_market_value_info.log'
+LOG_FILE = os.path.join(_PROJECT_ROOT, 'logs', 'listed_companies_market_value_info.log')
 LOG_ENCODING = 'utf-8'  # 明确指定日志文件编码
-LOG_MAX_BYTES = 0  # 20MB，推荐值
-LOG_BACKUP_COUNT = 0  # 10个备份文件，推荐值
-# 如果不想要日志轮转，可以设置 LOG_MAX_BYTES = 0
-# 当LOG_MAX_BYTES或LOG_BACKUP_COUNT为0时，日志轮转将被禁用，文件会持续增长
+LOG_MAX_BYTES = 0  # 日志轮转功能已取消，文件会持续增長
+LOG_BACKUP_COUNT = 0  # 日志轮转功能已取消
+
 
 
 # =================================== 数据库配置 ===================================

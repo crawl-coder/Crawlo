@@ -79,14 +79,14 @@ PHASE_DEFINITIONS = [
         phase=InitializationPhase.LOGGING,
         name="日志系统",
         description="配置和初始化日志系统",
-        dependencies=[],  # 移除对PREPARING的依赖
+        dependencies=[],  # 日志系统栗有缓冲，不依赖SETTINGS
         timeout=10.0
     ),
     PhaseDefinition(
         phase=InitializationPhase.SETTINGS,
         name="配置系统", 
         description="加载和验证配置",
-        dependencies=[InitializationPhase.LOGGING],
+        dependencies=[InitializationPhase.LOGGING],  # SETTINGS依赖LOGGING
         timeout=15.0
     ),
     PhaseDefinition(

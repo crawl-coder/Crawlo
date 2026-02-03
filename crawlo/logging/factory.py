@@ -10,15 +10,8 @@ import sys
 import threading
 from weakref import WeakValueDictionary
 
-# 尝试导入concurrent-log-handler，如果不可用则回退到标准库
-try:
-    from concurrent_log_handler import ConcurrentRotatingFileHandler
-    USE_CONCURRENT_HANDLER = True
-    RotatingFileHandler = ConcurrentRotatingFileHandler  # 别名以避免未绑定错误
-except ImportError:
-    from logging.handlers import RotatingFileHandler
-    USE_CONCURRENT_HANDLER = False
-    ConcurrentRotatingFileHandler = RotatingFileHandler  # 别名以避免未绑定错误
+# 已取消日志轮转功能，使用基础FileHandler
+# 不再导入RotatingFileHandler或ConcurrentRotatingFileHandler
 
 from .manager import get_config, is_configured, configure
 from .config import LogConfig
@@ -103,46 +96,19 @@ class LoggerFactory:
                 if log_dir and not os.path.exists(log_dir):
                     os.makedirs(log_dir, exist_ok=True)
                 
-                # 根据平台选择合适的Handler
-                file_handler = None
-                if USE_CONCURRENT_HANDLER:
-                    file_handler = ConcurrentRotatingFileHandler(
-                        filename=config.file_path,
-                        maxBytes=config.max_bytes,
-                        backupCount=config.backup_count,
-                        encoding=config.encoding
-                    )
-                else:
-                    # 在Windows上给出警告信息
-                    if sys.platform.startswith('win'):
-                        # 检查是否已经有同名的日志文件被其他进程使用
-                        try:
-                            # 尝试以独占模式打开文件来检查是否被占用
-                            with open(config.file_path, 'a'):
-                                pass
-                        except (PermissionError, OSError):
-                            # 如果文件被占用，记录警告信息
-                            console_handler = logging.StreamHandler()
-                            console_handler.setFormatter(formatter)
-                            console_handler.setLevel(logging.WARNING)
-                            logger.addHandler(console_handler)
-                            logger.warning(f"日志文件 {config.file_path} 可能正在被其他进程使用，这可能导致日志轮转失败。建议安装 concurrent-log-handler 库以获得更好的Windows兼容性。")
-                    
-                    file_handler = RotatingFileHandler(
-                        filename=config.file_path,
-                        maxBytes=config.max_bytes,
-                        backupCount=config.backup_count,
-                        encoding=config.encoding
-                    )
                 
-                # 添加文件处理器（如果创建成功）
-                if file_handler is not None:
-                    file_handler.setFormatter(formatter)
-                    # 使用专门的文件级别或模块级别
-                    file_level = config.get_file_level()
-                    level = getattr(logging, file_level.upper(), logging.INFO)
-                    file_handler.setLevel(level)
-                    logger.addHandler(file_handler)
+                # 使用基础FileHandler，不支持轮转
+                file_handler = logging.FileHandler(
+                    filename=config.file_path,
+                    encoding=config.encoding
+                )
+                
+                file_handler.setFormatter(formatter)
+                # 使用专门的文件级别或模块级别
+                file_level = config.get_file_level()
+                level = getattr(logging, file_level.upper(), logging.INFO)
+                file_handler.setLevel(level)
+                logger.addHandler(file_handler)
             except Exception as e:
                 # 文件Handler创建失败时，至少保证控制台输出
                 console_handler = logging.StreamHandler()
