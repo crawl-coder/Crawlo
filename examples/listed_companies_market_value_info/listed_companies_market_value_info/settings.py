@@ -163,7 +163,7 @@ OUTPUT_DIR = 'output'
 
 # 动态代理（ProxyMiddleware）
 # 配置代理API URL后中间件自动启用
-PROXY_API_URL = 'http://123.56.42.142:5000/proxy/getitem/'
+PROXY_API_URL = None
 
 STOCKS = [
 '000001.SZ-平安银行',

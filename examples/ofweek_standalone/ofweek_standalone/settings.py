@@ -54,7 +54,7 @@ PIPELINES = [
 # }
 
 # 日志配置
-LOG_LEVEL = 'DEBUG'#'INFO'
+LOG_LEVEL = 'INFO'
 
 # 日志文件路径（带时间戳，每次运行创建新文件）
 from datetime import datetime
