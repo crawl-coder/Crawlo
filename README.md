@@ -722,8 +722,8 @@ SCHEDULER_RESOURCE_LEAK_THRESHOLD = 3600   # 资源泄露检测阈值（秒）
 
 方法一：使用命令行
 ```
-# 启动定时任务调度器
-crawlo schedule myproject
+# 启动定时任务调度器（在项目目录下运行）
+crawlo schedule
 ```
 
 方法二：使用项目模板生成的 run.py 文件
