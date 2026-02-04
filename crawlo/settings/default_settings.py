@@ -74,7 +74,8 @@ MYSQL_PREFER_ALIAS_SYNTAX = True      # 是否优先使用 AS `alias` 语法，F
 # MySQL 连接池配置
 MYSQL_POOL_MIN = 8  # 最小连接数
 MYSQL_POOL_MAX = 30  # 最大连接数
-MYSQL_HEALTH_CHECK_INTERVAL = 60.0  # 连接池健康检查间隔（秒）
+MYSQL_HEALTH_CHECK_INTERVAL = 300.0  # 连接池健康检查间隔（秒），默认5分钟
+MYSQL_POOL_REPAIR_ATTEMPTS = 3  # 连接池修复尝试次数，默认3次
 # MySQL 执行重试配置
 MYSQL_EXECUTE_MAX_RETRIES = 4  # SQL执行最大重试次数
 MYSQL_EXECUTE_RETRY_DELAY = 0.8  # 重试之间的延迟系数

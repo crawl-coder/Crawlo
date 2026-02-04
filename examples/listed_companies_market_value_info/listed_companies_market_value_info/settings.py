@@ -102,13 +102,13 @@ MYSQL_USE_BATCH = False  # 是否启用批量插入
 # =================================== 定时任务配置 ===================================
 
 # 启用定时任务 - 默认关闭
-SCHEDULER_ENABLED = False
+SCHEDULER_ENABLED = True
 
 # 定时任务配置
 SCHEDULER_JOBS = [
     {
         'spider': 'a_market_value',  # 爬虫名称（对应spider的name属性）
-        'cron': '1 15 * * *',       # 每2分钟执行一次
+        'cron': '*/50 * * * *',       # 每2分钟执行一次
         'enabled': True,              # 任务启用状态
         'priority': 10,               # 任务优先级
         'max_retries': 3,             # 最大重试次数
@@ -118,7 +118,7 @@ SCHEDULER_JOBS = [
     },
     {
         'spider': 'a_market_value',  # 爬虫名称
-        'cron': '0 17 * * *',         # 每天凌晨2点执行
+        'cron': '0 8 * * *',         # 每天凌晨2点执行
         'enabled': True,              # 任务启用状态
         'priority': 20,               # 任务优先级
         'max_retries': 2,             # 最大重试次数

@@ -26,7 +26,8 @@
   - **Auto 模式**：智能检测 Redis 可用性，自动选择最佳配置（推荐）
 - 📦 **丰富的组件生态**：
   - 内置 Redis 和 MongoDB 支持
-  - MySQL 异步连接池（基于 asyncmy和aiomysql分别实现）
+  - MySQL 异步连接池（基于 asyncmy 和 aiomysql 双驱动支持）
+  - 连接池健康检查与自动修复机制
   - 多种过滤器和去重管道（Memory/Redis）
   - 代理中间件支持（简单代理/动态代理）
   - 多种下载器（aiohttp、httpx、curl-cffi）
@@ -792,6 +793,7 @@ Crawlo 在 Windows、macOS、Linux 上均可无缝运行：
 
 - [初始化优化报告](docs/initialization_optimization_report.md)
 - [MySQL 连接池优化](docs/mysql_connection_pool_optimization.md)
+- [MySQL 连接池健康检查](docs/mysql_connection_pool_optimization.md#健康检查机制)
 - [MongoDB 连接池优化](docs/mongo_connection_pool_optimization.md)
 
 ### 🎯 中间件指南
@@ -862,6 +864,13 @@ MYSQL_INSERT_IGNORE = False         # 优先级最低：是否使用 INSERT IGNO
 # 批量插入配置
 MYSQL_USE_BATCH = True             # 是否使用批量插入提高性能
 MYSQL_BATCH_SIZE = 100              # 批量插入大小
+MYSQL_BATCH_TIMEOUT = 90            # 批量操作超时时间（秒）
+
+# MySQL 连接池配置
+MYSQL_POOL_MIN = 8                  # 最小连接数
+MYSQL_POOL_MAX = 30                 # 最大连接数
+MYSQL_HEALTH_CHECK_INTERVAL = 300.0 # 连接池健康检查间隔（秒），默认5分钟
+MYSQL_POOL_REPAIR_ATTEMPTS = 3      # 连接池修复尝试次数，默认3次
 
 # MongoDB 配置
 MONGO_URI = 'mongodb://localhost:27017'

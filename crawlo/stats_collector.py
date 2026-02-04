@@ -81,5 +81,59 @@ class StatsCollector(object):
                 else:
                     formatted_stats[key] = value
             
+            # 优化：聚合相似的统计项，减少输出冗长度
+            optimized_stats = self._aggregate_similar_stats(formatted_stats)
+            
             # 输出统计信息（这是唯一输出统计信息的地方）
-            self.logger.info(f'{spider_name} stats: \n{pformat(formatted_stats)}')
+            self.logger.info(f'{spider_name} stats: \n{pformat(optimized_stats)}')
+    
+    def _aggregate_similar_stats(self, stats):
+        """
+        聚合相似的统计项，减少输出冗长度
+        特别是对request_ignore_count/reason/*这样的统计项进行聚合
+        """
+        import re
+        
+        # 用于聚合相似统计项的容器
+        aggregated_stats = {}
+        
+        for key, value in stats.items():
+            # 聚合request_ignore_count/reason/*类型的统计项
+            if key.startswith('request_ignore_count/reason/'):
+                # 提取原因部分
+                reason_part = key[len('request_ignore_count/reason/'):]
+                
+                # 检查是否是403错误相关的统计项
+                if '403' in reason_part and '不在允许列表中' in reason_part:
+                    # 将所有403错误聚合到一个统计项中
+                    aggregate_key = 'request_ignore_count/reason/状态码 403 不在允许列表中 - 403'
+                    if aggregate_key not in aggregated_stats:
+                        aggregated_stats[aggregate_key] = 0
+                    aggregated_stats[aggregate_key] += value
+                elif '404' in reason_part and '不在允许列表中' in reason_part:
+                    # 将所有404错误聚合到一个统计项中
+                    aggregate_key = 'request_ignore_count/reason/状态码 404 不在允许列表中 - 404'
+                    if aggregate_key not in aggregated_stats:
+                        aggregated_stats[aggregate_key] = 0
+                    aggregated_stats[aggregate_key] += value
+                else:
+                    # 对于其他原因，按模式聚合
+                    # 例如：将 "response filtered: 状态码 404 不在允许列表中 - 404" 和 "response filtered: 状态码 403 不在允许列表中 - 403" 分别聚合
+                    pattern = re.search(r'(response filtered: 状态码 \d+ 不在允许列表中) - \d+', reason_part)
+                    if pattern:
+                        base_reason = pattern.group(1)
+                        aggregate_key = f'request_ignore_count/reason/{base_reason}'
+                        if aggregate_key not in aggregated_stats:
+                            aggregated_stats[aggregate_key] = 0
+                        aggregated_stats[aggregate_key] += value
+                    else:
+                        # 如果无法聚合，保持原有统计项
+                        aggregated_stats[key] = value
+            elif key.startswith('request_ignore_count/domain/'):
+                # 对域名统计进行聚合，保持原有逻辑
+                aggregated_stats[key] = value
+            else:
+                # 非聚合统计项，直接复制
+                aggregated_stats[key] = value
+        
+        return aggregated_stats

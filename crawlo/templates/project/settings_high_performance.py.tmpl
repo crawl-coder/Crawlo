@@ -6,6 +6,8 @@
 适合大规模高并发场景。
 """
 
+from datetime import datetime
+
 # =================================== 基础配置 ===================================
 
 # 项目基本信息
@@ -70,7 +72,7 @@ SPIDER_MODULES = ['{{project_name}}.spiders']
 
 # 日志配置
 LOG_LEVEL = 'INFO'
-LOG_FILE = 'logs/{{project_name}}.log'
+LOG_FILE = f'logs/{{project_name}}_{datetime.now().strftime("%Y%m%d_%H%M%S")}.log'
 LOG_ENCODING = 'utf-8'  # 明确指定日志文件编码
 # =================================== 定时任务配置 ===================================
 

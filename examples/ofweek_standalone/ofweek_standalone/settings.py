@@ -33,10 +33,10 @@ SPIDER_MODULES = ['ofweek_standalone.spiders']
 
 # 数据管道
 # 如需添加自定义管道，请取消注释并添加
-# PIPELINES = [
-#     'crawlo.pipelines.mysql_pipeline.AsyncmyMySQLPipeline',  # MySQL 存储（使用asyncmy异步库）
-#     # 'ofweek_standalone.pipelines.CustomPipeline',  # 用户自定义管道示例
-# ]
+PIPELINES = [
+    'crawlo.pipelines.mysql_pipeline.AsyncmyMySQLPipeline',  # MySQL 存储（使用asyncmy异步库）
+    # 'ofweek_standalone.pipelines.CustomPipeline',  # 用户自定义管道示例
+]
 
 # =================================== 系统配置 ===================================
 
@@ -54,14 +54,13 @@ SPIDER_MODULES = ['ofweek_standalone.spiders']
 # }
 
 # 日志配置
-LOG_LEVEL = 'INFO'
-LOG_FILE = 'logs/ofweek_standalone.log'
+LOG_LEVEL = 'DEBUG'#'INFO'
+
+# 日志文件路径（带时间戳，每次运行创建新文件）
+from datetime import datetime
+LOG_FILE = f'logs/ofweek_standalone_{datetime.now().strftime("%Y%m%d_%H%M%S")}.log'
 LOG_ENCODING = 'utf-8'  # 明确指定日志文件编码
-LOG_MAX_BYTES = 0 * 1024 * 1024  # 20MB，推荐值
-LOG_BACKUP_COUNT = 0  # 10个备份文件，推荐值
-# 如果不想要日志轮转，可以设置 LOG_MAX_BYTES = 0
-# 当LOG_MAX_BYTES或LOG_BACKUP_COUNT为0时，日志轮转将被禁用，文件会持续增长
-STATS_DUMP = True
+
 
 # 输出配置
 OUTPUT_DIR = 'output'
@@ -87,6 +86,7 @@ MYSQL_BATCH_SIZE = 50  # 优化：增加批量大小以减少批量操作次数
 MYSQL_USE_BATCH = True  # 是否启用批量插入
 MYSQL_BATCH_TIMEOUT = 300  # 优化：批量操作超时时间（秒），增加到5分钟
 MYSQL_EXECUTE_TIMEOUT = 120  # 优化：SQL执行超时时间（秒），增加到2分钟
+MYSQL_HEALTH_CHECK_INTERVAL = 60  # 健康检查间隔（秒），设置为1分钟
 
 # MySQL SQL生成行为控制配置
 MYSQL_AUTO_UPDATE = False  # 是否使用 REPLACE INTO（完全覆盖已存在记录）

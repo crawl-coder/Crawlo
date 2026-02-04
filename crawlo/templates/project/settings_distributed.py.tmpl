@@ -9,6 +9,7 @@
 支持多节点协同工作，适用于大规模数据采集任务。
 """
 
+from datetime import datetime
 from crawlo.config import CrawloConfig
 
 # 使用分布式模式配置工厂创建配置
@@ -55,7 +56,7 @@ SPIDER_MODULES = ['{{project_name}}.spiders']
 
 # 日志配置
 LOG_LEVEL = 'INFO'
-LOG_FILE = 'logs/{{project_name}}.log'
+LOG_FILE = f'logs/{{project_name}}_{datetime.now().strftime("%Y%m%d_%H%M%S")}.log'
 LOG_ENCODING = 'utf-8'  # 明确指定日志文件编码
 # =================================== 定时任务配置 ===================================
 

@@ -8,6 +8,7 @@
 框架会自动检测Redis可用性，可用则使用分布式模式，否则使用单机模式。
 """
 
+from datetime import datetime
 from crawlo.config import CrawloConfig
 
 # 使用自动检测模式配置工厂创建配置
@@ -53,7 +54,7 @@ SPIDER_MODULES = ['{{project_name}}.spiders']
 
 # 日志配置
 LOG_LEVEL = 'INFO'
-LOG_FILE = 'logs/{{project_name}}.log'
+LOG_FILE = f'logs/{{project_name}}_{datetime.now().strftime("%Y%m%d_%H%M%S")}.log'
 LOG_ENCODING = 'utf-8'  # 明确指定日志文件编码
 # =================================== 数据库配置 ===================================
 

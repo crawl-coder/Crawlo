@@ -139,13 +139,14 @@ class RetryMiddleware(object):
             if request_copy.proxy:
                 if retry_times <= self.proxy_switch_threshold:
                     # 前几次重试，继续使用代理
-                    self.logger.info(f"[Retry {retry_times}/3] {request.url} ({reason}), using proxy: {request_copy.proxy}")
+                    self.logger.info(f"[Retry {retry_times}/3] ({reason}), using proxy: {request_copy.proxy}, URL: {request.url}")
                 else:
                     # 超过阈值，移除代理，使用直连
-                    self.logger.info(f"[Retry {retry_times}/3] {request.url} ({reason}), switching to direct connection (removed proxy)")
+                    old_proxy = request_copy.proxy
+                    self.logger.info(f"[Retry {retry_times}/3] ({reason}), removing proxy: {old_proxy}, switching to direct connection, URL: {request.url}")
                     request_copy.proxy = None
             else:
-                self.logger.info(f"[Retry {retry_times}/3] {request.url} ({reason}), direct connection")
+                self.logger.info(f"[Retry {retry_times}/3] ({reason}), direct connection, URL: {request.url}")
                 
             request_copy.priority = request.priority + self.retry_priority
             self.stats.inc_value("retry_count")
