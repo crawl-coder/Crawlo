@@ -669,6 +669,87 @@ locals().update(config.to_dict())
 
 > 💡 详细配置说明请查看前面的 [配置模式详解](#配置模式详解) 章节
 
+### 定时任务功能
+
+Crawlo 提供了内置的定时任务调度功能，支持灵活的周期性爬虫执行：
+
+**1. 启用定时任务**
+
+在项目配置文件中启用并配置定时任务：
+
+```
+# settings.py
+
+# 启用定时任务 - 默认关闭
+SCHEDULER_ENABLED = True
+
+# 定时任务配置
+SCHEDULER_JOBS = [
+    {
+        'spider': 'myproject.spiders.my_spider',  # 爬虫名称（对应spider的name属性）
+        'cron': '*/30 * * * *',       # 每30分钟执行一次
+        'enabled': True,              # 任务启用状态
+        'priority': 10,               # 任务优先级
+        'max_retries': 3,             # 最大重试次数
+        'retry_delay': 60,            # 重试延迟（秒）
+        'args': {},                  # 传递给爬虫的参数
+        'kwargs': {}                  # 传递给爬虫的额外参数
+    },
+    {
+        'spider': 'myproject.spiders.another_spider',  # 另一个爬虫
+        'cron': '0 2 * * *',         # 每天凌晨2点执行
+        'enabled': True,              # 任务启用状态
+        'priority': 20,               # 任务优先级
+        'max_retries': 2,             # 最大重试次数
+        'retry_delay': 120,           # 重试延迟（秒）
+        'args': {'daily': True},      # 传递给爬虫的参数
+        'kwargs': {}                  # 传递给爬虫的额外参数
+    }
+]
+
+# 关键配置参数（用户可能需要调整）
+SCHEDULER_CHECK_INTERVAL = 1           # 调度器检查间隔（秒）
+SCHEDULER_MAX_CONCURRENT = 3           # 最大并发任务数
+SCHEDULER_JOB_TIMEOUT = 3600           # 单个任务超时时间（秒）
+SCHEDULER_RESOURCE_MONITOR_ENABLED = True  # 是否启用资源监控
+SCHEDULER_RESOURCE_CHECK_INTERVAL = 300    # 资源检查间隔（秒）
+SCHEDULER_RESOURCE_LEAK_THRESHOLD = 3600   # 资源泄露检测阈值（秒）
+```
+
+**2. 运行定时任务**
+
+有两种方式运行定时任务：
+
+方法一：使用命令行
+```
+# 启动定时任务调度器
+crawlo schedule myproject
+```
+
+方法二：使用项目模板生成的 run.py 文件
+```
+# 启动定时任务模式
+python run.py --schedule
+
+# 正常运行单次爬虫
+python run.py
+```
+
+**3. Cron 表达式说明**
+
+定时任务使用标准的 Cron 表达式格式：`分钟 小时 日 月 星期`
+
+常见表达式示例：
+- `*/5 * * * *` - 每5分钟执行一次
+- `0 */2 * * *` - 每2小时执行一次
+- `30 9 * * *` - 每天上午9:30执行
+- `0 2 * * 0` - 每周日凌晨2点执行
+- `0 1 1 * *` - 每月1号凌晨1点执行
+
+**4. 资源监控与管理**
+
+定时任务系统集成了资源监控功能，可自动检测和管理资源泄露，确保长时间稳定运行。调度器还支持并发控制和任务超时管理，防止任务堆积和资源耗尽。
+
 ### 日志系统
 
 Crawlo 提供了完善的日志系统，支持控制台和文件双输出：
