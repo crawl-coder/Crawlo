@@ -285,6 +285,7 @@ class SchedulerDaemon:
         finally:
             # 任务执行完成后，不关闭连接池
             # 连接池将在调度器完全停止时统一关闭
+            # 这是为了避免多个并发爬虫任务之间的资源冲突
             pass
     
     async def _handle_job_failure(self, job: ScheduledJob, error: str):

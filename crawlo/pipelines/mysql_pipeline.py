@@ -730,15 +730,14 @@ class BaseMySQLPipeline(ResourceManagedPipeline, ABC):
                 pass  # 任务已被取消，这是预期行为
             self._health_check_timer_handle = None
         
-        # 重置初始化标志，确保下次执行时能正确重新初始化连接池
-        self.logger.debug("重置连接池初始化标志")
+        # 无论是否为调度任务，都需要重置初始化标志，确保下次执行时能正确重新初始化连接池
+        # 即使在调度模式下，每轮任务结束后也需要清理所有资源，包括连接池
+        self.logger.debug("重置连接池初始化标志，确保下次执行时重新初始化")
         self._pool_initialized = False
-        self.pool = None
-        self.logger.debug("连接池引用已清除")
-            
+        
         # 调用父类的清理方法
         await super()._cleanup_resources()
-        self.logger.debug("MySQL管道资源清理完成")
+        self.logger.debug("MySQL pipeline resources cleanup completed")
         
             
     async def _make_insert_sql(self, item_dict: Dict, **kwargs) -> Tuple[str, List[Any]]:
