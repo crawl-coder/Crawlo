@@ -824,15 +824,31 @@ class BaseMySQLPipeline(ResourceManagedPipeline, ABC):
                     
                     # 尝试获取空闲连接数（free）
                     if hasattr(self.pool, 'free'):
-                        pool_info['free'] = getattr(self.pool, 'free', 'N/A')
+                        free_attr = getattr(self.pool, 'free', 'N/A')
+                        # 如果free属性是类似队列的对象，获取其长度
+                        if hasattr(free_attr, '__len__'):
+                            pool_info['free'] = len(free_attr)
+                        elif hasattr(free_attr, '__iter__') and not isinstance(free_attr, (str, bytes)):
+                            pool_info['free'] = len(list(free_attr))
+                        else:
+                            pool_info['free'] = free_attr
                     elif hasattr(self.pool, '_free'):
-                        pool_info['free'] = getattr(self.pool, '_free', 'N/A')
+                        free_attr = getattr(self.pool, '_free', 'N/A')
+                        # 如果_free属性是类似队列的对象，获取其长度
+                        if hasattr(free_attr, '__len__'):
+                            pool_info['free'] = len(free_attr)
+                        elif hasattr(free_attr, '__iter__') and not isinstance(free_attr, (str, bytes)):
+                            pool_info['free'] = len(list(free_attr))
+                        else:
+                            pool_info['free'] = free_attr
                     
                     # 获取等待连接的请求数（waiting）
                     if hasattr(self.pool, 'waiting'):
-                        pool_info['waiting'] = getattr(self.pool, 'waiting', 'N/A')
+                        waiting_attr = getattr(self.pool, 'waiting', 'N/A')
+                        pool_info['waiting'] = waiting_attr if not hasattr(waiting_attr, '__len__') else len(waiting_attr)
                     elif hasattr(self.pool, '_waiting'):
-                        pool_info['waiting'] = getattr(self.pool, '_waiting', 'N/A')
+                        waiting_attr = getattr(self.pool, '_waiting', 'N/A')
+                        pool_info['waiting'] = waiting_attr if not hasattr(waiting_attr, '__len__') else len(waiting_attr)
                     
                     return True, {"pool_info": pool_info}
                 except Exception as e:
