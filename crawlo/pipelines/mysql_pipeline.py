@@ -639,8 +639,20 @@ class BaseMySQLPipeline(ResourceManagedPipeline, ABC):
                     """
                     await cursor.execute(check_table_sql)
                     result = await cursor.fetchone()
-                        
-                    exists = result['count'] > 0 if result else False
+                    
+                    # 兼容不同驱动返回的格式，可能是字典也可能是元组
+                    if result:
+                        if isinstance(result, dict):
+                            # 字典格式：{'count': 1}
+                            exists = result.get('count', 0) > 0
+                        elif isinstance(result, (tuple, list)):
+                            # 元组格式：(1,) - 对于SELECT COUNT(*)，第一列是计数值
+                            exists = result[0] > 0 if len(result) > 0 else False
+                        else:
+                            # 其他格式，尝试直接转换为布尔值
+                            exists = bool(result)
+                    else:
+                        exists = False
                         
                     if exists:
                         self.logger.debug(f"表 {self.table_name} 存在")
@@ -679,8 +691,8 @@ class BaseMySQLPipeline(ResourceManagedPipeline, ABC):
         # 启动健康检查定时器（添加延迟确保连接池完全就绪）
         self.logger.debug(f"等待3秒确保连接池完全就绪，然后启动健康检查定时器...")
         await asyncio.sleep(3)  # 等待3秒确保连接池完全就绪
-        await self._start_health_check_timer()
-        self.logger.debug("健康检查定时器已启动")
+        # await self._start_health_check_timer()  # 已禁用健康检查功能，避免在爬虫结束后继续运行
+        # self.logger.debug("健康检查定时器已启动")
             
         # 调用父类的初始化方法
         await super()._initialize_resources()

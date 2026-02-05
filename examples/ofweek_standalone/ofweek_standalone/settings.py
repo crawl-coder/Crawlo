@@ -129,16 +129,16 @@ SCHEDULER_JOBS = [
         'args': {},                   # 传递给爬虫的参数
         'kwargs': {}                  # 传递给爬虫的额外参数
     },
-    {
-        'spider': 'of_week2',           # 爬虫名称
-        'cron': '*/30 * * * *',       # 每30分钟执行一次
-        'enabled': True,              # 任务启用状态
-        'priority': 15,               # 任务优先级
-        'max_retries': 3,             # 最大重试次数
-        'retry_delay': 60,            # 重试延迟（秒）
-        'args': {},                   # 传递给爬虫的参数
-        'kwargs': {}                  # 传递给爬虫的额外参数
-    },
+    # {
+    #     'spider': 'of_week2',           # 爬虫名称
+    #     'cron': '*/30 * * * *',       # 每30分钟执行一次
+    #     'enabled': True,              # 任务启用状态
+    #     'priority': 15,               # 任务优先级
+    #     'max_retries': 3,             # 最大重试次数
+    #     'retry_delay': 60,            # 重试延迟（秒）
+    #     'args': {},                   # 传递给爬虫的参数
+    #     'kwargs': {}                  # 传递给爬虫的额外参数
+    # },
     # {
     #     'spider': 'of_week',           # 爬虫名称
     #     'cron': '0 2 * * *',         # 每天凌晨2点执行
@@ -170,6 +170,6 @@ REDIS_MONITOR_INTERVAL = 60  # Redis监控间隔（秒）
 
 # 启用内存监控（用于测试）
 MEMORY_MONITOR_ENABLED = True
-MEMORY_MONITOR_INTERVAL = 30  # 内存监控检查间隔（秒）
+MEMORY_MONITOR_INTERVAL = 60  # 内存监控检查间隔（秒）
 MEMORY_WARNING_THRESHOLD = 80.0  # 内存使用率警告阈值（百分比）
 MEMORY_CRITICAL_THRESHOLD = 90.0  # 内存使用率严重阈值（百分比）

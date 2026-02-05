@@ -265,16 +265,17 @@ class MemoryMonitorExtension:
                         trend_desc = "STABLE"
                     
                     # 构建基准线信息
-                    baseline_info = ""
                     if self.baseline_established:
                         baseline_diff = (process_rss - self.baseline_memory) / (1024 * 1024)
                         baseline_info = f", Baseline: {self.baseline_memory / 1024 / 1024:.2f}MB ({baseline_diff:+.2f}MB)"
+                    else:
+                        baseline_info = ""
                     
                     self.logger.info(
                         f"Project Memory Tracker{issue_status} - "
                         f"Process: {process_percent:.2f}%, "
                         f"RSS: {process_rss / 1024 / 1024:.2f}MB, "
-                        f"Trend: {trend_desc},{baseline_info} "
+                        f"Trend: {trend_desc}{baseline_info}, "
                         f"Threads: {thread_count}, "
                         f"System: {system_percent:.2f}%"
                     )

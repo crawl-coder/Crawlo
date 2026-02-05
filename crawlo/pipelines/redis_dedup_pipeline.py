@@ -90,23 +90,27 @@ class RedisDedupPipeline(DedupPipeline):
                 if self.redis_user and self.redis_password:
                     # 构建Redis URL以支持用户名认证
                     redis_url = f"redis://{self.redis_user}:{self.redis_password}@{self.redis_host}:{self.redis_port}/{self.redis_db}"
-                    self.redis_client = aioredis.from_url(
+                    # 使用配置的连接池管理模式
+                    redis_pool = get_redis_pool(
                         redis_url,
                         decode_responses=True,
                         socket_connect_timeout=5,
-                        socket_timeout=5
+                        socket_timeout=5,
+                        shared=self.settings.get_bool('REDIS_POOL_SHARED_MODE', False)  # 使用配置的连接池管理模式
                     )
+                    self.redis_client = await redis_pool.get_connection()
                 else:
                     # 使用传统的密码认证方式
-                    self.redis_client = aioredis.Redis(
-                        host=self.redis_host,
-                        port=self.redis_port,
-                        db=self.redis_db,
+                    # 使用配置的连接池管理模式
+                    redis_pool = get_redis_pool(
+                        f"redis://{self.redis_host}:{self.redis_port}/{self.redis_db}",
                         password=self.redis_password,
                         decode_responses=True,
                         socket_connect_timeout=5,
-                        socket_timeout=5
+                        socket_timeout=5,
+                        shared=self.settings.get_bool('REDIS_POOL_SHARED_MODE', False)  # 使用配置的连接池管理模式
                     )
+                    self.redis_client = await redis_pool.get_connection()
                 
                 # 测试连接
                 await self.redis_client.ping()

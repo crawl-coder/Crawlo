@@ -80,6 +80,12 @@ MYSQL_POOL_REPAIR_ATTEMPTS = 3  # 连接池修复尝试次数，默认3次
 MYSQL_EXECUTE_MAX_RETRIES = 4  # SQL执行最大重试次数
 MYSQL_EXECUTE_RETRY_DELAY = 0.8  # 重试之间的延迟系数
 
+# MySQL连接池管理模式配置
+MYSQL_POOL_SHARED_MODE = False  # MySQL连接池管理模式，True为共享模式（单例），False为独立模式（每个爬虫实例独立连接池）
+
+# Redis连接池管理模式配置
+REDIS_POOL_SHARED_MODE = False  # Redis连接池管理模式，True为共享模式（单例），False为独立模式（每个爬虫实例独立连接池）
+
 # MySQL表存在性检查配置
 MYSQL_CHECK_TABLE_EXISTS = True  # 是否在初始化时检查表是否存在
 
@@ -160,12 +166,12 @@ MEMORY_WARNING_THRESHOLD = 80.0  # 内存使用率警告阈值（百分比）
 MEMORY_CRITICAL_THRESHOLD = 90.0  # 内存使用率严重阈值（百分比）
 
 # MySQL监控配置
-MYSQL_MONITOR_ENABLED = True  # 是否启用MySQL监控
-MYSQL_MONITOR_INTERVAL = 60  # MySQL监控检查间隔（秒）
+MYSQL_MONITOR_ENABLED = False  # 是否启用MySQL监控
+MYSQL_MONITOR_INTERVAL = 300  # MySQL监控检查间隔（秒）
 
 # Redis监控配置
 REDIS_MONITOR_ENABLED = False  # 是否启用Redis监控
-REDIS_MONITOR_INTERVAL = 120  # Redis监控检查间隔（秒）
+REDIS_MONITOR_INTERVAL = 300  # Redis监控检查间隔（秒）
 
 # 性能分析配置
 PERFORMANCE_PROFILER_ENABLED = False  # 是否启用性能分析

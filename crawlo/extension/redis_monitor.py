@@ -137,113 +137,37 @@ class RedisMonitorExtension:
         return slope, is_increasing
 
     async def _monitor_loop(self) -> None:
-        """Redis监控循环"""
+        """Redis监控循环 - 监控连接池资源泄露"""
         while True:
             try:
-                # 获取Redis相关的统计信息
-                redis_stats = {}
-                
-                # 从stats收集Redis相关指标
-                stats_keys = [
-                    'redis/requests',
-                    'redis/errors',
-                    'redis/response_time',
-                    'redis/connections_used',
-                    'redis/connections_available',
-                    'redis/hits',
-                    'redis/misses',
-                    'redis/queue_length',  # 队列长度
-                    'redis/pool_size',  # 连接池大小
-                    'redis/pool_free',  # 连接池空闲连接数
-                    'redis/timeout_errors',  # 超时错误
-                    'redis/connection_errors',  # 连接错误
-                    'redis/request_processing_time',  # 请求处理时间
-                    'redis/request_queue_time'  # 请求排队时间
-                ]
-                
-                for key in stats_keys:
-                    value = self.crawler.stats.get_value(key, 0)
-                    redis_stats[key] = value
-                
-                # 计算平均值指标
-                request_count = redis_stats.get('redis/requests', 1)
-                response_time_total = redis_stats.get('redis/response_time', 0)
-                processing_time_total = redis_stats.get('redis/request_processing_time', 0)
-                
-                avg_response_time = response_time_total / max(request_count, 1)
-                avg_processing_time = processing_time_total / max(request_count, 1)
-                
-                # 计算命中率
-                hits = redis_stats.get('redis/hits', 0)
-                misses = redis_stats.get('redis/misses', 0)
-                total_requests = hits + misses
-                hit_rate = (hits / total_requests * 100) if total_requests > 0 else 0
-                
-                # 记录连接池使用率到历史数据
-                connections_used = redis_stats.get('redis/connections_used', 0)
-                pool_size = redis_stats.get('redis/pool_size', 1)
+                # 获取Redis连接池使用率
+                connections_used = self.crawler.stats.get_value('redis/connections_used', 0)
+                pool_size = self.crawler.stats.get_value('redis/pool_size', 10)  # 默认10个连接
                 pool_usage = (connections_used / pool_size * 100) if pool_size > 0 else 0
+                
+                # 记录到历史数据（始终记录，用于趋势分析）
                 self.pool_usage_history.append(pool_usage)
                 
                 # 限制历史数据大小
                 if len(self.pool_usage_history) > self.max_history_points:
                     self.pool_usage_history.pop(0)
                 
-                # 计算连接池使用趋势
-                trend_slope, is_increasing = self._calculate_pool_trend()
-                
-                # 记录Redis资源使用情况
-                if any(v > 0 for k, v in redis_stats.items() if not k.startswith('redis/avg_')):
-                    # 检查Redis连接池健康状况
-                    connections_used = redis_stats.get('redis/connections_used', 0)
-                    pool_size = redis_stats.get('redis/pool_size', 1)
-                    pool_usage = (connections_used / pool_size * 100) if pool_size > 0 else 0
+                # 当有足够数据时，分析连接池趋势
+                if len(self.pool_usage_history) >= 3:
+                    trend_slope, is_increasing = self._calculate_pool_trend()
                     
-                    errors = redis_stats.get('redis/errors', 0)
-                    timeout_errors = redis_stats.get('redis/timeout_errors', 0)
-                    connection_errors = redis_stats.get('redis/connection_errors', 0)
-                    total_ops = redis_stats.get('redis/requests', 0)
-                    
-                    # 判断是否存在资源问题
-                    issues = []
-                    if pool_usage > 80:  # 连接池使用率过高
-                        issues.append(f"HIGH POOL USAGE ({pool_usage:.2f}%)")
-                    if errors > 0 and total_ops > 0 and (errors / total_ops) > 0.05:  # 错误率超过5%
-                        issues.append(f"HIGH ERROR RATE ({errors}/{total_ops})")
-                    if timeout_errors > 0:  # 出现超时
-                        issues.append(f"TIMEOUT ERRORS ({timeout_errors})")
-                    if connection_errors > 0:  # 出现连接错误
-                        issues.append(f"CONNECTION ERRORS ({connection_errors})")
-                    if is_increasing and len(self.pool_usage_history) >= 3:  # 连接池使用率持续增长
-                        issues.append(f"POOL USAGE GROWING ({trend_slope:+.2f}%/check)")
-                    
-                    issue_status = f" [ISSUES: {', '.join(issues)}]" if issues else " [OK]"
-                    
-                    # 计算增长趋势描述
-                    trend_desc = "STABLE" if not is_increasing else f"GROWING({trend_slope:+.2f}%/check)"
-                    
-                    self.logger.info(
-                        f"Redis Connection Pool Tracker{issue_status} - "
-                        f"Pool usage: {pool_usage:.2f}%, "
-                        f"Trend: {trend_desc}, "
-                        f"Avg response time: {avg_response_time:.3f}s, "
-                        f"Avg processing time: {avg_processing_time:.3f}s, "
-                        f"Hit rate: {hit_rate:.2f}%, "
-                        f"Errors: {errors}, "
-                        f"Timeouts: {timeout_errors}, "
-                        f"Connections: {connections_used}/{pool_size}"
-                    )
-                    
-                    # 如果有严重问题，记录警告
-                    critical_issues = [issue for issue in issues if 'HIGH' in issue or 'GROWING' in issue]
-                    if critical_issues:
-                        self.logger.warning(f"Redis Critical Resource Issues: {', '.join(critical_issues)}")
+                    # 只有发现资源泄露趋势才告警
+                    if is_increasing and len(self.pool_usage_history) >= 5:
+                        self.logger.warning(
+                            f"Redis连接池泄露警告 - 使用率持续增长: {trend_slope:+.2f}%/检查, "
+                            f"当前使用率: {pool_usage:.2f}%"
+                        )
                 
                 await asyncio.sleep(self.interval)
             except asyncio.CancelledError:
                 break
             except Exception as e:
-                self.logger.error(f"Error in Redis monitoring: {e}")
+                self.logger.error(f"Redis监控错误: {e}")
                 await asyncio.sleep(self.interval)
 
 

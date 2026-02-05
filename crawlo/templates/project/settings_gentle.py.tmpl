@@ -199,43 +199,6 @@ AIOHTTP_FORCE_CLOSE = False  # 是否强制关闭连接
 CONNECTION_TTL_DNS_CACHE = 300  # DNS缓存TTL（秒）
 CONNECTION_KEEPALIVE_TIMEOUT = 15  # Keep-Alive超时（秒）
 
-# =================================== 定时任务配置 ===================================
-
-# 启用定时任务 - 默认关闭
-SCHEDULER_ENABLED = False
-
-# 定时任务配置
-SCHEDULER_JOBS = [
-    {
-        'spider': '{{project_name}}.spiders.{{spider_name}}',  # 爬虫名称（对应spider的name属性）
-        'cron': '*/2 * * * *',       # 每2分钟执行一次
-        'enabled': True,              # 任务启用状态
-        'priority': 10,               # 任务优先级
-        'max_retries': 3,             # 最大重试次数
-        'retry_delay': 60,            # 重试延迟（秒）
-        'args': {},                  # 传递给爬虫的参数
-        'kwargs': {}                  # 传递给爬虫的额外参数
-    },
-    {
-        'spider': '{{project_name}}.spiders.{{spider_name}}',  # 爬虫名称
-        'cron': '0 2 * * *',         # 每天凌晨2点执行
-        'enabled': True,              # 任务启用状态
-        'priority': 20,               # 任务优先级
-        'max_retries': 2,             # 最大重试次数
-        'retry_delay': 120,           # 重试延迟（秒）
-        'args': {'daily': True},      # 传递给爬虫的参数
-        'kwargs': {}                  # 传递给爬虫的额外参数
-    }
-]
-
-# 关键配置参数（用户可能需要调整）
-SCHEDULER_CHECK_INTERVAL = 1           # 调度器检查间隔（秒）
-SCHEDULER_MAX_CONCURRENT = 3           # 最大并发任务数
-SCHEDULER_JOB_TIMEOUT = 3600           # 单个任务超时时间（秒）
-SCHEDULER_RESOURCE_MONITOR_ENABLED = True  # 是否启用资源监控
-SCHEDULER_RESOURCE_CHECK_INTERVAL = 300    # 资源检查间隔（秒）
-SCHEDULER_RESOURCE_LEAK_THRESHOLD = 3600   # 资源泄露检测阈值（秒）
-
 # =================================== 资源监控配置 ===================================
 
 # 内存监控配置

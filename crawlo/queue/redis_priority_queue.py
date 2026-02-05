@@ -58,6 +58,7 @@ class RedisPriorityQueue:
             is_cluster: bool = False,
             cluster_nodes: Optional[List[str]] = None,
             serialization_format: str = 'pickle',  # 新增：序列化格式
+            redis_shared_mode: bool = True,  # 新增：Redis连接池共享模式
     ) -> None:
         """
         初始化 Redis 优先级队列
@@ -73,6 +74,8 @@ class RedisPriorityQueue:
             spider_name: 爬虫名称（可选）
             is_cluster: 是否为集群模式
             cluster_nodes: 集群节点列表
+            serialization_format: 序列化格式
+            redis_shared_mode: Redis连接池共享模式，True为共享模式，False为独立模式
         """
         # 移除直接使用 os.getenv()，要求通过参数传递 redis_url
         if redis_url is None:
@@ -82,7 +85,10 @@ class RedisPriorityQueue:
         self.redis_url: str = redis_url
         self.is_cluster: bool = is_cluster
         self.cluster_nodes: Optional[List[str]] = cluster_nodes
-
+        
+        # 存储Redis连接池共享模式
+        self._redis_shared_mode = redis_shared_mode  # 存储Redis连接池共享模式
+        
         # 创建 Redis Key 管理器
         self.key_manager = RedisKeyManager(project_name, spider_name)
         
@@ -138,7 +144,8 @@ class RedisPriorityQueue:
                         health_check_interval=30,
                         retry_on_timeout=True,
                         decode_responses=False,  # 确保不自动解码响应
-                        encoding='utf-8'
+                        encoding='utf-8',
+                        shared=self._redis_shared_mode  # 使用配置的连接池管理模式
                     )
 
                     self._redis = await self._redis_pool.get_connection()
