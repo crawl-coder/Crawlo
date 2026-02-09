@@ -323,6 +323,9 @@ NOTIFICATION_CHANNELS = []  # 启用的通知渠道列表
 DINGTALK_WEBHOOK = ""  # 钉钉机器人 Webhook 地址
 DINGTALK_SECRET = ""   # 钉钉机器人密钥（可选，用于加签）
 DINGTALK_KEYWORDS = [] # 钉钉机器人关键词（可选，用于通过关键词验证）
+DINGTALK_AT_MOBILES = [] # 需要@的手机号列表（可选）
+DINGTALK_AT_USERIDS = [] # 需要@的用户ID列表（可选）
+DINGTALK_IS_AT_ALL = False # 是否@所有人（可选，默认False）
 
 # 飞书通知配置
 FEISHU_WEBHOOK = ""    # 飞书机器人 Webhook 地址

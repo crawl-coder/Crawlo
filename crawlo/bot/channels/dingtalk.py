@@ -32,6 +32,9 @@ class DingTalkChannel(NotificationChannel):
     - DINGTALK_WEBHOOK: 钉钉机器人 Webhook 地址
     - DINGTALK_SECRET: 钉钉机器人密钥（可选，用于签名）
     - DINGTALK_KEYWORDS: 钉钉机器人关键词（可选，用于通过关键词验证）
+    - DINGTALK_AT_MOBILES: 需要@的手机号列表（可选）
+    - DINGTALK_AT_USERIDS: 需要@的用户ID列表（可选）
+    - DINGTALK_IS_AT_ALL: 是否@所有人（可选，默认False）
     """
     
     def __init__(self):
@@ -40,12 +43,17 @@ class DingTalkChannel(NotificationChannel):
         self.webhook_url = getattr(self, '_webhook_url', None)  # 可通过外部设置
         self.secret = getattr(self, '_secret', None)  # 可通过外部设置
         self.keywords = getattr(self, '_keywords', [])  # 关键词列表
-    
+        self.at_mobiles = getattr(self, '_at_mobiles', [])  # 需要@的手机号列表
+        self.at_userids = getattr(self, '_at_userids', [])  # 需要@的用户ID列表
+        self.is_at_all = getattr(self, '_is_at_all', False)  # 是否@所有人
+
     @property
     def channel_type(self) -> ChannelType:
         return ChannelType.DINGTALK
 
-    def set_config(self, webhook_url: str, secret: Optional[str] = None, keywords: Optional[list] = None):
+    def set_config(self, webhook_url: str, secret: Optional[str] = None, keywords: Optional[list] = None, 
+                   at_mobiles: Optional[list] = None, at_userids: Optional[list] = None, 
+                   is_at_all: bool = False):
         """
         设置钉钉机器人配置
         
@@ -53,10 +61,16 @@ class DingTalkChannel(NotificationChannel):
             webhook_url: 钉钉机器人 Webhook 地址
             secret: 钉钉机器人密钥（可选）
             keywords: 钉钉机器人关键词列表（可选，用于通过关键词验证）
+            at_mobiles: 需要@的手机号列表（可选）
+            at_userids: 需要@的用户ID列表（可选）
+            is_at_all: 是否@所有人（可选，默认False）
         """
         self.webhook_url = webhook_url
         self.secret = secret
         self.keywords = keywords or []
+        self.at_mobiles = at_mobiles or []
+        self.at_userids = at_userids or []
+        self.is_at_all = is_at_all
 
     def _get_signed_url(self) -> str:
         """
@@ -149,7 +163,7 @@ class DingTalkChannel(NotificationChannel):
         if message.notification_type.value == "alert":
             # 告警类型使用 markdown 格式突出显示
             content = f"{keyword_prefix}🚨【CRAWLO-ALERT】{message.title}\n\n{message.content}"
-            return {
+            msg_dict = {
                 "msgtype": "markdown",
                 "markdown": {
                     "title": f"🚨 {message.title}",
@@ -159,12 +173,22 @@ class DingTalkChannel(NotificationChannel):
         else:
             # 其他类型使用文本格式
             content = f"{keyword_prefix}📢【CRAWLO-{message.notification_type.value.upper()}】{message.title}\n\n{message.content}"
-            return {
+            msg_dict = {
                 "msgtype": "text",
                 "text": {
                     "content": content
                 }
             }
+        
+        # 添加@信息
+        if self.at_mobiles or self.at_userids or self.is_at_all:
+            msg_dict["at"] = {
+                "atMobiles": self.at_mobiles,
+                "atUserIds": self.at_userids,
+                "isAtAll": self.is_at_all
+            }
+        
+        return msg_dict
 
 
 # 全局实例
