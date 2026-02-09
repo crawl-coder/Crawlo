@@ -31,6 +31,7 @@ class DingTalkChannel(NotificationChannel):
     配置要求：
     - DINGTALK_WEBHOOK: 钉钉机器人 Webhook 地址
     - DINGTALK_SECRET: 钉钉机器人密钥（可选，用于签名）
+    - DINGTALK_KEYWORDS: 钉钉机器人关键词（可选，用于通过关键词验证）
     """
     
     def __init__(self):
@@ -38,21 +39,24 @@ class DingTalkChannel(NotificationChannel):
         # 在实际应用中，这里应该从框架配置中读取
         self.webhook_url = getattr(self, '_webhook_url', None)  # 可通过外部设置
         self.secret = getattr(self, '_secret', None)  # 可通过外部设置
+        self.keywords = getattr(self, '_keywords', [])  # 关键词列表
     
     @property
     def channel_type(self) -> ChannelType:
         return ChannelType.DINGTALK
 
-    def set_config(self, webhook_url: str, secret: Optional[str] = None):
+    def set_config(self, webhook_url: str, secret: Optional[str] = None, keywords: Optional[list] = None):
         """
         设置钉钉机器人配置
         
         Args:
             webhook_url: 钉钉机器人 Webhook 地址
             secret: 钉钉机器人密钥（可选）
+            keywords: 钉钉机器人关键词列表（可选，用于通过关键词验证）
         """
         self.webhook_url = webhook_url
         self.secret = secret
+        self.keywords = keywords or []
 
     def _get_signed_url(self) -> str:
         """
@@ -112,7 +116,7 @@ class DingTalkChannel(NotificationChannel):
                         sent_count=1
                     )
                 else:
-                    error_msg = f"钉钉返回错误: {result.get('errmsg', '未知错误')}"
+                    error_msg = f"钉钉返回错误: {result.get('errmsg', '未知错误')}, 错误码: {result.get('errcode')}"
                     logger.error(f"[DingTalk] {error_msg}")
                     return NotificationResponse.error_response(error_msg)
             else:
@@ -136,20 +140,25 @@ class DingTalkChannel(NotificationChannel):
         Returns:
             钉钉格式的消息
         """
+        # 确定关键词 - 如果设置了关键词，则使用第一个关键词作为前缀
+        keyword_prefix = ""
+        if self.keywords:
+            keyword_prefix = f"{self.keywords[0]} "  # 使用第一个关键词
+        
         # 根据通知类型选择消息格式
-        if message.notification_type == "alert":
+        if message.notification_type.value == "alert":
             # 告警类型使用 markdown 格式突出显示
-            content = f"🚨 **{message.title}**\n\n{message.content}"
+            content = f"{keyword_prefix}🚨【CRAWLO-ALERT】{message.title}\n\n{message.content}"
             return {
                 "msgtype": "markdown",
                 "markdown": {
-                    "title": f"告警: {message.title}",
+                    "title": f"🚨 {message.title}",
                     "text": content
                 }
             }
         else:
             # 其他类型使用文本格式
-            content = f"【{message.notification_type.value.upper()}】{message.title}\n\n{message.content}"
+            content = f"{keyword_prefix}📢【CRAWLO-{message.notification_type.value.upper()}】{message.title}\n\n{message.content}"
             return {
                 "msgtype": "text",
                 "text": {

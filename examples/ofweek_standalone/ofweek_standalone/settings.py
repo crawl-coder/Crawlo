@@ -173,3 +173,13 @@ MEMORY_MONITOR_ENABLED = True
 MEMORY_MONITOR_INTERVAL = 60  # 内存监控检查间隔（秒）
 MEMORY_WARNING_THRESHOLD = 80.0  # 内存使用率警告阈值（百分比）
 MEMORY_CRITICAL_THRESHOLD = 90.0  # 内存使用率严重阈值（百分比）
+
+
+
+
+# 钉钉报警
+DINGDING_WARNING_URL = "https://oapi.dingtalk.com/robot/send?access_token=f2b9ee74076d0525c392e9a4c2a021a0144d295ed7210f53fee402eb349e665f"  # 钉钉机器人api
+DINGDING_WARNING_PHONE = "15361276730"  # 被@的群成员手机号，支持列表，可指定多个。
+DINGDING_WARNING_USER_ID = ""  # 被@的群成员userId，支持列表，可指定多个
+DINGDING_WARNING_ALL = False  # 是否提示所有人， 默认为False
+DINGDING_WARNING_SECRET = "SEC46ca0b774d564cedebc4761e23f158c20f6558ebed94b1bd18e2ba77259b0c40"  # 加签密钥
