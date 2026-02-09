@@ -575,6 +575,85 @@ crawlo run example
 crawlo run example --log-level DEBUG
 ```
 
+## 通知系统
+
+Crawlo 提供了完善的多平台通知系统，支持钉钉、飞书、企业微信、邮件和短信通知。
+
+### 📋 配置说明
+
+在 `settings.py` 中配置通知系统：
+
+```python
+# 启用通知系统
+NOTIFICATION_ENABLED = True
+NOTIFICATION_CHANNELS = ['dingtalk']  # 可选: dingtalk, feishu, wecom, email, sms
+
+# 钉钉通知配置
+DINGTALK_WEBHOOK = "https://oapi.dingtalk.com/robot/send?access_token=YOUR_TOKEN"
+DINGTALK_SECRET = "YOUR_SECRET"
+DINGTALK_KEYWORDS = ["爬虫"]  # 关键词验证
+DINGTALK_AT_MOBILES = ["15361276730"]  # @特定手机号
+DINGTALK_IS_AT_ALL = False  # 是否@所有人
+
+# 飞书/企业微信配置（类似）
+FEISHU_WEBHOOK = "YOUR_FEISHU_WEBHOOK"
+WECOM_WEBHOOK = "YOUR_WECOM_WEBHOOK"
+```
+
+### 🚀 基础使用
+
+```python
+from crawlo.bot.handlers import send_crawler_status, send_crawler_alert, send_crawler_progress
+from crawlo.bot.models import ChannelType
+
+# 发送状态通知
+await send_crawler_status(
+    title="【状态】爬虫启动",
+    content="爬虫任务已启动，开始抓取数据...",
+    channel=ChannelType.DINGTALK
+)
+
+# 发送进度通知
+await send_crawler_progress(
+    title="【进度】数据抓取",
+    content="已完成 50% 的数据抓取任务",
+    channel=ChannelType.DINGTALK
+)
+
+# 发送告警通知
+await send_crawler_alert(
+    title="【告警】网络异常",
+    content="检测到网络连接不稳定，部分请求失败",
+    channel=ChannelType.DINGTALK
+)
+```
+
+### 📊 使用建议
+
+**推荐通知节点：**
+- 爬虫启动时 - 发送状态通知
+- 关键里程碑 - 发送进度通知（如每100条数据）
+- 异常情况 - 立即发送告警通知
+- 任务完成时 - 发送总结通知
+
+**@ 功能使用：**
+```python
+# @ 特定手机号
+DINGTALK_AT_MOBILES = ["15361276730"]
+
+# @ 所有人
+DINGTALK_IS_AT_ALL = True
+```
+
+**重试机制：**
+```python
+NOTIFICATION_RETRY_ENABLED = True
+NOTIFICATION_RETRY_TIMES = 3
+NOTIFICATION_RETRY_DELAY = 5  # 秒
+```
+
+> 💡 详细使用指南请参考 [examples/ofweek_standalone/NOTIFICATION_GUIDE.md](examples/ofweek_standalone/NOTIFICATION_GUIDE.md)
+
 ## 核心功能
 
 ### Response 对象
