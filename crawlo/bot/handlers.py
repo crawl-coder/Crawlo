@@ -12,7 +12,7 @@ from typing import Dict, Any, Optional
 
 from crawlo.bot.models import NotificationMessage, NotificationResponse, NotificationType, ChannelType
 from crawlo.bot.notifier import get_notifier
-from crawlo.bot.config_loader import apply_settings_config
+from crawlo.bot.config_loader import apply_settings_config, ensure_config_loaded
 
 logger = logging.getLogger(__name__)
 
@@ -50,6 +50,9 @@ class CrawlerNotificationHandler:
         Returns:
             通知响应
         """
+        # 确保配置已加载
+        ensure_config_loaded()
+        
         message = NotificationMessage(
             channel=channel.value,
             notification_type=NotificationType.STATUS,
@@ -82,6 +85,9 @@ class CrawlerNotificationHandler:
         Returns:
             通知响应
         """
+        # 确保配置已加载
+        ensure_config_loaded()
+        
         message = NotificationMessage(
             channel=channel.value,
             notification_type=NotificationType.ALERT,
@@ -114,6 +120,9 @@ class CrawlerNotificationHandler:
         Returns:
             通知响应
         """
+        # 确保配置已加载
+        ensure_config_loaded()
+        
         message = NotificationMessage(
             channel=channel.value,
             notification_type=NotificationType.PROGRESS,

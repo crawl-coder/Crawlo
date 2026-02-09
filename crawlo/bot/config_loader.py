@@ -18,6 +18,20 @@ from crawlo.bot.channels.wecom import get_wecom_channel
 logger = logging.getLogger(__name__)
 
 
+# 全局配置加载状态
+_config_loaded = False
+
+
+def ensure_config_loaded():
+    """
+    确保配置已加载，如果未加载则立即加载
+    """
+    global _config_loaded
+    if not _config_loaded:
+        apply_settings_config()
+        _config_loaded = True
+
+
 def load_notification_config(settings: Optional[dict] = None):
     """
     从框架配置加载通知系统配置
