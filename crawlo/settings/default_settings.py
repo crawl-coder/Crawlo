@@ -330,11 +330,17 @@ DINGTALK_IS_AT_ALL = False # 是否@所有人（可选，默认False）
 # 飞书通知配置
 FEISHU_WEBHOOK = ""    # 飞书机器人 Webhook 地址
 FEISHU_SECRET = ""     # 飞书机器人密钥（可选，用于验证）
+FEISHU_AT_USERS = []   # 需要@的用户ID列表（可选）
+FEISHU_AT_MOBILE = []  # 需要@的手机号列表（可选）
+FEISHU_IS_AT_ALL = False # 是否@所有人（可选，默认False）
 
 # 企业微信通知配置
 WECOM_WEBHOOK = ""     # 企业微信机器人 Webhook 地址
 WECOM_SECRET = ""      # 企业微信机器人密钥（可选，用于验证）
 WECOM_AGENT_ID = ""    # 企业微信应用 AgentId
+WECOM_AT_USERS = []    # 需要@的用户ID列表（可选）
+WECOM_AT_MOBILE = []   # 需要@的手机号列表（可选）
+WECOM_IS_AT_ALL = False # 是否@所有人（可选，默认False）
 
 # 邮件通知配置
 EMAIL_SMTP_SERVER = ""  # SMTP服务器地址

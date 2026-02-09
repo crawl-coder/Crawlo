@@ -8,8 +8,9 @@
 """
 
 import json
-import time
 import logging
+import hashlib
+import time
 from typing import Dict, Any, Optional
 import requests
 
@@ -28,25 +29,59 @@ class FeishuChannel(NotificationChannel):
     
     配置要求：
     - FEISHU_WEBHOOK: 飞书机器人 Webhook 地址
+    - FEISHU_SECRET: 飞书机器人密钥（可选，用于验证）
+    - FEISHU_AT_USERS: 需要@的用户ID列表（可选）
+    - FEISHU_AT_MOBILE: 需要@的手机号列表（可选）
+    - FEISHU_IS_AT_ALL: 是否@所有人（可选，默认False）
     """
     
     def __init__(self):
         # 从配置中获取飞书相关信息
-        # 在实际应用中，这里应该从框架配置中读取
         self.webhook_url = getattr(self, '_webhook_url', None)  # 可通过外部设置
-    
+        self.secret = getattr(self, '_secret', None)  # 可通过外部设置
+        self.at_users = getattr(self, '_at_users', [])  # 需要@的用户ID列表
+        self.at_mobile = getattr(self, '_at_mobile', [])  # 需要@的手机号列表
+        self.is_at_all = getattr(self, '_is_at_all', False)  # 是否@所有人
+
     @property
     def channel_type(self) -> ChannelType:
         return ChannelType.FEISHU
 
-    def set_config(self, webhook_url: str):
+    def set_config(self, webhook_url: str, secret: Optional[str] = None, 
+                   at_users: Optional[list] = None, at_mobile: Optional[list] = None, 
+                   is_at_all: bool = False):
         """
         设置飞书机器人配置
         
         Args:
             webhook_url: 飞书机器人 Webhook 地址
+            secret: 飞书机器人密钥（可选）
+            at_users: 需要@的用户ID列表（可选）
+            at_mobile: 需要@的手机号列表（可选）
+            is_at_all: 是否@所有人（可选，默认False）
         """
         self.webhook_url = webhook_url
+        self.secret = secret
+        self.at_users = at_users or []
+        self.at_mobile = at_mobile or []
+        self.is_at_all = is_at_all
+
+    def _get_signature(self, timestamp: str) -> str:
+        """
+        生成签名（如果配置了密钥）
+        
+        Args:
+            timestamp: 时间戳
+            
+        Returns:
+            生成的签名
+        """
+        if not self.secret:
+            return ""
+        
+        string_to_sign = f'{timestamp}\n{self.secret}'
+        hmac_code = hashlib.new('sha256', string_to_sign.encode('utf-8')).digest()
+        return hmac_code.hex()
 
     def send(self, message: NotificationMessage) -> NotificationResponse:
         """
@@ -67,10 +102,20 @@ class FeishuChannel(NotificationChannel):
             # 构建飞书消息格式
             feishu_message = self._build_feishu_message(message)
             
+            # 准备请求参数
+            params = {'timestamp': '', 'sign': ''}
+            
+            # 如果设置了密钥，则生成签名
+            if self.secret:
+                timestamp = str(int(time.time()))
+                signature = self._get_signature(timestamp)
+                params = {'timestamp': timestamp, 'sign': signature}
+            
             # 发送请求
             response = requests.post(
                 url=self.webhook_url,
                 json=feishu_message,
+                params=params,
                 headers={'Content-Type': 'application/json'},
                 timeout=10
             )
@@ -84,11 +129,11 @@ class FeishuChannel(NotificationChannel):
                         sent_count=1
                     )
                 else:
-                    error_msg = f"飞书返回错误: {result.get('msg', result.get('message', '未知错误'))}"
+                    error_msg = f"飞书返回错误: {result.get('msg', '未知错误')}, 代码: {result.get('code', result.get('StatusCode'))}"
                     logger.error(f"[Feishu] {error_msg}")
                     return NotificationResponse.error_response(error_msg)
             else:
-                error_msg = f"HTTP请求失败: {response.status_code}, {response.text}"
+                error_msg = f"HTTP请求失败: {response.status_code}, 响应: {response.text}"
                 logger.error(f"[Feishu] {error_msg}")
                 return NotificationResponse.error_response(error_msg)
                 
@@ -108,10 +153,23 @@ class FeishuChannel(NotificationChannel):
         Returns:
             飞书格式的消息
         """
+        # 构建@内容
+        at_part = ""
+        if self.is_at_all:
+            at_part = "<at user_id=\"all\">所有人</at>\n"
+        elif self.at_users:
+            for user_id in self.at_users:
+                at_part += f"<at user_id=\"{user_id}\">{user_id}</at> "
+        elif self.at_mobile:
+            for mobile in self.at_mobile:
+                at_part += f"<at mobile=\"{mobile}\">{mobile}</at> "
+
         # 根据通知类型选择消息格式
         if message.notification_type.value == "alert":
-            # 告警类型使用富文本格式突出显示
-            content = f"🚨【告警】{message.title}\n\n{message.content}"
+            # 告警类型使用富文本格式
+            content = f"🚨【CRAWLO-ALERT】{message.title}\n\n{message.content}"
+            if at_part:
+                content = at_part + content
             return {
                 "msg_type": "post",
                 "content": {
@@ -132,33 +190,32 @@ class FeishuChannel(NotificationChannel):
             }
         elif message.notification_type.value == "progress":
             # 进度类型使用富文本格式
+            content = f"📊【CRAWLO-PROGRESS】{message.title}\n\n{message.content}"
+            if at_part:
+                content = at_part + content
             return {
-                "msg_type": "interactive",
-                "card": {
-                    "config": {
-                        "wide_screen_mode": True
-                    },
-                    "elements": [
-                        {
-                            "tag": "div",
-                            "text": {
-                                "tag": "lark_md",
-                                "content": f"📊 **{message.title}**\n\n{message.content}"
-                            }
-                        }
-                    ],
-                    "header": {
-                        "template": "blue",
-                        "title": {
-                            "content": "进度更新",
-                            "tag": "plain_text"
+                "msg_type": "post",
+                "content": {
+                    "post": {
+                        "zh_cn": {
+                            "title": f"📊 {message.title}",
+                            "content": [
+                                [
+                                    {
+                                        "tag": "text",
+                                        "text": content
+                                    }
+                                ]
+                            ]
                         }
                     }
                 }
             }
         else:
             # 其他类型使用文本格式
-            content = f"【{message.notification_type.value.upper()}】{message.title}\n\n{message.content}"
+            content = f"📢【CRAWLO-{message.notification_type.value.upper()}】{message.title}\n\n{message.content}"
+            if at_part:
+                content = at_part + content
             return {
                 "msg_type": "text",
                 "content": {

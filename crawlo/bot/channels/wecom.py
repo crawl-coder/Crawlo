@@ -7,6 +7,8 @@
 处理向企业微信机器人发送通知消息。
 """
 
+import hashlib
+import hmac
 import time
 import logging
 from typing import Dict, Any, Optional
@@ -27,25 +29,63 @@ class WeComChannel(NotificationChannel):
     
     配置要求：
     - WECOM_WEBHOOK: 企业微信机器人 Webhook 地址
+    - WECOM_SECRET: 企业微信机器人密钥（可选，用于验证）
+    - WECOM_AGENT_ID: 企业微信应用 AgentId（可选）
+    - WECOM_AT_USERS: 需要@的用户ID列表（可选）
+    - WECOM_AT_MOBILE: 需要@的手机号列表（可选）
+    - WECOM_IS_AT_ALL: 是否@所有人（可选，默认False）
     """
     
     def __init__(self):
         # 从配置中获取企业微信相关信息
-        # 在实际应用中，这里应该从框架配置中读取
         self.webhook_url = getattr(self, '_webhook_url', None)  # 可通过外部设置
-    
+        self.secret = getattr(self, '_secret', None)  # 可通过外部设置
+        self.agent_id = getattr(self, '_agent_id', "")  # AgentId
+        self.at_users = getattr(self, '_at_users', [])  # 需要@的用户ID列表
+        self.at_mobile = getattr(self, '_at_mobile', [])  # 需要@的手机号列表
+        self.is_at_all = getattr(self, '_is_at_all', False)  # 是否@所有人
+
     @property
     def channel_type(self) -> ChannelType:
         return ChannelType.WECOM
 
-    def set_config(self, webhook_url: str):
+    def set_config(self, webhook_url: str, secret: Optional[str] = None, agent_id: str = "",
+                   at_users: Optional[list] = None, at_mobile: Optional[list] = None, 
+                   is_at_all: bool = False):
         """
         设置企业微信机器人配置
         
         Args:
             webhook_url: 企业微信机器人 Webhook 地址
+            secret: 企业微信机器人密钥（可选）
+            agent_id: 企业微信应用 AgentId（可选）
+            at_users: 需要@的用户ID列表（可选）
+            at_mobile: 需要@的手机号列表（可选）
+            is_at_all: 是否@所有人（可选，默认False）
         """
         self.webhook_url = webhook_url
+        self.secret = secret
+        self.agent_id = agent_id
+        self.at_users = at_users or []
+        self.at_mobile = at_mobile or []
+        self.is_at_all = is_at_all
+
+    def _get_signature(self, timestamp: str) -> str:
+        """
+        生成签名（如果配置了密钥）
+        
+        Args:
+            timestamp: 时间戳
+            
+        Returns:
+            生成的签名
+        """
+        if not self.secret:
+            return ""
+        
+        string_to_sign = f'{timestamp}\n{self.secret}'.encode('utf-8')
+        signature = hmac.new(self.secret.encode('utf-8'), string_to_sign, digestmod=hashlib.sha256).digest()
+        return signature.hex()
 
     def send(self, message: NotificationMessage) -> NotificationResponse:
         """
@@ -64,12 +104,12 @@ class WeComChannel(NotificationChannel):
         
         try:
             # 构建企业微信消息格式
-            wecom_message = self._build_wecom_message(message)
+            wework_message = self._build_wework_message(message)
             
             # 发送请求
             response = requests.post(
                 url=self.webhook_url,
-                json=wecom_message,
+                json=wework_message,
                 headers={'Content-Type': 'application/json'},
                 timeout=10
             )
@@ -87,7 +127,7 @@ class WeComChannel(NotificationChannel):
                     logger.error(f"[WeCom] {error_msg}")
                     return NotificationResponse.error_response(error_msg)
             else:
-                error_msg = f"HTTP请求失败: {response.status_code}, {response.text}"
+                error_msg = f"HTTP请求失败: {response.status_code}"
                 logger.error(f"[WeCom] {error_msg}")
                 return NotificationResponse.error_response(error_msg)
                 
@@ -97,7 +137,7 @@ class WeComChannel(NotificationChannel):
             logger.exception(e)
             return NotificationResponse.error_response(error_msg)
 
-    def _build_wecom_message(self, message: NotificationMessage) -> Dict[str, Any]:
+    def _build_wework_message(self, message: NotificationMessage) -> Dict[str, Any]:
         """
         构建企业微信消息格式
         
@@ -107,34 +147,39 @@ class WeComChannel(NotificationChannel):
         Returns:
             企业微信格式的消息
         """
+        # 构建@内容
+        at_part = ""
+        if self.is_at_all:
+            at_part = "@all "
+        elif self.at_users:
+            for user in self.at_users:
+                at_part += f"@{user} "
+        elif self.at_mobile:
+            for mobile in self.at_mobile:
+                at_part += f"<@{mobile}> "
+
         # 根据通知类型选择消息格式
         if message.notification_type.value == "alert":
             # 告警类型使用 markdown 格式突出显示
-            content = f"🚨【告警】{message.title}\n\n{message.content}"
+            content = f"{at_part}🚨【CRAWLO-ALERT】{message.title}\n\n{message.content}"
             return {
                 "msgtype": "markdown",
                 "markdown": {
                     "content": content
                 }
             }
-        elif message.notification_type.value in ["progress", "status"]:
-            # 状态和进度类型使用图文格式
+        elif message.notification_type.value == "progress":
+            # 进度类型使用 markdown 格式
+            content = f"{at_part}📊【CRAWLO-PROGRESS】{message.title}\n\n{message.content}"
             return {
-                "msgtype": "news",
-                "news": {
-                    "articles": [
-                        {
-                            "title": f"📊 {message.title}",
-                            "description": message.content,
-                            "url": "https://example.com",  # 可以指向相关的详情页
-                            "picurl": "https://example.com/pic.jpg"  # 可选的图片URL
-                        }
-                    ]
+                "msgtype": "markdown",
+                "markdown": {
+                    "content": content
                 }
             }
         else:
             # 其他类型使用文本格式
-            content = f"【{message.notification_type.value.upper()}】{message.title}\n\n{message.content}"
+            content = f"{at_part}📢【CRAWLO-{message.notification_type.value.upper()}】{message.title}\n\n{message.content}"
             return {
                 "msgtype": "text",
                 "text": {
