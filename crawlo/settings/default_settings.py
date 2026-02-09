@@ -72,7 +72,7 @@ MYSQL_INSERT_IGNORE = False    # 优先级最低：是否使用 INSERT IGNORE（
 # MySQL SQL生成行为控制配置
 MYSQL_PREFER_ALIAS_SYNTAX = True      # 是否优先使用 AS `alias` 语法，False 则使用 VALUES() 语法
 # MySQL 连接池配置
-MYSQL_POOL_MIN = 8  # 最小连接数
+MYSQL_POOL_MIN = 2  # 最小连接数
 MYSQL_POOL_MAX = 30  # 最大连接数
 MYSQL_HEALTH_CHECK_INTERVAL = 300.0  # 连接池健康检查间隔（秒），默认5分钟
 MYSQL_POOL_REPAIR_ATTEMPTS = 3  # 连接池修复尝试次数，默认3次
