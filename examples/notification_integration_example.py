@@ -7,6 +7,10 @@ Crawlo 通知系统集成示例
 演示如何在爬虫项目中集成通知系统，实现状态监控和告警功能。
 """
 
+import sys
+import os
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 from crawlo.bot.handlers import (
     send_crawler_status,
     send_crawler_alert,
@@ -14,8 +18,52 @@ from crawlo.bot.handlers import (
 )
 from crawlo.bot.models import ChannelType
 from crawlo import Crawler, Request, Item
+from crawlo.bot.channels.dingtalk import get_dingtalk_channel
+from crawlo.bot.channels.feishu import get_feishu_channel
+from crawlo.bot.channels.wecom import get_wecom_channel
+from crawlo.bot.channels.email import get_email_channel
 import asyncio
 import time
+
+
+def setup_notification_channels():
+    """
+    配置通知渠道
+    注意：在实际使用中，需要替换成真实的 Webhook URL 和 SMTP 信息
+    """
+    print("🔧 配置通知渠道...")
+    
+    # 配置钉钉机器人（示例）
+    # dingtalk_channel = get_dingtalk_channel()
+    # dingtalk_channel.set_config(
+    #     webhook_url="https://oapi.dingtalk.com/robot/send?access_token=YOUR_TOKEN",
+    #     secret="YOUR_SECRET"  # 可选
+    # )
+    
+    # 配置飞书机器人（示例）
+    # feishu_channel = get_feishu_channel()
+    # feishu_channel.set_config(
+    #     webhook_url="https://open.feishu.cn/open-apis/bot/v2/hook/YOUR_TOKEN"
+    # )
+    
+    # 配置企业微信机器人（示例）
+    # wecom_channel = get_wecom_channel()
+    # wecom_channel.set_config(
+    #     webhook_url="https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=YOUR_KEY"
+    # )
+    
+    # 配置邮件服务器（示例）
+    # email_channel = get_email_channel()
+    # email_channel.set_config(
+    #     smtp_host="smtp.example.com",
+    #     smtp_port=587,
+    #     smtp_user="user@example.com",
+    #     smtp_password="password",
+    #     sender_email="sender@example.com"
+    # )
+    
+    print("✅ 通知渠道配置完成")
+    print("💡 提示：在实际部署时，请配置真实的 Webhook URL 和 SMTP 信息")
 
 
 class NewsSpider(Crawler):
@@ -106,8 +154,10 @@ def run_news_spider_with_notifications():
     print("🚀 开始运行集成了通知系统的爬虫示例")
     print("=" * 60)
     
-    # 注意：这里只是示例，实际运行需要真实的网站和环境
-    print("📋 预期的通知流程：")
+    # 配置通知渠道
+    setup_notification_channels()
+    
+    print("\n📋 预期的通知流程：")
     print("  1. 爬虫启动 -> 发送状态通知")
     print("  2. 处理数据 -> 每10条发送进度通知")
     print("  3. 出现错误 -> 达到阈值发送告警通知")
@@ -124,6 +174,12 @@ def run_news_spider_with_notifications():
     print("  • 类型丰富：支持状态、告警、进度等多种通知")
     print("  • 优先级控制：根据重要性调整通知级别")
     print("  • 易于扩展：可快速接入新通知渠道")
+    
+    print("\n🌐 支持的通知渠道：")
+    print("  • 钉钉：适合企业内部团队沟通")
+    print("  • 飞书：现代办公协作平台")
+    print("  • 企业微信：企业通讯工具")
+    print("  • 邮件：传统可靠的通知方式")
     
     print("\n✨ 爬虫通知系统集成完成！")
 
