@@ -313,7 +313,48 @@ PLAYWRIGHT_MAX_PAGES_PER_BROWSER = 10  # 单浏览器最大页面数量
 CONNECTION_TTL_DNS_CACHE = 300  # DNS缓存TTL（秒）
 # CONNECTION_KEEPALIVE = True  # 是否启用HTTP连接保持
 
-# --------------------------------- 13. 定时任务配置 ------------------------------------
+# --------------------------------- 13. 通知系统配置 ------------------------------------
+
+# 通知系统基础配置
+NOTIFICATION_ENABLED = False  # 启用通知系统 - 默认禁用
+NOTIFICATION_CHANNELS = []  # 启用的通知渠道列表
+
+# 钉钉通知配置
+DINGTALK_WEBHOOK = ""  # 钉钉机器人 Webhook 地址
+DINGTALK_SECRET = ""   # 钉钉机器人密钥（可选，用于加签）
+DINGTALK_KEYWORDS = [] # 钉钉机器人关键词（可选，用于通过关键词验证）
+
+# 飞书通知配置
+FEISHU_WEBHOOK = ""    # 飞书机器人 Webhook 地址
+FEISHU_SECRET = ""     # 飞书机器人密钥（可选，用于验证）
+
+# 企业微信通知配置
+WECOM_WEBHOOK = ""     # 企业微信机器人 Webhook 地址
+WECOM_SECRET = ""      # 企业微信机器人密钥（可选，用于验证）
+WECOM_AGENT_ID = ""    # 企业微信应用 AgentId
+
+# 邮件通知配置
+EMAIL_SMTP_SERVER = ""  # SMTP服务器地址
+EMAIL_SMTP_PORT = 587   # SMTP服务器端口
+EMAIL_USERNAME = ""     # 邮箱用户名
+EMAIL_PASSWORD = ""     # 邮箱密码或授权码
+EMAIL_FROM = ""         # 发送方邮箱地址
+EMAIL_TO = []           # 接收方邮箱地址列表
+
+# 短信通知配置
+SMS_PROVIDER = ""       # 短信服务提供商（如: alibaba, tencent等）
+SMS_ACCESS_KEY_ID = ""  # 短信服务 Access Key ID
+SMS_ACCESS_KEY_SECRET = ""  # 短信服务 Access Key Secret
+SMS_SIGN_NAME = ""      # 短信签名名称
+SMS_TEMPLATE_CODE = ""  # 短信模板代码
+
+# 通知系统高级配置
+NOTIFICATION_RETRY_ENABLED = True  # 是否启用通知发送失败重试
+NOTIFICATION_RETRY_TIMES = 3      # 通知发送失败重试次数
+NOTIFICATION_RETRY_DELAY = 5      # 通知发送失败重试延迟（秒）
+NOTIFICATION_TIMEOUT = 30         # 通知发送超时时间（秒）
+
+# --------------------------------- 14. 定时任务配置 ------------------------------------
 
 # 定时任务基础配置
 SCHEDULER_ENABLED = False  # 启用定时任务 - 默认禁用
@@ -339,3 +380,4 @@ SCHEDULER_STATS_RETENTION_HOURS = 24      # 统计信息保留小时数
 SCHEDULER_HEARTBEAT_INTERVAL = 10          # 心跳间隔（秒）
 SCHEDULER_RESOURCE_CLEANUP_ON_STOP = True  # 停止时是否清理资源
 SCHEDULER_MAX_RESOURCE_AGE = 7200          # 资源最大存活时间（秒）
+
