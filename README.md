@@ -652,7 +652,7 @@ NOTIFICATION_RETRY_TIMES = 3
 NOTIFICATION_RETRY_DELAY = 5  # 秒
 ```
 
-> 💡 详细使用指南请参考 [examples/ofweek_standalone/NOTIFICATION_GUIDE.md](examples/ofweek_standalone/NOTIFICATION_GUIDE.md)
+> 💡 详细使用指南请参考 [docs/notification_guide.md](docs/notification_guide.md)
 
 ## 核心功能
 
