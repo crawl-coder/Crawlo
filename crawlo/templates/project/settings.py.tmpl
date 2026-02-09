@@ -154,3 +154,53 @@ OUTPUT_DIR = 'output'
 # 动态代理（ProxyMiddleware）
 # 配置代理API URL后中间件自动启用
 # PROXY_API_URL = "http://your-proxy-api.com/get-proxy"
+
+# =================================== 通知系统配置 ===================================
+# 
+# # 启用通知系统 - 用户需手动取消注释以启用
+# NOTIFICATION_ENABLED = False  # 启用通知系统
+# NOTIFICATION_CHANNELS = []  # 启用的通知渠道列表，例如 ['dingtalk', 'feishu', 'wecom', 'email', 'sms']
+# 
+# # 钉钉通知配置
+# # DINGTALK_WEBHOOK = "https://oapi.dingtalk.com/robot/send?access_token=YOUR_TOKEN"  # 钉钉机器人 Webhook 地址
+# # DINGTALK_SECRET = "SECxxx"   # 钉钉机器人密钥（可选，用于加签）
+# # DINGTALK_KEYWORDS = ["爬虫"] # 钉钉机器人关键词（可选，用于通过关键词验证）
+# # DINGTALK_AT_MOBILES = ["13800138000"] # 需要@的手机号列表（可选）
+# # DINGTALK_AT_USERIDS = ["userid1"] # 需要@的用户ID列表（可选）
+# # DINGTALK_IS_AT_ALL = False # 是否@所有人（可选，默认False）
+# 
+# # 飞书通知配置
+# # FEISHU_WEBHOOK = "https://open.feishu.cn/open-apis/bot/v2/hook/YOUR_HOOK_ID"  # 飞书机器人 Webhook 地址
+# # FEISHU_SECRET = "YOUR_SECRET"     # 飞书机器人密钥（可选，用于验证）
+# # FEISHU_AT_USERS = ["open_id1"]   # 需要@的用户ID列表（可选）
+# # FEISHU_AT_MOBILE = ["13800138000"]  # 需要@的手机号列表（可选）
+# # FEISHU_IS_AT_ALL = False # 是否@所有人（可选，默认False）
+# 
+# # 企业微信通知配置
+# # WECOM_WEBHOOK = "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=YOUR_WEBHOOK_KEY"  # 企业微信机器人 Webhook 地址
+# # WECOM_SECRET = "YOUR_SECRET"      # 企业微信机器人密钥（可选，用于验证）
+# # WECOM_AGENT_ID = "1000001"       # 企业微信应用 AgentId
+# # WECOM_AT_USERS = ["UserID1"]     # 需要@的用户ID列表（可选）
+# # WECOM_AT_MOBILE = ["13800138000"]   # 需要@的手机号列表（可选）
+# # WECOM_IS_AT_ALL = False # 是否@所有人（可选，默认False）
+# 
+# # 邮件通知配置
+# # EMAIL_SMTP_SERVER = "smtp.gmail.com"  # SMTP服务器地址
+# # EMAIL_SMTP_PORT = 587   # SMTP服务器端口
+# # EMAIL_USERNAME = "your_email@gmail.com"     # 邮箱用户名
+# # EMAIL_PASSWORD = "your_app_password"     # 邮箱密码或授权码
+# # EMAIL_FROM = "your_email@gmail.com"         # 发送方邮箱地址
+# # EMAIL_TO = ["recipient@example.com"]           # 接收方邮箱地址列表
+# 
+# # 短信通知配置
+# # SMS_PROVIDER = "alibaba"       # 短信服务提供商（如: alibaba, tencent等）
+# # SMS_ACCESS_KEY_ID = "YOUR_ACCESS_KEY_ID"  # 短信服务 Access Key ID
+# # SMS_ACCESS_KEY_SECRET = "YOUR_ACCESS_KEY_SECRET"  # 短信服务 Access Key Secret
+# # SMS_SIGN_NAME = "YourSignName"      # 短信签名名称
+# # SMS_TEMPLATE_CODE = "SMS_XXXXX"  # 短信模板代码
+# 
+# # 通知系统高级配置
+# # NOTIFICATION_RETRY_ENABLED = True  # 是否启用通知发送失败重试
+# # NOTIFICATION_RETRY_TIMES = 3      # 通知发送失败重试次数
+# # NOTIFICATION_RETRY_DELAY = 5      # 通知发送失败重试延迟（秒）
+# # NOTIFICATION_TIMEOUT = 30         # 通知发送超时时间（秒）
