@@ -20,7 +20,8 @@ def main():
             start_scheduler(project_root)
         else:
             # 正常爬虫运行模式
-            asyncio.run(CrawlerProcess().crawl('of_week_with_notifications'))
+            spider_name = sys.argv[1] if len(sys.argv) > 1 else 'of_week_with_notifications'
+            asyncio.run(CrawlerProcess().crawl(spider_name))
     except Exception as e:
         print(f"❌ 运行失败: {e}")
         import traceback

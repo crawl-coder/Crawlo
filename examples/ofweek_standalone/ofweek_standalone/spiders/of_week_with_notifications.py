@@ -67,14 +67,18 @@ class OfWeekSpiderWithNotifications(Spider):
                 error_msg = f"页面返回非200状态码: {response.status_code}"
                 self.logger.warning(f"{error_msg}, URL: {response.url}")
                 
+                # 保存原始响应信息
+                original_url = response.url
+                original_status = response.status_code
+                
                 # 发送告警通知
-                response = send_crawler_alert(
+                alert_response = send_crawler_alert(
                     title="【告警】页面访问失败",
-                    content=f"URL: {response.url}\n状态码: {response.status_code}\n已记录并继续处理其他请求",
+                    content=f"URL: {original_url}\n状态码: {original_status}\n已记录并继续处理其他请求",
                     channel=ChannelType.DINGTALK
                 )
-                if not response.success:
-                    self.logger.warning(f"发送告警通知失败: {response.error}")
+                if not alert_response.success:
+                    self.logger.warning(f"发送告警通知失败: {alert_response.error}")
                 return
             
             # 检查页面内容是否为空
@@ -89,13 +93,13 @@ class OfWeekSpiderWithNotifications(Spider):
             
             # 发送进度通知（每处理5个页面发送一次）
             if self.stats['total_requests'] % 5 == 0:
-                response = send_crawler_progress(
+                progress_response = send_crawler_progress(
                     title="【进度】数据抓取进度",
                     content=f"已处理 {self.stats['total_requests']} 个页面，成功提取 {len(rows)} 条数据",
                     channel=ChannelType.DINGTALK
                 )
-                if not response.success:
-                    self.logger.warning(f"发送进度通知失败: {response.error}")
+                if not progress_response.success:
+                    self.logger.warning(f"发送进度通知失败: {progress_response.error}")
             
             for row in rows:
                 try:
@@ -132,14 +136,17 @@ class OfWeekSpiderWithNotifications(Spider):
             error_msg = f"解析页面时出错: {str(e)}"
             self.logger.error(error_msg)
             
+            # 保存原始响应信息
+            original_url = response.url
+            
             # 发送严重错误告警
-            response = send_crawler_alert(
+            alert_response = send_crawler_alert(
                 title="【严重告警】页面解析异常",
-                content=f"URL: {response.url}\n错误信息: {error_msg}\n请检查页面结构是否发生变化",
+                content=f"URL: {original_url}\n错误信息: {error_msg}\n请检查页面结构是否发生变化",
                 channel=ChannelType.DINGTALK
             )
-            if not response.success:
-                self.logger.warning(f"发送严重告警失败: {response.error}")
+            if not alert_response.success:
+                self.logger.warning(f"发送严重告警失败: {alert_response.error}")
     
     async def parse_detail(self, response):
         """解析详情页面 - 带数据统计通知"""
@@ -178,13 +185,13 @@ class OfWeekSpiderWithNotifications(Spider):
             
             # 每成功处理100条数据发送一次进度通知
             if self.stats['successful_items'] % 100 == 0:
-                response = send_crawler_progress(
+                progress_response = send_crawler_progress(
                     title="【数据统计】抓取进度更新",
                     content=f"累计成功抓取 {self.stats['successful_items']} 条数据\n失败请求: {self.stats['failed_requests']} 次",
                     channel=ChannelType.DINGTALK
                 )
-                if not response.success:
-                    self.logger.warning(f"发送数据统计通知失败: {response.error}")
+                if not progress_response.success:
+                    self.logger.warning(f"发送数据统计通知失败: {progress_response.error}")
             
             yield item
             
