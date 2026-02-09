@@ -12,6 +12,7 @@ from typing import Dict, Any, Optional
 
 from crawlo.bot.models import NotificationMessage, NotificationResponse, NotificationType, ChannelType
 from crawlo.bot.notifier import get_notifier
+from crawlo.bot.config_loader import apply_settings_config
 
 logger = logging.getLogger(__name__)
 
@@ -25,6 +26,8 @@ class CrawlerNotificationHandler:
     
     def __init__(self):
         self.notifier = get_notifier()
+        # 自动加载配置
+        apply_settings_config()
     
     def send_status_notification(
         self, 
