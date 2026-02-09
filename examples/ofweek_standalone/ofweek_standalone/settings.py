@@ -110,7 +110,6 @@ MYSQL_UPDATE_COLUMNS = ()  # 冲突时需更新的列名；指定后 MYSQL_AUTO_
 # 动态代理（ProxyMiddleware）
 # 配置代理API URL后中间件自动启用
 # PROXY_API_URL = "http://your-proxy-api.com/get-proxy"
-PROXY_API_URL = 'http://123.56.42.142:5000/proxy/getitem/'
 
 # =================================== 定时任务配置 ===================================
 
@@ -195,7 +194,7 @@ NOTIFICATION_CHANNELS = ['dingtalk']  # 启用的通知渠道列表
 DINGTALK_WEBHOOK = "https://oapi.dingtalk.com/robot/send?access_token=f2b9ee74076d0525c392e9a4c2a021a0144d295ed7210f53fee402eb349e665f"  # 钉钉机器人 Webhook 地址
 DINGTALK_SECRET = "SEC46ca0b774d564cedebc4761e23f158c20f6558ebed94b1bd18e2ba77259b0c40"   # 钉钉机器人密钥（用于加签）
 DINGTALK_KEYWORDS = ["爬虫"] # 钉钉机器人关键词（用于通过关键词验证）
-DINGTALK_AT_MOBILES = ["15361276730"] # 需要@的手机号列表
+DINGTALK_AT_MOBILES = ["15361276731", "18361276730"] # 需要@的手机号列表
 DINGTALK_IS_AT_ALL = False # 是否@所有人（默认False）
 
 # 通知系统高级配置
