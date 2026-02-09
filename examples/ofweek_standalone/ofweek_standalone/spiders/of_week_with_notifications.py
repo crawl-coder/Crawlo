@@ -34,11 +34,13 @@ class OfWeekSpiderWithNotifications(Spider):
     def start_requests(self):
         """生成初始请求 - 带启动通知"""
         # 发送爬虫启动通知
-        asyncio.create_task(send_crawler_status(
+        response = send_crawler_status(
             title="【启动】ofweek爬虫开始运行",
             content=f"爬虫任务 '{self.name}' 已启动，开始抓取 ofweek 新闻数据...",
             channel=ChannelType.DINGTALK
-        ))
+        )
+        if not response.success:
+            self.logger.warning(f"发送启动通知失败: {response.error}")
         
         self.stats['start_time'] = self.get_current_time()
         self.logger.info("爬虫启动通知已发送")
@@ -66,11 +68,13 @@ class OfWeekSpiderWithNotifications(Spider):
                 self.logger.warning(f"{error_msg}, URL: {response.url}")
                 
                 # 发送告警通知
-                asyncio.create_task(send_crawler_alert(
+                response = send_crawler_alert(
                     title="【告警】页面访问失败",
                     content=f"URL: {response.url}\n状态码: {response.status_code}\n已记录并继续处理其他请求",
                     channel=ChannelType.DINGTALK
-                ))
+                )
+                if not response.success:
+                    self.logger.warning(f"发送告警通知失败: {response.error}")
                 return
             
             # 检查页面内容是否为空
@@ -85,11 +89,13 @@ class OfWeekSpiderWithNotifications(Spider):
             
             # 发送进度通知（每处理5个页面发送一次）
             if self.stats['total_requests'] % 5 == 0:
-                asyncio.create_task(send_crawler_progress(
+                response = send_crawler_progress(
                     title="【进度】数据抓取进度",
                     content=f"已处理 {self.stats['total_requests']} 个页面，成功提取 {len(rows)} 条数据",
                     channel=ChannelType.DINGTALK
-                ))
+                )
+                if not response.success:
+                    self.logger.warning(f"发送进度通知失败: {response.error}")
             
             for row in rows:
                 try:
@@ -127,11 +133,13 @@ class OfWeekSpiderWithNotifications(Spider):
             self.logger.error(error_msg)
             
             # 发送严重错误告警
-            asyncio.create_task(send_crawler_alert(
+            response = send_crawler_alert(
                 title="【严重告警】页面解析异常",
                 content=f"URL: {response.url}\n错误信息: {error_msg}\n请检查页面结构是否发生变化",
                 channel=ChannelType.DINGTALK
-            ))
+            )
+            if not response.success:
+                self.logger.warning(f"发送严重告警失败: {response.error}")
     
     async def parse_detail(self, response):
         """解析详情页面 - 带数据统计通知"""
@@ -170,11 +178,13 @@ class OfWeekSpiderWithNotifications(Spider):
             
             # 每成功处理100条数据发送一次进度通知
             if self.stats['successful_items'] % 100 == 0:
-                asyncio.create_task(send_crawler_progress(
+                response = send_crawler_progress(
                     title="【数据统计】抓取进度更新",
                     content=f"累计成功抓取 {self.stats['successful_items']} 条数据\n失败请求: {self.stats['failed_requests']} 次",
                     channel=ChannelType.DINGTALK
-                ))
+                )
+                if not response.success:
+                    self.logger.warning(f"发送数据统计通知失败: {response.error}")
             
             yield item
             
@@ -188,7 +198,7 @@ class OfWeekSpiderWithNotifications(Spider):
         run_duration = self.get_run_duration()
         
         # 发送任务完成总结通知
-        asyncio.create_task(send_crawler_status(
+        response = send_crawler_status(
             title="【完成】ofweek爬虫任务总结",
             content=f"""爬虫任务 '{self.name}' 已完成！
 📊 运行统计：
@@ -199,7 +209,9 @@ class OfWeekSpiderWithNotifications(Spider):
 ✅ 数据已存储到 MySQL 数据库
 📍 项目: ofweek_standalone""",
             channel=ChannelType.DINGTALK
-        ))
+        )
+        if not response.success:
+            self.logger.warning(f"发送完成通知失败: {response.error}")
         
         self.logger.info("爬虫完成总结通知已发送")
     
