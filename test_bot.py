@@ -1,76 +1,67 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 """
-机器人框架测试脚本
+爬虫通知系统测试脚本
 """
 
-from crawlo.bot.models import BotMessage, ChatType
-from crawlo.bot.dispatcher import get_dispatcher
+from crawlo.bot.models import NotificationMessage, NotificationType, ChannelType
+from crawlo.bot.notifier import get_notifier
+from crawlo.bot.handlers import get_notification_handler
 
-def test_bot_framework():
-    """测试机器人框架的基本功能"""
-    print("=== 测试机器人框架 ===")
+def test_notification_system():
+    """测试通知系统的基本功能"""
+    print("=== 测试爬虫通知系统 ===")
     
-    # 获取分发器实例
-    dispatcher = get_dispatcher()
-    print(f"已注册命令数量: {len(dispatcher.list_commands())}")
+    # 获取通知器实例
+    notifier = get_notifier()
+    print(f"已注册渠道数量: {len(notifier._channels)}")
     
-    # 测试帮助命令
-    print("\n--- 测试 /help 命令 ---")
-    help_message = BotMessage(
-        platform="test",
-        message_id="test_msg_1",
-        user_id="test_user_1",
-        user_name="Test User",
-        chat_id="test_chat_1",
-        chat_type=ChatType.PRIVATE,
-        content="/help",
-        raw_content="/help",
-        mentioned=False,
-        timestamp=None
+    # 获取通知处理器
+    handler = get_notification_handler()
+    
+    # 测试状态通知
+    print("\n--- 测试状态通知 ---")
+    status_response = handler.send_status_notification(
+        title="爬虫启动通知",
+        content="爬虫任务已成功启动，开始抓取数据...",
+        channel=ChannelType.DINGTALK
+    )
+    print(f"状态通知结果: success={status_response.success}, message='{status_response.message}', error='{status_response.error}'")
+    
+    # 测试告警通知
+    print("\n--- 测试告警通知 ---")
+    alert_response = handler.send_alert_notification(
+        title="爬虫异常告警",
+        content="检测到爬虫出现异常，请求失败率超过阈值，请及时处理。",
+        channel=ChannelType.DINGTALK,
+        priority="high"
+    )
+    print(f"告警通知结果: success={status_response.success}, message='{status_response.message}', error='{status_response.error}'")
+    
+    # 测试进度通知
+    print("\n--- 测试进度通知 ---")
+    progress_response = handler.send_progress_notification(
+        title="爬虫进度更新",
+        content="数据抓取进度: 50%，已处理 5000 条记录，剩余约 2 小时完成。",
+        channel=ChannelType.DINGTALK
+    )
+    print(f"进度通知结果: success={status_response.success}, message='{status_response.message}', error='{status_response.error}'")
+    
+    # 测试直接使用通知器发送
+    print("\n--- 测试直接使用通知器 ---")
+    message = NotificationMessage(
+        channel=ChannelType.DINGTALK.value,
+        notification_type=NotificationType.STATUS,
+        title="测试通知",
+        content="这是一条测试通知消息",
+        priority="medium"
     )
     
-    help_response = dispatcher.dispatch(help_message)
-    print(f"帮助命令响应: {help_response.text}")
+    direct_response = notifier.send_notification(message)
+    print(f"直接发送结果: success={direct_response.success}, message='{direct_response.message}', error='{direct_response.error}'")
     
-    # 测试回声命令
-    print("\n--- 测试 /echo 命令 ---")
-    echo_message = BotMessage(
-        platform="test",
-        message_id="test_msg_2",
-        user_id="test_user_1",
-        user_name="Test User",
-        chat_id="test_chat_1",
-        chat_type=ChatType.PRIVATE,
-        content="/echo Hello World!",
-        raw_content="/echo Hello World!",
-        mentioned=False,
-        timestamp=None
-    )
-    
-    echo_response = dispatcher.dispatch(echo_message)
-    print(f"回声命令响应: {echo_response.text}")
-    
-    # 测试未知命令
-    print("\n--- 测试未知命令 ---")
-    unknown_message = BotMessage(
-        platform="test",
-        message_id="test_msg_3",
-        user_id="test_user_1",
-        user_name="Test User",
-        chat_id="test_chat_1",
-        chat_type=ChatType.PRIVATE,
-        content="/unknown_command",
-        raw_content="/unknown_command",
-        mentioned=False,
-        timestamp=None
-    )
-    
-    unknown_response = dispatcher.dispatch(unknown_message)
-    print(f"未知命令响应: {unknown_response.text}")
-    
-    print("\n=== 测试完成 ===")
+    print("\n=== 通知系统测试完成 ===")
 
 
 if __name__ == "__main__":
-    test_bot_framework()
+    test_notification_system()
