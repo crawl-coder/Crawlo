@@ -177,9 +177,29 @@ MEMORY_CRITICAL_THRESHOLD = 90.0  # 内存使用率严重阈值（百分比）
 
 
 
-# 钉钉报警
+# 钉钉报警（旧配置 - 保留兼容性）
 DINGDING_WARNING_URL = "https://oapi.dingtalk.com/robot/send?access_token=f2b9ee74076d0525c392e9a4c2a021a0144d295ed7210f53fee402eb349e665f"  # 钉钉机器人api
 DINGDING_WARNING_PHONE = "15361276730"  # 被@的群成员手机号，支持列表，可指定多个。
 DINGDING_WARNING_USER_ID = ""  # 被@的群成员userId，支持列表，可指定多个
 DINGDING_WARNING_ALL = False  # 是否提示所有人， 默认为False
 DINGDING_WARNING_SECRET = "SEC46ca0b774d564cedebc4761e23f158c20f6558ebed94b1bd18e2ba77259b0c40"  # 加签密钥
+
+# =================================== 通知系统配置 ===================================
+# Crawlo 通知系统配置（推荐使用）
+
+# 启用通知系统
+NOTIFICATION_ENABLED = True  # 启用通知系统
+NOTIFICATION_CHANNELS = ['dingtalk']  # 启用的通知渠道列表
+
+# 钉钉通知配置（使用新的通知系统）
+DINGTALK_WEBHOOK = "https://oapi.dingtalk.com/robot/send?access_token=f2b9ee74076d0525c392e9a4c2a021a0144d295ed7210f53fee402eb349e665f"  # 钉钉机器人 Webhook 地址
+DINGTALK_SECRET = "SEC46ca0b774d564cedebc4761e23f158c20f6558ebed94b1bd18e2ba77259b0c40"   # 钉钉机器人密钥（用于加签）
+DINGTALK_KEYWORDS = ["爬虫"] # 钉钉机器人关键词（用于通过关键词验证）
+DINGTALK_AT_MOBILES = ["15361276730"] # 需要@的手机号列表
+DINGTALK_IS_AT_ALL = False # 是否@所有人（默认False）
+
+# 通知系统高级配置
+NOTIFICATION_RETRY_ENABLED = True  # 启用通知发送失败重试
+NOTIFICATION_RETRY_TIMES = 3      # 通知发送失败重试次数
+NOTIFICATION_RETRY_DELAY = 5      # 通知发送失败重试延迟（秒）
+NOTIFICATION_TIMEOUT = 30         # 通知发送超时时间（秒）
