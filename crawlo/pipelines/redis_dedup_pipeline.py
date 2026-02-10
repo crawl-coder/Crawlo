@@ -13,11 +13,10 @@
 """
 from typing import Optional
 
-import redis.asyncio as aioredis
-
 from crawlo.logging import get_logger
 from crawlo.pipelines.base_pipeline import DedupPipeline
 from crawlo.spider import Spider
+from crawlo.utils.redis_config import RedisConfig
 from crawlo.utils.redis_manager import RedisKeyManager, get_redis_pool
 
 
@@ -86,31 +85,25 @@ class RedisDedupPipeline(DedupPipeline):
         """确保Redis连接已建立"""
         if self.redis_client is None:
             try:
-                # 根据是否有用户名构建连接参数
-                if self.redis_user and self.redis_password:
-                    # 构建Redis URL以支持用户名认证
-                    redis_url = f"redis://{self.redis_user}:{self.redis_password}@{self.redis_host}:{self.redis_port}/{self.redis_db}"
-                    # 使用配置的连接池管理模式
-                    redis_pool = get_redis_pool(
-                        redis_url,
-                        decode_responses=True,
-                        socket_connect_timeout=5,
-                        socket_timeout=5,
-                        shared=self.settings.get_bool('REDIS_POOL_SHARED_MODE', False)  # 使用配置的连接池管理模式
-                    )
-                    self.redis_client = await redis_pool.get_connection()
-                else:
-                    # 使用传统的密码认证方式
-                    # 使用配置的连接池管理模式
-                    redis_pool = get_redis_pool(
-                        f"redis://{self.redis_host}:{self.redis_port}/{self.redis_db}",
-                        password=self.redis_password,
-                        decode_responses=True,
-                        socket_connect_timeout=5,
-                        socket_timeout=5,
-                        shared=self.settings.get_bool('REDIS_POOL_SHARED_MODE', False)  # 使用配置的连接池管理模式
-                    )
-                    self.redis_client = await redis_pool.get_connection()
+                # 使用统一的 Redis 配置类生成 URL
+                redis_config = RedisConfig(
+                    host=self.redis_host,
+                    port=self.redis_port,
+                    password=self.redis_password,
+                    username=self.redis_user,
+                    db=self.redis_db
+                )
+                redis_url = redis_config.to_url()
+                
+                # 使用配置的连接池管理模式
+                redis_pool = get_redis_pool(
+                    redis_url,
+                    decode_responses=True,
+                    socket_connect_timeout=5,
+                    socket_timeout=5,
+                    shared=self.settings.get_bool('REDIS_POOL_SHARED_MODE', False)
+                )
+                self.redis_client = await redis_pool.get_connection()
                 
                 # 测试连接
                 await self.redis_client.ping()

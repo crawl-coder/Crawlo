@@ -5,8 +5,9 @@ asyncmy~=0.2.11
 schedule~=1.2.2
 cssselect==1.2.0
 dateparser==1.2.2
+pytz>=2024.2
 curl-cffi==0.13.0
-lxml==5.2.1
+lxml>=4.9.0
 motor==3.7.0
 parsel==1.9.1
 pydantic==2.11.7
@@ -28,3 +29,4 @@ selenium>=4.35.0
 playwright>=1.55.0
 aiofiles~=25.1.0
 w3lib~=2.3.1
+yarl~=1.17.0

@@ -122,6 +122,17 @@ REDIS_DB = 0
 # 根据是否有密码生成 URL
 if REDIS_PASSWORD:
     REDIS_URL = f'redis://:{REDIS_PASSWORD}@{REDIS_HOST}:{REDIS_PORT}/{REDIS_DB}'
+
+# Redis连接池配置
+# REDIS_POOL_SHARED_MODE = False  # Redis连接池管理模式，True为共享模式（单例），False为独立模式（每个爬虫实例独立连接池）
+# REDIS_MAX_CONNECTIONS = 15  # Redis连接池最大连接数
+# REDIS_SOCKET_CONNECT_TIMEOUT = 5  # Redis连接超时时间（秒）
+# REDIS_SOCKET_TIMEOUT = 30  # Redis socket超时时间（秒）
+# REDIS_HEALTH_CHECK_INTERVAL = 30  # Redis健康检查间隔（秒）
+# REDIS_RETRY_ON_TIMEOUT = True  # Redis超时是否重试
+# REDIS_DECODE_RESPONSES = True  # Redis返回是否解码为字符串
+# REDIS_TTL = 0  # Redis键过期时间（0表示永不过期）
+# FILTER_DEBUG = True  # 是否开启去重调试日志
 else:
     REDIS_URL = f'redis://{REDIS_HOST}:{REDIS_PORT}/{REDIS_DB}'
 
@@ -135,7 +146,14 @@ MYSQL_TABLE = '{{project_name}}_data'
 MYSQL_BATCH_SIZE = 100
 MYSQL_USE_BATCH = False  # 是否启用批量插入
 
-# MySQL 冲突处理策略（三者互斥，按优先级生效）
+
+# MySQL连接池配置
+# MYSQL_POOL_SHARED_MODE = False  # MySQL连接池管理模式，True为共享模式（单例），False为独立模式（每个爬虫实例独立连接池）
+# MYSQL_POOL_MIN = 2  # 最小连接数
+# MYSQL_POOL_MAX = 30  # 最大连接数
+# MYSQL_POOL_REPAIR_ATTEMPTS = 3  # 连接池修复尝试次数，默认3次
+# MYSQL_HEALTH_CHECK_INTERVAL = 300.0  # 连接池健康检查间隔（秒），默认5分钟
+\n# MySQL 冲突处理策略（三者互斥，按优先级生效）
 MYSQL_UPDATE_COLUMNS = ()      # 优先级最高：主键冲突时更新指定列，使用 ON DUPLICATE KEY UPDATE
 MYSQL_AUTO_UPDATE = False      # 优先级中等：是否使用 REPLACE INTO（完全覆盖已存在记录）
 MYSQL_INSERT_IGNORE = False    # 优先级最低：是否使用 INSERT IGNORE（忽略重复数据）
@@ -200,7 +218,7 @@ AIOHTTP_FORCE_CLOSE = False  # 是否强制关闭连接
 CONNECTION_TTL_DNS_CACHE = 300  # DNS缓存TTL（秒）
 CONNECTION_KEEPALIVE_TIMEOUT = 15  # Keep-Alive超时（秒）
 
-# =================================== 资源监控配置 ===================================
+# CONNECTION_POOL_LIMIT = 100  # 连接池大小限制\n# CONNECTION_POOL_LIMIT_PER_HOST = 20  # 每个主机的连接池大小限制\n# CONNECTION_TTL_DNS_CACHE = 300  # DNS缓存TTL（秒）\n\n# =================================== 资源监控配置 ===================================
 
 # 内存监控配置
 # MEMORY_MONITOR_ENABLED = False  # 是否启用内存监控
