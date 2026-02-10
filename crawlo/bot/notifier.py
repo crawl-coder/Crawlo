@@ -91,8 +91,6 @@ class NotificationDispatcher:
         Returns:
             通知响应对象
         """
-        logger.info(f"[Notifier] 发送通知: type={message.notification_type}, channel={message.channel}, title={message.title}")
-        
         # 获取渠道处理器
         channel = self.get_channel(message.channel)
         
@@ -104,12 +102,14 @@ class NotificationDispatcher:
         # 发送通知
         try:
             response = channel.send(message)
-            logger.info(f"[Notifier] 通知发送完成: {message.title}, success={response.success}")
+            if response.success:
+                logger.info(f"[Notifier] 通知发送成功: [{message.notification_type.value}] {message.title}")
+            else:
+                logger.warning(f"[Notifier] 通知发送失败: [{message.notification_type.value}] {message.title}, error={response.error}")
             return response
         except Exception as e:
             error_msg = f"通知发送失败: {str(e)[:100]}"
-            logger.error(f"[Notifier] 通知发送失败: {message.title}, error={e}")
-            logger.exception(e)
+            logger.error(f"[Notifier] 通知发送异常: [{message.notification_type.value}] {message.title}, error={e}")
             return NotificationResponse.error_response(error_msg)
 
 
@@ -143,8 +143,6 @@ def get_notifier() -> NotificationDispatcher:
         _notifier.register_channel(get_wecom_channel())
         _notifier.register_channel(get_email_channel())
         _notifier.register_channel(get_sms_channel())
-        
-        logger.info(f"[Notifier] 初始化完成，已注册 {len(_notifier._channels)} 个渠道")
     
     return _notifier
 

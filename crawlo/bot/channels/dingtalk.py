@@ -124,7 +124,6 @@ class DingTalkChannel(NotificationChannel):
             if response.status_code == 200:
                 result = response.json()
                 if result.get('errcode') == 0:
-                    logger.info(f"[DingTalk] 通知发送成功: {message.title}")
                     return NotificationResponse.success_response(
                         message="发送成功",
                         sent_count=1

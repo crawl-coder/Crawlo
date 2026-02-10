@@ -70,6 +70,9 @@ def load_notification_config(settings: Optional[dict] = None):
         # 获取通知器实例
         notifier = get_notifier()
         
+        # 加载各渠道配置
+        configured_channels = []
+        
         # 加载钉钉配置
         if 'DINGTALK_WEBHOOK' in settings and settings['DINGTALK_WEBHOOK']:
             dingtalk_channel = get_dingtalk_channel()
@@ -81,9 +84,7 @@ def load_notification_config(settings: Optional[dict] = None):
                 at_userids=settings.get('DINGTALK_AT_USERIDS', []),
                 is_at_all=settings.get('DINGTALK_IS_AT_ALL', False)
             )
-            logger.info("[ConfigLoader] 钉钉通知配置加载成功")
-        else:
-            logger.debug("[ConfigLoader] 未配置钉钉 Webhook URL")
+            configured_channels.append("钉钉")
         
         # 加载飞书配置
         if 'FEISHU_WEBHOOK' in settings and settings['FEISHU_WEBHOOK']:
@@ -95,9 +96,7 @@ def load_notification_config(settings: Optional[dict] = None):
                 at_mobile=settings.get('FEISHU_AT_MOBILE', []),
                 is_at_all=settings.get('FEISHU_IS_AT_ALL', False)
             )
-            logger.info("[ConfigLoader] 飞书通知配置加载成功")
-        else:
-            logger.debug("[ConfigLoader] 未配置飞书 Webhook URL")
+            configured_channels.append("飞书")
         
         # 加载企业微信配置
         if 'WECOM_WEBHOOK' in settings and settings['WECOM_WEBHOOK']:
@@ -110,11 +109,12 @@ def load_notification_config(settings: Optional[dict] = None):
                 at_mobile=settings.get('WECOM_AT_MOBILE', []),
                 is_at_all=settings.get('WECOM_IS_AT_ALL', False)
             )
-            logger.info("[ConfigLoader] 企业微信通知配置加载成功")
+            configured_channels.append("企业微信")
+        
+        if configured_channels:
+            logger.info(f"[ConfigLoader] 通知系统配置加载完成: {', '.join(configured_channels)}")
         else:
-            logger.debug("[ConfigLoader] 未配置企业微信 Webhook URL")
-            
-        logger.info("[ConfigLoader] 通知系统配置加载完成")
+            logger.debug("[ConfigLoader] 未配置任何通知渠道")
         
     except Exception as e:
         logger.error(f"[ConfigLoader] 配置加载失败: {e}")
