@@ -171,12 +171,9 @@ def apply_settings_config():
         if cfg_settings:
             settings_paths.append(cfg_settings)
         
-        # 添加常见的 settings 模块路径作为备选
-        settings_paths.extend([
-            'settings',
-            'ofweek_standalone.settings',
-            'crawlo.settings',
-        ])
+        # 如果没有找到配置，尝试通用的 'settings' 作为备选
+        if not settings_paths:
+            settings_paths.append('settings')
         
         settings_dict = {}
         
