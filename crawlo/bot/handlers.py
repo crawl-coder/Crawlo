@@ -27,6 +27,7 @@ class CrawlerNotificationHandler:
     def __init__(self):
         self.notifier = get_notifier()
         self._enabled = self._check_enabled()
+        self._channels = self._get_enabled_channels()
     
     def _check_enabled(self) -> bool:
         """检查通知系统是否启用"""
@@ -37,10 +38,25 @@ class CrawlerNotificationHandler:
         except Exception:
             return False
     
+    def _get_enabled_channels(self) -> list:
+        """获取启用的通知渠道列表"""
+        try:
+            from crawlo.config import get_config
+            config = get_config()
+            channels = getattr(config, 'NOTIFICATION_CHANNELS', [])
+            # 如果未配置或为空列表，默认启用所有渠道
+            return channels if channels else ['dingtalk', 'feishu', 'wecom', 'email', 'sms']
+        except Exception:
+            return ['dingtalk', 'feishu', 'wecom', 'email', 'sms']
+    
     def _send_if_enabled(self, message: NotificationMessage) -> NotificationResponse:
         """如果通知系统启用则发送，否则返回跳过的响应"""
         if not self._enabled:
             return NotificationResponse.success_response("通知系统已禁用")
+        
+        # 检查渠道是否在启用列表中
+        if message.channel not in self._channels:
+            return NotificationResponse.success_response(f"渠道 {message.channel} 未启用")
         
         # 确保配置已加载
         ensure_config_loaded()
