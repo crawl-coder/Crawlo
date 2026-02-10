@@ -70,8 +70,7 @@ def load_notification_config(settings: Optional[dict] = None):
         # 获取通知器实例
         notifier = get_notifier()
         
-        # 加载各渠道配置
-        configured_channels = []
+        # 加载各渠道配置（静默加载，不输出日志）
         
         # 加载钉钉配置
         if 'DINGTALK_WEBHOOK' in settings and settings['DINGTALK_WEBHOOK']:
@@ -84,7 +83,6 @@ def load_notification_config(settings: Optional[dict] = None):
                 at_userids=settings.get('DINGTALK_AT_USERIDS', []),
                 is_at_all=settings.get('DINGTALK_IS_AT_ALL', False)
             )
-            configured_channels.append("钉钉")
         
         # 加载飞书配置
         if 'FEISHU_WEBHOOK' in settings and settings['FEISHU_WEBHOOK']:
@@ -96,7 +94,6 @@ def load_notification_config(settings: Optional[dict] = None):
                 at_mobile=settings.get('FEISHU_AT_MOBILE', []),
                 is_at_all=settings.get('FEISHU_IS_AT_ALL', False)
             )
-            configured_channels.append("飞书")
         
         # 加载企业微信配置
         if 'WECOM_WEBHOOK' in settings and settings['WECOM_WEBHOOK']:
@@ -109,12 +106,6 @@ def load_notification_config(settings: Optional[dict] = None):
                 at_mobile=settings.get('WECOM_AT_MOBILE', []),
                 is_at_all=settings.get('WECOM_IS_AT_ALL', False)
             )
-            configured_channels.append("企业微信")
-        
-        if configured_channels:
-            logger.info(f"[ConfigLoader] 通知系统配置加载完成: {', '.join(configured_channels)}")
-        else:
-            logger.debug("[ConfigLoader] 未配置任何通知渠道")
         
     except Exception as e:
         logger.error(f"[ConfigLoader] 配置加载失败: {e}")

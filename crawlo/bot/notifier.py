@@ -102,14 +102,9 @@ class NotificationDispatcher:
         # 发送通知
         try:
             response = channel.send(message)
-            if response.success:
-                logger.info(f"[Notifier] 通知发送成功: [{message.notification_type.value}] {message.title}")
-            else:
-                logger.warning(f"[Notifier] 通知发送失败: [{message.notification_type.value}] {message.title}, error={response.error}")
             return response
         except Exception as e:
             error_msg = f"通知发送失败: {str(e)[:100]}"
-            logger.error(f"[Notifier] 通知发送异常: [{message.notification_type.value}] {message.title}, error={e}")
             return NotificationResponse.error_response(error_msg)
 
 
