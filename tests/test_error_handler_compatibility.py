@@ -7,7 +7,7 @@ sys.path.insert(0, "/Users/oscar/projects/Crawlo")
 # -*- coding: utf-8 -*-
 """
 错误处理模块兼容性测试
-验证简化版 ErrorHandler 与增强版 EnhancedErrorHandler 的兼容性
+验证统一版 ErrorHandler 的功能
 """
 import sys
 import os
@@ -17,8 +17,7 @@ from unittest.mock import patch, MagicMock
 # 添加项目根目录到Python路径
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
-from crawlo.utils.error_handler import ErrorHandler, default_error_handler, handle_exception
-from crawlo.utils.enhanced_error_handler import EnhancedErrorHandler
+from crawlo.utils.error_handler import ErrorHandler, error_handler, handle_exception
 
 
 class TestErrorHandlerCompatibility(unittest.TestCase):
@@ -30,13 +29,11 @@ class TestErrorHandlerCompatibility(unittest.TestCase):
         # 禁用实际日志输出
         self.error_handler.logger.error = MagicMock()
         self.error_handler.logger.debug = MagicMock()
-        self.error_handler._enhanced_handler.logger.error = MagicMock()
-        self.error_handler._enhanced_handler.logger.debug = MagicMock()
 
     def test_init(self):
         """测试初始化"""
-        self.assertIsInstance(self.error_handler._enhanced_handler, EnhancedErrorHandler)
-        self.assertEqual(self.error_handler._enhanced_handler.logger.name, "test_logger")
+        self.assertIsInstance(self.error_handler, ErrorHandler)
+        self.assertEqual(self.error_handler.logger.name, "test_logger")
 
     def test_handle_error(self):
         """测试错误处理"""
@@ -44,12 +41,12 @@ class TestErrorHandlerCompatibility(unittest.TestCase):
         
         # 测试不抛出异常的情况
         try:
-            self.error_handler.handle_error(test_exception, "Test context", raise_error=False)
+            self.error_handler.handle_error(test_exception, raise_error=False)
         except Exception:
             self.fail("handle_error should not raise exception when raise_error=False")
         
-        # 验证增强版处理器被调用（通过检查日志是否被调用）
-        self.assertTrue(self.error_handler._enhanced_handler.logger.error.called)
+        # 验证处理器被调用（通过检查日志是否被调用）
+        self.assertTrue(self.error_handler.logger.error.called)
 
     def test_safe_call(self):
         """测试安全调用"""

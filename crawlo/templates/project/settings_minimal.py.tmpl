@@ -69,14 +69,42 @@ SPIDER_MODULES = ['{{project_name}}.spiders']
 LOG_LEVEL = 'INFO'
 LOG_FILE = 'logs/{{project_name}}.log'
 LOG_ENCODING = 'utf-8'  # 明确指定日志文件编码
-LOG_MAX_BYTES = 20 * 1024 * 1024  # 20MB，推荐值
-LOG_BACKUP_COUNT = 10  # 10个备份文件，推荐值
-# 如果不想要日志轮转，可以设置 LOG_MAX_BYTES = 0
-# 当LOG_MAX_BYTES或LOG_BACKUP_COUNT为0时，日志轮转将被禁用，文件会持续增长
+# =================================== 定时任务配置 ===================================
 
+# 启用定时任务 - 默认关闭
+SCHEDULER_ENABLED = False
 
-# 输出配置
-OUTPUT_DIR = 'output'
+# 定时任务配置
+SCHEDULER_JOBS = [
+    {
+        'spider': '{{project_name}}.spiders.{{spider_name}}',  # 爬虫名称（对应spider的name属性）
+        'cron': '*/2 * * * *',       # 每2分钟执行一次
+        'enabled': True,              # 任务启用状态
+        'priority': 10,               # 任务优先级
+        'max_retries': 3,             # 最大重试次数
+        'retry_delay': 60,            # 重试延迟（秒）
+        'args': {},                  # 传递给爬虫的参数
+        'kwargs': {}                  # 传递给爬虫的额外参数
+    },
+    {
+        'spider': '{{project_name}}.spiders.{{spider_name}}',  # 爬虫名称
+        'cron': '0 2 * * *',         # 每天凌晨2点执行
+        'enabled': True,              # 任务启用状态
+        'priority': 20,               # 任务优先级
+        'max_retries': 2,             # 最大重试次数
+        'retry_delay': 120,           # 重试延迟（秒）
+        'args': {'daily': True},      # 传递给爬虫的参数
+        'kwargs': {}                  # 传递给爬虫的额外参数
+    }
+]
+
+# 关键配置参数（用户可能需要调整）
+SCHEDULER_CHECK_INTERVAL = 1           # 调度器检查间隔（秒）
+SCHEDULER_MAX_CONCURRENT = 3           # 最大并发任务数
+SCHEDULER_JOB_TIMEOUT = 3600           # 单个任务超时时间（秒）
+SCHEDULER_RESOURCE_MONITOR_ENABLED = True  # 是否启用资源监控
+SCHEDULER_RESOURCE_CHECK_INTERVAL = 300    # 资源检查间隔（秒）
+SCHEDULER_RESOURCE_LEAK_THRESHOLD = 3600   # 资源泄露检测阈值（秒）
 
 # =================================== 数据库配置 ===================================
 
@@ -101,3 +129,19 @@ MONGO_DATABASE = '{{project_name}}_db'
 MONGO_COLLECTION = '{{project_name}}_items'
 MONGO_BATCH_SIZE = 100  # 批量插入条数
 MONGO_USE_BATCH = False  # 是否启用批量插入
+
+# =================================== 资源监控配置 ===================================
+
+# 内存监控配置
+MEMORY_MONITOR_ENABLED = False  # 是否启用内存监控
+MEMORY_MONITOR_INTERVAL = 60  # 内存监控检查间隔（秒）
+MEMORY_WARNING_THRESHOLD = 80.0  # 内存使用率警告阈值（百分比）
+MEMORY_CRITICAL_THRESHOLD = 90.0  # 内存使用率严重阈值（百分比）
+
+# MySQL监控配置
+# MYSQL_MONITOR_ENABLED = False  # 是否启用MySQL监控
+# MYSQL_MONITOR_INTERVAL = 120  # MySQL监控检查间隔（秒）
+
+# Redis监控配置
+# REDIS_MONITOR_ENABLED = False  # 是否启用Redis监控
+# REDIS_MONITOR_INTERVAL = 120  # Redis监控检查间隔（秒）

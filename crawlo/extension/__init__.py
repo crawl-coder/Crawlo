@@ -23,6 +23,7 @@ class ExtensionManager:
         return cls(*args, **kwargs)
 
     def _add_extensions(self, extensions: List[str]) -> None:
+        from crawlo.exceptions import NotConfigured
         for extension_path in extensions:
             try:
                 extension_cls = load_object(extension_path)
@@ -31,6 +32,9 @@ class ExtensionManager:
                         f"Extension '{extension_path}' init failed: Must have method 'create_instance()'"
                     )
                 self.extensions.append(extension_cls.create_instance(self.crawler))
+            except NotConfigured as e:
+                # 对于未配置启用的扩展，仅输出提示信息，不记录为错误
+                self.logger.info(f"Extension '{extension_path}' is disabled: {e}")
             except Exception as e:
                 self.logger.error(f"Failed to load extension '{extension_path}': {e}")
                 raise ExtensionInitError(f"Failed to load extension '{extension_path}': {e}")

@@ -13,7 +13,6 @@ from crawlo.logging import get_logger
 
 # 尝试导入Redis支持
 try:
-    import redis.asyncio as aioredis
     REDIS_AVAILABLE = True
 except ImportError:
     aioredis = None

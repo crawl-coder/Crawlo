@@ -26,29 +26,21 @@ class LogConfig:
             'format': '%(asctime)s - [%(name)s] - %(levelname)s: %(message)s',
             'console_enabled': True,
             'file_enabled': True,
-            'file_path': 'logs/crawlo.log',
-            # 注意：standard模板未指定max_bytes和backup_count，
-            # 将使用类定义的默认值(10MB, 5个备份)或用户在settings.py中设置的值
-            # 如果用户不想要日志轮转，可以在settings.py中设置LOG_MAX_BYTES=0
-            # 当max_bytes或backup_count为0时，日志轮转将被禁用，文件会持续增长
+            'file_path': 'logs/crawlo.log'
         },
         'detailed': {
             'level': 'DEBUG',
             'format': '%(asctime)s - [%(name)s] - %(levelname)s - %(pathname)s:%(lineno)d: %(message)s',
             'console_enabled': True,
             'file_enabled': True,
-            'file_path': 'logs/crawlo.log',
-            'max_bytes': 20 * 1024 * 1024,  # 20MB，适用于大多数生产环境
-            'backup_count': 10  # 10个备份文件，可保留约10次轮转的历史
+            'file_path': 'logs/crawlo.log'
         },
         'production': {
             'level': 'WARNING',
             'format': '%(asctime)s - [%(name)s] - %(levelname)s: %(message)s',
             'console_enabled': False,  # 生产环境通常禁用控制台输出
             'file_enabled': True,
-            'file_path': 'logs/crawlo.log',
-            'max_bytes': 50 * 1024 * 1024,  # 50MB，适用于高负载生产环境
-            'backup_count': 20  # 20个备份文件，可保留较长时间的历史记录
+            'file_path': 'logs/crawlo.log'
         }
     }
     
@@ -59,8 +51,6 @@ class LogConfig:
     
     # 文件配置
     file_path: Optional[str] = None
-    max_bytes: int = 10 * 1024 * 1024  # 10MB
-    backup_count: int = 5
     
     # 控制台配置
     console_enabled: bool = True
@@ -122,8 +112,6 @@ class LogConfig:
             format=safe_get_str('LOG_FORMAT', format_default_value),
             encoding=safe_get_str('LOG_ENCODING', 'utf-8'),
             file_path=safe_get_str('LOG_FILE'),
-            max_bytes=safe_get_int('LOG_MAX_BYTES', 10 * 1024 * 1024),  # 从200MB改为10MB以保持一致性
-            backup_count=safe_get_int('LOG_BACKUP_COUNT', 5),
             console_enabled=safe_get_bool('LOG_CONSOLE_ENABLED', True),
             file_enabled=safe_get_bool('LOG_FILE_ENABLED', True),
             console_level=safe_get_str('LOG_CONSOLE_LEVEL'),  # 允许单独设置控制台级别
@@ -143,8 +131,6 @@ class LogConfig:
             'LOG_FORMAT': 'format',
             'LOG_ENCODING': 'encoding',
             'LOG_FILE': 'file_path',
-            'LOG_MAX_BYTES': 'max_bytes',
-            'LOG_BACKUP_COUNT': 'backup_count',
             'LOG_CONSOLE_ENABLED': 'console_enabled',
             'LOG_FILE_ENABLED': 'file_enabled',
             'LOG_CONSOLE_LEVEL': 'console_level',

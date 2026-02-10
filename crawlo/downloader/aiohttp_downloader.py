@@ -1,10 +1,10 @@
 #!/usr/bin/python
 # -*- coding: UTF-8 -*-
 import asyncio
-import time
 import socket
+import time
+from typing import Optional, TYPE_CHECKING, Dict, Any
 from yarl import URL
-from typing import Optional, TYPE_CHECKING, Union, Dict, Any
 from aiohttp import (
     ClientSession,
     TCPConnector,
@@ -18,6 +18,7 @@ from aiohttp import (
 from crawlo.network.response import Response
 from crawlo.logging import get_logger
 from crawlo.downloader import DownloaderBase
+from crawlo.utils.misc import safe_get_config
 
 if TYPE_CHECKING:
     from crawlo.network.request import Request
@@ -32,12 +33,13 @@ class AioHttpDownloader(DownloaderBase):
     - 支持 GET/POST/PUT/DELETE 等方法
     - 支持中间件设置的 IP 代理（HTTP/HTTPS）
     - 内存安全防护
+    - 代理由 ProxyMiddleware 统一管理
     """
 
     def __init__(self, crawler: 'Crawler') -> None:
         """
         初始化 AioHttp 下载器
-        
+
         Args:
             crawler: 爬虫实例
         """
@@ -50,15 +52,19 @@ class AioHttpDownloader(DownloaderBase):
         """
         打开下载器，创建 ClientSession
         """
+        if self.session is not None:
+            self.logger.warning("AioHttpDownloader already initialized, skipping")
+            return
+
         super().open()
-        # 恢复关键的下载器启动信息为INFO级别
+
         # 读取配置
-        from crawlo.utils.misc import safe_get_config
         timeout_secs = safe_get_config(self.crawler.settings, "DOWNLOAD_TIMEOUT", 30, int)
         verify_ssl = safe_get_config(self.crawler.settings, "VERIFY_SSL", True, bool)
-        pool_limit = safe_get_config(self.crawler.settings, "CONNECTION_POOL_LIMIT", 300, int)  # 从200增加到300
-        pool_per_host = safe_get_config(self.crawler.settings, "CONNECTION_POOL_LIMIT_PER_HOST", 100, int)  # 从50增加到100
-        self.max_download_size = safe_get_config(self.crawler.settings, "DOWNLOAD_MAXSIZE", 10 * 1024 * 1024, int)  # 10MB
+        pool_limit = safe_get_config(self.crawler.settings, "CONNECTION_POOL_LIMIT", 100, int)
+        pool_per_host = safe_get_config(self.crawler.settings, "CONNECTION_POOL_LIMIT_PER_HOST", 20, int)
+        self.max_download_size = safe_get_config(self.crawler.settings, "DOWNLOAD_MAXSIZE", 10 * 1024 * 1024, int)
+        auto_decompress = safe_get_config(self.crawler.settings, "AIOHTTP_AUTO_DECOMPRESS", True, bool)
 
         # 创建连接器
         connector = TCPConnector(
@@ -68,16 +74,16 @@ class AioHttpDownloader(DownloaderBase):
             ttl_dns_cache=300,
             keepalive_timeout=15,
             force_close=False,
-            use_dns_cache=True,  # 启用DNS缓存
-            family=socket.AF_UNSPEC,  # 允许IPv4和IPv6
+            use_dns_cache=True,
+            family=socket.AF_UNSPEC,
         )
 
-        # 超时控制 - 增加更多超时设置
+        # 超时控制
         timeout = ClientTimeout(
             total=timeout_secs,
-            connect=timeout_secs/2,  # 连接超时
-            sock_read=timeout_secs,  # 读取超时
-            sock_connect=timeout_secs/2  # socket连接超时
+            connect=timeout_secs / 2,
+            sock_read=timeout_secs,
+            sock_connect=timeout_secs / 2
         )
 
         # 请求追踪
@@ -86,25 +92,23 @@ class AioHttpDownloader(DownloaderBase):
         trace_config.on_request_end.append(self._on_request_end)
         trace_config.on_request_exception.append(self._on_request_exception)
 
-        # 创建全局 session
+        # 创建持久化 session
         self.session = ClientSession(
             connector=connector,
             timeout=timeout,
             trace_configs=[trace_config],
-            auto_decompress=True,
+            auto_decompress=auto_decompress,
         )
 
-        # 输出下载器配置摘要
-        spider_name = getattr(self.crawler.spider, 'name', 'Unknown')
-        concurrency = safe_get_config(self.crawler.settings, 'CONCURRENCY', 4, int)
+        self.logger.debug("AioHttpDownloader initialized.")
 
-    async def download(self, request: 'Request') -> Response:
+    async def download(self, request: 'Request') -> Optional[Response]:
         """
         下载请求并返回响应
-        
+
         Args:
             request: 请求对象
-            
+
         Returns:
             Response: 响应对象
         """
@@ -117,7 +121,6 @@ class AioHttpDownloader(DownloaderBase):
             start_time = time.time()
 
         try:
-            # 使用通用发送逻辑（支持所有 HTTP 方法）
             async with await self._send_request(self.session, request) as resp:
                 # 安全检查：防止大响应体导致 OOM
                 content_length = resp.headers.get("Content-Length")
@@ -126,33 +129,27 @@ class AioHttpDownloader(DownloaderBase):
 
                 body = await resp.read()
                 response = self._structure_response(request, resp, body)
-                
+
                 # 记录下载统计
                 if start_time:
                     download_time = time.time() - start_time
                     self.logger.debug(f"Downloaded {request.url} in {download_time:.3f}s, size: {len(body)} bytes")
-                
+
                 return response
 
-        except ClientError as e:
-            self.logger.error(f"Client error for {request.url}: {e}")
-            return None
         except Exception as e:
-            self.logger.error(f"Unexpected error for {request.url}: {e}", exc_info=True)
+            self._handle_download_error(request, e)
             return None
 
     @staticmethod
     async def _send_request(session: ClientSession, request: 'Request') -> ClientResponse:
         """
-        根据请求方法和高层语义智能发送请求。
-        支持中间件设置的 proxy，兼容以下格式：
-            - str: "http://user:pass@host:port"
-            - dict: {"http": "...", "https": "..."} （自动取 http 或 https 字段）
-            
+        根据请求方法和高层语义智能发送请求
+
         Args:
             session: ClientSession 实例
             request: 请求对象
-            
+
         Returns:
             ClientResponse: 响应对象
         """
@@ -169,14 +166,13 @@ class AioHttpDownloader(DownloaderBase):
             "allow_redirects": request.allow_redirects,
         }
 
-        # === 处理代理（proxy）===
+        # 处理代理（由 ProxyMiddleware 分配）
         proxy = getattr(request, "proxy", None)
         proxy_auth = None
 
         if proxy:
-            # 兼容字典格式：{"http": "http://...", "https": "http://..."}
+            # 兼容字典格式：{"http": "...", "https": "..."}
             if isinstance(proxy, dict):
-                # 优先使用 https，否则用 http
                 proxy = proxy.get("https") or proxy.get("http")
 
             if not isinstance(proxy, (str, URL)):
@@ -190,7 +186,6 @@ class AioHttpDownloader(DownloaderBase):
                 # 提取认证信息
                 if proxy_url.user and proxy_url.password:
                     proxy_auth = BasicAuth(proxy_url.user, proxy_url.password)
-                    # 去掉用户密码的 URL
                     proxy = str(proxy_url.with_user(None))
                 else:
                     proxy = str(proxy_url)
@@ -202,7 +197,7 @@ class AioHttpDownloader(DownloaderBase):
             except Exception as e:
                 raise ValueError(f"Invalid proxy URL: {proxy}") from e
 
-        # 处理通过meta传递的代理认证信息
+        # 处理通过 meta 传递的代理认证信息
         meta_proxy_auth = request.meta.get("proxy_auth")
         if meta_proxy_auth and isinstance(meta_proxy_auth, dict):
             username = meta_proxy_auth.get("username")
@@ -210,7 +205,7 @@ class AioHttpDownloader(DownloaderBase):
             if username and password:
                 kwargs["proxy_auth"] = BasicAuth(username, password)
 
-        # === 处理请求体 ===
+        # 处理请求体
         if hasattr(request, "_json_body") and request._json_body is not None:
             kwargs["json"] = request._json_body
         elif isinstance(request.body, (dict, list)):
@@ -225,12 +220,12 @@ class AioHttpDownloader(DownloaderBase):
     def _structure_response(request: 'Request', resp: ClientResponse, body: bytes) -> Response:
         """
         构造框架所需的 Response 对象
-        
+
         Args:
             request: 请求对象
             resp: aiohttp 响应对象
             body: 响应体
-            
+
         Returns:
             Response: 框架响应对象
         """
@@ -242,11 +237,29 @@ class AioHttpDownloader(DownloaderBase):
             request=request,
         )
 
+    def _handle_download_error(self, request: 'Request', error: Exception) -> None:
+        """
+        处理下载错误
+
+        Args:
+            request: 请求对象
+            error: 错误信息
+        """
+        error_type = type(error).__name__
+        if isinstance(error, ClientError):
+            self.logger.error(f"Client error for {request.url}: {error}")
+        elif isinstance(error, asyncio.TimeoutError):
+            self.logger.error(f"Timeout error for {request.url}: {error}")
+        elif isinstance(error, OverflowError):
+            self.logger.error(f"Response size error for {request.url}: {error}")
+        else:
+            self.logger.error(f"Unexpected error for {request.url}: {error}", exc_info=True)
+
     # --- 请求追踪日志 ---
     async def _on_request_start(self, session: ClientSession, trace_config_ctx: Any, params: Any) -> None:
         """
-        请求开始时的回调。
-        
+        请求开始时的回调
+
         Args:
             session: ClientSession 实例
             trace_config_ctx: 追踪配置上下文
@@ -256,8 +269,8 @@ class AioHttpDownloader(DownloaderBase):
 
     async def _on_request_end(self, session: ClientSession, trace_config_ctx: Any, params: Any) -> None:
         """
-        请求成功结束时的回调。
-        
+        请求成功结束时的回调
+
         Args:
             session: ClientSession 实例
             trace_config_ctx: 追踪配置上下文
@@ -267,8 +280,8 @@ class AioHttpDownloader(DownloaderBase):
 
     async def _on_request_exception(self, session: ClientSession, trace_config_ctx: Any, params: Any) -> None:
         """
-        请求发生异常时的回调。
-        
+        请求发生异常时的回调
+
         Args:
             session: ClientSession 实例
             trace_config_ctx: 追踪配置上下文
@@ -279,17 +292,13 @@ class AioHttpDownloader(DownloaderBase):
     async def close(self) -> None:
         """关闭会话资源"""
         if self.session and not self.session.closed:
-            self.logger.info("Closing AioHttpDownloader session...")
+            self.logger.debug("Closing AioHttpDownloader session...")
             try:
-                # 关闭 session
                 await self.session.close()
-                
-                # 等待一小段时间确保连接完全关闭
-                # 参考: https://docs.aiohttp.org/en/stable/client_advanced.html#graceful-shutdown
                 await asyncio.sleep(0.25)
             except Exception as e:
                 self.logger.warning(f"Error during session close: {e}")
             finally:
                 self.session = None
-        
+
         self.logger.debug("AioHttpDownloader closed.")

@@ -60,7 +60,8 @@ class BaseFilter(ABC):
             request.method,
             request.url,
             request.body or b'',
-            dict(request.headers) if hasattr(request, 'headers') else {}
+            dict(request.headers) if hasattr(request, 'headers') else {},
+            request.meta if hasattr(request, 'meta') else {}
         )
 
     def requested(self, request) -> bool:

@@ -15,6 +15,7 @@ except ImportError:
 
 from crawlo.filters import BaseFilter
 from crawlo.logging import get_logger
+from crawlo.utils.redis_config import RedisConfig
 from crawlo.utils.redis_manager import get_redis_pool, RedisConnectionPool, RedisKeyManager
 from crawlo.utils.misc import safe_get_config
 
@@ -106,22 +107,22 @@ class AioRedisFilter(BaseFilter):
         redis_url = safe_get_config(settings, 'REDIS_URL')
         if not redis_url:
             # 如果没有配置REDIS_URL，尝试构建
-            redis_host = safe_get_config(settings, 'REDIS_HOST', '127.0.0.1')
+            # 获取Redis连接参数
+            redis_host = safe_get_config(settings, 'REDIS_HOST', 'localhost')
             redis_port = safe_get_config(settings, 'REDIS_PORT', 6379, int)
-            redis_password = safe_get_config(settings, 'REDIS_PASSWORD')
-            redis_user = safe_get_config(settings, 'REDIS_USER')  # 获取用户名配置
             redis_db = safe_get_config(settings, 'REDIS_DB', 0, int)
+            redis_password = safe_get_config(settings, 'REDIS_PASSWORD')
+            redis_username = safe_get_config(settings, 'REDIS_USERNAME')  # 新增：获取用户名
             
-            # 根据是否有用户名和密码构建URL
-            if redis_user and redis_password:
-                # 包含用户名和密码的格式
-                redis_url = f"redis://{redis_user}:{redis_password}@{redis_host}:{redis_port}/{redis_db}"
-            elif redis_password:
-                # 仅包含密码的格式（标准Redis认证）
-                redis_url = f"redis://:{redis_password}@{redis_host}:{redis_port}/{redis_db}"
-            else:
-                # 无认证格式
-                redis_url = f"redis://{redis_host}:{redis_port}/{redis_db}"
+            # 使用统一的 Redis 配置类生成 URL
+            redis_config = RedisConfig(
+                host=redis_host,
+                port=redis_port,
+                password=redis_password,
+                username=redis_username,
+                db=redis_db
+            )
+            redis_url = redis_config.to_url()
         
         # 获取项目名称
         project_name = safe_get_config(settings, 'PROJECT_NAME', 'default')

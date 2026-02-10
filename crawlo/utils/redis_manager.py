@@ -276,7 +276,7 @@ class RedisConnectionPool:
                 await self._connection_pool.disconnect()
                 self._connection_pool = None
                 
-            self.logger.info("Redis连接池已关闭")
+            self.logger.debug("Redis连接池已关闭")
         except Exception as e:
             from crawlo.utils.error_handler import ErrorContext
             error_context = ErrorContext(context="关闭Redis连接池失败")
@@ -328,34 +328,47 @@ from crawlo.utils.batch_manager import RedisBatchProcessor as RedisBatchOperatio
 _connection_pools: Dict[str, 'RedisConnectionPool'] = {}
 
 
-def get_redis_pool(redis_url: str, is_cluster: bool = False, cluster_nodes: Optional[List[str]] = None, **kwargs) -> RedisConnectionPool:
+def get_redis_pool(redis_url: str, is_cluster: bool = False, cluster_nodes: Optional[List[str]] = None, shared: bool = True, **kwargs) -> RedisConnectionPool:
     """
-    获取Redis连接池实例（单例模式）
+    获取Redis连接池实例（支持单例模式和独立模式）
     
     Args:
         redis_url: Redis URL
         is_cluster: 是否为集群模式
         cluster_nodes: 集群节点列表
+        shared: 是否使用共享模式（True=单例模式，False=独立模式）
         **kwargs: 连接池配置参数
         
     Returns:
         Redis连接池实例
     """
-    # 生成连接池的唯一标识符，包含集群相关信息
-    pool_key = f"{redis_url}:{is_cluster}:{cluster_nodes}" if cluster_nodes else f"{redis_url}:{is_cluster}"
-    
-    if pool_key not in _connection_pools:
-        _connection_pools[pool_key] = RedisConnectionPool(
+    if shared:
+        # 生成连接池的唯一标识符，包含集群相关信息
+        pool_key = f"{redis_url}:{is_cluster}:{cluster_nodes}" if cluster_nodes else f"{redis_url}:{is_cluster}"
+        
+        if pool_key not in _connection_pools:
+            _connection_pools[pool_key] = RedisConnectionPool(
+                redis_url, 
+                is_cluster=is_cluster, 
+                cluster_nodes=cluster_nodes, 
+                **kwargs
+            )
+        return _connection_pools[pool_key]
+    else:
+        # 独立模式：创建新的连接池实例，不加入全局字典
+        # 使用UUID确保每个实例都有唯一标识
+        import uuid
+        pool_key = f"{redis_url}:{is_cluster}:{uuid.uuid4().hex[:8]}"
+        return RedisConnectionPool(
             redis_url, 
             is_cluster=is_cluster, 
             cluster_nodes=cluster_nodes, 
             **kwargs
         )
-    return _connection_pools[pool_key]
 
 
 async def close_all_pools():
-    """关闭所有连接池"""
+    """关闭所有共享连接池"""
     global _connection_pools
     
     for pool in _connection_pools.values():
@@ -807,3 +820,96 @@ def print_validation_report(keys: List[str], project_name: Optional[str] = None)
             logger.info(f"  {key} - {info.get('error', '无效')}")
     
     logger.info("=" * 50)
+
+
+class CrawloRedisManager:
+    """
+    Crawlo 专用 Redis 管理器
+    提供连接生命周期隔离，确保多爬虫场景下的连接安全
+    """
+    
+    def __init__(self, crawler_id: str):
+        """
+        初始化 Redis 管理器
+        
+        Args:
+            crawler_id: 爬虫实例ID，用于连接隔离
+        """
+        self.crawler_id = crawler_id
+        self._connection_pools: Dict[str, RedisConnectionPool] = {}
+        self._is_closed = False
+    
+    def get_pool(self, redis_url: str, **kwargs) -> RedisConnectionPool:
+        """
+        获取专属连接池（独立模式）
+        
+        Args:
+            redis_url: Redis URL
+            **kwargs: 连接池配置参数
+            
+        Returns:
+            Redis连接池实例
+        """
+        if self._is_closed:
+            raise RuntimeError("Redis管理器已关闭")
+            
+        # 使用独立模式，确保连接池隔离
+        pool = get_redis_pool(redis_url, shared=False, **kwargs)
+        self._connection_pools[redis_url] = pool
+        return pool
+    
+    async def close_all(self):
+        """关闭所有连接池"""
+        if self._is_closed:
+            return
+            
+        for pool in self._connection_pools.values():
+            try:
+                await pool.close()
+            except Exception as e:
+                # 记录错误但继续关闭其他连接池
+                print(f"关闭连接池时出错: {e}")
+        
+        self._connection_pools.clear()
+        self._is_closed = True
+    
+    def __del__(self):
+        """析构函数确保资源清理"""
+        if not self._is_closed:
+            import asyncio
+            try:
+                # 在析构函数中尝试异步关闭
+                loop = asyncio.get_event_loop()
+                if loop.is_running():
+                    # 如果事件循环正在运行，创建任务
+                    loop.create_task(self.close_all())
+                else:
+                    # 否则直接运行
+                    loop.run_until_complete(self.close_all())
+            except Exception:
+                pass  # 析构函数中避免抛出异常
+
+
+def get_isolated_redis_pool(crawler_id: str, redis_url: str, **kwargs) -> RedisConnectionPool:
+    """
+    获取隔离的 Redis 连接池（推荐用于多爬虫场景）
+    
+    Args:
+        crawler_id: 爬虫实例ID
+        redis_url: Redis URL
+        **kwargs: 连接池配置参数
+        
+    Returns:
+        Redis连接池实例
+        
+    Example:
+        # 在爬虫初始化时
+        self.redis_manager = CrawloRedisManager(self.crawler_id)
+        self.dedup_pool = self.redis_manager.get_pool(redis_url)
+        self.filter_pool = self.redis_manager.get_pool(redis_url)
+        
+        # 在爬虫关闭时
+        await self.redis_manager.close_all()
+    """
+    # 使用独立连接池模式
+    return get_redis_pool(redis_url, shared=False, **kwargs)

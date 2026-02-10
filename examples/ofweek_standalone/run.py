@@ -1,6 +1,7 @@
 #!/usr/bin/python
 # -*- coding: UTF-8 -*-
 
+import os
 import sys
 import asyncio
 
@@ -10,9 +11,17 @@ from crawlo.crawler import CrawlerProcess
 def main():
     """运行爬虫"""
     try:
-        # TODO: 请将 'spider_name' 替换为实际要运行的爬虫名称
-        asyncio.run(CrawlerProcess().crawl('of_week'))
-
+        # 检查是否启动定时任务模式
+        if len(sys.argv) > 1 and sys.argv[1] == '--schedule':
+            # 启动定时任务模式
+            from crawlo.scheduling import start_scheduler
+            # 获取当前脚本所在目录作为项目根目录
+            project_root = os.path.dirname(os.path.abspath(__file__))
+            start_scheduler(project_root)
+        else:
+            # 正常爬虫运行模式
+            spider_name = sys.argv[1] if len(sys.argv) > 1 else 'of_week'
+            asyncio.run(CrawlerProcess().crawl(spider_name))
     except Exception as e:
         print(f"❌ 运行失败: {e}")
         import traceback

@@ -132,4 +132,5 @@ class ResponseFilterMiddleware:
         self.logger.debug(f"过滤响应: {response.status_code} {response.url} - {reason}")
         
         # 抛出异常以忽略该响应
-        raise IgnoreRequestError(f"response filtered: {reason} - {response.status_code} {response.url}")
+        # 优化：只包含状态码和原因，避免每个URL产生独立统计项
+        raise IgnoreRequestError(f"response filtered: {reason} - {response.status_code}")

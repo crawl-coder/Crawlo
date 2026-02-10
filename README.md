@@ -26,7 +26,8 @@
   - **Auto 模式**：智能检测 Redis 可用性，自动选择最佳配置（推荐）
 - 📦 **丰富的组件生态**：
   - 内置 Redis 和 MongoDB 支持
-  - MySQL 异步连接池（基于 asyncmy和aiomysql分别实现）
+  - MySQL 异步连接池（基于 asyncmy 和 aiomysql 双驱动支持）
+  - 连接池健康检查与自动修复机制
   - 多种过滤器和去重管道（Memory/Redis）
   - 代理中间件支持（简单代理/动态代理）
   - 多种下载器（aiohttp、httpx、curl-cffi）
@@ -574,6 +575,85 @@ crawlo run example
 crawlo run example --log-level DEBUG
 ```
 
+## 通知系统
+
+Crawlo 提供了完善的多平台通知系统，支持钉钉、飞书、企业微信、邮件和短信通知。
+
+### 📋 配置说明
+
+在 `settings.py` 中配置通知系统：
+
+```python
+# 启用通知系统
+NOTIFICATION_ENABLED = True
+NOTIFICATION_CHANNELS = ['dingtalk']  # 可选: dingtalk, feishu, wecom, email, sms
+
+# 钉钉通知配置
+DINGTALK_WEBHOOK = "https://oapi.dingtalk.com/robot/send?access_token=YOUR_TOKEN"
+DINGTALK_SECRET = "YOUR_SECRET"
+DINGTALK_KEYWORDS = ["爬虫"]  # 关键词验证
+DINGTALK_AT_MOBILES = ["15361276730"]  # @特定手机号
+DINGTALK_IS_AT_ALL = False  # 是否@所有人
+
+# 飞书/企业微信配置（类似）
+FEISHU_WEBHOOK = "YOUR_FEISHU_WEBHOOK"
+WECOM_WEBHOOK = "YOUR_WECOM_WEBHOOK"
+```
+
+### 🚀 基础使用
+
+```python
+from crawlo.bot.handlers import send_crawler_status, send_crawler_alert, send_crawler_progress
+from crawlo.bot.models import ChannelType
+
+# 发送状态通知
+await send_crawler_status(
+    title="【状态】爬虫启动",
+    content="爬虫任务已启动，开始抓取数据...",
+    channel=ChannelType.DINGTALK
+)
+
+# 发送进度通知
+await send_crawler_progress(
+    title="【进度】数据抓取",
+    content="已完成 50% 的数据抓取任务",
+    channel=ChannelType.DINGTALK
+)
+
+# 发送告警通知
+await send_crawler_alert(
+    title="【告警】网络异常",
+    content="检测到网络连接不稳定，部分请求失败",
+    channel=ChannelType.DINGTALK
+)
+```
+
+### 📊 使用建议
+
+**推荐通知节点：**
+- 爬虫启动时 - 发送状态通知
+- 关键里程碑 - 发送进度通知（如每100条数据）
+- 异常情况 - 立即发送告警通知
+- 任务完成时 - 发送总结通知
+
+**@ 功能使用：**
+```python
+# @ 特定手机号
+DINGTALK_AT_MOBILES = ["15361276730"]
+
+# @ 所有人
+DINGTALK_IS_AT_ALL = True
+```
+
+**重试机制：**
+```python
+NOTIFICATION_RETRY_ENABLED = True
+NOTIFICATION_RETRY_TIMES = 3
+NOTIFICATION_RETRY_DELAY = 5  # 秒
+```
+
+> 💡 详细使用指南请参考 [docs/notification_guide.md](docs/notification_guide.md)
+
 ## 核心功能
 
 ### Response 对象
@@ -667,6 +747,87 @@ locals().update(config.to_dict())
 - **Distributed**：严格要求 Redis，不允许降级，保证分布式一致性
 
 > 💡 详细配置说明请查看前面的 [配置模式详解](#配置模式详解) 章节
+
+### 定时任务功能
+
+Crawlo 提供了内置的定时任务调度功能，支持灵活的周期性爬虫执行：
+
+**1. 启用定时任务**
+
+在项目配置文件中启用并配置定时任务：
+
+```
+# settings.py
+
+# 启用定时任务 - 默认关闭
+SCHEDULER_ENABLED = True
+
+# 定时任务配置
+SCHEDULER_JOBS = [
+    {
+        'spider': 'myproject.spiders.my_spider',  # 爬虫名称（对应spider的name属性）
+        'cron': '*/30 * * * *',       # 每30分钟执行一次
+        'enabled': True,              # 任务启用状态
+        'priority': 10,               # 任务优先级
+        'max_retries': 3,             # 最大重试次数
+        'retry_delay': 60,            # 重试延迟（秒）
+        'args': {},                  # 传递给爬虫的参数
+        'kwargs': {}                  # 传递给爬虫的额外参数
+    },
+    {
+        'spider': 'myproject.spiders.another_spider',  # 另一个爬虫
+        'cron': '0 2 * * *',         # 每天凌晨2点执行
+        'enabled': True,              # 任务启用状态
+        'priority': 20,               # 任务优先级
+        'max_retries': 2,             # 最大重试次数
+        'retry_delay': 120,           # 重试延迟（秒）
+        'args': {'daily': True},      # 传递给爬虫的参数
+        'kwargs': {}                  # 传递给爬虫的额外参数
+    }
+]
+
+# 关键配置参数（用户可能需要调整）
+SCHEDULER_CHECK_INTERVAL = 1           # 调度器检查间隔（秒）
+SCHEDULER_MAX_CONCURRENT = 3           # 最大并发任务数
+SCHEDULER_JOB_TIMEOUT = 3600           # 单个任务超时时间（秒）
+SCHEDULER_RESOURCE_MONITOR_ENABLED = True  # 是否启用资源监控
+SCHEDULER_RESOURCE_CHECK_INTERVAL = 300    # 资源检查间隔（秒）
+SCHEDULER_RESOURCE_LEAK_THRESHOLD = 3600   # 资源泄露检测阈值（秒）
+```
+
+**2. 运行定时任务**
+
+有两种方式运行定时任务：
+
+方法一：使用命令行
+```
+# 启动定时任务调度器（在项目目录下运行）
+crawlo schedule
+```
+
+方法二：使用项目模板生成的 run.py 文件
+```
+# 启动定时任务模式
+python run.py --schedule
+
+# 正常运行单次爬虫
+python run.py
+```
+
+**3. Cron 表达式说明**
+
+定时任务使用标准的 Cron 表达式格式：`分钟 小时 日 月 星期`
+
+常见表达式示例：
+- `*/5 * * * *` - 每5分钟执行一次
+- `0 */2 * * *` - 每2小时执行一次
+- `30 9 * * *` - 每天上午9:30执行
+- `0 2 * * 0` - 每周日凌晨2点执行
+- `0 1 1 * *` - 每月1号凌晨1点执行
+
+**4. 资源监控与管理**
+
+定时任务系统集成了资源监控功能，可自动检测和管理资源泄露，确保长时间稳定运行。调度器还支持并发控制和任务超时管理，防止任务堆积和资源耗尽。
 
 ### 日志系统
 
@@ -792,6 +953,7 @@ Crawlo 在 Windows、macOS、Linux 上均可无缝运行：
 
 - [初始化优化报告](docs/initialization_optimization_report.md)
 - [MySQL 连接池优化](docs/mysql_connection_pool_optimization.md)
+- [MySQL 连接池健康检查](docs/mysql_connection_pool_optimization.md#健康检查机制)
 - [MongoDB 连接池优化](docs/mongo_connection_pool_optimization.md)
 
 ### 🎯 中间件指南
@@ -862,6 +1024,13 @@ MYSQL_INSERT_IGNORE = False         # 优先级最低：是否使用 INSERT IGNO
 # 批量插入配置
 MYSQL_USE_BATCH = True             # 是否使用批量插入提高性能
 MYSQL_BATCH_SIZE = 100              # 批量插入大小
+MYSQL_BATCH_TIMEOUT = 90            # 批量操作超时时间（秒）
+
+# MySQL 连接池配置
+MYSQL_POOL_MIN = 8                  # 最小连接数
+MYSQL_POOL_MAX = 30                 # 最大连接数
+MYSQL_HEALTH_CHECK_INTERVAL = 300.0 # 连接池健康检查间隔（秒），默认5分钟
+MYSQL_POOL_REPAIR_ATTEMPTS = 3      # 连接池修复尝试次数，默认3次
 
 # MongoDB 配置
 MONGO_URI = 'mongodb://localhost:27017'

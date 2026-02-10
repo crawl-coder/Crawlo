@@ -115,31 +115,87 @@ class Crawler:
         # 资源管理器
         self._resource_manager: ResourceManager = ResourceManager(name=f"crawler.{spider_cls.__name__ if spider_cls else 'unknown'}")
         
-        # 日志
-        self._logger = get_logger(f'crawler.{spider_cls.__name__ if spider_cls else "unknown"}')
-        
         # 确保框架已初始化
         self._ensure_framework_ready()
+        
+        # 日志：使用全局日志，不创建爬虫独立日志文件
+        # 原因：独立日志会导致多爬虫场景下日志混乱和重复配置问题
+        # 所有爬虫日志统一写入全局日志文件，通过 logger 名称区分
+        self._logger = get_logger(f'crawler.{spider_cls.__name__ if spider_cls else "unknown"}')
     
     def _ensure_framework_ready(self) -> None:
         """确保框架已准备就绪"""
         if not is_framework_ready():
             try:
                 self._settings = initialize_framework(self._settings)
-                self._logger.debug("Framework initialized successfully")
+                # 此时配置公用日志是一个普逐日志
             except Exception as e:
-                self._logger.warning(f"Framework initialization failed: {e}")
                 # 使用降级策略
                 if not self._settings:
                     from crawlo.settings.setting_manager import SettingManager
                     self._settings = SettingManager()
-        
-        # 确保是SettingManager实例
+            
+        # 确保是 SettingManager 实例
         if isinstance(self._settings, dict):
             from crawlo.settings.setting_manager import SettingManager
             settings_manager = SettingManager()
             settings_manager.update_attributes(self._settings)
             self._settings = settings_manager
+        
+    def _setup_spider_logging(self) -> None:
+        """
+        为该爬虫配置独立日志文件
+                
+        这是方案D的核心：在创建 Crawler 时（而非框架初始化时）
+        为该爬虫配置独立日志。实现完全自动化。
+        
+        策略：
+        1. 如果 settings 中的 LOG_FILE 已是绝对路径，则保留（用户明确指定）
+        2. 如果是相对路径，则为该爬虫自动生成独立日志路径
+        """
+        try:
+            import os
+            from crawlo.logging import LogManager, LogConfig
+                
+            # 获取当前配置中的日志文件路径
+            log_file = None
+            if self._settings and hasattr(self._settings, 'get'):
+                log_file = self._settings.get('LOG_FILE')
+                
+            # 判断是否需要覆盖为爬虫独立日志
+            should_use_spider_log = False
+            if log_file:
+                # 如果是相对路径，需要为爬虫生成独立日志
+                if not os.path.isabs(log_file):
+                    should_use_spider_log = True
+            else:
+                should_use_spider_log = True
+                
+            # 为爬虫生成独立日志文件
+            if should_use_spider_log:
+                log_file = f'logs/{self._spider_cls.name}.log'
+                
+            # 重新配置日志系统
+            log_manager = LogManager()
+            current_config = log_manager.config
+                
+            if current_config:
+                # 基于当前配置，重新配置日志文件路径
+                current_config.file_path = log_file
+                # 调用 configure() 确保日志系统被重新初始化
+                log_manager.configure(current_config)
+            else:
+                # 如果没有配置，创建新的
+                config = LogConfig(file_path=log_file)
+                log_manager.configure(config)
+                
+            # 注意：不清除 Logger 缓存，以保留框架logger的已有日志
+            # 框架日志（版本号、运行模式）已在初始化阶段记录，不应被覆盖
+                
+        except Exception as e:
+            # 配置失败不应该中断创建 Crawler
+            # 鉴于没有 logger，无法记录
+            pass
     
     @property
     def state(self) -> CrawlerState:
@@ -243,7 +299,12 @@ class Crawler:
                 registry = get_component_registry()
                 self._extension = registry.create('extension_manager', crawler=self)
             except Exception as e:
-                self._logger.warning(f"Failed to create extension manager: {e}")
+                from crawlo.exceptions import NotConfigured
+                if isinstance(e, NotConfigured):
+                    # 对于未配置启用的扩展，仅输出提示信息，不记录为错误
+                    self._logger.info(f"Extension manager not created (disabled): {e}")
+                else:
+                    self._logger.warning(f"Failed to create extension manager: {e}")
         return self._extension
     
     async def close(self) -> None:
@@ -323,7 +384,12 @@ class Crawler:
             try:
                 self._extension = registry.create('extension_manager', crawler=self)
             except Exception as e:
-                self._logger.warning(f"Failed to create extension manager: {e}")
+                from crawlo.exceptions import NotConfigured
+                if isinstance(e, NotConfigured):
+                    # 对于未配置启用的扩展，仅输出提示信息，不记录为错误
+                    self._logger.info(f"Extension manager not created (disabled): {e}")
+                else:
+                    self._logger.warning(f"Failed to create extension manager: {e}")
             
             self._metrics.initialization_duration = time.time() - init_start
             
@@ -462,8 +528,45 @@ class Crawler:
             
             self._logger.debug("Crawler cleanup completed")
             
+            # 显式关闭所有日志handlers，释放文件句柄
+            self._close_logger_handlers()
+            
         except Exception as e:
             self._logger.error(f"Cleanup error: {e}")
+            # 即使发生错误也要清理handlers
+            try:
+                self._close_logger_handlers()
+            except Exception as handler_error:
+                pass
+    
+    def _close_logger_handlers(self) -> None:
+        """
+        显式关闭所有日志handlers
+        
+        这是解决PermissionError的关键步骤，确保文件句柄被正确释放
+        特别是在Windows上，多个进程同时访问同一日志文件时会出现问题
+        """
+        import logging
+        
+        try:
+            # 获取当前logger的所有handlers
+            if self._logger:
+                for handler in self._logger.handlers[:]:
+                    try:
+                        handler.close()
+                        self._logger.removeHandler(handler)
+                    except Exception:
+                        pass  # 忽略关闭handler时的错误
+                
+                # 也关闭根logger的handlers（如果有的话）
+                root_logger = logging.getLogger()
+                for handler in root_logger.handlers[:]:
+                    try:
+                        handler.close()
+                    except Exception:
+                        pass
+        except Exception:
+            pass
 
 
 class CrawlerProcess:
@@ -603,20 +706,32 @@ class CrawlerProcess:
         # 判断输入是单个还是多个爬虫
         if not isinstance(spider_cls_or_name, list):
             # 单个爬虫
-            spider_cls = self._resolve_spider_class(spider_cls_or_name)
-            
-            # 记录启动的爬虫名称（符合规范要求）
-            from crawlo.logging import get_logger
-            logger = get_logger('crawlo.framework')
-            logger.info(f"Starting spider: {spider_cls.name}")
-            
-            merged_settings = self._merge_settings(settings)
-            crawler = Crawler(spider_cls, merged_settings)
-            
-            async with self._semaphore:
-                await crawler.crawl()
-            
-            return crawler
+            try:
+                spider_cls = self._resolve_spider_class(spider_cls_or_name)
+                
+                # 记录启动的爬虫名称（符合规范要求）
+                from crawlo.logging import get_logger
+                logger = get_logger('crawlo.framework')
+                logger.info(f"Starting spider: {spider_cls.name}")
+                
+                merged_settings = self._merge_settings(settings)
+                crawler = Crawler(spider_cls, merged_settings)
+                
+                async with self._semaphore:
+                    await crawler.crawl()
+                
+                # 清理crawler资源，防止内存泄漏
+                try:
+                    if hasattr(crawler, '_resource_manager'):
+                        await crawler._resource_manager.cleanup_all()
+                    self._logger.debug(f"Cleaned up crawler: {spider_cls.name}")
+                except Exception as e:
+                    self._logger.warning(f"Failed to cleanup crawler: {e}")
+                
+                return crawler
+            except Exception as e:
+                self._logger.error(f"Error running crawler: {e}")
+                raise
         else:
             # 多个爬虫
             spider_classes_or_names = spider_cls_or_name

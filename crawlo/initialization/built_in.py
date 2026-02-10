@@ -121,8 +121,6 @@ class LoggingInitializer(BaseInitializer):
         log_file = ConfigUtils.get_config_value([config_source], 'LOG_FILE')
         log_format = ConfigUtils.get_config_value([config_source], 'LOG_FORMAT', '%(asctime)s - [%(name)s] - %(levelname)s: %(message)s')
         log_encoding = ConfigUtils.get_config_value([config_source], 'LOG_ENCODING', 'utf-8')
-        log_max_bytes = ConfigUtils.get_config_value([config_source], 'LOG_MAX_BYTES', 10 * 1024 * 1024, int)
-        log_backup_count = ConfigUtils.get_config_value([config_source], 'LOG_BACKUP_COUNT', 5, int)
         log_console_enabled = ConfigUtils.get_config_value([config_source], 'LOG_CONSOLE_ENABLED', True, bool)
         log_file_enabled = ConfigUtils.get_config_value([config_source], 'LOG_FILE_ENABLED', True, bool)
         
@@ -132,8 +130,6 @@ class LoggingInitializer(BaseInitializer):
             format=log_format,
             encoding=log_encoding,
             file_path=log_file,
-            max_bytes=log_max_bytes,
-            backup_count=log_backup_count,
             console_enabled=log_console_enabled,
             file_enabled=log_file_enabled
         )
@@ -342,6 +338,15 @@ class FrameworkStartupLogger(BaseInitializer):
         start_time = time.time()
         
         try:
+            # 关键步骤：在记录框架启动日志前，重新配置日志系统
+            # 这样确保 LOG_FILE 被正确地应用到所有logger（包括框架logger）
+            if context.settings:
+                from crawlo.logging import configure_logging, LoggerFactory
+                # 重新配置日志，这次会正确读取settings中的LOG_FILE
+                configure_logging(context.settings)
+                # 清除缓存以强制重新创建logger（使其包含新的文件处理器）
+                LoggerFactory.clear_cache()
+            
             # 获取框架logger
             from crawlo.logging import get_logger
             logger = get_logger('crawlo.framework')

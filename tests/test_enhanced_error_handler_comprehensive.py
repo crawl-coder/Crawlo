@@ -7,7 +7,7 @@ sys.path.insert(0, "/Users/oscar/projects/Crawlo")
 # -*- coding: utf-8 -*-
 """
 增强错误处理工具综合测试
-测试 ErrorContext, DetailedException, EnhancedErrorHandler 的更多功能
+测试 ErrorContext, DetailedException, ErrorHandler 的更多功能
 """
 import sys
 import os
@@ -19,8 +19,8 @@ import traceback
 # 添加项目根目录到 Python 路径
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
-from crawlo.utils.enhanced_error_handler import (
-    EnhancedErrorHandler, 
+from crawlo.utils.error_handler import (
+    ErrorHandler, 
     ErrorContext, 
     DetailedException, 
     handle_exception
@@ -122,12 +122,12 @@ class TestDetailedException(unittest.TestCase):
         self.assertEqual(details["exception_type"], "DetailedException")
 
 
-class TestEnhancedErrorHandler(unittest.TestCase):
-    """增强错误处理器测试"""
+class TestErrorHandler(unittest.TestCase):
+    """统一错误处理器测试"""
 
     def setUp(self):
         """测试前准备"""
-        self.handler = EnhancedErrorHandler("test_logger", "ERROR")
+        self.handler = ErrorHandler("test_logger", "ERROR")
         
     def test_handler_initialization(self):
         """测试处理器初始化"""

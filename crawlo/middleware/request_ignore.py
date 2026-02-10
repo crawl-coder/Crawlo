@@ -49,8 +49,8 @@ class RequestIgnoreMiddleware(object):
             request: 被忽略的请求
             _spider: 爬虫实例
         """
-        # 记录被忽略的请求
-        self.logger.info(f'请求被忽略: {request.url}')
+        # 记录被忽略的请求（改为debug级别，避免产生过多日志）
+        self.logger.debug(f'请求被忽略: {request.url}')
         self.stats.inc_value('request_ignore_count')
         
         # 记录忽略原因

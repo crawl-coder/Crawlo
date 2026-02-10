@@ -1,0 +1,36 @@
+# -*- coding: UTF-8 -*-
+"""
+listed_companies_market_value_info.pipelines
+==========================
+数据管道示例
+"""
+
+from crawlo.logging import get_logger
+
+
+class ListedCompaniesMarketValueInfoPipeline:
+    """
+    listed_companies_market_value_info 项目的数据管道
+    """
+    
+    def __init__(self):
+        self.logger = get_logger(self.__class__.__name__)
+
+    def process_item(self, item, spider):
+        """
+        处理数据项
+        """
+        self.logger.info(f"处理数据项: {item}")
+        return item
+
+    def open_spider(self, spider):
+        """
+        爬虫启动时调用
+        """
+        self.logger.info(f"管道已启动，准备处理爬虫 '{spider.name}' 的数据")
+
+    def close_spider(self, spider):
+        """
+        爬虫关闭时调用
+        """
+        self.logger.info("管道已关闭")

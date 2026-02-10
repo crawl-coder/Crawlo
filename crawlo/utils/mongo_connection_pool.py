@@ -133,7 +133,7 @@ class MongoConnectionPoolManager:
     async def close_all_clients(cls):
         """关闭所有 MongoDB 客户端"""
         logger = get_logger('MongoPool')
-        logger.info(f"开始关闭所有 MongoDB 客户端，共 {len(cls._instances)} 个")
+        logger.debug(f"开始关闭所有 MongoDB 客户端，共 {len(cls._instances)} 个")
         
         for pool_key, instance in cls._instances.items():
             try:
@@ -145,7 +145,7 @@ class MongoConnectionPoolManager:
                 logger.error(f"关闭 MongoDB 客户端 {pool_key} 时发生错误: {e}")
         
         cls._instances.clear()
-        logger.info("所有 MongoDB 客户端已关闭")
+        logger.debug("所有 MongoDB 客户端已关闭")
     
     @classmethod
     def get_pool_stats(cls) -> Dict[str, Any]:
@@ -209,11 +209,11 @@ async def get_mongo_client(
 async def close_all_mongo_clients():
     """关闭所有 MongoDB 客户端"""
     logger = get_logger('MongoPool')
-    logger.info("开始关闭所有 MongoDB 客户端")
+    logger.debug("开始关闭所有 MongoDB 客户端")
     
     await MongoConnectionPoolManager.close_all_clients()
     
-    logger.info("所有 MongoDB 客户端已关闭")
+    logger.debug("所有 MongoDB 客户端已关闭")
 
 
 def get_mongo_pool_stats() -> Dict[str, Any]:

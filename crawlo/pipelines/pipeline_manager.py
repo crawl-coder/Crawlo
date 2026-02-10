@@ -35,29 +35,34 @@ class PipelineManager:
         self.methods: List = []
 
         self.logger = get_logger(self.__class__.__name__)
-        pipelines = self.crawler.settings.get_list('PIPELINES')
-        dedup_pipeline = self.crawler.settings.get('DEFAULT_DEDUP_PIPELINE')
+        self.pipelines_settings = self.crawler.settings.get_list('PIPELINES')
+        self.dedup_pipeline = self.crawler.settings.get('DEFAULT_DEDUP_PIPELINE')
 
         # 添加调试信息
-        self.logger.debug(f"PIPELINES from settings: {pipelines}, DEFAULT_DEDUP_PIPELINE from settings: {dedup_pipeline}")
+        self.logger.debug(f"PIPELINES from settings: {self.pipelines_settings}, DEFAULT_DEDUP_PIPELINE from settings: {self.dedup_pipeline}")
 
+    async def _initialize(self):
+        """异步初始化管道"""
+        pipelines = self.pipelines_settings.copy()
+        
         # 确保DEFAULT_DEDUP_PIPELINE被添加到管道列表开头
-        if dedup_pipeline:
+        if self.dedup_pipeline:
             # 移除所有去重管道实例（如果存在）
             pipelines = remove_dedup_pipelines(pipelines)
             # 在开头插入去重管道
-            self.logger.debug(f"{dedup_pipeline} insert successful")
-            pipelines.insert(0, dedup_pipeline)
+            self.logger.debug(f"{self.dedup_pipeline} insert successful")
+            pipelines.insert(0, self.dedup_pipeline)
 
-        self._add_pipelines(pipelines)
+        await self._add_pipelines(pipelines)
         self._add_methods()
 
     @classmethod
-    def from_crawler(cls, *args, **kwargs):
+    async def from_crawler(cls, *args, **kwargs):
         o = cls(*args, **kwargs)
+        await o._initialize()
         return o
 
-    def _add_pipelines(self, pipelines):
+    async def _add_pipelines(self, pipelines):
         for pipeline in pipelines:
             try:
                 pipeline_cls = load_object(pipeline)
@@ -65,7 +70,14 @@ class PipelineManager:
                     raise PipelineInitError(
                         f"Pipeline init failed, must inherit from `BasePipeline` or have a `from_crawler` method"
                     )
-                self.pipelines.append(pipeline_cls.from_crawler(self.crawler))
+                # 处理同步和异步的from_crawler方法
+                result = pipeline_cls.from_crawler(self.crawler)
+                # 检查是否是协程对象
+                if hasattr(result, '__await__'):
+                    instance = await result
+                else:
+                    instance = result
+                self.pipelines.append(instance)
             except Exception as e:
                 self.logger.error(f"Failed to load pipeline {pipeline}: {e}")
                 # 可以选择继续加载其他管道或抛出异常

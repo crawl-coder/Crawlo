@@ -19,6 +19,26 @@ from typing import Dict, Optional, Any
 from crawlo.logging import get_logger
 
 
+def is_pool_active(pool) -> bool:
+    """统一检查连接池是否活跃
+    
+    Args:
+        pool: 数据库连接池对象
+        
+    Returns:
+        bool: 连接池是否活跃
+    """
+    if not pool:
+        return False
+    # 优先检查 asyncmy 的 _closed 属性
+    if hasattr(pool, '_closed'):
+        return not pool._closed
+    # 其次检查 aiomysql 的 closed 属性
+    elif hasattr(pool, 'closed'):
+        return not pool.closed
+    return True
+
+
 # MySQL 相关导入
 try:
     import aiomysql
@@ -31,19 +51,21 @@ except ImportError:
 
 
 class AiomysqlConnectionPoolManager:
-    """aiomysql连接池管理器（单例模式）"""
+    """aiomysql连接池管理器（支持单例模式和独立模式）"""
     
     _instances: Dict[str, 'AiomysqlConnectionPoolManager'] = {}
     _lock = asyncio.Lock()
     
-    def __init__(self, pool_key: str):
+    def __init__(self, pool_key: str, shared: bool = True):
         """
         初始化连接池管理器
         
         Args:
             pool_key: 连接池唯一标识
+            shared: 是否使用共享模式（单例），True为单例模式，False为独立模式
         """
         self.pool_key = pool_key
+        self.shared = shared  # 是否为共享模式
         self.pool = None
         self._pool_lock = asyncio.Lock()
         self._pool_initialized = False
@@ -60,10 +82,11 @@ class AiomysqlConnectionPoolManager:
         db: str = 'crawlo',
         minsize: int = 2,
         maxsize: int = 5,
+        shared: bool = True,  # 新增参数：是否使用共享模式
         **kwargs
     ):
         """
-        获取aiomysql连接池实例（单例模式）
+        获取aiomysql连接池实例
         
         Args:
             host: 数据库主机
@@ -73,42 +96,72 @@ class AiomysqlConnectionPoolManager:
             db: 数据库名
             minsize: 最小连接数
             maxsize: 最大连接数
+            shared: 是否使用共享模式（True=单例模式，False=独立模式）
             **kwargs: 其他连接参数
             
         Returns:
             连接池实例
         """
         # 生成连接池唯一标识
-        pool_key = f"aiomysql:{host}:{port}:{db}"
+        if shared:
+            # 共享模式：相同数据库配置使用同一连接池
+            pool_key = f"aiomysql:{host}:{port}:{db}"
+        else:
+            # 独立模式：每次调用创建新的连接池实例
+            import uuid
+            pool_key = f"aiomysql:{host}:{port}:{db}:{uuid.uuid4().hex[:8]}"
         
-        async with cls._lock:
-            if pool_key not in cls._instances:
-                instance = cls(pool_key)
-                instance._config = {
-                    'host': host,
-                    'port': port,
-                    'user': user,
-                    'password': password,
-                    'db': db,
-                    'minsize': minsize,
-                    'maxsize': maxsize,
-                    **kwargs
-                }
-                cls._instances[pool_key] = instance
-                instance.logger.info(
-                    f"创建新的aiomysql连接池管理器: {pool_key} "
-                    f"(minsize={minsize}, maxsize={maxsize})"
-                )
-            
-            instance = cls._instances[pool_key]
+        if shared:
+            # 单例模式：使用类级别的实例字典
+            async with cls._lock:
+                if pool_key not in cls._instances:
+                    instance = cls(pool_key, shared=True)
+                    instance._config = {
+                        'host': host,
+                        'port': port,
+                        'user': user,
+                        'password': password,
+                        'db': db,
+                        'minsize': minsize,
+                        'maxsize': maxsize,
+                        **kwargs
+                    }
+                    cls._instances[pool_key] = instance
+                    instance.logger.debug(
+                        f"创建新的aiomysql连接池管理器: {pool_key} "
+                        f"(minsize={minsize}, maxsize={maxsize})"
+                    )
+                
+                instance = cls._instances[pool_key]
+                await instance._ensure_pool()
+                return instance.pool
+        else:
+            # 独立模式：创建新的实例，不加入全局字典，但返回管理器实例
+            # 这样使用者可以在需要时调用管理器的close_pool方法
+            instance = cls(pool_key, shared=False)
+            instance._config = {
+                'host': host,
+                'port': port,
+                'user': user,
+                'password': password,
+                'db': db,
+                'minsize': minsize,
+                'maxsize': maxsize,
+                **kwargs
+            }
+            instance.logger.debug(
+                f"创建独立的aiomysql连接池: {pool_key} "
+                f"(minsize={minsize}, maxsize={maxsize})"
+            )
             await instance._ensure_pool()
-            return instance.pool
+            # 返回一个元组，包含连接池和管理器实例，这样调用者可以保存管理器来关闭连接池
+            return instance.pool, instance
     
     async def _ensure_pool(self):
         """确保连接池已初始化（线程安全）"""
         if self._pool_initialized:
-            # 检查连接池是否仍然有效
-            if self.pool and hasattr(self.pool, 'closed') and not self.pool.closed:
+            # 检查连接池是否仍然有效 - 使用统一函数
+            if is_pool_active(self.pool):
                 return
             else:
                 self.logger.warning("aiomysql连接池已初始化但无效，重新初始化")
@@ -144,24 +197,38 @@ class AiomysqlConnectionPoolManager:
             autocommit=False
         )
     
+    async def close_pool(self):
+        """关闭当前实例的连接池"""
+        if self.pool:
+            try:
+                self.logger.debug(f"关闭aiomysql连接池: {self.pool_key}")
+                self.pool.close()
+                await self.pool.wait_closed()
+                self.logger.debug(f"aiomysql连接池已关闭: {self.pool_key}")
+            except Exception as e:
+                self.logger.error(f"关闭aiomysql连接池 {self.pool_key} 时发生错误: {e}")
+            finally:
+                self.pool = None
+                self._pool_initialized = False
+    
     @classmethod
     async def close_all_pools(cls):
-        """关闭所有aiomysql连接池"""
+        """关闭所有共享aiomysql连接池"""
         logger = get_logger('AiomysqlPool')
-        logger.info(f"开始关闭所有aiomysql连接池，共 {len(cls._instances)} 个")
+        logger.debug(f"开始关闭所有aiomysql连接池，共 {len(cls._instances)} 个")
         
         for pool_key, instance in cls._instances.items():
             try:
                 if instance.pool:
-                    logger.info(f"关闭aiomysql连接池: {pool_key}")
+                    logger.debug(f"关闭aiomysql连接池: {pool_key}")
                     instance.pool.close()
                     await instance.pool.wait_closed()
-                    logger.info(f"aiomysql连接池已关闭: {pool_key}")
+                    logger.debug(f"aiomysql连接池已关闭: {pool_key}")
             except Exception as e:
                 logger.error(f"关闭aiomysql连接池 {pool_key} 时发生错误: {e}")
         
         cls._instances.clear()
-        logger.info("所有aiomysql连接池已关闭")
+        logger.debug("所有aiomysql连接池已关闭")
     
     @classmethod
     def get_pool_stats(cls) -> Dict[str, Any]:
@@ -173,11 +240,21 @@ class AiomysqlConnectionPoolManager:
         
         for pool_key, instance in cls._instances.items():
             if instance.pool:
+                pool = instance.pool
+                # 获取连接池详细状态
+                size = getattr(pool, 'size', 0)
+                freesize = getattr(pool, 'freesize', 0)
+                maxsize = getattr(pool, 'maxsize', 0)
+                minsize = getattr(pool, 'minsize', 0)
+                
                 stats['pools'][pool_key] = {
                     'driver': 'aiomysql',
-                    'size': getattr(instance.pool, 'size', 'unknown'),
-                    'minsize': instance._config.get('minsize', 'unknown'),
-                    'maxsize': instance._config.get('maxsize', 'unknown'),
+                    'size': size,  # 当前总连接数
+                    'freesize': freesize,  # 空闲连接数
+                    'used': size - freesize,  # 已使用连接数
+                    'minsize': minsize,  # 最小连接数
+                    'maxsize': maxsize,  # 最大连接数
+                    'usage_percent': (size - freesize) / maxsize * 100 if maxsize > 0 else 0,  # 使用率
                     'host': instance._config.get('host', 'unknown'),
                     'db': instance._config.get('db', 'unknown')
                 }
@@ -186,19 +263,21 @@ class AiomysqlConnectionPoolManager:
 
 
 class AsyncmyConnectionPoolManager:
-    """asyncmy连接池管理器（单例模式）"""
+    """asyncmy连接池管理器（支持单例模式和独立模式）"""
     
     _instances: Dict[str, 'AsyncmyConnectionPoolManager'] = {}
     _lock = asyncio.Lock()
     
-    def __init__(self, pool_key: str):
+    def __init__(self, pool_key: str, shared: bool = True):
         """
         初始化连接池管理器
         
         Args:
             pool_key: 连接池唯一标识
+            shared: 是否使用共享模式（单例），True为单例模式，False为独立模式
         """
         self.pool_key = pool_key
+        self.shared = shared  # 是否为共享模式
         self.pool = None
         self._pool_lock = asyncio.Lock()
         self._pool_initialized = False
@@ -216,10 +295,11 @@ class AsyncmyConnectionPoolManager:
         minsize: int = 3,
         maxsize: int = 10,
         echo: bool = False,
+        shared: bool = True,  # 新增参数：是否使用共享模式
         **kwargs
     ):
         """
-        获取asyncmy连接池实例（单例模式）
+        获取asyncmy连接池实例
         
         Args:
             host: 数据库主机
@@ -230,43 +310,73 @@ class AsyncmyConnectionPoolManager:
             minsize: 最小连接数
             maxsize: 最大连接数
             echo: 是否打印SQL日志
+            shared: 是否使用共享模式（True=单例模式，False=独立模式）
             **kwargs: 其他连接参数
             
         Returns:
             连接池实例
         """
         # 生成连接池唯一标识
-        pool_key = f"asyncmy:{host}:{port}:{db}"
+        if shared:
+            # 共享模式：相同数据库配置使用同一连接池
+            pool_key = f"asyncmy:{host}:{port}:{db}"
+        else:
+            # 独立模式：每次调用创建新的连接池实例
+            import uuid
+            pool_key = f"asyncmy:{host}:{port}:{db}:{uuid.uuid4().hex[:8]}"
         
-        async with cls._lock:
-            if pool_key not in cls._instances:
-                instance = cls(pool_key)
-                instance._config = {
-                    'host': host,
-                    'port': port,
-                    'user': user,
-                    'password': password,
-                    'db': db,
-                    'minsize': minsize,
-                    'maxsize': maxsize,
-                    'echo': echo,
-                    **kwargs
-                }
-                cls._instances[pool_key] = instance
-                instance.logger.info(
-                    f"创建新的asyncmy连接池管理器: {pool_key} "
-                    f"(minsize={minsize}, maxsize={maxsize}, echo={echo})"
-                )
-            
-            instance = cls._instances[pool_key]
+        if shared:
+            # 单例模式：使用类级别的实例字典
+            async with cls._lock:
+                if pool_key not in cls._instances:
+                    instance = cls(pool_key, shared=True)
+                    instance._config = {
+                        'host': host,
+                        'port': port,
+                        'user': user,
+                        'password': password,
+                        'db': db,
+                        'minsize': minsize,
+                        'maxsize': maxsize,
+                        'echo': echo,
+                        **kwargs
+                    }
+                    cls._instances[pool_key] = instance
+                    instance.logger.debug(
+                        f"创建新的asyncmy连接池管理器: {pool_key} "
+                        f"(minsize={minsize}, maxsize={maxsize}, echo={echo})"
+                    )
+                
+                instance = cls._instances[pool_key]
+                await instance._ensure_pool()
+                return instance.pool
+        else:
+            # 独立模式：创建新的实例，不加入全局字典
+            instance = cls(pool_key, shared=False)
+            instance._config = {
+                'host': host,
+                'port': port,
+                'user': user,
+                'password': password,
+                'db': db,
+                'minsize': minsize,
+                'maxsize': maxsize,
+                'echo': echo,
+                **kwargs
+            }
+            instance.logger.debug(
+                f"创建独立的asyncmy连接池: {pool_key} "
+                f"(minsize={minsize}, maxsize={maxsize})"
+            )
             await instance._ensure_pool()
-            return instance.pool
+            # 返回连接池和管理器实例的元组
+            return instance.pool, instance
     
     async def _ensure_pool(self):
         """确保连接池已初始化（线程安全）"""
         if self._pool_initialized:
-            # 检查连接池是否仍然有效
-            if self.pool and hasattr(self.pool, 'closed') and not self.pool.closed:
+            # 检查连接池是否仍然有效 - 使用统一函数
+            if is_pool_active(self.pool):
                 return
             else:
                 self.logger.warning("asyncmy连接池已初始化但无效，重新初始化")
@@ -301,24 +411,38 @@ class AsyncmyConnectionPoolManager:
             echo=self._config.get('echo', False)
         )
     
+    async def close_pool(self):
+        """关闭当前实例的连接池"""
+        if self.pool:
+            try:
+                self.logger.debug(f"关闭asyncmy连接池: {self.pool_key}")
+                self.pool.close()
+                await self.pool.wait_closed()
+                self.logger.debug(f"asyncmy连接池已关闭: {self.pool_key}")
+            except Exception as e:
+                self.logger.error(f"关闭asyncmy连接池 {self.pool_key} 时发生错误: {e}")
+            finally:
+                self.pool = None
+                self._pool_initialized = False
+    
     @classmethod
     async def close_all_pools(cls):
-        """关闭所有asyncmy连接池"""
+        """关闭所有共享asyncmy连接池"""
         logger = get_logger('AsyncmyPool')
-        logger.info(f"开始关闭所有asyncmy连接池，共 {len(cls._instances)} 个")
+        logger.debug(f"开始关闭所有asyncmy连接池，共 {len(cls._instances)} 个")
         
         for pool_key, instance in cls._instances.items():
             try:
                 if instance.pool:
-                    logger.info(f"关闭asyncmy连接池: {pool_key}")
+                    logger.debug(f"关闭asyncmy连接池: {pool_key}")
                     instance.pool.close()
                     await instance.pool.wait_closed()
-                    logger.info(f"asyncmy连接池已关闭: {pool_key}")
+                    logger.debug(f"asyncmy连接池已关闭: {pool_key}")
             except Exception as e:
                 logger.error(f"关闭asyncmy连接池 {pool_key} 时发生错误: {e}")
         
         cls._instances.clear()
-        logger.info("所有asyncmy连接池已关闭")
+        logger.debug("所有asyncmy连接池已关闭")
     
     @classmethod
     def get_pool_stats(cls) -> Dict[str, Any]:
@@ -330,11 +454,21 @@ class AsyncmyConnectionPoolManager:
         
         for pool_key, instance in cls._instances.items():
             if instance.pool:
+                pool = instance.pool
+                # 获取连接池详细状态
+                size = getattr(pool, 'size', 0)
+                freesize = getattr(pool, 'freesize', 0)
+                maxsize = getattr(pool, 'maxsize', 0)
+                minsize = getattr(pool, 'minsize', 0)
+                
                 stats['pools'][pool_key] = {
                     'driver': 'asyncmy',
-                    'size': getattr(instance.pool, 'size', 'unknown'),
-                    'minsize': instance._config.get('minsize', 'unknown'),
-                    'maxsize': instance._config.get('maxsize', 'unknown'),
+                    'size': size,  # 当前总连接数
+                    'freesize': freesize,  # 空闲连接数
+                    'used': size - freesize,  # 已使用连接数
+                    'minsize': minsize,  # 最小连接数
+                    'maxsize': maxsize,  # 最大连接数
+                    'usage_percent': (size - freesize) / maxsize * 100 if maxsize > 0 else 0,  # 使用率
                     'host': instance._config.get('host', 'unknown'),
                     'db': instance._config.get('db', 'unknown')
                 }
@@ -351,6 +485,7 @@ async def get_aiomysql_pool(
     db: str = 'crawlo',
     minsize: int = 2,
     maxsize: int = 5,
+    shared: bool = True,  # 新增参数
     **kwargs
 ):
     """
@@ -364,6 +499,7 @@ async def get_aiomysql_pool(
         db: 数据库名
         minsize: 最小连接数
         maxsize: 最大连接数
+        shared: 是否使用共享模式（True=单例模式，False=独立模式）
         **kwargs: 其他连接参数
         
     Returns:
@@ -372,7 +508,7 @@ async def get_aiomysql_pool(
     if aiomysql is None:
         raise RuntimeError("aiomysql 不可用，请安装 aiomysql")
     
-    return await AiomysqlConnectionPoolManager.get_pool(
+    result = await AiomysqlConnectionPoolManager.get_pool(
         host=host,
         port=port,
         user=user,
@@ -380,8 +516,14 @@ async def get_aiomysql_pool(
         db=db,
         minsize=minsize,
         maxsize=maxsize,
+        shared=shared,
         **kwargs
     )
+    
+    if shared:
+        return result  # 返回连接池对象
+    else:
+        return result[0]  # 返回连接池对象，忽略管理器实例
 
 
 async def get_asyncmy_pool(
@@ -393,6 +535,7 @@ async def get_asyncmy_pool(
     minsize: int = 3,
     maxsize: int = 10,
     echo: bool = False,
+    shared: bool = True,  # 新增参数
     **kwargs
 ):
     """
@@ -407,6 +550,7 @@ async def get_asyncmy_pool(
         minsize: 最小连接数
         maxsize: 最大连接数
         echo: 是否打印SQL日志
+        shared: 是否使用共享模式（True=单例模式，False=独立模式）
         **kwargs: 其他连接参数
         
     Returns:
@@ -415,7 +559,7 @@ async def get_asyncmy_pool(
     if asyncmy_create_pool is None:
         raise RuntimeError("asyncmy 不可用，请安装 asyncmy")
     
-    return await AsyncmyConnectionPoolManager.get_pool(
+    result = await AsyncmyConnectionPoolManager.get_pool(
         host=host,
         port=port,
         user=user,
@@ -424,14 +568,20 @@ async def get_asyncmy_pool(
         minsize=minsize,
         maxsize=maxsize,
         echo=echo,
+        shared=shared,
         **kwargs
     )
+    
+    if shared:
+        return result  # 返回连接池对象
+    else:
+        return result[0]  # 返回连接池对象，忽略管理器实例
 
 
 async def close_all_mysql_pools():
-    """关闭所有MySQL连接池"""
+    """关闭所有共享MySQL连接池"""
     logger = get_logger('MySQLPools')
-    logger.info("开始关闭所有MySQL连接池")
+    logger.debug("开始关闭所有MySQL连接池")
     
     # 关闭所有 aiomysql 连接池
     await AiomysqlConnectionPoolManager.close_all_pools()
@@ -439,7 +589,7 @@ async def close_all_mysql_pools():
     # 关闭所有 asyncmy 连接池
     await AsyncmyConnectionPoolManager.close_all_pools()
     
-    logger.info("所有MySQL连接池已关闭")
+    logger.debug("所有MySQL连接池已关闭")
 
 
 def get_mysql_pool_stats() -> Dict[str, Any]:

@@ -11,20 +11,21 @@ from crawlo.logging import get_logger
 # 尝试导入 httpx 异常，用于更精确地捕获
 try:
     # httpx 0.23.0+ 将异常移到了 _exceptions
-    from httpx import ConnectError, TimeoutException, NetworkError, HTTPStatusError
+    from httpx import ConnectError, TimeoutException, NetworkError, HTTPStatusError, ProxyError
 except ImportError:
     try:
         # 旧版本可能在 httpcore 或顶层
-        from httpcore import ConnectError
+        from httpcore import ConnectError, ProxyError
         from httpx import TimeoutException, NetworkError, HTTPStatusError
     except ImportError:
         ConnectError = httpx.ConnectError
         TimeoutException = httpx.TimeoutException
         NetworkError = httpx.NetworkError
         HTTPStatusError = httpx.HTTPStatusError
+        ProxyError = httpx.ProxyError
 
 # 定义我们认为是网络问题，应该触发降级的异常
-NETWORK_EXCEPTIONS = (ConnectError, TimeoutException, NetworkError)
+NETWORK_EXCEPTIONS = (ConnectError, TimeoutException, NetworkError, ProxyError)
 
 
 class HttpXDownloader(DownloaderBase):
@@ -235,6 +236,29 @@ class HttpXDownloader(DownloaderBase):
                 else:
                     # 直连也出现远程协议错误，记录日志并返回None
                     self.logger.error(f"Direct connection failed for {request.url}: {repr(remote_error)}")
+                    return None
+            except httpx.ProxyError as proxy_error:
+                # 特别处理代理错误
+                if temp_client is not None and effective_client is temp_client:
+                    # 代理请求出现错误，尝试直连
+                    self.logger.warning(
+                        f"代理请求失败 ({used_proxy}), 正在尝试直连: {request.url} | 错误: {repr(proxy_error)} | 状态: 502 Bad Gateway 或类似代理网关错误"
+                    )
+                    # 关闭失败的临时客户端
+                    await temp_client.aclose()
+                    temp_client = None  # 防止 finally 再次关闭
+
+                    # 切换到主客户端（直连）
+                    effective_client = self._client
+                    # 再次尝试发送请求
+                    try:
+                        httpx_response = await effective_client.request(**kwargs)
+                    except Exception as direct_error:
+                        self.logger.error(f"Direct connection also failed for {request.url}: {repr(direct_error)}")
+                        return None
+                else:
+                    # 直连时出现代理错误（不太可能，但以防万一）
+                    self.logger.error(f"Proxy connection failed for {request.url}: {repr(proxy_error)}")
                     return None
 
             # --- 6. 安全检查：防止大响应体 ---

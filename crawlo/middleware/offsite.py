@@ -105,10 +105,11 @@ class OffsiteMiddleware:
             except:
                 self.stats.inc_value('offsite_request_count/invalid_url')
             
-            self.logger.debug(f"过滤站外请求: {request.url}")
+            self.logger.info(f"过滤站外请求: {request.url}")
             
             # 抛出异常以忽略该请求
-            raise IgnoreRequestError(f"站外请求被过滤: {request.url}")
+            # 优化：只包含原因，避免每个URL产生独立统计项
+            raise IgnoreRequestError("站外请求被过滤")
             
         return None
 
