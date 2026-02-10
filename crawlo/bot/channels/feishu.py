@@ -167,7 +167,7 @@ class FeishuChannel(NotificationChannel):
         # 根据通知类型选择消息格式
         if message.notification_type.value == "alert":
             # 告警类型使用富文本格式
-            content = f"🚨【CRAWLO-ALERT】{message.title}\n\n{message.content}"
+            content = f"🚨【Crawlo-Alert】{message.title}\n\n{message.content}"
             if at_part:
                 content = at_part + content
             return {
@@ -190,7 +190,7 @@ class FeishuChannel(NotificationChannel):
             }
         elif message.notification_type.value == "progress":
             # 进度类型使用富文本格式
-            content = f"📊【CRAWLO-PROGRESS】{message.title}\n\n{message.content}"
+            content = f"📊【Crawlo-Progress】{message.title}\n\n{message.content}"
             if at_part:
                 content = at_part + content
             return {
@@ -213,7 +213,7 @@ class FeishuChannel(NotificationChannel):
             }
         else:
             # 其他类型使用文本格式
-            content = f"📢【CRAWLO-{message.notification_type.value.upper()}】{message.title}\n\n{message.content}"
+            content = f"📢【Crawlo-{message.notification_type.value.title()}】{message.title}\n\n{message.content}"
             if at_part:
                 content = at_part + content
             return {

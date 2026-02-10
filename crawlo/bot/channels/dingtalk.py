@@ -162,7 +162,7 @@ class DingTalkChannel(NotificationChannel):
         # 根据通知类型选择消息格式
         if message.notification_type.value == "alert":
             # 告警类型使用 markdown 格式突出显示
-            content = f"{keyword_prefix}🚨【CRAWLO-ALERT】{message.title}\n\n{message.content}"
+            content = f"{keyword_prefix}🚨【Crawlo-Alert】{message.title}\n\n{message.content}"
             msg_dict = {
                 "msgtype": "markdown",
                 "markdown": {
@@ -172,7 +172,7 @@ class DingTalkChannel(NotificationChannel):
             }
         else:
             # 其他类型使用文本格式
-            content = f"{keyword_prefix}📢【CRAWLO-{message.notification_type.value.upper()}】{message.title}\n\n{message.content}"
+            content = f"{keyword_prefix}📢【Crawlo-{message.notification_type.value.title()}】{message.title}\n\n{message.content}"
             msg_dict = {
                 "msgtype": "text",
                 "text": {

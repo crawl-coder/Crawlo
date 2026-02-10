@@ -161,7 +161,7 @@ class WeComChannel(NotificationChannel):
         # 根据通知类型选择消息格式
         if message.notification_type.value == "alert":
             # 告警类型使用 markdown 格式突出显示
-            content = f"{at_part}🚨【CRAWLO-ALERT】{message.title}\n\n{message.content}"
+            content = f"{at_part}🚨【Crawlo-Alert】{message.title}\n\n{message.content}"
             return {
                 "msgtype": "markdown",
                 "markdown": {
@@ -170,7 +170,7 @@ class WeComChannel(NotificationChannel):
             }
         elif message.notification_type.value == "progress":
             # 进度类型使用 markdown 格式
-            content = f"{at_part}📊【CRAWLO-PROGRESS】{message.title}\n\n{message.content}"
+            content = f"{at_part}📊【Crawlo-Progress】{message.title}\n\n{message.content}"
             return {
                 "msgtype": "markdown",
                 "markdown": {
@@ -179,7 +179,7 @@ class WeComChannel(NotificationChannel):
             }
         else:
             # 其他类型使用文本格式
-            content = f"{at_part}📢【CRAWLO-{message.notification_type.value.upper()}】{message.title}\n\n{message.content}"
+            content = f"{at_part}📢【Crawlo-{message.notification_type.value.title()}】{message.title}\n\n{message.content}"
             return {
                 "msgtype": "text",
                 "text": {
