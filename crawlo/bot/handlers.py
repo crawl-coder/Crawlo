@@ -26,6 +26,25 @@ class CrawlerNotificationHandler:
     
     def __init__(self):
         self.notifier = get_notifier()
+        self._enabled = self._check_enabled()
+    
+    def _check_enabled(self) -> bool:
+        """检查通知系统是否启用"""
+        try:
+            from crawlo.config import get_config
+            config = get_config()
+            return getattr(config, 'NOTIFICATION_ENABLED', False)
+        except Exception:
+            return False
+    
+    def _send_if_enabled(self, message: NotificationMessage) -> NotificationResponse:
+        """如果通知系统启用则发送，否则返回跳过的响应"""
+        if not self._enabled:
+            return NotificationResponse.success_response("通知系统已禁用")
+        
+        # 确保配置已加载
+        ensure_config_loaded()
+        return self.notifier.send_notification(message)
     
     def send_status_notification(
         self, 
@@ -48,9 +67,6 @@ class CrawlerNotificationHandler:
         Returns:
             通知响应
         """
-        # 确保配置已加载
-        ensure_config_loaded()
-        
         message = NotificationMessage(
             channel=channel.value,
             notification_type=NotificationType.STATUS,
@@ -60,7 +76,7 @@ class CrawlerNotificationHandler:
             recipients=recipients or [],
         )
         
-        return self.notifier.send_notification(message)
+        return self._send_if_enabled(message)
     
     def send_alert_notification(
         self, 
@@ -83,9 +99,6 @@ class CrawlerNotificationHandler:
         Returns:
             通知响应
         """
-        # 确保配置已加载
-        ensure_config_loaded()
-        
         message = NotificationMessage(
             channel=channel.value,
             notification_type=NotificationType.ALERT,
@@ -95,7 +108,7 @@ class CrawlerNotificationHandler:
             recipients=recipients or [],
         )
         
-        return self.notifier.send_notification(message)
+        return self._send_if_enabled(message)
     
     def send_progress_notification(
         self, 
@@ -118,9 +131,6 @@ class CrawlerNotificationHandler:
         Returns:
             通知响应
         """
-        # 确保配置已加载
-        ensure_config_loaded()
-        
         message = NotificationMessage(
             channel=channel.value,
             notification_type=NotificationType.PROGRESS,
@@ -130,7 +140,7 @@ class CrawlerNotificationHandler:
             recipients=recipients or [],
         )
         
-        return self.notifier.send_notification(message)
+        return self._send_if_enabled(message)
     
     def send_data_notification(
         self, 
@@ -162,7 +172,7 @@ class CrawlerNotificationHandler:
             recipients=recipients or [],
         )
         
-        return self.notifier.send_notification(message)
+        return self._send_if_enabled(message)
 
 
 # 全局通知处理器实例
