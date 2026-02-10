@@ -129,10 +129,20 @@ def get_notifier() -> NotificationDispatcher:
         # 创建通知器
         _notifier = NotificationDispatcher()
         
-        # 自动注册所有渠道
-        from crawlo.bot.channels import ALL_CHANNELS
-        for channel_class in ALL_CHANNELS:
-            _notifier.register_channel(channel_class())
+        # 自动注册所有渠道（使用单例函数获取实例）
+        from crawlo.bot.channels import (
+            get_dingtalk_channel,
+            get_feishu_channel,
+            get_wecom_channel,
+            get_email_channel,
+            get_sms_channel,
+        )
+        
+        _notifier.register_channel(get_dingtalk_channel())
+        _notifier.register_channel(get_feishu_channel())
+        _notifier.register_channel(get_wecom_channel())
+        _notifier.register_channel(get_email_channel())
+        _notifier.register_channel(get_sms_channel())
         
         logger.info(f"[Notifier] 初始化完成，已注册 {len(_notifier._channels)} 个渠道")
     
