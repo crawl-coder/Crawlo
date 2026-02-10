@@ -160,16 +160,16 @@ SCHEDULER_RESOURCE_LEAK_THRESHOLD = 3600   # 资源泄露检测阈值（秒）
 # =================================== 附加监控配置 ===================================
 
 # 启用MySQL监控（用于测试）
-MYSQL_MONITOR_ENABLED = True
-MYSQL_MONITOR_INTERVAL = 60  # MySQL监控间隔（秒）
+MYSQL_MONITOR_ENABLED = False
+MYSQL_MONITOR_INTERVAL = 300  # MySQL监控间隔（秒）
 
 # 启用Redis监控（用于测试）
-REDIS_MONITOR_ENABLED = True
-REDIS_MONITOR_INTERVAL = 60  # Redis监控间隔（秒）
+REDIS_MONITOR_ENABLED = False
+REDIS_MONITOR_INTERVAL = 300  # Redis监控间隔（秒）
 
 # 启用内存监控（用于测试）
-MEMORY_MONITOR_ENABLED = True
-MEMORY_MONITOR_INTERVAL = 60  # 内存监控检查间隔（秒）
+MEMORY_MONITOR_ENABLED = False
+MEMORY_MONITOR_INTERVAL = 300  # 内存监控检查间隔（秒）
 MEMORY_WARNING_THRESHOLD = 80.0  # 内存使用率警告阈值（百分比）
 MEMORY_CRITICAL_THRESHOLD = 90.0  # 内存使用率严重阈值（百分比）
 

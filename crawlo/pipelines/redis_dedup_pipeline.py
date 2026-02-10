@@ -18,7 +18,7 @@ import redis.asyncio as aioredis
 from crawlo.logging import get_logger
 from crawlo.pipelines.base_pipeline import DedupPipeline
 from crawlo.spider import Spider
-from crawlo.utils.redis_manager import RedisKeyManager
+from crawlo.utils.redis_manager import RedisKeyManager, get_redis_pool
 
 
 class RedisDedupPipeline(DedupPipeline):
