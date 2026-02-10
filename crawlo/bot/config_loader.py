@@ -116,10 +116,46 @@ def load_notification_config(settings: Optional[dict] = None):
         logger.exception(e)
 
 
+def _get_settings_module_from_cfg():
+    """
+    从 crawlo.cfg 文件中读取 settings 模块路径
+    
+    Returns:
+        settings 模块路径，如果未找到则返回 None
+    """
+    import os
+    import configparser
+    
+    # 获取当前工作目录
+    current_dir = os.getcwd()
+    cfg_path = os.path.join(current_dir, 'crawlo.cfg')
+    
+    # 检查 crawlo.cfg 是否存在
+    if os.path.exists(cfg_path):
+        try:
+            config = configparser.ConfigParser()
+            config.read(cfg_path, encoding='utf-8')
+            
+            # 读取 [settings] 部分的 default 键
+            if 'settings' in config and 'default' in config['settings']:
+                settings_path = config['settings']['default'].strip()
+                if settings_path:
+                    logger.debug(f"[ConfigLoader] 从 crawlo.cfg 读取到 settings 路径: {settings_path}")
+                    return settings_path
+        except Exception as e:
+            logger.warning(f"[ConfigLoader] 读取 crawlo.cfg 失败: {e}")
+    
+    return None
+
+
 def apply_settings_config():
     """
     应用 settings.py 中的配置到通知系统
     这是一个便捷函数，用于直接从 settings 模块加载配置
+    
+    加载顺序：
+    1. 首先尝试从 crawlo.cfg 读取 settings 路径
+    2. 如果失败，尝试常见的 settings 模块路径
     """
     try:
         # 尝试导入项目 settings
@@ -129,16 +165,22 @@ def apply_settings_config():
         # 获取当前工作目录
         current_dir = os.getcwd()
         
-        # 尝试常见的 settings 模块路径
-        possible_settings_paths = [
+        # 首先尝试从 crawlo.cfg 读取 settings 路径
+        settings_paths = []
+        cfg_settings = _get_settings_module_from_cfg()
+        if cfg_settings:
+            settings_paths.append(cfg_settings)
+        
+        # 添加常见的 settings 模块路径作为备选
+        settings_paths.extend([
             'settings',
             'ofweek_standalone.settings',
             'crawlo.settings',
-        ]
+        ])
         
         settings_dict = {}
         
-        for settings_path in possible_settings_paths:
+        for settings_path in settings_paths:
             try:
                 settings_module = importlib.import_module(settings_path)
                 # 获取所有大写的配置项

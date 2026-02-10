@@ -46,7 +46,7 @@ class OfWeekSpiderWithNotifications(Spider):
         self.logger.info("爬虫启动通知已发送")
         
         # 原有的起始请求逻辑
-        max_pages = 10
+        max_pages = 2
         start_urls = []
         for page in range(1, max_pages + 1):
             url = f'https://ee.ofweek.com/CATList-2800-8100-ee-{page}.html'
