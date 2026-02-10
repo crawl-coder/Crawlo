@@ -25,8 +25,20 @@ _config_loaded = False
 def ensure_config_loaded():
     """
     确保配置已加载，如果未加载则立即加载
+    
+    注意：每次都会检查渠道实例是否有配置，如果没有则重新加载
     """
     global _config_loaded
+    
+    # 检查钉钉渠道是否已有配置
+    try:
+        dingtalk_channel = get_dingtalk_channel()
+        if not dingtalk_channel.webhook_url:
+            # 渠道没有配置，需要重新加载
+            _config_loaded = False
+    except Exception:
+        _config_loaded = False
+    
     if not _config_loaded:
         apply_settings_config()
         _config_loaded = True
