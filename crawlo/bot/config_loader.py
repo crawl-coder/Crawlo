@@ -6,16 +6,15 @@
 
 从框架配置中加载通知系统相关配置并应用到各渠道。
 """
-
-import logging
 from typing import Optional
 
+from crawlo.logging import get_logger
 from crawlo.bot.notifier import get_notifier
 from crawlo.bot.channels.dingtalk import get_dingtalk_channel
 from crawlo.bot.channels.feishu import get_feishu_channel
 from crawlo.bot.channels.wecom import get_wecom_channel
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 # 全局配置加载状态

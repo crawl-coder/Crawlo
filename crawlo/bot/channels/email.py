@@ -8,17 +8,17 @@
 """
 
 import smtplib
-import logging
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from email.header import Header
 from typing import Dict, Any, Optional
 
+from crawlo.logging import get_logger
 from crawlo.bot.channels.base import NotificationChannel
 from crawlo.bot.models import NotificationMessage, NotificationResponse, ChannelType
 
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class EmailChannel(NotificationChannel):

@@ -7,16 +7,16 @@
 负责解析命令、匹配处理器、分发执行。
 """
 
-import logging
 import time
 from collections import defaultdict
 from typing import Dict, List, Optional, Type, Callable
 
+from crawlo.logging import get_logger
 from crawlo.bot.models import BotMessage, BotResponse
 from crawlo.bot.commands.base import BotCommand
 
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class RateLimiter:

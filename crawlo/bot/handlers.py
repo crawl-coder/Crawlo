@@ -7,14 +7,14 @@
 处理各种爬虫事件的通知需求。
 """
 
-import logging
 from typing import Dict, Any, Optional
 
+from crawlo.logging import get_logger
 from crawlo.bot.models import NotificationMessage, NotificationResponse, NotificationType, ChannelType
 from crawlo.bot.notifier import get_notifier
 from crawlo.bot.config_loader import apply_settings_config, ensure_config_loaded
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class CrawlerNotificationHandler:

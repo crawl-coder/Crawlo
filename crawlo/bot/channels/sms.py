@@ -7,14 +7,14 @@
 处理发送短信通知消息。
 """
 
-import logging
 from typing import Dict, Any, Optional
 
+from crawlo.logging import get_logger
 from crawlo.bot.channels.base import NotificationChannel
 from crawlo.bot.models import NotificationMessage, NotificationResponse, ChannelType
 
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class SmsChannel(NotificationChannel):

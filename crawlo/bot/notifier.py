@@ -7,13 +7,13 @@
 负责分发通知到对应的渠道处理器。
 """
 
-import logging
 from typing import Dict, List, Optional, Type, Callable
 
+from crawlo.logging import get_logger
 from crawlo.bot.models import NotificationMessage, NotificationResponse, ChannelType
 
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class NotificationDispatcher:

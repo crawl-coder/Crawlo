@@ -11,15 +11,15 @@ import hashlib
 import hmac
 import base64
 import time
-import logging
 from typing import Dict, Any, Optional
 import requests
 
+from crawlo.logging import get_logger
 from crawlo.bot.channels.base import NotificationChannel
 from crawlo.bot.models import NotificationMessage, NotificationResponse, ChannelType
 
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class DingTalkChannel(NotificationChannel):
