@@ -26,8 +26,6 @@ class CrawlerNotificationHandler:
     
     def __init__(self):
         self.notifier = get_notifier()
-        # 自动加载配置
-        apply_settings_config()
     
     def send_status_notification(
         self, 

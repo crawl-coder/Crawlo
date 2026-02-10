@@ -29,8 +29,6 @@ class ChannelType(str, Enum):
     WECOM = "wecom"            # 企业微信
     EMAIL = "email"            # 邮件
     SMS = "sms"                # 短信
-    TELEGRAM = "telegram"      # Telegram
-    SLACK = "slack"            # Slack
 
 
 @dataclass
