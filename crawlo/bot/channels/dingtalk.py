@@ -160,19 +160,28 @@ class DingTalkChannel(NotificationChannel):
             keyword_prefix = f"{self.keywords[0]} "  # 使用第一个关键词
         
         # 根据通知类型选择消息格式
+        type_emoji = {
+            "alert": "🚨",
+            "progress": "📊",
+            "status": "🚀",
+            "data": "📦",
+        }.get(message.notification_type.value, "📢")
+        
+        type_label = message.notification_type.value.title()
+        
         if message.notification_type.value == "alert":
             # 告警类型使用 markdown 格式突出显示
-            content = f"{keyword_prefix}🚨【Crawlo-Alert】{message.title}\n\n{message.content}"
+            content = f"{keyword_prefix}**{type_emoji} Crawlo-{type_label}**\n\n**{message.title}**\n\n{message.content}"
             msg_dict = {
                 "msgtype": "markdown",
                 "markdown": {
-                    "title": f"🚨 {message.title}",
+                    "title": f"{type_emoji} {message.title}",
                     "text": content
                 }
             }
         else:
             # 其他类型使用文本格式
-            content = f"{keyword_prefix}📢【Crawlo-{message.notification_type.value.title()}】{message.title}\n\n{message.content}"
+            content = f"{keyword_prefix}{type_emoji} Crawlo-{type_label} | {message.title}\n\n{message.content}"
             msg_dict = {
                 "msgtype": "text",
                 "text": {

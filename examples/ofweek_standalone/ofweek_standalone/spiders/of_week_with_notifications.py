@@ -35,7 +35,7 @@ class OfWeekSpiderWithNotifications(Spider):
         """生成初始请求 - 带启动通知"""
         # 发送爬虫启动通知
         response = send_crawler_status(
-            title="【启动】ofweek爬虫开始运行",
+            title="ofweek爬虫开始运行",
             content=f"爬虫任务 '{self.name}' 已启动，开始抓取 ofweek 新闻数据...",
             channel=ChannelType.DINGTALK
         )
@@ -73,7 +73,7 @@ class OfWeekSpiderWithNotifications(Spider):
                 
                 # 发送告警通知
                 alert_response = send_crawler_alert(
-                    title="【告警】页面访问失败",
+                    title="页面访问失败",
                     content=f"URL: {original_url}\n状态码: {original_status}\n已记录并继续处理其他请求",
                     channel=ChannelType.DINGTALK
                 )
@@ -94,7 +94,7 @@ class OfWeekSpiderWithNotifications(Spider):
             # 发送进度通知（每处理5个页面发送一次）
             if self.stats['total_requests'] % 5 == 0:
                 progress_response = send_crawler_progress(
-                    title="【进度】数据抓取进度",
+                    title="数据抓取进度",
                     content=f"已处理 {self.stats['total_requests']} 个页面，成功提取 {len(rows)} 条数据",
                     channel=ChannelType.DINGTALK
                 )
@@ -141,7 +141,7 @@ class OfWeekSpiderWithNotifications(Spider):
             
             # 发送严重错误告警
             alert_response = send_crawler_alert(
-                title="【严重告警】页面解析异常",
+                title="页面解析异常",
                 content=f"URL: {original_url}\n错误信息: {error_msg}\n请检查页面结构是否发生变化",
                 channel=ChannelType.DINGTALK
             )
@@ -186,7 +186,7 @@ class OfWeekSpiderWithNotifications(Spider):
             # 每成功处理100条数据发送一次进度通知
             if self.stats['successful_items'] % 100 == 0:
                 progress_response = send_crawler_progress(
-                    title="【数据统计】抓取进度更新",
+                    title="抓取进度更新",
                     content=f"累计成功抓取 {self.stats['successful_items']} 条数据\n失败请求: {self.stats['failed_requests']} 次",
                     channel=ChannelType.DINGTALK
                 )
@@ -206,9 +206,8 @@ class OfWeekSpiderWithNotifications(Spider):
         
         # 发送任务完成总结通知
         response = send_crawler_status(
-            title="【完成】ofweek爬虫任务总结",
-            content=f"""爬虫任务 '{self.name}' 已完成！
-📊 运行统计：
+            title="ofweek爬虫任务完成",
+            content=f"""📊 运行统计：
    • 总请求数: {self.stats['total_requests']}
    • 成功抓取: {self.stats['successful_items']} 条数据
    • 失败请求: {self.stats['failed_requests']} 次

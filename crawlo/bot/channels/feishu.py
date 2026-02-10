@@ -165,9 +165,18 @@ class FeishuChannel(NotificationChannel):
                 at_part += f"<at mobile=\"{mobile}\">{mobile}</at> "
 
         # 根据通知类型选择消息格式
-        if message.notification_type.value == "alert":
-            # 告警类型使用富文本格式
-            content = f"🚨【Crawlo-Alert】{message.title}\n\n{message.content}"
+        type_emoji = {
+            "alert": "🚨",
+            "progress": "📊",
+            "status": "🚀",
+            "data": "📦",
+        }.get(message.notification_type.value, "📢")
+        
+        type_label = message.notification_type.value.title()
+        
+        if message.notification_type.value in ("alert", "progress"):
+            # 告警和进度类型使用富文本格式
+            content = f"{type_emoji} Crawlo-{type_label} | {message.title}\n\n{message.content}"
             if at_part:
                 content = at_part + content
             return {
@@ -175,30 +184,7 @@ class FeishuChannel(NotificationChannel):
                 "content": {
                     "post": {
                         "zh_cn": {
-                            "title": f"🚨 {message.title}",
-                            "content": [
-                                [
-                                    {
-                                        "tag": "text",
-                                        "text": content
-                                    }
-                                ]
-                            ]
-                        }
-                    }
-                }
-            }
-        elif message.notification_type.value == "progress":
-            # 进度类型使用富文本格式
-            content = f"📊【Crawlo-Progress】{message.title}\n\n{message.content}"
-            if at_part:
-                content = at_part + content
-            return {
-                "msg_type": "post",
-                "content": {
-                    "post": {
-                        "zh_cn": {
-                            "title": f"📊 {message.title}",
+                            "title": f"{type_emoji} {message.title}",
                             "content": [
                                 [
                                     {
@@ -213,7 +199,7 @@ class FeishuChannel(NotificationChannel):
             }
         else:
             # 其他类型使用文本格式
-            content = f"📢【Crawlo-{message.notification_type.value.title()}】{message.title}\n\n{message.content}"
+            content = f"{type_emoji} Crawlo-{type_label} | {message.title}\n\n{message.content}"
             if at_part:
                 content = at_part + content
             return {
