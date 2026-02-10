@@ -170,17 +170,17 @@ class DingTalkChannel(NotificationChannel):
         
         if message.notification_type.value == "alert":
             # 告警类型使用 markdown 格式突出显示
-            content = f"{keyword_prefix}**{type_emoji} Crawlo-{type_label}**\n\n**{message.title}**\n\n{message.content}"
+            content = f"{keyword_prefix}**{message.title}**\n\n{message.content}"
             msg_dict = {
                 "msgtype": "markdown",
                 "markdown": {
-                    "title": f"{type_emoji} {message.title}",
+                    "title": f"{message.title}",
                     "text": content
                 }
             }
         else:
             # 其他类型使用文本格式
-            content = f"{keyword_prefix}{type_emoji} Crawlo-{type_label} | {message.title}\n\n{message.content}"
+            content = f"{keyword_prefix}{message.title}\n\n{message.content}"
             msg_dict = {
                 "msgtype": "text",
                 "text": {

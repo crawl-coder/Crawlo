@@ -1,8 +1,8 @@
-# ofweek_standalone 通知系统使用指南
+# Crawlo 通知系统综合指南
 
 ## 🎯 概述
 
-本文档介绍如何在 `ofweek_standalone` 项目中使用 Crawlo 通知系统，特别是钉钉通知功能。
+Crawlo 通知系统提供了一套完整的消息发送和管理功能，支持多种通知渠道和丰富的模板系统。
 
 ## 📋 配置说明
 
@@ -35,7 +35,7 @@ DINGTALK_IS_AT_ALL = False
 
 ### 1. 基础通知使用
 
-```python
+```
 from crawlo.bot.handlers import send_crawler_status, send_crawler_alert, send_crawler_progress
 from crawlo.bot.models import ChannelType
 
@@ -107,7 +107,7 @@ class OfWeekSpiderWithNotifications(Spider):
 
 ### 通知频率控制：
 
-```python
+```
 # 建议的发送频率
 if self.processed_items % 100 == 0:  # 每100条数据发送一次进度通知
     await send_progress_notification()
@@ -120,7 +120,7 @@ if error_count > threshold:  # 错误超过阈值时发送告警
 
 ### 1. @ 功能使用
 
-```python
+```
 # @ 特定手机号
 DINGTALK_AT_MOBILES = ["15361276730"]
 
@@ -133,12 +133,26 @@ DINGTALK_AT_USERIDS = ["user123"]
 
 ### 2. 重试机制
 
-```python
+```
 # 通知发送失败时自动重试
 NOTIFICATION_RETRY_ENABLED = True
 NOTIFICATION_RETRY_TIMES = 3
 NOTIFICATION_RETRY_DELAY = 5  # 秒
 ```
+
+## 📚 详细文档
+
+关于模板系统、资源监控模板和消息去重功能的详细使用方法，请参见：
+
+- [模板和通知系统综合指南](template_and_notification_guide.md)
+
+该文档包含了：
+- 通用消息模板使用方法
+- 资源监控模板（MySQL、Redis、MongoDB）
+- 消息去重功能
+- 模板参数查询
+- 枚举使用方式
+- 通知格式优化说明
 
 ## 📝 最佳实践
 
@@ -150,7 +164,7 @@ NOTIFICATION_RETRY_DELAY = 5  # 秒
 
 ### 2. 错误处理
 
-```python
+```
 try:
     # 爬虫逻辑
     pass
@@ -173,7 +187,7 @@ except Exception as e:
 
 执行以下命令查看通知功能演示：
 
-```bash
+```
 cd examples/ofweek_standalone
 python ofweek_standalone/notification_demo.py
 ```
@@ -199,11 +213,11 @@ python ofweek_standalone/notification_demo.py
 
 ### 调试建议：
 
-```python
+```
 # 查看详细响应信息
 response = await send_crawler_status(...)
 print(f"发送结果: {response.success}")
 print(f"错误信息: {response.error}")
 ```
 
-通过以上配置和使用方法，您就可以在 ofweek_standalone 项目中有效地使用 Crawlo 通知系统了！
+通过以上配置和使用方法，您就可以在项目中有效地使用 Crawlo 通知系统了！

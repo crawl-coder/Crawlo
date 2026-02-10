@@ -156,11 +156,41 @@ OUTPUT_DIR = 'output'
 # PROXY_API_URL = "http://your-proxy-api.com/get-proxy"
 
 # =================================== 通知系统配置 ===================================
+# 通知系统默认禁用，如需启用请取消注释并配置相关参数
 # 
-# # 启用通知系统 - 用户需手动取消注释以启用
-# NOTIFICATION_ENABLED = False  # 启用通知系统
-# NOTIFICATION_CHANNELS = []  # 启用的通知渠道列表，例如 ['dingtalk', 'feishu', 'wecom', 'email', 'sms']
+NOTIFICATION_ENABLED = False  # 启用通知系统 - 默认禁用
+NOTIFICATION_CHANNELS = []  # 启用的通知渠道列表，例如 ['dingtalk', 'feishu', 'wecom', 'email', 'sms']
 # 
+# 钉钉通知配置示例：
+# DINGTALK_WEBHOOK = "https://oapi.dingtalk.com/robot/send?access_token=your_token"
+# DINGTALK_SECRET = "your_secret"  # 可选
+# DINGTALK_KEYWORDS = ["爬虫"]  # 可选
+# DINGTALK_AT_MOBILES = ["13800138000"]  # 可选，需要@的手机号
+# DINGTALK_IS_AT_ALL = False  # 可选，是否@所有人
+# 
+# 飞书通知配置示例：
+# FEISHU_WEBHOOK = "https://open.feishu.cn/open-apis/bot/v2/hook/your_webhook"
+# FEISHU_SECRET = "your_secret"  # 可选
+# 
+# 企业微信通知配置示例：
+# WECOM_WEBHOOK = "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=your_key"
+# WECOM_MENTIONED_LIST = ["user_id1", "user_id2"]  # 可选
+# WECOM_MENTIONED_MOBILE_LIST = ["13800138000"]  # 可选
+# 
+# 邮件通知配置示例：
+# EMAIL_HOST = "smtp.example.com"
+# EMAIL_PORT = 587
+# EMAIL_USERNAME = "your_email@example.com"
+# EMAIL_PASSWORD = "your_password"
+# EMAIL_RECIPIENTS = ["recipient@example.com"]
+# 
+# 短信通知配置示例：
+# SMS_ACCESS_KEY_ID = "your_access_key_id"
+# SMS_ACCESS_KEY_SECRET = "your_access_key_secret"
+# SMS_SIGN_NAME = "签名名称"
+# SMS_TEMPLATE_CODE = "SMS_123456789"
+# SMS_PHONE_NUMBERS = ["13800138000"]
+
 # # 钉钉通知配置
 # # DINGTALK_WEBHOOK = "https://oapi.dingtalk.com/robot/send?access_token=YOUR_TOKEN"  # 钉钉机器人 Webhook 地址
 # # DINGTALK_SECRET = "SECxxx"   # 钉钉机器人密钥（可选，用于加签）

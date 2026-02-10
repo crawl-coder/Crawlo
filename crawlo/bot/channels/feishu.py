@@ -176,7 +176,7 @@ class FeishuChannel(NotificationChannel):
         
         if message.notification_type.value in ("alert", "progress"):
             # 告警和进度类型使用富文本格式
-            content = f"{type_emoji} Crawlo-{type_label} | {message.title}\n\n{message.content}"
+            content = f"{message.title}\n\n{message.content}"
             if at_part:
                 content = at_part + content
             return {
@@ -184,7 +184,7 @@ class FeishuChannel(NotificationChannel):
                 "content": {
                     "post": {
                         "zh_cn": {
-                            "title": f"{type_emoji} {message.title}",
+                            "title": f"{message.title}",
                             "content": [
                                 [
                                     {
@@ -199,7 +199,7 @@ class FeishuChannel(NotificationChannel):
             }
         else:
             # 其他类型使用文本格式
-            content = f"{type_emoji} Crawlo-{type_label} | {message.title}\n\n{message.content}"
+            content = f"{message.title}\n\n{message.content}"
             if at_part:
                 content = at_part + content
             return {

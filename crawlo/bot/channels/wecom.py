@@ -170,7 +170,7 @@ class WeComChannel(NotificationChannel):
         
         if message.notification_type.value in ("alert", "progress"):
             # 告警和进度类型使用 markdown 格式
-            content = f"{at_part}**{type_emoji} Crawlo-{type_label}**\n\n**{message.title}**\n\n{message.content}"
+            content = f"{at_part}**{message.title}**\n\n{message.content}"
             return {
                 "msgtype": "markdown",
                 "markdown": {
@@ -179,7 +179,7 @@ class WeComChannel(NotificationChannel):
             }
         else:
             # 其他类型使用文本格式
-            content = f"{at_part}{type_emoji} Crawlo-{type_label} | {message.title}\n\n{message.content}"
+            content = f"{at_part}{message.title}\n\n{message.content}"
             return {
                 "msgtype": "text",
                 "text": {
