@@ -5,6 +5,13 @@ Crawlo 配置工厂
 ===============
 提供优雅的配置方式，让用户能够轻松选择运行模式。
 
+配置加载优先级（从低到高）：
+    1. default_settings.py (框架默认配置)
+    2. settings.py (用户项目配置)
+    3. RUN_MODE 决定的配置（standalone/distributed/auto）
+    4. custom_settings (运行时自定义配置 - 最高优先级)
+    5. 环境变量（可覆盖部分配置）
+
 使用示例：
     # 单机模式（默认）
     config = CrawloConfig.standalone()
