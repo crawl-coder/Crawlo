@@ -5,6 +5,8 @@ from collections import defaultdict
 from inspect import iscoroutinefunction
 from typing import Dict, Callable, Coroutine, Any, TypeAlias, List, Tuple
 
+from crawlo.logging import get_logger
+
 
 class ReceiverTypeError(TypeError):
     """当订阅的接收者不是一个协程函数时抛出。"""
@@ -98,33 +100,46 @@ class Subscriber:
     async def notify(self, event: str, *args, **kwargs) -> List[Any]:
         """
         异步地、并发地通知所有订阅了该事件的接收者。
-
+    
         此方法会等待所有订阅者任务完成后再返回，并收集所有结果或异常。
         订阅者按优先级顺序执行，优先级高的先执行。
-
+    
         Args:
             event: 要触发的事件名称。
             *args: 传递给接收者的位置参数。
             **kwargs: 传递给接收者的关键字参数。
-
+    
         Returns:
             一个列表，包含每个订阅者任务的返回结果或在执行期间捕获的异常。
         """
+        logger = get_logger(self.__class__.__name__)
+        
         sorted_subscribers = self._get_sorted_subscribers(event)
+        logger.debug(f"[{event}] 订阅者数量：{len(sorted_subscribers)}")
         if not sorted_subscribers:
+            logger.debug(f"[{event}] 没有订阅者")
             return []
-
+        
         # 为频繁触发的事件重用任务对象以提高性能
         tasks = []
-        for receiver, _ in sorted_subscribers:
+        for receiver, priority in sorted_subscribers:
             try:
                 # 创建任务并添加到列表
                 task = asyncio.create_task(receiver(*args, **kwargs))
                 tasks.append(task)
             except Exception as e:
                 # 如果创建任务失败，记录异常并继续处理其他订阅者
-                tasks.append(asyncio.Future())  # 添加一个已完成的Future表示错误
+                logger.warning(f"订阅者 {receiver.__name__} 执行失败: {e}")
+                tasks.append(asyncio.Future())
                 tasks[-1].set_exception(e)
-
+        
         # 并发执行所有任务并返回结果列表（包括异常）
-        return await asyncio.gather(*tasks, return_exceptions=True)
+        logger.debug(f"等待 {len(tasks)} 个任务完成")
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+        logger.debug(f"任务完成，结果数量：{len(results)}")
+        for i, (task, result) in enumerate(zip(tasks, results)):
+            if isinstance(result, Exception):
+                logger.error(f"任务{i}异常：{result}")
+            else:
+                logger.debug(f"任务{i}完成：{result}")
+        return results

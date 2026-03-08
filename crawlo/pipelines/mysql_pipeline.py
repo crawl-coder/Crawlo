@@ -8,11 +8,10 @@ from typing import List, Dict, Any, Optional, Tuple
 from crawlo.items import Item
 from crawlo.logging import get_logger
 from crawlo.exceptions import ItemDiscard
-from crawlo.utils.db_helper import SQLBuilder
+from crawlo.utils.sql_builder import SQLBuilder
 from crawlo.utils.resource_manager import ResourceType
 from crawlo.utils.mysql_connection_pool import (
-    AiomysqlConnectionPoolManager,
-    AsyncmyConnectionPoolManager,
+    MySQLConnectionPoolManager,
     is_pool_active
 )
 from . import ResourceManagedPipeline
@@ -30,22 +29,25 @@ class BaseMySQLPipeline(ResourceManagedPipeline, ABC):
         self.settings = crawler.settings
         self.logger = get_logger(self.__class__.__name__)
 
-        # 记录管道初始化
-        self.logger.debug(f"MySQL管道初始化完成: {self.__class__.__name__}")
+        # 初始化配置
+        self._init_config()
+        
+        # 记录管道初始化完成（合并配置信息）
+        self.logger.info(
+            f"MySQL 管道初始化完成 - "
+            f"表名={self.table_name}, 批量大小={self.batch_size}, "
+            f"主机={self.settings.get('MYSQL_HOST', 'localhost')}, "
+            f"数据库={self.settings.get('MYSQL_DB', 'scrapy_db')}"
+        )
 
         # 使用异步锁和初始化标志确保线程安全
         self._pool_lock = asyncio.Lock()
         self._pool_initialized = False
         self.pool = None
         
-        # 初始化配置
-        self._init_config()
-        
         # 批量插入相关
         self.batch_buffer: List[Dict] = []  # 批量缓冲区
         self._batch_timer_handle = None  # 定时刷新处理器
-        
-
         
         # 新增配置项
         self.batch_timeout = self.settings.get_int('MYSQL_BATCH_TIMEOUT', 120)  # 批量操作超时时间，默认120秒
@@ -65,8 +67,8 @@ class BaseMySQLPipeline(ResourceManagedPipeline, ABC):
         # 健康检查相关
         self._health_check_timer_handle = None  # 健康检查定时器
         
-        # 设置连接池类型标识
-        self.pool_type = 'asyncmy' if 'Asyncmy' in self.__class__.__name__ else 'aiomysql'
+        # 设置连接池类型标识（现在只有 asyncmy）
+        self.pool_type = 'asyncmy'
             
     def _init_config(self):
         """初始化配置项"""
@@ -137,7 +139,7 @@ class BaseMySQLPipeline(ResourceManagedPipeline, ABC):
                 return False
         
         return True
-            
+    
     @staticmethod
     def _is_pool_active(pool):
         """检查连接池是否活跃 - 统一处理 aiomysql 和 asyncmy 的差异
@@ -215,24 +217,18 @@ class BaseMySQLPipeline(ResourceManagedPipeline, ABC):
                         raise
                 if rowcount > 1:
                     self.logger.debug(
-                        f"爬虫 {spider_name} 成功插入 {rowcount} 条记录到表 {self.table_name}"
+                        f"成功插入 {rowcount} 条记录到表 {self.table_name}"
                     )
                 elif rowcount == 1:
-                    self.logger.debug(
-                        f"爬虫 {spider_name} 成功插入单条记录到表 {self.table_name}"
-                    )
+                    self.logger.debug(f"成功插入单条记录到表 {self.table_name}")
                 else:
                     # 当使用 MYSQL_UPDATE_COLUMNS 时，如果更新的字段值与现有记录相同，
                     # MySQL 不会实际更新任何数据，rowcount 会是 0
                     if self.update_columns:
-                        self.logger.debug(
-                            f"爬虫 {spider_name}: 数据已存在，{self.update_columns}字段未发生变化，无需更新"
-                        )
+                        self.logger.debug(f"数据已存在，{self.update_columns}字段未发生变化，无需更新")
                     else:
-                        # 优化：将单条插入的重复数据警告改为DEBUG级别
-                        self.logger.debug(
-                            f"爬虫 {spider_name}: SQL执行成功但未插入新记录（重复数据）"
-                        )
+                        # 优化：将单条插入的重复数据警告改为 DEBUG 级别
+                        self.logger.debug("SQL 执行成功但未插入新记录（重复数据）")
     
                 # 统计计数移到这里，与AiomysqlMySQLPipeline保持一致
                 self.crawler.stats.inc_value('mysql/insert_success')
@@ -263,11 +259,11 @@ class BaseMySQLPipeline(ResourceManagedPipeline, ABC):
                 if not self.pool:
                     raise RuntimeError("Database connection pool is not available")
                 
-                self.logger.debug(f"尝试获取数据库连接，当前连接池状态: active={self._is_pool_active(self.pool)}, 初始化={self._pool_initialized}")
-                
+                self.logger.debug(f"尝试获取数据库连接 (尝试 {attempt+1}/{max_retries})")
+                                
                 # 检查连接池是否活跃
                 if not self._is_pool_active(self.pool):
-                    self.logger.warning("Connection pool is closed, attempting to reinitialize")
+                    self.logger.warning("连接池已关闭，尝试重新初始化")
                     # 尝试重新初始化连接池
                     self._pool_initialized = False
                     await self._ensure_pool()
@@ -277,11 +273,11 @@ class BaseMySQLPipeline(ResourceManagedPipeline, ABC):
                 async with async_timeout.timeout(timeout):
                     self.logger.debug("正在获取连接...")
                     conn = await self.pool.acquire()
-                    self.logger.debug(f"成功获取连接，连接状态: active={self._is_conn_active(conn)}")
-
+                    self.logger.debug("成功获取数据库连接")
+                
                 # 检查连接是否仍然活跃
                 if not self._is_conn_active(conn):
-                    self.logger.warning("获取的连接已失效，可能需要重新获取")
+                    self.logger.warning("获取的连接已失效，将重新尝试")
                     if conn:
                         await self.pool.release(conn)
                     continue # 重试
@@ -409,6 +405,8 @@ class BaseMySQLPipeline(ResourceManagedPipeline, ABC):
 
     async def _flush_batch(self, spider_name: str):
         """刷新批量缓冲区并执行批量插入"""
+        self.logger.info(f"开始刷新批量数据，spider={spider_name}, 缓冲区大小={len(self.batch_buffer)}")
+        
         # 确保资源已初始化
         await self._ensure_initialized()
         
@@ -416,15 +414,18 @@ class BaseMySQLPipeline(ResourceManagedPipeline, ABC):
         # 先在锁外获取当前批次数据，避免长时间持有锁
         async with self._pool_lock:
             if not self.batch_buffer:
+                self.logger.debug("批量缓冲区为空，跳过刷新")
                 return
                 
             # 使用切片复制，避免引用同一对象；不立即清空，失败时可重试
             current_batch = self.batch_buffer[:]
             processed_count = len(current_batch)
+            self.logger.info(f"准备批量插入 {processed_count} 条记录到表 {self.table_name}")
             # 立即清空缓冲区，避免重复处理
             self.batch_buffer.clear()
         
         if not current_batch:  # 双重检查
+            self.logger.debug("批次数据为空，跳过")
             return
         
         try:
@@ -470,21 +471,16 @@ class BaseMySQLPipeline(ResourceManagedPipeline, ABC):
                 
                 if rowcount > 0:
                     self.logger.info(
-                        f"爬虫 {spider_name} 批量插入 {processed_count} 条记录到表 {self.table_name}，实际影响 {rowcount} 行"
+                        f"批量插入成功：{processed_count} 条记录到表 {self.table_name}，实际影响 {rowcount} 行"
                     )
                 else:
                     # 当使用 MYSQL_UPDATE_COLUMNS 时，如果更新的字段值与现有记录相同，
                     # MySQL 不会实际更新任何数据，rowcount 会是 0
                     if self.update_columns:
-                        self.logger.debug(
-                            f"爬虫 {spider_name}: 批量数据已存在，{self.update_columns}字段未发生变化，无需更新"
-                        )
+                        self.logger.debug(f"批量数据已存在，{self.update_columns}字段未发生变化，无需更新")
                     else:
-                        # 优化：将重复数据的警告改为DEBUG级别，减少日志污染
-                        # 只在DEBUG模式下记录详细信息
-                        self.logger.debug(
-                            f"爬虫 {spider_name}: 批量SQL执行完成但未插入新记录（全部为重复数据）"
-                        )
+                        # 优化：将重复数据的警告改为 DEBUG 级别，减少日志污染
+                        self.logger.debug("批量 SQL 执行完成但未插入新记录（全部为重复数据）")
 
                 self.crawler.stats.inc_value('mysql/batch_insert_success')
                 self.crawler.stats.inc_value('mysql/rows_requested', processed_count)
@@ -492,13 +488,13 @@ class BaseMySQLPipeline(ResourceManagedPipeline, ABC):
                 if self.insert_ignore and not self.update_columns and (rowcount or 0) < processed_count:
                     ignored_count = processed_count - (rowcount or 0)
                     self.crawler.stats.inc_value('mysql/rows_ignored_by_duplicate', ignored_count)
-                    # 优化：只在重复率超过50%时记录INFO日志
+                    # 优化：只在重复率超过 50% 时记录 INFO 日志
                     if ignored_count >= processed_count * 0.5:
                         self.logger.info(
-                            f"爬虫 {spider_name}: 批量处理 {processed_count} 条记录，其中 {ignored_count} 条为重复数据（重复率: {ignored_count/processed_count*100:.1f}%）"
+                            f"批量处理 {processed_count} 条记录，其中 {ignored_count} 条为重复数据（重复率：{ignored_count/processed_count*100:.1f}%）"
                         )
             else:
-                self.logger.warning(f"爬虫 {spider_name}: 批量数据为空，跳过插入")
+                self.logger.warning(f"批量数据为空，跳过插入")
                 # 如果没有数据要处理，重新将数据放回缓冲区
                 async with self._pool_lock:
                     self.batch_buffer.extend(current_batch)
@@ -667,36 +663,36 @@ class BaseMySQLPipeline(ResourceManagedPipeline, ABC):
     
     async def _initialize_resources(self):
         """初始化连接池资源并注册到资源管理器"""
-        self.logger.debug("开始初始化MySQL连接池资源...")
+        self.logger.info("开始初始化 MySQL 连接池资源...")
         # 确保连接池已初始化
         await self._ensure_pool()
         self.logger.debug("连接池初始化完成")
-        
+            
         # 根据配置决定是否检查表是否存在
         if self.check_table_exists:
             self.logger.debug("开始检查表是否存在...")
             await self._check_table_exists()
             self.logger.debug("表存在性检查完成")
-            
+                
         # 将连接池注册到资源管理器，以便在爬虫关闭时自动清理
         if self.pool:
             self.logger.debug(f"将{self.pool_type}连接池注册到资源管理器")
             self.register_resource(
                 resource=self.pool,
                 cleanup_func=self._close_pool,
-                resource_type=ResourceType.PIPELINE,  # 使用PIPELINE类型表示数据库连接池
+                resource_type=ResourceType.PIPELINE,  # 使用 PIPELINE 类型表示数据库连接池
                 name=f"mysql_{self.pool_type}_pool"
             )
-            
+                
         # 启动健康检查定时器（添加延迟确保连接池完全就绪）
-        self.logger.debug(f"等待3秒确保连接池完全就绪，然后启动健康检查定时器...")
-        await asyncio.sleep(3)  # 等待3秒确保连接池完全就绪
+        self.logger.debug("等待 3 秒确保连接池完全就绪，然后启动健康检查定时器...")
+        await asyncio.sleep(3)  # 等待 3 秒确保连接池完全就绪
         # await self._start_health_check_timer()  # 已禁用健康检查功能，避免在爬虫结束后继续运行
         # self.logger.debug("健康检查定时器已启动")
-            
+                
         # 调用父类的初始化方法
         await super()._initialize_resources()
-        self.logger.debug("MySQL管道资源初始化完成")
+        self.logger.info("MySQL 管道资源初始化完成")
         
     async def _close_pool(self, pool):
         """关闭连接池"""
@@ -710,7 +706,7 @@ class BaseMySQLPipeline(ResourceManagedPipeline, ABC):
         
     async def _cleanup_resources(self):
         """清理资源"""
-        self.logger.debug("开始清理MySQL管道资源...")
+        self.logger.debug("开始清理 MySQL 管道资源...")
         
         # 在关闭前强制刷新剩余的批量数据
         if self.use_batch and self.batch_buffer:
@@ -990,7 +986,7 @@ class BaseMySQLPipeline(ResourceManagedPipeline, ABC):
 
 
 
-class AsyncmyMySQLPipeline(BaseMySQLPipeline):
+class MySQLPipeline(BaseMySQLPipeline):
     """使用asyncmy库的MySQL管道实现"""
     
     _instance = None
@@ -998,7 +994,6 @@ class AsyncmyMySQLPipeline(BaseMySQLPipeline):
     
     def __init__(self, crawler):
         super().__init__(crawler)
-        self.logger.info(f"创建AsyncmyMySQLPipeline实例，配置信息 - 主机: {self.settings.get('MYSQL_HOST', 'localhost')}, 数据库: {self.settings.get('MYSQL_DB', 'scrapy_db')}, 表名: {self.table_name}")
 
     @classmethod
     async def from_crawler(cls, crawler):
@@ -1043,7 +1038,7 @@ class AsyncmyMySQLPipeline(BaseMySQLPipeline):
             if not self._pool_initialized:  # 双重检查避免竞争条件
                 try:
                     # 使用单例连接池管理器
-                    self.pool = await AsyncmyConnectionPoolManager.get_pool(
+                    self.pool = await MySQLConnectionPoolManager.get_pool(
                         host=self.settings.get('MYSQL_HOST', 'localhost'),
                         port=self.settings.get_int('MYSQL_PORT', 3306),
                         user=self.settings.get('MYSQL_USER', 'root'),
@@ -1064,85 +1059,6 @@ class AsyncmyMySQLPipeline(BaseMySQLPipeline):
                     self.pool = None
                     raise
 
-    # _execute_sql 和 _execute_batch_sql 方法继承自 BaseMySQLPipeline
-
 
     
-
-class AiomysqlMySQLPipeline(BaseMySQLPipeline):
-    """使用aiomysql库的MySQL管道实现"""
-    
-    _instance = None
-    _instance_lock = asyncio.Lock()
-    
-    def __init__(self, crawler):
-        super().__init__(crawler)
-        self.logger.info(f"创建AiomysqlMySQLPipeline实例，配置信息 - 主机: {self.settings.get('MYSQL_HOST', 'localhost')}, 数据库: {self.settings.get('MYSQL_DB', 'scrapy_db')}, 表名: {self.table_name}")
-
-    @classmethod
-    async def from_crawler(cls, crawler):
-        async with cls._instance_lock:
-            if cls._instance is None:
-                cls._instance = cls(crawler)
-            return cls._instance
-
-    async def _ensure_pool(self):
-        """延迟初始化连接池（线程安全）"""
-        # 检查事件循环是否已关闭
-        try:
-            loop = asyncio.get_event_loop()
-            if loop.is_closed():
-                self.logger.warning("当前事件循环已关闭，无法初始化连接池")
-                return
-        except RuntimeError:
-            # 没有运行中的事件循环
-            self.logger.warning("没有运行中的事件循环，无法初始化连接池")
-            return
-        
-        # 验证配置
-        if not self._validate_config():
-            raise ValueError("MySQL配置验证失败")
-        
-        if self._pool_initialized and self.pool and self._is_pool_active(self.pool):
-            return
-        elif self._pool_initialized and self.pool:
-            self.logger.warning("连接池已初始化但无效，重新初始化")
-
-        async with self._pool_lock:
-            # 再次检查事件循环状态
-            try:
-                loop = asyncio.get_event_loop()
-                if loop.is_closed():
-                    self.logger.warning("在获取锁后，事件循环已关闭，无法初始化连接池")
-                    return
-            except RuntimeError:
-                self.logger.warning("在获取锁后，没有运行中的事件循环，无法初始化连接池")
-                return
-                
-            if not self._pool_initialized:
-                try:
-                    # 使用单例连接池管理器
-                    self.pool = await AiomysqlConnectionPoolManager.get_pool(
-                        host=self.settings.get('MYSQL_HOST', 'localhost'),
-                        port=self.settings.get_int('MYSQL_PORT', 3306),
-                        user=self.settings.get('MYSQL_USER', 'root'),
-                        password=self.settings.get('MYSQL_PASSWORD', ''),
-                        db=self.settings.get('MYSQL_DB', 'scrapy_db'),
-                        minsize=self.settings.get_int('MYSQL_POOL_MIN', 3),
-                        maxsize=self.settings.get_int('MYSQL_POOL_MAX', 10),
-                        echo=self.settings.get_bool('MYSQL_ECHO', False)
-                    )
-                    self._pool_initialized = True
-                    self.logger.debug(
-                        f"MySQL连接池初始化完成（表: {self.table_name}, 使用全局共享连接池）"
-                    )
-                except Exception as e:
-                    self.logger.error(f"Aiomysql连接池初始化失败: {e}")
-                    # 重置状态以便重试
-                    self._pool_initialized = False
-                    self.pool = None
-                    raise
-
-    # _execute_sql 和 _execute_batch_sql 方法继承自 BaseMySQLPipeline
-
 

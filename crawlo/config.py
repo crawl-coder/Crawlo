@@ -147,8 +147,8 @@ class CrawloConfig:
             self: 支持链式调用
         """
         pipelines = self.get('PIPELINES', [])
-        if 'crawlo.pipelines.mysql_pipeline.AsyncmyMySQLPipeline' not in pipelines:
-            pipelines.append('crawlo.pipelines.mysql_pipeline.AsyncmyMySQLPipeline')
+        if 'crawlo.pipelines.mysql_pipeline.MySQLPipeline' not in pipelines:
+            pipelines.append('crawlo.pipelines.mysql_pipeline.MySQLPipeline')
         return self.set('PIPELINES', pipelines)
     
     def set_redis_host(self, host: str) -> 'CrawloConfig':

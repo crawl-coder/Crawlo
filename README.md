@@ -708,6 +708,81 @@ link = response.extract_attr('a', 'href')
 all_links = response.extract_attrs('a', 'href')
 ```
 
+### MySQLHelper 数据库操作工具
+
+Crawlo 提供了 `MySQLHelper` 工具类，用于在 Spider 中进行数据库操作（如数据去重检查）。
+
+#### 1. 基本用法
+
+```python
+from crawlo.utils.mysql_helper import get_mysql_helper
+
+class MySpider(Spider):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.db_helper = None
+    
+    async def parse_detail(self, response):
+        # 首次使用时初始化 MySQLHelper
+        if self.db_helper is None:
+            # 方式1: 直接传入 spider，自动获取配置（推荐）
+            self.db_helper = await get_mysql_helper(spider=self)
+            # 方式2: 手动传入 settings
+            # self.db_helper = await get_mysql_helper(self.crawler.settings)
+        
+        # 检查数据是否存在
+        table_name = self.crawler.settings.get('MYSQL_TABLE', 'my_table')
+        exists = await self.db_helper.exists(table_name, {"url": response.url})
+        
+        if exists:
+            self.logger.info(f"数据已存在，跳过：{response.url}")
+            return
+        
+        # 继续处理...
+```
+
+#### 2. 配置说明
+
+**方式一：通过 custom_settings 配置（推荐）**
+
+```python
+class MySpider(Spider):
+    name = 'my_spider'
+    
+    # 在 spider 中配置表名
+    custom_settings = {
+        'MYSQL_TABLE': 'my_table',  # 数据表名
+    }
+```
+
+**方式二：通过 settings.py 全局配置**
+
+```python
+# settings.py
+MYSQL_TABLE = 'my_table'
+```
+
+#### 3. 配置优先级
+
+```
+spider.custom_settings > settings.py > 默认值
+```
+
+#### 4. 连接池复用
+
+- `MySQLHelper` 每次调用会创建新实例
+- 但连接池由 `MySQLConnectionPoolManager` 统一管理
+- 相同配置（host:port:db）的请求会复用同一个连接池
+
+#### 5. API 参考
+
+| 方法 | 说明 |
+|------|------|
+| `get_mysql_helper(spider=self)` | 获取 MySQLHelper 实例 |
+| `helper.exists(table, conditions)` | 检查数据是否存在 |
+| `helper.insert(table, data)` | 插入单条数据 |
+| `helper.batch_insert(table, data_list)` | 批量插入数据 |
+
 ### 配置工厂模式
 
 Crawlo 提供了便捷的配置工厂方法，无需手动配置繁琐的参数：

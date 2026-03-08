@@ -8,7 +8,7 @@ import unittest
 from unittest.mock import Mock, patch
 from abc import ABC, abstractmethod
 
-from crawlo.pipelines.mysql_pipeline import BaseMySQLPipeline, AsyncmyMySQLPipeline, AiomysqlMySQLPipeline
+from crawlo.pipelines.mysql_pipeline import BaseMySQLPipeline, MySQLPipeline
 
 
 class TestMySQLPipelineRefactor(unittest.TestCase):
@@ -34,8 +34,8 @@ class TestMySQLPipelineRefactor(unittest.TestCase):
     def test_inheritance_structure(self):
         """测试继承结构"""
         # 检查两个实现类都继承自BaseMySQLPipeline
-        self.assertTrue(issubclass(AsyncmyMySQLPipeline, BaseMySQLPipeline))
-        self.assertTrue(issubclass(AiomysqlMySQLPipeline, BaseMySQLPipeline))
+        self.assertTrue(issubclass(MySQLPipeline, BaseMySQLPipeline))
+        self.assertTrue(issubclass(MySQLPipeline, BaseMySQLPipeline))
         
         # 检查基类是抽象类
         self.assertTrue(issubclass(BaseMySQLPipeline, ABC))
@@ -44,8 +44,8 @@ class TestMySQLPipelineRefactor(unittest.TestCase):
         """测试公共属性"""
         # 由于BaseMySQLPipeline是抽象类，我们不能直接实例化它
         # 但我们可以通过子类来测试公共属性
-        asyncmy_pipeline = AsyncmyMySQLPipeline(self.mock_crawler)
-        aiomysql_pipeline = AiomysqlMySQLPipeline(self.mock_crawler)
+        asyncmy_pipeline = MySQLPipeline(self.mock_crawler)
+        aiomysql_pipeline = MySQLPipeline(self.mock_crawler)
         
         # 检查两个实例都有相同的公共属性
         common_attrs = ['crawler', 'settings', 'logger', 'table_name', 
@@ -67,8 +67,8 @@ class TestMySQLPipelineRefactor(unittest.TestCase):
             
     def test_polymorphism(self):
         """测试多态性"""
-        asyncmy_pipeline = AsyncmyMySQLPipeline(self.mock_crawler)
-        aiomysql_pipeline = AiomysqlMySQLPipeline(self.mock_crawler)
+        asyncmy_pipeline = MySQLPipeline(self.mock_crawler)
+        aiomysql_pipeline = MySQLPipeline(self.mock_crawler)
         
         # 两个实例都应该有相同的公共方法
         common_methods = ['process_item', '_execute_sql', '_flush_batch', 'spider_closed']
@@ -80,11 +80,11 @@ class TestMySQLPipelineRefactor(unittest.TestCase):
     def test_specific_implementations(self):
         """测试特定实现"""
         # 检查每个类都有自己的_ensure_pool实现
-        self.assertTrue(hasattr(AsyncmyMySQLPipeline, '_ensure_pool'))
-        self.assertTrue(hasattr(AiomysqlMySQLPipeline, '_ensure_pool'))
+        self.assertTrue(hasattr(MySQLPipeline, '_ensure_pool'))
+        self.assertTrue(hasattr(MySQLPipeline, '_ensure_pool'))
         
-        # 检查AiomysqlMySQLPipeline有自己特定的_make_insert_sql实现
-        self.assertTrue(hasattr(AiomysqlMySQLPipeline, '_make_insert_sql'))
+        # 检查MySQLPipeline有自己特定的_make_insert_sql实现
+        self.assertTrue(hasattr(MySQLPipeline, '_make_insert_sql'))
 
 
 if __name__ == "__main__":
