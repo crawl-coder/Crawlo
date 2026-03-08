@@ -9,6 +9,7 @@
 
 import aiohttp
 import aiofiles
+import asyncio
 import os
 from urllib.parse import urlparse
 from typing import Optional, Dict, Any, List
@@ -32,7 +33,12 @@ class AttachmentDownloader:
                  create_dirs: bool = True,
                  rename_duplicates: bool = True,
                  verify_content_type: bool = True,
-                 timeout: int = 30):
+                 timeout: int = 30,
+                 proxy: Optional[str] = None,
+                 verify_ssl: bool = True,
+                 max_retries: int = 3,
+                 retry_delay: float = 1.0,
+                 progress_callback: Optional[callable] = None):
         """
         初始化附件下载器
         
@@ -44,18 +50,34 @@ class AttachmentDownloader:
             rename_duplicates: 是否重命名重复文件
             verify_content_type: 是否验证内容类型
             timeout: 下载超时时间（秒）
+            proxy: 代理地址，如 'http://127.0.0.1:7890' 或 'socks5://127.0.0.1:1080'
+            verify_ssl: 是否验证 SSL 证书
+            max_retries: 最大重试次数
+            retry_delay: 重试延迟（秒）
+            progress_callback: 进度回调函数，签名为 callback(downloaded_bytes, total_bytes, filename)
         """
-        self.download_dir = Path(download_dir)
-        self.allowed_extensions = allowed_extensions or [
+        # 默认扩展名
+        DEFAULT_EXTENSIONS = [
             '.pdf', '.doc', '.docx', '.xls', '.xlsx', 
             '.zip', '.rar', '.txt', '.jpg', '.jpeg', 
             '.png', '.gif', '.mp3', '.mp4', '.avi'
         ]
+        # 用户传递的扩展名与默认扩展名拼接
+        if allowed_extensions:
+            self.allowed_extensions = list(set(DEFAULT_EXTENSIONS + allowed_extensions))
+        else:
+            self.allowed_extensions = DEFAULT_EXTENSIONS
+        self.download_dir = Path(download_dir)
         self.max_file_size = max_file_size
         self.create_dirs = create_dirs
         self.rename_duplicates = rename_duplicates
         self.verify_content_type = verify_content_type
         self.timeout = aiohttp.ClientTimeout(total=timeout)
+        self.proxy = proxy
+        self.verify_ssl = verify_ssl
+        self.max_retries = max_retries
+        self.retry_delay = retry_delay
+        self.progress_callback = progress_callback
         self.logger = get_logger(self.__class__.__name__)
         
         # 确保下载目录存在
@@ -68,7 +90,10 @@ class AttachmentDownloader:
                      headers: Optional[Dict] = None,
                      custom_dir: Optional[str] = None,
                      allowed_extensions: Optional[List[str]] = None,
-                     max_file_size: Optional[int] = None) -> Dict[str, Any]:
+                     max_file_size: Optional[int] = None,
+                     proxy: Optional[str] = None,
+                     verify_ssl: Optional[bool] = None,
+                     max_retries: Optional[int] = None) -> Dict[str, Any]:
         """
         下载附件的主要方法
         
@@ -79,91 +104,144 @@ class AttachmentDownloader:
             custom_dir: 自定义下载目录
             allowed_extensions: 自定义允许的扩展名列表
             max_file_size: 自定义最大文件大小
+            proxy: 覆盖实例级别的代理设置
+            verify_ssl: 覆盖实例级别的 SSL 验证设置
+            max_retries: 覆盖实例级别的重试次数
             
         Returns:
             Dict: 包含下载结果的字典
         """
         download_dir = Path(custom_dir) if custom_dir else self.download_dir
-        allowed_exts = allowed_extensions or self.allowed_extensions
+        # 用户传递的扩展名与默认扩展名拼接
+        if allowed_extensions:
+            allowed_exts = list(set(self.allowed_extensions + allowed_extensions))
+        else:
+            allowed_exts = self.allowed_extensions
         max_size = max_file_size or self.max_file_size
         
-        try:
-            async with aiohttp.ClientSession(timeout=self.timeout) as session:
-                async with session.get(url, headers=headers or {}) as response:
-                    if response.status != 200:
-                        return {
-                            'success': False,
-                            'error': f'HTTP {response.status}',
-                            'url': url
-                        }
-                    
-                    # 读取响应内容
-                    content = await response.read()
-                    
-                    # 验证文件大小
-                    if len(content) > max_size:
-                        return {
-                            'success': False,
-                            'error': f'File too large ({len(content)} > {max_size})',
-                            'url': url
-                        }
-                    
-                    # 生成文件名
-                    actual_filename = await self._generate_filename(url, response, filename)
-                    
-                    # 验证文件扩展名
-                    _, ext = os.path.splitext(actual_filename.lower())
-                    if ext not in allowed_exts:
-                        return {
-                            'success': False,
-                            'error': f'Extension {ext} not allowed',
-                            'url': url
-                        }
-                    
-                    # 验证内容类型（可选）
-                    if self.verify_content_type:
-                        content_type = response.headers.get('Content-Type', '').lower()
-                        if content_type and not self._is_allowed_content_type(content_type, ext):
+        # 使用传入的参数或实例默认值
+        effective_proxy = proxy if proxy is not None else self.proxy
+        effective_verify_ssl = verify_ssl if verify_ssl is not None else self.verify_ssl
+        effective_max_retries = max_retries if max_retries is not None else self.max_retries
+        
+        # 获取文件大小用于进度回调
+        total_size = 0
+        downloaded_size = 0
+        
+        for attempt in range(effective_max_retries):
+            try:
+                # 构建请求参数
+                request_headers = headers or {}
+                
+                # 创建 TCPConnector 用于控制 SSL 验证
+                connector = aiohttp.TCPConnector(ssl=effective_verify_ssl)
+                
+                async with aiohttp.ClientSession(timeout=self.timeout, connector=connector) as session:
+                    async with session.get(url, headers=request_headers, proxy=effective_proxy) as response:
+                        if response.status != 200:
+                            if attempt < effective_max_retries - 1:
+                                self.logger.warning(f"HTTP {response.status}, 正在重试 ({attempt + 1}/{effective_max_retries})...")
+                                await asyncio.sleep(self.retry_delay)
+                                continue
                             return {
                                 'success': False,
-                                'error': f'Content type mismatch: {content_type} vs {ext}',
+                                'error': f'HTTP {response.status}',
                                 'url': url
                             }
-                    
-                    # 生成完整文件路径
-                    filepath = download_dir / actual_filename
-                    
-                    # 处理重复文件名
-                    if self.rename_duplicates:
-                        filepath = self._handle_duplicate_filename(filepath)
-                    
-                    # 创建目录
-                    if self.create_dirs:
-                        filepath.parent.mkdir(parents=True, exist_ok=True)
-                    
-                    # 保存文件
-                    async with aiofiles.open(filepath, 'wb') as f:
-                        await f.write(content)
-                    
-                    self.logger.info(f"附件下载成功: {actual_filename}")
-                    
-                    return {
-                        'success': True,
-                        'filepath': str(filepath),
-                        'filename': actual_filename,
-                        'size': len(content),
-                        'url': url,
-                        'content_type': response.headers.get('Content-Type', ''),
-                        'download_time': len(content)  # 这里简化处理
-                    }
+                        
+                        # 获取总大小
+                        total_size = int(response.headers.get('Content-Length', 0))
+                        
+                        # 生成文件名
+                        actual_filename = await self._generate_filename(url, response, filename)
+                        
+                        # 验证文件扩展名
+                        _, ext = os.path.splitext(actual_filename.lower())
+                        if ext not in allowed_exts:
+                            return {
+                                'success': False,
+                                'error': f'Extension {ext} not allowed',
+                                'url': url
+                            }
+                        
+                        # 验证内容类型（可选）
+                        if self.verify_content_type:
+                            content_type = response.headers.get('Content-Type', '').lower()
+                            if content_type and not self._is_allowed_content_type(content_type, ext):
+                                return {
+                                    'success': False,
+                                    'error': f'Content type mismatch: {content_type} vs {ext}',
+                                    'url': url
+                                }
+                        
+                        # 生成完整文件路径
+                        filepath = download_dir / actual_filename
+                        
+                        # 处理重复文件名
+                        if self.rename_duplicates:
+                            filepath = self._handle_duplicate_filename(filepath)
+                        
+                        # 创建目录
+                        if self.create_dirs:
+                            filepath.parent.mkdir(parents=True, exist_ok=True)
+                        
+                        # 流式下载，支持进度回调
+                        async with aiofiles.open(filepath, 'wb') as f:
+                            async for chunk in response.content.iter_chunked(8192):
+                                await f.write(chunk)
+                                downloaded_size += len(chunk)
+                                # 调用进度回调
+                                if self.progress_callback:
+                                    try:
+                                        self.progress_callback(downloaded_size, total_size, actual_filename)
+                                    except Exception as e:
+                                        self.logger.warning(f"进度回调执行失败: {e}")
+                        
+                        actual_size = downloaded_size
+                        
+                        # 验证文件大小
+                        if max_size > 0 and actual_size > max_size:
+                            # 删除过大的文件
+                            if filepath.exists():
+                                filepath.unlink()
+                            return {
+                                'success': False,
+                                'error': f'File too large ({actual_size} > {max_size})',
+                                'url': url
+                            }
+                        
+                        self.logger.info(f"附件下载成功: {actual_filename}")
+                        
+                        return {
+                            'success': True,
+                            'filepath': str(filepath),
+                            'filename': actual_filename,
+                            'size': actual_size,
+                            'url': url,
+                            'content_type': response.headers.get('Content-Type', ''),
+                            'attempts': attempt + 1
+                        }
+            
+            except Exception as e:
+                if attempt < effective_max_retries - 1:
+                    self.logger.warning(f"下载失败: {e}, 正在重试 ({attempt + 1}/{effective_max_retries})...")
+                    await asyncio.sleep(self.retry_delay)
+                    downloaded_size = 0
+                    continue
+                
+                self.logger.error(f"附件下载失败 {url}: {e}")
+                return {
+                    'success': False,
+                    'error': str(e),
+                    'url': url,
+                    'attempts': attempt + 1
+                }
         
-        except Exception as e:
-            self.logger.error(f"下载附件失败 {url}: {e}")
-            return {
-                'success': False,
-                'error': str(e),
-                'url': url
-            }
+        return {
+            'success': False,
+            'error': 'Max retries exceeded',
+            'url': url
+        }
     
     async def download_batch(self, urls: List[str], 
                            headers: Optional[Dict] = None,
@@ -179,7 +257,6 @@ class AttachmentDownloader:
         Returns:
             List: 下载结果列表
         """
-        import asyncio
         semaphore = asyncio.Semaphore(concurrency)
         
         async def download_with_semaphore(url):
