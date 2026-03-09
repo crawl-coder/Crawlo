@@ -139,7 +139,7 @@ class ResourceManagedPipeline(BasePipeline):
                 try:
                     await self._initialize_resources()
                     self._initialized = True
-                    self.logger.info(f"{self.__class__.__name__} 资源初始化完成")
+                    self.logger.debug(f"{self.__class__.__name__} 资源初始化完成")
                 except Exception as e:
                     self.logger.error(f"资源初始化失败: {e}")
                     raise

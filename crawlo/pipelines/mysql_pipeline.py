@@ -35,13 +35,13 @@ class BaseMySQLPipeline(ResourceManagedPipeline, ABC):
         
         # 记录管道初始化完成（合并配置信息）
         self.logger.info(
-            f"MySQL 管道初始化完成 - "
-            f"表名={self.table_name}, "
-            f"批量大小={self.batch_size}, "
-            f"批量模式={'启用' if self.use_batch else '禁用'}, "
-            f"主机={self.settings.get('MYSQL_HOST', 'localhost')}:{self.settings.get('MYSQL_PORT', 3306)}, "
-            f"数据库={self.settings.get('MYSQL_DB', 'crawlo_db')}, "
-            f"连接池大小={self.settings.get('MYSQL_POOL_MIN_SIZE', 2)}-{self.settings.get('MYSQL_POOL_MAX_SIZE', 30)}"
+            f"MySQL Pipeline initialized - "
+            f"host={self.settings.get('MYSQL_HOST', 'localhost')}:{self.settings.get('MYSQL_PORT', 3306)}, "
+            f"database={self.settings.get('MYSQL_DB', 'crawlo_db')}, "
+            f"table={self.table_name}, "
+            f"batch_size={self.batch_size}, "
+            f"batch_mode={'enabled' if self.use_batch else 'disabled'}, "
+            f"pool_size={self.settings.get('MYSQL_POOL_MIN_SIZE', 2)}-{self.settings.get('MYSQL_POOL_MAX_SIZE', 30)}"
         )
 
         # 使用异步锁和初始化标志确保线程安全
@@ -599,7 +599,7 @@ class BaseMySQLPipeline(ResourceManagedPipeline, ABC):
                 
         # 调用父类的初始化方法
         await super()._initialize_resources()
-        self.logger.info("MySQL 管道资源初始化完成")
+        self.logger.debug("MySQL 管道资源初始化完成")
         
     async def _close_pool(self, pool):
         """关闭连接池"""
