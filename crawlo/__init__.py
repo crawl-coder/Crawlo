@@ -14,7 +14,7 @@ from crawlo.middleware import BaseMiddleware
 from crawlo.network.request import Request
 from crawlo.network.response import Response
 from crawlo.spider import Spider
-from crawlo.utils import (
+from crawlo.tools.text.date_tools import (
     TimeUtils,
     parse_time,
     format_time,

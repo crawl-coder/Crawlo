@@ -17,14 +17,14 @@ if TYPE_CHECKING:
     from crawlo import Request
 
 from crawlo.logging import get_logger
-from crawlo.utils.request_serializer import RequestSerializer
+from crawlo.utils.request.request_serializer import RequestSerializer
 try:
     import msgpack
     MSGPACK_AVAILABLE = True
 except ImportError:
     MSGPACK_AVAILABLE = False
 from crawlo.utils.error_handler import ErrorHandler, ErrorContext
-from crawlo.utils.redis_manager import get_redis_pool, RedisConnectionPool, RedisKeyManager
+from crawlo.utils.redis.redis_manager import get_redis_pool, RedisConnectionPool, RedisKeyManager
 
 # 创建logger实例
 logger = get_logger(__name__)

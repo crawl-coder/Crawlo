@@ -32,7 +32,7 @@ try:
 except ImportError:
     W3LIB_AVAILABLE = False
     # 当 w3lib 不可用时，从 utils 导入替代函数
-    from crawlo.utils import (
+    from crawlo.utils.text.encoding_helper import (
         html_body_declared_encoding,
         html_to_unicode,
         http_content_type_encoding,
@@ -41,12 +41,14 @@ except ImportError:
     )
 
 from crawlo.exceptions import DecodeError
-from crawlo.utils import (
+from crawlo.utils.selector_helper import (
     extract_text,
     extract_texts,
     extract_attr,
     extract_attrs,
     is_xpath,
+)
+from crawlo.utils.request.response_helper import (
     parse_cookies,
     regex_search,
     regex_findall,

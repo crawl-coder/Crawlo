@@ -59,7 +59,7 @@ from crawlo.spider import Spider
 from crawlo.exceptions import ItemDiscard
 from crawlo.logging import get_logger
 from crawlo.utils.resource_manager import ResourceManager, ResourceType
-from crawlo.utils.fingerprint import FingerprintGenerator
+from crawlo.utils.request.fingerprint import FingerprintGenerator
 
 
 class BasePipeline(ABC):

@@ -16,7 +16,7 @@ if TYPE_CHECKING:
 from crawlo.queue.pqueue import SpiderPriorityQueue
 from crawlo.utils.error_handler import ErrorHandler
 from crawlo.logging import get_logger
-from crawlo.utils.request_serializer import RequestSerializer
+from crawlo.utils.request.request_serializer import RequestSerializer
 
 try:
     # 使用完整版Redis队列
@@ -758,7 +758,7 @@ class QueueManager:
             
             if hasattr(self.config, 'settings') and self.config.settings:
                 try:
-                    from crawlo.utils.redis_manager import RedisKeyManager
+                    from crawlo.utils.redis.redis_manager import RedisKeyManager
                     key_manager = RedisKeyManager.from_settings(self.config.settings)
                     project_name = key_manager.project_name
                     spider_name = key_manager.spider_name

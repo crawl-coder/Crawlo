@@ -6,7 +6,7 @@ from pymongo.errors import PyMongoError, BulkWriteError
 
 from crawlo.exceptions import ItemDiscard
 from crawlo.logging import get_logger
-from crawlo.utils.mongo_connection_pool import MongoConnectionPoolManager
+from crawlo.utils.db.mongo_connection_pool import MongoConnectionPoolManager
 
 
 class MongoPipeline:

@@ -14,7 +14,7 @@ import os
 from enum import Enum
 from typing import Dict, Any, Optional
 
-from crawlo.utils.redis_config import RedisConfig
+from crawlo.utils.redis.redis_config import RedisConfig
 
 
 # 常量定义

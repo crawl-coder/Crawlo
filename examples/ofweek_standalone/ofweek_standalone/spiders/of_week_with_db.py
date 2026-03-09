@@ -6,7 +6,7 @@ of_week_spider_with_db - 演示如何在 of_week.py 中使用 mysql_helper
 from crawlo.spider import Spider
 from crawlo import Request, Response
 from ..items import OfWeekStandaloneItem
-from crawlo.utils.mysql_helper import get_mysql_helper
+from crawlo.utils.db.mysql_helper import get_mysql_helper
 
 
 class OfWeekWithDBSpider(Spider):

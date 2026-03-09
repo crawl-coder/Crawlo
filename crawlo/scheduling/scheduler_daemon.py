@@ -271,9 +271,9 @@ class SchedulerDaemon:
         
         # 导入 Crawlo 的 CrawlerProcess 来运行爬虫
         from crawlo.crawler import CrawlerProcess
-        from crawlo.utils.mysql_connection_pool import close_all_mysql_pools
-        from crawlo.utils.redis_manager import close_all_pools as close_all_redis_pools
-        from crawlo.utils.mongo_connection_pool import close_all_mongo_clients
+        from crawlo.utils.db.mysql_connection_pool import close_all_mysql_pools
+        from crawlo.utils.redis.redis_manager import close_all_pools as close_all_redis_pools
+        from crawlo.utils.db.mongo_connection_pool import close_all_mongo_clients
         
         # 创建爬虫进程并运行指定的爬虫
         process = CrawlerProcess()
@@ -374,7 +374,7 @@ class SchedulerDaemon:
         
         # 清理监控管理器中的所有监控实例
         try:
-            from crawlo.utils.monitor_manager import monitor_manager
+            from crawlo.tools.monitor.monitor_manager import monitor_manager
             monitor_manager.cleanup()
             self.logger.info("监控管理器清理完成")
         except Exception as e:
@@ -382,9 +382,9 @@ class SchedulerDaemon:
         
         # 清理数据库连接池
         try:
-            from crawlo.utils.mysql_connection_pool import close_all_mysql_pools
-            from crawlo.utils.redis_manager import close_all_pools as close_all_redis_pools
-            from crawlo.utils.mongo_connection_pool import close_all_mongo_clients
+            from crawlo.utils.db.mysql_connection_pool import close_all_mysql_pools
+            from crawlo.utils.redis.redis_manager import close_all_pools as close_all_redis_pools
+            from crawlo.utils.db.mongo_connection_pool import close_all_mongo_clients
             
             # 清理MySQL连接池
             await close_all_mysql_pools()

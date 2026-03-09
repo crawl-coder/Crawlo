@@ -9,8 +9,8 @@ from typing import Any, Optional, Dict
 
 from crawlo.logging import get_logger
 from crawlo.event import CrawlerEvent
-from crawlo.utils.monitor_manager import monitor_manager
-from crawlo.utils.mysql_connection_pool import (
+from crawlo.tools.monitor.monitor_manager import monitor_manager
+from crawlo.utils.db.mysql_connection_pool import (
     MySQLConnectionPoolManager
 )
 
@@ -49,7 +49,7 @@ class MySQLMonitorExtension:
             from crawlo.exceptions import NotConfigured
             from crawlo.logging import get_logger
             logger = get_logger(cls.__name__)
-            logger.info("MySQLMonitorExtension: MYSQL_MONITOR_ENABLED is False, skipping initialization")
+            logger.debug("MySQLMonitorExtension: MYSQL_MONITOR_ENABLED is False, skipping initialization")
             raise NotConfigured("MySQLMonitorExtension: MYSQL_MONITOR_ENABLED is False")
         
         # 检查是否已有MySQL监控实例在运行

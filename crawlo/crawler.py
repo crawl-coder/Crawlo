@@ -807,7 +807,7 @@ class CrawlerProcess:
         Raises:
             ValueError: 无法解析爬虫类
         """
-        from crawlo.utils.spider_resolver import SpiderResolver
+        from crawlo.utils.spider.spider_resolver import SpiderResolver
         return SpiderResolver.resolve_spider_class(spider_cls_or_name, getattr(self, '_spider_modules', None))
     
     def _merge_settings(self, additional_settings: Optional[Dict[str, Any]]) -> Optional['SettingManager']:

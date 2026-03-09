@@ -11,7 +11,17 @@ import hashlib
 from typing import Any, Optional, Iterable, Union, Dict
 from w3lib.url import canonicalize_url
 
-from crawlo import Request
+# 延迟导入 Request，避免循环依赖
+Request = None
+
+
+def _get_request_class():
+    """延迟获取 Request 类"""
+    global Request
+    if Request is None:
+        from crawlo import Request as ReqClass
+        Request = ReqClass
+    return Request
 
 
 def to_bytes(data: Any, encoding: str = 'utf-8') -> bytes:
@@ -79,7 +89,7 @@ def request_fingerprint(
         
         .. code-block:: python
         
-            from crawlo.utils.fingerprint import FingerprintGenerator
+            from crawlo.utils.request.fingerprint import FingerprintGenerator
             
             fp = FingerprintGenerator.request_fingerprint(
                 method=request.method,
@@ -101,7 +111,7 @@ def request_fingerprint(
         DeprecationWarning,
         stacklevel=2
     )
-    from crawlo.utils.fingerprint import FingerprintGenerator
+    from crawlo.utils.request.fingerprint import FingerprintGenerator
     
     # 准备请求数据
     method = request.method
@@ -153,6 +163,15 @@ def set_request(request: Request, priority: int) -> None:
     # 根据深度调整优先级，深度越深优先级越低
     if priority:
         request.priority -= request.meta['depth'] * priority
+
+
+def _get_request_class():
+    """延迟获取 Request 类"""
+    global Request
+    if Request is None:
+        from crawlo import Request as ReqClass
+        Request = ReqClass
+    return Request
 
 
 def request_to_dict(request: Request, spider=None) -> Dict[str, Any]:
@@ -210,7 +229,7 @@ def request_from_dict(d: Dict[str, Any], spider=None) -> Request:
         module = importlib.import_module(module_path)
         cls = getattr(module, cls_name)
     else:
-        cls = Request  # 默认为 Request
+        cls = _get_request_class()
 
     # 2. 提取回调函数
     callback_path = d.pop('_callback', None)

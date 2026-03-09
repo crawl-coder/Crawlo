@@ -13,7 +13,7 @@ from datetime import datetime
 from typing import Dict, Any, Optional, Tuple, List, Set
 from urllib.parse import urlparse
 
-from crawlo.utils.fingerprint import FingerprintGenerator
+from crawlo.utils.request.fingerprint import FingerprintGenerator
 
 
 class TaskDistributor:

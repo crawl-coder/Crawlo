@@ -3,11 +3,14 @@
 """
 # @Time    : 2025-09-10 22:00
 # @Author  : crawl-coder
-# @Desc    : Crawlo框架工具包集合
+# @Desc    : Crawlo 框架通用工具包（供用户使用）
+
+注意：此模块包含预制的通用工具，供用户在编写爬虫时使用。
+框架本身并不使用这些工具，它们完全独立于框架核心逻辑。
 """
 
-# 日期工具封装
-from .date_tools import (
+# 日期工具
+from .text.date_tools import (
     TimeUtils,
     parse_time,
     format_time,
@@ -21,8 +24,8 @@ from .date_tools import (
     from_timestamp_with_tz
 )
 
-# 数据清洗工具封装
-from .text_cleaner import (
+# 数据清洗工具
+from .text.text_cleaner import (
     TextCleaner,
     remove_html_tags,
     decode_html_entities,
@@ -36,7 +39,7 @@ from .text_cleaner import (
 )
 
 # 分布式协调工具
-from .distributed_coordinator import (
+from .distributed.distributed_coordinator import (
     TaskDistributor,
     DeduplicationTool,
     DistributedCoordinator,
@@ -52,6 +55,12 @@ from .distributed_coordinator import (
 from .attachment_downloader import (
     AttachmentDownloader,
 )
+
+# 批量处理工具
+from .batch.batch_manager import BatchProcessor, process_in_batches
+
+# 监控工具
+from .monitor.performance_monitor import PerformanceMonitor
 
 __all__ = [
     # 日期工具
@@ -91,5 +100,12 @@ __all__ = [
     "distribute_tasks",
     
     # 附件下载工具
-    "AttachmentDownloader"
+    "AttachmentDownloader",
+    
+    # 批量处理工具
+    "BatchProcessor",
+    "process_in_batches",
+    
+    # 监控工具
+    "PerformanceMonitor"
 ]

@@ -8,7 +8,7 @@ Redis Key 管理器
 from typing import Optional, Any
 
 from crawlo.logging import get_logger
-from crawlo.utils.redis_manager import validate_redis_key_naming
+from crawlo.utils.redis.redis_manager import validate_redis_key_naming
 
 
 class RedisKeyManager:

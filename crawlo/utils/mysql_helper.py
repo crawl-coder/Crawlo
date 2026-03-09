@@ -19,8 +19,8 @@ Crawlo MySQL 通用工具
 
 from typing import Any, Dict, List, Optional, Tuple, Union
 from contextlib import asynccontextmanager
-from crawlo.utils.mysql_connection_pool import MySQLConnectionPoolManager
-from crawlo.utils.sql_builder import SQLBuilder
+from crawlo.utils.db.mysql_connection_pool import MySQLConnectionPoolManager
+from crawlo.utils.db.sql_builder import SQLBuilder
 from crawlo.logging import get_logger
 import asyncio
 
