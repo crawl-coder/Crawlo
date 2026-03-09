@@ -16,8 +16,7 @@ from typing import Optional
 from crawlo.logging import get_logger
 from crawlo.pipelines.base_pipeline import DedupPipeline
 from crawlo.spider import Spider
-from crawlo.utils.redis.redis_config import RedisConfig
-from crawlo.utils.redis.redis_manager import RedisKeyManager, get_redis_pool
+from crawlo.utils.redis import RedisConfig, RedisKeyManager, get_redis_pool
 
 
 class RedisDedupPipeline(DedupPipeline):

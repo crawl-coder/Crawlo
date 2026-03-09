@@ -32,19 +32,43 @@ from .request.response_helper import (
     get_header_value
 )
 
+from .request.fingerprint import FingerprintGenerator
+
+from .request.request_serializer import RequestSerializer
+
+# 批量处理
+from .batch import (
+    BatchProcessor,
+    RedisBatchProcessor,
+    batch_process,
+    process_in_batches
+)
+
 __all__ = [
+    # selector_helper
     "extract_text",
     "extract_texts",
     "extract_attr",
     "extract_attrs",
     "is_xpath",
+    # encoding_helper
     "html_body_declared_encoding",
     "http_content_type_encoding",
     "read_bom",
     "resolve_encoding",
     "html_to_unicode",
+    # response_helper
     "parse_cookies",
     "regex_search",
     "regex_findall",
-    "get_header_value"
+    "get_header_value",
+    # fingerprint
+    "FingerprintGenerator",
+    # request_serializer
+    "RequestSerializer",
+    # batch
+    "BatchProcessor",
+    "RedisBatchProcessor",
+    "batch_process",
+    "process_in_batches",
 ]

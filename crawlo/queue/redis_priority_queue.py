@@ -24,7 +24,7 @@ try:
 except ImportError:
     MSGPACK_AVAILABLE = False
 from crawlo.utils.error_handler import ErrorHandler, ErrorContext
-from crawlo.utils.redis.redis_manager import get_redis_pool, RedisConnectionPool, RedisKeyManager
+from crawlo.utils.redis import get_redis_pool, RedisConnectionPool, RedisKeyManager
 
 # 创建logger实例
 logger = get_logger(__name__)

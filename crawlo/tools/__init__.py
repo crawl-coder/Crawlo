@@ -56,9 +56,6 @@ from .attachment_downloader import (
     AttachmentDownloader,
 )
 
-# 批量处理工具
-from .batch.batch_manager import BatchProcessor, process_in_batches
-
 # 监控工具
 from .monitor.performance_monitor import PerformanceMonitor
 
@@ -101,10 +98,6 @@ __all__ = [
     
     # 附件下载工具
     "AttachmentDownloader",
-    
-    # 批量处理工具
-    "BatchProcessor",
-    "process_in_batches",
     
     # 监控工具
     "PerformanceMonitor"

@@ -32,7 +32,7 @@ try:
 except ImportError:
     W3LIB_AVAILABLE = False
     # 当 w3lib 不可用时，从 utils 导入替代函数
-    from crawlo.utils.text.encoding_helper import (
+    from crawlo.utils import (
         html_body_declared_encoding,
         html_to_unicode,
         http_content_type_encoding,

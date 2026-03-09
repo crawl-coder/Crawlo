@@ -758,7 +758,7 @@ class QueueManager:
             
             if hasattr(self.config, 'settings') and self.config.settings:
                 try:
-                    from crawlo.utils.redis.redis_manager import RedisKeyManager
+                    from crawlo.utils.redis import RedisKeyManager
                     key_manager = RedisKeyManager.from_settings(self.config.settings)
                     project_name = key_manager.project_name
                     spider_name = key_manager.spider_name
