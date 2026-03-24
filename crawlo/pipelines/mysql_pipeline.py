@@ -13,7 +13,6 @@ from typing import List, Dict, Any, Optional
 from crawlo.items import Item
 from crawlo.logging import get_logger
 from crawlo.exceptions import ItemDiscard
-from crawlo.utils.db.sql_builder import SQLBuilder
 from crawlo.utils.resource_manager import ResourceType
 from crawlo.utils.db.mysql_helper import MySQLHelper
 from crawlo.utils.db.mysql_connection_pool import (
