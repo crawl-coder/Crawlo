@@ -59,7 +59,7 @@ from crawlo.spider import Spider
 from crawlo.exceptions import ItemDiscard
 from crawlo.logging import get_logger
 from crawlo.utils.resource_manager import ResourceManager, ResourceType
-from crawlo.utils.fingerprint import FingerprintGenerator
+from crawlo.utils.request.fingerprint import FingerprintGenerator
 
 
 class BasePipeline(ABC):
@@ -127,9 +127,6 @@ class ResourceManagedPipeline(BasePipeline):
         self.batch_size = self.settings.get_int('PIPELINE_BATCH_SIZE', 100)
         self.use_batch = self.settings.get_bool('PIPELINE_USE_BATCH', False)
         
-        # 注册关闭事件
-        crawler.subscriber.subscribe(self._on_spider_closed, event='spider_closed')
-        
         self.logger.debug(f"{self.__class__.__name__} 已初始化")
     
     async def _ensure_initialized(self):
@@ -142,7 +139,7 @@ class ResourceManagedPipeline(BasePipeline):
                 try:
                     await self._initialize_resources()
                     self._initialized = True
-                    self.logger.info(f"{self.__class__.__name__} 资源初始化完成")
+                    self.logger.debug(f"{self.__class__.__name__} 资源初始化完成")
                 except Exception as e:
                     self.logger.error(f"资源初始化失败: {e}")
                     raise
@@ -226,39 +223,32 @@ class ResourceManagedPipeline(BasePipeline):
             # 可选：失败后放回缓冲区或丢弃
             # self.batch_buffer.extend(items_to_save)
     
-    async def _on_spider_closed(self):
-        """
-        爬虫关闭事件处理
-        
-        自动执行：
-        1. 刷新批量数据
-        2. 清理所有注册的资源
-        3. 生成统计报告
-        """
-        self.logger.info(f"{self.__class__.__name__} 开始清理资源...")
-        
+    async def _on_spider_closed(self, **kwargs):
+        """spider_closed 事件处理 - 刷新批量数据"""
+        # 注意：子类（如 MySQLPipeline）会重写 _cleanup_resources 方法，
+        # 在其中处理批量刷新和资源清理，所以这里只刷新批量数据
         try:
-            # 1. 刷新批量数据
+            # 1. 刷新批量数据（子类可以在 _cleanup_resources 中再次刷新）
             if self.use_batch and self.batch_buffer:
                 spider = self.crawler.spider
+                self.logger.info(f"准备刷新批量数据，spider={spider}")
                 await self._flush_batch(spider)
-                self.logger.info(f"批量数据已刷新，共 {len(self.batch_buffer)} 条")
             
-            # 2. 调用子类的清理方法
+            # 2. 调用子类的清理方法（包含资源清理和可能的二次批量刷新）
             await self._cleanup_resources()
             
             # 3. 使用资源管理器统一清理
             cleanup_result = await self._resource_manager.cleanup_all()
             
             # 4. 记录清理结果
-            if cleanup_result['success_count'] > 0:
+            if cleanup_result and cleanup_result.get('success', 0) > 0:
                 self.logger.info(
-                    f"资源清理完成: 成功 {cleanup_result['success_count']} 个, "
-                    f"失败 {cleanup_result['failed_count']} 个"
+                    f"资源清理完成: 成功 {cleanup_result.get('success', 0)} 个, "
+                    f"失败 {cleanup_result.get('errors', 0)} 个"
                 )
             
-            if cleanup_result['errors']:
-                self.logger.warning(f"清理时出现错误: {cleanup_result['errors']}")
+            if cleanup_result and cleanup_result.get('errors'):
+                self.logger.warning(f"清理时出现错误: {cleanup_result.get('errors')}")
             
         except Exception as e:
             self.logger.error(f"资源清理失败: {e}", exc_info=True)

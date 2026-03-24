@@ -11,9 +11,9 @@ import os
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from crawlo.settings.setting_manager import SettingManager
-from crawlo.pipelines.mysql_pipeline import AsyncmyMySQLPipeline, AiomysqlMySQLPipeline
+from crawlo.pipelines.mysql_pipeline import MySQLPipeline
 from crawlo.items import Item, Field
-from crawlo.utils.mysql_connection_pool import AiomysqlConnectionPoolManager, AsyncmyConnectionPoolManager
+from crawlo.utils.mysql_connection_pool import MySQLConnectionPoolManager
 import logging
 
 # 配置日志
@@ -70,7 +70,7 @@ async def test_pool_status_check():
             else:
                 self.closed = False  # aiomysql 使用 closed
     
-    # 测试 AsyncmyMySQLPipeline 的状态检查方法
+    # 测试 MySQLPipeline 的状态检查方法
     settings = {
         'MYSQL_HOST': 'localhost',
         'MYSQL_PORT': 3306,
@@ -83,7 +83,7 @@ async def test_pool_status_check():
     }
     
     crawler = MockCrawler(settings)
-    pipeline = AsyncmyMySQLPipeline.from_crawler(crawler)
+    pipeline = MySQLPipeline.from_crawler(crawler)
     
     # 测试 active 状态
     mock_pool_active = MockPool('asyncmy')
@@ -128,7 +128,7 @@ async def test_connection_status_check():
             else:
                 self.closed = False  # aiomysql 使用 closed
     
-    # 测试 AsyncmyMySQLPipeline 的连接状态检查方法
+    # 测试 MySQLPipeline 的连接状态检查方法
     settings = {
         'MYSQL_HOST': 'localhost',
         'MYSQL_PORT': 3306,
@@ -141,7 +141,7 @@ async def test_connection_status_check():
     }
     
     crawler = MockCrawler(settings)
-    pipeline = AsyncmyMySQLPipeline.from_crawler(crawler)
+    pipeline = MySQLPipeline.from_crawler(crawler)
     
     # 测试 active 状态
     mock_conn_active = MockConn('asyncmy')
@@ -187,21 +187,21 @@ async def test_pipeline_initialization():
     
     crawler = MockCrawler(settings)
     
-    # 测试 AsyncmyMySQLPipeline 初始化
+    # 测试 MySQLPipeline 初始化
     try:
-        pipeline1 = AsyncmyMySQLPipeline.from_crawler(crawler)
-        print(f"AsyncmyMySQLPipeline 初始化成功: {pipeline1.__class__.__name__}")
+        pipeline1 = MySQLPipeline.from_crawler(crawler)
+        print(f"MySQLPipeline 初始化成功: {pipeline1.__class__.__name__}")
         print(f"Pipeline type: {pipeline1.pool_type}")
     except Exception as e:
-        print(f"AsyncmyMySQLPipeline 初始化失败: {e}")
+        print(f"MySQLPipeline 初始化失败: {e}")
     
-    # 测试 AiomysqlMySQLPipeline 初始化
+    # 测试 MySQLPipeline 初始化
     try:
-        pipeline2 = AiomysqlMySQLPipeline.from_crawler(crawler)
-        print(f"AiomysqlMySQLPipeline 初始化成功: {pipeline2.__class__.__name__}")
+        pipeline2 = MySQLPipeline.from_crawler(crawler)
+        print(f"MySQLPipeline 初始化成功: {pipeline2.__class__.__name__}")
         print(f"Pipeline type: {pipeline2.pool_type}")
     except Exception as e:
-        print(f"AiomysqlMySQLPipeline 初始化失败: {e}")
+        print(f"MySQLPipeline 初始化失败: {e}")
     
     print("管道初始化测试完成")
 
@@ -211,7 +211,7 @@ async def test_sql_builder_integration():
     print("=" * 60)
     print("测试 SQL 构建器集成...")
     
-    from crawlo.utils.db_helper import SQLBuilder
+    from crawlo.utils.sql_builder import SQLBuilder
     
     # 测试单条插入
     table = 'test_table'
@@ -247,7 +247,7 @@ async def test_edge_cases():
     print("=" * 60)
     print("测试边界情况...")
     
-    from crawlo.utils.db_helper import SQLBuilder
+    from crawlo.utils.sql_builder import SQLBuilder
     
     # 测试空数据
     try:

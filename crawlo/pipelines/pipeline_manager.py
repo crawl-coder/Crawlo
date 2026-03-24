@@ -109,3 +109,16 @@ class PipelineManager:
             raise
         else:
             create_task(self.crawler.subscriber.notify(CrawlerEvent.ITEM_SUCCESSFUL, item, self.crawler.spider))
+
+    async def close(self):
+        """关闭所有 pipeline，清理资源"""
+        for pipeline in self.pipelines:
+            try:
+                # 调用 pipeline 的清理方法
+                if hasattr(pipeline, '_cleanup_resources'):
+                    await pipeline._cleanup_resources()
+                # 兼容旧版 close_spider 方法
+                elif hasattr(pipeline, 'close_spider'):
+                    await pipeline.close_spider(self.crawler.spider)
+            except Exception as e:
+                self.logger.error(f"Error closing pipeline {pipeline.__class__.__name__}: {e}")

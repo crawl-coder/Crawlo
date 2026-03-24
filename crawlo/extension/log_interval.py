@@ -5,7 +5,7 @@ from typing import Any, Optional
 
 from crawlo.logging import get_logger
 from crawlo.event import CrawlerEvent
-from crawlo.utils.monitor_manager import monitor_manager
+from crawlo.utils.monitor.monitor_manager import monitor_manager
 
 
 class LogIntervalExtension:
@@ -88,7 +88,7 @@ class LogIntervalExtension:
         else:
             self.logger.warning(f"Interval logging task already running, skipping (instance: {id(self)})")
 
-    async def spider_closed(self) -> None:
+    async def spider_closed(self, **kwargs) -> None:
         # 只有主要监控实例才处理关闭
         if monitor_manager.get_monitor('log_interval_monitor') == self:
             self.logger.info("Spider closed, stopping interval logging task")

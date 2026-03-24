@@ -58,7 +58,7 @@ class ParameterManager:
         Returns:
             Redis是否可用
         """
-        from crawlo.utils.redis_manager import get_redis_manager
+        from crawlo.utils.redis import get_redis_manager
         
         try:
             redis_manager = get_redis_manager()

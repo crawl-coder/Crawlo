@@ -34,7 +34,7 @@ SPIDER_MODULES = ['ofweek_standalone.spiders']
 # 数据管道
 # 如需添加自定义管道，请取消注释并添加
 PIPELINES = [
-    'crawlo.pipelines.mysql_pipeline.AsyncmyMySQLPipeline',  # MySQL 存储（使用asyncmy异步库）
+    'crawlo.pipelines.mysql_pipeline.MySQLPipeline',  # MySQL 存储（使用asyncmy异步库）
     # 'ofweek_standalone.pipelines.CustomPipeline',  # 用户自定义管道示例
 ]
 
@@ -82,7 +82,7 @@ MYSQL_USER = 'root'
 MYSQL_PASSWORD = 'oscar&0503'
 MYSQL_DB = 'crawlo_db'
 MYSQL_TABLE = 'ofweek_news'
-MYSQL_BATCH_SIZE = 50  # 优化：增加批量大小以减少批量操作次数
+MYSQL_BATCH_SIZE = 10  # 优化：增加批量大小以减少批量操作次数
 MYSQL_USE_BATCH = True  # 是否启用批量插入
 MYSQL_BATCH_TIMEOUT = 300  # 优化：批量操作超时时间（秒），增加到5分钟
 MYSQL_EXECUTE_TIMEOUT = 120  # 优化：SQL执行超时时间（秒），增加到2分钟
@@ -120,7 +120,7 @@ SCHEDULER_ENABLED = True
 SCHEDULER_JOBS = [
     {
         'spider': 'of_week',           # 爬虫名称（对应spider的name属性）
-        'cron': '*/10 * * * *',       # 每1分钟执行一次
+        'cron': '*/2 * * * *',       # 每1分钟执行一次
         'enabled': True,              # 任务启用状态                 
         'priority': 10,               # 任务优先级
         'max_retries': 3,             # 最大重试次数

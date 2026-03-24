@@ -5,11 +5,11 @@
 # @Author  : crawl-coder
 # @Desc    : 智能时间工具库（专为爬虫场景设计）
 """
+import pytz
 import dateparser
 from typing import Optional, Union, Literal
 from datetime import datetime, timedelta, timezone
 from dateutil.relativedelta import relativedelta
-import pytz
 from pytz import timezone as pytz_timezone
 
 # 支持的单位类型
@@ -19,7 +19,7 @@ TimeType = Union[str, datetime]
 # 时区类型
 TimezoneType = Union[str, timezone, pytz_timezone]
 
-# 常见时间格式列表（作为 dateparser 的后备方案）
+# 常见时间格式列表
 COMMON_FORMATS = [
     "%Y-%m-%d %H:%M:%S",
     "%Y/%m/%d %H:%M:%S",
@@ -42,8 +42,8 @@ COMMON_FORMATS = [
 
 class TimeUtils:
     """
-    时间处理工具类，提供日期解析、格式化、计算等一站式服务。
-    特别适用于爬虫中处理多语言、多格式、相对时间的场景。
+    时间处理工具类，专为爬虫场景设计。
+    支持智能解析多语言、多格式时间字符串，以及时区转换等常用操作。
     """
 
     @staticmethod
@@ -128,9 +128,9 @@ class TimeUtils:
             return None
 
     @classmethod
-    def diff(cls, start: TimeType, end: TimeType, unit: TimeUnit = "seconds") -> Optional[int]:
+    def time_diff(cls, start: TimeType, end: TimeType, unit: TimeUnit = "seconds") -> Optional[int]:
         """
-        计算两个时间的差值（自动解析字符串）。
+        计算两个时间的差值。
 
         :param start: 起始时间
         :param end: 结束时间
@@ -153,30 +153,23 @@ class TimeUtils:
         return int(delta // unit_map.get(unit, 1))
 
     @classmethod
-    def add_days(cls, dt: TimeType, days: int) -> Optional[datetime]:
-        """日期加减（天）"""
+    def add(cls, dt: TimeType, days: int = 0, months: int = 0) -> Optional[datetime]:
+        """
+        日期加减（支持天和月）。
+
+        :param dt: 时间
+        :param days: 加减天数
+        :param months: 加减月数
+        """
         dt = cls.parse(dt)
         if dt is None:
             return None
-        return dt + timedelta(days=days)
-
-    @classmethod
-    def add_months(cls, dt: TimeType, months: int) -> Optional[datetime]:
-        """日期加减（月）"""
-        dt = cls.parse(dt)
-        if dt is None:
-            return None
-        return dt + relativedelta(months=months)
-
-    @classmethod
-    def days_between(cls, dt1: TimeType, dt2: TimeType) -> Optional[int]:
-        """计算两个日期之间的天数差"""
-        return cls.diff(dt1, dt2, "days")
-
-    @classmethod
-    def is_leap_year(cls, year: int) -> bool:
-        """判断是否是闰年"""
-        return (year % 4 == 0 and year % 100 != 0) or (year % 400 == 0)
+        result = dt
+        if days:
+            result += timedelta(days=days)
+        if months:
+            result += relativedelta(months=months)
+        return result
 
     @classmethod
     def now(cls, fmt: Optional[str] = None) -> Union[datetime, str]:
@@ -236,6 +229,65 @@ class TimeUtils:
         except Exception:
             return None
 
+    @classmethod
+    def date_range(cls, start: TimeType, end: TimeType, fmt: str = "%Y-%m-%d") -> list:
+        """
+        生成日期范围内的所有日期。
+
+        :param start: 起始时间
+        :param end: 结束时间
+        :param fmt: 输出格式
+        :return: 日期字符串列表
+        """
+        start_dt = cls.parse(start)
+        end_dt = cls.parse(end)
+        if not start_dt or not end_dt:
+            return []
+
+        dates = []
+        current = start_dt.date()
+        end_date = end_dt.date()
+        while current <= end_date:
+            dates.append(current.strftime(fmt))
+            current += timedelta(days=1)
+        return dates
+
+    @classmethod
+    def is_recent(cls, dt: TimeType, days: int = 7) -> bool:
+        """
+        判断时间是否在N天内（相对于当前时间）。
+
+        :param dt: 时间
+        :param days: 天数阈值
+        :return: True 表示是最近的
+        """
+        parsed_dt = cls.parse(dt)
+        if not parsed_dt:
+            return False
+        delta = datetime.now() - parsed_dt
+        return delta.days < days
+
+    @classmethod
+    def truncate(cls, dt: TimeType, unit: str = "day") -> Optional[datetime]:
+        """
+        时间截断到指定单位（小时、天、月）。
+
+        :param dt: 时间
+        :param unit: 单位 ('hour', 'day', 'month')
+        :return: 截断后的时间
+        """
+        parsed_dt = cls.parse(dt)
+        if not parsed_dt:
+            return None
+
+        if unit == "hour":
+            return parsed_dt.replace(minute=0, second=0, microsecond=0)
+        elif unit == "day":
+            return parsed_dt.replace(hour=0, minute=0, second=0, microsecond=0)
+        elif unit == "month":
+            return parsed_dt.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+        return parsed_dt
+
 
 # =======================对外接口=======================
 
@@ -250,8 +302,8 @@ def format_time(dt: TimeType, fmt: str = "%Y-%m-%d %H:%M:%S") -> Optional[str]:
 
 
 def time_diff(start: TimeType, end: TimeType, unit: TimeUnit = "seconds") -> Optional[int]:
-    """计算时间差"""
-    return TimeUtils.diff(start, end, unit)
+    """计算两个时间的差值"""
+    return TimeUtils.time_diff(start, end, unit)
 
 
 def to_timestamp(dt: TimeType) -> Optional[float]:
@@ -285,6 +337,34 @@ def from_timestamp_with_tz(ts: float, tz: TimezoneType = None) -> Optional[datet
     return TimeUtils.from_timestamp_with_tz(ts, tz)
 
 
-if __name__ == '__main__':
-    get_current_time = now(fmt="%Y-%m-%d %H:%M:%S")
-    print(get_current_time)
+def date_range(start: TimeType, end: TimeType, fmt: str = "%Y-%m-%d") -> list:
+    """生成日期范围内的所有日期"""
+    return TimeUtils.date_range(start, end, fmt)
+
+
+def is_recent(dt: TimeType, days: int = 7) -> bool:
+    """判断时间是否在N天内"""
+    return TimeUtils.is_recent(dt, days)
+
+
+def truncate(dt: TimeType, unit: str = "day") -> Optional[datetime]:
+    """时间截断到指定单位"""
+    return TimeUtils.truncate(dt, unit)
+
+
+__all__ = [
+    'TimeUtils',
+    'parse_time',
+    'format_time',
+    'time_diff',
+    'to_timestamp',
+    'to_datetime',
+    'now',
+    'to_timezone',
+    'to_utc',
+    'to_local',
+    'from_timestamp_with_tz',
+    'date_range',
+    'is_recent',
+    'truncate',
+]

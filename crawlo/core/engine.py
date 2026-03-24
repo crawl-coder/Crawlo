@@ -501,6 +501,11 @@ class Engine(object):
     async def close_spider(self):
         if self.task_manager is not None:
             await asyncio.gather(*self.task_manager.current_task)
+        
+        # 关闭 pipeline（刷新批量数据、清理资源）
+        if self.processor is not None and hasattr(self.processor, 'pipelines'):
+            await self.processor.pipelines.close()
+        
         if self.scheduler is not None:
             await self.scheduler.close()
         if self.downloader is not None:

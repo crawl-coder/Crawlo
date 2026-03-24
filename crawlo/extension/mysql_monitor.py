@@ -9,10 +9,9 @@ from typing import Any, Optional, Dict
 
 from crawlo.logging import get_logger
 from crawlo.event import CrawlerEvent
-from crawlo.utils.monitor_manager import monitor_manager
-from crawlo.utils.mysql_connection_pool import (
-    AiomysqlConnectionPoolManager,
-    AsyncmyConnectionPoolManager
+from crawlo.utils.monitor.monitor_manager import monitor_manager
+from crawlo.utils.db.mysql_connection_pool import (
+    MySQLConnectionPoolManager
 )
 
 
@@ -50,7 +49,7 @@ class MySQLMonitorExtension:
             from crawlo.exceptions import NotConfigured
             from crawlo.logging import get_logger
             logger = get_logger(cls.__name__)
-            logger.info("MySQLMonitorExtension: MYSQL_MONITOR_ENABLED is False, skipping initialization")
+            logger.debug("MySQLMonitorExtension: MYSQL_MONITOR_ENABLED is False, skipping initialization")
             raise NotConfigured("MySQLMonitorExtension: MYSQL_MONITOR_ENABLED is False")
         
         # 检查是否已有MySQL监控实例在运行
@@ -239,14 +238,11 @@ class MySQLMonitorExtension:
     
     def _check_detailed_pool_status(self) -> None:
         """检查详细的连接池状态"""
-        # 获取aiomysql连接池统计
-        aiomysql_stats = AiomysqlConnectionPoolManager.get_pool_stats()
-        asyncmy_stats = AsyncmyConnectionPoolManager.get_pool_stats()
+        # 获取 MySQL 连接池统计
+        mysql_stats = MySQLConnectionPoolManager.get_pool_stats()
         
-        # 合并两个驱动的连接池信息
-        all_pools = {}
-        all_pools.update(aiomysql_stats.get('pools', {}))
-        all_pools.update(asyncmy_stats.get('pools', {}))
+        # 获取连接池信息
+        all_pools = mysql_stats.get('pools', {})
         
         if not all_pools:
             return

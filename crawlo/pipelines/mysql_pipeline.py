@@ -8,11 +8,11 @@ from typing import List, Dict, Any, Optional, Tuple
 from crawlo.items import Item
 from crawlo.logging import get_logger
 from crawlo.exceptions import ItemDiscard
-from crawlo.utils.db_helper import SQLBuilder
+from crawlo.utils.db.sql_builder import SQLBuilder
 from crawlo.utils.resource_manager import ResourceType
-from crawlo.utils.mysql_connection_pool import (
-    AiomysqlConnectionPoolManager,
-    AsyncmyConnectionPoolManager,
+from crawlo.utils.db.mysql_helper import MySQLHelper
+from crawlo.utils.db.mysql_connection_pool import (
+    MySQLConnectionPoolManager,
     is_pool_active
 )
 from . import ResourceManagedPipeline
@@ -30,27 +30,30 @@ class BaseMySQLPipeline(ResourceManagedPipeline, ABC):
         self.settings = crawler.settings
         self.logger = get_logger(self.__class__.__name__)
 
-        # 记录管道初始化
-        self.logger.debug(f"MySQL管道初始化完成: {self.__class__.__name__}")
+        # 初始化配置
+        self._init_config()
+        
+        # 记录管道初始化完成（合并配置信息）
+        self.logger.info(
+            f"MySQL Pipeline initialized - "
+            f"host={self.settings.get('MYSQL_HOST', 'localhost')}:{self.settings.get('MYSQL_PORT', 3306)}, "
+            f"database={self.settings.get('MYSQL_DB', 'crawlo_db')}, "
+            f"table={self.table_name}, "
+            f"batch_size={self.batch_size}, "
+            f"batch_mode={'enabled' if self.use_batch else 'disabled'}, "
+            f"pool_size={self.settings.get('MYSQL_POOL_MIN_SIZE', 2)}-{self.settings.get('MYSQL_POOL_MAX_SIZE', 30)}"
+        )
 
         # 使用异步锁和初始化标志确保线程安全
         self._pool_lock = asyncio.Lock()
         self._pool_initialized = False
         self.pool = None
         
-        # 初始化配置
-        self._init_config()
-        
         # 批量插入相关
         self.batch_buffer: List[Dict] = []  # 批量缓冲区
-        self._batch_timer_handle = None  # 定时刷新处理器
-        
-
         
         # 新增配置项
         self.batch_timeout = self.settings.get_int('MYSQL_BATCH_TIMEOUT', 120)  # 批量操作超时时间，默认120秒
-        self.health_check_interval = self.settings.get_float('MYSQL_HEALTH_CHECK_INTERVAL', 300.0)  # 连接池健康检查间隔，默认300秒（5分钟）
-        self.pool_repair_attempts = self.settings.get_int('MYSQL_POOL_REPAIR_ATTEMPTS', 3)  # 连接池修复尝试次数，默认3次
         
         # 配置项说明:
         # MYSQL_BATCH_SIZE: 批量插入的大小，默认100
@@ -59,14 +62,9 @@ class BaseMySQLPipeline(ResourceManagedPipeline, ABC):
         # MYSQL_EXECUTE_TIMEOUT: SQL执行超时时间（秒），默认60
         # MYSQL_EXECUTE_RETRY_DELAY: 重试之间的延迟系数，默认0.2
         # MYSQL_BATCH_TIMEOUT: 批量操作超时时间（秒），默认120
-        # MYSQL_HEALTH_CHECK_INTERVAL: 连接池健康检查间隔（秒），默认300（5分钟）
-        # MYSQL_POOL_REPAIR_ATTEMPTS: 连接池修复尝试次数，默认3
         
-        # 健康检查相关
-        self._health_check_timer_handle = None  # 健康检查定时器
-        
-        # 设置连接池类型标识
-        self.pool_type = 'asyncmy' if 'Asyncmy' in self.__class__.__name__ else 'aiomysql'
+        # MySQLHelper 实例（用于数据库操作）
+        self._mysql_helper: Optional[MySQLHelper] = None
             
     def _init_config(self):
         """初始化配置项"""
@@ -127,7 +125,7 @@ class BaseMySQLPipeline(ResourceManagedPipeline, ABC):
         # 检查必要配置
         required_configs = [
             ('MYSQL_HOST', self.settings.get('MYSQL_HOST', 'localhost')),
-            ('MYSQL_DB', self.settings.get('MYSQL_DB', 'scrapy_db')),
+            ('MYSQL_DB', self.settings.get('MYSQL_DB', 'crawlo_db')),
             ('MYSQL_USER', self.settings.get('MYSQL_USER', 'root')),
         ]
         
@@ -137,10 +135,10 @@ class BaseMySQLPipeline(ResourceManagedPipeline, ABC):
                 return False
         
         return True
-            
+    
     @staticmethod
     def _is_pool_active(pool):
-        """检查连接池是否活跃 - 统一处理 aiomysql 和 asyncmy 的差异
+        """检查连接池是否活跃
         
         Args:
             pool: 数据库连接池对象
@@ -152,20 +150,58 @@ class BaseMySQLPipeline(ResourceManagedPipeline, ABC):
                 
     @staticmethod
     def _is_conn_active(conn):
-        """检查连接是否活跃 - 统一处理 aiomysql 和 asyncmy 的差异"""
+        """检查连接是否活跃"""
         if not conn:
             return False
-            
-        # 对于 asyncmy，使用 _closed 属性检查连接状态
+        
+        # 使用 _closed 属性检查连接状态
         if hasattr(conn, '_closed'):
             return not conn._closed
-        # 对于 aiomysql，使用 closed 属性检查连接状态
-        elif hasattr(conn, 'closed'):
-            return not conn.closed
-        # 如果没有明确的关闭状态属性，假设连接有效
-        else:
-            return True
+        
+        # 没有明确的关闭状态属性，假设连接有效
+        return True
+    
+    async def _insert_with_helper(self, item_dict: Dict, prefer_alias: bool = True, **kwargs) -> int:
+        """
+        使用 MySQLHelper 插入数据
+        
+        Args:
+            item_dict: 数据字典
+            prefer_alias: 是否优先使用别名语法（已废弃参数，保留以兼容接口）
             
+        Returns:
+            int: 影响的行数
+        """
+        # 使用 MySQLHelper 插入数据
+        rowcount = await self._mysql_helper.insert(
+            table=self.table_name,
+            data=item_dict,
+            auto_update=self.auto_update,
+            update_columns=self.update_columns,
+            insert_ignore=self.insert_ignore
+        )
+        return rowcount
+    
+    async def _batch_insert_with_helper(self, datas: List[Dict]) -> int:
+        """
+        使用 MySQLHelper 批量插入数据
+        
+        Args:
+            datas: 数据字典列表
+            
+        Returns:
+            int: 影响的行数
+        """
+        rowcount = await self._mysql_helper.insert_many(
+            table=self.table_name,
+            datas=datas,
+            auto_update=self.auto_update,
+            update_columns=self.update_columns,
+            insert_ignore=self.insert_ignore,
+            batch_size=len(datas)
+        )
+        return rowcount
+    
     async def process_item(self, item: Item, spider, **kwargs) -> Item:
         """处理item的核心方法"""
         spider_name = getattr(spider, 'name', 'unknown')  # 获取爬虫名称
@@ -194,45 +230,27 @@ class BaseMySQLPipeline(ResourceManagedPipeline, ABC):
                         
             return item
         else:
-            # 单条插入逻辑
+            # 单条插入逻辑 - 使用 MySQLHelper
             try:
-                await self._ensure_pool()
-                    
-                # 检查连接池是否有效
-                if not self._pool_initialized or not self.pool:
-                    raise RuntimeError("Database connection pool is not initialized or invalid")
-                    
+                # 确保 MySQLHelper 已初始化
+                await self._ensure_initialized()
+                
                 item_dict = dict(item)
-                sql, params = await self._make_insert_sql(item_dict, prefer_alias=True, **kwargs)
-                try:
-                    rowcount = await self._execute_sql(sql=sql, values=params)
-                except Exception as e:
-                    err_str = str(e)
-                    if self.update_columns and ("AS `excluded`" in sql) and ("You have an error in your SQL syntax" in err_str or "near 'AS" in err_str or "Unknown column 'excluded'" in err_str):
-                        sql_fallback, params_fallback = await self._make_insert_sql(item_dict, prefer_alias=False, **kwargs)
-                        rowcount = await self._execute_sql(sql=sql_fallback, values=params_fallback)
-                    else:
-                        raise
+                rowcount = await self._insert_with_helper(item_dict, prefer_alias=True, **kwargs)
                 if rowcount > 1:
                     self.logger.debug(
-                        f"爬虫 {spider_name} 成功插入 {rowcount} 条记录到表 {self.table_name}"
+                        f"成功插入 {rowcount} 条记录到表 {self.table_name}"
                     )
                 elif rowcount == 1:
-                    self.logger.debug(
-                        f"爬虫 {spider_name} 成功插入单条记录到表 {self.table_name}"
-                    )
+                    self.logger.debug(f"成功插入单条记录到表 {self.table_name}")
                 else:
                     # 当使用 MYSQL_UPDATE_COLUMNS 时，如果更新的字段值与现有记录相同，
                     # MySQL 不会实际更新任何数据，rowcount 会是 0
                     if self.update_columns:
-                        self.logger.debug(
-                            f"爬虫 {spider_name}: 数据已存在，{self.update_columns}字段未发生变化，无需更新"
-                        )
+                        self.logger.debug(f"数据已存在，{self.update_columns}字段未发生变化，无需更新")
                     else:
-                        # 优化：将单条插入的重复数据警告改为DEBUG级别
-                        self.logger.debug(
-                            f"爬虫 {spider_name}: SQL执行成功但未插入新记录（重复数据）"
-                        )
+                        # 优化：将单条插入的重复数据警告改为 DEBUG 级别
+                        self.logger.debug("SQL 执行成功但未插入新记录（重复数据）")
     
                 # 统计计数移到这里，与AiomysqlMySQLPipeline保持一致
                 self.crawler.stats.inc_value('mysql/insert_success')
@@ -263,11 +281,11 @@ class BaseMySQLPipeline(ResourceManagedPipeline, ABC):
                 if not self.pool:
                     raise RuntimeError("Database connection pool is not available")
                 
-                self.logger.debug(f"尝试获取数据库连接，当前连接池状态: active={self._is_pool_active(self.pool)}, 初始化={self._pool_initialized}")
-                
+                self.logger.debug(f"尝试获取数据库连接 (尝试 {attempt+1}/{max_retries})")
+                                
                 # 检查连接池是否活跃
                 if not self._is_pool_active(self.pool):
-                    self.logger.warning("Connection pool is closed, attempting to reinitialize")
+                    self.logger.warning("连接池已关闭，尝试重新初始化")
                     # 尝试重新初始化连接池
                     self._pool_initialized = False
                     await self._ensure_pool()
@@ -277,11 +295,11 @@ class BaseMySQLPipeline(ResourceManagedPipeline, ABC):
                 async with async_timeout.timeout(timeout):
                     self.logger.debug("正在获取连接...")
                     conn = await self.pool.acquire()
-                    self.logger.debug(f"成功获取连接，连接状态: active={self._is_conn_active(conn)}")
-
+                    self.logger.debug("成功获取数据库连接")
+                
                 # 检查连接是否仍然活跃
                 if not self._is_conn_active(conn):
-                    self.logger.warning("获取的连接已失效，可能需要重新获取")
+                    self.logger.warning("获取的连接已失效，将重新尝试")
                     if conn:
                         await self.pool.release(conn)
                     continue # 重试
@@ -407,15 +425,20 @@ class BaseMySQLPipeline(ResourceManagedPipeline, ABC):
             self.logger.debug(f"批量执行失败，异常将传递给_flush_batch进行降级处理")
             raise e
 
-    async def _flush_batch(self, spider_name: str):
-        """刷新批量缓冲区并执行批量插入"""
+    async def _flush_batch(self, spider_name: str, is_cleanup: bool = False):
+        """刷新批量缓冲区并执行批量插入 - 使用 MySQLHelper
+        
+        Args:
+            spider_name: 爬虫名称
+            is_cleanup: 是否为清理模式（是则合并日志输出）
+        """
         # 确保资源已初始化
         await self._ensure_initialized()
         
         # 快照当前批量，避免在 await 过程中 buffer 被其他协程修改
-        # 先在锁外获取当前批次数据，避免长时间持有锁
         async with self._pool_lock:
             if not self.batch_buffer:
+                self.logger.debug("批量缓冲区为空，跳过刷新")
                 return
                 
             # 使用切片复制，避免引用同一对象；不立即清空，失败时可重试
@@ -425,197 +448,69 @@ class BaseMySQLPipeline(ResourceManagedPipeline, ABC):
             self.batch_buffer.clear()
         
         if not current_batch:  # 双重检查
+            self.logger.debug("批次数据为空，跳过")
             return
         
         try:
-            await self._ensure_pool()
-            
-            # 检查连接池是否有效
-            if not self._pool_initialized or not self.pool:
-                raise RuntimeError("Database connection pool is not initialized or invalid")
-            
-            # 使用 SQLBuilder 生成批量插入 SQL
-            batch_result = SQLBuilder.make_batch(
-                table=self.table_name,
-                datas=current_batch,  # 使用局部变量
-                auto_update=self.auto_update,
-                update_columns=self.update_columns,
-                insert_ignore=self.insert_ignore,
-                prefer_alias=self.prefer_alias_syntax
-            )
-
-            if batch_result:
-                sql, values_list = batch_result
-                try:
-                    rowcount = await self._execute_batch_sql(sql=sql, values_list=values_list)
-                except Exception as e:
-                    err_str = str(e)
-                    if self.update_columns and ("AS `excluded`" in sql) and ("You have an error in your SQL syntax" in err_str or "near 'AS" in err_str or "Unknown column 'excluded'" in err_str):
-                        batch_result_fb = SQLBuilder.make_batch(
-                            table=self.table_name,
-                            datas=current_batch,
-                            auto_update=self.auto_update,
-                            update_columns=self.update_columns,
-                            prefer_alias=not self.prefer_alias_syntax
-                        )
-                        if batch_result_fb:
-                            sql_fb, values_list_fb = batch_result_fb
-                            rowcount = await self._execute_batch_sql(sql=sql_fb, values_list=values_list_fb)
-                        else:
-                            rowcount = 0
-                    else:
-                        # 【新增】批量执行失败时，尝试降级为单条插入以挽救数据
-                        self.logger.warning(f"批量执行失败，尝试降级为单条插入: {e}")
-                        rowcount = await self._execute_batch_as_individual(current_batch)
+            # 使用 MySQLHelper 进行批量插入
+            rowcount = await self._batch_insert_with_helper(current_batch)
                 
-                if rowcount > 0:
-                    self.logger.info(
-                        f"爬虫 {spider_name} 批量插入 {processed_count} 条记录到表 {self.table_name}，实际影响 {rowcount} 行"
-                    )
+            if rowcount > 0:
+                # 成功日志：包含关键信息
+                self.logger.info(
+                    f"批量插入成功：{processed_count} 条记录到表 {self.table_name}，实际影响 {rowcount} 行"
+                )
+            else:
+                # 当使用 MYSQL_UPDATE_COLUMNS 时，如果更新的字段值与现有记录相同，
+                # MySQL 不会实际更新任何数据，rowcount 会是 0
+                if self.update_columns:
+                    self.logger.debug(f"批量数据已存在，{self.update_columns}字段未发生变化，无需更新")
                 else:
-                    # 当使用 MYSQL_UPDATE_COLUMNS 时，如果更新的字段值与现有记录相同，
-                    # MySQL 不会实际更新任何数据，rowcount 会是 0
-                    if self.update_columns:
-                        self.logger.debug(
-                            f"爬虫 {spider_name}: 批量数据已存在，{self.update_columns}字段未发生变化，无需更新"
-                        )
-                    else:
-                        # 优化：将重复数据的警告改为DEBUG级别，减少日志污染
-                        # 只在DEBUG模式下记录详细信息
-                        self.logger.debug(
-                            f"爬虫 {spider_name}: 批量SQL执行完成但未插入新记录（全部为重复数据）"
-                        )
+                    self.logger.debug("批量 SQL 执行完成但未插入新记录（全部为重复数据）")
 
+            self.crawler.stats.inc_value('mysql/batch_insert_success')
+            self.crawler.stats.inc_value('mysql/rows_requested', processed_count)
+            self.crawler.stats.inc_value('mysql/rows_affected', rowcount or 0)
+            if self.insert_ignore and not self.update_columns and (rowcount or 0) < processed_count:
+                ignored_count = processed_count - (rowcount or 0)
+                self.crawler.stats.inc_value('mysql/rows_ignored_by_duplicate', ignored_count)
+                if ignored_count >= processed_count * 0.5:
+                    self.logger.info(
+                        f"批量处理 {processed_count} 条记录，其中 {ignored_count} 条为重复数据（重复率：{ignored_count/processed_count*100:.1f}%）"
+                    )
+
+        except Exception as e:
+            # 批量插入失败时，尝试降级为单条插入以挽救数据
+            self.logger.warning(f"批量执行失败，尝试降级为单条插入: {e}")
+            try:
+                rowcount = await self._execute_batch_as_individual(current_batch)
                 self.crawler.stats.inc_value('mysql/batch_insert_success')
                 self.crawler.stats.inc_value('mysql/rows_requested', processed_count)
                 self.crawler.stats.inc_value('mysql/rows_affected', rowcount or 0)
-                if self.insert_ignore and not self.update_columns and (rowcount or 0) < processed_count:
-                    ignored_count = processed_count - (rowcount or 0)
-                    self.crawler.stats.inc_value('mysql/rows_ignored_by_duplicate', ignored_count)
-                    # 优化：只在重复率超过50%时记录INFO日志
-                    if ignored_count >= processed_count * 0.5:
-                        self.logger.info(
-                            f"爬虫 {spider_name}: 批量处理 {processed_count} 条记录，其中 {ignored_count} 条为重复数据（重复率: {ignored_count/processed_count*100:.1f}%）"
-                        )
-            else:
-                self.logger.warning(f"爬虫 {spider_name}: 批量数据为空，跳过插入")
-                # 如果没有数据要处理，重新将数据放回缓冲区
+            except Exception as individual_err:
+                error_msg = f"批量插入失败: {str(e)}, 降级单条插入也失败: {str(individual_err)}"
+                self.logger.error(f"批量处理数据时发生错误: {error_msg}")
+                self.crawler.stats.inc_value('mysql/batch_insert_failed')
+                # 失败时将数据重新放回缓冲区，以便重试
                 async with self._pool_lock:
                     self.batch_buffer.extend(current_batch)
-
-        except Exception as e:
-            # 添加更多调试信息
-            error_msg = f"批量插入失败: {str(e)}"
-            self.logger.error(f"批量处理数据时发生错误: {error_msg}")
-            self.crawler.stats.inc_value('mysql/batch_insert_failed')
-            # 失败时将数据重新放回缓冲区，以便重试
-            async with self._pool_lock:
-                self.batch_buffer.extend(current_batch)
-            raise ItemDiscard(error_msg)
-    
-    async def _start_health_check_timer(self):
-        """启动健康检查定时器"""
-        if self._health_check_timer_handle is not None:
-            self._health_check_timer_handle.cancel()
-        
-        # 创建健康检查任务
-        self._health_check_timer_handle = asyncio.create_task(self._health_check_periodically())
-    
-    async def _health_check_periodically(self):
-        """定期执行健康检查"""
-        failure_count = 0
-        max_failures = 3  # 连续失败3次才标记不可用
-        
-        while True:
-            try:
-                # 等待指定间隔
-                await asyncio.sleep(self.health_check_interval)
-                
-                self.logger.debug(f"开始执行健康检查，当前时间间隔: {self.health_check_interval}秒")
-                
-                # 执行健康检查
-                is_healthy, health_info = await self._health_check_pool()
-                
-                # 打印健康检查信息
-                if is_healthy:
-                    pool_info = health_info.get('pool_info', {})
-                    
-                    # 构建连接池状态信息字符串
-                    status_parts = [
-                        f"size={pool_info.get('size', 'N/A')}",
-                        f"min={pool_info.get('minsize', 'N/A')}",
-                        f"max={pool_info.get('maxsize', 'N/A')}",
-                    ]
-                    
-                    # 添加已获取连接数（如果可用）
-                    acquired = pool_info.get('acquired', 'N/A')
-                    if acquired != 'N/A':
-                        status_parts.append(f"已获取={acquired}")
-                    
-                    # 添加空闲连接数（如果可用）
-                    free = pool_info.get('free', 'N/A')
-                    if free != 'N/A':
-                        status_parts.append(f"空闲={free}")
-                    
-                    # 添加等待连接数（如果可用）
-                    waiting = pool_info.get('waiting', 'N/A')
-                    if waiting != 'N/A':
-                        status_parts.append(f"等待={waiting}")
-                    
-                    self.logger.info(
-                        f"连接池健康检查通过 (类型: {self.pool_type}) - "
-                        f"连接池状态: {', '.join(status_parts)}"
-                    )
-                else:
-                    self.logger.warning(
-                        f"连接池健康检查失败 (类型: {self.pool_type}) - "
-                        f"错误: {health_info.get('error', '未知错误')}"
-                    )
-                
-                if not is_healthy:
-                    failure_count += 1
-                    self.logger.warning(f"连接池健康检查失败 ({failure_count}/{max_failures})，尝试修复连接池 (类型: {self.pool_type})")
-                    
-                    if failure_count >= max_failures:
-                        # 尝试修复连接池
-                        self.logger.debug("达到最大失败次数，开始修复连接池...")
-                        await self._check_and_repair_pool()
-                        self.logger.debug("连接池修复完成")
-                        failure_count = 0  # 重置失败计数
-                        
-                        # 更新健康检查统计
-                        self.crawler.stats.inc_value('mysql/pool_repaired')
-                else:
-                    failure_count = 0  # 重置失败计数
-                    # 更新健康状态统计
-                    self.crawler.stats.inc_value('mysql/pool_health_checks')
-                    
-            except asyncio.CancelledError:
-                # 任务被取消，退出循环
-                self.logger.debug("健康检查任务被取消")
-                break
-            except Exception as e:
-                self.logger.error(f"健康检查任务出错: {e}")
-                # 继续循环，避免任务结束
-                continue
+                raise ItemDiscard(error_msg)
     
     async def _execute_batch_as_individual(self, datas: List[Dict]) -> int:
-        """将批量数据降级为单条执行，以挽救数据"""
+        """将批量数据降级为单条执行，以挽救数据 - 使用 MySQLHelper"""
         total_rows = 0
         failed_count = 0
         
         for i, data in enumerate(datas):
             try:
-                # 获取单条 SQL
-                sql, params = SQLBuilder.make_insert(
+                # 使用 MySQLHelper 插入单条数据
+                rowcount = await self._mysql_helper.insert(
                     table=self.table_name,
                     data=data,
                     auto_update=self.auto_update,
                     update_columns=self.update_columns,
-                    insert_ignore=self.insert_ignore,
-                    prefer_alias=self.prefer_alias_syntax
+                    insert_ignore=self.insert_ignore
                 )
-                rowcount = await self._execute_sql(sql, params)
                 total_rows += rowcount or 0
             except Exception as row_err:
                 failed_count += 1
@@ -667,36 +562,33 @@ class BaseMySQLPipeline(ResourceManagedPipeline, ABC):
     
     async def _initialize_resources(self):
         """初始化连接池资源并注册到资源管理器"""
-        self.logger.debug("开始初始化MySQL连接池资源...")
         # 确保连接池已初始化
         await self._ensure_pool()
         self.logger.debug("连接池初始化完成")
         
+        # 初始化 MySQLHelper（复用连接池）
+        self._mysql_helper = await MySQLHelper.get_instance(self.settings)
+        self.logger.debug("MySQLHelper 初始化完成")
+            
         # 根据配置决定是否检查表是否存在
         if self.check_table_exists:
             self.logger.debug("开始检查表是否存在...")
             await self._check_table_exists()
             self.logger.debug("表存在性检查完成")
-            
+                
         # 将连接池注册到资源管理器，以便在爬虫关闭时自动清理
         if self.pool:
-            self.logger.debug(f"将{self.pool_type}连接池注册到资源管理器")
+            self.logger.debug(f"将{'asyncmy'}连接池注册到资源管理器")
             self.register_resource(
                 resource=self.pool,
                 cleanup_func=self._close_pool,
-                resource_type=ResourceType.PIPELINE,  # 使用PIPELINE类型表示数据库连接池
-                name=f"mysql_{self.pool_type}_pool"
+                resource_type=ResourceType.PIPELINE,  # 使用 PIPELINE 类型表示数据库连接池
+                name=f"mysql_{'asyncmy'}_pool"
             )
-            
-        # 启动健康检查定时器（添加延迟确保连接池完全就绪）
-        self.logger.debug(f"等待3秒确保连接池完全就绪，然后启动健康检查定时器...")
-        await asyncio.sleep(3)  # 等待3秒确保连接池完全就绪
-        # await self._start_health_check_timer()  # 已禁用健康检查功能，避免在爬虫结束后继续运行
-        # self.logger.debug("健康检查定时器已启动")
-            
+                
         # 调用父类的初始化方法
         await super()._initialize_resources()
-        self.logger.debug("MySQL管道资源初始化完成")
+        self.logger.debug("MySQL 管道资源初始化完成")
         
     async def _close_pool(self, pool):
         """关闭连接池"""
@@ -704,43 +596,22 @@ class BaseMySQLPipeline(ResourceManagedPipeline, ABC):
             if pool:
                 pool.close()
                 await pool.wait_closed()
-                self.logger.info(f"{self.pool_type} MySQL连接池已关闭")
+                self.logger.info(f"{'asyncmy'} MySQL连接池已关闭")
         except Exception as e:
-            self.logger.error(f"关闭{self.pool_type} MySQL连接池时发生错误: {e}")
+            self.logger.error(f"关闭{'asyncmy'} MySQL连接池时发生错误: {e}")
         
     async def _cleanup_resources(self):
         """清理资源"""
-        self.logger.debug("开始清理MySQL管道资源...")
+        self.logger.debug("开始清理 MySQL 管道资源...")
         
-        # 在关闭前强制刷新剩余的批量数据
+        # 在关闭前强制刷新剩余的批量数据（清理阶段的日志由 _flush_batch 统一输出）
         if self.use_batch and self.batch_buffer:
             spider_name = getattr(self.crawler.spider, 'name', 'unknown')
-            self.logger.debug(f"清理前刷新批量缓冲区，包含 {len(self.batch_buffer)} 条记录")
-            await self._flush_batch(spider_name)
+            await self._flush_batch(spider_name, is_cleanup=True)
         
         # 清空批量缓冲区
         self.batch_buffer.clear()
         self.logger.debug("批量缓冲区已清空")
-        
-        # 取消并清理批量刷新定时器（已移除，保留清理以防万一）
-        if self._batch_timer_handle is not None:
-            self.logger.debug("取消批量刷新定时器")
-            self._batch_timer_handle.cancel()
-            try:
-                await self._batch_timer_handle
-            except asyncio.CancelledError:
-                pass  # 任务已被取消，这是预期行为
-            self._batch_timer_handle = None
-            
-        # 取消并清理健康检查定时器
-        if self._health_check_timer_handle is not None:
-            self.logger.debug("取消健康检查定时器")
-            self._health_check_timer_handle.cancel()
-            try:
-                await self._health_check_timer_handle
-            except asyncio.CancelledError:
-                pass  # 任务已被取消，这是预期行为
-            self._health_check_timer_handle = None
         
         # 无论是否为调度任务，都需要重置初始化标志，确保下次执行时能正确重新初始化连接池
         # 即使在调度模式下，每轮任务结束后也需要清理所有资源，包括连接池
@@ -751,127 +622,11 @@ class BaseMySQLPipeline(ResourceManagedPipeline, ABC):
         await super()._cleanup_resources()
         self.logger.debug("MySQL pipeline resources cleanup completed")
         
-            
-    async def _make_insert_sql(self, item_dict: Dict, **kwargs) -> Tuple[str, List[Any]]:
-        """生成插入SQL语句，子类可以重写此方法"""
-        # 合并管道配置和传入的kwargs参数
-        # 优先使用传入的prefer_alias参数，否则从设置中获取默认值
-        prefer_alias = kwargs.pop('prefer_alias', self.prefer_alias_syntax)
-        sql_kwargs = {
-            'auto_update': self.auto_update,
-            'insert_ignore': self.insert_ignore,
-            'update_columns': self.update_columns,
-            'prefer_alias': prefer_alias
-        }
-        sql_kwargs.update(kwargs)
-        
-        return SQLBuilder.make_insert(
-            table=self.table_name, 
-            data=item_dict, 
-            **sql_kwargs
-        )
-        
+    
     @abstractmethod
     async def _ensure_pool(self):
         """确保连接池已初始化（线程安全），子类必须实现此方法"""
         pass
-    
-    async def _check_and_repair_pool(self):
-        """检查连接池健康状况并修复"""
-        if not self.pool or not self._is_pool_active(self.pool):
-            self.logger.warning("连接池不可用，正在重新初始化")
-            self._pool_initialized = False
-            await self._ensure_pool()
-    
-    async def _health_check_pool(self) -> tuple[bool, dict]:
-        """执行连接池健康检查
-        
-        Returns:
-            tuple[bool, dict]: (连接池是否健康, 附加信息字典)
-        """
-        if not self.pool or not self._is_pool_active(self.pool):
-            return False, {"error": "连接池未初始化或已关闭"}
-        
-        # 尝试获取连接并执行简单查询，最多尝试3次
-        conn = None
-        try:
-            for attempt in range(3):  # 最多尝试3次
-                try:
-                    async with async_timeout.timeout(5):  # 增加超时时间到5秒
-                        conn = await self.pool.acquire()
-                        async with conn.cursor() as cursor:
-                            await cursor.execute("SELECT 1")
-                    
-                    # 获取连接池状态信息（兼容 asyncmy 和 aiomysql）
-                    pool_info = {}
-                    
-                    # size: 当前连接池中的连接数
-                    if hasattr(self.pool, 'size'):
-                        pool_info['size'] = getattr(self.pool, 'size', 'N/A')
-                    elif hasattr(self.pool, '_size'):
-                        pool_info['size'] = getattr(self.pool, '_size', 'N/A')
-                    
-                    # minsize: 最小连接数
-                    if hasattr(self.pool, 'minsize'):
-                        pool_info['minsize'] = getattr(self.pool, 'minsize', 'N/A')
-                    elif hasattr(self.pool, '_minsize'):
-                        pool_info['minsize'] = getattr(self.pool, '_minsize', 'N/A')
-                    
-                    # maxsize: 最大连接数
-                    if hasattr(self.pool, 'maxsize'):
-                        pool_info['maxsize'] = getattr(self.pool, 'maxsize', 'N/A')
-                    elif hasattr(self.pool, '_maxsize'):
-                        pool_info['maxsize'] = getattr(self.pool, '_maxsize', 'N/A')
-                    
-                    # acquired: 当前已获取的连接数（aiomysql有，asyncmy可能没有）
-                    if hasattr(self.pool, 'acquired'):
-                        pool_info['acquired'] = getattr(self.pool, 'acquired', 'N/A')
-                    elif hasattr(self.pool, '_acquired'):
-                        pool_info['acquired'] = getattr(self.pool, '_acquired', 'N/A')
-                    elif hasattr(self.pool, '_used'):
-                        pool_info['acquired'] = getattr(self.pool, '_used', 'N/A')
-                    else:
-                        pool_info['acquired'] = 'N/A'
-                    
-                    # 尝试获取空闲连接数（free）
-                    if hasattr(self.pool, 'free'):
-                        free_attr = getattr(self.pool, 'free', 'N/A')
-                        # 如果free属性是类似队列的对象，获取其长度
-                        if hasattr(free_attr, '__len__'):
-                            pool_info['free'] = len(free_attr)
-                        elif hasattr(free_attr, '__iter__') and not isinstance(free_attr, (str, bytes)):
-                            pool_info['free'] = len(list(free_attr))
-                        else:
-                            pool_info['free'] = free_attr
-                    elif hasattr(self.pool, '_free'):
-                        free_attr = getattr(self.pool, '_free', 'N/A')
-                        # 如果_free属性是类似队列的对象，获取其长度
-                        if hasattr(free_attr, '__len__'):
-                            pool_info['free'] = len(free_attr)
-                        elif hasattr(free_attr, '__iter__') and not isinstance(free_attr, (str, bytes)):
-                            pool_info['free'] = len(list(free_attr))
-                        else:
-                            pool_info['free'] = free_attr
-                    
-                    # 获取等待连接的请求数（waiting）
-                    if hasattr(self.pool, 'waiting'):
-                        waiting_attr = getattr(self.pool, 'waiting', 'N/A')
-                        pool_info['waiting'] = waiting_attr if not hasattr(waiting_attr, '__len__') else len(waiting_attr)
-                    elif hasattr(self.pool, '_waiting'):
-                        waiting_attr = getattr(self.pool, '_waiting', 'N/A')
-                        pool_info['waiting'] = waiting_attr if not hasattr(waiting_attr, '__len__') else len(waiting_attr)
-                    
-                    return True, {"pool_info": pool_info}
-                except Exception as e:
-                    if attempt < 2:
-                        self.logger.debug(f"健康检查重试 {attempt+1}/2: {e}")
-                        await asyncio.sleep(2)  # 增加重试间隔到2秒
-                    else:
-                        self.logger.warning(f"连接池健康检查失败: {e}")
-                        return False, {"error": str(e)}
-        finally:
-            if conn:
-                await self.pool.release(conn)
     
     async def _close_conn_properly(self, conn):
         """安全关闭连接，避免事件循环已关闭时的问题"""
@@ -986,26 +741,19 @@ class BaseMySQLPipeline(ResourceManagedPipeline, ABC):
         
         # 不需要重试，返回False
         return False
-    
 
 
 
-class AsyncmyMySQLPipeline(BaseMySQLPipeline):
+class MySQLPipeline(BaseMySQLPipeline):
     """使用asyncmy库的MySQL管道实现"""
-    
-    _instance = None
-    _instance_lock = asyncio.Lock()
     
     def __init__(self, crawler):
         super().__init__(crawler)
-        self.logger.info(f"创建AsyncmyMySQLPipeline实例，配置信息 - 主机: {self.settings.get('MYSQL_HOST', 'localhost')}, 数据库: {self.settings.get('MYSQL_DB', 'scrapy_db')}, 表名: {self.table_name}")
 
     @classmethod
     async def from_crawler(cls, crawler):
-        async with cls._instance_lock:
-            if cls._instance is None:
-                cls._instance = cls(crawler)
-            return cls._instance
+        """创建管道实例（每次调用创建新实例，连接池由管理器统一复用）"""
+        return cls(crawler)
 
     async def _ensure_pool(self):
         """确保连接池已初始化（线程安全）"""
@@ -1043,7 +791,7 @@ class AsyncmyMySQLPipeline(BaseMySQLPipeline):
             if not self._pool_initialized:  # 双重检查避免竞争条件
                 try:
                     # 使用单例连接池管理器
-                    self.pool = await AsyncmyConnectionPoolManager.get_pool(
+                    self.pool = await MySQLConnectionPoolManager.get_pool(
                         host=self.settings.get('MYSQL_HOST', 'localhost'),
                         port=self.settings.get_int('MYSQL_PORT', 3306),
                         user=self.settings.get('MYSQL_USER', 'root'),
@@ -1064,85 +812,6 @@ class AsyncmyMySQLPipeline(BaseMySQLPipeline):
                     self.pool = None
                     raise
 
-    # _execute_sql 和 _execute_batch_sql 方法继承自 BaseMySQLPipeline
-
 
     
-
-class AiomysqlMySQLPipeline(BaseMySQLPipeline):
-    """使用aiomysql库的MySQL管道实现"""
-    
-    _instance = None
-    _instance_lock = asyncio.Lock()
-    
-    def __init__(self, crawler):
-        super().__init__(crawler)
-        self.logger.info(f"创建AiomysqlMySQLPipeline实例，配置信息 - 主机: {self.settings.get('MYSQL_HOST', 'localhost')}, 数据库: {self.settings.get('MYSQL_DB', 'scrapy_db')}, 表名: {self.table_name}")
-
-    @classmethod
-    async def from_crawler(cls, crawler):
-        async with cls._instance_lock:
-            if cls._instance is None:
-                cls._instance = cls(crawler)
-            return cls._instance
-
-    async def _ensure_pool(self):
-        """延迟初始化连接池（线程安全）"""
-        # 检查事件循环是否已关闭
-        try:
-            loop = asyncio.get_event_loop()
-            if loop.is_closed():
-                self.logger.warning("当前事件循环已关闭，无法初始化连接池")
-                return
-        except RuntimeError:
-            # 没有运行中的事件循环
-            self.logger.warning("没有运行中的事件循环，无法初始化连接池")
-            return
-        
-        # 验证配置
-        if not self._validate_config():
-            raise ValueError("MySQL配置验证失败")
-        
-        if self._pool_initialized and self.pool and self._is_pool_active(self.pool):
-            return
-        elif self._pool_initialized and self.pool:
-            self.logger.warning("连接池已初始化但无效，重新初始化")
-
-        async with self._pool_lock:
-            # 再次检查事件循环状态
-            try:
-                loop = asyncio.get_event_loop()
-                if loop.is_closed():
-                    self.logger.warning("在获取锁后，事件循环已关闭，无法初始化连接池")
-                    return
-            except RuntimeError:
-                self.logger.warning("在获取锁后，没有运行中的事件循环，无法初始化连接池")
-                return
-                
-            if not self._pool_initialized:
-                try:
-                    # 使用单例连接池管理器
-                    self.pool = await AiomysqlConnectionPoolManager.get_pool(
-                        host=self.settings.get('MYSQL_HOST', 'localhost'),
-                        port=self.settings.get_int('MYSQL_PORT', 3306),
-                        user=self.settings.get('MYSQL_USER', 'root'),
-                        password=self.settings.get('MYSQL_PASSWORD', ''),
-                        db=self.settings.get('MYSQL_DB', 'scrapy_db'),
-                        minsize=self.settings.get_int('MYSQL_POOL_MIN', 3),
-                        maxsize=self.settings.get_int('MYSQL_POOL_MAX', 10),
-                        echo=self.settings.get_bool('MYSQL_ECHO', False)
-                    )
-                    self._pool_initialized = True
-                    self.logger.debug(
-                        f"MySQL连接池初始化完成（表: {self.table_name}, 使用全局共享连接池）"
-                    )
-                except Exception as e:
-                    self.logger.error(f"Aiomysql连接池初始化失败: {e}")
-                    # 重置状态以便重试
-                    self._pool_initialized = False
-                    self.pool = None
-                    raise
-
-    # _execute_sql 和 _execute_batch_sql 方法继承自 BaseMySQLPipeline
-
 

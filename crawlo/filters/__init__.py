@@ -17,7 +17,7 @@ Crawlo过滤器模块
 from abc import ABC, abstractmethod
 from typing import Optional
 
-from crawlo.utils.fingerprint import FingerprintGenerator
+from crawlo.utils.request.fingerprint import FingerprintGenerator
 
 
 class BaseFilter(ABC):

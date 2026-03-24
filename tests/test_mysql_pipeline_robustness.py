@@ -15,7 +15,7 @@ import asyncio
 # 添加项目根目录到 Python 路径
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
-from crawlo.pipelines.mysql_pipeline import BaseMySQLPipeline, AsyncmyMySQLPipeline, AiomysqlMySQLPipeline
+from crawlo.pipelines.mysql_pipeline import BaseMySQLPipeline, MySQLPipeline
 
 
 # 创建一个简单的爬虫模拟类
@@ -147,23 +147,23 @@ def test_pipeline_initialization():
     """测试管道初始化"""
     print("\n=== 测试管道初始化 ===")
     
-    # 测试 AsyncmyMySQLPipeline 初始化
+    # 测试 MySQLPipeline 初始化
     try:
         settings = MockSettings()
         crawler = MockCrawler(settings)
-        pipeline = AsyncmyMySQLPipeline.from_crawler(crawler)
-        print("✓ AsyncmyMySQLPipeline 初始化成功")
+        pipeline = MySQLPipeline.from_crawler(crawler)
+        print("✓ MySQLPipeline 初始化成功")
     except Exception as e:
-        print(f"✗ AsyncmyMySQLPipeline 初始化失败: {e}")
+        print(f"✗ MySQLPipeline 初始化失败: {e}")
     
-    # 测试 AiomysqlMySQLPipeline 初始化
+    # 测试 MySQLPipeline 初始化
     try:
         settings = MockSettings()
         crawler = MockCrawler(settings)
-        pipeline = AiomysqlMySQLPipeline.from_crawler(crawler)
-        print("✓ AiomysqlMySQLPipeline 初始化成功")
+        pipeline = MySQLPipeline.from_crawler(crawler)
+        print("✓ MySQLPipeline 初始化成功")
     except Exception as e:
-        print(f"✗ AiomysqlMySQLPipeline 初始化失败: {e}")
+        print(f"✗ MySQLPipeline 初始化失败: {e}")
 
 
 async def test_error_handling():

@@ -8,7 +8,7 @@ import asyncio
 import unittest
 from unittest.mock import Mock, patch, AsyncMock
 
-from crawlo.pipelines.mysql_pipeline import BaseMySQLPipeline, AsyncmyMySQLPipeline, AiomysqlMySQLPipeline
+from crawlo.pipelines.mysql_pipeline import BaseMySQLPipeline, MySQLPipeline
 
 
 class TestBaseMySQLPipeline(unittest.TestCase):
@@ -73,8 +73,8 @@ class TestBaseMySQLPipeline(unittest.TestCase):
         asyncio.run(test_async())
 
 
-class TestAsyncmyMySQLPipeline(unittest.TestCase):
-    """测试AsyncmyMySQLPipeline实现"""
+class TestMySQLPipeline(unittest.TestCase):
+    """测试MySQLPipeline实现"""
 
     def setUp(self):
         """设置测试环境"""
@@ -95,7 +95,7 @@ class TestAsyncmyMySQLPipeline(unittest.TestCase):
 
     def test_init(self):
         """测试初始化"""
-        pipeline = AsyncmyMySQLPipeline(self.mock_crawler)
+        pipeline = MySQLPipeline(self.mock_crawler)
         
         # 验证属性初始化
         self.assertEqual(pipeline.crawler, self.mock_crawler)
@@ -104,13 +104,13 @@ class TestAsyncmyMySQLPipeline(unittest.TestCase):
 
     def test_from_crawler(self):
         """测试from_crawler类方法"""
-        pipeline = AsyncmyMySQLPipeline.from_crawler(self.mock_crawler)
-        self.assertIsInstance(pipeline, AsyncmyMySQLPipeline)
+        pipeline = MySQLPipeline.from_crawler(self.mock_crawler)
+        self.assertIsInstance(pipeline, MySQLPipeline)
         self.assertEqual(pipeline.crawler, self.mock_crawler)
 
 
-class TestAiomysqlMySQLPipeline(unittest.TestCase):
-    """测试AiomysqlMySQLPipeline实现"""
+class TestMySQLPipeline(unittest.TestCase):
+    """测试MySQLPipeline实现"""
 
     def setUp(self):
         """设置测试环境"""
@@ -131,7 +131,7 @@ class TestAiomysqlMySQLPipeline(unittest.TestCase):
 
     def test_init(self):
         """测试初始化"""
-        pipeline = AiomysqlMySQLPipeline(self.mock_crawler)
+        pipeline = MySQLPipeline(self.mock_crawler)
         
         # 验证属性初始化
         self.assertEqual(pipeline.crawler, self.mock_crawler)
@@ -140,8 +140,8 @@ class TestAiomysqlMySQLPipeline(unittest.TestCase):
 
     def test_from_crawler(self):
         """测试from_crawler类方法"""
-        pipeline = AiomysqlMySQLPipeline.from_crawler(self.mock_crawler)
-        self.assertIsInstance(pipeline, AiomysqlMySQLPipeline)
+        pipeline = MySQLPipeline.from_crawler(self.mock_crawler)
+        self.assertIsInstance(pipeline, MySQLPipeline)
         self.assertEqual(pipeline.crawler, self.mock_crawler)
 
 

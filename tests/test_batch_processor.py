@@ -18,7 +18,7 @@ import asyncio
 # 添加项目根目录到 Python 路径
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
-from crawlo.utils.batch_processor import BatchProcessor, RedisBatchProcessor, batch_process
+from crawlo.utils.batch import BatchProcessor, RedisBatchProcessor, batch_process
 
 
 class TestBatchProcessor(unittest.TestCase):

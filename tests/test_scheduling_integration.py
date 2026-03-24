@@ -13,7 +13,7 @@ from unittest.mock import AsyncMock, patch
 # 添加项目根目录到路径
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from crawlo.scheduling.scheduler_daemon import SchedulerDaemon
+from crawlo.scheduling import SchedulerDaemon
 from crawlo.scheduling.job import ScheduledJob
 from crawlo.scheduling.trigger import TimeTrigger
 from crawlo.settings.setting_manager import SettingManager as Settings

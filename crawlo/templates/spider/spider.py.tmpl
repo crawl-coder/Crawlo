@@ -26,6 +26,41 @@ class {{class_name}}(Spider):
         """解析响应"""
         self.logger.info(f'正在解析页面: {response.url}')
         
+        # ========== Response 选择器用法示例 ==========
+        
+        # 1. get() / getall() - 文本提取（推荐）
+        title = response.get('title')                    # 获取第一个匹配文本
+        titles = response.getall('.item')                # 获取所有匹配文本列表
+        title = response.get('title', '')                # 带默认值
+        titles = response.getall('//title')              # XPath 也支持
+        
+        # 2. attr() / attrs() - 属性提取
+        href = response.attr('a', 'href')                # 获取第一个链接的 href
+        hrefs = response.attrs('a', 'href')              # 获取所有链接的 href 列表
+        src = response.attr('img', 'src', '')            # 带默认值
+        
+        # 3. get_outer() / getall_outer() - HTML 提取（保留标签）
+        content_html = response.get_outer('.content')     # 获取第一个匹配元素的完整 HTML
+        items_html = response.getall_outer('.item')      # 获取所有匹配元素的 HTML 列表
+        
+        # 4. css() / xpath() - parsel 原生 API
+        title = response.css('title').get()              # CSS 选择器
+        title = response.xpath('//title').get()          # XPath 选择器
+        items = response.css('.item').getall()           # 获取多个
+        
+        # 5. re_findone() / re_findall() - 正则提取
+        price = response.re_findone(r'\d+\.\d+')       # 第一个匹配
+        prices = response.re_findall(r'\d+')            # 所有匹配
+        prices = response.re_css('.price', r'\d+')     # 选择器 + 正则组合
+        
+        # 6. XPath 常用表达式
+        # //title/text()                    获取 title 元素的文本
+        # //div[@class='x']                 获取 class 为 x 的 div
+        # //a/@href                         获取链接的 href 属性
+        # //div[contains(@class, 'item')]   class 包含 item 的 div
+        
+        # ===========================================
+        
         yield {
             'title': response.xpath('//title/text()').get(default=''),
             'url': response.url,

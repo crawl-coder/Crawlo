@@ -7,7 +7,7 @@ Redis Key 管理器与验证器集成测试
 """
 import unittest
 from unittest.mock import MagicMock
-from crawlo.utils.redis_manager import RedisKeyManager, validate_redis_key_naming, get_redis_key_info
+from crawlo.utils.redis import RedisKeyManager, validate_redis_key_naming, get_redis_key_info
 
 
 class TestRedisKeyIntegration(unittest.TestCase):

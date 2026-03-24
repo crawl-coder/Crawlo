@@ -8,7 +8,7 @@ import asyncio
 import unittest
 from unittest.mock import Mock, patch, AsyncMock
 
-from crawlo.pipelines.mysql_pipeline import AsyncmyMySQLPipeline, AiomysqlMySQLPipeline
+from crawlo.pipelines.mysql_pipeline import MySQLPipeline
 from crawlo.exceptions import ItemDiscard
 
 
@@ -35,8 +35,8 @@ class TestMySQLPipelineError(unittest.TestCase):
         self.mock_crawler.spider = self.mock_spider
 
     def test_asyncmy_process_item_with_connection_error(self):
-        """测试AsyncmyMySQLPipeline处理连接错误"""
-        pipeline = AsyncmyMySQLPipeline(self.mock_crawler)
+        """测试MySQLPipeline处理连接错误"""
+        pipeline = MySQLPipeline(self.mock_crawler)
         
         # 模拟连接池和数据库操作
         mock_pool = AsyncMock()
@@ -70,7 +70,7 @@ class TestMySQLPipelineError(unittest.TestCase):
 
     def test_execute_sql_with_exception(self):
         """测试_execute_sql方法处理异常"""
-        pipeline = AsyncmyMySQLPipeline(self.mock_crawler)
+        pipeline = MySQLPipeline(self.mock_crawler)
         
         # 模拟连接池和数据库操作
         mock_pool = AsyncMock()

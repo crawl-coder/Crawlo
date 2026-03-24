@@ -14,7 +14,7 @@ import os
 # 添加项目根目录到 Python 路径
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
-from crawlo.pipelines.mysql_pipeline import AsyncmyMySQLPipeline, AiomysqlMySQLPipeline
+from crawlo.pipelines.mysql_pipeline import MySQLPipeline
 
 
 # 创建一个简单的爬虫模拟类
@@ -66,19 +66,19 @@ def test_pipeline_init_logs():
     # 创建模拟的爬虫
     crawler = MockCrawler()
     
-    print("1. Testing AsyncmyMySQLPipeline initialization...")
+    print("1. Testing MySQLPipeline initialization...")
     try:
-        asyncmy_pipeline = AsyncmyMySQLPipeline.from_crawler(crawler)
-        print("   ✓ AsyncmyMySQLPipeline initialized successfully")
+        asyncmy_pipeline = MySQLPipeline.from_crawler(crawler)
+        print("   ✓ MySQLPipeline initialized successfully")
     except Exception as e:
-        print(f"   ✗ AsyncmyMySQLPipeline initialization failed: {e}")
+        print(f"   ✗ MySQLPipeline initialization failed: {e}")
     
-    print("\n2. Testing AiomysqlMySQLPipeline initialization...")
+    print("\n2. Testing MySQLPipeline initialization...")
     try:
-        aiomysql_pipeline = AiomysqlMySQLPipeline.from_crawler(crawler)
-        print("   ✓ AiomysqlMySQLPipeline initialized successfully")
+        aiomysql_pipeline = MySQLPipeline.from_crawler(crawler)
+        print("   ✓ MySQLPipeline initialized successfully")
     except Exception as e:
-        print(f"   ✗ AiomysqlMySQLPipeline initialization failed: {e}")
+        print(f"   ✗ MySQLPipeline initialization failed: {e}")
     
     print("\n=== Test completed ===")
     print("Note: Actual log output can be seen when running in a full crawler environment")

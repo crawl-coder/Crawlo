@@ -37,7 +37,7 @@ class BatchProcessor:
             处理结果列表
         """
         # 为了向后兼容，仍然提供实现
-        from crawlo.utils.batch_manager import BatchProcessor as NewBatchProcessor
+        from crawlo.utils.batch.batch_manager import BatchProcessor as NewBatchProcessor
         new_processor = NewBatchProcessor(self.batch_size, self.max_concurrent_batches)
         return await new_processor.process_batch(items, processor_func, *args, **kwargs)
     
@@ -56,7 +56,7 @@ class BatchProcessor:
             所有处理结果的列表
         """
         # 为了向后兼容，仍然提供实现
-        from crawlo.utils.batch_manager import BatchProcessor as NewBatchProcessor
+        from crawlo.utils.batch.batch_manager import BatchProcessor as NewBatchProcessor
         new_processor = NewBatchProcessor(self.batch_size, self.max_concurrent_batches)
         return await new_processor.process_in_batches(items, processor_func, *args, **kwargs)
     
@@ -71,7 +71,7 @@ class BatchProcessor:
             @wraps(func)
             async def async_wrapper(items: List[Any], *args, **kwargs):
                 actual_batch_size = batch_size or self.batch_size
-                from crawlo.utils.batch_manager import BatchProcessor as NewBatchProcessor
+                from crawlo.utils.batch.batch_manager import BatchProcessor as NewBatchProcessor
                 processor = NewBatchProcessor(actual_batch_size, self.max_concurrent_batches)
                 return await processor.process_in_batches(items, func, *args, **kwargs)
             
@@ -111,7 +111,7 @@ class RedisBatchProcessor:
             成功设置的键值对数量
         """
         # 为了向后兼容，仍然提供实现
-        from crawlo.utils.batch_manager import RedisBatchProcessor as NewRedisBatchProcessor
+        from crawlo.utils.batch.batch_manager import RedisBatchProcessor as NewRedisBatchProcessor
         new_processor = NewRedisBatchProcessor(self.redis_client, self.batch_size)
         return await new_processor.batch_set(items)
     
@@ -126,7 +126,7 @@ class RedisBatchProcessor:
             键值对字典
         """
         # 为了向后兼容，仍然提供实现
-        from crawlo.utils.batch_manager import RedisBatchProcessor as NewRedisBatchProcessor
+        from crawlo.utils.batch.batch_manager import RedisBatchProcessor as NewRedisBatchProcessor
         new_processor = NewRedisBatchProcessor(self.redis_client, self.batch_size)
         return await new_processor.batch_get(keys)
     
@@ -141,7 +141,7 @@ class RedisBatchProcessor:
             成功删除的键数量
         """
         # 为了向后兼容，仍然提供实现
-        from crawlo.utils.batch_manager import RedisBatchProcessor as NewRedisBatchProcessor
+        from crawlo.utils.batch.batch_manager import RedisBatchProcessor as NewRedisBatchProcessor
         new_processor = NewRedisBatchProcessor(self.redis_client, self.batch_size)
         return await new_processor.batch_delete(keys)
 
@@ -153,7 +153,7 @@ async def process_in_batches(items: List[Any], processor_func: Callable,
     """
     便利函数：分批处理大量数据项（已弃用）
     """
-    from crawlo.utils.batch_manager import process_in_batches as new_process_in_batches
+    from crawlo.utils.batch.batch_manager import process_in_batches as new_process_in_batches
     return await new_process_in_batches(items, processor_func, batch_size, max_concurrent_batches, *args, **kwargs)
 
 
@@ -161,5 +161,5 @@ def batch_process(batch_size: int = 100, max_concurrent_batches: int = 5):
     """
     装饰器：将函数转换为批处理函数（已弃用）
     """
-    from crawlo.utils.batch_manager import batch_process as new_batch_process
+    from crawlo.utils.batch.batch_manager import batch_process as new_batch_process
     return new_batch_process(batch_size, max_concurrent_batches)

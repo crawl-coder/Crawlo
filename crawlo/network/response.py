@@ -41,15 +41,11 @@ except ImportError:
     )
 
 from crawlo.exceptions import DecodeError
-from crawlo.utils import (
-    extract_text,
-    extract_texts,
-    extract_attr,
-    extract_attrs,
-    is_xpath,
+from crawlo.utils.request.response_helper import (
     parse_cookies,
     regex_search,
     regex_findall,
+    regex_findone,
     get_header_value
 )
 
@@ -534,189 +530,198 @@ class Response:
 
     def _is_xpath(self, query: str) -> bool:
         """
-        判断查询语句是否为XPath
+        判断查询语句是否为 XPath
+        """
+        return query.startswith(('/', '//', './'))
+
+    def _get_elements(self, xpath_or_css: str) -> SelectorList:
+        """
+        根据选择器获取元素列表
+        """
+        if self._is_xpath(xpath_or_css):
+            return self.xpath(xpath_or_css)
+        return self.css(xpath_or_css)
+
+    def _extract_text(self, elements: SelectorList, first_only: bool = False) -> Union[Optional[str], List[str]]:
+        """
+        从元素中提取文本
         
         Args:
-            query: 查询表达式
+            elements: 元素列表
+            first_only: 是否只返回第一个元素的文本
             
         Returns:
-            bool: 是否为XPath
+            如果 first_only=True 返回 str 或 None
+            否则返回 List[str]
         """
-        return is_xpath(query)
+        result = []
+        for element in elements:
+            if hasattr(element, 'xpath'):
+                texts = element.xpath('.//text()').getall()
+                cleaned = ' '.join(t.strip() for t in texts if t.strip())
+                if cleaned:
+                    result.append(cleaned)
+            else:
+                text = str(element).strip()
+                if text:
+                    result.append(text)
+        
+        if first_only:
+            return result[0] if result else None
+        return result
 
-    def _extract_text(self, elements: SelectorList, join_str: str = " ") -> str:
+    def get(self, xpath_or_css: str, default: Optional[str] = None) -> Optional[str]:
         """
-        从元素列表中提取文本并拼接
+        获取第一个匹配元素的文本。
+        
+        等同于 response.css(query).get() 或 response.xpath(query).get()
         
         Args:
-            elements: SelectorList元素列表
-            join_str: 文本拼接分隔符
+            xpath_or_css: XPath 或 CSS 选择器
+            default: 未找到时的默认值
             
         Returns:
-            str: 拼接后的文本
-        """
-        return extract_text(elements, join_str)
-
-    def extract_text(self, xpath_or_css: str, join_str: str = " ", default: str = '') -> str:
-        """
-        提取单个元素的文本内容，支持CSS和XPath选择器
-
-        参数:
-            xpath_or_css: XPath或CSS选择器
-            join_str: 文本拼接分隔符(默认为空格)
-            default: 默认返回值，当未找到元素时返回
-
-        返回:
-            拼接后的纯文本字符串
+            str: 第一个元素的文本，未找到返回 default
             
         示例:
-            # 使用CSS选择器
-            title = response.extract_text('title')
-            content = response.extract_text('.content p', join_str=' ')
-            
-            # 使用XPath选择器
-            title = response.extract_text('//title')
-            content = response.extract_text('//div[@class="content"]//p', join_str=' ')
-            
-        Args:
-            xpath_or_css: XPath或CSS选择器
-            join_str: 文本拼接分隔符
-            default: 默认返回值
-            
-        Returns:
-            str: 提取的文本
+            title = response.get('title')
+            content = response.get('.content', '')
         """
         try:
-            elements = self.xpath(xpath_or_css) if self._is_xpath(xpath_or_css) else self.css(xpath_or_css)
-            if not elements:
-                return default
-            return self._extract_text(elements, join_str)
+            elements = self._get_elements(xpath_or_css)
+            result = self._extract_text(elements, first_only=True)
+            return result if result is not None else default
         except Exception:
             return default
 
-    def extract_texts(self, xpath_or_css: str, join_str: str = " ", default: Optional[List[str]] = None) -> List[str]:
+    def getall(self, xpath_or_css: str) -> List[str]:
         """
-        提取多个元素的文本内容列表，支持CSS和XPath选择器
-
-        参数:
-            xpath_or_css: XPath或CSS选择器
-            join_str: 单个节点内文本拼接分隔符
-            default: 默认返回值，当未找到元素时返回
-
-        返回:
-            纯文本列表(每个元素对应一个节点的文本)
-            
-        示例:
-            # 使用CSS选择器
-            paragraphs = response.extract_texts('.content p')
-            titles = response.extract_texts('h1, h2, h3')
-            
-            # 使用XPath选择器
-            paragraphs = response.extract_texts('//div[@class="content"]//p')
-            titles = response.extract_texts('//h1 | //h2 | //h3')
-            
+        获取所有匹配元素的文本列表。
+        
+        等同于 response.css(query).getall() 或 response.xpath(query).getall()
+        
         Args:
-            xpath_or_css: XPath或CSS选择器
-            join_str: 单个节点内文本拼接分隔符
-            default: 默认返回值
+            xpath_or_css: XPath 或 CSS 选择器
             
         Returns:
-            List[str]: 提取的文本列表
-        """
-        if default is None:
-            default = []
+            List[str]: 所有匹配元素的文本列表
             
+        示例:
+            items = response.getall('.item')
+            links = response.getall('a::text')
+        """
         try:
-            elements = self.xpath(xpath_or_css) if self._is_xpath(xpath_or_css) else self.css(xpath_or_css)
+            elements = self._get_elements(xpath_or_css)
+            return self._extract_text(elements, first_only=False)
+        except Exception:
+            return []
+
+    def attr(self, xpath_or_css: str, name: str, default: Optional[str] = None) -> Optional[str]:
+        """
+        获取第一个匹配元素的指定属性值。
+        
+        Args:
+            xpath_or_css: XPath 或 CSS 选择器
+            name: 属性名称
+            default: 未找到时的默认值
+            
+        Returns:
+            Optional[str]: 属性值，未找到返回 default
+            
+        示例:
+            href = response.attr('a', 'href')
+            src = response.attr('img', 'src', '')
+        """
+        try:
+            elements = self._get_elements(xpath_or_css)
             if not elements:
                 return default
-                
-            result = extract_texts(elements, join_str)
-            return result if result else default
+            return elements[0].attrib.get(name, default)
         except Exception:
             return default
 
-    def extract_attr(self, xpath_or_css: str, attr_name: str, default: Any = None) -> Any:
+    def attrs(self, xpath_or_css: str, name: str) -> List[str]:
         """
-        提取单个元素的属性值，支持CSS和XPath选择器
-
-        参数:
-            xpath_or_css: XPath或CSS选择器
-            attr_name: 属性名称
-            default: 默认返回值
-
-        返回:
-            属性值或默认值
-            
-        示例:
-            # 使用CSS选择器
-            link_href = response.extract_attr('a', 'href')
-            img_src = response.extract_attr('.image', 'src')
-            
-            # 使用XPath选择器
-            link_href = response.extract_attr('//a[@class="link"]', 'href')
-            img_src = response.extract_attr('//img[@alt="example"]', 'src')
-            
+        获取所有匹配元素的指定属性值列表。
+        
         Args:
-            xpath_or_css: XPath或CSS选择器
-            attr_name: 属性名称
-            default: 默认返回值
+            xpath_or_css: XPath 或 CSS 选择器
+            name: 属性名称
             
         Returns:
-            Any: 提取的属性值
+            List[str]: 属性值列表
+            
+        示例:
+            hrefs = response.attrs('a', 'href')
+            srcs = response.attrs('img', 'src')
         """
         try:
-            elements = self.xpath(xpath_or_css) if self._is_xpath(xpath_or_css) else self.css(xpath_or_css)
-            if not elements:
-                return default
-            return extract_attr(elements, attr_name, default)
+            elements = self._get_elements(xpath_or_css)
+            return [e.attrib.get(name) for e in elements if e.attrib.get(name) is not None]
+        except Exception:
+            return []
+
+    def get_outer(self, xpath_or_css: str, default: Optional[str] = None) -> Optional[str]:
+        """
+        获取第一个匹配元素的完整 HTML（包含标签）。
+        
+        Args:
+            xpath_or_css: XPath 或 CSS 选择器
+            default: 未找到时的默认值
+            
+        Returns:
+            str: 第一个元素的完整 HTML，未找到返回 default
+            
+        示例:
+            content_html = response.get_outer('.content')
+            # '<div class="content">...</div>'
+        """
+        try:
+            elements = self._get_elements(xpath_or_css)
+            return elements.get() or default
         except Exception:
             return default
 
-    def extract_attrs(self, xpath_or_css: str, attr_name: str, default: Optional[List[Any]] = None) -> List[Any]:
+    def getall_outer(self, xpath_or_css: str) -> List[str]:
         """
-        提取多个元素的属性值列表，支持CSS和XPath选择器
-
-        参数:
-            xpath_or_css: XPath或CSS选择器
-            attr_name: 属性名称
-            default: 默认返回值
-
-        返回:
-            属性值列表
-            
-        示例:
-            # 使用CSS选择器
-            links = response.extract_attrs('a', 'href')
-            images = response.extract_attrs('img', 'src')
-            
-            # 使用XPath选择器
-            links = response.extract_attrs('//a[@class="link"]', 'href')
-            images = response.extract_attrs('//img[@alt]', 'src')
-            
+        获取所有匹配元素的完整 HTML 列表（包含标签）。
+        
         Args:
-            xpath_or_css: XPath或CSS选择器
-            attr_name: 属性名称
-            default: 默认返回值
+            xpath_or_css: XPath 或 CSS 选择器
             
         Returns:
-            List[Any]: 提取的属性值列表
-        """
-        if default is None:
-            default = []
+            List[str]: 所有元素的完整 HTML 列表
             
+        示例:
+            items_html = response.getall_outer('.item')
+            # ['<div class="item">item1</div>', '<div class="item">item2</div>']
+        """
         try:
-            elements = self.xpath(xpath_or_css) if self._is_xpath(xpath_or_css) else self.css(xpath_or_css)
-            if not elements:
-                return default
-                
-            result = extract_attrs(elements, attr_name)
-            return result if result else default
+            elements = self._get_elements(xpath_or_css)
+            return elements.getall()
         except Exception:
-            return default
+            return []
 
     # ==================== 正则表达式相关方法 ====================
     
+    def re_findone(self, pattern: Union[str, Pattern], flags: int = re.DOTALL, default: Optional[str] = None) -> Optional[str]:
+        """
+        在响应文本上执行正则表达式查找，返回第一个匹配。
+        
+        Args:
+            pattern: 正则表达式模式
+            flags: 正则表达式标志
+            default: 未匹配时的默认值
+            
+        Returns:
+            Optional[str]: 第一个匹配结果，未匹配返回 default
+            
+        示例:
+            price = response.re_findone(r'price: (\\d+)', default='0')
+        """
+        pattern_str = pattern if isinstance(pattern, str) else pattern.pattern
+        return regex_findone(pattern_str, self.text, flags) or default
+
     def re_search(self, pattern: Union[str, Pattern], flags: int = re.DOTALL) -> Optional[Match]:
         """
         在响应文本上执行正则表达式搜索。
@@ -744,6 +749,30 @@ class Response:
         """
         pattern_str = pattern if isinstance(pattern, str) else pattern.pattern
         return regex_findall(pattern_str, self.text, flags)
+
+    def re_css(self, xpath_or_css: str, pattern: Union[str, Pattern], flags: int = re.DOTALL) -> List[str]:
+        """
+        从匹配选择器的元素中提取文本，再用正则提取。
+        
+        Args:
+            xpath_or_css: XPath 或 CSS 选择器
+            pattern: 正则表达式模式
+            flags: 正则表达式标志
+            
+        Returns:
+            List[str]: 所有正则匹配结果
+            
+        示例:
+            # 从所有商品名称中提取价格数字
+            prices = response.re_css('.price', r'\\d+\\.\\d+')
+        """
+        texts = self.getall(xpath_or_css)
+        pattern_str = pattern if isinstance(pattern, str) else pattern.pattern
+        result = []
+        for text in texts:
+            matches = regex_findall(pattern_str, text, flags)
+            result.extend(matches)
+        return result
 
     # ==================== Cookie处理方法 ====================
     

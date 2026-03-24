@@ -11,10 +11,10 @@ import os
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from crawlo.settings.setting_manager import SettingManager
-from crawlo.pipelines.mysql_pipeline import AsyncmyMySQLPipeline, AiomysqlMySQLPipeline
+from crawlo.pipelines.mysql_pipeline import MySQLPipeline
 from crawlo.items import Item, Field
-from crawlo.utils.mysql_connection_pool import AiomysqlConnectionPoolManager, AsyncmyConnectionPoolManager
-from crawlo.utils.db_helper import SQLBuilder
+from crawlo.utils.mysql_connection_pool import MySQLConnectionPoolManager
+from crawlo.utils.sql_builder import SQLBuilder
 import logging
 
 # 配置日志
@@ -78,13 +78,13 @@ async def verify_aiomysql_asyncmy_difference_handling():
     
     crawler = MockCrawler(settings)
     
-    # 测试 AsyncmyMySQLPipeline
-    pipeline1 = AsyncmyMySQLPipeline.from_crawler(crawler)
-    print(f"1. AsyncmyMySQLPipeline 创建成功，类型: {pipeline1.pool_type}")
+    # 测试 MySQLPipeline
+    pipeline1 = MySQLPipeline.from_crawler(crawler)
+    print(f"1. MySQLPipeline 创建成功，类型: {pipeline1.pool_type}")
     
-    # 测试 AiomysqlMySQLPipeline
-    pipeline2 = AiomysqlMySQLPipeline.from_crawler(crawler)
-    print(f"2. AiomysqlMySQLPipeline 创建成功，类型: {pipeline2.pool_type}")
+    # 测试 MySQLPipeline
+    pipeline2 = MySQLPipeline.from_crawler(crawler)
+    print(f"2. MySQLPipeline 创建成功，类型: {pipeline2.pool_type}")
     
     # 验证连接池状态检查方法
     class MockPool:
@@ -250,7 +250,7 @@ async def verify_2014_error_handling():
     # 这个测试主要是验证代码中是否包含了正确的错误处理逻辑
     # 实际的 2014 错误需要在真实环境中触发
     
-    from crawlo.pipelines.mysql_pipeline import AsyncmyMySQLPipeline, AiomysqlMySQLPipeline
+    from crawlo.pipelines.mysql_pipeline import MySQLPipeline
     
     settings = {
         'MYSQL_HOST': 'localhost',
@@ -266,8 +266,8 @@ async def verify_2014_error_handling():
     crawler = MockCrawler(settings)
     
     # 检查两个管道类中是否包含 2014 错误处理
-    pipeline1 = AsyncmyMySQLPipeline.from_crawler(crawler)
-    pipeline2 = AiomysqlMySQLPipeline.from_crawler(crawler)
+    pipeline1 = MySQLPipeline.from_crawler(crawler)
+    pipeline2 = MySQLPipeline.from_crawler(crawler)
     
     # 检查源代码中是否包含 2014 处理逻辑
     import inspect
@@ -275,20 +275,20 @@ async def verify_2014_error_handling():
     # 获取方法源码并检查是否包含 2014 处理逻辑
     source1 = inspect.getsource(pipeline1._execute_sql)
     has_2014_handling_1 = "2014" in source1 and "Command Out of Sync" in source1
-    print(f"1. AsyncmyMySQLPipeline 2014 错误处理: {has_2014_handling_1}")
+    print(f"1. MySQLPipeline 2014 错误处理: {has_2014_handling_1}")
     
     source2 = inspect.getsource(pipeline2._execute_sql)
     has_2014_handling_2 = "2014" in source2 and "Command Out of Sync" in source2
-    print(f"2. AiomysqlMySQLPipeline 2014 错误处理: {has_2014_handling_2}")
+    print(f"2. MySQLPipeline 2014 错误处理: {has_2014_handling_2}")
     
     # 检查批量方法
     source3 = inspect.getsource(pipeline1._execute_batch_sql)
     has_2014_handling_3 = "2014" in source3 and "Command Out of Sync" in source3
-    print(f"3. AsyncmyMySQLPipeline 批量 2014 错误处理: {has_2014_handling_3}")
+    print(f"3. MySQLPipeline 批量 2014 错误处理: {has_2014_handling_3}")
     
     source4 = inspect.getsource(pipeline2._execute_batch_sql)
     has_2014_handling_4 = "2014" in source4 and "Command Out of Sync" in source4
-    print(f"4. AiomysqlMySQLPipeline 批量 2014 错误处理: {has_2014_handling_4}")
+    print(f"4. MySQLPipeline 批量 2014 错误处理: {has_2014_handling_4}")
     
     print("✅ 2014 错误处理验证通过")
 
@@ -299,11 +299,11 @@ async def verify_connection_pool_optimizations():
     print("验证连接池优化...")
     
     # 验证连接池管理器中的优化
-    from crawlo.utils.mysql_connection_pool import AsyncmyConnectionPoolManager, AiomysqlConnectionPoolManager
+    from crawlo.utils.mysql_connection_pool import MySQLConnectionPoolManager
     import inspect
     
     # 检查源码中是否包含 _closed 和 closed 属性的处理
-    source = inspect.getsource(AsyncmyConnectionPoolManager._ensure_pool)
+    source = inspect.getsource(MySQLConnectionPoolManager._ensure_pool)
     
     has_asyncmy_handling = "_closed" in source
     has_aiomysql_handling = "closed" in source

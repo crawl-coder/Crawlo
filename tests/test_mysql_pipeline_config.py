@@ -8,7 +8,7 @@ import asyncio
 import unittest
 from unittest.mock import Mock, patch
 
-from crawlo.pipelines.mysql_pipeline import BaseMySQLPipeline, AsyncmyMySQLPipeline, AiomysqlMySQLPipeline
+from crawlo.pipelines.mysql_pipeline import BaseMySQLPipeline, MySQLPipeline
 
 
 class TestMySQLPipelineConfig(unittest.TestCase):
@@ -44,7 +44,7 @@ class TestMySQLPipelineConfig(unittest.TestCase):
             'MYSQL_UPDATE_COLUMNS': ()
         }.get(key, default))
         
-        pipeline = AsyncmyMySQLPipeline(self.mock_crawler)
+        pipeline = MySQLPipeline(self.mock_crawler)
         
         # 验证默认配置值
         self.assertEqual(pipeline.auto_update, False)
@@ -63,7 +63,7 @@ class TestMySQLPipelineConfig(unittest.TestCase):
             'MYSQL_UPDATE_COLUMNS': ('updated_at', 'view_count')
         }.get(key, default))
         
-        pipeline = AsyncmyMySQLPipeline(self.mock_crawler)
+        pipeline = MySQLPipeline(self.mock_crawler)
         
         # 验证自定义配置值
         self.assertEqual(pipeline.auto_update, True)
@@ -82,7 +82,7 @@ class TestMySQLPipelineConfig(unittest.TestCase):
             'MYSQL_UPDATE_COLUMNS': ()
         }.get(key, default))
         
-        pipeline = AsyncmyMySQLPipeline(self.mock_crawler)
+        pipeline = MySQLPipeline(self.mock_crawler)
         
         # 测试数据
         item_dict = {"id": 1, "name": "test"}
@@ -115,7 +115,7 @@ class TestMySQLPipelineConfig(unittest.TestCase):
             'MYSQL_UPDATE_COLUMNS': ()
         }.get(key, default))
         
-        pipeline = AsyncmyMySQLPipeline(self.mock_crawler)
+        pipeline = MySQLPipeline(self.mock_crawler)
         
         # 测试数据
         item_dict = {"id": 1, "name": "test"}
@@ -157,7 +157,7 @@ class TestMySQLPipelineConfig(unittest.TestCase):
             'MYSQL_BATCH_SIZE': 2
         }.get(key, default))
         
-        pipeline = AsyncmyMySQLPipeline(self.mock_crawler)
+        pipeline = MySQLPipeline(self.mock_crawler)
         
         # 验证配置已正确设置
         self.assertEqual(pipeline.auto_update, True)

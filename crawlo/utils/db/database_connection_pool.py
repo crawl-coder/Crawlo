@@ -15,10 +15,8 @@ from crawlo.logging import get_logger
 
 # 导入已拆分的连接池管理器
 from .mysql_connection_pool import (
-    AiomysqlConnectionPoolManager,
-    AsyncmyConnectionPoolManager,
-    get_aiomysql_pool,
-    get_asyncmy_pool,
+    MySQLConnectionPoolManager,
+    get_mysql_pool,
     close_all_mysql_pools,
     get_mysql_pool_stats
 )

@@ -11,7 +11,7 @@ import os
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from scrapy.settings import Settings
-from crawlo.pipelines.mysql_pipeline import AsyncmyMySQLPipeline, AiomysqlMySQLPipeline
+from crawlo.pipelines.mysql_pipeline import MySQLPipeline
 from crawlo.items import Item, Field
 import logging
 
@@ -57,9 +57,9 @@ class MockCrawler:
 
 
 async def test_asyncmy_pipeline():
-    """测试 AsyncmyMySQLPipeline"""
+    """测试 MySQLPipeline"""
     print("=" * 60)
-    print("测试 AsyncmyMySQLPipeline...")
+    print("测试 MySQLPipeline...")
     
     # 配置测试设置
     settings = {
@@ -79,7 +79,7 @@ async def test_asyncmy_pipeline():
     crawler = MockCrawler(settings)
     
     try:
-        pipeline = AsyncmyMySQLPipeline.from_crawler(crawler)
+        pipeline = MySQLPipeline.from_crawler(crawler)
         await pipeline.open_spider(crawler.spider)
         
         # 测试单个 item 处理
@@ -106,18 +106,18 @@ async def test_asyncmy_pipeline():
             print(f"批量处理项目 {i+1} 结果: {result}")
         
         await pipeline.spider_closed()
-        print("AsyncmyMySQLPipeline 测试完成")
+        print("MySQLPipeline 测试完成")
         
     except Exception as e:
-        logger.error(f"AsyncmyMySQLPipeline 测试失败: {e}")
+        logger.error(f"MySQLPipeline 测试失败: {e}")
         import traceback
         traceback.print_exc()
 
 
 async def test_aiomysql_pipeline():
-    """测试 AiomysqlMySQLPipeline"""
+    """测试 MySQLPipeline"""
     print("=" * 60)
-    print("测试 AiomysqlMySQLPipeline...")
+    print("测试 MySQLPipeline...")
     
     # 配置测试设置
     settings = {
@@ -137,7 +137,7 @@ async def test_aiomysql_pipeline():
     crawler = MockCrawler(settings)
     
     try:
-        pipeline = AiomysqlMySQLPipeline.from_crawler(crawler)
+        pipeline = MySQLPipeline.from_crawler(crawler)
         await pipeline.open_spider(crawler.spider)
         
         # 测试单个 item 处理
@@ -164,10 +164,10 @@ async def test_aiomysql_pipeline():
             print(f"批量处理项目 {i+1} 结果: {result}")
         
         await pipeline.spider_closed()
-        print("AiomysqlMySQLPipeline 测试完成")
+        print("MySQLPipeline 测试完成")
         
     except Exception as e:
-        logger.error(f"AiomysqlMySQLPipeline 测试失败: {e}")
+        logger.error(f"MySQLPipeline 测试失败: {e}")
         import traceback
         traceback.print_exc()
 
@@ -177,7 +177,7 @@ async def test_connection_pool_utils():
     print("=" * 60)
     print("测试连接池工具类...")
     
-    from crawlo.utils.mysql_connection_pool import AsyncmyConnectionPoolManager, AiomysqlConnectionPoolManager
+    from crawlo.utils.mysql_connection_pool import MySQLConnectionPoolManager
     from crawlo.utils.database_connection_pool import get_mysql_pool
     
     try:
@@ -233,21 +233,21 @@ async def main():
     # 测试连接池工具类
     await test_connection_pool_utils()
     
-    # 测试 AsyncmyMySQLPipeline（如果可用）
+    # 测试 MySQLPipeline（如果可用）
     try:
         import asyncmy
-        print("asyncmy 库可用，开始测试 AsyncmyMySQLPipeline")
+        print("asyncmy 库可用，开始测试 MySQLPipeline")
         await test_asyncmy_pipeline()
     except ImportError:
-        print("asyncmy 库不可用，跳过 AsyncmyMySQLPipeline 测试")
+        print("asyncmy 库不可用，跳过 MySQLPipeline 测试")
     
-    # 测试 AiomysqlMySQLPipeline（如果可用）
+    # 测试 MySQLPipeline（如果可用）
     try:
         import aiomysql
-        print("aiomysql 库可用，开始测试 AiomysqlMySQLPipeline")
+        print("aiomysql 库可用，开始测试 MySQLPipeline")
         await test_aiomysql_pipeline()
     except ImportError:
-        print("aiomysql 库不可用，跳过 AiomysqlMySQLPipeline 测试")
+        print("aiomysql 库不可用，跳过 MySQLPipeline 测试")
     
     print("=" * 60)
     print("全面测试完成!")
