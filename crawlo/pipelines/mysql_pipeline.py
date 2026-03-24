@@ -432,12 +432,6 @@ class BaseMySQLPipeline(ResourceManagedPipeline, ABC):
             spider_name: 爬虫名称
             is_cleanup: 是否为清理模式（是则合并日志输出）
         """
-        # 清理模式下合并日志输出（只输出最终结果）
-        if is_cleanup:
-            pass  # 成功/失败日志在后面统一输出
-        else:
-            self.logger.info(f"开始刷新批量数据，spider={spider_name}, 缓冲区大小={len(self.batch_buffer)}")
-        
         # 确保资源已初始化
         await self._ensure_initialized()
         
@@ -450,8 +444,6 @@ class BaseMySQLPipeline(ResourceManagedPipeline, ABC):
             # 使用切片复制，避免引用同一对象；不立即清空，失败时可重试
             current_batch = self.batch_buffer[:]
             processed_count = len(current_batch)
-            if not is_cleanup:
-                self.logger.info(f"准备批量插入 {processed_count} 条记录到表 {self.table_name}")
             # 立即清空缓冲区，避免重复处理
             self.batch_buffer.clear()
         
@@ -464,13 +456,10 @@ class BaseMySQLPipeline(ResourceManagedPipeline, ABC):
             rowcount = await self._batch_insert_with_helper(current_batch)
                 
             if rowcount > 0:
-                # 清理模式下合并日志：只在成功时输出最终结果
-                if is_cleanup:
-                    self.logger.info(f"[清理] 批量插入完成：{processed_count} 条记录到表 {self.table_name}，实际影响 {rowcount} 行")
-                else:
-                    self.logger.info(
-                        f"批量插入成功：{processed_count} 条记录到表 {self.table_name}，实际影响 {rowcount} 行"
-                    )
+                # 成功日志：包含关键信息
+                self.logger.info(
+                    f"批量插入成功：{processed_count} 条记录到表 {self.table_name}，实际影响 {rowcount} 行"
+                )
             else:
                 # 当使用 MYSQL_UPDATE_COLUMNS 时，如果更新的字段值与现有记录相同，
                 # MySQL 不会实际更新任何数据，rowcount 会是 0

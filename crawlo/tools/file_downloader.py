@@ -19,9 +19,9 @@ from pathlib import Path
 from crawlo.logging import get_logger
 
 
-class AttachmentDownloader:
+class FileDownloader:
     """
-    附件下载工具类
+    文件下载工具类
     
     提供灵活的附件下载功能，支持多种配置选项和错误处理。
     """
@@ -40,7 +40,7 @@ class AttachmentDownloader:
                  retry_delay: float = 1.0,
                  progress_callback: Optional[callable] = None):
         """
-        初始化附件下载器
+        初始化文件下载器
         
         Args:
             download_dir: 下载目录
@@ -408,5 +408,5 @@ class AttachmentDownloader:
 
 # 导出所有公共API
 __all__ = [
-    'AttachmentDownloader',
+    'FileDownloader',
 ]

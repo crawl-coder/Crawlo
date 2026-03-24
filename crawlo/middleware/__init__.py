@@ -92,10 +92,10 @@ class BaseMiddleware:
 # 所以我们使用延迟导入的方式
 
 def __getattr__(name):
-    if name == 'DownloadAttachmentMiddleware':
-        from .download_attachment_middleware import DownloadAttachmentMiddleware
-        return DownloadAttachmentMiddleware
+    if name == 'FileMiddleware':
+        from .file_middleware import FileMiddleware
+        return FileMiddleware
     raise AttributeError(f"module '{__name__}' has no attribute '{name}'")
 
 
-__all__ = ['BaseMiddleware', 'DownloadAttachmentMiddleware']
+__all__ = ['BaseMiddleware', 'FileMiddleware']

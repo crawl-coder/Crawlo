@@ -80,7 +80,7 @@ class ResourceCleanup:
     async def _cleanup_monitor_manager(self):
         """清理监控管理器"""
         try:
-            from crawlo.tools.monitor.monitor_manager import monitor_manager
+            from crawlo.utils.monitor.monitor_manager import monitor_manager
             monitor_manager.cleanup()
             self.logger.info("监控管理器清理完成")
         except Exception as e:

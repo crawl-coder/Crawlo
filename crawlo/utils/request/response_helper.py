@@ -71,6 +71,23 @@ def regex_findall(pattern: str, text: str, flags: int = re.DOTALL) -> List[Any]:
     return re.findall(pattern, text, flags=flags)
 
 
+def regex_findone(pattern: str, text: str, flags: int = re.DOTALL) -> Optional[str]:
+    """
+    在文本上执行正则表达式查找，返回第一个匹配或默认值
+    
+    :param pattern: 正则表达式模式
+    :param text: 要搜索的文本
+    :param flags: 正则表达式标志
+    :return: 第一个匹配结果或 None
+    """
+    if not isinstance(pattern, str):
+        raise TypeError("Pattern must be a string")
+    if not isinstance(text, str):
+        raise TypeError("Text must be a string")
+    match = re.search(pattern, text, flags=flags)
+    return match.group(1) if match and match.groups() else (match.group(0) if match else None)
+
+
 def get_header_value(headers: Dict[str, Any], header_name: str, default: Any = None) -> Any:
     """
     从响应头中获取值，处理大小写不敏感的情况

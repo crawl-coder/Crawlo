@@ -10,7 +10,7 @@
 """
 
 # 日期工具
-from .text.date_tools import (
+from .time_utils import (
     TimeUtils,
     parse_time,
     format_time,
@@ -25,7 +25,7 @@ from .text.date_tools import (
 )
 
 # 数据清洗工具
-from .text.text_cleaner import (
+from .text_utils import (
     TextCleaner,
     remove_html_tags,
     decode_html_entities,
@@ -38,26 +38,13 @@ from .text.text_cleaner import (
     extract_urls
 )
 
-# 分布式协调工具
-from .distributed.distributed_coordinator import (
-    TaskDistributor,
-    DeduplicationTool,
-    DistributedCoordinator,
-    generate_task_id,
-    claim_task,
-    report_task_status,
-    get_cluster_info,
-    generate_pagination_tasks,
-    distribute_tasks
-)
+# 预加载 utils.request 以避免循环导入
+from crawlo.utils.request import fingerprint
 
-# 附件下载工具
-from .attachment_downloader import (
-    AttachmentDownloader,
+# 文件下载工具
+from .file_downloader import (
+    FileDownloader,
 )
-
-# 监控工具
-from .monitor.performance_monitor import PerformanceMonitor
 
 __all__ = [
     # 日期工具
@@ -85,20 +72,6 @@ __all__ = [
     "extract_emails",
     "extract_urls",
     
-    # 分布式协调工具
-    "TaskDistributor",
-    "DeduplicationTool",
-    "DistributedCoordinator",
-    "generate_task_id",
-    "claim_task",
-    "report_task_status",
-    "get_cluster_info",
-    "generate_pagination_tasks",
-    "distribute_tasks",
-    
-    # 附件下载工具
-    "AttachmentDownloader",
-    
-    # 监控工具
-    "PerformanceMonitor"
+    # 文件下载工具
+    "FileDownloader",
 ]

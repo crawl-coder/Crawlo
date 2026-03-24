@@ -1,10 +1,10 @@
 #!/usr/bin/python
 # -*- coding: UTF-8 -*-
 """
-附件下载中间件
+文件下载中间件
 ==============
 
-提供自动下载网页中指定附件的功能，支持多种文件类型和灵活配置。
+提供自动下载请求中附件的功能，支持多种文件类型和灵活配置。
 """
 
 import os
@@ -17,11 +17,11 @@ from crawlo.middleware import BaseMiddleware
 from crawlo.logging import get_logger
 
 
-class DownloadAttachmentMiddleware(BaseMiddleware):
+class FileMiddleware(BaseMiddleware):
     """
-    附件下载中间件 - 自动下载请求中指定的附件
+    文件下载中间件 - 自动下载请求中指定的附件
     
-    支持通过请求元数据控制附件下载行为，提供灵活的配置选项。
+    支持通过请求元数据控制下载行为，提供灵活的配置选项。
     """
     
     def __init__(self, crawler):
@@ -276,5 +276,5 @@ class DownloadAttachmentMiddleware(BaseMiddleware):
 
 # 导出所有公共API
 __all__ = [
-    'DownloadAttachmentMiddleware',
+    'FileMiddleware',
 ]
