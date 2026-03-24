@@ -264,13 +264,19 @@ class BaseMySQLPipeline(ResourceManagedPipeline, ABC):
                 # 添加更多调试信息
                 error_msg = f"处理失败：{str(e)}"
                 err_str = str(e).lower()
-                            
+                
                 # 如果是重复键错误，直接丢弃，不要重试
                 if "duplicate entry" in err_str or "1062" in err_str:
                     self.logger.debug(f"数据已存在，跳过：{item.get('pmid', 'unknown')}")
                     self.crawler.stats.inc_value('mysql/rows_ignored_by_duplicate', 1)
                     return item  # 直接返回成功，不抛出异常
-                            
+                
+                # 如果是锁等待超时，立即放弃，避免卡住
+                if "lock wait timeout" in err_str or "1205" in err_str:
+                    self.logger.warning(f"锁等待超时，跳过本次操作")
+                    self.crawler.stats.inc_value('mysql/lock_timeout_count', 1)
+                    return item  # 直接返回成功，不抛出异常
+                
                 self.logger.error(f"处理数据项时发生错误：{error_msg}")
                 self.crawler.stats.inc_value('mysql/insert_failed')
                 raise ItemDiscard(error_msg)
@@ -731,15 +737,22 @@ class BaseMySQLPipeline(ResourceManagedPipeline, ABC):
     async def _handle_common_exceptions(self, e: Exception, attempt: int, max_retries: int, conn) -> bool:
         """统一处理常见异常，返回是否需要重试"""
         err_str = str(e).lower()  # 转换为小写以确保匹配
-        
-        # 处理 2014 错误：如果报错同步问题，强制销毁连接
-        if "2014" in err_str or "command out of sync" in err_str:
-            self.logger.warning(f"检测到脏连接(2014)，正在丢弃并重试: {err_str}")
+            
+        # 处理 1205 错误：锁等待超时，立即放弃，不要重试
+        if "lock wait timeout" in err_str or "1205" in err_str:
+            self.logger.warning(f"检测到锁等待超时，跳过本次操作：{err_str}")
             if conn:
                 await self._close_conn_properly(conn)
-                conn = None # 标记为None，防止在finally中再次release
+            return False  # 不需要重试，直接失败
+            
+        # 处理 2014 错误：如果报错同步问题，强制销毁连接
+        if "2014" in err_str or "command out of sync" in err_str:
+            self.logger.warning(f"检测到脏连接 (2014)，正在丢弃并重试：{err_str}")
+            if conn:
+                await self._close_conn_properly(conn)
+                conn = None # 标记为 None，防止在 finally 中再次 release
             return True  # 需要重试
-
+    
         # 其他常见重试逻辑（死锁、断连等）
         if (("deadlock found" in err_str or "2006" in err_str or 
              "2013" in err_str or "lost connection" in err_str) and 
