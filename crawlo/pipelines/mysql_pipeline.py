@@ -262,8 +262,16 @@ class BaseMySQLPipeline(ResourceManagedPipeline, ABC):
     
             except Exception as e:
                 # 添加更多调试信息
-                error_msg = f"处理失败: {str(e)}"
-                self.logger.error(f"处理数据项时发生错误: {error_msg}")
+                error_msg = f"处理失败：{str(e)}"
+                err_str = str(e).lower()
+                            
+                # 如果是重复键错误，直接丢弃，不要重试
+                if "duplicate entry" in err_str or "1062" in err_str:
+                    self.logger.debug(f"数据已存在，跳过：{item.get('pmid', 'unknown')}")
+                    self.crawler.stats.inc_value('mysql/rows_ignored_by_duplicate', 1)
+                    return item  # 直接返回成功，不抛出异常
+                            
+                self.logger.error(f"处理数据项时发生错误：{error_msg}")
                 self.crawler.stats.inc_value('mysql/insert_failed')
                 raise ItemDiscard(error_msg)
 
