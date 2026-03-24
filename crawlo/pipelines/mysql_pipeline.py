@@ -6,9 +6,7 @@ MySQL Pipeline - 异步 MySQL 数据管道
 """
 import re
 import asyncio
-import async_timeout
-from abc import ABC, abstractmethod
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Optional
 
 from crawlo.items import Item
 from crawlo.logging import get_logger
@@ -135,7 +133,7 @@ class MySQLErrorHandler:
         return None
 
 
-class BaseMySQLPipeline(ResourceManagedPipeline, ABC):
+class BaseMySQLPipeline(ResourceManagedPipeline):
     """MySQL 管道基类"""
     
     def __init__(self, crawler):
@@ -190,7 +188,6 @@ class BaseMySQLPipeline(ResourceManagedPipeline, ABC):
         )
         
         # 其他配置
-        self.prefer_alias_syntax = self.settings.get_bool('MYSQL_PREFER_ALIAS_SYNTAX', True)
         self.check_table_exists = self.settings.get_bool('MYSQL_CHECK_TABLE_EXISTS', True)
     
     def _sanitize_table_name(self, name: str) -> str:
@@ -426,10 +423,9 @@ class BaseMySQLPipeline(ResourceManagedPipeline, ABC):
         except Exception as e:
             self.logger.error(f"Error checking table existence: {e}")
     
-    @abstractmethod
     async def _ensure_pool(self):
         """确保连接池已初始化"""
-        pass
+        raise NotImplementedError("Subclasses must implement _ensure_pool")
 
 
 class MySQLPipeline(BaseMySQLPipeline):
