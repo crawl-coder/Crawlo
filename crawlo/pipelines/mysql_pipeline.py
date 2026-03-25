@@ -50,24 +50,25 @@ class MySQLErrorHandler:
             'retry': False
         },
         MySQLErrorCode.COMMAND_OUT_OF_SYNC: {
-            'action': 'retry',
+            'action': 'skip',
             'log_level': 'warning',
-            'message': '脏连接(2014)，丢弃连接并重试',
+            'message': '脏连接(2014)，跳过',
             'stat_key': 'mysql/dirty_connection_count',
-            'retry': True,
-            'close_conn': True
+            'retry': False
         },
         MySQLErrorCode.MYSQL_SERVER_GONE: {
-            'action': 'retry',
+            'action': 'skip',
             'log_level': 'warning',
-            'message': 'MySQL服务器断开，重试',
-            'retry': True
+            'message': 'MySQL服务器断开，跳过',
+            'stat_key': 'mysql/server_gone_count',
+            'retry': False
         },
         MySQLErrorCode.MYSQL_SERVER_LOST: {
-            'action': 'retry',
+            'action': 'skip',
             'log_level': 'warning',
-            'message': 'MySQL连接丢失，重试',
-            'retry': True
+            'message': 'MySQL连接丢失，跳过',
+            'stat_key': 'mysql/connection_lost_count',
+            'retry': False
         }
     }
     
@@ -268,27 +269,40 @@ class BaseMySQLPipeline(ResourceManagedPipeline):
         return item
     
     async def _process_single_item(self, item: Item, **kwargs) -> Item:
-        """单条模式：直接插入"""
-        try:
-            rowcount = await self._mysql_helper.insert(
-                table=self.table_name,
-                data=dict(item),
-                auto_update=self.auto_update,
-                update_columns=self.update_columns,
-                insert_ignore=self.insert_ignore
-            )
-            
-            self._update_stats(rowcount, 1)
-            return item
-            
-        except Exception as e:
-            result = MySQLErrorHandler.handle(e, self.crawler, item.get('pmid'))
-            
-            if result['action'] == 'skip':
+        """单条模式：直接插入（带重试）"""
+        last_error = None
+        
+        for attempt in range(self.execute_max_retries):
+            try:
+                rowcount = await self._mysql_helper.insert(
+                    table=self.table_name,
+                    data=dict(item),
+                    auto_update=self.auto_update,
+                    update_columns=self.update_columns,
+                    insert_ignore=self.insert_ignore
+                )
+                
+                self._update_stats(rowcount, 1)
                 return item
-            
-            self.crawler.stats.inc_value('mysql/insert_failed')
-            raise ItemDiscard(f"Insert failed: {e}")
+                
+            except Exception as e:
+                last_error = e
+                result = MySQLErrorHandler.handle(e, self.crawler, item.get('pmid'))
+                
+                if result['action'] == 'skip':
+                    return item
+                
+                if result['action'] == 'retry' and attempt < self.execute_max_retries - 1:
+                    self.logger.warning(f"Insert failed, retrying ({attempt + 1}/{self.execute_max_retries}): {e}")
+                    await asyncio.sleep(self.execute_retry_delay * (attempt + 1))
+                    continue
+                
+                # 不重试，跳出循环
+                break
+        
+        # 所有重试都失败了
+        self.crawler.stats.inc_value('mysql/insert_failed')
+        raise ItemDiscard(f"Insert failed after {self.execute_max_retries} retries: {last_error}")
     
     async def _flush_batch(self, spider_name: str):
         """刷新批量缓冲区"""
