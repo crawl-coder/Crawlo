@@ -44,18 +44,16 @@ class ErrorClassifier:
         1048: ErrorConfig(1048, '字段不能为空', skipable=True),
         1364: ErrorConfig(1364, '字段缺少默认值', skipable=True),
         
-        # 锁相关错误（可跳过+可重试）
-        1205: ErrorConfig(1205, '锁等待超时', skipable=True, retryable=True),
-        1213: ErrorConfig(1213, '死锁', skipable=True, retryable=True),
-        1206: ErrorConfig(1206, '锁文件已满', skipable=True, retryable=True),
+        # 锁相关错误（可跳过）
+        1205: ErrorConfig(1205, '锁等待超时', skipable=True),
+        1213: ErrorConfig(1213, '死锁', skipable=True),
+        1206: ErrorConfig(1206, '锁文件已满', skipable=True),
         
         # 连接错误（可重试）
         2002: ErrorConfig(2002, '无法连接MySQL服务器', retryable=True),
         2003: ErrorConfig(2003, '连接被拒绝', retryable=True),
         2006: ErrorConfig(2006, 'MySQL服务器断开', retryable=True),
         2013: ErrorConfig(2013, '连接丢失', retryable=True),
-        2014: ErrorConfig(2014, '脏连接', retryable=True),
-        2026: ErrorConfig(2026, 'SSL连接错误', retryable=True),
         
         # 认证/权限错误（不可恢复）
         1044: ErrorConfig(1044, '权限不足'),
@@ -80,8 +78,10 @@ class ErrorClassifier:
         
         # 其他常见错误
         1153: ErrorConfig(1153, '数据包过大', skipable=True),
-        1189: ErrorConfig(1189, '网络错误', retryable=True),
+        1189: ErrorConfig(1189, '网络错误'),
         1836: ErrorConfig(1836, '外键约束失败', skipable=True),
+        2014: ErrorConfig(2014, '脏连接'),
+        2026: ErrorConfig(2026, 'SSL连接错误'),
     }
     
     @classmethod
