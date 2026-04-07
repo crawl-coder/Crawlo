@@ -489,10 +489,10 @@ class Engine(object):
         if self.processor is not None and hasattr(self.processor, 'pipelines'):
             await self.processor.pipelines.close()
         
+        # 注意：downloader 已注册到 ResourceManager，由 ResourceManager 统一清理
+        # 这里不再重复调用 downloader.close()
         if self.scheduler is not None:
             await self.scheduler.close()
-        if self.downloader is not None:
-            await self.downloader.close()
     
     def get_generation_stats(self) -> dict:
         """获取生成统计"""

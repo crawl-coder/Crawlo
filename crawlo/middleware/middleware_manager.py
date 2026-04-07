@@ -18,11 +18,14 @@ from crawlo.utils.misc import load_object
 from crawlo.middleware import BaseMiddleware
 from crawlo.project import common_call
 from crawlo.event import CrawlerEvent
+from crawlo.utils.misc import safe_get_config
 from crawlo.exceptions import MiddlewareInitError, InvalidOutputError, RequestMethodError, IgnoreRequestError, \
     NotConfiguredError
 
 
 class MiddlewareManager:
+    # 类级别标志，确保只打印一次中间件启用日志
+    _logged_enabled = False
 
     def __init__(self, crawler):
         self.crawler = crawler
@@ -31,7 +34,6 @@ class MiddlewareManager:
         self.methods: Dict[str, List[MethodType]] = defaultdict(list)
         
         # 安全获取MIDDLEWARES配置
-        from crawlo.utils.misc import safe_get_config
         middlewares = safe_get_config(self.crawler.settings, 'MIDDLEWARES', [], list)
             
         self._add_middleware(middlewares)
@@ -174,21 +176,24 @@ class MiddlewareManager:
                 enabled_middlewares.append((middleware_path, priority))
         
         if enabled_middlewares:
-            # 恢复INFO级别日志，保留关键的启用信息
-            # 格式化中间件列表，使其更像字典格式，更易读
-            if len(enabled_middlewares) == 1:
-                # 只有一个中间件时，单行显示
-                middleware_path, priority = enabled_middlewares[0]
-                self.logger.info(f'Enabled middlewares: {{{middleware_path!r}: {priority}}}')
-            else:
-                # 多个中间件时，多行显示，类似字典格式
-                formatted_output = '{\n'
-                for i, (middleware_path, priority) in enumerate(enabled_middlewares):
-                    is_last = (i == len(enabled_middlewares) - 1)
-                    comma = ',' if not is_last else ''
-                    formatted_output += f"  {middleware_path!r}: {priority}{comma}\n"
-                formatted_output += '}'
-                self.logger.info(f'Enabled middlewares:\n{formatted_output}')
+            # 只打印一次中间件启用日志（避免多个下载器实例重复打印）
+            if not MiddlewareManager._logged_enabled:
+                MiddlewareManager._logged_enabled = True
+                # 恢复INFO级别日志，保留关键的启用信息
+                # 格式化中间件列表，使其更像字典格式，更易读
+                if len(enabled_middlewares) == 1:
+                    # 只有一个中间件时，单行显示
+                    middleware_path, priority = enabled_middlewares[0]
+                    self.logger.info(f'Enabled middlewares: {{{middleware_path!r}: {priority}}}')
+                else:
+                    # 多个中间件时，多行显示，类似字典格式
+                    formatted_output = '{\n'
+                    for i, (middleware_path, priority) in enumerate(enabled_middlewares):
+                        is_last = (i == len(enabled_middlewares) - 1)
+                        comma = ',' if not is_last else ''
+                        formatted_output += f"  {middleware_path!r}: {priority}{comma}\n"
+                    formatted_output += '}'
+                    self.logger.info(f'Enabled middlewares:\n{formatted_output}')
 
     def _validate_middleware(self, middleware):
         middleware_cls = load_object(middleware)

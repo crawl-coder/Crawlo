@@ -32,8 +32,50 @@ SPIDER_LOADER_WARN_ONLY = False  # 爬虫加载器是否只警告不报错
 # --------------------------------- 2. 爬虫核心配置 ------------------------------------
 
 # 下载器配置
-DOWNLOADER = "crawlo.downloader.httpx_downloader.HttpXDownloader"  # 默认下载器
+DOWNLOADER = "crawlo.downloader.hybrid_downloader.HybridDownloader"  # 默认使用混合下载器，支持智能选择协议/动态下载器
 DOWNLOAD_DELAY = 0.5  # 请求延迟（秒）
+
+# ==================================== 动态渲染配置 ====================================
+
+# DynamicRenderMiddleware - 动态渲染中间件
+# 与 HybridDownloader 分层协作：中间件根据配置设置请求标记，下载器读取标记选择下载方式
+# 
+# 默认行为：只使用协议下载器（httpx/aiohttp/curl_cffi）
+# 如需动态渲染，必须通过以下配置显式指定：
+# - DYNAMIC_RENDER_DOMAINS: 指定需要动态渲染的域名
+# - DYNAMIC_RENDER_URL_PATTERNS: 指定需要动态渲染的URL模式
+# - 或在 Request.meta 中设置 use_dynamic_loader=True
+#
+# 注意：框架不会自动检测 POST 请求或 URL 关键词，避免误判
+DYNAMIC_RENDER_ENABLED = True  # 是否启用动态渲染中间件
+DYNAMIC_RENDER_DEFAULT_DYNAMIC = False  # 默认是否使用动态下载器（默认 False，使用协议下载器）
+DYNAMIC_RENDER_CACHE_ENABLED = True  # 是否启用检测结果缓存
+DYNAMIC_RENDER_DOMAINS = []  # 需要动态渲染的域名列表（用户显式配置）
+DYNAMIC_RENDER_STATIC_DOMAINS = []  # 静态内容域名列表
+DYNAMIC_RENDER_URL_PATTERNS = []  # 动态内容 URL 模式（正则表达式列表）
+DYNAMIC_RENDER_STATIC_PATTERNS = []  # 静态内容 URL 模式（正则表达式列表）
+
+# ==================================== HybridDownloader 配置 ====================================
+
+# HybridDownloader - 混合下载器
+# 默认行为：使用协议下载器（httpx）
+# 只有在明确配置时才使用动态下载器（playwright/selenium）
+#
+# 检测优先级（按顺序）：
+# 1. 请求标记（use_dynamic_loader / use_protocol_loader）
+# 2. URL 模式配置（HYBRID_DYNAMIC_URL_PATTERNS / HYBRID_PROTOCOL_URL_PATTERNS）
+# 3. 域名配置（HYBRID_DYNAMIC_DOMAINS / HYBRID_PROTOCOL_DOMAINS）
+# 4. 文件扩展名判断（静态资源使用协议下载器）
+# 5. 默认：协议下载器
+#
+# 注意：不再自动检测 POST 请求或 URL 关键词
+HYBRID_DEFAULT_PROTOCOL_DOWNLOADER = "httpx"  # 默认协议下载器：aiohttp, httpx, curl_cffi
+HYBRID_DEFAULT_DYNAMIC_DOWNLOADER = "playwright"  # 默认动态下载器：playwright, selenium
+HYBRID_VERBOSE_LOGGING = False  # 是否启用详细日志（调试用）
+HYBRID_DYNAMIC_URL_PATTERNS = []  # 需要动态加载的 URL 模式（字符串匹配）
+HYBRID_PROTOCOL_URL_PATTERNS = []  # 需要协议请求的 URL 模式（字符串匹配）
+HYBRID_DYNAMIC_DOMAINS = []  # 需要动态加载的域名
+HYBRID_PROTOCOL_DOMAINS = []  # 需要协议请求的域名
 RANDOMNESS = True  # 是否启用随机延迟
 RANDOM_RANGE = [0.5, 1.5]  # 随机延迟范围因子，实际延迟 = DOWNLOAD_DELAY * RANDOM_RANGE[0] 到 DOWNLOAD_DELAY * RANDOM_RANGE[1]
 
@@ -118,6 +160,7 @@ MIDDLEWARES = {
     'crawlo.middleware.request_ignore.RequestIgnoreMiddleware': 100,  # 请求忽略（最先）
     'crawlo.middleware.download_delay.DownloadDelayMiddleware': 200,  # 下载延迟
     'crawlo.middleware.default_header.DefaultHeaderMiddleware': 300,  # 默认请求头
+    'crawlo.middleware.DynamicRenderMiddleware': 350,  # 动态渲染检测（设置请求标记，供 HybridDownloader 使用）
     'crawlo.middleware.offsite.OffsiteMiddleware': 400,  # 域名过滤
 
     # === 响应处理阶段（数值大→响应先执行）===
@@ -311,6 +354,27 @@ PLAYWRIGHT_WAIT_FOR_ELEMENT = None  # 等待特定元素选择器
 PLAYWRIGHT_PROXY = None  # 代理设置
 PLAYWRIGHT_SINGLE_BROWSER_MODE = True  # 单浏览器多标签页模式
 PLAYWRIGHT_MAX_PAGES_PER_BROWSER = 10  # 单浏览器最大页面数量
+
+# ===== Playwright 智能等待配置 =====
+PLAYWRIGHT_WAIT_STRATEGY = "auto"  # 等待策略: auto(自动检测), networkidle, domcontentloaded, element, custom
+PLAYWRIGHT_WAIT_TIMEOUT = 10000  # 智能等待超时时间（毫秒）
+
+# ===== Playwright 资源屏蔽配置（提升性能）=====
+PLAYWRIGHT_BLOCK_RESOURCES = ["image", "font", "media"]  # 屏蔽的资源类型: image, font, media, stylesheet, script
+PLAYWRIGHT_BLOCK_ADS = True  # 是否屏蔽广告（内置广告域名黑名单）
+
+# ===== Playwright 反检测配置 =====
+PLAYWRIGHT_STEALTH_MODE = True  # 是否启用反检测模式（隐藏 webdriver 标识）
+
+# ===== Playwright 自动滚动配置 =====
+PLAYWRIGHT_AUTO_SCROLL = False  # 是否自动滚动加载更多内容（适用于懒加载页面）
+PLAYWRIGHT_SCROLL_DELAY = 500  # 滚动延迟（毫秒）
+PLAYWRIGHT_MAX_NO_CONTENT = 2  # 连续无新内容的最大次数（达到此次数认为到底部）
+
+# ===== Playwright 动态交互配置 =====
+# 滚动加载：滚动一次，等待渲染，检查新内容，重复直到滑不动
+# 点击翻页：通过 playwright_actions 配置点击选择器和等待策略
+# 示例配置见文档或 request.meta['playwright_actions']
 
 # 通用优化配置
 CONNECTION_TTL_DNS_CACHE = 300  # DNS缓存TTL（秒）

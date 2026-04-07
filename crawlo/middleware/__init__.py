@@ -95,10 +95,14 @@ def __getattr__(name):
     if name == 'FileMiddleware':
         from .file_middleware import FileMiddleware
         return FileMiddleware
+    if name == 'DynamicRenderMiddleware':
+        from .dynamic_render_middleware import DynamicRenderMiddleware
+        return DynamicRenderMiddleware
     raise AttributeError(f"module '{__name__}' has no attribute '{name}'")
 
 
 __all__ = [
     'BaseMiddleware', 
     'FileMiddleware',
+    'DynamicRenderMiddleware',
 ]

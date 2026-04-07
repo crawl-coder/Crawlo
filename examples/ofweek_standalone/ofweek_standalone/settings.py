@@ -22,6 +22,8 @@ locals().update(config.to_dict())
 
 # =================================== 爬虫配置 ===================================
 
+# DOWNLOADER = "crawlo.downloader.aiohttp_downloader.AioHttpDownloader"
+
 # 爬虫模块配置
 SPIDER_MODULES = ['ofweek_standalone.spiders']
 

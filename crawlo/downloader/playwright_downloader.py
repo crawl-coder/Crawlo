@@ -8,7 +8,10 @@ Playwright 下载器
 功能特性:
 - 支持 Chromium/Firefox/WebKit 浏览器引擎
 - 异步非阻塞操作
-- 智能等待页面加载完成
+- 智能等待页面加载完成（多种等待策略）
+- 资源屏蔽（屏蔽图片/CSS/字体/广告，提升性能）
+- 反检测特性（隐藏 webdriver 标识）
+- 自动滚动加载更多内容
 - 支持自定义浏览器上下文和选项
 - 内存安全的资源管理
 - 自动处理 Cookie 和本地存储
@@ -16,7 +19,8 @@ Playwright 下载器
 - 单浏览器多标签页模式
 """
 import time
-from typing import Optional, Dict, List
+import re
+from typing import Optional, Dict, List, Set
 from urllib.parse import urlparse
 
 from playwright.async_api import async_playwright, Playwright, Browser, Page, BrowserContext
@@ -26,10 +30,40 @@ from crawlo.network.response import Response
 from crawlo.logging import get_logger
 
 
+# 智能等待策略常量
+class WaitStrategy:
+    """等待策略枚举"""
+    AUTO = "auto"  # 自动检测最佳等待策略
+    NETWORK_IDLE = "networkidle"  # 等待网络空闲
+    DOM_READY = "domcontentloaded"  # 等待 DOM 加载完成
+    ELEMENT = "element"  # 等待特定元素出现
+    CUSTOM = "custom"  # 自定义等待函数
+
+
+# 资源类型常量
+class ResourceType:
+    """资源类型枚举"""
+    IMAGE = "image"
+    STYLESHEET = "stylesheet"
+    FONT = "font"
+    MEDIA = "media"
+    SCRIPT = "script"
+    XHR = "xhr"
+    FETCH = "fetch"
+    DOCUMENT = "document"
+    OTHER = "other"
+
+
 class PlaywrightDownloader(DownloaderBase):
     """
     基于 Playwright 的动态内容下载器
     支持处理 JavaScript 渲染的网页内容，性能优于 Selenium
+
+    增强功能:
+    - 智能等待策略：自动检测页面特征，选择最佳等待方式
+    - 资源屏蔽：屏蔽图片/CSS/字体等，大幅提升加载速度
+    - 反检测：隐藏 webdriver 标识，绕过基础反爬
+    - 自动滚动：滚动加载懒加载内容
     """
 
     def __init__(self, crawler):
@@ -45,12 +79,37 @@ class PlaywrightDownloader(DownloaderBase):
         self.wait_for_element = crawler.settings.get("PLAYWRIGHT_WAIT_FOR_ELEMENT", None)
         self.viewport_width = crawler.settings.get_int("PLAYWRIGHT_VIEWPORT_WIDTH", 1920)
         self.viewport_height = crawler.settings.get_int("PLAYWRIGHT_VIEWPORT_HEIGHT", 1080)
-        
+
         # 单浏览器多标签页模式
+        # 策略：启动一个浏览器，创建多个tab复用，控制最大并发数
         self.single_browser_mode = crawler.settings.get_bool("PLAYWRIGHT_SINGLE_BROWSER_MODE", True)
         self.max_pages_per_browser = crawler.settings.get_int("PLAYWRIGHT_MAX_PAGES_PER_BROWSER", 10)
-        self._page_pool: List[Page] = []
-        self._used_pages: set = set()
+        self._page_pool: List[Page] = []  # 页面池（复用的tab）
+        self._used_pages: set = set()  # 正在使用的页面ID
+
+        # ===== 智能等待配置 =====
+        self.wait_strategy = crawler.settings.get("PLAYWRIGHT_WAIT_STRATEGY", WaitStrategy.AUTO)
+        self.wait_timeout = crawler.settings.get_int("PLAYWRIGHT_WAIT_TIMEOUT", 10000)
+
+        # ===== 资源屏蔽配置 =====
+        self.block_resources: Set[str] = set(
+            crawler.settings.get_list("PLAYWRIGHT_BLOCK_RESOURCES", ["image", "font", "media"])
+        )
+        self.block_ads = crawler.settings.get_bool("PLAYWRIGHT_BLOCK_ADS", True)
+        # 广告域名黑名单
+        self._ad_domains = {
+            'googlesyndication.com', 'doubleclick.net', 'googleadservices.com',
+            'google-analytics.com', 'googletagmanager.com', 'facebook.com/tr',
+            'connect.facebook.net', 'adservice.google.com', 'ads.twitter.com'
+        }
+
+        # ===== 反检测配置 =====
+        self.stealth_mode = crawler.settings.get_bool("PLAYWRIGHT_STEALTH_MODE", True)
+
+        # ===== 自动滚动配置 =====
+        self.auto_scroll = crawler.settings.get_bool("PLAYWRIGHT_AUTO_SCROLL", False)
+        self.scroll_count = crawler.settings.get_int("PLAYWRIGHT_SCROLL_COUNT", 3)
+        self.scroll_delay = crawler.settings.get_int("PLAYWRIGHT_SCROLL_DELAY", 500)
 
     def open(self):
         super().open()
@@ -73,43 +132,55 @@ class PlaywrightDownloader(DownloaderBase):
         try:
             # 获取页面（支持单浏览器多标签页模式）
             page = await self._get_page()
-            
+
             # 设置超时
             page.set_default_timeout(self.default_timeout)
             page.set_default_navigation_timeout(self.load_timeout)
-            
+
             # 设置视口
             await page.set_viewport_size({
                 "width": self.viewport_width,
                 "height": self.viewport_height
             })
-            
+
+            # ===== 设置资源屏蔽（在导航前设置）=====
+            await self._setup_resource_blocking(page, request)
+
+            # ===== 应用反检测脚本（在导航前注入）=====
+            if self.stealth_mode:
+                await self._inject_stealth_scripts(page)
+
             # 应用请求特定的设置
             await self._apply_request_settings(page, request)
-            
-            # 访问页面
-            response = await page.goto(request.url, wait_until="networkidle")
-            
-            # 等待页面加载完成
-            await self._wait_for_page_load(page)
-            
+
+            # 访问页面 - 根据等待策略选择不同的 wait_until
+            wait_until = self._get_wait_until(request)
+            response = await page.goto(request.url, wait_until=wait_until)
+
+            # ===== 智能等待页面加载 =====
+            await self._smart_wait_for_page_load(page, request)
+
+            # ===== 自动滚动加载更多内容 =====
+            if self._should_auto_scroll(request):
+                await self._auto_scroll_page(page, request)
+
             # 执行自定义操作（如果有）
             await self._execute_custom_actions(page, request)
-            
+
             # 执行翻页操作（如果有）
             await self._execute_pagination_actions(page, request)
-            
+
             # 获取页面内容
             page_content = await page.content()
             page_url = page.url
-            
+
             # 获取响应信息
             status_code = response.status if response else 200
             headers = dict(response.headers) if response else {}
-            
+
             # 获取 Cookies
             cookies = await self._get_cookies()
-            
+
             # 构造响应对象
             crawlo_response = Response(
                 url=page_url,
@@ -118,15 +189,15 @@ class PlaywrightDownloader(DownloaderBase):
                 body=page_content.encode('utf-8'),
                 request=request
             )
-            
+
             # 添加 Cookies 到响应
             crawlo_response.cookies = cookies
-            
+
             # 记录下载统计
             if start_time:
                 download_time = time.time() - start_time
                 self.logger.debug(f"Downloaded {request.url} in {download_time:.3f}s")
-                
+
             return crawlo_response
 
         except Exception as e:
@@ -202,7 +273,7 @@ class PlaywrightDownloader(DownloaderBase):
         # 设置请求头
         if request.headers:
             await page.set_extra_http_headers(request.headers)
-            
+
         # 设置 Cookies
         if request.cookies:
             cookies = []
@@ -217,21 +288,335 @@ class PlaywrightDownloader(DownloaderBase):
                 })
             await page.context.add_cookies(cookies)
 
-    async def _wait_for_page_load(self, page: Page):
-        """等待页面加载完成"""
+    # ==================== 智能等待策略 ====================
+
+    def _get_wait_until(self, request) -> str:
+        """获取导航等待策略"""
+        # 请求级别的配置优先
+        strategy = request.meta.get("playwright_wait_strategy", self.wait_strategy)
+
+        if strategy == WaitStrategy.AUTO:
+            # 自动模式：先使用 domcontentloaded 快速加载，后续智能等待
+            return "domcontentloaded"
+        elif strategy == WaitStrategy.NETWORK_IDLE:
+            return "networkidle"
+        elif strategy == WaitStrategy.DOM_READY:
+            return "domcontentloaded"
+        else:
+            return "domcontentloaded"
+
+    async def _smart_wait_for_page_load(self, page: Page, request):
+        """智能等待页面加载完成"""
+        strategy = request.meta.get("playwright_wait_strategy", self.wait_strategy)
+
         try:
-            # 等待网络空闲
-            await page.wait_for_load_state("networkidle")
-            
-            # 如果配置了等待特定元素，则等待该元素出现
-            if self.wait_for_element:
-                await page.wait_for_selector(self.wait_for_element, timeout=self.load_timeout)
-                
+            if strategy == WaitStrategy.AUTO:
+                await self._auto_wait_strategy(page, request)
+            elif strategy == WaitStrategy.NETWORK_IDLE:
+                await page.wait_for_load_state("networkidle", timeout=self.wait_timeout)
+            elif strategy == WaitStrategy.DOM_READY:
+                await page.wait_for_load_state("domcontentloaded", timeout=self.wait_timeout)
+            elif strategy == WaitStrategy.ELEMENT:
+                element_selector = request.meta.get("playwright_wait_element", self.wait_for_element)
+                if element_selector:
+                    await page.wait_for_selector(element_selector, timeout=self.wait_timeout)
+            elif strategy == WaitStrategy.CUSTOM:
+                custom_wait = request.meta.get("playwright_custom_wait")
+                if custom_wait and callable(custom_wait):
+                    await custom_wait(page)
+
+            # 如果配置了全局等待特定元素，则等待该元素出现
+            if self.wait_for_element and strategy != WaitStrategy.ELEMENT:
+                try:
+                    await page.wait_for_selector(self.wait_for_element, timeout=self.load_timeout)
+                except Exception:
+                    self.logger.warning(f"Wait element '{self.wait_for_element}' not found, continuing...")
+
         except Exception as e:
-            self.logger.warning(f"Page load wait timeout, continuing with current content: {e}")
+            self.logger.warning(f"Page load wait issue: {e}, continuing with current content")
+
+    async def _auto_wait_strategy(self, page: Page, request):
+        """自动检测最佳等待策略"""
+        # 1. 等待 DOM 加载完成
+        try:
+            await page.wait_for_load_state("domcontentloaded", timeout=self.wait_timeout)
+        except Exception:
+            pass
+
+        # 2. 检测页面是否为 SPA（单页应用）
+        is_spa = await self._detect_spa(page)
+
+        if is_spa:
+            # SPA 页面：等待特定元素或网络空闲
+            # 尝试检测主要内容区域
+            content_selectors = [
+                '[data-testid]', '[role="main"]', 'main', 'article',
+                '.content', '.main-content', '#content', '#main'
+            ]
+
+            for selector in content_selectors:
+                try:
+                    element = page.locator(selector).first
+                    if await element.count() > 0:
+                        await element.wait_for(timeout=3000)
+                        break
+                except Exception:
+                    continue
+
+            # 额外等待网络稳定
+            try:
+                await page.wait_for_load_state("networkidle", timeout=5000)
+            except Exception:
+                pass
+        else:
+            # 非 SPA 页面：简单等待网络空闲
+            try:
+                await page.wait_for_load_state("networkidle", timeout=5000)
+            except Exception:
+                pass
+
+    async def _detect_spa(self, page: Page) -> bool:
+        """检测页面是否为单页应用"""
+        try:
+            # 检测常见的 SPA 框架标识
+            spa_indicators = await page.evaluate("""
+                () => {
+                    const indicators = [];
+                    // React
+                    if (document.querySelector('[data-reactroot]') ||
+                        document.querySelector('[data-reactid]') ||
+                        typeof __REACT_DEVTOOLS_GLOBAL_HOOK__ !== 'undefined') {
+                        indicators.push('react');
+                    }
+                    // Vue
+                    if (document.querySelector('[data-v-]') ||
+                        document.querySelector('[__vue__]') ||
+                        typeof Vue !== 'undefined') {
+                        indicators.push('vue');
+                    }
+                    // Angular
+                    if (document.querySelector('[ng-app]') ||
+                        document.querySelector('[ng-version]') ||
+                        typeof ng !== 'undefined') {
+                        indicators.push('angular');
+                    }
+                    // 检测是否有大量空内容（懒加载）
+                    const bodyText = document.body.innerText;
+                    if (bodyText.trim().length < 100) {
+                        indicators.push('lazy_load');
+                    }
+                    return indicators.length > 0;
+                }
+            """)
+            return spa_indicators
+        except Exception:
+            return False
+
+    # ==================== 资源屏蔽 ====================
+
+    async def _setup_resource_blocking(self, page: Page, request):
+        """设置资源屏蔽"""
+        # 获取请求级别的资源屏蔽配置
+        block_resources = request.meta.get("playwright_block_resources", self.block_resources)
+        block_ads = request.meta.get("playwright_block_ads", self.block_ads)
+
+        if not block_resources and not block_ads:
+            return
+
+        async def route_handler(route):
+            request_obj = route.request
+            resource_type = request_obj.resource_type
+            url = request_obj.url
+
+            # 检查是否为广告
+            if block_ads:
+                parsed_url = urlparse(url)
+                domain = parsed_url.netloc.lower()
+                # 检查域名是否在广告黑名单中
+                for ad_domain in self._ad_domains:
+                    if ad_domain in domain:
+                        await route.abort()
+                        return
+
+            # 检查资源类型是否需要屏蔽
+            if resource_type in block_resources:
+                await route.abort()
+                return
+
+            # 允许其他资源
+            await route.continue_()
+
+        await page.route("**/*", route_handler)
+
+    # ==================== 反检测 ====================
+
+    async def _inject_stealth_scripts(self, page: Page):
+        """注入反检测脚本"""
+        try:
+            # 在页面初始化前注入脚本
+            await page.add_init_script("""
+                // 隐藏 webdriver 标识
+                Object.defineProperty(navigator, 'webdriver', {
+                    get: () => undefined
+                });
+
+                // 修改 plugins
+                Object.defineProperty(navigator, 'plugins', {
+                    get: () => [1, 2, 3, 4, 5]
+                });
+
+                // 修改 languages
+                Object.defineProperty(navigator, 'languages', {
+                    get: () => ['zh-CN', 'zh', 'en']
+                });
+
+                // 隐藏自动化标识
+                window.chrome = {
+                    runtime: {}
+                };
+
+                // 修改权限查询
+                const originalQuery = window.navigator.permissions.query;
+                window.navigator.permissions.query = (parameters) => (
+                    parameters.name === 'notifications' ?
+                        Promise.resolve({ state: Notification.permission }) :
+                        originalQuery(parameters)
+                );
+
+                // 隐藏 Playwright 标识
+                delete navigator.__proto__.webdriver;
+            """)
+        except Exception as e:
+            self.logger.warning(f"Failed to inject stealth scripts: {e}")
+
+    # ==================== 自动滚动 ====================
+
+    def _should_auto_scroll(self, request) -> bool:
+        """判断是否需要自动滚动"""
+        # 请求级别配置优先
+        return request.meta.get("playwright_auto_scroll", self.auto_scroll)
+
+    async def _scroll_to_bottom(self, page: Page, params: dict):
+        """
+        智能滚动到底部（适合懒加载页面）
+        
+        滚动策略：
+        1. 渐进式滚动，每次滚动到底部后等待新内容加载
+        2. 检查页面高度是否增加，判断是否有新内容
+        3. 当连续多次无新内容时，认为已到达底部
+        
+        Args:
+            page: Playwright Page 对象
+            params: 参数配置
+                - scroll_delay: 每次滚动后的等待延迟（毫秒），默认 500
+                - max_no_content: 连续无新内容的最大次数，默认 2
+        """
+        scroll_delay = params.get("scroll_delay", 500)
+        max_no_content = params.get("max_no_content", 2)
+        
+        try:
+            consecutive_no_content = 0
+            
+            while True:
+                # 获取当前页面高度
+                current_height = await page.evaluate("document.body.scrollHeight")
+                
+                # 滚动到底部
+                await page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
+                
+                # 等待新内容加载和渲染
+                await page.wait_for_timeout(scroll_delay)
+                
+                # 获取滚动后的页面高度
+                new_height = await page.evaluate("document.body.scrollHeight")
+                
+                # 检查是否有新内容加载
+                if new_height > current_height:
+                    # 有新内容，重置计数器
+                    consecutive_no_content = 0
+                    self.logger.debug(f"Scroll: {current_height} -> {new_height}px (new content loaded)")
+                else:
+                    # 没有新内容
+                    consecutive_no_content += 1
+                    self.logger.debug(f"No new content ({consecutive_no_content}/{max_no_content})")
+                    
+                    # 连续多次无新内容，说明到底部了
+                    if consecutive_no_content >= max_no_content:
+                        self.logger.debug("Reached page bottom after detecting no new content")
+                        break
+                
+                # 安全检查：防止无限滚动
+                if consecutive_no_content > 10:
+                    self.logger.warning("Too many scrolls, stopping")
+                    break
+
+        except Exception as e:
+            self.logger.warning(f"Scroll to bottom failed: {e}")
+
+    async def _auto_scroll_page(self, page: Page, request):
+        """
+        智能滚动加载懒加载内容
+        
+        滚动策略：
+        1. 滚动一次，等待渲染，检查是否有新内容
+        2. 如果有新内容，继续滚动；如果没有，说明到底部
+        3. 重复直到滑不动（连续两次无新内容）
+        """
+        scroll_delay = request.meta.get("playwright_scroll_delay", self.scroll_delay)
+        max_consecutive_no_content = request.meta.get("playwright_max_no_content", 2)
+        
+        try:
+            consecutive_no_content = 0
+            
+            while True:
+                # 获取当前页面高度
+                current_height = await page.evaluate("document.body.scrollHeight")
+                
+                # 滚动到底部
+                await page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
+                
+                # 等待新内容加载和渲染
+                await page.wait_for_timeout(scroll_delay)
+                
+                # 获取滚动后的页面高度
+                new_height = await page.evaluate("document.body.scrollHeight")
+                
+                # 检查是否有新内容加载
+                if new_height > current_height:
+                    # 有新内容，重置计数器
+                    consecutive_no_content = 0
+                    self.logger.debug(f"Scroll: {current_height} -> {new_height}px (new content loaded)")
+                else:
+                    # 没有新内容
+                    consecutive_no_content += 1
+                    self.logger.debug(f"No new content ({consecutive_no_content}/{max_consecutive_no_content})")
+                    
+                    # 连续多次无新内容，说明到底部了
+                    if consecutive_no_content >= max_consecutive_no_content:
+                        self.logger.debug(f"Reached page bottom after detecting no new content")
+                        break
+                
+                # 安全检查：防止无限滚动
+                if consecutive_no_content > 10:
+                    self.logger.warning("Too many scrolls, stopping")
+                    break
+
+        except Exception as e:
+            self.logger.warning(f"Auto scroll failed: {e}")
 
     async def _execute_custom_actions(self, page: Page, request):
-        """执行自定义操作"""
+        """
+        执行自定义操作
+        
+        支持的操作类型：
+        - click: 点击元素（支持翻页按钮）
+        - fill: 填充表单
+        - wait: 等待
+        - evaluate: 执行JavaScript
+        - scroll: 滚动
+        - scroll_to_bottom: 智能滚动到底部（适合懒加载页面）
+        - click_and_wait: 点击并等待新内容（适合翻页）
+        """
         # 从请求的 meta 中获取自定义操作
         custom_actions = request.meta.get("playwright_actions", [])
         
@@ -241,10 +626,41 @@ class PlaywrightDownloader(DownloaderBase):
                     action_type = action.get("type")
                     action_params = action.get("params", {})
                     
-                    if action_type == "click":
+                    if action_type == "scroll_to_bottom":
+                        # 智能滚动到底部（封装好的懒加载滚动）
+                        await self._scroll_to_bottom(page, action_params)
+                    elif action_type == "click":
                         selector = action_params.get("selector")
                         if selector:
                             await page.click(selector)
+                            # 点击后等待内容加载
+                            wait_timeout = action_params.get("wait_timeout", 1000)
+                            await page.wait_for_timeout(wait_timeout)
+                    elif action_type == "click_and_wait":
+                        # 点击并等待新内容加载（适合翻页）
+                        selector = action_params.get("selector")
+                        wait_timeout = action_params.get("wait_timeout", 2000)
+                        wait_for = action_params.get("wait_for", "networkidle")
+                        
+                        if selector:
+                            # 点击前记录内容数量
+                            before_count = action_params.get("before_count")
+                            
+                            # 点击按钮
+                            await page.click(selector)
+                            
+                            # 等待新内容
+                            if wait_for == "networkidle":
+                                await page.wait_for_load_state("networkidle")
+                            elif wait_for == "domcontentloaded":
+                                await page.wait_for_load_state("domcontentloaded")
+                            else:
+                                await page.wait_for_timeout(wait_timeout)
+                            
+                            # 验证是否有新内容
+                            if before_count:
+                                after_count = await page.evaluate(before_count)
+                                self.logger.debug(f"Page content count: {after_count}")
                     elif action_type == "fill":
                         selector = action_params.get("selector")
                         value = action_params.get("value")
@@ -322,9 +738,9 @@ class PlaywrightDownloader(DownloaderBase):
     async def close(self) -> None:
         """关闭 Playwright 资源"""
         try:
-            # 关闭所有页面
+            # 关闭页面池中的所有页面
             if self._page_pool:
-                self.logger.debug(f"Closing {len(self._page_pool)} page(s)...")
+                self.logger.debug(f"Closing {len(self._page_pool)} page(s) in pool...")
                 for page in self._page_pool:
                     try:
                         await page.close()
@@ -334,7 +750,7 @@ class PlaywrightDownloader(DownloaderBase):
                 self._page_pool.clear()
                 self._used_pages.clear()
             
-            # 关闭上下文
+            # 关闭上下文（会自动关闭所有临时标签页）
             if self.context:
                 try:
                     await self.context.close()
@@ -370,60 +786,62 @@ class PlaywrightDownloader(DownloaderBase):
             self.playwright = None
 
     async def _get_page(self) -> Page:
-        """获取页面实例（支持单浏览器多标签页模式）"""
-        # 如果启用了单浏览器模式且页面池中有可用页面
-        if self.single_browser_mode and self._page_pool:
-            # 检查是否需要创建新页面
-            if len(self._page_pool) < self.max_pages_per_browser:
-                # 创建新页面
-                if not self.context:
-                    raise RuntimeError("Browser context not initialized")
-                new_page = await self.context.new_page()
-                self._page_pool.append(new_page)
-                self._used_pages.add(id(new_page))
-                return new_page
-            
+        """
+        获取页面实例（单浏览器多标签页模式）
+        
+        策略：
+        1. 只启动一个浏览器实例
+        2. 维护一个页面池，复用标签页
+        3. 控制最大并发数（max_pages_per_browser）
+        4. 使用完毕后归还到池中，不关闭
+        """
+        if not self.context:
+            raise RuntimeError("Browser context not initialized")
+        
+        # 如果启用了单浏览器模式
+        if self.single_browser_mode:
             # 尝试从池中获取未使用的页面
             for page in self._page_pool:
                 if id(page) not in self._used_pages:
                     self._used_pages.add(id(page))
                     return page
-        
-        # 创建新页面
-        if not self.context:
-            raise RuntimeError("Browser context not initialized")
             
-        page = await self.context.new_page()
-        
-        # 如果启用了单浏览器模式，将页面添加到池中
-        if self.single_browser_mode:
-            self._page_pool.append(page)
-            self._used_pages.add(id(page))
+            # 如果池中还有空间，创建新页面
+            if len(self._page_pool) < self.max_pages_per_browser:
+                new_page = await self.context.new_page()
+                self._page_pool.append(new_page)
+                self._used_pages.add(id(new_page))
+                return new_page
             
-            # 如果超过最大页面数，移除最早的页面
-            if len(self._page_pool) > self.max_pages_per_browser:
-                old_page = self._page_pool.pop(0)
-                self._used_pages.discard(id(old_page))
-                try:
-                    await old_page.close()
-                except:
-                    pass
+            # 如果池已满，等待其他页面释放（这里简化为创建临时页面）
+            self.logger.warning(f"Page pool full ({self.max_pages_per_browser}), creating temporary page")
+            temp_page = await self.context.new_page()
+            return temp_page
         
-        return page
+        # 非单浏览器模式，直接创建新页面
+        return await self.context.new_page()
 
     async def _release_page(self, page: Page):
-        """归还页面到池中"""
-        if self.single_browser_mode:
-            page_id = id(page)
-            if page_id in self._used_pages:
-                self._used_pages.discard(page_id)
-                # 清空页面内容，准备下次使用
-                try:
-                    await page.goto("about:blank")
-                except:
-                    pass
+        """
+        释放页面（归还到池中复用）
+        
+        策略：
+        1. 如果是池中的页面，标记为未使用
+        2. 导航到 about:blank 清空内容
+        3. 如果是临时页面，直接关闭
+        """
+        page_id = id(page)
+        
+        # 检查是否是池中的页面
+        if page_id in self._used_pages:
+            self._used_pages.discard(page_id)
+            # 清空页面内容，准备下次使用
+            try:
+                await page.goto("about:blank", timeout=1000)
+            except:
+                pass
         else:
-            # 非单浏览器模式，直接关闭页面
+            # 临时页面，直接关闭
             try:
                 await page.close()
             except:
