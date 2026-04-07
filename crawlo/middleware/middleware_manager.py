@@ -7,8 +7,6 @@ import asyncio
 from collections import defaultdict
 from typing import List, Dict, Callable, Optional, TYPE_CHECKING
 
-from typing import TYPE_CHECKING
-
 if TYPE_CHECKING:
     from crawlo import Request, Response
 else:

@@ -142,60 +142,7 @@ class Crawler:
             settings_manager.update_attributes(self._settings)
             self._settings = settings_manager
         
-    def _setup_spider_logging(self) -> None:
-        """
-        为该爬虫配置独立日志文件
-                
-        这是方案D的核心：在创建 Crawler 时（而非框架初始化时）
-        为该爬虫配置独立日志。实现完全自动化。
-        
-        策略：
-        1. 如果 settings 中的 LOG_FILE 已是绝对路径，则保留（用户明确指定）
-        2. 如果是相对路径，则为该爬虫自动生成独立日志路径
-        """
-        try:
-            import os
-            from crawlo.logging import LogManager, LogConfig
-                
-            # 获取当前配置中的日志文件路径
-            log_file = None
-            if self._settings and hasattr(self._settings, 'get'):
-                log_file = self._settings.get('LOG_FILE')
-                
-            # 判断是否需要覆盖为爬虫独立日志
-            should_use_spider_log = False
-            if log_file:
-                # 如果是相对路径，需要为爬虫生成独立日志
-                if not os.path.isabs(log_file):
-                    should_use_spider_log = True
-            else:
-                should_use_spider_log = True
-                
-            # 为爬虫生成独立日志文件
-            if should_use_spider_log:
-                log_file = f'logs/{self._spider_cls.name}.log'
-                
-            # 重新配置日志系统
-            log_manager = LogManager()
-            current_config = log_manager.config
-                
-            if current_config:
-                # 基于当前配置，重新配置日志文件路径
-                current_config.file_path = log_file
-                # 调用 configure() 确保日志系统被重新初始化
-                log_manager.configure(current_config)
-            else:
-                # 如果没有配置，创建新的
-                config = LogConfig(file_path=log_file)
-                log_manager.configure(config)
-                
-            # 注意：不清除 Logger 缓存，以保留框架logger的已有日志
-            # 框架日志（版本号、运行模式）已在初始化阶段记录，不应被覆盖
-                
-        except Exception as e:
-            # 配置失败不应该中断创建 Crawler
-            # 鉴于没有 logger，无法记录
-            pass
+
     
     @property
     def state(self) -> CrawlerState:
@@ -380,16 +327,8 @@ class Crawler:
             # 创建Stats（需要crawler参数）
             self._stats = registry.create('stats', crawler=self)
             
-            # 创建Extension Manager (可选，需要crawler参数)
-            try:
-                self._extension = registry.create('extension_manager', crawler=self)
-            except Exception as e:
-                from crawlo.exceptions import NotConfigured
-                if isinstance(e, NotConfigured):
-                    # 对于未配置启用的扩展，仅输出提示信息，不记录为错误
-                    self._logger.info(f"Extension manager not created (disabled): {e}")
-                else:
-                    self._logger.warning(f"Failed to create extension manager: {e}")
+            # 创建Extension Manager（使用统一方法，避免代码重复）
+            self._create_extension()
             
             self._metrics.initialization_duration = time.time() - init_start
             
@@ -680,11 +619,11 @@ class CrawlerProcess:
     async def crawl(self, spider_cls_or_name: Union[Type['Spider'], str, List[Union[Type['Spider'], str]]], settings: Optional[Dict[str, Any]] = None) -> Union[Crawler, List[Union[Crawler, BaseException]]]:
         """
         运行爬虫（单个或多个）
-        
+            
         Args:
             spider_cls_or_name: 爬虫类/名称或爬虫类/名称列表
             settings: 配置字典
-            
+                
         Returns:
             Union[Crawler, List[Union[Crawler, BaseException]]]: 单个爬虫实例或爬虫实例列表
         """
@@ -692,93 +631,129 @@ class CrawlerProcess:
         import sys
         if sys.platform.lower().startswith('win'):
             asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
-        
+    
         # 判断输入是单个还是多个爬虫
         if not isinstance(spider_cls_or_name, list):
-            # 单个爬虫
-            try:
-                spider_cls = self._resolve_spider_class(spider_cls_or_name)
+            return await self._crawl_single(spider_cls_or_name, settings)
+        else:
+            return await self._crawl_multiple(spider_cls_or_name, settings)
+        
+    async def _crawl_single(self, spider_cls_or_name: Union[Type['Spider'], str], settings: Optional[Dict[str, Any]] = None) -> Crawler:
+        """
+        运行单个爬虫
+            
+        Args:
+            spider_cls_or_name: 爬虫类或名称
+            settings: 配置字典
                 
-                # 记录启动的爬虫名称（符合规范要求）
-                from crawlo.logging import get_logger
-                logger = get_logger('crawlo.framework')
-                logger.info(f"Starting spider: {spider_cls.name}")
+        Returns:
+            Crawler: 爬虫实例
+        """
+        try:
+            spider_cls = self._resolve_spider_class(spider_cls_or_name)
                 
+            # 记录启动的爬虫名称
+            from crawlo.logging import get_logger
+            logger = get_logger('crawlo.framework')
+            logger.info(f"Starting spider: {spider_cls.name}")
+                
+            merged_settings = self._merge_settings(settings)
+            crawler = Crawler(spider_cls, merged_settings)
+                
+            async with self._semaphore:
+                await crawler.crawl()
+                
+            # 清理crawler资源，防止内存泄漏
+            await self._cleanup_crawler(crawler, spider_cls.name)
+                
+            return crawler
+        except Exception as e:
+            self._logger.error(f"Error running crawler: {e}")
+            raise
+        
+    async def _crawl_multiple(self, spider_classes_or_names: List[Union[Type['Spider'], str]], settings: Optional[Dict[str, Any]] = None) -> List[Union[Crawler, BaseException]]:
+        """
+        运行多个爬虫
+            
+        Args:
+            spider_classes_or_names: 爬虫类/名称列表
+            settings: 配置字典
+                
+        Returns:
+            List[Union[Crawler, BaseException]]: 爬虫实例列表
+        """
+        self._start_time = time.time()
+            
+        try:
+            spider_classes = []
+            for cls_or_name in spider_classes_or_names:
+                spider_cls = self._resolve_spider_class(cls_or_name)
+                spider_classes.append(spider_cls)
+                
+            # 记录启动的爬虫名称
+            spider_names = [cls.name for cls in spider_classes]
+            from crawlo.logging import get_logger
+            logger = get_logger('crawlo.framework')
+            if len(spider_names) == 1:
+                logger.info(f"Starting spider: {spider_names[0]}")
+            else:
+                logger.info(f"Starting spiders: {', '.join(spider_names)}")
+                
+            tasks = []
+            for spider_cls in spider_classes:
                 merged_settings = self._merge_settings(settings)
                 crawler = Crawler(spider_cls, merged_settings)
-                
-                async with self._semaphore:
-                    await crawler.crawl()
-                
-                # 清理crawler资源，防止内存泄漏
-                try:
-                    if hasattr(crawler, '_resource_manager'):
-                        await crawler._resource_manager.cleanup_all()
-                    self._logger.debug(f"Cleaned up crawler: {spider_cls.name}")
-                except Exception as e:
-                    self._logger.warning(f"Failed to cleanup crawler: {e}")
-                
-                return crawler
-            except Exception as e:
-                self._logger.error(f"Error running crawler: {e}")
-                raise
-        else:
-            # 多个爬虫
-            spider_classes_or_names = spider_cls_or_name
-            self._start_time = time.time()
-            
-            try:
-                spider_classes = []
-                for cls_or_name in spider_classes_or_names:
-                    spider_cls = self._resolve_spider_class(cls_or_name)
-                    spider_classes.append(spider_cls)
-                
-                # 记录启动的爬虫名称（符合规范要求）
-                spider_names = [cls.name for cls in spider_classes]
-                from crawlo.logging import get_logger
-                logger = get_logger('crawlo.framework')
-                if len(spider_names) == 1:
-                    logger.info(f"Starting spider: {spider_names[0]}")
-                else:
-                    logger.info(f"Starting spiders: {', '.join(spider_names)}")
-                
-                tasks = []
-                for spider_cls in spider_classes:
-                    merged_settings = self._merge_settings(settings)
-                    crawler = Crawler(spider_cls, merged_settings)
-                    self._crawlers.append(crawler)
+                self._crawlers.append(crawler)
                     
-                    task = asyncio.create_task(self._run_with_semaphore(crawler))
-                    tasks.append(task)
+                task = asyncio.create_task(self._run_with_semaphore(crawler))
+                tasks.append(task)
                 
-                results = await asyncio.gather(*tasks, return_exceptions=True)
+            results = await asyncio.gather(*tasks, return_exceptions=True)
                 
-                # 处理结果
-                successful = sum(1 for r in results if not isinstance(r, Exception))
-                failed = len(results) - successful
+            # 处理结果
+            successful = sum(1 for r in results if not isinstance(r, Exception))
+            failed = len(results) - successful
                 
-                self._logger.info(f"Crawl completed: {successful} successful, {failed} failed")
+            self._logger.info(f"Crawl completed: {successful} successful, {failed} failed")
                 
-                return cast(List[Union[Crawler, BaseException]], results)
+            return cast(List[Union[Crawler, BaseException]], results)
                 
-            finally:
-                # 清理所有crawler，防止资源累积
-                self._logger.debug(f"Cleaning up {len(self._crawlers)} crawler(s)...")
-                for crawler in self._crawlers:
-                    try:
-                        # 确保每个crawler都被清理
-                        if hasattr(crawler, '_resource_manager'):
-                            await crawler._resource_manager.cleanup_all()
-                    except Exception as e:
-                        self._logger.warning(f"Failed to cleanup crawler: {e}")
+        finally:
+            # 清理所有crawler，防止资源累积
+            await self._cleanup_all_crawlers()
                 
-                # 清空crawlers列表，释放引用
-                self._crawlers.clear()
-                
-                self._end_time = time.time()
-                if self._start_time:
-                    duration = self._end_time - self._start_time
-                    self._logger.info(f"Total execution time: {duration:.2f}s")
+            self._end_time = time.time()
+            if self._start_time:
+                duration = self._end_time - self._start_time
+                self._logger.info(f"Total execution time: {duration:.2f}s")
+        
+    async def _cleanup_crawler(self, crawler: Crawler, spider_name: str) -> None:
+        """
+        清理单个爬虫资源
+            
+        Args:
+            crawler: 爬虫实例
+            spider_name: 爬虫名称
+        """
+        try:
+            if hasattr(crawler, '_resource_manager'):
+                await crawler._resource_manager.cleanup_all()
+            self._logger.debug(f"Cleaned up crawler: {spider_name}")
+        except Exception as e:
+            self._logger.warning(f"Failed to cleanup crawler: {e}")
+        
+    async def _cleanup_all_crawlers(self) -> None:
+        """清理所有爬虫资源"""
+        self._logger.debug(f"Cleaning up {len(self._crawlers)} crawler(s)...")
+        for crawler in self._crawlers:
+            try:
+                if hasattr(crawler, '_resource_manager'):
+                    await crawler._resource_manager.cleanup_all()
+            except Exception as e:
+                self._logger.warning(f"Failed to cleanup crawler: {e}")
+            
+        # 清空crawlers列表，释放引用
+        self._crawlers.clear()
     
     async def _run_with_semaphore(self, crawler: Crawler) -> Crawler:
         """
