@@ -135,7 +135,7 @@ class DownloaderBase(metaclass=DownloaderMeta):
             'crawlo.downloader.playwright_downloader.PlaywrightDownloader',
             'crawlo.downloader.httpx_downloader.HttpXDownloader',
             'crawlo.downloader.cffi_downloader.CurlCffiDownloader',
-            'crawlo.downloader.selenium_downloader.SeleniumDownloader',
+            'crawlo.downloader.drissionpage_downloader.DrissionPageDownloader',
         }
                     
         # HybridDownloader 本身也不打印，由子类自行处理
@@ -280,9 +280,9 @@ except ImportError:
     HttpXDownloader = None
 
 try:
-    from .selenium_downloader import SeleniumDownloader
+    from .drissionpage_downloader import DrissionPageDownloader
 except ImportError:
-    SeleniumDownloader = None
+    DrissionPageDownloader = None
 
 try:
     from .playwright_downloader import PlaywrightDownloader
@@ -308,8 +308,8 @@ if CurlCffiDownloader:
     __all__.append('CurlCffiDownloader')
 if HttpXDownloader:
     __all__.append('HttpXDownloader')
-if SeleniumDownloader:
-    __all__.append('SeleniumDownloader')
+if DrissionPageDownloader:
+    __all__.append('DrissionPageDownloader')
 if PlaywrightDownloader:
     __all__.append('PlaywrightDownloader')
 if HybridDownloader:
@@ -321,7 +321,7 @@ DOWNLOADER_MAP = {
     'httpx': HttpXDownloader, 
     'curl_cffi': CurlCffiDownloader,
     'cffi': CurlCffiDownloader,  # 别名
-    'selenium': SeleniumDownloader,
+    'drissionpage': DrissionPageDownloader,
     'playwright': PlaywrightDownloader,
     'hybrid': HybridDownloader,
 }

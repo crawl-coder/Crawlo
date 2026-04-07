@@ -190,8 +190,6 @@ OUTPUT_DIR = 'output'
 # DYNAMIC_RENDER_ENABLED = True  # 是否启用动态渲染检测
 # DYNAMIC_RENDER_DEFAULT_DYNAMIC = False  # 默认是否使用动态下载器（默认为 False，需用户显式配置）
 # DYNAMIC_RENDER_CACHE_ENABLED = True  # 是否启用检测结果缓存
-# DYNAMIC_RENDER_RESPONSE_DETECTION = True  # 是否启用响应内容检测
-# DYNAMIC_RENDER_DETECTION_TIMEOUT = 5000  # 检测超时时间（毫秒）
 # 
 # # 动态内容 URL 模式（正则表达式列表）- 用户显式配置需要动态渲染的 URL
 # DYNAMIC_RENDER_URL_PATTERNS = [
@@ -246,7 +244,7 @@ OUTPUT_DIR = 'output'
 
 # HybridDownloader - 智能混合下载器
 # HYBRID_DEFAULT_PROTOCOL_DOWNLOADER = "aiohttp"  # 默认协议下载器：aiohttp, httpx, curl_cffi
-# HYBRID_DEFAULT_DYNAMIC_DOWNLOADER = "playwright"  # 默认动态下载器：playwright, selenium
+# HYBRID_DEFAULT_DYNAMIC_DOWNLOADER = "playwright"  # 默认动态下载器：playwright, drissionpage
 # HYBRID_VERBOSE_LOGGING = False  # 是否启用详细日志
 # 
 # # URL 模式配置

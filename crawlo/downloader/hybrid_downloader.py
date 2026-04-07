@@ -47,9 +47,9 @@ except ImportError:
     CurlCffiDownloader = None
 
 try:
-    from .selenium_downloader import SeleniumDownloader
+    from .drissionpage_downloader import DrissionPageDownloader
 except ImportError:
-    SeleniumDownloader = None
+    DrissionPageDownloader = None
 
 try:
     from .playwright_downloader import PlaywrightDownloader
@@ -131,7 +131,7 @@ class HybridDownloader(DownloaderBase):
             "aiohttp": AioHttpDownloader,
             "httpx": HttpXDownloader,
             "curl_cffi": CurlCffiDownloader,
-            "selenium": SeleniumDownloader,
+            "drissionpage": DrissionPageDownloader,
             "playwright": PlaywrightDownloader
         }
         return downloader_map.get(downloader_type.lower())

@@ -59,7 +59,7 @@ DYNAMIC_RENDER_STATIC_PATTERNS = []  # 静态内容 URL 模式（正则表达式
 
 # HybridDownloader - 混合下载器
 # 默认行为：使用协议下载器（httpx）
-# 只有在明确配置时才使用动态下载器（playwright/selenium）
+# 只有在明确配置时才使用动态下载器（playwright/drissionpage）
 #
 # 检测优先级（按顺序）：
 # 1. 请求标记（use_dynamic_loader / use_protocol_loader）
@@ -70,7 +70,7 @@ DYNAMIC_RENDER_STATIC_PATTERNS = []  # 静态内容 URL 模式（正则表达式
 #
 # 注意：不再自动检测 POST 请求或 URL 关键词
 HYBRID_DEFAULT_PROTOCOL_DOWNLOADER = "httpx"  # 默认协议下载器：aiohttp, httpx, curl_cffi
-HYBRID_DEFAULT_DYNAMIC_DOWNLOADER = "playwright"  # 默认动态下载器：playwright, selenium
+HYBRID_DEFAULT_DYNAMIC_DOWNLOADER = "playwright"  # 默认动态下载器：playwright, drissionpage
 HYBRID_VERBOSE_LOGGING = False  # 是否启用详细日志（调试用）
 HYBRID_DYNAMIC_URL_PATTERNS = []  # 需要动态加载的 URL 模式（字符串匹配）
 HYBRID_PROTOCOL_URL_PATTERNS = []  # 需要协议请求的 URL 模式（字符串匹配）
@@ -330,18 +330,16 @@ CURL_BROWSER_VERSION_MAP = {  # 自定义浏览器版本映射（可覆盖默认
     "firefox": "firefox135",
 }
 
-# Selenium 下载器配置
-SELENIUM_BROWSER_TYPE = "chrome"  # 浏览器类型: chrome, firefox, edge
-SELENIUM_HEADLESS = True  # 是否无头模式
-SELENIUM_TIMEOUT = 30  # 超时时间（秒）
-SELENIUM_LOAD_TIMEOUT = 10  # 页面加载超时时间（秒）
-SELENIUM_WINDOW_WIDTH = 1920  # 窗口宽度
-SELENIUM_WINDOW_HEIGHT = 1080  # 窗口高度
-SELENIUM_WAIT_FOR_ELEMENT = None  # 等待特定元素选择器
-SELENIUM_ENABLE_JS = True  # 是否启用JavaScript
-SELENIUM_PROXY = None  # 代理设置
-SELENIUM_SINGLE_BROWSER_MODE = True  # 单浏览器多标签页模式
-SELENIUM_MAX_TABS_PER_BROWSER = 10  # 单浏览器最大标签页数量
+# DrissionPage 下载器配置
+DRISSIONPAGE_HEADLESS = True  # 是否无头模式
+DRISSIONPAGE_TIMEOUT = 30  # 超时时间（秒）
+DRISSIONPAGE_BROWSER_PATH = None  # 浏览器路径
+DRISSIONPAGE_USER_DATA_PATH = None  # 用户数据目录
+DRISSIONPAGE_PROXY = None  # 代理设置
+DRISSIONPAGE_LOAD_IMAGES = True  # 是否加载图片
+DRISSIONPAGE_AUTO_SCROLL = False  # 是否自动滚动加载懒加载内容
+DRISSIONPAGE_SCROLL_DELAY = 1  # 滚动延迟（秒）
+DRISSIONPAGE_MAX_PAGES = 10  # 最大页面数（标签页复用池大小）
 
 # Playwright 下载器配置
 PLAYWRIGHT_BROWSER_TYPE = "chromium"  # 浏览器类型: chromium, firefox, webkit
