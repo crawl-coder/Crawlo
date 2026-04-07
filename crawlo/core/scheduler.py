@@ -126,7 +126,7 @@ class Scheduler:
                     updated_filter = self.crawler.settings.get('FILTER_CLASS', current_filter)
                 except Exception:
                     pass
-            self.logger.info(f"enabled filters: \n  {updated_filter}")
+            self.logger.info(f"enabled filters: {updated_filter}")
             
             # 优化日志输出，将多条日志合并为1条关键信息
             if queue_type_setting in ['auto', 'redis'] and updated_configs:
@@ -236,13 +236,43 @@ class Scheduler:
              'memory_filter' in current_filter_class)
         )
     
-    def _switch_to_redis_config(self):
-        """切换到Redis配置"""
-        # 安全检查queue_manager是否存在且类型正确
-        if not self.queue_manager or self.queue_manager._queue_type != QueueType.REDIS:
+    def _switch_config(self, target_type: str):
+        """
+        统一的配置切换方法
+        
+        Args:
+            target_type: 目标类型，'redis' 或 'memory'
+        """
+        # 配置映射：定义每种模式对应的过滤器、去重管道和日志级别
+        CONFIG_MAP = {
+            'redis': {
+                'queue_type': QueueType.REDIS,
+                'filter_class': 'crawlo.filters.aioredis_filter.AioRedisFilter',
+                'dedup_pipeline': 'crawlo.pipelines.redis_dedup_pipeline.RedisDedupPipeline',
+                'log_level': 'info',
+                'source_filter_patterns': ['memory_filter'],
+                'source_dedup_pattern': 'memory_dedup_pipeline'
+            },
+            'memory': {
+                'queue_type': QueueType.MEMORY,
+                'filter_class': 'crawlo.filters.memory_filter.MemoryFilter',
+                'dedup_pipeline': 'crawlo.pipelines.memory_dedup_pipeline.MemoryDedupPipeline',
+                'log_level': 'debug',
+                'source_filter_patterns': ['aioredis_filter', 'redis_filter'],
+                'source_dedup_pattern': 'redis_dedup_pipeline'
+            }
+        }
+        
+        if target_type not in CONFIG_MAP:
             return
             
-        # 安全获取FILTER_CLASS配置
+        config = CONFIG_MAP[target_type]
+        
+        # 安全检查queue_manager是否存在且类型正确
+        if not self.queue_manager or self.queue_manager._queue_type != config['queue_type']:
+            return
+            
+        # 安全获取当前配置
         current_filter_class = ''
         default_dedup_pipeline = ''
         pipelines = []
@@ -257,26 +287,24 @@ class Scheduler:
             
         updated_configs = []
         
-        if 'memory_filter' in current_filter_class:
-            # 更新为Redis过滤器
+        # 检查并更新过滤器
+        if any(pattern in current_filter_class for pattern in config['source_filter_patterns']):
             if self.crawler and self.crawler.settings is not None:
                 try:
-                    self.crawler.settings.set('FILTER_CLASS', 'crawlo.filters.aioredis_filter.AioRedisFilter')
+                    self.crawler.settings.set('FILTER_CLASS', config['filter_class'])
                     updated_configs.append("filter")
                 except Exception:
                     pass
         
-        # 检查当前去重管道是否为内存去重管道
-        if 'memory_dedup_pipeline' in default_dedup_pipeline:
-            # 更新为Redis去重管道
+        # 检查并更新去重管道
+        if config['source_dedup_pattern'] in default_dedup_pipeline:
             if self.crawler and self.crawler.settings is not None:
                 try:
-                    self.crawler.settings.set('DEFAULT_DEDUP_PIPELINE', 'crawlo.pipelines.redis_dedup_pipeline.RedisDedupPipeline')
+                    self.crawler.settings.set('DEFAULT_DEDUP_PIPELINE', config['dedup_pipeline'])
                     # 同时更新PIPELINES列表中的去重管道
                     if default_dedup_pipeline in pipelines:
-                        # 找到并替换内存去重管道为Redis去重管道
                         index = pipelines.index(default_dedup_pipeline)
-                        pipelines[index] = 'crawlo.pipelines.redis_dedup_pipeline.RedisDedupPipeline'
+                        pipelines[index] = config['dedup_pipeline']
                         self.crawler.settings.set('PIPELINES', pipelines)
                     updated_configs.append("dedup pipeline")
                 except Exception:
@@ -284,57 +312,16 @@ class Scheduler:
         
         # 合并日志输出
         if updated_configs:
-            self.logger.info(f"configuration updated: {', '.join(updated_configs)} -> redis mode")
+            log_func = self.logger.info if config['log_level'] == 'info' else self.logger.debug
+            log_func(f"configuration updated: {', '.join(updated_configs)} -> {target_type} mode")
+
+    def _switch_to_redis_config(self):
+        """切换到Redis配置（向后兼容）"""
+        self._switch_config('redis')
 
     def _switch_to_memory_config(self):
-        """切换到内存配置"""
-        # 安全检查queue_manager是否存在且类型正确
-        if not self.queue_manager or self.queue_manager._queue_type != QueueType.MEMORY:
-            return
-            
-        # 安全获取FILTER_CLASS配置
-        current_filter_class = ''
-        default_dedup_pipeline = ''
-        pipelines = []
-        
-        if self.crawler and self.crawler.settings is not None:
-            try:
-                current_filter_class = self.crawler.settings.get('FILTER_CLASS', '')
-                default_dedup_pipeline = self.crawler.settings.get('DEFAULT_DEDUP_PIPELINE', '')
-                pipelines = self.crawler.settings.get('PIPELINES', [])
-            except Exception:
-                pass
-            
-        updated_configs = []
-        
-        if 'aioredis_filter' in current_filter_class or 'redis_filter' in current_filter_class:
-            # 更新为内存过滤器
-            if self.crawler and self.crawler.settings is not None:
-                try:
-                    self.crawler.settings.set('FILTER_CLASS', 'crawlo.filters.memory_filter.MemoryFilter')
-                    updated_configs.append("filter")
-                except Exception:
-                    pass
-        
-        # 检查当前去重管道是否为Redis去重管道
-        if 'redis_dedup_pipeline' in default_dedup_pipeline:
-            # 更新为内存去重管道
-            if self.crawler and self.crawler.settings is not None:
-                try:
-                    self.crawler.settings.set('DEFAULT_DEDUP_PIPELINE', 'crawlo.pipelines.memory_dedup_pipeline.MemoryDedupPipeline')
-                    # 同时更新PIPELINES列表中的去重管道
-                    if default_dedup_pipeline in pipelines:
-                        # 找到并替换Redis去重管道为内存去重管道
-                        index = pipelines.index(default_dedup_pipeline)
-                        pipelines[index] = 'crawlo.pipelines.memory_dedup_pipeline.MemoryDedupPipeline'
-                        self.crawler.settings.set('PIPELINES', pipelines)
-                    updated_configs.append("dedup pipeline")
-                except Exception:
-                    pass
-        
-        # 合并日志输出
-        if updated_configs:
-            self.logger.debug(f"configuration updated: {', '.join(updated_configs)} -> memory mode")
+        """切换到内存配置（向后兼容）"""
+        self._switch_config('memory')
 
     async def next_request(self):
         """Get next request"""

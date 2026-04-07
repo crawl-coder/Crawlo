@@ -6,9 +6,9 @@
 提供一致的指纹生成方法，确保在框架各组件中生成的指纹保持一致。
 
 特点:
-- 算法统一: 所有指纹生成使用相同的算法(SHA256)
+- 算法优化: 请求指纹使用 MD5（高性能），数据指纹使用 SHA256（高准确）
 - 格式一致: 相同数据在不同场景下生成相同指纹
-- 高性能: 优化的实现确保高效生成
+- 高性能: 针对不同场景选择最优算法
 - 易扩展: 支持不同类型数据的指纹生成
 """
 
@@ -22,10 +22,10 @@ def generate_data_fingerprint(data: Any) -> str:
     生成数据指纹
     
     基于数据内容生成唯一指纹，用于去重判断。
-    使用 SHA256 算法确保安全性。
+    使用 SHA256 算法确保数据准确性。
     
     :param data: 要生成指纹的数据（支持 dict, Item, namedtuple, str 等类型）
-    :return: 数据指纹（hex string）
+    :return: 数据指纹（hex string，64字符）
     """
     # 将数据转换为可序列化的字典
     if hasattr(data, 'to_dict'):
@@ -46,7 +46,7 @@ def generate_data_fingerprint(data: Any) -> str:
     # 生成指纹字符串
     fingerprint_string = '|'.join([f"{k}={v}" for k, v in sorted_items if v is not None])
     
-    # 使用 SHA256 生成固定长度的指纹
+    # 使用 SHA256 生成固定长度的指纹（数据去重需要高准确性）
     return hashlib.sha256(fingerprint_string.encode('utf-8')).hexdigest()
 
 
@@ -61,16 +61,16 @@ def generate_request_fingerprint(
     生成请求指纹
     
     基于请求的方法、URL、body、headers 和 meta 生成唯一指纹。
-    使用 SHA256 算法确保安全性。
+    使用 MD5 算法确保高性能（请求去重频率极高，不需要密码学安全）。
     
     :param method: HTTP方法
     :param url: 请求URL
     :param body: 请求体
     :param headers: 请求头
     :param meta: 元数据（包含重试次数等信息）
-    :return: 请求指纹（hex string）
+    :return: 请求指纹（hex string，32字符）
     """
-    hash_func = hashlib.sha256()
+    hash_func = hashlib.md5()
     
     # 基本字段
     hash_func.update(method.encode('utf-8'))

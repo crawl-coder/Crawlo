@@ -112,29 +112,32 @@ BLOOM_FILTER_ERROR_RATE = 0.001  # Bloom过滤器错误率
 # --------------------------------- 4. 中间件配置 ------------------------------------
 
 # 框架中间件列表（框架默认中间件 + 用户自定义中间件）
+# 优先级规则：数值越小，请求阶段越先执行；数值越大，响应阶段越先执行
 MIDDLEWARES = {
-    # === 请求预处理阶段 ===
-    'crawlo.middleware.request_ignore.RequestIgnoreMiddleware': 100,  # 1. 忽略无效请求
-    'crawlo.middleware.download_delay.DownloadDelayMiddleware': 90,  # 2. 控制请求频率
-    'crawlo.middleware.default_header.DefaultHeaderMiddleware': 80,  # 3. 添加默认请求头
-    'crawlo.middleware.offsite.OffsiteMiddleware': 60,  # 5. 站外请求过滤
+    # === 请求预处理阶段（数值小→请求先执行）===
+    'crawlo.middleware.request_ignore.RequestIgnoreMiddleware': 100,  # 请求忽略（最先）
+    'crawlo.middleware.download_delay.DownloadDelayMiddleware': 200,  # 下载延迟
+    'crawlo.middleware.default_header.DefaultHeaderMiddleware': 300,  # 默认请求头
+    'crawlo.middleware.offsite.OffsiteMiddleware': 400,  # 域名过滤
 
-    # === 响应处理阶段 ===
-    'crawlo.middleware.retry.RetryMiddleware': 50,  # 6. 失败请求重试
-    'crawlo.middleware.response_code.ResponseCodeMiddleware': 40,  # 7. 处理特殊状态码
-    'crawlo.middleware.response_filter.ResponseFilterMiddleware': 30,  # 8. 响应内容过滤
+    # === 响应处理阶段（数值大→响应先执行）===
+    'crawlo.middleware.retry.RetryMiddleware': 600,  # 重试处理（最先捕获失败）
+    'crawlo.middleware.response_code.ResponseCodeMiddleware': 650,  # 状态码处理
+    'crawlo.middleware.response_filter.ResponseFilterMiddleware': 700,  # 响应过滤（最先）
 }
 
 # --------------------------------- 5. 管道配置 ------------------------------------
 
 # 框架数据处理管道列表（框架默认管道 + 用户自定义管道）
-PIPELINES = [
-    'crawlo.pipelines.console_pipeline.ConsolePipeline',
-]
+# 使用字典格式，数字越小越先执行（与 MIDDLEWARES 保持一致）
+PIPELINES = {
+    'crawlo.pipelines.console_pipeline.ConsolePipeline': 100,  # 控制台输出
+}
 
 # --------------------------------- 6. 扩展配置 ------------------------------------
 
 # 框架扩展组件列表（框架默认扩展 + 用户自定义扩展）
+# 扩展组件通常无需优先级，使用列表格式即可
 EXTENSIONS = [
     'crawlo.extension.log_interval.LogIntervalExtension',  # 定时日志
     'crawlo.extension.log_stats.LogStats',  # 统计信息

@@ -345,16 +345,20 @@ crawl(settings={...}):  32  ✅ 最终值 = 32
 **列表配置**（如 `MIDDLEWARES`、`PIPELINES`、`EXTENSIONS`）：采用**合并策略**
 ```python
 # default_settings.py
-PIPELINES = ['crawlo.pipelines.console_pipeline.ConsolePipeline']
+PIPELINES = {
+    'crawlo.pipelines.console_pipeline.ConsolePipeline': 500,
+}
 
 # settings.py
-PIPELINES = ['myproject.pipelines.MySQLPipeline']
+PIPELINES = {
+    'myproject.pipelines.MySQLPipeline': 600,
+}
 
 # 最终结果（合并）
-PIPELINES = [
-    'crawlo.pipelines.console_pipeline.ConsolePipeline',  # 保留默认
-    'myproject.pipelines.MySQLPipeline',                   # 追加用户
-]
+PIPELINES = {
+    'crawlo.pipelines.console_pipeline.ConsolePipeline': 500,  # 保留默认
+    'myproject.pipelines.MySQLPipeline': 600,                   # 追加用户
+}
 ```
 
 ### Spider 级别配置
@@ -402,72 +406,105 @@ REDIS_HOST = 'localhost'  # ❌ 会覆盖环境变量
 # 解决方案：不在 settings.py 中重复设置，或使用 CrawloConfig.auto()
 ```
 
-**陷阱2：误以为列表配置会被清空**
+**陷阱2：误以为字典配置会被清空**
 ```python
 # settings.py
-PIPELINES = ['myproject.pipelines.MySQLPipeline']
+PIPELINES = {
+    'myproject.pipelines.MySQLPipeline': 600,
+}
 
 # 实际结果（默认管道会被保留并合并）
-PIPELINES = [
-    'crawlo.pipelines.console_pipeline.ConsolePipeline',  # 默认保留
-    'myproject.pipelines.MySQLPipeline',                   # 用户追加
-]
+PIPELINES = {
+    'crawlo.pipelines.console_pipeline.ConsolePipeline': 500,  # 默认保留
+    'myproject.pipelines.MySQLPipeline': 600,                   # 用户追加
+}
 
 # 如果想完全替换，需要先清空
-PIPELINES = []  # 清空
-PIPELINES.append('myproject.pipelines.MySQLPipeline')
+PIPELINES = {}  # 清空
+PIPELINES['myproject.pipelines.MySQLPipeline'] = 600
 ```
 
 > 📖 **详细文档**：完整的配置优先级说明请参考 [配置优先级详解](docs/配置优先级详解.md)
 
 ## 中间件优先级策略
 
-在 crawlo 框架中，中间件的执行顺序由优先级数值决定，数值越大执行越早。以下是推荐的中间件优先级分配策略：
+在 Crawlo 框架中，中间件的执行顺序由优先级数值决定。**请求阶段**按数值从小到大执行，**响应阶段**按数值从大到小执行（LIFO 模式）。
 
-### 1. 优先级数值范围和含义
+### 1. 优先级设计原则
 
-- **高优先级 (80-100)**：请求预处理阶段，如过滤、验证等
-- **中高优先级 (60-79)**：请求处理阶段，如添加请求头、代理设置等
-- **中等优先级 (40-59)**：响应处理阶段，如重试、状态码处理等
-- **低优先级 (0-39)**：响应后处理阶段，如过滤、记录等
+采用**双向对称设计**：
+- **请求阶段**（process_request）：数值越小，越先执行
+- **响应阶段**（process_response）：数值越大，越先执行
 
-### 2. 默认中间件优先级分配
+这种设计确保：
+- 请求处理最早执行的中间件，在响应处理时最后执行（类似洋葱模型）
+- 符合中间件的天然依赖关系（如：先添加请求头，后处理响应）
+
+### 2. 默认中间件优先级
 
 ```python
-# === 请求预处理阶段 ===
-'crawlo.middleware.request_ignore.RequestIgnoreMiddleware': 100  # 1. 忽略无效请求（最高优先级）
-'crawlo.middleware.download_delay.DownloadDelayMiddleware': 90   # 2. 控制请求频率
-'crawlo.middleware.default_header.DefaultHeaderMiddleware': 80   # 3. 添加默认请求头
-'crawlo.middleware.offsite.OffsiteMiddleware': 60               # 5. 站外请求过滤
-
-# === 响应处理阶段 ===
-'crawlo.middleware.retry.RetryMiddleware': 50                   # 6. 失败请求重试
-'crawlo.middleware.response_code.ResponseCodeMiddleware': 40     # 7. 处理特殊状态码
-'crawlo.middleware.response_filter.ResponseFilterMiddleware': 30  # 8. 响应内容过滤（最低优先级）
+MIDDLEWARES = {
+    # 请求阶段（小 → 大）
+    'crawlo.middleware.request_ignore.RequestIgnoreMiddleware': 100,  # 1. 忽略无效请求
+    'crawlo.middleware.download_delay.DownloadDelayMiddleware': 200,  # 2. 下载延迟控制
+    'crawlo.middleware.default_header.DefaultHeaderMiddleware': 300,  # 3. 添加默认请求头
+    'crawlo.middleware.offsite.OffsiteMiddleware': 400,               # 4. 站外请求过滤
+    
+    # 响应阶段（大 → 小）
+    'crawlo.middleware.response_filter.ResponseFilterMiddleware': 700, # 5. 响应过滤
+    'crawlo.middleware.response_code.ResponseCodeMiddleware': 650,     # 6. 状态码处理
+    'crawlo.middleware.retry.RetryMiddleware': 600,                    # 7. 请求重试
+}
 ```
 
-### 3. 用户自定义中间件优先级建议
+### 3. 内置优先级常量
 
-- **请求处理类中间件**：
-  - 添加请求头/代理：优先级 75-85
-  - 请求过滤/验证：优先级 85-95
-  - 请求修改/增强：优先级 60-75
+框架提供了语义化常量供用户使用：
 
-- **响应处理类中间件**：
-  - 响应重试/恢复：优先级 45-55
-  - 响应验证/解析：优先级 30-40
-  - 响应后处理：优先级 10-25
+```python
+from crawlo.utils.priority import MiddlewarePriority
 
-- **特殊处理类中间件**：
-  - 安全/认证中间件：优先级 90+
-  - 日志/监控中间件：优先级 20-40
+# 可用常量
+MiddlewarePriority.CUSTOM = 500          # 自定义中间件默认优先级
+MiddlewarePriority.CUSTOM_REQUEST = 450  # 自定义请求处理中间件
+MiddlewarePriority.CUSTOM_RESPONSE = 550 # 自定义响应处理中间件
+```
 
-### 4. 优先级设置原则
+### 4. 用户自定义中间件优先级建议
 
-1. **请求处理优先于响应处理**：请求相关中间件优先级通常高于响应处理中间件
-2. **过滤器通常优先级较高**：过滤无效请求的中间件应具有较高优先级
-3. **依赖关系**：如果中间件A的输出是中间件B的输入，A的优先级应高于B
-4. **性能考虑**：可能快速过滤请求的中间件应具有较高优先级
+- **请求处理类**：
+  - 安全/认证：100-200
+  - 请求过滤/验证：200-300
+  - 请求头/代理设置：300-400
+  - 通用请求处理：400-500
+
+- **响应处理类**：
+  - 通用响应处理：500-600
+  - 重试/恢复：600-650
+  - 响应验证/解析：650-700
+  - 响应后处理：700-800
+
+### 5. 使用示例
+
+```python
+from crawlo.utils.priority import MiddlewarePriority
+
+MIDDLEWARES = {
+    # 使用语义化常量
+    'myproject.middleware.AuthMiddleware': MiddlewarePriority.CUSTOM_REQUEST,
+    'myproject.middleware.DataParseMiddleware': MiddlewarePriority.CUSTOM_RESPONSE,
+    
+    # 或直接使用数值
+    'myproject.middleware.CustomMiddleware': 500,
+}
+```
+
+### 6. 优先级设置原则
+
+1. **过滤器优先**：能快速拒绝无效请求的中间件应具有较小数值（请求阶段先执行）
+2. **依赖关系**：如果中间件 A 的输出是 B 的输入，A 的数值应小于 B
+3. **对称性**：请求阶段数值小的中间件，在响应阶段会最后执行
+4. **间隔预留**：建议以 50-100 为间隔，方便后续插入新中间件
 
 > 💡 **提示**：`OffsiteMiddleware` 只有在配置了 `ALLOWED_DOMAINS` 时才会启用，否则会因 `NotConfiguredError` 而被禁用
 
@@ -507,10 +544,10 @@ SPIDER_MODULES = ['myproject.spiders']
 LOG_LEVEL = 'INFO'
 LOG_FILE = 'logs/myproject.log'
 
-# 可选：添加数据管道
-# PIPELINES = [
-#     'crawlo.pipelines.mysql_pipeline.AsyncmyMySQLPipeline',
-# ]
+# 可选：添加数据管道（注意：现在是字典格式）
+# PIPELINES = {
+#     'crawlo.pipelines.mysql_pipeline.MySQLPipeline': 500,
+# }
 
 # 可选：Redis 配置（Auto 模式会自动检测）
 # REDIS_HOST = '127.0.0.1'
@@ -1078,11 +1115,11 @@ Auto 模式在运行时智能检测：
 ```
 # settings.py
 
-PIPELINES = [
-    'crawlo.pipelines.mysql_pipeline.AsyncmyMySQLPipeline',  # MySQL
+PIPELINES = {
+    'crawlo.pipelines.mysql_pipeline.MySQLPipeline': 500,  # MySQL
     # 或
-    'crawlo.pipelines.mongo_pipeline.MongoDBPipeline',       # MongoDB
-]
+    'crawlo.pipelines.mongo_pipeline.MongoDBPipeline': 500,       # MongoDB
+}
 
 # MySQL 配置
 MYSQL_HOST = '127.0.0.1'
@@ -1175,6 +1212,41 @@ PROXY_API_URL = "http://your-proxy-api.com/get-proxy"
 MIT License - 详见 [LICENSE](LICENSE) 文件
 
 ## 变更日志
+
+### v1.6.0 (2026-04-07)
+
+- **中间件优先级重构**：采用双向对称设计
+  - 请求阶段：数值越小，越先执行
+  - 响应阶段：数值越大，越先执行（LIFO 模式）
+  - 提供语义化常量：`MiddlewarePriority.CUSTOM`, `CUSTOM_REQUEST`, `CUSTOM_RESPONSE`
+  - 详见 [中间件优先级策略](#中间件优先级策略)
+
+- **配置格式统一**：`MIDDLEWARES`、`PIPELINES`、`EXTENSIONS` 统一使用字典格式
+  - 旧格式：`PIPELINES = ['pipeline1', 'pipeline2']`
+  - 新格式：`PIPELINES = {'pipeline1': 500, 'pipeline2': 600}`
+  - 支持配置优先级，更灵活
+
+- **指纹算法优化**：
+  - 请求指纹改用 MD5（32字符），性能提升约 40%
+  - 数据指纹保持 SHA256（64字符），确保数据准确性
+  - 针对不同场景选择最优算法，兼顾性能与准确性
+
+- **模块优化**：
+  - 删除未使用的 `hook.py`（钩子系统）
+  - 将 `priority.py` 从 `middleware` 移至 `utils`（非中间件功能）
+  - `throttle.py` 作为可选中间件，用户可手动启用
+
+- **日志格式优化**：
+  - 修复 `enabled filters` 和 `enabled downloader` 日志异常换行
+  - 统一组件启用信息的输出格式
+
+- **导入优化**：
+  - 将 `safe_get_config` 导入移至文件头部，消除重复导入
+  - 优化 `downloader/__init__.py`、`memory_filter.py`、`queue_manager.py` 等文件
+
+- **模板文件更新**：
+  - 更新所有 6 个项目模板的配置示例
+  - 添加优先级规则说明注释
 
 ### v1.2.0
 

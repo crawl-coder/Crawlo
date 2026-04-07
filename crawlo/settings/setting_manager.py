@@ -1,133 +1,222 @@
 #!/usr/bin/python
 # -*- coding: UTF-8 -*-
+"""
+配置管理器
+==========
+提供统一的配置管理，支持多种配置格式并保持向后兼容。
+
+配置格式优先级：
+1. 字典格式（推荐）: {'path.to.Middleware': 500}
+2. 元组列表格式: [('path.to.Middleware', 500)]
+3. 简单列表格式: ['path.to.Middleware'] (默认优先级 0)
+
+使用示例：
+    # 推荐格式
+    MIDDLEWARES = {
+        'myproject.middlewares.CustomMiddleware': 500
+    }
+    
+    # 使用优先级常量
+    from crawlo.utils import MiddlewarePriority
+    MIDDLEWARES = {
+        'myproject.middlewares.CustomMiddleware': MiddlewarePriority.CUSTOM
+    }
+"""
 import json
 from copy import deepcopy
 from importlib import import_module
 from collections.abc import MutableMapping
+from typing import Any, Dict, List, Optional, Union
 
 from crawlo.settings import default_settings
 
 
+class ConfigFormat:
+    """配置格式类型"""
+    DICT = 'dict'      # 字典格式 {'path': priority}
+    LIST = 'list'      # 列表格式 ['path']
+    TUPLE_LIST = 'tuple_list'  # 元组列表 [('path', priority)]
+
+
+def normalize_component_config(
+    config: Union[Dict, List, tuple, None],
+    default_priority: int = 500
+) -> Dict[str, int]:
+    """
+    将组件配置标准化为字典格式
+    
+    Args:
+        config: 组件配置（字典/列表/元组列表）
+        default_priority: 默认优先级（500 表示中等优先级，适合管道）
+        
+    Returns:
+        Dict[str, int]: 标准化后的字典 {path: priority}
+    """
+    if not config:
+        return {}
+    
+    if isinstance(config, dict):
+        return {k: v for k, v in config.items() if k and not str(k).strip().startswith('#')}
+    
+    if isinstance(config, tuple):
+        config = [config]
+    
+    if isinstance(config, (list, tuple)):
+        result = {}
+        for item in config:
+            if not item:
+                continue
+            if isinstance(item, str):
+                if item.strip() and not item.strip().startswith('#'):
+                    result[item.strip()] = default_priority
+            elif isinstance(item, (list, tuple)) and len(item) >= 2:
+                path = str(item[0]).strip()
+                if path and not path.startswith('#'):
+                    try:
+                        priority = int(item[1])
+                    except (ValueError, TypeError):
+                        priority = default_priority
+                    result[path] = priority
+        return result
+    
+    return {}
+
+
+def merge_component_configs(
+    default: Dict[str, int],
+    user: Dict[str, int]
+) -> Dict[str, int]:
+    """
+    合并组件配置
+    
+    用户配置覆盖默认配置。
+    
+    Args:
+        default: 默认配置
+        user: 用户配置
+        
+    Returns:
+        Dict[str, int]: 合并后的配置
+    """
+    result = default.copy()
+    result.update(user)
+    return result
+
+
 class SettingManager(MutableMapping):
-
-    def __init__(self, values=None):
-        self.attributes = {}
+    """
+    配置管理器
+    
+    提供统一的配置访问和修改接口，支持多种配置格式。
+    
+    特性：
+    - 支持多种配置格式自动转换
+    - 支持配置优先级合并
+    - 支持动态配置处理
+    - 向后兼容旧格式
+    """
+    
+    # 特殊配置键，需要特殊合并逻辑
+    _COMPONENT_KEYS = frozenset(['MIDDLEWARES', 'PIPELINES', 'EXTENSIONS'])
+    
+    # 去重管道列表
+    _DEDUP_PIPELINES = frozenset([
+        'crawlo.pipelines.memory_dedup_pipeline.MemoryDedupPipeline',
+        'crawlo.pipelines.redis_dedup_pipeline.RedisDedupPipeline',
+    ])
+    
+    def __init__(self, values: Optional[Dict[str, Any]] = None):
+        """
+        初始化配置管理器
+        
+        Args:
+            values: 初始配置字典
+        """
+        self.attributes: Dict[str, Any] = {}
         self.set_settings(default_settings)
-        # 在初始化时合并配置
         self._merge_config(values)
-        # 处理动态配置
         self._process_dynamic_config()
-
-    def _merge_config(self, user_config):
-        """合并默认配置和用户配置"""
+    
+    def _merge_config(self, user_config: Optional[Dict[str, Any]]) -> None:
+        """
+        合并用户配置
+        
+        Args:
+            user_config: 用户配置字典
+        """
         if not user_config:
             return
-
-        # 合并中间件配置
-        if 'MIDDLEWARES' in user_config:
-            user_middlewares = user_config['MIDDLEWARES']
-            
-            # 检查用户配置是字典格式还是列表格式
-            if isinstance(user_middlewares, dict):
-                # 字典格式：{'middleware_path': priority}
-                # 获取默认中间件（也可能是字典格式）
-                default_middlewares = self.attributes.get('MIDDLEWARES', {})
-                if isinstance(default_middlewares, dict):
-                    # 合并字典格式的中间件配置
-                    # 用户配置优先级更高，会覆盖默认配置
-                    merged_middlewares = default_middlewares.copy()
-                    merged_middlewares.update(user_middlewares)
-                else:
-                    # 默认是列表格式，转换为字典格式
-                    merged_middlewares = {}
-                    # 将默认列表转换为字典（优先级为0）
-                    if isinstance(default_middlewares, (list, tuple)):
-                        for middleware in default_middlewares:
-                            if middleware and not str(middleware).strip().startswith('#'):
-                                # 如果middleware是元组格式 (path, priority)，则使用其优先级
-                                if isinstance(middleware, tuple) and len(middleware) == 2:
-                                    merged_middlewares[middleware[0]] = middleware[1]
-                                else:
-                                    merged_middlewares[middleware] = 0
-                    # 添加用户配置的中间件
-                    merged_middlewares.update(user_middlewares)
-                self.attributes['MIDDLEWARES'] = merged_middlewares
-            else:
-                # 列表格式：['middleware_path'] 或 [('middleware_path', priority)]
-                default_middlewares = self.attributes.get('MIDDLEWARES', [])
-                # 如果用户配置了非空列表，则合并
-                if user_middlewares:
-                    # 过滤掉空值和注释
-                    user_middlewares = [middleware for middleware in user_middlewares if middleware and not middleware.strip().startswith('#')]
-                    # 合并默认中间件和用户中间件，去重但保持顺序
-                    merged_middlewares = default_middlewares[:]
-                    for middleware in user_middlewares:
-                        # 检查是否已存在，如果是元组格式也要正确处理
-                        middleware_path = middleware[0] if isinstance(middleware, tuple) and len(middleware) == 2 else middleware
-                        existing_index = None
-                        for i, existing in enumerate(merged_middlewares):
-                            existing_path = existing[0] if isinstance(existing, tuple) and len(existing) == 2 else existing
-                            if existing_path == middleware_path:
-                                existing_index = i
-                                break
-                        if existing_index is not None:
-                            # 如果已存在，则替换
-                            merged_middlewares[existing_index] = middleware
-                        else:
-                            merged_middlewares.append(middleware)
-                    self.attributes['MIDDLEWARES'] = merged_middlewares
-
-        # 合并管道配置
-        if 'PIPELINES' in user_config:
-            default_pipelines = self.attributes.get('PIPELINES', [])
-            user_pipelines = user_config['PIPELINES']
-            # 如果用户配置了空列表，则仍然使用默认配置
-            if user_pipelines:
-                # 过滤掉空值和注释
-                user_pipelines = [pipeline for pipeline in user_pipelines if pipeline and not pipeline.strip().startswith('#')]
-                # 合并默认管道和用户管道，去重但保持顺序
-                merged_pipelines = default_pipelines[:]
-                for pipeline in user_pipelines:
-                    if pipeline not in merged_pipelines:
-                        merged_pipelines.append(pipeline)
-                self.attributes['PIPELINES'] = merged_pipelines
-
-
-
-        # 合并扩展配置
-        if 'EXTENSIONS' in user_config:
-            default_extensions = self.attributes.get('EXTENSIONS', [])
-            user_extensions = user_config['EXTENSIONS']
-            # 如果用户配置了空列表，则仍然使用默认配置
-            if user_extensions:
-                # 过滤掉空值和注释
-                user_extensions = [extension for extension in user_extensions if extension and not extension.strip().startswith('#')]
-                # 合并默认扩展和用户扩展，去重但保持顺序
-                merged_extensions = default_extensions[:]
-                for extension in user_extensions:
-                    if extension not in merged_extensions:
-                        merged_extensions.append(extension)
-                self.attributes['EXTENSIONS'] = merged_extensions
-
-        # 更新其他用户配置
+        
+        # 处理组件配置（中间件、管道、扩展）
+        for key in self._COMPONENT_KEYS:
+            if key in user_config:
+                self._merge_component_config(key, user_config[key])
+        
+        # 处理其他配置
         for key, value in user_config.items():
-            if key not in ['MIDDLEWARES', 'PIPELINES', 'EXTENSIONS']:
+            if key not in self._COMPONENT_KEYS:
                 self.attributes[key] = value
         
-        # 特殊处理PIPELINES，确保去重管道在最前面（在所有配置更新后执行）
+        # 特殊处理：确保去重管道在最前面
+        self._ensure_dedup_pipeline()
+    
+    def _merge_component_config(
+        self, 
+        key: str, 
+        user_config: Union[Dict, List, tuple]
+    ) -> None:
+        """
+        合并组件配置
+            
+        Args:
+            key: 配置键名
+            user_config: 用户配置
+        """
+        # 标准化用户配置
+        user_normalized = normalize_component_config(user_config)
+    
+        # 获取默认配置并标准化
+        default_config = self.attributes.get(key, {})
+        default_normalized = normalize_component_config(default_config)
+    
+        # 合并配置
+        merged = merge_component_configs(default_normalized, user_normalized)
+    
+        # 存储为字典格式（保留优先级）
+        self.attributes[key] = merged
+    
+    def _ensure_dedup_pipeline(self) -> None:
+        """确保去重管道在管道列表最前面（优先级最高，数字最小）"""
         dedup_pipeline = self.attributes.get('DEFAULT_DEDUP_PIPELINE')
-        if dedup_pipeline:
-            pipelines = self.attributes.get('PIPELINES', [])
-            # 移除所有去重管道实例（如果存在）
-            # 移除内存和Redis去重管道
-            pipelines = [item for item in pipelines 
-                       if item not in ('crawlo.pipelines.memory_dedup_pipeline.MemoryDedupPipeline', 
-                                     'crawlo.pipelines.redis_dedup_pipeline.RedisDedupPipeline')]
-            # 在开头插入去重管道
-            pipelines.insert(0, dedup_pipeline)
-            self.attributes['PIPELINES'] = pipelines
-
-    def set_settings(self, module):
+        if not dedup_pipeline:
+            return
+        
+        pipelines = self.attributes.get('PIPELINES', {})
+        
+        # 确保是字典格式
+        if isinstance(pipelines, (list, tuple)):
+            # 从列表转换为字典，默认优先级 500
+            pipelines = {p: 500 + i for i, p in enumerate(pipelines) if isinstance(p, str)}
+        
+        # 移除已有的去重管道
+        pipelines = {k: v for k, v in pipelines.items() if k not in self._DEDUP_PIPELINES}
+        
+        # 在开头插入指定的去重管道（优先级最高：数字最小）
+        if dedup_pipeline not in pipelines:
+            # 找到当前最小的优先级
+            min_priority = min(pipelines.values()) if pipelines else 100
+            # 去重管道优先级必须比所有其他管道都小，确保最先执行
+            pipelines[dedup_pipeline] = max(1, min_priority - 100)
+        
+        self.attributes['PIPELINES'] = pipelines
+    
+    def set_settings(self, module: Union[str, object]) -> None:
+        """
+        从模块加载配置
+        
+        Args:
+            module: 模块对象或模块路径字符串
+        """
         if isinstance(module, str):
             module = import_module(module)
         
@@ -135,41 +224,43 @@ class SettingManager(MutableMapping):
         module_settings = {}
         for key in dir(module):
             if key.isupper():
-                value = getattr(module, key)
-                module_settings[key] = value
+                module_settings[key] = getattr(module, key)
         
-        # 使用合并逻辑而不是直接设置
         self._merge_config(module_settings)
-        
-        # 处理动态配置项（如LOG_FILE）
         self._process_dynamic_config()
-        
-    def _process_dynamic_config(self):
-        """
-        处理动态配置项
-        某些配置项需要根据其他配置项的值进行动态计算
-        """
-        # 处理LOG_FILE配置
+    
+    def _process_dynamic_config(self) -> None:
+        """处理动态配置项"""
         if self.attributes.get('LOG_FILE') is None:
             project_name = self.attributes.get('PROJECT_NAME', 'crawlo')
             self.attributes['LOG_FILE'] = f'logs/{project_name}.log'
-
-    def get(self, key, default=None):
-        """安全获取值，不触发递归"""
+    
+    # ==================== 配置获取方法 ====================
+    
+    def get(self, key: str, default: Any = None) -> Any:
+        """
+        获取配置值
+        
+        Args:
+            key: 配置键名
+            default: 默认值
+            
+        Returns:
+            配置值，不存在时返回默认值
+        """
         value = self.attributes.get(key, default)
         return value if value is not None else default
-
-    def _get_merged_list(self, key, default=None):
-        """这个方法已不再需要，因为配置合并已在配置加载时完成"""
-        return self.attributes.get(key, default or [])
-
-    def get_int(self, key, default=0):
+    
+    def get_int(self, key: str, default: int = 0) -> int:
+        """获取整数配置值"""
         return int(self.get(key, default=default))
-
-    def get_float(self, key, default=0.0):
+    
+    def get_float(self, key: str, default: float = 0.0) -> float:
+        """获取浮点数配置值"""
         return float(self.get(key, default=default))
-
-    def get_bool(self, key, default=False):
+    
+    def get_bool(self, key: str, default: bool = False) -> bool:
+        """获取布尔配置值"""
         got = self.get(key, default=default)
         if isinstance(got, bool):
             return got
@@ -184,8 +275,9 @@ class SettingManager(MutableMapping):
             f"Unsupported value for boolean setting: {got}. "
             "Supported values are: 0/1, True/False, '0'/'1', 'True'/'False' (case-insensitive)."
         )
-
-    def get_list(self, key, default=None):
+    
+    def get_list(self, key: str, default: Optional[List] = None) -> List:
+        """获取列表配置值"""
         values = self.get(key, default or [])
         if isinstance(values, str):
             return [v.strip() for v in values.split(',') if v.strip()]
@@ -193,8 +285,9 @@ class SettingManager(MutableMapping):
             return list(values)
         except TypeError:
             return [values]
-
-    def get_dict(self, key, default=None):
+    
+    def get_dict(self, key: str, default: Optional[Dict] = None) -> Dict:
+        """获取字典配置值"""
         value = self.get(key, default or {})
         if isinstance(value, str):
             value = json.loads(value)
@@ -202,58 +295,144 @@ class SettingManager(MutableMapping):
             return dict(value)
         except TypeError:
             return value
-
-    def set(self, key, value):
+    
+    # ==================== 配置设置方法 ====================
+    
+    def set(self, key: str, value: Any) -> None:
+        """
+        设置配置值
+        
+        Args:
+            key: 配置键名
+            value: 配置值
+        """
         self.attributes[key] = value
-
-    # 实现 MutableMapping 必须的方法
-    def __getitem__(self, item):
-        return self.attributes[item]
-
-    def __setitem__(self, key, value):
+    
+    def setdefault(self, key: str, default: Any = None) -> Any:
+        """
+        如果键不存在则设置默认值
+        
+        Args:
+            key: 配置键名
+            default: 默认值
+            
+        Returns:
+            配置值
+        """
+        if key not in self.attributes:
+            self.attributes[key] = default
+        return self.attributes[key]
+    
+    def update(self, other: Dict[str, Any]) -> None:
+        """
+        批量更新配置
+        
+        Args:
+            other: 配置字典
+        """
+        self._merge_config(other)
+    
+    def update_attributes(self, attributes: Optional[Dict[str, Any]]) -> None:
+        """
+        批量更新配置（兼容旧接口）
+        
+        Args:
+            attributes: 配置字典
+        """
+        if attributes:
+            self.update(attributes)
+    
+    # ==================== 实现 MutableMapping 接口 ====================
+    
+    def __getitem__(self, key: str) -> Any:
+        return self.attributes[key]
+    
+    def __setitem__(self, key: str, value: Any) -> None:
         self.set(key, value)
-
-    def __delitem__(self, key):
+    
+    def __delitem__(self, key: str) -> None:
         del self.attributes[key]
-
+    
+    def __contains__(self, key: str) -> bool:
+        return key in self.attributes
+    
     def __iter__(self):
         return iter(self.attributes)
-
-    def __len__(self):
+    
+    def __len__(self) -> int:
         return len(self.attributes)
-
-    def __str__(self):
-        return f'<Settings: {self.attributes}>'
-
+    
+    def __str__(self) -> str:
+        return f'<Settings: {len(self.attributes)} items>'
+    
     __repr__ = __str__
-
-    def update_attributes(self, attributes):
-        if attributes is not None:
-            for key, value in attributes.items():
-                self.set(key, value)
-
-    def copy(self):
+    
+    # ==================== 复制和序列化 ====================
+    
+    def copy(self) -> 'SettingManager':
+        """创建配置的深拷贝"""
         return deepcopy(self)
-
-    def __deepcopy__(self, memo):
-        """
-        自定义深度复制方法，避免复制logger等不可pickle的对象
-        """
-        # 创建一个新的实例
+    
+    def __deepcopy__(self, memo: dict) -> 'SettingManager':
+        """自定义深拷贝，跳过不可序列化的对象"""
         cls = self.__class__
         new_instance = cls.__new__(cls)
-
-        # 复制attributes字典，但排除不可pickle的对象
+        
         new_attributes = {}
         for key, value in self.attributes.items():
             try:
-                # 尝试深度复制值
                 new_attributes[key] = deepcopy(value, memo)
             except Exception:
-                # 如果复制失败，保留原始引用（对于logger等对象）
                 new_attributes[key] = value
-
-        # 设置新实例的attributes
+        
         new_instance.attributes = new_attributes
-
         return new_instance
+    
+    def to_dict(self) -> Dict[str, Any]:
+        """
+        转换为字典
+        
+        Returns:
+            Dict[str, Any]: 配置字典的副本
+        """
+        return dict(self.attributes)
+    
+    # ==================== 工具方法 ====================
+    
+    def get_component_priority(
+        self, 
+        component_key: str, 
+        component_path: str
+    ) -> int:
+        """
+        获取组件优先级
+        
+        Args:
+            component_key: 组件配置键（MIDDLEWARES/PIPELINES/EXTENSIONS）
+            component_path: 组件路径
+            
+        Returns:
+            int: 优先级，不存在时返回 0
+        """
+        config = self.attributes.get(component_key, {})
+        normalized = normalize_component_config(config)
+        return normalized.get(component_path, 0)
+    
+    def set_component_priority(
+        self, 
+        component_key: str, 
+        component_path: str, 
+        priority: int
+    ) -> None:
+        """
+        设置组件优先级
+        
+        Args:
+            component_key: 组件配置键
+            component_path: 组件路径
+            priority: 优先级
+        """
+        config = self.attributes.get(component_key, {})
+        normalized = normalize_component_config(config)
+        normalized[component_path] = priority
+        self.attributes[component_key] = normalized

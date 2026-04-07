@@ -20,6 +20,7 @@ from contextlib import asynccontextmanager
 
 from crawlo.logging import get_logger
 from crawlo.middleware.middleware_manager import MiddlewareManager
+from crawlo.utils.misc import safe_get_config
 
 if TYPE_CHECKING:
     from crawlo import Response
@@ -112,7 +113,6 @@ class DownloaderBase(metaclass=DownloaderMeta):
         self._closed = False
         
         # 安全获取DOWNLOADER_STATS配置
-        from crawlo.utils.misc import safe_get_config
         self._stats_enabled = safe_get_config(crawler.settings, "DOWNLOADER_STATS", True, bool)
 
     @classmethod
@@ -128,8 +128,8 @@ class DownloaderBase(metaclass=DownloaderMeta):
         # 获取下载器类的完整路径
         downloader_class = f"{type(self).__module__}.{type(self).__name__}"
         
-        # 输出启用的下载器信息（类似MiddlewareManager的格式）
-        self.logger.info(f"enabled downloader: \n  {downloader_class}")
+        # 输出启用的下载器信息
+        self.logger.info(f"enabled downloader: {downloader_class}")
         
         # 安全获取CONCURRENCY配置
         concurrency = 8
