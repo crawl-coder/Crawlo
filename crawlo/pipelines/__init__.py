@@ -16,7 +16,13 @@ Pipeline体系：
 - DatabaseDedupPipeline: 基于数据库的去重
 
 使用示例：
-    # 在settings.py中配置
+    # 在settings.py中配置（推荐：字典格式，数字越小越先执行）
+    PIPELINES = {
+        'crawlo.pipelines.RedisDedupPipeline': 100,  # 去重，最先执行
+        'your_project.pipelines.MongoPipeline': 500,  # 存储
+    }
+    
+    # 兼容：列表格式（按顺序执行，默认优先级500）
     PIPELINES = [
         'crawlo.pipelines.RedisDedupPipeline',
         'your_project.pipelines.MongoPipeline',

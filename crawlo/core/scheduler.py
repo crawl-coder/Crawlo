@@ -126,7 +126,7 @@ class Scheduler:
                     updated_filter = self.crawler.settings.get('FILTER_CLASS', current_filter)
                 except Exception:
                     pass
-            self.logger.info(f"enabled filters: \n  {updated_filter}")
+            self.logger.info(f"enabled filters: {updated_filter}")
             
             # 优化日志输出，将多条日志合并为1条关键信息
             if queue_type_setting in ['auto', 'redis'] and updated_configs:

@@ -17,6 +17,7 @@ from crawlo.queue.pqueue import SpiderPriorityQueue
 from crawlo.utils.error_handler import ErrorHandler
 from crawlo.logging import get_logger
 from crawlo.utils.request.request_serializer import RequestSerializer
+from crawlo.utils.misc import safe_get_config
 
 try:
     # 使用完整版Redis队列
@@ -224,8 +225,6 @@ class QueueConfig:
     @classmethod
     def from_settings(cls, settings) -> 'QueueConfig':
         """Create configuration from settings"""
-        from crawlo.utils.misc import safe_get_config
-        
         # 安全获取项目名称，用于生成默认队列名称
         project_name = safe_get_config(settings, 'PROJECT_NAME', 'default')
         default_queue_name = f"crawlo:{project_name}:queue:requests"

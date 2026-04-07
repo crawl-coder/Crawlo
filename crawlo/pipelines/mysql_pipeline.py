@@ -44,7 +44,8 @@ class MySQLPipeline(ResourceManagedPipeline):
         self._lock = asyncio.Lock()
         self._initialized = False
         self.pool = None
-        self.batch_buffer: List[Dict] = []
+        # 注意：batch_buffer 由父类 ResourceManagedPipeline 初始化
+        # 子类在 _init_config 中覆盖 batch_size 和 use_batch 配置
         self._helper: Optional[MySQLHelper] = None
         self._fallback_failures = 0
         
@@ -85,7 +86,6 @@ class MySQLPipeline(ResourceManagedPipeline):
         # 事务和降级配置
         self.use_transaction = self.settings.get_bool('MYSQL_USE_TRANSACTION', True)
         self.fallback_threshold = self.settings.get_int('MYSQL_FALLBACK_THRESHOLD', 10)
-        self.enable_performance_log = self.settings.get_bool('MYSQL_PERFORMANCE_LOG', False)
     
     def _sanitize_table_name(self, name: str) -> str:
         """清理表名"""
@@ -116,12 +116,16 @@ class MySQLPipeline(ResourceManagedPipeline):
         """添加到批量缓冲区"""
         async with self._lock:
             if len(self.batch_buffer) >= self.max_buffer_size:
-                await self._flush_batch(spider.name)
+                self.logger.debug(
+                    f"Buffer full ({len(self.batch_buffer)}>={self.max_buffer_size}), "
+                    f"triggering flush"
+                )
+                await self._flush_batch(spider)
             self.batch_buffer.append(dict(item))
             should_flush = len(self.batch_buffer) >= self.batch_size
         
         if should_flush:
-            await self._flush_batch(spider.name)
+            await self._flush_batch(spider)
         return item
     
     async def _insert_single(self, item: Item) -> Item:
@@ -165,58 +169,65 @@ class MySQLPipeline(ResourceManagedPipeline):
         
         return item
     
-    async def _flush_batch(self, spider_name: str):
-        """刷新批量缓冲区"""
+    async def _flush_batch(self, spider):
+        """刷新批量缓冲区
+            
+        Args:
+            spider: Spider 实例（与父类签名一致）
+        """
+        spider_name = getattr(spider, 'name', str(spider)) if spider else 'unknown'
         async with self._lock:
             if not self.batch_buffer:
                 return
             batch = self.batch_buffer[:]
             self.batch_buffer.clear()
-        
+    
         if not batch:
             return
         
+        batch_size = len(batch)
+        
         try:
             start_time = time.time()
-            
+                
             if self.use_transaction:
                 rowcount = await self._flush_batch_with_transaction(batch)
             else:
                 rowcount = await self._flush_batch_without_transaction(batch)
-            
+                
             elapsed = time.time() - start_time
-            
+                
             self.crawler.stats.inc_value('mysql/batch_success')
-            self.crawler.stats.inc_value('mysql/batch_items', len(batch))
+            self.crawler.stats.inc_value('mysql/batch_items', batch_size)
             self.crawler.stats.inc_value('mysql/rows', rowcount or 0)
             self.crawler.stats.inc_value('mysql/batch_time', elapsed)
             self._fallback_failures = 0
-            
-            if self.enable_performance_log:
-                self.logger.info(
-                    f"Batch inserted: {len(batch)} items, {rowcount} rows affected, "
-                    f"time={elapsed:.3f}s"
-                )
-            
+                
+            # 始终打印批量入库成功日志
+            self.logger.info(
+                f"[{spider_name}] Batch insert success: {batch_size} items -> table={self.table_name}, "
+                f"{rowcount} rows, {elapsed:.3f}s"
+            )
+    
         except Exception as e:
             if ErrorClassifier.is_skipable(e):
-                self.logger.warning(f"Batch skipped: {ErrorClassifier.get_error_description(e)}")
+                self.logger.warning(f"[{spider_name}] Batch skipped: {ErrorClassifier.get_error_description(e)}")
                 return
-            
+    
             self._fallback_failures += 1
             self.logger.warning(
-                f"Batch failed (fallback failures: {self._fallback_failures}/{self.fallback_threshold}), "
-                f"fallback to single insert: {ErrorClassifier.get_error_description(e)}"
+                f"[{spider_name}] Batch failed (fallback {self._fallback_failures}/{self.fallback_threshold}): "
+                f"{ErrorClassifier.get_error_description(e)}"
             )
-            
+    
             if self._fallback_failures >= self.fallback_threshold:
                 self.logger.error(
-                    f"Fallback threshold exceeded ({self.fallback_threshold}), "
+                    f"[{spider_name}] Fallback threshold exceeded ({self.fallback_threshold}), "
                     f"aborting batch processing"
                 )
                 raise ItemDiscard(f"Too many fallback failures: {e}")
-            
-            await self._fallback_insert(batch)
+    
+            await self._fallback_insert(batch, spider_name)
     
     async def _flush_batch_with_transaction(self, batch: List[Dict]) -> int:
         """使用事务刷新批量缓冲区"""
@@ -246,8 +257,10 @@ class MySQLPipeline(ResourceManagedPipeline):
             batch_size=len(batch)
         )
     
-    async def _fallback_insert(self, datas: List[Dict]):
+    async def _fallback_insert(self, datas: List[Dict], spider_name: str = 'unknown'):
         """降级单条插入"""
+        self.logger.info(f"[{spider_name}] Fallback to single insert for {len(datas)} items")
+        
         success = 0
         failed = 0
         
@@ -264,10 +277,12 @@ class MySQLPipeline(ResourceManagedPipeline):
             except Exception as e:
                 if not ErrorClassifier.is_skipable(e):
                     failed += 1
-                    self.logger.error(f"Fallback insert failed: {ErrorClassifier.get_error_description(e)}")
+                    self.logger.error(
+                        f"[{spider_name}] Fallback insert failed: {ErrorClassifier.get_error_description(e)}"
+                    )
         
         self.logger.info(
-            f"Fallback insert completed: {success}/{len(datas)} success, {failed} failed"
+            f"[{spider_name}] Fallback insert completed: {success}/{len(datas)} success, {failed} failed"
         )
     
     async def _initialize_resources(self):
@@ -348,8 +363,12 @@ class MySQLPipeline(ResourceManagedPipeline):
     async def _cleanup_resources(self):
         """清理资源"""
         if self.use_batch and self.batch_buffer:
-            spider_name = getattr(self.crawler.spider, 'name', 'unknown')
-            await self._flush_batch(spider_name)
+            spider = getattr(self.crawler, 'spider', None)
+            spider_name = getattr(spider, 'name', 'unknown') if spider else 'unknown'
+            self.logger.info(
+                f"[{spider_name}] Spider closing, flushing remaining {len(self.batch_buffer)} items"
+            )
+            await self._flush_batch(spider)
         
         self.batch_buffer.clear()
         self._initialized = False

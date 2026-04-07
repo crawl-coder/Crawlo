@@ -14,7 +14,9 @@ from crawlo.task_manager import TaskManager
 from crawlo.downloader import DownloaderBase
 from crawlo.core.processor import Processor
 from crawlo.core.scheduler import Scheduler
+from crawlo.core.engine_helpers import GenerationStats, BackpressureController
 from crawlo.utils.misc import load_object
+from crawlo.utils.misc import safe_get_config
 from crawlo.utils.func_tools import transform
 
 
@@ -32,7 +34,6 @@ class Engine(object):
         self.start_requests: Optional[Iterator] = None
         
         # 安全获取CONCURRENCY设置，提供默认值
-        from crawlo.utils.misc import safe_get_config
         concurrency = safe_get_config(self.settings, 'CONCURRENCY', 8, int)
         
         self.task_manager: Optional[TaskManager] = TaskManager(concurrency)
@@ -48,13 +49,12 @@ class Engine(object):
         self.generation_interval = generation_interval
         self.backpressure_ratio = backpressure_ratio
         
-        # 状态跟踪
-        self._generation_paused = False
-        self._last_generation_time = 0
-        self._generation_stats = {
-            'total_generated': 0,
-            'backpressure_events': 0
-        }
+        # 使用独立工具类（局部提取，不改变结构）
+        self._generation_stats = GenerationStats()
+        self._backpressure_ctrl = BackpressureController(
+            max_queue_size=max_queue_size,
+            backpressure_ratio=backpressure_ratio
+        )
 
         self.logger = get_logger(name=self.__class__.__name__)
 
@@ -65,8 +65,6 @@ class Engine(object):
         Returns:
             Type[DownloaderBase]: 下载器类
         """
-        from crawlo.utils.misc import safe_get_config
-        
         # 方式1: 使用 DOWNLOADER_TYPE 配置（推荐）
         downloader_type = safe_get_config(self.settings, 'DOWNLOADER_TYPE')
         if downloader_type:
@@ -92,8 +90,6 @@ class Engine(object):
         return downloader_cls
 
     def engine_start(self):
-        from crawlo.utils.misc import safe_get_config
-        
         self.running = True
         # 获取版本号，如果获取失败则使用默认值
         version = safe_get_config(self.settings, 'VERSION', '1.0.0')
@@ -165,7 +161,6 @@ class Engine(object):
         
         try:
             # 启动请求生成任务（如果启用了受控生成）
-            from crawlo.utils.misc import safe_get_config
             enable_controlled_generation = safe_get_config(self.settings, 'ENABLE_CONTROLLED_REQUEST_GENERATION', False, bool)
             
             if self.start_requests and enable_controlled_generation:
@@ -294,7 +289,7 @@ class Engine(object):
             if self.running:
                 await self.enqueue_request(request)
                 generated += 1
-                self._generation_stats['total_generated'] += 1
+                self._generation_stats.increment_generated()
             
             # 控制生成速度，但使用更小的间隔
             if self.generation_interval > 0:
@@ -304,31 +299,19 @@ class Engine(object):
 
     async def _should_pause_generation(self) -> bool:
         """Determine whether generation should be paused"""
-        # 检查队列大小
-        if await self._is_queue_full():
-            return True
-        
-        # 检查任务管理器负载
-        if self.task_manager:
-            current_tasks = len(self.task_manager.current_task)
-            if hasattr(self.task_manager, 'semaphore'):
-                max_concurrency = getattr(self.task_manager.semaphore, '_initial_value', 8)
-                if current_tasks >= max_concurrency * self.backpressure_ratio:
-                    return True
-        
-        return False
+        # 使用背压控制器检查
+        return self._backpressure_ctrl.should_pause(
+            self.scheduler, 
+            self.task_manager
+        )
 
     async def _is_queue_full(self) -> bool:
         """Check if queue is full"""
-        if not self.scheduler:
-            return False
-        
-        queue_size = len(self.scheduler)
-        return queue_size >= self.max_queue_size * self.backpressure_ratio
+        return self._backpressure_ctrl.is_queue_full(self.scheduler)
 
     async def _wait_for_capacity(self):
         """Wait for system to have sufficient capacity"""
-        self._generation_stats['backpressure_events'] += 1
+        self._generation_stats.increment_backpressure()
         self.logger.debug("Backpressure triggered, pausing request generation")
         
         wait_time = 0.01  # 减少初始等待时间
@@ -514,7 +497,8 @@ class Engine(object):
     def get_generation_stats(self) -> dict:
         """获取生成统计"""
         return {
-            **self._generation_stats,
+            **self._generation_stats.to_dict(),
             'queue_size': len(self.scheduler) if self.scheduler else 0,
-            'active_tasks': len(self.task_manager.current_task) if self.task_manager else 0
+            'active_tasks': len(self.task_manager.current_task) if self.task_manager else 0,
+            'backpressure_stats': self._backpressure_ctrl.get_stats(),
         }

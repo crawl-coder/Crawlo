@@ -16,6 +16,7 @@ from typing import Set, TextIO, Optional
 
 from crawlo.filters import BaseFilter
 from crawlo.logging import get_logger
+from crawlo.utils.misc import safe_get_config
 
 
 class MemoryFilter(BaseFilter):
@@ -47,7 +48,6 @@ class MemoryFilter(BaseFilter):
         # 安全初始化日志和统计
         debug = False
         if crawler and crawler.settings is not None:
-            from crawlo.utils.misc import safe_get_config
             debug = safe_get_config(crawler.settings, 'FILTER_DEBUG', False, bool)
         else:
             debug = False
@@ -60,7 +60,6 @@ class MemoryFilter(BaseFilter):
         self._unique_count = 0
         
         # 安全获取内存优化配置
-        from crawlo.utils.misc import safe_get_config
         max_capacity = safe_get_config(crawler.settings, 'MEMORY_FILTER_MAX_CAPACITY', 1000000, int)
         cleanup_threshold = safe_get_config(crawler.settings, 'MEMORY_FILTER_CLEANUP_THRESHOLD', 0.8, float)
             

@@ -34,10 +34,10 @@ SPIDER_MODULES = ['{{project_name}}.spiders']
 
 # 数据管道
 # 如需添加自定义管道，请取消注释并添加
-# PIPELINES = [
-#     'crawlo.pipelines.mysql_pipeline.MySQLPipeline',  # MySQL 存储（使用asyncmy异步库）
-#     # '{{project_name}}.pipelines.CustomPipeline',  # 用户自定义管道示例
-# ]
+# PIPELINES = {
+#     'crawlo.pipelines.mysql_pipeline.MySQLPipeline': 500,  # MySQL 存储（使用asyncmy异步库）
+#     '{{project_name}}.pipelines.CustomPipeline': 600,  # 用户自定义管道示例
+# }
 
 # =================================== 2. 系统配置 ===================================
 # 扩展组件
@@ -48,8 +48,9 @@ SPIDER_MODULES = ['{{project_name}}.spiders']
 
 # 中间件
 # 如需添加自定义中间件，请取消注释并添加
+# 优先级规则：数值越小，请求阶段越先执行；数值越大，响应阶段越先执行
 # MIDDLEWARES = {
-#     # '{{project_name}}.middlewares.CustomMiddleware': 50,  # 用户自定义中间件示例
+#     '{{project_name}}.middlewares.CustomMiddleware': 500,  # 自定义中间件（默认优先级）
 # }
 
 # 日志配置

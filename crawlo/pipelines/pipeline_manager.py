@@ -1,7 +1,25 @@
 #!/usr/bin/python
 # -*- coding:UTF-8 -*-
-from typing import List
-from pprint import pformat
+"""
+Pipeline 管理器
+===============
+支持字典格式（带优先级）和列表格式（向后兼容）。
+
+配置格式：
+    # 推荐：字典格式（数字越小越先执行）
+    PIPELINES = {
+        'crawlo.pipelines.MemoryDedupPipeline': 100,  # 去重，最先执行
+        'crawlo.pipelines.ConsolePipeline': 500,      # 输出
+        'myproject.pipelines.MySQLPipeline': 800,     # 存储，最后执行
+    }
+    
+    # 兼容：列表格式（按顺序执行）
+    PIPELINES = [
+        'crawlo.pipelines.MemoryDedupPipeline',
+        'crawlo.pipelines.ConsolePipeline',
+    ]
+"""
+from typing import List, Dict, Union
 from asyncio import create_task
 
 from crawlo.logging import get_logger
@@ -21,10 +39,29 @@ def get_dedup_pipeline_classes():
     ]
 
 
-def remove_dedup_pipelines(pipelines: List[str]) -> List[str]:
-    """从管道列表中移除所有去重管道"""
-    dedup_classes = get_dedup_pipeline_classes()
-    return [pipeline for pipeline in pipelines if pipeline not in dedup_classes]
+def normalize_pipelines_config(
+    config: Union[Dict, List, None]
+) -> List[tuple]:
+    """
+    将管道配置标准化为 (path, priority) 元组列表
+    
+    Args:
+        config: 管道配置（字典/列表）
+        
+    Returns:
+        List[tuple]: 按优先级排序的 (path, priority) 列表
+    """
+    if not config:
+        return []
+    
+    if isinstance(config, dict):
+        # 字典格式：按优先级排序（数字越小越先执行）
+        items = [(path, priority) for path, priority in config.items()]
+        items.sort(key=lambda x: x[1])  # 升序，数字小的先执行
+        return items
+    else:
+        # 列表格式：保持顺序，默认优先级 500
+        return [(path, 500 + i) for i, path in enumerate(config) if isinstance(path, str)]
 
 
 class PipelineManager:
@@ -35,24 +72,27 @@ class PipelineManager:
         self.methods: List = []
 
         self.logger = get_logger(self.__class__.__name__)
-        self.pipelines_settings = self.crawler.settings.get_list('PIPELINES')
+        # 支持字典和列表两种格式
+        self.pipelines_settings = self.crawler.settings.get('PIPELINES', {})
         self.dedup_pipeline = self.crawler.settings.get('DEFAULT_DEDUP_PIPELINE')
 
         # 添加调试信息
-        self.logger.debug(f"PIPELINES from settings: {self.pipelines_settings}, DEFAULT_DEDUP_PIPELINE from settings: {self.dedup_pipeline}")
+        self.logger.debug(f"PIPELINES from settings: {self.pipelines_settings}")
 
     async def _initialize(self):
         """异步初始化管道"""
-        pipelines = self.pipelines_settings.copy()
+        # 标准化配置
+        pipelines = normalize_pipelines_config(self.pipelines_settings)
         
-        # 确保DEFAULT_DEDUP_PIPELINE被添加到管道列表开头
+        # 处理去重管道
         if self.dedup_pipeline:
-            # 移除所有去重管道实例（如果存在）
-            pipelines = remove_dedup_pipelines(pipelines)
-            # 在开头插入去重管道
-            self.logger.debug(f"{self.dedup_pipeline} insert successful")
-            pipelines.insert(0, self.dedup_pipeline)
-
+            # 移除所有去重管道实例
+            dedup_classes = get_dedup_pipeline_classes()
+            pipelines = [(p, pri) for p, pri in pipelines if p not in dedup_classes]
+            # 在开头插入去重管道（最高优先级：1）
+            pipelines.insert(0, (self.dedup_pipeline, 1))
+            self.logger.debug(f"{self.dedup_pipeline} inserted with priority 1")
+        
         await self._add_pipelines(pipelines)
         self._add_methods()
 
@@ -62,10 +102,11 @@ class PipelineManager:
         await o._initialize()
         return o
 
-    async def _add_pipelines(self, pipelines):
-        for pipeline in pipelines:
+    async def _add_pipelines(self, pipelines: List[tuple]):
+        """加载并初始化管道"""
+        for pipeline_path, priority in pipelines:
             try:
-                pipeline_cls = load_object(pipeline)
+                pipeline_cls = load_object(pipeline_path)
                 if not hasattr(pipeline_cls, 'from_crawler'):
                     raise PipelineInitError(
                         f"Pipeline init failed, must inherit from `BasePipeline` or have a `from_crawler` method"
@@ -79,12 +120,22 @@ class PipelineManager:
                     instance = result
                 self.pipelines.append(instance)
             except Exception as e:
-                self.logger.error(f"Failed to load pipeline {pipeline}: {e}")
-                # 可以选择继续加载其他管道或抛出异常
+                self.logger.error(f"Failed to load pipeline {pipeline_path}: {e}")
                 raise
+        
         if pipelines:
-            # 恢复INFO级别日志，保留关键的启用信息
-            self.logger.info(f"enabled pipelines: \n {pformat(pipelines)}")
+            # 显示加载的管道及优先级（类似中间件的多行字典格式）
+            if len(pipelines) == 1:
+                pipeline_path, priority = pipelines[0]
+                self.logger.info(f"enabled pipelines: {{{pipeline_path!r}: {priority}}}")
+            else:
+                formatted_output = '{\n'
+                for i, (pipeline_path, priority) in enumerate(pipelines):
+                    is_last = (i == len(pipelines) - 1)
+                    comma = ',' if not is_last else ''
+                    formatted_output += f"  {pipeline_path!r}: {priority}{comma}\n"
+                formatted_output += '}'
+                self.logger.info(f"enabled pipelines:\n{formatted_output}")
 
     def _add_methods(self):
         for pipeline in self.pipelines:

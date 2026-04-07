@@ -505,12 +505,15 @@ class FileBasedPipeline(ResourceManagedPipeline):
 
 class ConnectablePipeline(ResourceManagedPipeline):
     """
-    可连接Pipeline基类
+    可连接 Pipeline 基类
     
     提供连接资源操作的通用功能：
     - 连接管理
     - 自动重连
     - 批量操作优化
+    
+    注意：这是一个扩展基类，供需要独立连接管理的 Pipeline 使用。
+    大多数数据库 Pipeline 应使用 DatabasePipeline。
     """
     
     def __init__(self, crawler):
@@ -564,13 +567,36 @@ class ConnectablePipeline(ResourceManagedPipeline):
 
 class DatabasePipeline(ConnectablePipeline):
     """
-    数据库Pipeline基类
+    数据库 Pipeline 基类
     
     提供数据库操作的通用功能：
     - 连接池管理
     - 自动重连
     - 批量写入优化
     - 事务支持
+    
+    使用示例：
+        class MyDatabasePipeline(DatabasePipeline):
+            async def _create_pool(self):
+                self.pool = await create_db_pool(...)
+                self.register_resource(
+                    resource=self.pool,
+                    cleanup_func=self._close_pool,
+                    resource_type=ResourceType.PIPELINE,
+                    name="db_pool"
+                )
+            
+            async def _close_pool(self, pool):
+                if pool:
+                    await pool.close()
+            
+            async def process_item(self, item, spider, **kwargs):
+                # 使用 self.pool 执行数据库操作
+                return item
+    
+    注意：内置的 MySQLPipeline 和 MongoPipeline 为了性能优化，
+    直接继承 ResourceManagedPipeline 并自行管理连接池。
+    此基类主要用于用户自定义数据库 Pipeline 的扩展点。
     """
     
     def __init__(self, crawler):
@@ -625,11 +651,32 @@ class DatabasePipeline(ConnectablePipeline):
 
 class CacheBasedPipeline(ConnectablePipeline):
     """
-    缓存型Pipeline基类
+    缓存型 Pipeline 基类
     
     提供缓存操作的通用功能：
-    - Redis/Memcached连接管理
+    - Redis/Memcached 连接管理
     - 自动关闭连接
+    
+    使用示例：
+        class MyCachePipeline(CacheBasedPipeline):
+            async def _create_client(self):
+                self.client = redis.Redis(...)
+                self.register_resource(
+                    resource=self.client,
+                    cleanup_func=self._close_client,
+                    resource_type=ResourceType.NETWORK,
+                    name="cache_client"
+                )
+            
+            async def _close_client(self, client):
+                if client:
+                    await client.close()
+            
+            async def process_item(self, item, spider, **kwargs):
+                # 使用 self.client 执行缓存操作
+                return item
+    
+    注意：这是一个扩展基类，供用户自定义缓存 Pipeline 使用。
     """
     
     def __init__(self, crawler):

@@ -11,7 +11,7 @@ ofweek_standalone 项目配置文件
 from crawlo.config import CrawloConfig
 
 # 使用自动检测模式配置工厂创建配置
-config = CrawloConfig.auto(
+config = CrawloConfig.standalone(
     project_name='ofweek_standalone',
     concurrency=8,
     download_delay=1.0,
@@ -83,7 +83,7 @@ MYSQL_PASSWORD = 'oscar&0503'
 MYSQL_DB = 'crawlo_db'
 MYSQL_TABLE = 'ofweek_news'
 MYSQL_BATCH_SIZE = 10  # 优化：增加批量大小以减少批量操作次数
-MYSQL_USE_BATCH = False  # 是否启用批量插入
+MYSQL_USE_BATCH = True  # 是否启用批量插入
 MYSQL_BATCH_TIMEOUT = 300  # 优化：批量操作超时时间（秒），增加到5分钟
 MYSQL_EXECUTE_TIMEOUT = 120  # 优化：SQL执行超时时间（秒），增加到2分钟
 MYSQL_HEALTH_CHECK_INTERVAL = 60  # 健康检查间隔（秒），设置为1分钟
