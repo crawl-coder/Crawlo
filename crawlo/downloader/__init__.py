@@ -294,6 +294,12 @@ try:
 except ImportError:
     HybridDownloader = None
 
+try:
+    from .page_action_handler import PageActionHandler, SelectorConverter
+except ImportError:
+    PageActionHandler = None
+    SelectorConverter = None
+
 # 导出所有可用的类
 __all__ = [
     'DownloaderBase',
@@ -314,6 +320,10 @@ if PlaywrightDownloader:
     __all__.append('PlaywrightDownloader')
 if HybridDownloader:
     __all__.append('HybridDownloader')
+if PageActionHandler:
+    __all__.append('PageActionHandler')
+if SelectorConverter:
+    __all__.append('SelectorConverter')
 
 # 提供便捷的下载器映射
 DOWNLOADER_MAP = {

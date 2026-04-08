@@ -26,6 +26,7 @@ from urllib.parse import urlparse
 from playwright.async_api import async_playwright, Playwright, Browser, Page, BrowserContext
 
 from crawlo.downloader import DownloaderBase
+from crawlo.downloader.page_action_handler import PageActionHandler, SelectorConverter
 from crawlo.network.response import Response
 from crawlo.logging import get_logger
 
@@ -606,10 +607,10 @@ class PlaywrightDownloader(DownloaderBase):
 
     async def _execute_custom_actions(self, page: Page, request):
         """
-        执行自定义操作
+        执行自定义操作（通用接口，支持 dynamic_actions）
         
         支持的操作类型：
-        - click: 点击元素（支持翻页按钮）
+        - click: 点击元素（支持 XPath 和 CSS 选择器）
         - fill: 填充表单
         - wait: 等待
         - evaluate: 执行JavaScript
@@ -617,37 +618,47 @@ class PlaywrightDownloader(DownloaderBase):
         - scroll_to_bottom: 智能滚动到底部（适合懒加载页面）
         - click_and_wait: 点击并等待新内容（适合翻页）
         """
-        # 从请求的 meta 中获取自定义操作
-        custom_actions = request.meta.get("playwright_actions", [])
+        # 使用通用处理器获取操作列表（兼容多种键名）
+        custom_actions = PageActionHandler.get_actions_from_request(request)
         
-        for action in custom_actions:
+        if custom_actions:
+            self.logger.info(f"Executing {len(custom_actions)} custom action(s)...")
+        
+        for i, action in enumerate(custom_actions, 1):
             try:
                 if isinstance(action, dict):
                     action_type = action.get("type")
                     action_params = action.get("params", {})
                     
+                    self.logger.info(f"  [{i}/{len(custom_actions)}] Executing: {action_type}")
+                    
                     if action_type == "scroll_to_bottom":
                         # 智能滚动到底部（封装好的懒加载滚动）
+                        self.logger.info("    → Scrolling to bottom...")
                         await self._scroll_to_bottom(page, action_params)
+                        self.logger.info("    ✓ Scroll completed")
                     elif action_type == "click":
-                        selector = action_params.get("selector")
+                        selector = PageActionHandler.extract_selector(action)
                         if selector:
-                            await page.click(selector)
+                            self.logger.info(f"    → Clicking: {selector}")
+                            await self._click_with_selector(page, selector)
                             # 点击后等待内容加载
                             wait_timeout = action_params.get("wait_timeout", 1000)
                             await page.wait_for_timeout(wait_timeout)
+                            self.logger.info("    ✓ Click completed")
                     elif action_type == "click_and_wait":
                         # 点击并等待新内容加载（适合翻页）
-                        selector = action_params.get("selector")
+                        selector = PageActionHandler.extract_selector(action)
                         wait_timeout = action_params.get("wait_timeout", 2000)
                         wait_for = action_params.get("wait_for", "networkidle")
                         
                         if selector:
+                            self.logger.info(f"    → Clicking and waiting: {selector}")
                             # 点击前记录内容数量
                             before_count = action_params.get("before_count")
                             
-                            # 点击按钮
-                            await page.click(selector)
+                            # 点击按钮（支持 XPath 和 CSS）
+                            await self._click_with_selector(page, selector)
                             
                             # 等待新内容
                             if wait_for == "networkidle":
@@ -661,27 +672,71 @@ class PlaywrightDownloader(DownloaderBase):
                             if before_count:
                                 after_count = await page.evaluate(before_count)
                                 self.logger.debug(f"Page content count: {after_count}")
+                            self.logger.info("    ✓ Click and wait completed")
                     elif action_type == "fill":
-                        selector = action_params.get("selector")
+                        selector = PageActionHandler.extract_selector(action)
                         value = action_params.get("value")
                         if selector and value is not None:
-                            await page.fill(selector, value)
+                            self.logger.info(f"    → Filling: {selector}")
+                            await self._fill_with_selector(page, selector, value)
+                            self.logger.info("    ✓ Fill completed")
                     elif action_type == "wait":
                         timeout = action_params.get("timeout", 1000)
+                        self.logger.info(f"    → Waiting {timeout}ms...")
                         await page.wait_for_timeout(timeout)
+                        self.logger.info("    ✓ Wait completed")
                     elif action_type == "evaluate":
                         script = action_params.get("script")
                         if script:
+                            self.logger.info("    → Executing JavaScript...")
                             await page.evaluate(script)
+                            self.logger.info("    ✓ JavaScript executed")
                     elif action_type == "scroll":
                         position = action_params.get("position", "bottom")
+                        self.logger.info(f"    → Scrolling to {position}...")
                         if position == "bottom":
                             await page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
                         elif position == "top":
                             await page.evaluate("window.scrollTo(0, 0)")
+                        self.logger.info("    ✓ Scroll completed")
                             
             except Exception as e:
-                self.logger.warning(f"Failed to execute custom action: {e}")
+                self.logger.warning(f"  ✗ Failed to execute action {i} ({action.get('type', 'unknown')}): {e}")
+
+    async def _click_with_selector(self, page: Page, selector: str):
+        """
+        智能点击 - 自动识别 XPath 和 CSS 选择器
+        
+        Args:
+            page: Playwright 页面对象
+            selector: 选择器（XPath 或 CSS）
+        """
+        selector_type, clean_selector = SelectorConverter.normalize_selector(selector)
+        
+        if selector_type == "xpath":
+            # 使用 XPath
+            element = page.locator(f"xpath={clean_selector}")
+            await element.click()
+        else:
+            # 使用 CSS
+            await page.click(clean_selector)
+
+    async def _fill_with_selector(self, page: Page, selector: str, value: str):
+        """
+        智能填充表单 - 自动识别 XPath 和 CSS 选择器
+        
+        Args:
+            page: Playwright 页面对象
+            selector: 选择器（XPath 或 CSS）
+            value: 要填充的值
+        """
+        selector_type, clean_selector = SelectorConverter.normalize_selector(selector)
+        
+        if selector_type == "xpath":
+            element = page.locator(f"xpath={clean_selector}")
+            await element.fill(value)
+        else:
+            await page.fill(clean_selector, value)
 
     async def _execute_pagination_actions(self, page: Page, request):
         """执行翻页操作"""

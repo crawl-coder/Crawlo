@@ -178,8 +178,6 @@ class HybridDownloader(DownloaderBase):
         parsed_url = urlparse(url)
         domain = parsed_url.netloc.lower()
 
-        detection_reason = None
-
         # 1. 检查请求标记（最高优先级，由 DynamicRenderMiddleware 或用户设置）
         if request.meta.get("use_dynamic_loader"):
             detection_reason = "request_meta:use_dynamic_loader"

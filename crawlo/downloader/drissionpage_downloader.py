@@ -15,12 +15,16 @@ DrissionPage 下载器
 """
 
 import asyncio
+import os
+import signal
+import subprocess
 import time
 from typing import Optional, Dict, List
 
 from DrissionPage import ChromiumPage, ChromiumOptions
 
 from crawlo.downloader import DownloaderBase
+from crawlo.downloader.page_action_handler import PageActionHandler, SelectorConverter
 from crawlo.network.response import Response
 from crawlo.logging import get_logger
 
@@ -61,24 +65,108 @@ class DrissionPageDownloader(DownloaderBase):
         self._used_pages: set = set()
         self.max_pages = crawler.settings.get_int("DRISSIONPAGE_MAX_PAGES", 10)
 
+    @staticmethod
+    def _cleanup_orphan_processes():
+        """清理可能残留的浏览器进程"""
+        try:
+            if os.name == 'nt':  # Windows
+                # 查找 Chrome 或 DrissionPage 相关进程
+                result = subprocess.run(
+                    ['tasklist', '/FI', 'IMAGENAME eq chrome.exe', '/FO', 'CSV', '/NH'],
+                    capture_output=True,
+                    text=True,
+                    timeout=5
+                )
+                if result.returncode == 0 and 'chrome.exe' in result.stdout.lower():
+                    # 不强制清理，因为用户可能在使用 Chrome
+                    pass
+            else:  # Linux/Mac
+                # 查找可能的残留进程
+                result = subprocess.run(
+                    ['pgrep', '-f', 'drissionpage'],
+                    capture_output=True,
+                    text=True,
+                    timeout=5
+                )
+                if result.returncode == 0 and result.stdout.strip():
+                    pids = result.stdout.strip().split('\n')
+                    for pid in pids:
+                        try:
+                            os.kill(int(pid), signal.SIGTERM)
+                        except (ProcessLookupError, ValueError):
+                            pass
+        except Exception as e:
+            # 静默失败，不影响主流程
+            pass
+
     def open(self):
         """初始化浏览器"""
         super().open()
         self.logger.info("Opening DrissionPageDownloader")
 
-        try:
-            # 创建浏览器选项
-            options = self._create_options()
-            
-            # 创建页面对象
-            self.page = ChromiumPage(options=options)
-            self._tabs.append(self.page)
-            
-            self.logger.debug("DrissionPageDownloader initialized")
-            
-        except Exception as e:
-            self.logger.error(f"Failed to initialize DrissionPageDownloader: {e}")
-            raise
+        # 清理可能的残留进程
+        self._cleanup_orphan_processes()
+
+        max_retries = 3
+        last_error = None
+        
+        for attempt in range(max_retries):
+            try:
+                # 创建浏览器选项
+                options = self._create_options()
+                
+                # 尝试不同的初始化策略
+                if attempt == 0:
+                    # 第一次尝试：标准初始化
+                    self.logger.info("Attempting standard initialization...")
+                    self.page = ChromiumPage(options)
+                elif attempt == 1:
+                    # 第二次尝试：使用明确的端口
+                    self.logger.info("Attempting with explicit port 9222...")
+                    options.set_local_port(9222)
+                    self.page = ChromiumPage(options)
+                else:
+                    # 第三次尝试：创建新配置
+                    self.logger.info("Attempting with fresh configuration...")
+                    fresh_options = self._create_options()
+                    fresh_options.auto_port()  # 使用自动端口
+                    self.page = ChromiumPage(fresh_options)
+                
+                self._tabs.append(self.page)
+                self.logger.info("DrissionPageDownloader initialized successfully")
+                return  # 成功初始化
+                
+            except Exception as e:
+                last_error = e
+                self.logger.warning(
+                    f"Failed to initialize DrissionPageDownloader (attempt {attempt + 1}/{max_retries}): {e}"
+                )
+                
+                # 清理可能创建的部分资源
+                try:
+                    if self.page and self.page in self._tabs:
+                        self.page.close()
+                        self._tabs.remove(self.page)
+                        self.page = None
+                    # 如果是浏览器对象问题，尝试清理
+                    if hasattr(self, '_browser') and self._browser:
+                        try:
+                            self._browser.quit()
+                        except Exception:
+                            pass
+                        self._browser = None
+                except Exception:
+                    pass
+                
+                # 如果不是最后一次尝试，等待一下再重试
+                if attempt < max_retries - 1:
+                    wait_time = (attempt + 1) * 2  # 递增等待时间：2s, 4s
+                    self.logger.info(f"Waiting {wait_time}s before retry...")
+                    time.sleep(wait_time)
+        
+        # 所有重试都失败
+        self.logger.error(f"Failed to initialize DrissionPageDownloader after {max_retries} attempts: {last_error}")
+        raise last_error
 
     def _create_options(self) -> ChromiumOptions:
         """创建浏览器配置"""
@@ -108,9 +196,6 @@ class DrissionPageDownloader(DownloaderBase):
         # 禁止图片加载（提升速度）
         if not self.load_images:
             options.set_argument('--blink-settings=imagesEnabled=false')
-        
-        # 设置超时
-        options.set_timeout(self.timeout)
         
         return options
 
@@ -212,18 +297,20 @@ class DrissionPageDownloader(DownloaderBase):
         
         try:
             consecutive_no_content = 0
-            initial_height = self.page.scroll_height
+            
+            # 使用 JavaScript 获取初始高度
+            initial_height = self.page.run_js('return document.body.scrollHeight')
             
             while True:
                 # 获取当前页面高度
-                current_height = self.page.scroll_height
+                current_height = self.page.run_js('return document.body.scrollHeight')
                 
                 # 滚动到底部
                 self.page.scroll.to_bottom()
                 time.sleep(scroll_delay)
                 
                 # 获取滚动后的页面高度
-                new_height = self.page.scroll_height
+                new_height = self.page.run_js('return document.body.scrollHeight')
                 
                 # 检查是否有新内容加载
                 if new_height > current_height:
@@ -254,90 +341,158 @@ class DrissionPageDownloader(DownloaderBase):
         2. 检查页面高度是否增加，判断是否有新内容
         3. 当连续多次无新内容时，认为已到达底部
         """
-        scroll_delay = params.get("scroll_delay", self.scroll_delay)
+        scroll_delay = params.get("scroll_delay", self.scroll_delay * 1000) / 1000  # 转换为秒
         max_no_content = params.get("max_no_content", 2)
+        max_scrolls = params.get("max_scrolls", 50)  # 最大滚动次数限制
+        
+        self.logger.info(f"    Scroll config: delay={scroll_delay}s, max_no_content={max_no_content}, max_scrolls={max_scrolls}")
         
         try:
             consecutive_no_content = 0
+            scroll_count = 0
             
-            while True:
-                current_height = self.page.scroll_height
+            while scroll_count < max_scrolls:
+                scroll_count += 1
+                # 使用 JavaScript 获取页面高度
+                current_height = self.page.run_js('return document.body.scrollHeight')
+                
+                self.logger.debug(f"    [{scroll_count}] Current height: {current_height}px")
+                
                 self.page.scroll.to_bottom()
                 time.sleep(scroll_delay)
-                new_height = self.page.scroll_height
+                
+                new_height = self.page.run_js('return document.body.scrollHeight')
                 
                 if new_height > current_height:
                     consecutive_no_content = 0
-                    self.logger.debug(f"Scroll: {current_height} -> {new_height}px")
+                    height_diff = new_height - current_height
+                    self.logger.info(f"    [{scroll_count}] Scrolled: {current_height} -> {new_height}px (+{height_diff}px)")
                 else:
                     consecutive_no_content += 1
+                    self.logger.info(f"    [{scroll_count}] No new content ({consecutive_no_content}/{max_no_content})")
                     if consecutive_no_content >= max_no_content:
+                        self.logger.info(f"    ✓ Reached bottom after {scroll_count} scroll(s)")
                         break
                 
+                # 安全检查
                 if consecutive_no_content > 10:
-                    self.logger.warning("Too many scrolls, stopping")
+                    self.logger.warning(f"    ⚠ Too many scrolls without content, stopping at #{scroll_count}")
                     break
                     
+            if scroll_count >= max_scrolls:
+                self.logger.warning(f"    ⚠ Reached max scrolls limit ({max_scrolls}), stopping")
+                    
         except Exception as e:
-            self.logger.warning(f"Scroll to bottom failed: {e}")
+            self.logger.warning(f"    ✗ Scroll to bottom failed: {e}")
 
     def _execute_custom_actions(self, request):
         """
-        执行自定义操作
+        执行自定义操作（通用接口，支持 dynamic_actions）
         
         支持的操作类型：
         - scroll: 滚动
         - scroll_to_bottom: 智能滚动到底部
-        - click: 点击元素
+        - click: 点击元素（支持 XPath 和 CSS 选择器）
         - click_and_wait: 点击并等待
         - fill: 填充表单
         - wait: 等待
         - evaluate: 执行JavaScript
         """
-        custom_actions = request.meta.get('drissionpage_actions', [])
+        # 使用通用处理器获取操作列表（兼容多种键名）
+        custom_actions = PageActionHandler.get_actions_from_request(request)
         
-        for action in custom_actions:
+        if custom_actions:
+            self.logger.info(f"Executing {len(custom_actions)} custom action(s)...")
+        
+        for i, action in enumerate(custom_actions, 1):
             try:
                 if isinstance(action, dict):
                     action_type = action.get("type")
                     action_params = action.get("params", {})
                     
+                    self.logger.info(f"  [{i}/{len(custom_actions)}] Executing: {action_type}")
+                    
                     if action_type == "scroll_to_bottom":
+                        self.logger.info("    → Scrolling to bottom...")
                         self._scroll_to_bottom(action_params)
+                        self.logger.info("    ✓ Scroll completed")
                     elif action_type == "scroll":
                         distance = action_params.get("distance", 500)
+                        self.logger.info(f"    → Scrolling down {distance}px...")
                         self.page.scroll.down(distance)
+                        self.logger.info("    ✓ Scroll completed")
                     elif action_type == "click":
-                        selector = action_params.get("selector")
+                        selector = PageActionHandler.extract_selector(action)
                         if selector:
-                            ele = self.page.ele(selector)
-                            if ele:
-                                ele.click()
+                            self.logger.info(f"    → Clicking: {selector}")
+                            self._click_with_selector(selector)
+                            self.logger.info("    ✓ Click completed")
                     elif action_type == "click_and_wait":
-                        selector = action_params.get("selector")
+                        selector = PageActionHandler.extract_selector(action)
                         wait_time = action_params.get("wait_time", 2)
                         if selector:
-                            ele = self.page.ele(selector)
-                            if ele:
-                                ele.click()
-                                time.sleep(wait_time)
+                            self.logger.info(f"    → Clicking and waiting: {selector}")
+                            self._click_with_selector(selector)
+                            time.sleep(wait_time)
+                            self.logger.info(f"    ✓ Click and wait completed (waited {wait_time}s)")
                     elif action_type == "fill":
-                        selector = action_params.get("selector")
+                        selector = PageActionHandler.extract_selector(action)
                         value = action_params.get("value")
                         if selector and value is not None:
-                            ele = self.page.ele(selector)
-                            if ele:
-                                ele.input(value)
+                            self.logger.info(f"    → Filling: {selector}")
+                            self._fill_with_selector(selector, value)
+                            self.logger.info("    ✓ Fill completed")
                     elif action_type == "wait":
                         wait_time = action_params.get("time", 1)
+                        self.logger.info(f"    → Waiting {wait_time}s...")
                         time.sleep(wait_time)
+                        self.logger.info("    ✓ Wait completed")
                     elif action_type == "evaluate":
                         script = action_params.get("script")
                         if script:
-                            self.page.run_script(script)
+                            self.logger.info("    → Executing JavaScript...")
+                            self.page.run_js(script)
+                            self.logger.info("    ✓ JavaScript executed")
                             
             except Exception as e:
-                self.logger.warning(f"Failed to execute custom action: {e}")
+                self.logger.warning(f"  ✗ Failed to execute action {i} ({action.get('type', 'unknown')}): {e}")
+
+    def _click_with_selector(self, selector: str):
+        """
+        智能点击 - 自动识别 XPath 和 CSS 选择器
+        
+        Args:
+            selector: 选择器（XPath 或 CSS）
+        """
+        selector_type, clean_selector = SelectorConverter.normalize_selector(selector)
+        
+        if selector_type == "xpath":
+            # DrissionPage 原生支持 XPath
+            ele = self.page.ele(f"xpath:{clean_selector}")
+        else:
+            # CSS 选择器
+            ele = self.page.ele(clean_selector)
+        
+        if ele:
+            ele.click()
+
+    def _fill_with_selector(self, selector: str, value: str):
+        """
+        智能填充表单 - 自动识别 XPath 和 CSS 选择器
+        
+        Args:
+            selector: 选择器（XPath 或 CSS）
+            value: 要填充的值
+        """
+        selector_type, clean_selector = SelectorConverter.normalize_selector(selector)
+        
+        if selector_type == "xpath":
+            ele = self.page.ele(f"xpath:{clean_selector}")
+        else:
+            ele = self.page.ele(clean_selector)
+        
+        if ele:
+            ele.input(value)
 
     def _execute_pagination_actions(self, request):
         """
@@ -383,7 +538,7 @@ class DrissionPageDownloader(DownloaderBase):
                         # JS脚本翻页
                         script = params.get('script')
                         if script:
-                            self.page.run_script(script)
+                            self.page.run_js(script)
                             
                     elif action_type == 'wait':
                         # 等待
@@ -447,10 +602,11 @@ class DrissionPageDownloader(DownloaderBase):
         for page in self._tabs:
             try:
                 await asyncio.to_thread(page.close)
-            except Exception:
-                pass
+            except Exception as e:
+                self.logger.debug(f"Error closing page: {e}")
         
         self._tabs.clear()
         self.page = None
+        self._used_pages.clear()
         
-        self.logger.debug("DrissionPageDownloader closed.")
+        self.logger.info("DrissionPageDownloader closed successfully")

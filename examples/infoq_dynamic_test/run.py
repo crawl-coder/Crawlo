@@ -11,6 +11,14 @@ import os
 import sys
 import asyncio
 
+# 添加项目根目录到 Python 路径
+project_root = os.path.dirname(os.path.abspath(__file__))
+if project_root not in sys.path:
+    sys.path.insert(0, project_root)
+
+# 导入 Spider 模块（必须，否则 Spider 不会被注册）
+from infoq_dynamic_test.spiders.infoq_spider import InfoqSpider
+
 from crawlo.crawler import CrawlerProcess
 
 

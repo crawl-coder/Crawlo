@@ -27,7 +27,7 @@ locals().update(config.to_dict())
 
 SPIDER_MODULES = ['infoq_dynamic_test.spiders']
 
-# =================================== 动态渲染配置 ===================================
+# =================================== DynamicRenderMiddleware 配置 ===================================
 
 # DynamicRenderMiddleware 配置
 # 默认不使用动态下载器，需要用户显式配置
@@ -35,6 +35,18 @@ DYNAMIC_RENDER_DEFAULT_DYNAMIC = False
 DYNAMIC_RENDER_DOMAINS = ['www.infoq.cn']  # 为 infoq.cn 启用动态下载器
 DYNAMIC_RENDER_URL_PATTERNS = []
 
+
+# =================================== DrissionPage 配置 ===================================
+
+DRISSIONPAGE_HEADLESS = False  # 设置为 False 显示浏览器窗口（有头模式），True 为无头模式
+DRISSIONPAGE_TIMEOUT = 30  # 超时时间（秒）
+DRISSIONPAGE_BROWSER_PATH = None  # 浏览器路径（None 表示自动检测）
+DRISSIONPAGE_USER_DATA_PATH = None  # 用户数据目录
+DRISSIONPAGE_PROXY = None  # 代理设置
+DRISSIONPAGE_LOAD_IMAGES = True  # 是否加载图片
+DRISSIONPAGE_AUTO_SCROLL = False  # 是否自动滚动加载懒加载内容
+DRISSIONPAGE_SCROLL_DELAY = 1  # 滚动延迟（秒）
+DRISSIONPAGE_MAX_PAGES = 10  # 最大页面数（标签页复用池大小）
 
 # =================================== Playwright 配置 ===================================
 
@@ -83,7 +95,7 @@ PLAYWRIGHT_MAX_NO_CONTENT = 2  # 连续2次无新内容认为到底部
 # =================================== HybridDownloader 配置 ===================================
 
 HYBRID_DEFAULT_PROTOCOL_DOWNLOADER = "aiohttp"
-HYBRID_DEFAULT_DYNAMIC_DOWNLOADER = "playwright"
+HYBRID_DEFAULT_DYNAMIC_DOWNLOADER = "drissionpage"  # 使用 DrissionPage 下载器
 HYBRID_VERBOSE_LOGGING = True  # 启用详细日志，方便调试
 
 # =================================== 日志配置 ===================================

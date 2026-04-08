@@ -125,50 +125,47 @@ class InfoqSpider(Spider):
                 note='No articles found'
             )
         
-        # 点击"更多"按钮加载下一页
-        # 获取当前页码（从meta中，默认为1）
-        current_page = response.meta.get('page', 1)
-        max_pages = response.meta.get('max_pages', 3)  # 最多翻3页
-        
-        if current_page < max_pages:
-            self.logger.info(f"点击'更多'按钮加载第 {current_page + 1} 页...")
-            yield Request(
-                url=response.url,
-                callback=self.parse,
-                dont_filter=True,  # 允许重复URL
-                meta={
-                    'page': current_page + 1,
-                    'max_pages': max_pages,
-                    'playwright_actions': [
-                        # 智能滚动到底部，让"加载更多"按钮可见
-                        {
-                            'type': 'scroll_to_bottom',
-                            'params': {
-                                'scroll_delay': 500,  # 每次滚动后等待500ms
-                                'max_no_content': 2   # 连续2次无新内容认为到底部
-                            }
-                        },
-                        # 等待按钮渲染
-                        {
-                            'type': 'wait',
-                            'params': {
-                                'timeout': 1000
-                            }
-                        },
-                        # 点击"加载更多"按钮
-                        {
-                            'type': 'click_and_wait',
-                            'params': {
-                                'selector': '//div[contains(@class, "more-button") and contains(text(), "加载更多")]',
-                                'wait_timeout': 3000,
-                                'wait_for': 'networkidle'
-                            }
+        # 尝试点击"更多"按钮加载下一页（不限制翻页数，自然结束）
+        self.logger.info("尝试点击'更多'按钮加载下一页...")
+        yield Request(
+            url=response.url,
+            callback=self.parse,
+            dont_filter=True,  # 允许重复URL
+            meta={
+                # 确保使用动态下载器
+                'use_dynamic_loader': True,
+                # 使用通用的 dynamic_actions（Playwright 和 DrissionPage 都支持）
+                'dynamic_actions': [
+                    # 智能滚动到底部，让"加载更多"按钮可见
+                    {
+                        'type': 'scroll_to_bottom',
+                        'params': {
+                            'scroll_delay': 500,  # 每次滚动后等待500ms
+                            'max_no_content': 2   # 连续2次无新内容认为到底部
                         }
-                    ]
-                }
-            )
-        else:
-            self.logger.info(f"已达到最大页数限制 ({max_pages} 页)，停止翻页")
+                    },
+                    # 等待按钮渲染
+                    {
+                        'type': 'wait',
+                        'params': {
+                            'timeout': 1000
+                        }
+                    },
+                    # 点击"加载更多"按钮（支持 XPath 和 CSS 选择器）
+                    {
+                        'type': 'click_and_wait',
+                        'params': {
+                            # XPath 选择器（自动识别）
+                            'selector': '//div[contains(@class, "more-button") and contains(text(), "加载更多")]',
+                            # 也可以使用 CSS 选择器：
+                            # 'selector': 'div.more-button',
+                            'wait_timeout': 3000,
+                            'wait_for': 'networkidle'
+                        }
+                    }
+                ]
+            }
+        )
     
     def parse_detail(self, response):
         """解析详情页"""

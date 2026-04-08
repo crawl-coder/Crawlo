@@ -70,7 +70,7 @@ DYNAMIC_RENDER_STATIC_PATTERNS = []  # 静态内容 URL 模式（正则表达式
 #
 # 注意：不再自动检测 POST 请求或 URL 关键词
 HYBRID_DEFAULT_PROTOCOL_DOWNLOADER = "httpx"  # 默认协议下载器：aiohttp, httpx, curl_cffi
-HYBRID_DEFAULT_DYNAMIC_DOWNLOADER = "playwright"  # 默认动态下载器：playwright, drissionpage
+HYBRID_DEFAULT_DYNAMIC_DOWNLOADER = "drissionpage"  # 默认动态下载器：playwright, drissionpage
 HYBRID_VERBOSE_LOGGING = False  # 是否启用详细日志（调试用）
 HYBRID_DYNAMIC_URL_PATTERNS = []  # 需要动态加载的 URL 模式（字符串匹配）
 HYBRID_PROTOCOL_URL_PATTERNS = []  # 需要协议请求的 URL 模式（字符串匹配）
