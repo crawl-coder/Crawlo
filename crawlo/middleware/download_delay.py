@@ -56,20 +56,8 @@ class DownloadDelayMiddleware(object):
 
     @classmethod
     def create_instance(cls, crawler):
-        """
-        创建中间件实例
-        
-        Args:
-            crawler: 爬虫实例
-            
-        Returns:
-            DownloadDelayMiddleware: 中间件实例
-        """
-        o = cls(
-            settings=crawler.settings,
-            stats=getattr(crawler, 'stats', None)
-        )
-        return o
+        """创建中间件实例"""
+        return cls(crawler.settings, getattr(crawler, 'stats', None))
 
     async def process_request(self, _request, _spider):
         """

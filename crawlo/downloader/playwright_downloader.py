@@ -27,6 +27,12 @@ from playwright.async_api import async_playwright, Playwright, Browser, Page, Br
 
 from crawlo.downloader import DownloaderBase
 from crawlo.downloader.page_action_handler import PageActionHandler, SelectorConverter
+from crawlo.downloader.stealth_scripts import get_stealth_scripts
+from crawlo.downloader.constants import (
+    DEFAULT_ARGS, STEALTH_ARGS, HARMFUL_ARGS,
+    WEBRTC_PROTECTION_ARGS, WEBGL_DISABLE_ARGS, CANVAS_NOISE_ARG,
+    AD_DOMAINS
+)
 from crawlo.network.response import Response
 from crawlo.logging import get_logger
 
@@ -97,15 +103,18 @@ class PlaywrightDownloader(DownloaderBase):
             crawler.settings.get_list("PLAYWRIGHT_BLOCK_RESOURCES", ["image", "font", "media"])
         )
         self.block_ads = crawler.settings.get_bool("PLAYWRIGHT_BLOCK_ADS", True)
-        # 广告域名黑名单
-        self._ad_domains = {
-            'googlesyndication.com', 'doubleclick.net', 'googleadservices.com',
-            'google-analytics.com', 'googletagmanager.com', 'facebook.com/tr',
-            'connect.facebook.net', 'adservice.google.com', 'ads.twitter.com'
-        }
+        # 使用常量中的广告域名黑名单
 
         # ===== 反检测配置 =====
-        self.stealth_mode = crawler.settings.get_bool("PLAYWRIGHT_STEALTH_MODE", True)
+        self.stealth_level = crawler.settings.get("PLAYWRIGHT_STEALTH_LEVEL", "basic")
+        
+        # ===== 高级反检测配置 =====
+        self.block_webrtc = crawler.settings.get_bool("PLAYWRIGHT_BLOCK_WEBRTC", False)
+        self.hide_canvas = crawler.settings.get_bool("PLAYWRIGHT_HIDE_CANVAS", False)
+        self.allow_webgl = crawler.settings.get_bool("PLAYWRIGHT_ALLOW_WEBGL", True)
+        self.real_chrome = crawler.settings.get_bool("PLAYWRIGHT_REAL_CHROME", False)
+        self.google_referer = crawler.settings.get_bool("PLAYWRIGHT_GOOGLE_REFERER", True)
+        self.ignore_https_errors = crawler.settings.get_bool("PLAYWRIGHT_IGNORE_HTTPS_ERRORS", True)
 
         # ===== 自动滚动配置 =====
         self.auto_scroll = crawler.settings.get_bool("PLAYWRIGHT_AUTO_SCROLL", False)
@@ -143,12 +152,17 @@ class PlaywrightDownloader(DownloaderBase):
                 "width": self.viewport_width,
                 "height": self.viewport_height
             })
+            
+            # 设置 Google Referer（参考 Scrapling，绕过某些检测）
+            referer = None
+            if self.google_referer:
+                referer = "https://www.google.com/"
 
             # ===== 设置资源屏蔽（在导航前设置）=====
             await self._setup_resource_blocking(page, request)
 
             # ===== 应用反检测脚本（在导航前注入）=====
-            if self.stealth_mode:
+            if self.stealth_level != 'none':
                 await self._inject_stealth_scripts(page)
 
             # 应用请求特定的设置
@@ -156,7 +170,7 @@ class PlaywrightDownloader(DownloaderBase):
 
             # 访问页面 - 根据等待策略选择不同的 wait_until
             wait_until = self._get_wait_until(request)
-            response = await page.goto(request.url, wait_until=wait_until)
+            response = await page.goto(request.url, wait_until=wait_until, referer=referer)
 
             # ===== 智能等待页面加载 =====
             await self._smart_wait_for_page_load(page, request)
@@ -216,9 +230,33 @@ class PlaywrightDownloader(DownloaderBase):
             
             # 获取代理配置
             proxy_config = self.crawler.settings.get("PLAYWRIGHT_PROXY")
+            
+            # 构建启动参数
             launch_kwargs = {
-                "headless": self.headless
+                "headless": self.headless,
+                "args": list(DEFAULT_ARGS),  # 默认性能优化参数
             }
+            
+            # 如果启用隐身模式，添加隐身参数
+            if self.stealth_level != 'none':
+                launch_kwargs["args"].extend(STEALTH_ARGS)
+                launch_kwargs["ignore_default_args"] = list(HARMFUL_ARGS)
+                
+                # WebRTC 保护
+                if self.block_webrtc:
+                    launch_kwargs["args"].extend(WEBRTC_PROTECTION_ARGS)
+                
+                # WebGL 控制
+                if not self.allow_webgl:
+                    launch_kwargs["args"].extend(WEBGL_DISABLE_ARGS)
+                
+                # Canvas 指纹保护
+                if self.hide_canvas:
+                    launch_kwargs["args"].append(CANVAS_NOISE_ARG)
+            
+            # 使用真实 Chrome 浏览器
+            if self.real_chrome:
+                launch_kwargs["channel"] = "chrome"
             
             # 如果配置了代理，则添加代理参数
             if proxy_config:
@@ -241,13 +279,28 @@ class PlaywrightDownloader(DownloaderBase):
             else:
                 raise ValueError(f"Unsupported browser type: {self.browser_type}")
             
-            # 创建浏览器上下文
-            self.context = await self.browser.new_context()
+            # 创建浏览器上下文（参考 Scrapling 的配置）
+            context_options = {
+                "viewport": {"width": self.viewport_width, "height": self.viewport_height},
+                "screen": {"width": self.viewport_width, "height": self.viewport_height},
+                "is_mobile": False,
+                "has_touch": False,
+                # 暗色主题绕过 creepjs 的 prefersLightColor 检测
+                "color_scheme": "dark",
+                "device_scale_factor": 2,
+                "permissions": ["geolocation", "notifications"],
+            }
+            
+            # 忽略 HTTPS 错误
+            if self.ignore_https_errors:
+                context_options["ignore_https_errors"] = True
+            
+            self.context = await self.browser.new_context(**context_options)
             
             # 应用全局设置
             await self._apply_global_settings()
             
-            self.logger.debug(f"PlaywrightDownloader initialized with {self.browser_type}")
+            self.logger.debug(f"PlaywrightDownloader initialized with {self.browser_type} (stealth_level={self.stealth_level})")
             
         except Exception as e:
             self.logger.error(f"Failed to initialize Playwright: {e}")
@@ -262,6 +315,11 @@ class PlaywrightDownloader(DownloaderBase):
         user_agent = self.crawler.settings.get("USER_AGENT")
         if user_agent:
             await self.context.set_extra_http_headers({"User-Agent": user_agent})
+        
+        # 添加 Google Referer（参考 Scrapling）
+        if self.google_referer:
+            # 在请求级别设置，这里只做标记
+            pass
             
         # 设置代理
         proxy = self.crawler.settings.get("PLAYWRIGHT_PROXY")
@@ -434,7 +492,7 @@ class PlaywrightDownloader(DownloaderBase):
                 parsed_url = urlparse(url)
                 domain = parsed_url.netloc.lower()
                 # 检查域名是否在广告黑名单中
-                for ad_domain in self._ad_domains:
+                for ad_domain in AD_DOMAINS:
                     if ad_domain in domain:
                         await route.abort()
                         return
@@ -452,41 +510,32 @@ class PlaywrightDownloader(DownloaderBase):
     # ==================== 反检测 ====================
 
     async def _inject_stealth_scripts(self, page: Page):
-        """注入反检测脚本"""
+        """
+        注入反检测脚本
+        
+        根据 stealth_level 注入不同级别的反检测脚本：
+        - none: 不注入任何脚本
+        - basic: 仅隐藏 webdriver 标识
+        - advanced: 全链路指纹伪造（Canvas、WebGL、AudioContext 等）
+        """
         try:
-            # 在页面初始化前注入脚本
-            await page.add_init_script("""
-                // 隐藏 webdriver 标识
-                Object.defineProperty(navigator, 'webdriver', {
-                    get: () => undefined
-                });
-
-                // 修改 plugins
-                Object.defineProperty(navigator, 'plugins', {
-                    get: () => [1, 2, 3, 4, 5]
-                });
-
-                // 修改 languages
-                Object.defineProperty(navigator, 'languages', {
-                    get: () => ['zh-CN', 'zh', 'en']
-                });
-
-                // 隐藏自动化标识
-                window.chrome = {
-                    runtime: {}
-                };
-
-                // 修改权限查询
-                const originalQuery = window.navigator.permissions.query;
-                window.navigator.permissions.query = (parameters) => (
-                    parameters.name === 'notifications' ?
-                        Promise.resolve({ state: Notification.permission }) :
-                        originalQuery(parameters)
-                );
-
-                // 隐藏 Playwright 标识
-                delete navigator.__proto__.webdriver;
-            """)
+            # 如果 stealth_level 为 none，则不注入脚本
+            if self.stealth_level == 'none':
+                self.logger.debug("Stealth level is 'none', skipping anti-detection scripts")
+                return
+            
+            # 获取请求级别的 stealth_level（优先级高于全局配置）
+            request_stealth_level = page.request.meta.get('playwright_stealth_level', self.stealth_level) if hasattr(page, 'request') and page.request else self.stealth_level
+            
+            # 从 stealth_scripts 模块获取脚本
+            stealth_script = get_stealth_scripts(request_stealth_level)
+            
+            if stealth_script:
+                await page.add_init_script(stealth_script)
+                self.logger.debug(f"Injected stealth scripts (level: {request_stealth_level})")
+            else:
+                self.logger.debug("No stealth scripts to inject (level: none)")
+                
         except Exception as e:
             self.logger.warning(f"Failed to inject stealth scripts: {e}")
 

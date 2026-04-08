@@ -133,31 +133,6 @@ REQUEST_RECORDER_OUTPUT_DIR = 'requests_log'
 REQUEST_RECORDER_MAX_FILE_SIZE = 10 * 1024 * 1024  # 10MB
 ```
 
-## PerformanceProfilerExtension
-
-Profiles performance of the crawling process to identify bottlenecks and optimization opportunities.
-
-### Features
-
-- Performance profiling
-- Function timing
-- Resource usage tracking
-- Periodic profiling reports
-
-### Configuration
-
-```python
-# In settings.py
-EXTENSIONS = [
-    'crawlo.extension.performance_profiler.PerformanceProfilerExtension',
-]
-
-# Performance profiler settings
-PERFORMANCE_PROFILER_ENABLED = True
-PERFORMANCE_PROFILER_OUTPUT_DIR = 'profiling'
-PERFORMANCE_PROFILER_INTERVAL = 300  # Profile every 5 minutes
-```
-
 ## HealthCheckExtension
 
 Monitors the health of the crawling process to ensure proper operation.
@@ -196,7 +171,8 @@ EXTENSIONS = [
     
     # Monitoring extensions
     'crawlo.extension.memory_monitor.MemoryMonitorExtension',
-    'crawlo.extension.performance_profiler.PerformanceProfilerExtension',
+    'crawlo.extension.mysql_monitor.MySQLMonitorExtension',
+    'crawlo.extension.redis_monitor.RedisMonitorExtension',
     
     # Utility extensions
     'crawlo.extension.request_recorder.RequestRecorderExtension',

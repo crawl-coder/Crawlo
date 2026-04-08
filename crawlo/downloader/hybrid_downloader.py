@@ -56,6 +56,11 @@ try:
 except ImportError:
     PlaywrightDownloader = None
 
+try:
+    from .camoufox_downloader import CamoufoxDownloader
+except ImportError:
+    CamoufoxDownloader = None
+
 
 class HybridDownloader(DownloaderBase):
     """
@@ -132,7 +137,8 @@ class HybridDownloader(DownloaderBase):
             "httpx": HttpXDownloader,
             "curl_cffi": CurlCffiDownloader,
             "drissionpage": DrissionPageDownloader,
-            "playwright": PlaywrightDownloader
+            "playwright": PlaywrightDownloader,
+            "camoufox": CamoufoxDownloader,
         }
         return downloader_map.get(downloader_type.lower())
 

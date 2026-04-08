@@ -65,13 +65,8 @@ class DefaultHeaderMiddleware(object):
 
     @classmethod
     def create_instance(cls, crawler):
-        """
-        创建中间件实例
-        """
-        o = cls(
-            settings=crawler.settings
-        )
-        return o
+        """创建中间件实例"""
+        return cls(crawler.settings)
 
     def _get_random_user_agent(self):
         """

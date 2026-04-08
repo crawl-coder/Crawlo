@@ -25,6 +25,7 @@ from DrissionPage import ChromiumPage, ChromiumOptions
 
 from crawlo.downloader import DownloaderBase
 from crawlo.downloader.page_action_handler import PageActionHandler, SelectorConverter
+from crawlo.downloader.stealth_scripts import get_drissionpage_stealth_script
 from crawlo.network.response import Response
 from crawlo.logging import get_logger
 
@@ -64,6 +65,9 @@ class DrissionPageDownloader(DownloaderBase):
         self._tabs: List[ChromiumPage] = []
         self._used_pages: set = set()
         self.max_pages = crawler.settings.get_int("DRISSIONPAGE_MAX_PAGES", 10)
+        
+        # 反检测配置
+        self.stealth_level = crawler.settings.get("DRISSIONPAGE_STEALTH_LEVEL", "basic")
 
     @staticmethod
     def _cleanup_orphan_processes():
@@ -230,6 +234,9 @@ class DrissionPageDownloader(DownloaderBase):
             # 访问页面
             self.page.get(request.url, timeout=self.timeout)
             
+            # 注入反检测脚本
+            self._inject_stealth_scripts(request)
+            
             # 智能等待页面加载
             self._smart_wait_for_page_load(request)
             
@@ -269,6 +276,36 @@ class DrissionPageDownloader(DownloaderBase):
     def _should_auto_scroll(self, request) -> bool:
         """判断是否需要自动滚动"""
         return request.meta.get('drissionpage_auto_scroll', self.auto_scroll)
+    
+    def _inject_stealth_scripts(self, request):
+        """
+        注入反检测脚本
+        
+        根据 stealth_level 注入不同级别的反检测脚本：
+        - none: 不注入任何脚本
+        - basic: 仅隐藏 webdriver 标识
+        - advanced: 全链路指纹伪造（Canvas、WebGL、AudioContext 等）
+        """
+        try:
+            # 获取请求级别的 stealth_level（优先级高于全局配置）
+            request_stealth_level = request.meta.get('drissionpage_stealth_level', self.stealth_level)
+            
+            # 如果 stealth_level 为 none，则不注入脚本
+            if request_stealth_level == 'none':
+                self.logger.debug("Stealth level is 'none', skipping anti-detection scripts")
+                return
+            
+            # 获取反检测脚本
+            stealth_script = get_drissionpage_stealth_script(request_stealth_level)
+            
+            if stealth_script:
+                self.page.run_js(stealth_script)
+                self.logger.debug(f"Injected stealth scripts (level: {request_stealth_level})")
+            else:
+                self.logger.debug("No stealth scripts to inject (level: none)")
+                
+        except Exception as e:
+            self.logger.warning(f"Failed to inject stealth scripts: {e}")
 
     def _smart_wait_for_page_load(self, request):
         """智能等待页面加载完成"""

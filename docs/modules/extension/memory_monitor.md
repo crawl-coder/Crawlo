@@ -120,7 +120,8 @@ MEMORY_MONITOR_INTERVAL = 120
 ```python
 EXTENSIONS = [
     'crawlo.extension.memory_monitor.MemoryMonitorExtension',
-    'crawlo.extension.performance_profiler.PerformanceProfilerExtension',
+    'crawlo.extension.mysql_monitor.MySQLMonitorExtension',
+    'crawlo.extension.redis_monitor.RedisMonitorExtension',
     # ... 其他扩展
 ]
 ```

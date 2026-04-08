@@ -133,31 +133,6 @@ REQUEST_RECORDER_OUTPUT_DIR = 'requests_log'
 REQUEST_RECORDER_MAX_FILE_SIZE = 10 * 1024 * 1024  # 10MB
 ```
 
-## PerformanceProfilerExtension
-
-分析爬取过程的性能以识别瓶颈和优化机会。
-
-### 特性
-
-- 性能分析
-- 函数计时
-- 资源使用跟踪
-- 定期分析报告
-
-### 配置
-
-```python
-# 在settings.py中
-EXTENSIONS = [
-    'crawlo.extension.performance_profiler.PerformanceProfilerExtension',
-]
-
-# 性能分析器设置
-PERFORMANCE_PROFILER_ENABLED = True
-PERFORMANCE_PROFILER_OUTPUT_DIR = 'profiling'
-PERFORMANCE_PROFILER_INTERVAL = 300  # 每5分钟分析一次
-```
-
 ## HealthCheckExtension
 
 监控爬取过程的健康状况以确保正常运行。
@@ -196,7 +171,8 @@ EXTENSIONS = [
     
     # 监控扩展
     'crawlo.extension.memory_monitor.MemoryMonitorExtension',
-    'crawlo.extension.performance_profiler.PerformanceProfilerExtension',
+    'crawlo.extension.mysql_monitor.MySQLMonitorExtension',
+    'crawlo.extension.redis_monitor.RedisMonitorExtension',
     
     # 实用扩展
     'crawlo.extension.request_recorder.RequestRecorderExtension',

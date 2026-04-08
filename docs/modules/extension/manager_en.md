@@ -110,7 +110,8 @@ EXTENSIONS = [
     
     # Monitoring extensions
     'crawlo.extension.memory_monitor.MemoryMonitorExtension',
-    'crawlo.extension.performance_profiler.PerformanceProfilerExtension',
+    'crawlo.extension.mysql_monitor.MySQLMonitorExtension',
+    'crawlo.extension.redis_monitor.RedisMonitorExtension',
     
     # Utility extensions
     'crawlo.extension.request_recorder.RequestRecorderExtension',
