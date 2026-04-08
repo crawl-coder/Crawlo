@@ -48,13 +48,6 @@ class MySQLPipeline(ResourceManagedPipeline):
         # 子类在 _init_config 中覆盖 batch_size 和 use_batch 配置
         self._helper: Optional[MySQLHelper] = None
         self._fallback_failures = 0
-        
-        self.logger.info(
-            f"MySQL Pipeline initialized: table={self.table_name}, "
-            f"batch={'enabled' if self.use_batch else 'disabled'}, "
-            f"batch_size={self.batch_size}, "
-            f"transaction={'enabled' if self.use_transaction else 'disabled'}"
-        )
     
     def _init_config(self):
         """初始化配置"""
@@ -112,7 +105,13 @@ class MySQLPipeline(ResourceManagedPipeline):
         """
         try:
             await self._ensure_initialized()
-            self.logger.info(f"MySQL Pipeline ready for spider: {spider.name}")
+            self.logger.info(
+                f"MySQL Pipeline ready: table={self.table_name}, "
+                f"batch={'enabled' if self.use_batch else 'disabled'}, "
+                f"batch_size={self.batch_size}, "
+                f"transaction={'enabled' if self.use_transaction else 'disabled'}, "
+                f"spider={spider.name}"
+            )
         except Exception as e:
             self.logger.error(f"MySQL Pipeline initialization failed on spider open: {e}")
             raise
@@ -325,7 +324,7 @@ class MySQLPipeline(ResourceManagedPipeline):
             await self._initialize_resources()
             
             self._initialized = True
-            self.logger.info("MySQL Pipeline initialized successfully")
+            self.logger.debug("MySQL Pipeline resources initialized")
     
     async def _initialize_pool(self):
         """初始化连接池"""
