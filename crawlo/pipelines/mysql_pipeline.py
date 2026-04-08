@@ -104,6 +104,19 @@ class MySQLPipeline(ResourceManagedPipeline):
             return tuple(cols)
         return (cols,)
     
+    async def open_spider(self, spider) -> None:
+        """
+        爬虫启动时初始化资源
+        
+        :param spider: 爬虫实例
+        """
+        try:
+            await self._ensure_initialized()
+            self.logger.info(f"MySQL Pipeline ready for spider: {spider.name}")
+        except Exception as e:
+            self.logger.error(f"MySQL Pipeline initialization failed on spider open: {e}")
+            raise
+    
     async def process_item(self, item: Item, spider, **kwargs) -> Item:
         """处理数据项"""
         await self._ensure_initialized()
