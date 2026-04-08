@@ -20,17 +20,26 @@
 
 - 🚀 **高性能异步架构**：基于 asyncio 和 aiohttp，充分利用异步 I/O 提升爬取效率
 - 🎯 **智能调度系统**：优先级队列、并发控制、自动重试、智能限速
+- 🛡️ **强大的反反爬虫能力**：
+  - Cloudflare 自动绕过（默认集成，无需配置）
+  - 支持多种隐身浏览器（camoufox/playwright/drissionpage）
+  - 智能检测与降级策略
+- 🤖 **AI 集成（MCP Server）**：
+  - 让 Claude/Cursor 直接调用 Crawlo 抓取能力
+  - 三种抓取模式（basic/stealth/max-stealth）
+  - 薄适配层设计，快速响应（1-3秒）
 - 🔄 **灵活的配置模式**：
   - **Standalone 模式**：单机开发测试，使用内存队列
   - **Distributed 模式**：多节点分布式部署，严格要求 Redis（不允许降级）
   - **Auto 模式**：智能检测 Redis 可用性，自动选择最佳配置（推荐）
 - 📦 **丰富的组件生态**：
   - 内置 Redis 和 MongoDB 支持
-  - MySQL 异步连接池（基于 asyncmy 和 aiomysql 双驱动支持）
+  - MySQL 异步连接池（基于 asyncmy 驱动）
   - 连接池健康检查与自动修复机制
   - 多种过滤器和去重管道（Memory/Redis）
   - 代理中间件支持（简单代理/动态代理）
-  - 多种下载器（aiohttp、httpx、curl-cffi）
+  - 多种下载器（aiohttp、httpx、curl-cffi、Playwright）
+  - 多平台通知系统（钉钉/飞书/企业微信/邮件/短信）
 - 🛠 **开发友好**：
   - 类 Scrapy 的项目结构和 API 设计
   - 配置工厂模式（`CrawloConfig.auto()`）
@@ -1539,6 +1548,171 @@ PROXY_LIST = [
 PROXY_API_URL = "http://your-proxy-api.com/get-proxy"
 ```
 
+## MCP Server（AI 集成）
+
+Crawlo 提供了 MCP (Model Context Protocol) Server，让 AI 助手（如 Claude、Cursor）可以直接调用 Crawlo 的抓取能力。
+
+### 设计理念
+
+Crawlo MCP 采用**薄适配层**设计：
+- ✅ 快速响应（basic 模式 1-3 秒）
+- ✅ 无状态请求（不占用内存）
+- ✅ 三种抓取模式（basic/stealth/max-stealth）
+- ✅ 直接调用 Crawlo 框架能力
+
+### 安装
+
+```bash
+pip install crawlo[mcp]
+```
+
+### 配置 Claude Desktop
+
+编辑 `claude_desktop_config.json`（Windows: `%APPDATA%/Claude/`，macOS: `~/Library/Application Support/Claude/`）：
+
+```json
+{
+  "mcpServers": {
+    "crawlo": {
+      "command": "uvx",
+      "args": ["crawlo-mcp"]
+    }
+  }
+}
+```
+
+重启 Claude Desktop 后，即可通过对话让 AI 自动调用 Crawlo。
+
+### 可用工具
+
+| 工具 | 功能 | 示例 |
+|------|------|------|
+| `fetch` | 抓取单个页面 | "帮我抓取 https://example.com" |
+| `extract` | 正则提取内容 | "从页面中提取邮箱地址" |
+| `spider` | 多页面并发抓取 | "抓取这 10 个商品页面" |
+| `status` | 检查环境状态 | "检查 Crawlo 环境" |
+
+### 三种抓取模式
+
+| 模式 | 技术 | 速度 | 适用场景 |
+|------|------|------|----------|
+| `basic` | aiohttp | 1-3秒 | 普通网站 |
+| `stealth` | DrissionPage | 3-10秒 | 有反爬的网站 |
+| `max-stealth` | Camoufox | 10秒+ | Cloudflare 保护 |
+
+### Python 直接使用
+
+```python
+import asyncio
+from crawlo.mcp import QuickFetcher
+
+async def main():
+    fetcher = QuickFetcher()
+    
+    # 单页面抓取
+    result = await fetcher.fetch(
+        'https://example.com',
+        mode='basic',           # basic/stealth/max-stealth
+        format='markdown'       # html/markdown/text
+    )
+    print(result.content)
+    
+    # 多页面并发
+    results = await fetcher.fetch_multiple(
+        ['https://url1.com', 'https://url2.com'],
+        concurrency=2
+    )
+    
+    await fetcher.close()
+
+asyncio.run(main())
+```
+
+## 反反爬虫功能
+
+Crawlo 内置了强大的反反爬虫能力，自动绕过 Cloudflare 等常见防护。
+
+### Cloudflare 绕过中间件
+
+CloudflareBypassMiddleware 已默认集成到框架中，**无需手动配置即可自动工作**。
+
+#### 自动检测机制
+
+中间件会自动检测以下 Cloudflare 挑战页面：
+- HTTP 状态码：403, 503, 520, 521, 522, 523, 524
+- 页面特征：包含 `cloudflare`、`Checking your browser`、`DDoS protection` 等关键词
+
+#### 绕过策略
+
+检测到 Cloudflare 挑战后，中间件会：
+1. 自动使用隐身浏览器重新请求
+2. 支持多种浏览器后端（camoufox/playwright/drissionpage）
+3. 智能重试机制
+
+#### 配置方法
+
+```python
+# settings.py
+
+# 选择绕过时使用的浏览器（默认 camoufox）
+CLOUDFLARE_BYPASS_DOWNLOADER = 'camoufox'  # 推荐
+# CLOUDFLARE_BYPASS_DOWNLOADER = 'playwright'
+# CLOUDFLARE_BYPASS_DOWNLOADER = 'drissionpage'
+
+# 可选：请求级别覆盖
+yield Request(
+    url='https://protected-site.com',
+    meta={'cloudflare_bypass_downloader': 'camoufox'}
+)
+```
+
+#### 三种浏览器对比
+
+| 浏览器 | 反检测能力 | 速度 | 推荐场景 |
+|--------|-----------|------|----------|
+| **camoufox** | ⭐⭐⭐⭐⭐ | 中等 | Cloudflare 最强防护 |
+| **playwright** | ⭐⭐⭐ | 快 | 一般反爬 |
+| **drissionpage** | ⭐⭐⭐⭐ | 快 | 平衡选择 |
+
+### 使用示例
+
+```python
+from crawlo import Spider
+from crawlo.http import Request
+
+class ProtectedSpider(Spider):
+    name = 'protected_spider'
+    start_urls = ['https://cf-protected-site.com']
+    
+    async def parse(self, response):
+        # Cloudflare 绕过由中间件自动处理
+        # 无需额外配置
+        
+        title = response.css('h1::text').get()
+        yield {'title': title}
+```
+
+### 依赖安装
+
+```bash
+# Camoufox（推荐，最强反检测）
+pip install camoufox
+
+# Playwright
+pip install playwright
+playwright install chromium
+
+# DrissionPage
+pip install DrissionPage
+```
+
+### 注意事项
+
+1. **无需手动启用**：中间件已在框架中默认注册
+2. **仅在需要时触发**：只有检测到 Cloudflare 才会使用浏览器
+3. **性能影响**：浏览器绕过会增加 3-10 秒延迟
+4. **推荐方案**：优先使用 camoufox 获得最佳绕过效果
+
 ## 学习路径
 
 如果您是 Crawlo 的新用户，建议按以下顺序学习：
@@ -1565,6 +1739,26 @@ PROXY_API_URL = "http://your-proxy-api.com/get-proxy"
 MIT License - 详见 [LICENSE](LICENSE) 文件
 
 ## 变更日志
+
+### v1.6.2 (2026-04-07)
+
+- **MCP Server 架构重构**：采用薄适配层设计
+  - 删除冗余的 tools 目录（386+ 行代码）
+  - 新建 quick_fetcher.py（152 行），支持三种抓取模式
+  - 重写 server.py（202 行），暴露 4 个 MCP 工具
+  - 验证通过：https://httpbin.org/get 抓取成功（200，1.10s）
+
+- **反反爬虫功能完善**：
+  - CloudflareBypassMiddleware 默认集成，自动工作
+  - 支持 camoufox/playwright/drissionpage 三种浏览器
+  - 自动检测 Cloudflare 挑战页面（403/503/52x）
+  - 智能重试机制
+
+- **文档补充**：
+  - 添加 MCP Server 完整使用指南
+  - 添加反反爬虫功能说明
+  - 配置 Claude Desktop 教程
+  - 三种抓取模式对比表
 
 ### v1.6.1 (2026-04-07)
 
