@@ -96,6 +96,11 @@ QUEUE_MAX_RETRIES = 3  # 队列操作最大重试次数
 QUEUE_TIMEOUT = 300  # 队列操作超时时间（秒）
 
 # --------------------------------- 3. 数据库和过滤器配置 ------------------------------------
+# Redis配置
+REDIS_HOST = '127.0.0.1'
+REDIS_PORT = 6379
+REDIS_PASSWORD = ''
+REDIS_DB = 0
 
 # MySQL配置
 MYSQL_HOST = '127.0.0.1'
@@ -104,6 +109,7 @@ MYSQL_USER = 'root'
 MYSQL_PASSWORD = '123456'
 MYSQL_DB = 'crawl_pro'
 MYSQL_TABLE = 'crawlo'
+
 MYSQL_BATCH_SIZE = 200
 MYSQL_USE_BATCH = True  # 是否启用批量插入
 MYSQL_BATCH_TIMEOUT = 90  # 批量操作超时时间（秒）
@@ -454,4 +460,18 @@ SCHEDULER_STATS_RETENTION_HOURS = 24      # 统计信息保留小时数
 SCHEDULER_HEARTBEAT_INTERVAL = 10          # 心跳间隔（秒）
 SCHEDULER_RESOURCE_CLEANUP_ON_STOP = True  # 停止时是否清理资源
 SCHEDULER_MAX_RESOURCE_AGE = 7200          # 资源最大存活时间（秒）
+
+# --------------------------------- 自适应元素选择器配置 ------------------------------------
+
+# 自适应选择器 - 当网站改版导致选择器失效时自动重新定位元素
+# 通过元素指纹+相似度匹配，实现选择器自愈
+#
+# 使用方式：
+#   items = response.css('.product', adaptive=True)
+#   # 命中时自动保存/更新指纹，失效时自动匹配相似元素
+#
+ADAPTIVE_STORAGE_BACKEND = 'sqlite'  # 存储后端：'sqlite'（单机）或 'redis'（分布式）
+ADAPTIVE_SQLITE_PATH = 'adaptive_fingerprints.db'  # SQLite 数据库路径（默认项目根目录）
+# Redis 存储后端复用框架统一配置：REDIS_HOST / REDIS_PORT / REDIS_PASSWORD / REDIS_DB
+ADAPTIVE_SIMILARITY_THRESHOLD = 0.0  # 最低相似度阈值（0-100百分比，0表示不过滤）
 

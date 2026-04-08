@@ -122,11 +122,21 @@ SCHEDULER_ENABLED = True
 SCHEDULER_JOBS = [
     {
         'spider': 'of_week',           # 爬虫名称（对应spider的name属性）
-        'cron': '*/2 * * * *',       # 每1分钟执行一次
-        'enabled': True,              # 任务启用状态                 
+        'cron': '*/2 * * * *',       # 每2分钟执行一次
+        'enabled': True,              # 任务启用状态
         'priority': 10,               # 任务优先级
         'max_retries': 3,             # 最大重试次数
         'retry_delay': 60,            # 重试延迟（秒）
+        'args': {},                   # 传递给爬虫的参数
+        'kwargs': {}                  # 传递给爬虫的额外参数
+    },
+    {
+        'spider': 'of_week_adaptive',   # 使用自适应元素追踪的爬虫
+        'cron': '0 9 * * *',          # 每天上午9点执行一次
+        'enabled': True,              # 任务启用状态
+        'priority': 15,               # 任务优先级（比原爬虫低）
+        'max_retries': 3,             # 最大重试次数
+        'retry_delay': 120,           # 重试延迟（秒）
         'args': {},                   # 传递给爬虫的参数
         'kwargs': {}                  # 传递给爬虫的额外参数
     },

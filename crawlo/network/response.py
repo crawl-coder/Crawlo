@@ -15,6 +15,7 @@ import ujson
 from typing import Dict, Any, List, Optional, Union, Pattern, Match, TYPE_CHECKING
 from urllib.parse import urljoin as _urljoin
 from parsel import Selector, SelectorList
+from lxml.html import HtmlElement
 
 if TYPE_CHECKING:
     from crawlo.network.request import Request
@@ -41,12 +42,24 @@ except ImportError:
     )
 
 from crawlo.exceptions import DecodeError
+from crawlo.logging import get_logger
 from crawlo.utils.request.response_helper import (
     parse_cookies,
     regex_search,
     regex_findall,
     regex_findone,
     get_header_value
+)
+from crawlo.settings.default_settings import (
+    ADAPTIVE_STORAGE_BACKEND,
+    ADAPTIVE_SQLITE_PATH,
+    ADAPTIVE_SIMILARITY_THRESHOLD,
+    REDIS_HOST, REDIS_PORT, REDIS_PASSWORD, REDIS_DB,
+)
+from crawlo.tools.adaptive_selector import (
+    FingerprintStorage,
+    SimilarityMatcher,
+    ElementFingerprint,
 )
 
 
@@ -79,10 +92,16 @@ class Response:
     - 懒加载 Selector 实例
     - JSON 解析和缓存
     - 多类型数据提取
+    - 自适应元素追踪（adaptive=True 自动保存指纹+失效时自愈）
     """
 
     # 默认编码
     _DEFAULT_ENCODING = "ascii"
+
+    # 自适应选择器相关缓存（类级别，跨 Response 共享存储）
+    _adaptive_storage = None
+    _adaptive_matcher = None
+    _adaptive_enabled_global = None  # None 表示未初始化
 
     def __init__(
             self,
@@ -504,29 +523,191 @@ class Response:
             self._selector_instance = Selector(self.text)
         return self._selector_instance
 
-    def xpath(self, query: str) -> SelectorList:
+    def xpath(self, query: str, adaptive: bool = False,
+              identifier: str = '', percentage: float = 0.0) -> SelectorList:
         """
         使用 XPath 选择器查询文档。
-        
+
         Args:
             query: XPath查询表达式
-            
+            adaptive: 启用自适应追踪（命中时保存/更新指纹，失效时自动匹配）
+            identifier: 指纹标识符（默认使用 query 字符串）
+            percentage: 最低匹配百分比阈值（0-100）
+
         Returns:
             SelectorList: 查询结果
         """
-        return self._selector.xpath(query)
+        # 先尝试原始选择器
+        result = self._selector.xpath(query)
 
-    def css(self, query: str) -> SelectorList:
+        # 自适应逻辑
+        if result:
+            # 选择器生效 → 如果 adaptive=True，保存/更新指纹
+            if adaptive and self._is_adaptive_enabled():
+                self._save_element_fingerprint(result[0], identifier or query)
+            return result
+        elif adaptive and self._is_adaptive_enabled():
+            # 选择器失效 → 尝试自适应匹配
+            element_data = self._retrieve_element_fingerprint(identifier or query)
+            if element_data:
+                matched = self._adaptive_relocate(element_data, percentage)
+                if matched:
+                    get_logger('Response').info(
+                        f"Adaptive matched {len(matched)} element(s) "
+                        f"for selector '{query}'"
+                    )
+                    return SelectorList([
+                        Selector(root=el, type='html')
+                        for el in matched
+                    ])
+        elif adaptive:
+            get_logger('Response').warning(
+                "Adaptive selector argument ignored because "
+                "ADAPTIVE_SELECTOR_ENABLED is not set to True in settings"
+            )
+
+        return result
+
+    def css(self, query: str, adaptive: bool = False,
+            identifier: str = '', percentage: float = 0.0) -> SelectorList:
         """
         使用 CSS 选择器查询文档。
-        
+
         Args:
             query: CSS选择器表达式
-            
+            adaptive: 启用自适应追踪（命中时保存/更新指纹，失效时自动匹配）
+            identifier: 指纹标识符（默认使用 query 字符串）
+            percentage: 最低匹配百分比阈值（0-100）
+
         Returns:
             SelectorList: 查询结果
         """
-        return self._selector.css(query)
+        # CSS 选择器转 XPath，复用 xpath 方法的自适应逻辑
+        from parsel.csstranslator import HTMLTranslator
+        try:
+            xpath_query = HTMLTranslator().css_to_xpath(query)
+        except Exception:
+            xpath_query = query
+
+        return self.xpath(
+            xpath_query,
+            adaptive=adaptive,
+            identifier=identifier or query,
+            percentage=percentage,
+        )
+
+    # ==================== 自适应选择器内部方法 ====================
+
+    @classmethod
+    def _is_adaptive_enabled(cls) -> bool:
+        """检查自适应选择器是否可用
+
+        延迟初始化，第一次调用时从 settings 读取配置并初始化存储/匹配器。
+        只要用户调用 css/xpath 时传了 adaptive=True，此方法就会初始化并返回 True。
+        """
+        if cls._adaptive_enabled_global is not None:
+            return cls._adaptive_enabled_global
+
+        # 延迟初始化：从 settings 读取配置
+        try:
+            cls._adaptive_storage = FingerprintStorage(
+                backend=ADAPTIVE_STORAGE_BACKEND,
+                storage_file=ADAPTIVE_SQLITE_PATH,
+                redis_host=REDIS_HOST,
+                redis_port=REDIS_PORT,
+                redis_password=REDIS_PASSWORD,
+                redis_db=REDIS_DB,
+            )
+            cls._adaptive_matcher = SimilarityMatcher(threshold=ADAPTIVE_SIMILARITY_THRESHOLD)
+            cls._adaptive_enabled_global = True
+            return True
+        except Exception:
+            cls._adaptive_enabled_global = False
+            return False
+
+    @classmethod
+    def configure_adaptive(cls, backend: str = 'sqlite',
+                           storage_file: str = 'adaptive_fingerprints.db',
+                           threshold: float = 0.0, **kwargs) -> None:
+        """手动配置自适应选择器（不依赖 settings，方便独立使用）
+
+        Args:
+            backend: 存储后端 'sqlite' 或 'redis'
+            storage_file: SQLite 文件路径
+            threshold: 最低相似度阈值
+        """
+        cls._adaptive_enabled_global = True
+        cls._adaptive_storage = FingerprintStorage(
+            backend=backend, storage_file=storage_file, **kwargs
+        )
+        cls._adaptive_matcher = SimilarityMatcher(threshold=threshold)
+
+    def _save_element_fingerprint(self, selector_item, identifier: str) -> None:
+        """保存元素的指纹到存储
+
+        Args:
+            selector_item: parsel Selector 对象
+            identifier: 指纹标识符
+        """
+        if self.__class__._adaptive_storage is None:
+            return
+
+        try:
+            # parsel Selector 的根元素
+            root = selector_item.root if hasattr(selector_item, 'root') else selector_item
+            if isinstance(root, HtmlElement):
+                fp = ElementFingerprint.from_element(root)
+                self.__class__._adaptive_storage.save(self.url, identifier, fp)
+        except Exception as e:
+            get_logger('Response').debug(f"Failed to save fingerprint: {e}")
+
+    def _retrieve_element_fingerprint(self, identifier: str):
+        """从存储加载元素指纹
+
+        Args:
+            identifier: 指纹标识符
+
+        Returns:
+            指纹字典或 None
+        """
+        if self.__class__._adaptive_storage is None:
+            return None
+
+        try:
+            return self.__class__._adaptive_storage.retrieve(self.url, identifier)
+        except Exception:
+            return None
+
+    def _adaptive_relocate(self, element_data, percentage: float = 0.0):
+        """自适应重新定位元素
+
+        遍历页面元素，找到最匹配的
+
+        Args:
+            element_data: 保存的元素指纹字典
+            percentage: 最低匹配百分比
+
+        Returns:
+            List[lxml.html.HtmlElement]: 匹配的元素列表
+        """
+        if self.__class__._adaptive_matcher is None:
+            return []
+
+        try:
+            target_fp = ElementFingerprint.from_dict(element_data)
+            # 获取页面的 lxml 根元素
+            root = self._selector.root
+            if not isinstance(root, HtmlElement):
+                return []
+
+            return self.__class__._adaptive_matcher.find_best_matches(
+                target_fp, root, percentage=percentage
+            )
+        except Exception as e:
+            get_logger('Response').debug(f"Adaptive relocate failed: {e}")
+            return []
+
+    # ==================== 通用选择器方法 ====================
 
     def _is_xpath(self, query: str) -> bool:
         """
