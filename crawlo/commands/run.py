@@ -213,19 +213,16 @@ def main(args):
         if concurrency:
             custom_settings['CONCURRENCY'] = concurrency
         
-        # 检查点相关配置
-        if fresh or no_resume:
-            custom_settings['CHECKPOINT_ENABLED'] = False
-        
         settings = initialize_framework(custom_settings if custom_settings else None)
         
-        # 清除检查点文件
-        if clean_checkpoint and spider_arg.lower() != 'all':
+        # 清除检查点文件（--fresh/--no-resume/--clean-checkpoint 都清除检查点）
+        if (fresh or no_resume or clean_checkpoint) and spider_arg.lower() != 'all':
             try:
                 from crawlo.checkpoint import CheckpointManager
                 checkpoint_mgr = CheckpointManager(spider_arg, settings)
                 asyncio.run(checkpoint_mgr.clear())
-                console.print(f"[green]检查点已清除: {spider_arg}[/green]")
+                if clean_checkpoint:
+                    console.print(f"[green]检查点已清除: {spider_arg}[/green]")
             except Exception as e:
                 console.print(f"[yellow]清除检查点失败: {e}[/yellow]")
 

@@ -279,13 +279,12 @@ def test_checkpoint_manager_basic():
             from crawlo.settings.setting_manager import SettingManager
             settings = SettingManager()
             settings.attributes['CHECKPOINT_DIR'] = tmpdir
-            settings.attributes['CHECKPOINT_ENABLED'] = True
             settings.attributes['CHECKPOINT_STORAGE'] = 'json'
         except ImportError:
-            settings = {'CHECKPOINT_DIR': tmpdir, 'CHECKPOINT_ENABLED': True, 'CHECKPOINT_STORAGE': 'json'}
+            settings = {'CHECKPOINT_DIR': tmpdir, 'CHECKPOINT_STORAGE': 'json'}
         
         mgr = CheckpointManager('test_spider', settings)
-        assert mgr.enabled == True
+        assert mgr.enabled == True  # 始终启用
         
         # 无检查点
         assert asyncio.run(mgr.has_checkpoint()) == False
@@ -311,23 +310,6 @@ def test_checkpoint_manager_basic():
     finally:
         shutil.rmtree(tmpdir, ignore_errors=True)
 
-
-def test_checkpoint_manager_disabled():
-    """测试 CheckpointManager 禁用时"""
-    from crawlo.checkpoint.manager import CheckpointManager
-    
-    try:
-        from crawlo.settings.setting_manager import SettingManager
-        settings = SettingManager()
-        settings.attributes['CHECKPOINT_ENABLED'] = False
-    except ImportError:
-        settings = {'CHECKPOINT_ENABLED': False}
-    
-    mgr = CheckpointManager('test_spider', settings)
-    assert mgr.enabled == False
-    assert asyncio.run(mgr.has_checkpoint()) == False
-    assert asyncio.run(mgr.save()) == False
-    print("✅ CheckpointManager 禁用测试通过")
 
 
 def test_checkpoint_manager_restore_request():
@@ -930,16 +912,14 @@ def test_engine_close_reason_shutdown():
 
 def test_engine_save_on_signal_disabled():
     """测试 CHECKPOINT_SAVE_ON_SIGNAL=False 时不保存"""
-    from crawlo.core.engine import Engine
     from crawlo.utils.misc import safe_get_config
     
     try:
         from crawlo.settings.setting_manager import SettingManager
         settings = SettingManager()
         settings.attributes['CHECKPOINT_SAVE_ON_SIGNAL'] = False
-        settings.attributes['CHECKPOINT_ENABLED'] = True
     except ImportError:
-        settings = {'CHECKPOINT_SAVE_ON_SIGNAL': False, 'CHECKPOINT_ENABLED': True}
+        settings = {'CHECKPOINT_SAVE_ON_SIGNAL': False}
     
     # 验证配置读取正确
     val = safe_get_config(settings, 'CHECKPOINT_SAVE_ON_SIGNAL', True, bool)
@@ -1232,7 +1212,6 @@ if __name__ == '__main__':
         test_sqlite_storage_large_fingerprints,
         # checkpoint manager 基础
         test_checkpoint_manager_basic,
-        test_checkpoint_manager_disabled,
         test_checkpoint_manager_restore_request,
         test_checkpoint_manager_restore_fingerprints,
         test_checkpoint_manager_sqlite_backend,

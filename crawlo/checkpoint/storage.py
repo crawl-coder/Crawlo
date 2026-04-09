@@ -37,7 +37,7 @@ class BaseStorage(ABC):
 class JsonStorage(BaseStorage):
     """JSON 文件存储后端（默认，适合小规模场景）
 
-    文件路径：~/.crawlo/checkpoints/{project_name}/{spider_name}.json
+    文件路径：.crawlo_checkpoints/{project_name}/{spider_name}.json
     存储内容：序列化的请求列表 + 指纹集合 + 元数据
     """
 
@@ -47,7 +47,8 @@ class JsonStorage(BaseStorage):
         if checkpoint_dir:
             self._dir = checkpoint_dir
         else:
-            self._dir = os.path.join(os.path.expanduser('~'), '.crawlo', 'checkpoints')
+            # 默认使用当前工作目录（项目根目录）下的 .crawlo_checkpoints
+            self._dir = os.path.join(os.getcwd(), '.crawlo_checkpoints')
 
         self._dir = os.path.join(self._dir, project_name)
         self._path = os.path.join(self._dir, f'{spider_name}.json')
@@ -117,7 +118,7 @@ class JsonStorage(BaseStorage):
 class SqliteStorage(BaseStorage):
     """SQLite 存储后端（适合大规模场景）
 
-    文件路径：~/.crawlo/checkpoints/{project_name}/{spider_name}.db
+    文件路径：.crawlo_checkpoints/{project_name}/{spider_name}.db
     三个表：pending_requests、fingerprints、metadata
     """
 
@@ -127,7 +128,8 @@ class SqliteStorage(BaseStorage):
         if checkpoint_dir:
             self._dir = checkpoint_dir
         else:
-            self._dir = os.path.join(os.path.expanduser('~'), '.crawlo', 'checkpoints')
+            # 默认使用当前工作目录（项目根目录）下的 .crawlo_checkpoints
+            self._dir = os.path.join(os.getcwd(), '.crawlo_checkpoints')
 
         self._dir = os.path.join(self._dir, project_name)
         self._path = os.path.join(self._dir, f'{spider_name}.db')

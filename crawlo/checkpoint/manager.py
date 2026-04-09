@@ -36,7 +36,6 @@ class CheckpointManager:
         self.logger = get_logger('CheckpointManager')
 
         # 读取配置
-        self._enabled = safe_get_config(settings, 'CHECKPOINT_ENABLED', True, bool)
         storage_type = safe_get_config(settings, 'CHECKPOINT_STORAGE', 'json', str)
         checkpoint_dir = safe_get_config(settings, 'CHECKPOINT_DIR', None, str)
         project_name = safe_get_config(settings, 'PROJECT_NAME', 'default', str)
@@ -73,8 +72,8 @@ class CheckpointManager:
 
     @property
     def enabled(self) -> bool:
-        """检查点是否启用"""
-        return self._enabled
+        """检查点是否启用（始终返回 True）"""
+        return True
 
     async def save(self, scheduler: Any = None, stats: Any = None) -> bool:
         """保存检查点：队列请求 + 去重指纹 + 统计信息
@@ -86,10 +85,6 @@ class CheckpointManager:
         Returns:
             bool: 是否保存成功
         """
-        if not self._enabled:
-            self.logger.debug("Checkpoint disabled, skip saving")
-            return False
-
         try:
             # 1. 提取待处理请求
             requests_data = await self._extract_pending_requests(scheduler)
@@ -132,9 +127,6 @@ class CheckpointManager:
         Returns:
             dict: 包含 requests, fingerprints, stats 的字典，无检查点时返回 None
         """
-        if not self._enabled:
-            return None
-
         try:
             data = self.storage.load()
             if data:
@@ -150,8 +142,6 @@ class CheckpointManager:
 
     async def has_checkpoint(self) -> bool:
         """是否存在有效检查点"""
-        if not self._enabled:
-            return False
         return self.storage.exists()
 
     async def clear(self) -> bool:
