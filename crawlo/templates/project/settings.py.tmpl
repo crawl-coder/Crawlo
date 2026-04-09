@@ -11,55 +11,23 @@
 from datetime import datetime
 from crawlo.config import CrawloConfig
 
-# =================================== 0. 运行模式配置 ===================================
+# =================================== 0. 基础配置 ===================================
 # 
-# Crawlo 支持三种运行模式，根据场景选择合适的配置：
-#
-# 【开发测试】Standalone 模式 - 单机运行，无需外部依赖
-#   - 适合：开发调试、小规模测试
-#   - 配置：1 个爬虫，CONCURRENCY=8
-#   - 特点：简单快速，无需 Redis
-#
-# 【小规模生产】Standalone 模式 - 单机多爬虫
-#   - 适合：中小规模爬取、单机多任务
-#   - 配置：3-5 个爬虫，CONCURRENCY=16
-#   - 特点：单机资源充分利用
-#
-# 【大规模生产】Distributed 模式 - 分布式集群
-#   - 适合：大规模爬取、多机协作
-#   - 配置：10+ 个爬虫，CONCURRENCY=32
-#   - 特点：需要 Redis，支持水平扩展
-#
-# 详细配置说明见文档：https://crawlo.readthedocs.io/
+# 本配置为单机版模板，适合开发测试和小规模生产环境。
+# 
+# 如需分布式配置，请使用 CrawloConfig.distributed() 并参考分布式部署文档。
+# 
+# 配置说明：
+#   - concurrency: 单个爬虫的并发请求数（默认8，生产环境可调整为16）
+#   - download_delay: 请求间隔延迟（秒），根据目标网站反爬强度调整
+#   - max_running_spiders: 同时运行的最大爬虫数（单机版通常1-5个）
 
-# 【方案1】开发测试配置（默认）
-# 单机模式，1个爬虫，8并发
 config = CrawloConfig.auto(
     project_name='{{project_name}}',
-    concurrency=8,              # 单个爬虫并发请求数
+    concurrency=8,              # 并发请求数：开发8，生产16-32
     download_delay=1.0,         # 下载延迟（秒）
     max_running_spiders=1       # 最大同时运行爬虫数
 )
-
-# 【方案2】小规模生产配置（取消注释使用）
-# 单机模式，3-5个爬虫，16并发
-# config = CrawloConfig.auto(
-#     project_name='{{project_name}}',
-#     concurrency=16,             # 提高单个爬虫并发
-#     download_delay=0.5,         # 适当降低延迟
-#     max_running_spiders=5       # 允许同时运行5个爬虫
-# )
-
-# 【方案3】大规模生产配置（取消注释使用）
-# 分布式模式，10+个爬虫，32并发，需要Redis
-# config = CrawloConfig.distributed(
-#     redis_host='127.0.0.1',     # Redis主机地址
-#     redis_port=6379,            # Redis端口
-#     project_name='{{project_name}}',
-#     concurrency=32,             # 高并发
-#     download_delay=0.1,         # 低延迟
-#     max_running_spiders=20      # 大量爬虫并发
-# )
 
 # 将配置转换为当前模块的全局变量
 locals().update(config.to_dict())
