@@ -12,11 +12,24 @@
 from datetime import datetime
 from crawlo.config import CrawloConfig
 
-# 使用分布式模式配置工厂创建配置
+# =================================== 0. 分布式基础配置 ===================================
+#
+# 本配置为分布式版模板，适合大规模数据采集和多节点部署。
+#
+# 配置说明：
+#   - redis_host: Redis 主机地址（分布式协调必需）
+#   - redis_port: Redis 端口
+#   - concurrency: 单个爬虫的并发请求数（分布式建议 16-32）
+#   - download_delay: 请求间隔延迟（秒）
+#   - max_running_spiders: 同时运行的最大爬虫数（分布式建议 10+）
+
 config = CrawloConfig.distributed(
+    redis_host='127.0.0.1',     # Redis 主机地址
+    redis_port=6379,            # Redis 端口
     project_name='{{project_name}}',
-    concurrency=16,
-    download_delay=1.0
+    concurrency=16,             # 并发请求数：建议 16-32
+    download_delay=1.0,         # 下载延迟（秒）
+    max_running_spiders=10      # 最大同时运行爬虫数（分布式建议 10+）
 )
 
 # 将配置转换为当前模块的全局变量
