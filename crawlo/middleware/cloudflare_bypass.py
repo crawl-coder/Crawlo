@@ -33,7 +33,7 @@ class CloudflareBypassMiddleware:
     
     自动检测 Cloudflare 挑战页面并使用隐身浏览器重新请求。
     
-    检测逻辑（参考 Scrapling）：
+    检测逻辑：
     1. HTTP 状态码为 403、503、520、521、522、523、524
     2. 响应内容包含 Cloudflare 特征
     3. 支持 Turnstile 挑战类型检测
@@ -46,7 +46,7 @@ class CloudflareBypassMiddleware:
     # Cloudflare 挑战状态码
     CHALLENGE_STATUS_CODES = {403, 503, 520, 521, 522, 523, 524}
     
-    # Cloudflare Turnstile 挑战类型（参考 Scrapling）
+    # Cloudflare Turnstile 挑战类型
     CHALLENGE_TYPES = (
         "non-interactive",
         "managed",
@@ -183,7 +183,7 @@ class CloudflareBypassMiddleware:
     
     def _detect_cloudflare_type(self, page_content: str) -> Optional[str]:
         """
-        检测 Cloudflare Turnstile 挑战类型（参考 Scrapling）
+        检测 Cloudflare Turnstile 挑战类型
         
         Args:
             page_content: 页面内容

@@ -269,10 +269,7 @@ class HybridDownloader(DownloaderBase):
         """关闭所有下载器"""
         for name, downloader in self._downloaders.items():
             try:
-                if hasattr(downloader, 'close_async'):
-                    await downloader.close_async()
-                else:
-                    await downloader.close()
+                await downloader.close()
             except Exception as e:
                 self.logger.warning(f"Error closing {name} downloader: {e}")
                 

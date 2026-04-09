@@ -153,7 +153,7 @@ class PlaywrightDownloader(DownloaderBase):
                 "height": self.viewport_height
             })
             
-            # 设置 Google Referer（参考 Scrapling，绕过某些检测）
+            # 设置 Google Referer，绕过某些检测
             referer = None
             if self.google_referer:
                 referer = "https://www.google.com/"
@@ -279,7 +279,7 @@ class PlaywrightDownloader(DownloaderBase):
             else:
                 raise ValueError(f"Unsupported browser type: {self.browser_type}")
             
-            # 创建浏览器上下文（参考 Scrapling 的配置）
+            # 创建浏览器上下文
             context_options = {
                 "viewport": {"width": self.viewport_width, "height": self.viewport_height},
                 "screen": {"width": self.viewport_width, "height": self.viewport_height},
@@ -316,7 +316,7 @@ class PlaywrightDownloader(DownloaderBase):
         if user_agent:
             await self.context.set_extra_http_headers({"User-Agent": user_agent})
         
-        # 添加 Google Referer（参考 Scrapling）
+        # 添加 Google Referer
         if self.google_referer:
             # 在请求级别设置，这里只做标记
             pass
@@ -607,52 +607,18 @@ class PlaywrightDownloader(DownloaderBase):
         """
         智能滚动加载懒加载内容
         
-        滚动策略：
-        1. 滚动一次，等待渲染，检查是否有新内容
-        2. 如果有新内容，继续滚动；如果没有，说明到底部
-        3. 重复直到滑不动（连续两次无新内容）
+        复用 _scroll_to_bottom 的逻辑，从 request.meta 获取参数
         """
         scroll_delay = request.meta.get("playwright_scroll_delay", self.scroll_delay)
         max_consecutive_no_content = request.meta.get("playwright_max_no_content", 2)
         
-        try:
-            consecutive_no_content = 0
-            
-            while True:
-                # 获取当前页面高度
-                current_height = await page.evaluate("document.body.scrollHeight")
-                
-                # 滚动到底部
-                await page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
-                
-                # 等待新内容加载和渲染
-                await page.wait_for_timeout(scroll_delay)
-                
-                # 获取滚动后的页面高度
-                new_height = await page.evaluate("document.body.scrollHeight")
-                
-                # 检查是否有新内容加载
-                if new_height > current_height:
-                    # 有新内容，重置计数器
-                    consecutive_no_content = 0
-                    self.logger.debug(f"Scroll: {current_height} -> {new_height}px (new content loaded)")
-                else:
-                    # 没有新内容
-                    consecutive_no_content += 1
-                    self.logger.debug(f"No new content ({consecutive_no_content}/{max_consecutive_no_content})")
-                    
-                    # 连续多次无新内容，说明到底部了
-                    if consecutive_no_content >= max_consecutive_no_content:
-                        self.logger.debug(f"Reached page bottom after detecting no new content")
-                        break
-                
-                # 安全检查：防止无限滚动
-                if consecutive_no_content > 10:
-                    self.logger.warning("Too many scrolls, stopping")
-                    break
-
-        except Exception as e:
-            self.logger.warning(f"Auto scroll failed: {e}")
+        # 转换为 params 格式，复用 _scroll_to_bottom
+        params = {
+            "scroll_delay": scroll_delay,
+            "max_no_content": max_consecutive_no_content
+        }
+        
+        await self._scroll_to_bottom(page, params)
 
     async def _execute_custom_actions(self, page: Page, request):
         """
@@ -917,8 +883,17 @@ class PlaywrightDownloader(DownloaderBase):
                 self._used_pages.add(id(new_page))
                 return new_page
             
-            # 如果池已满，等待其他页面释放（这里简化为创建临时页面）
-            self.logger.warning(f"Page pool full ({self.max_pages_per_browser}), creating temporary page")
+            # 如果池已满，等待其他页面释放
+            self.logger.warning(f"Page pool full ({self.max_pages_per_browser}), waiting for page release...")
+            for _ in range(10):  # 最多等待 10 次
+                await asyncio.sleep(0.5)
+                # 检查是否有页面释放
+                for page in self._page_pool:
+                    if id(page) not in self._used_pages:
+                        self._used_pages.add(id(page))
+                        return page
+            # 如果等待后仍未获取到页面，创建临时页面作为后备
+            self.logger.warning("Page pool wait timeout, creating temporary page")
             temp_page = await self.context.new_page()
             return temp_page
         
