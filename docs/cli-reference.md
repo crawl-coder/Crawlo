@@ -30,6 +30,17 @@ crawlo run <spider_name> [options]
 - `-s, --set`: 覆盖配置项 (如 `-s CONCURRENCY=10`)。
 - `-a, --arg`: 传递爬虫参数 (如 `-a category=news`)。
 - `--mode`: 运行模式 (standalone, distributed, auto)。
+- `--fresh` 或 `--no-resume`: 忽略检查点，从头开始爬取。
+- `--clean-checkpoint`: 清除检查点文件后从头开始。
+
+**检查点相关**:
+```bash
+crawlo run myspider              # 默认：如有检查点则恢复
+crawlo run myspider --fresh      # 忽略检查点，从头开始
+crawlo run myspider --clean-checkpoint  # 清除检查点并从头开始
+```
+
+详细用法请参阅 [检查点持久化](checkpoint-guide.md)。
 
 ---
 
@@ -81,6 +92,17 @@ crawlo shell [url]
 ```bash
 crawlo shell                       # 启动空 Shell
 crawlo shell https://example.com   # 启动并预抓取 URL
+crawlo shell --curl 'curl https://api.com -H "Key: val"'  # 使用 curl 命令
+crawlo shell --curl "curl https://httpbin.org/post -X POST -d 'key=val'"
 ```
 
-详细用法请参阅 [Shell 交互式终端](shell-guide.md)。
+**curl 转换**:
+
+Shell 支持直接将浏览器的 curl 命令转换为 Request 并执行：
+
+```bash
+# 从浏览器 DevTools 复制 curl 命令后执行
+crawlo shell --curl 'curl https://api.example.com -H "Authorization: Bearer xxx"'
+```
+
+详细用法请参阅 [curl 命令转换](curl-conversion.md) 和 [Shell 交互式终端](shell-guide.md)。

@@ -74,6 +74,12 @@ class MySpider(Spider):
 ### [🐚 Shell 交互式终端](shell-guide.md)
 实时调试选择器、测试动态渲染，无需编写完整爬虫。
 
+### [🔄 curl 命令转换](curl-conversion.md)
+将浏览器 DevTools 的 curl 命令直接转换为 Crawlo Request，快速复现浏览器请求。
+
+### [💾 检查点持久化](checkpoint-guide.md)
+Ctrl+C 优雅关闭后从断点续爬，支持 JSON/SQLite 双存储后端。
+
 ## 学习路径
 
 如果您是 Crawlo 的新用户，建议按以下顺序学习：
@@ -82,7 +88,9 @@ class MySpider(Spider):
 2. **架构** - 了解[核心架构](architecture.md)设计及运行模式。
 3. **深入** - 掌握[核心组件](core-components.md)的使用。
 4. **调试** - 使用 [Shell 交互式终端](shell-guide.md)实时调试选择器。
-5. **高阶** - 探索[高级特性](advanced-features.md)如 AI 适配、自适应选择器。
+   - 尝试 [curl 命令转换](curl-conversion.md)：从浏览器复制 curl 直接执行
+5. **持久化** - 了解[检查点持久化](checkpoint-guide.md)：Ctrl+C 后断点续爬
+6. **高阶** - 探索[高级特性](advanced-features.md)如 AI 适配、自适应选择器。
 
 ## 贡献
 

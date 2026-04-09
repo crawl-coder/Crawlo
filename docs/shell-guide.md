@@ -10,6 +10,9 @@ crawlo shell
 
 # 启动并预抓取 URL
 crawlo shell https://example.com
+
+# 使用 curl 命令启动
+crawlo shell --curl 'curl https://api.com -H "Authorization: Bearer xxx"'
 ```
 
 启动后会自动加载当前项目的 `settings.py`，确保测试环境与生产一致。
@@ -19,6 +22,7 @@ crawlo shell https://example.com
 | 对象 | 说明 |
 |------|------|
 | `fetch(url)` | 抓取页面，自动更新 `request` 和 `response` |
+| `from_curl(curl_cmd)` | 从 curl 命令生成 Request 并抓取 |
 | `view(response)` | 在浏览器中打开响应 HTML |
 | `request` | 最近一次请求对象 |
 | `response` | 最近一次响应对象 |
@@ -77,6 +81,44 @@ crawlo shell https://example.com
 >>> fetch("https://api.example.com/data", meta={"use_dynamic_loader": True})
 >>> fetch("https://api.example.com", headers={"X-Custom": "value"})
 ```
+
+### curl 命令转换
+
+从浏览器 DevTools 复制 curl 命令，直接转换为 Crawlo Request：
+
+```python
+# 从浏览器复制 curl 命令
+>>> cmd = '''curl 'https://api.example.com/v1/items?page=1' \\
+      -H 'accept: application/json' \\
+      -H 'authorization: Bearer eyJhbGciOiJIUzI1NiJ9.x' \\
+      -H 'cookie: session=abc123; user=john' '''
+
+# 执行请求
+>>> resp = from_curl(cmd)
+>>> resp.status_code
+200
+
+# 使用响应
+>>> resp.json()
+{'items': [...], 'total': 100}
+```
+
+**简化调用**：
+
+```python
+# GET 请求
+>>> from_curl('curl https://example.com')
+
+# POST JSON
+>>> from_curl('curl https://api.com -X POST -H "Content-Type: application/json" -d \'{"key":"val"}\'')
+
+# 带 Cookie
+>>> from_curl('curl https://shop.com -H "Cookie: session=abc123"')
+```
+
+> **提示**：从浏览器 DevTools → Network → 右键请求 → Copy as cURL (bash)，粘贴即可。
+> 
+> 详细用法请参阅 [curl 命令转换](curl-conversion.md)。
 
 ## 终端后端
 
