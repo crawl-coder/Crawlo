@@ -14,7 +14,7 @@ from crawlo.config import CrawloConfig
 config = CrawloConfig.standalone(
     project_name='ofweek_standalone',
     concurrency=2,  # 降低并发以便测试中断
-    download_delay=3.0,  # 增加延时，方便测试检查点
+    download_delay=1.0,  # 增加延时，方便测试检查点
 )
 
 # 将配置转换为当前模块的全局变量

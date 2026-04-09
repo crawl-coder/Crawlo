@@ -95,15 +95,10 @@ class ProcessSignalHandler:
                     spider_name = getattr(getattr(crawler, 'spider', None), 'name', 'Unknown')
                     self.logger.debug(f"关闭爬虫: {spider_name}")
                     
-                    # 先通过 Engine 保存检查点
-                    if hasattr(crawler, '_engine') and crawler._engine:
-                        try:
-                            await crawler._engine._save_checkpoint()
-                            self.logger.info(f"检查点已保存: {spider_name}")
-                        except Exception as e:
-                            self.logger.warning(f"保存检查点失败: {spider_name} - {e}")
-                    
-                    await crawler._cleanup()
+                    # 使用 reason='shutdown' 触发检查点保存
+                    if hasattr(crawler, '_cleanup'):
+                        await crawler._cleanup(reason='shutdown')
+                        self.logger.info(f"爬虫已关闭: {spider_name}")
             except Exception as e:
                 self.logger.warning(f"关闭爬虫时出错: {e}")
         

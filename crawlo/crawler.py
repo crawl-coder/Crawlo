@@ -408,8 +408,12 @@ class Crawler:
         
         # 这里可以添加错误恢复逻辑
     
-    async def _cleanup(self) -> None:
-        """清理资源"""
+    async def _cleanup(self, reason: str = 'finished') -> None:
+        """清理资源
+        
+        Args:
+            reason: 关闭原因，'finished' 或 'shutdown'
+        """
         async with self._state_lock:
             if self._state not in [CrawlerState.CLOSING, CrawlerState.CLOSED]:
                 self._state = CrawlerState.CLOSING
@@ -430,19 +434,24 @@ class Crawler:
                 except Exception as e:
                     self._logger.warning(f"Engine cleanup failed: {e}")
             
+            # 调用Engine的close_spider方法，传递正确的reason
+            if self._engine and hasattr(self._engine, 'close_spider'):
+                try:
+                    await self._engine.close_spider(reason=reason)
+                except Exception as e:
+                    self._logger.warning(f"Engine close_spider failed: {e}")
+            
             # 调用StatsCollector的close_spider方法，设置reason和spider_name
             if self._stats and hasattr(self._stats, 'close_spider'):
                 try:
-                    # 使用默认的'finished'作为reason
-                    self._stats.close_spider(self._spider, reason='finished')
+                    self._stats.close_spider(self._spider, reason=reason)
                 except Exception as e:
                     self._logger.warning(f"Stats close_spider failed: {e}")
             
             # 触发spider_closed事件，通知所有订阅者（包括扩展）
-            # 传递reason参数，这里使用默认的'finished'作为reason
             if self.subscriber:
                 from crawlo.event import CrawlerEvent
-                await self.subscriber.notify(CrawlerEvent.SPIDER_CLOSED, reason='finished')
+                await self.subscriber.notify(CrawlerEvent.SPIDER_CLOSED, reason=reason)
             
             if self._stats and hasattr(self._stats, 'close'):
                 try:
@@ -455,7 +464,7 @@ class Crawler:
             async with self._state_lock:
                 self._state = CrawlerState.CLOSED
             
-            self._logger.debug("Crawler cleanup completed")
+            self._logger.debug(f"Crawler cleanup completed (reason={reason})")
             
             # 显式关闭所有日志handlers，释放文件句柄
             self._close_logger_handlers()
