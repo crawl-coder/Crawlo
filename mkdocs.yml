@@ -1,6 +1,6 @@
 site_name: Crawlo Documentation
 site_url: https://crawlo.readthedocs.io/
-site_description: An asynchronous distributed web crawling framework
+site_description: 一个基于 asyncio 的现代化、高性能异步爬虫框架
 site_author: Crawlo Team
 
 repo_url: https://github.com/crawl-coder/Crawlo
@@ -13,11 +13,11 @@ theme:
     - scheme: default
       toggle:
         icon: material/brightness-7
-        name: Switch to dark mode
+        name: 切换到深色模式
     - scheme: slate
       toggle:
         icon: material/brightness-4
-        name: Switch to light mode
+        name: 切换到浅色模式
   features:
     - navigation.tabs
     - navigation.sections
@@ -31,7 +31,7 @@ theme:
   icon:
     repo: fontawesome/brands/github
 
-# 添加多语言支持
+# 多语言支持
 extra:
   alternate:
     - name: 中文
@@ -46,10 +46,15 @@ nav:
     - 简介: index.md
     - 快速开始: modules/quickstart/index.md
     - 安装指南: modules/installation/index.md
+  - AI & 智能化:
+    - AI 适配层 (MCP): modules/mcp/index.md
+    - 自适应选择器: adaptive_selector_guide.md
   - 核心概念:
     - 架构概述: modules/architecture/index.md
     - 运行模式: modules/architecture/modes.md
     - 配置系统: modules/configuration/index.md
+    - 配置优先级: 配置优先级详解.md
+    - 调度设计: modules/scheduling/scheduler_design.md
   - 核心模块:
     - 概述: modules/core/index.md
     - 引擎 (Engine): modules/core/engine.md
@@ -59,11 +64,27 @@ nav:
   - 功能模块:
     - 下载器 (Downloader):
       - 概述: modules/downloader/index.md
-      - AioHttpDownloader: modules/downloader/aiohttp.md
-      - HttpXDownloader: modules/downloader/httpx.md
-      - CurlCffiDownloader: modules/downloader/curl_cffi.md
-      - SeleniumDownloader: modules/downloader/selenium.md
-      - PlaywrightDownloader: modules/downloader/playwright.md
+      - 混合下载器 (Hybrid): modules/downloader/hybrid.md
+      - AioHttp: modules/downloader/aiohttp.md
+      - HttpX: modules/downloader/httpx.md
+      - CurlCffi: modules/downloader/curl_cffi.md
+      - Playwright: modules/downloader/playwright.md
+      - 附件下载: attachment_downloader_guide.md
+    - 中间件 (Middleware):
+      - 概述: modules/middleware/index.md
+      - 优先级指南: middleware_priority_guide.md
+      - MiddlewareManager: modules/middleware/manager.md
+      - 内置中间件: modules/middleware/built_in.md
+      - 自定义中间件: modules/middleware/custom.md
+      - 代理支持: modules/middleware/proxy.md
+    - 管道 (Pipeline):
+      - 概述: modules/pipeline/index.md
+      - PipelineManager: modules/pipeline/manager.md
+      - 内置管道: modules/pipeline/built_in.md
+      - 自定义管道: modules/pipeline/custom.md
+    - 通知系统:
+      - 基础指南: notification_guide.md
+      - 模板与通知: template_and_notification_guide.md
     - 队列 (Queue):
       - 概述: modules/queue/index.md
       - QueueManager: modules/queue/manager.md
@@ -75,17 +96,6 @@ nav:
       - 内存过滤器: modules/filter/memory.md
       - Redis过滤器: modules/filter/redis.md
       - Bloom过滤器: modules/filter/bloom.md
-    - 中间件 (Middleware):
-      - 概述: modules/middleware/index.md
-      - MiddlewareManager: modules/middleware/manager.md
-      - 内置中间件: modules/middleware/built_in.md
-      - 自定义中间件: modules/middleware/custom.md
-      - 代理中间件: modules/middleware/proxy.md
-    - 管道 (Pipeline):
-      - 概述: modules/pipeline/index.md
-      - PipelineManager: modules/pipeline/manager.md
-      - 内置管道: modules/pipeline/built_in.md
-      - 自定义管道: modules/pipeline/custom.md
     - 扩展 (Extension):
       - 概述: modules/extension/index.md
       - ExtensionManager: modules/extension/manager.md
@@ -99,6 +109,11 @@ nav:
     - list: modules/cli/list.md
     - check: modules/cli/check.md
     - stats: modules/cli/stats.md
+  - 优化与专题:
+    - 初始化优化: initialization_optimization_report.md
+    - MySQL 连接池: mysql_connection_pool_optimization.md
+    - MongoDB 连接池: mongo_connection_pool_optimization.md
+    - Redis Key 重构: redis_key_refactor.md
   - 高级主题:
     - 分布式部署: modules/advanced/distributed.md
     - 性能优化: modules/advanced/performance.md
@@ -111,29 +126,14 @@ nav:
     - 概述: api/index.md
     - crawlo: api/crawlo___init__.md
     - crawlo.config: api/crawlo_config.md
-    - crawlo.config_validator: api/crawlo_config_validator.md
     - crawlo.crawler: api/crawlo_crawler.md
     - crawlo.spider: api/crawlo_spider___init__.md
     - crawlo.request: api/crawlo_network_request.md
     - crawlo.response: api/crawlo_network_response.md
     - crawlo.items: api/crawlo_items_items.md
     - crawlo.pipelines: api/crawlo_pipelines.md
-    - crawlo.pipelines.RedisDedupPipeline: api/crawlo_pipelines_redis_dedup_pipeline.md
-    - crawlo.pipelines.MemoryDedupPipeline: api/crawlo_pipelines_memory_dedup_pipeline.md
-    - crawlo.pipelines.BloomDedupPipeline: api/crawlo_pipelines_bloom_dedup_pipeline.md
-    - crawlo.pipelines.DatabaseDedupPipeline: api/crawlo_pipelines_database_dedup_pipeline.md
-    - crawlo.pipelines.ConsolePipeline: api/crawlo_pipelines_console_pipeline.md
-    - crawlo.pipelines.JsonPipeline: api/crawlo_pipelines_json_pipeline.md
-    - crawlo.pipelines.CsvPipeline: api/crawlo_pipelines_csv_pipeline.md
-    - crawlo.pipelines.AsyncmyMySQLPipeline: api/crawlo_pipelines_mysql_pipeline.md
-    - crawlo.pipelines.MongoPipeline: api/crawlo_pipelines_mongo_pipeline.md
     - crawlo.middleware: api/crawlo_middleware.md
-    - crawlo.extensions: api/crawlo_extension.md
-    - crawlo.filters: api/crawlo_filters___init__.md
     - crawlo.downloader: api/crawlo_downloader___init__.md
-    - crawlo.scheduler: api/crawlo_core_scheduler.md
-    - crawlo.queues: api/crawlo_queue___init__.md
-    - crawlo.utils: api/crawlo_utils_log.md
 
 plugins:
   - search
@@ -149,3 +149,7 @@ markdown_extensions:
   - pymdownx.emoji:
       emoji_index: !!python/name:material.extensions.emoji.twemoji
       emoji_generator: !!python/name:material.extensions.emoji.to_svg
+  - pymdownx.arithmatex:
+      generic: true
+  - toc:
+      permalink: true

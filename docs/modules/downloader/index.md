@@ -8,11 +8,11 @@
 
 ### 核心组件
 
-1. [AioHttpDownloader](aiohttp.md) - 基于 aiohttp 的高性能下载器
-2. [HttpXDownloader](httpx.md) - 支持 HTTP/2 的下载器
-3. [CurlCffiDownloader](curl_cffi.md) - 支持浏览器指纹模拟的下载器
-4. [SeleniumDownloader](selenium.md) - 基于 Selenium 的浏览器自动化下载器
-5. [PlaywrightDownloader](playwright.md) - 基于 Playwright 的现代浏览器自动化下载器
+1. [HybridDownloader](hybrid.md) - **智能混合下载器（推荐）**，支持协议与浏览器的自动切换
+2. [AioHttpDownloader](aiohttp.md) - 基于 aiohttp 的高性能异步下载器
+3. [HttpXDownloader](httpx.md) - 支持 HTTP/2 的现代异步下载器
+4. [CurlCffiDownloader](curl_cffi.md) - 支持 TLS 指纹模拟的抗封禁下载器
+5. [PlaywrightDownloader](playwright.md) - 基于 Playwright 的现代浏览器渲染下载器
 
 ## 架构设计
 
@@ -20,23 +20,35 @@
 graph TB
 subgraph "下载器模块"
 DownloaderBase[DownloaderBase<br/>基础下载器类]
+HybridDownloader[HybridDownloader<br/>智能调度/混合下载]
 AioHttpDownloader[AioHttpDownloader<br/>aiohttp 实现]
 HttpXDownloader[HttpXDownloader<br/>httpx 实现]
 CurlCffiDownloader[CurlCffiDownloader<br/>curl-cffi 实现]
-SeleniumDownloader[SeleniumDownloader<br/>Selenium 实现]
 PlaywrightDownloader[PlaywrightDownloader<br/>Playwright 实现]
 end
-Engine[引擎] --> DownloaderBase
-DownloaderBase --> AioHttpDownloader
-DownloaderBase --> HttpXDownloader
-DownloaderBase --> CurlCffiDownloader
-DownloaderBase --> SeleniumDownloader
-DownloaderBase --> PlaywrightDownloader
+Engine[引擎] --> HybridDownloader
+HybridDownloader --> AioHttpDownloader
+HybridDownloader --> PlaywrightDownloader
+HybridDownloader --> CurlCffiDownloader
 style DownloaderBase fill:#f9f,stroke:#333
+style HybridDownloader fill:#ff9,stroke:#333,stroke-width:2px
 style Engine fill:#bbf,stroke:#333
 ```
 
 ## 下载器选择指南
+
+### HybridDownloader (推荐)
+
+**适用场景:**
+- 同时包含静态页面和需要 JS 渲染的动态页面的复杂项目
+- 需要根据 URL 自动选择最快下载方式的场景
+- 对性能和通过率都有极高要求的生产环境
+
+**特点:**
+- **智能切换**：根据 `request.meta`、URL 正则模式或域名自动选择底层下载器
+- **正则支持**：支持强大的正则表达式匹配 URL 路由
+- **资源优化**：浏览器引擎采用懒加载模式，仅在必要时初始化
+- **零配置感**：与 `DynamicRenderMiddleware` 无缝协作，自动处理降级
 
 ### AioHttpDownloader
 
