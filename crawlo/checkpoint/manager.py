@@ -72,8 +72,8 @@ class CheckpointManager:
 
     @property
     def enabled(self) -> bool:
-        """检查点是否启用（始终返回 True）"""
-        return True
+        """检查点是否启用"""
+        return safe_get_config(self.settings, 'CHECKPOINT_ENABLED', False, bool)
 
     async def save(self, scheduler: Any = None, stats: Any = None) -> bool:
         """保存检查点：队列请求 + 去重指纹 + 统计信息

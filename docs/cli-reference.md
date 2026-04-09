@@ -35,10 +35,12 @@ crawlo run <spider_name> [options]
 
 **检查点相关**:
 ```bash
-crawlo run myspider              # 默认：如有检查点则恢复
+crawlo run myspider              # 默认：检查点未启用
 crawlo run myspider --fresh      # 忽略检查点，从头开始
 crawlo run myspider --clean-checkpoint  # 清除检查点并从头开始
 ```
+
+> 注意：检查点功能默认关闭，需在 `settings.py` 中设置 `CHECKPOINT_ENABLED = True` 启用。
 
 详细用法请参阅 [检查点持久化](checkpoint-guide.md)。
 

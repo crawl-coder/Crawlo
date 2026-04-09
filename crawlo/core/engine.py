@@ -379,14 +379,19 @@ class Engine(object):
 
         # 使用异步任务创建，遵守并发限制
         if self.task_manager:
+            coro = crawl_task()
             try:
-                await self.task_manager.create_task(crawl_task())
+                await self.task_manager.create_task(coro)
             except asyncio.CancelledError:
                 self.logger.info("爬取任务被取消")
+                # 确保协程被正确关闭，避免 RuntimeWarning
+                coro.close()
                 # 重新抛出CancelledError以便调用者可以正确处理
                 raise
             except Exception as e:
                 self.logger.error(f"创建爬取任务时发生错误: {e}")
+                # 确保协程被正确关闭
+                coro.close()
 
     async def _fetch(self, request):
         async def _successful(_response):
@@ -497,8 +502,15 @@ class Engine(object):
     async def close_spider(self, reason='finished'):
         self._close_reason = reason
 
-        if self.task_manager is not None:
-            await asyncio.gather(*self.task_manager.current_task)
+        # 等待所有活跃任务完成，正确处理取消情况
+        if self.task_manager is not None and self.task_manager.current_task:
+            try:
+                # 使用 return_exceptions=True 避免单个任务异常影响其他任务
+                await asyncio.gather(*self.task_manager.current_task, return_exceptions=True)
+            except asyncio.CancelledError:
+                self.logger.debug("Task manager gather cancelled")
+            except Exception as e:
+                self.logger.debug(f"Task manager gather completed with errors: {e}")
         
         # 检查点保存：Ctrl+C 触发的关闭时保存状态
         if reason == 'shutdown':

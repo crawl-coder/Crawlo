@@ -31,25 +31,46 @@ class ProcessSignalHandler:
     
     def setup_signal_handlers(self):
         """设置信号处理器以优雅地处理关闭信号"""
+        import sys
+        
         def signal_handler(signum, frame):
             self.logger.info(f"Received signal {signum}, initiating graceful shutdown...")
             self.shutdown_requested = True
             self.shutdown_event.set()
-            
-            # 尝试在主线程的事件循环中调度关闭操作
-            try:
-                loop = asyncio.get_running_loop()
-                if loop.is_running():
-                    loop.create_task(self.graceful_shutdown())
-                else:
-                    self.logger.warning("Event loop is not running, shutdown will be handled by await")
-            except RuntimeError:
-                # 没有运行中的事件循环，忽略（将在 crawl() 方法中处理）
-                self.logger.debug("No running event loop, shutdown will be handled by crawl() method")
         
-        # 注册SIGINT (Ctrl+C) 和 SIGTERM 信号处理器
-        signal.signal(signal.SIGINT, signal_handler)
-        signal.signal(signal.SIGTERM, signal_handler)
+        # 检测平台类型
+        is_windows = sys.platform.lower().startswith('win')
+        
+        # Windows 平台使用标准 signal 模块
+        if is_windows:
+            try:
+                signal.signal(signal.SIGINT, signal_handler)
+                signal.signal(signal.SIGTERM, signal_handler)
+                self.logger.debug("Using standard signal handlers (Windows)")
+            except Exception as e:
+                self.logger.warning(f"Failed to setup Windows signal handlers: {e}")
+            return
+        
+        # Unix/Linux 平台尝试使用 asyncio 的信号处理器
+        try:
+            loop = asyncio.get_event_loop()
+            if hasattr(loop, 'add_signal_handler'):
+                loop.add_signal_handler(signal.SIGINT, lambda: signal_handler(signal.SIGINT, None))
+                loop.add_signal_handler(signal.SIGTERM, lambda: signal_handler(signal.SIGTERM, None))
+                self.logger.debug("Using asyncio signal handlers (Unix/Linux)")
+            else:
+                # 回退到标准 signal 模块
+                signal.signal(signal.SIGINT, signal_handler)
+                signal.signal(signal.SIGTERM, signal_handler)
+                self.logger.debug("Using standard signal handlers (fallback)")
+        except Exception as e:
+            self.logger.warning(f"Failed to setup signal handlers: {e}")
+            # 最后尝试标准 signal 模块
+            try:
+                signal.signal(signal.SIGINT, signal_handler)
+                signal.signal(signal.SIGTERM, signal_handler)
+            except Exception as e2:
+                self.logger.error(f"Failed to setup fallback signal handlers: {e2}")
         
     def set_crawlers(self, crawlers):
         """设置爬虫列表
@@ -64,14 +85,11 @@ class ProcessSignalHandler:
         
         在关闭前保存检查点，确保 Ctrl+C 后可以续爬。
         """
-        self.logger.info("开始优雅关闭所有爬虫...")
-
         # 取消所有正在运行的任务
         for crawler in self.crawlers:
             try:
                 # 检查crawler是否正在运行
                 if hasattr(crawler, '_state') and crawler.state == getattr(crawler.__class__, 'State', {}).get('RUNNING', 'running'):
-                    self.logger.debug(f"取消爬虫任务: {crawler.spider.name if crawler.spider else 'Unknown'}")
                     # 取消crawler中的任务
                     if hasattr(crawler, '_engine') and crawler._engine:
                         # 取消engine中的任务
@@ -79,7 +97,6 @@ class ProcessSignalHandler:
                             for task in list(getattr(crawler._engine.task_manager, 'current_task', [])):
                                 if not task.done():
                                     task.cancel()
-                                    self.logger.debug(f"已取消任务: {task}")
             except Exception as e:
                 self.logger.warning(f"取消爬虫任务时出错: {e}")
         
@@ -92,17 +109,11 @@ class ProcessSignalHandler:
                 if hasattr(current_state, 'value'):
                     current_state = current_state.value
                 if str(current_state) not in closing_states:
-                    spider_name = getattr(getattr(crawler, 'spider', None), 'name', 'Unknown')
-                    self.logger.debug(f"关闭爬虫: {spider_name}")
-                    
                     # 使用 reason='shutdown' 触发检查点保存
                     if hasattr(crawler, '_cleanup'):
                         await crawler._cleanup(reason='shutdown')
-                        self.logger.info(f"爬虫已关闭: {spider_name}")
             except Exception as e:
                 self.logger.warning(f"关闭爬虫时出错: {e}")
-        
-        self.logger.info("所有爬虫已关闭")
 
 
 class SpiderDiscoveryUtils:
