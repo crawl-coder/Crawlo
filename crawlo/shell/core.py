@@ -19,18 +19,28 @@ from crawlo.network.response import Response
 
 
 class _MockCrawler:
-    """轻量级 Crawler 替身，供 Shell 中的下载器使用"""
+    """轻量级 Crawler 替身，供 Shell 中的下载器使用
+    
+    模拟完整 Crawler 接口，避免中间件初始化时因缺少属性而崩溃。
+    """
     
     def __init__(self, settings=None):
-        if settings is None:
+        if settings is None or isinstance(settings, dict):
             try:
                 from crawlo.settings.setting_manager import SettingManager
-                self.settings = SettingManager()
+                sm = SettingManager()
+                if isinstance(settings, dict):
+                    # 合并用户配置到 SettingManager
+                    for k, v in settings.items():
+                        sm.attributes[k] = v
+                self.settings = sm
             except Exception:
-                self.settings = {}
+                self.settings = settings or {}
         else:
             self.settings = settings
         self.spider = _MockSpider()
+        self.engine = None
+        self.stats = None
 
 
 class _MockSpider:
@@ -292,23 +302,22 @@ class CrawloShell:
             return None
     
     def _try_framework_downloader(self):
-        """尝试创建框架下载器实例"""
+        """尝试创建框架下载器实例
+        
+        注意：Shell 场景下无法使用完整中间件链（需要 crawler.engine），
+        因此这里创建的下载器仅用于直接调用 download() 方法（通过 _DownloaderAdapter），
+        不走中间件。
+        
+        如果 open() 因中间件初始化失败，则跳过该下载器，回退到 _SimpleFetcher。
+        """
         crawler = _MockCrawler(settings=self.settings)
         
-        # 尝试 HybridDownloader
-        try:
-            from crawlo.downloader.hybrid_downloader import HybridDownloader
-            dl = HybridDownloader(crawler)
-            dl.open()
-            return dl
-        except Exception:
-            pass
-        
-        # 尝试 AioHttpDownloader
+        # 尝试 AioHttpDownloader（最轻量）
         try:
             from crawlo.downloader.aiohttp_downloader import AioHttpDownloader
             dl = AioHttpDownloader(crawler)
-            dl.open()
+            # 跳过 open()，因为中间件初始化会失败
+            # 直接通过 _DownloaderAdapter 调用 download()
             return dl
         except Exception:
             pass
@@ -358,22 +367,56 @@ class _DownloaderAdapter:
     """下载器适配器，绕过中间件直接调用 download 方法
     
     Shell 场景不需要完整的中间件链，直接调用下载器的 download 方法即可。
+    对于需要 session 的下载器（如 AioHttpDownloader），在首次 fetch 时自动初始化 session。
     """
     
     def __init__(self, downloader):
         self._downloader = downloader
+        self._session_initialized = False
     
     async def fetch(self, request: Request) -> Optional[Response]:
         """直接调用下载器的 download 方法"""
         try:
+            # 确保 session 已初始化（针对 AioHttpDownloader 等）
+            await self._ensure_session()
             return await self._downloader.download(request)
         except Exception as e:
             get_logger(__name__).error(f"Download error: {e}")
             return None
     
+    async def _ensure_session(self):
+        """确保下载器 session 已初始化"""
+        if self._session_initialized:
+            return
+        
+        # 对于 AioHttpDownloader，手动创建 session
+        if hasattr(self._downloader, 'session') and self._downloader.session is None:
+            try:
+                import aiohttp
+                from aiohttp import TCPConnector
+                self._downloader.session = aiohttp.ClientSession(
+                    connector=TCPConnector(limit=10, ttl_dns_cache=300),
+                    timeout=aiohttp.ClientTimeout(total=30)
+                )
+                # 设置默认的最大下载大小（10MB）
+                if hasattr(self._downloader, 'max_download_size'):
+                    if self._downloader.max_download_size == 0:
+                        self._downloader.max_download_size = 10 * 1024 * 1024
+                self._session_initialized = True
+            except Exception as e:
+                get_logger(__name__).debug(f"Failed to init session: {e}")
+        else:
+            self._session_initialized = True
+    
     async def close(self):
         """关闭下载器"""
         try:
+            # 如果我们创建了 session，先关闭它
+            if self._session_initialized and hasattr(self._downloader, 'session'):
+                session = self._downloader.session
+                if session and not session.closed:
+                    await session.close()
+                    self._downloader.session = None
             await self._downloader.close()
         except Exception:
             pass
