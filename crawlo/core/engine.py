@@ -216,9 +216,13 @@ class Engine(object):
                 try:
                     await generation_task
                 except asyncio.CancelledError:
-                    pass
+                    self.logger.debug("Generation task cancelled")
             
-            await self.close_spider()
+            # 优雅关闭爬虫（reason 已经在 signal handler 中设置）
+            try:
+                await self.close_spider()
+            except asyncio.CancelledError:
+                self.logger.debug("close_spider cancelled")
 
     async def _traditional_request_generation(self):
         """传统请求生成方法（兼容旧版本）"""

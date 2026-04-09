@@ -266,7 +266,7 @@ class Crawler:
                 await self._initialize_components()
                 await self._run_crawler()
         except asyncio.CancelledError:
-            self._logger.info("爬取任务被取消")
+            self._logger.info("爬取任务被取消（Ctrl+C）")
             # 重新抛出CancelledError以便调用者可以正确处理
             raise
         except Exception as e:
@@ -284,13 +284,17 @@ class Crawler:
             yield
         except asyncio.CancelledError:
             self._logger.info("爬虫任务被取消，开始清理资源...")
-            await self._cleanup()
+            await self._cleanup(reason='shutdown')
             raise
         except Exception as e:
             await self._handle_error(e)
             raise
         finally:
-            await self._cleanup()
+            # 只有在非 CancelledError 的情况下才清理（CancelledError 已在 except 中清理）
+            import sys
+            exc_type, _, _ = sys.exc_info()
+            if exc_type is not asyncio.CancelledError:
+                await self._cleanup()
             self._metrics.end_time = time.time()
     
     async def _initialize_components(self) -> None:
@@ -690,11 +694,13 @@ class CrawlerProcess:
                     try:
                         await crawl_task
                     except asyncio.CancelledError:
-                        pass
+                        self._logger.debug(f"Spider {spider_cls.name} cancelled successfully")
                 
-                # 检查爬虫任务是否异常
-                if crawl_task.exception():
-                    raise crawl_task.exception()
+                # 检查爬虫任务是否异常（排除 CancelledError）
+                if crawl_task.done() and not crawl_task.cancelled():
+                    exc = crawl_task.exception()
+                    if exc:
+                        raise exc
                 
             # 清理crawler资源，防止内存泄漏
             await self._cleanup_crawler(crawler, spider_cls.name)
