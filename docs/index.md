@@ -71,6 +71,9 @@ class MySpider(Spider):
 ### [💻 命令行参考](cli-reference.md)
 一站式查阅所有 `crawlo` 命令及参数。
 
+### [🐚 Shell 交互式终端](shell-guide.md)
+实时调试选择器、测试动态渲染，无需编写完整爬虫。
+
 ## 学习路径
 
 如果您是 Crawlo 的新用户，建议按以下顺序学习：
@@ -78,7 +81,8 @@ class MySpider(Spider):
 1. **入门** - 阅读[快速入门指南](getting-started.md)，运行第一个示例。
 2. **架构** - 了解[核心架构](architecture.md)设计及运行模式。
 3. **深入** - 掌握[核心组件](core-components.md)的使用。
-4. **高阶** - 探索[高级特性](advanced-features.md)如 AI 适配、自适应选择器。
+4. **调试** - 使用 [Shell 交互式终端](shell-guide.md)实时调试选择器。
+5. **高阶** - 探索[高级特性](advanced-features.md)如 AI 适配、自适应选择器。
 
 ## 贡献
 

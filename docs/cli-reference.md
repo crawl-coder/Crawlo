@@ -66,3 +66,21 @@ crawlo-mcp [options]
 - `--host`: 绑定 IP 地址。
 - `--port`: 绑定端口。
 - `--transport`: 传输协议 (stdio, sse)。
+
+---
+
+## 5. 交互式终端
+
+### `crawlo shell`
+启动交互式终端，用于调试选择器、测试动态渲染和验证逻辑。
+```bash
+crawlo shell [url]
+```
+
+**示例**:
+```bash
+crawlo shell                       # 启动空 Shell
+crawlo shell https://example.com   # 启动并预抓取 URL
+```
+
+详细用法请参阅 [Shell 交互式终端](shell-guide.md)。
