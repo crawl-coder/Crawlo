@@ -11,7 +11,7 @@ import os
 # 添加项目根目录到路径
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
 
-from crawlo.downloader.page_action_handler import PageActionHandler, SelectorConverter
+from crawlo.utils.page_utils import PageActionHandler, SelectorConverter
 
 
 def test_selector_converter():

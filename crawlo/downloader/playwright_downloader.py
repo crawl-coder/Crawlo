@@ -26,7 +26,7 @@ from urllib.parse import urlparse
 from playwright.async_api import async_playwright, Playwright, Browser, Page, BrowserContext
 
 from crawlo.downloader import DownloaderBase
-from crawlo.downloader.page_action_handler import PageActionHandler, SelectorConverter
+from crawlo.utils.page_utils import PageActionHandler, SelectorConverter
 from crawlo.downloader.stealth_scripts import get_stealth_scripts
 from crawlo.downloader.constants import (
     DEFAULT_ARGS, STEALTH_ARGS, HARMFUL_ARGS,
