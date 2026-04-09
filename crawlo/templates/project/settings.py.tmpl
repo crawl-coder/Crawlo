@@ -26,7 +26,7 @@ config = CrawloConfig.auto(
     project_name='{{project_name}}',
     concurrency=8,              # 并发请求数：开发8，生产16-32
     download_delay=1.0,         # 下载延迟（秒）
-    max_running_spiders=1       # 最大同时运行爬虫数（3-5 个爬虫）
+    max_running_spiders=1       # 最大同时运行爬虫数
 )
 
 # 将配置转换为当前模块的全局变量

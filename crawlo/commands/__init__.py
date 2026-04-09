@@ -9,7 +9,8 @@ _commands = {
     'list': 'crawlo.commands.list',
     'stats': 'crawlo.commands.stats',
     'help': 'crawlo.commands.help',
-    'schedule': 'crawlo.commands.schedule'
+    'schedule': 'crawlo.commands.schedule',
+    'shell': 'crawlo.commands.shell'
 }
 
 def get_commands():

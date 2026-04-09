@@ -21,7 +21,7 @@ from crawlo.config import CrawloConfig
 #   - redis_port: Redis 端口
 #   - concurrency: 单个爬虫的并发请求数（分布式建议 16-32）
 #   - download_delay: 请求间隔延迟（秒）
-#   - max_running_spiders: 同时运行的最大爬虫数（分布式建议 10+）
+#   - max_running_spiders: 同时运行的最大爬虫数（分布式建议 10+），理论上，Distributed 模式可以支持 几十个甚至上百个 爬虫同时运行，只要 Redis 和服务器资源足够
 
 config = CrawloConfig.distributed(
     redis_host='127.0.0.1',     # Redis 主机地址

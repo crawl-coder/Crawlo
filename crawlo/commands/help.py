@@ -70,7 +70,8 @@ def show_help():
         'list': ('列出所有爬虫', 'crawlo list'),
         'stats': ('查看统计信息', 'crawlo stats [spider_name]'),
         'help': ('显示帮助信息', 'crawlo -h|--help'),
-        'schedule': ('启动定时任务守护进程', 'crawlo schedule')
+        'schedule': ('启动定时任务守护进程', 'crawlo schedule'),
+        'shell': ('交互式终端', 'crawlo shell [url]')
     }
         
     for cmd, (desc, usage) in command_descriptions.items():
@@ -151,6 +152,14 @@ def show_help():
     console.print("    crawlo stats myspider")
     console.print()
         
+    # shell 命令
+    console.print("[bold cyan]shell[/bold cyan] - 交互式终端")
+    console.print("  用法: crawlo shell [url]")
+    console.print("  示例:")
+    console.print("    crawlo shell")
+    console.print("    crawlo shell https://example.com")
+    console.print()
+    
     # 显示更多信息
     # console.print("[bold green]更多信息:[/bold green]")
     # console.print("  文档: https://crawlo.readthedocs.io/")
