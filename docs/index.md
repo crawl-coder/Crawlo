@@ -41,54 +41,44 @@ class MySpider(Spider):
 # crawlo run example
 ```
 
-## 文档目录
+## 文档导航
 
-### 核心概念
-- [架构概述](modules/architecture/index.md) - Crawlo 的整体架构设计
-- [运行模式](modules/architecture/modes.md) - 单机与分布式模式详解
-- [配置系统](modules/configuration/index.md) - 配置管理与验证
+### [🔰 新手手把手教程](beginner-tutorial.md)
+**推荐！** 从零开始，手把手教您构建第一个爬虫，包含核心参数配置指南。
 
-### 核心模块
-- [引擎 (Engine)](modules/core/engine.md) - 爬取过程的核心协调器
-- [调度器 (Scheduler)](modules/core/scheduler.md) - 请求队列与去重管理
-- [处理器 (Processor)](modules/core/processor.md) - 响应处理与数据提取
-- [爬虫基类 (Spider)](modules/core/spider.md) - 爬虫基础类与生命周期
+### [🚀 快速入门](getting-started.md)
+项目初始化、爬虫编写及运行基础。
 
-### 功能模块
-- [下载器 (Downloader)](modules/downloader/index.md) - HTTP 客户端实现
-- [队列 (Queue)](modules/queue/index.md) - 请求队列管理
-- [过滤器 (Filter)](modules/filter/index.md) - 请求去重功能
-- [中间件 (Middleware)](modules/middleware/index.md) - 请求/响应处理组件
-- [管道 (Pipeline)](modules/pipeline/index.md) - 数据处理和存储组件
-- [扩展 (Extension)](modules/extension/index.md) - 附加功能和监控组件
+### [🏗️ 核心架构](architecture.md)
+深入了解 Crawlo 的异步引擎、洋葱模型中间件以及灵活的运行模式（单机/分布式）。
 
-### 命令行工具
-- [CLI 概述](modules/cli/index.md) - 命令行工具使用指南
-- [startproject](modules/cli/startproject.md) - 项目初始化命令
-- [genspider](modules/cli/genspider.md) - 爬虫生成命令
-- [run](modules/cli/run.md) - 爬虫运行命令
-- [list](modules/cli/list.md) - 查看爬虫列表
-- [check](modules/cli/check.md) - 配置检查命令
-- [stats](modules/cli/stats.md) - 统计信息查看
+### [🛠️ 核心组件](core-components.md)
+详解下载器、调度器、管道和爬虫基类。学习如何配置代理、处理重试以及对接 MySQL/MongoDB。
 
-### 高级主题
-- [分布式部署](modules/advanced/distributed.md) - 分布式爬取配置与部署
-- [性能优化](modules/advanced/performance.md) - 性能调优指南
-- [故障排除](modules/advanced/troubleshooting.md) - 常见问题与解决方案
-- [最佳实践](modules/advanced/best_practices.md) - 开发最佳实践
+### [⚙️ 配置指南](configuration.md)
+三种运行模式（Standalone/Auto/Distributed）详解，配置优先级与合并策略。
 
-### API 参考
-- [完整 API 文档](api/) - 详细的类和方法参考
+### [💡 实战案例库](examples.md)
+包含东方财富、InfoQ、OFweek 等多个真实场景的完整案例代码。
+
+### [🌟 高级特性](advanced-features.md)
+探索 Crawlo 的杀手级功能：
+- **AI 适配层 (MCP)**：让 Claude/Cursor 直接驱动爬虫。
+- **自适应选择器**：网页改版后的自动修复技术。
+- **混合下载器**：协议与浏览器的智能切换。
+- **Cloudflare 绕过**：自动识别并处理验证码挑战。
+
+### [💻 命令行参考](cli-reference.md)
+一站式查阅所有 `crawlo` 命令及参数。
 
 ## 学习路径
 
 如果您是 Crawlo 的新用户，建议按以下顺序学习：
 
-1. **入门** - 阅读快速开始指南，运行第一个示例
-2. **核心概念** - 了解框架架构和基本概念
-3. **核心模块** - 深入学习引擎、调度器、处理器等核心组件
-4. **功能模块** - 根据需求学习下载器、队列、过滤器等模块
-5. **高级主题** - 掌握分布式部署、性能优化等高级功能
+1. **入门** - 阅读[快速入门指南](getting-started.md)，运行第一个示例。
+2. **架构** - 了解[核心架构](architecture.md)设计及运行模式。
+3. **深入** - 掌握[核心组件](core-components.md)的使用。
+4. **高阶** - 探索[高级特性](advanced-features.md)如 AI 适配、自适应选择器。
 
 ## 贡献
 
