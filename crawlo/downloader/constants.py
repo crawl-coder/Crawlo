@@ -3,7 +3,7 @@
 """
 下载器常量配置
 
-参考 Scrapling 项目的反检测配置，提供浏览器启动参数优化。
+反检测配置，提供浏览器启动参数优化。
 """
 
 # 需要忽略的有害参数（这些参数可能暴露自动化特征）
@@ -30,7 +30,7 @@ DEFAULT_ARGS = (
     "--disable-search-engine-choice-screen",
 )
 
-# 隐身模式参数（参考 Scrapling）
+# 隐身模式参数
 STEALTH_ARGS = (
     # 性能和隐私优化
     "--test-type",

@@ -22,44 +22,15 @@
 - DynamicRenderMiddleware（中间件层）：检测页面类型，设置请求标记
 - HybridDownloader（下载器层）：读取标记，选择合适的下载器执行
 """
-from typing import Optional, Dict, Type
+import importlib
+from typing import Optional, Dict, Type, List
+import re
 from urllib.parse import urlparse
 
 from crawlo.downloader import DownloaderBase
 from crawlo.network.request import Request
 from crawlo.network.response import Response
 from crawlo.logging import get_logger
-
-# 动态导入下载器（避免循环导入）
-try:
-    from .aiohttp_downloader import AioHttpDownloader
-except ImportError:
-    AioHttpDownloader = None
-
-try:
-    from .httpx_downloader import HttpXDownloader
-except ImportError:
-    HttpXDownloader = None
-
-try:
-    from .cffi_downloader import CurlCffiDownloader
-except ImportError:
-    CurlCffiDownloader = None
-
-try:
-    from .drissionpage_downloader import DrissionPageDownloader
-except ImportError:
-    DrissionPageDownloader = None
-
-try:
-    from .playwright_downloader import PlaywrightDownloader
-except ImportError:
-    PlaywrightDownloader = None
-
-try:
-    from .camoufox_downloader import CamoufoxDownloader
-except ImportError:
-    CamoufoxDownloader = None
 
 
 class HybridDownloader(DownloaderBase):
@@ -91,9 +62,13 @@ class HybridDownloader(DownloaderBase):
         self.default_protocol_downloader = crawler.settings.get("HYBRID_DEFAULT_PROTOCOL_DOWNLOADER", "aiohttp")
         self.default_dynamic_downloader = crawler.settings.get("HYBRID_DEFAULT_DYNAMIC_DOWNLOADER", "playwright")
 
-        # URL模式配置
-        self.dynamic_url_patterns = set(crawler.settings.get_list("HYBRID_DYNAMIC_URL_PATTERNS", []))
-        self.protocol_url_patterns = set(crawler.settings.get_list("HYBRID_PROTOCOL_URL_PATTERNS", []))
+        # URL模式配置（支持正则表达式）
+        self.dynamic_url_patterns: List[re.Pattern] = [
+            re.compile(p) for p in crawler.settings.get_list("HYBRID_DYNAMIC_URL_PATTERNS", [])
+        ]
+        self.protocol_url_patterns: List[re.Pattern] = [
+            re.compile(p) for p in crawler.settings.get_list("HYBRID_PROTOCOL_URL_PATTERNS", [])
+        ]
 
         # 域名配置
         self.dynamic_domains = set(crawler.settings.get_list("HYBRID_DYNAMIC_DOMAINS", []))
@@ -131,16 +106,30 @@ class HybridDownloader(DownloaderBase):
         )
 
     def _get_downloader_class(self, downloader_type: str) -> Optional[Type[DownloaderBase]]:
-        """根据类型获取下载器类"""
+        """根据类型获取下载器类 (延迟加载以避免循环导入和不必要的启动开销)"""
+        # 下载器映射配置：(模块相对路径, 类名)
         downloader_map = {
-            "aiohttp": AioHttpDownloader,
-            "httpx": HttpXDownloader,
-            "curl_cffi": CurlCffiDownloader,
-            "drissionpage": DrissionPageDownloader,
-            "playwright": PlaywrightDownloader,
-            "camoufox": CamoufoxDownloader,
+            "aiohttp": (".aiohttp_downloader", "AioHttpDownloader"),
+            "httpx": (".httpx_downloader", "HttpXDownloader"),
+            "curl_cffi": (".cffi_downloader", "CurlCffiDownloader"),
+            "drissionpage": (".drissionpage_downloader", "DrissionPageDownloader"),
+            "playwright": (".playwright_downloader", "PlaywrightDownloader"),
+            "camoufox": (".camoufox_downloader", "CamoufoxDownloader"),
         }
-        return downloader_map.get(downloader_type.lower())
+        
+        target = downloader_type.lower()
+        if target not in downloader_map:
+            return None
+            
+        module_path, class_name = downloader_map[target]
+        
+        try:
+            # 动态导入模块，package 参数确保相对导入正确工作
+            module = importlib.import_module(module_path, package=__package__)
+            return getattr(module, class_name)
+        except (ImportError, AttributeError) as e:
+            self.logger.error(f"Failed to load downloader '{downloader_type}': {e}")
+            return None
 
     async def download(self, request: Request) -> Optional[Response]:
         """根据请求特征选择合适的下载器并下载"""
@@ -196,17 +185,17 @@ class HybridDownloader(DownloaderBase):
                 self.logger.debug(f"[Hybrid] {url} -> protocol (reason: {detection_reason})")
             return "protocol"
 
-        # 2. 检查URL模式配置
+        # 2. 检查URL模式配置（使用正则表达式匹配）
         for pattern in self.dynamic_url_patterns:
-            if pattern in url:
-                detection_reason = f"url_pattern:dynamic:{pattern}"
+            if pattern.search(url):
+                detection_reason = f"url_pattern:dynamic:{pattern.pattern}"
                 if self.verbose_logging:
                     self.logger.debug(f"[Hybrid] {url} -> dynamic (reason: {detection_reason})")
                 return "dynamic"
 
         for pattern in self.protocol_url_patterns:
-            if pattern in url:
-                detection_reason = f"url_pattern:protocol:{pattern}"
+            if pattern.search(url):
+                detection_reason = f"url_pattern:protocol:{pattern.pattern}"
                 if self.verbose_logging:
                     self.logger.debug(f"[Hybrid] {url} -> protocol (reason: {detection_reason})")
                 return "protocol"

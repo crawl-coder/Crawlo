@@ -20,6 +20,7 @@ Playwright 下载器
 """
 import time
 import re
+import asyncio
 from typing import Optional, Dict, List, Set
 from urllib.parse import urlparse
 
@@ -93,6 +94,8 @@ class PlaywrightDownloader(DownloaderBase):
         self.max_pages_per_browser = crawler.settings.get_int("PLAYWRIGHT_MAX_PAGES_PER_BROWSER", 10)
         self._page_pool: List[Page] = []  # 页面池（复用的tab）
         self._used_pages: set = set()  # 正在使用的页面ID
+        self._page_semaphore: Optional[asyncio.Semaphore] = None  # 页面池信号量，控制最大并发数
+        self._page_semaphore_lock = asyncio.Lock()  # 信号量操作锁，防止竞态条件
 
         # ===== 智能等待配置 =====
         self.wait_strategy = crawler.settings.get("PLAYWRIGHT_WAIT_STRATEGY", WaitStrategy.AUTO)
@@ -296,6 +299,10 @@ class PlaywrightDownloader(DownloaderBase):
                 context_options["ignore_https_errors"] = True
             
             self.context = await self.browser.new_context(**context_options)
+            
+            # 初始化页面池信号量
+            if self.single_browser_mode:
+                self._page_semaphore = asyncio.Semaphore(self.max_pages_per_browser)
             
             # 应用全局设置
             await self._apply_global_settings()
@@ -860,42 +867,39 @@ class PlaywrightDownloader(DownloaderBase):
         获取页面实例（单浏览器多标签页模式）
         
         策略：
-        1. 只启动一个浏览器实例
-        2. 维护一个页面池，复用标签页
-        3. 控制最大并发数（max_pages_per_browser）
-        4. 使用完毕后归还到池中，不关闭
+        1. 使用 asyncio.Semaphore 控制并发，页面满时自动排队等待
+        2. 优先复用池中空闲的标签页
+        3. 如果池未满，创建新标签页
+        4. 信号量和页面分配必须配对，防止泄漏
         """
         if not self.context:
             raise RuntimeError("Browser context not initialized")
         
         # 如果启用了单浏览器模式
         if self.single_browser_mode:
-            # 尝试从池中获取未使用的页面
-            for page in self._page_pool:
-                if id(page) not in self._used_pages:
-                    self._used_pages.add(id(page))
-                    return page
+            # 等待信号量（如果已满，会在此挂起排队）
+            await self._page_semaphore.acquire()
+            semaphore_acquired = True  # 标记信号量已获取
             
-            # 如果池中还有空间，创建新页面
-            if len(self._page_pool) < self.max_pages_per_browser:
+            try:
+                # 尝试从池中获取未使用的页面
+                for page in self._page_pool:
+                    if id(page) not in self._used_pages:
+                        self._used_pages.add(id(page))
+                        return page  # 成功获取页面
+                
+                # 池中无空闲页面，创建新页面
                 new_page = await self.context.new_page()
                 self._page_pool.append(new_page)
                 self._used_pages.add(id(new_page))
                 return new_page
-            
-            # 如果池已满，等待其他页面释放
-            self.logger.warning(f"Page pool full ({self.max_pages_per_browser}), waiting for page release...")
-            for _ in range(10):  # 最多等待 10 次
-                await asyncio.sleep(0.5)
-                # 检查是否有页面释放
-                for page in self._page_pool:
-                    if id(page) not in self._used_pages:
-                        self._used_pages.add(id(page))
-                        return page
-            # 如果等待后仍未获取到页面，创建临时页面作为后备
-            self.logger.warning("Page pool wait timeout, creating temporary page")
-            temp_page = await self.context.new_page()
-            return temp_page
+                
+            except Exception as e:
+                # 任何异常都要释放信号量，防止泄漏
+                if semaphore_acquired:
+                    self._page_semaphore.release()
+                self.logger.warning(f"Failed to get page: {e}")
+                raise
         
         # 非单浏览器模式，直接创建新页面
         return await self.context.new_page()
@@ -905,23 +909,32 @@ class PlaywrightDownloader(DownloaderBase):
         释放页面（归还到池中复用）
         
         策略：
-        1. 如果是池中的页面，标记为未使用
-        2. 导航到 about:blank 清空内容
-        3. 如果是临时页面，直接关闭
+        1. 如果是池中的页面，标记为未使用并释放信号量
+        2. 导航到 about:blank 清空内容以防泄露
+        3. 如果是临时页面（非单浏览器模式），直接关闭
+        4. 使用锁保护关键区域，防止竞态条件
         """
         page_id = id(page)
         
-        # 检查是否是池中的页面
-        if page_id in self._used_pages:
-            self._used_pages.discard(page_id)
-            # 清空页面内容，准备下次使用
-            try:
-                await page.goto("about:blank", timeout=1000)
-            except:
-                pass
-        else:
-            # 临时页面，直接关闭
-            try:
-                await page.close()
-            except:
-                pass
+        async with self._page_semaphore_lock:
+            # 检查是否是池中的页面
+            if page_id in self._used_pages:
+                self._used_pages.discard(page_id)
+                
+                # 释放信号量，允许排队中的任务进入
+                if self._page_semaphore:
+                    self._page_semaphore.release()
+                    self.logger.debug(f"Released semaphore, pool size: {len(self._page_pool)}, used: {len(self._used_pages)}")
+                
+                # 清空页面内容，准备下次使用
+                try:
+                    await page.goto("about:blank", timeout=2000)
+                except Exception as e:
+                    self.logger.debug(f"Failed to navigate to blank page: {e}")
+            else:
+                # 非池中页面，直接关闭
+                self.logger.debug("Closing non-pooled page")
+                try:
+                    await page.close()
+                except Exception as e:
+                    self.logger.debug(f"Failed to close page: {e}")
