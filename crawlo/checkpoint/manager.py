@@ -355,9 +355,22 @@ class CheckpointManager:
         try:
             # 优先使用框架的 request_from_dict
             from crawlo.utils.request.request import request_from_dict
-            return request_from_dict(request_data, spider)
+            request = request_from_dict(request_data, spider)
+
+            # request_from_dict 不处理的部分，手动恢复
+            for attr in ('dont_filter', 'timeout', 'proxy', 'priority'):
+                if attr in request_data:
+                    setattr(request, attr, request_data[attr])
+
+            # 恢复 cookies（request_from_dict 不处理）
+            if 'cookies' in request_data and request_data['cookies']:
+                request.cookies = request_data['cookies']
+
+            return request
         except ImportError:
             pass
+        except Exception as e:
+            self.logger.debug(f"request_from_dict failed: {e}, falling back to manual restore")
 
         # 手动恢复
         try:

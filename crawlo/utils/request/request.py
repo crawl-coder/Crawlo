@@ -8,6 +8,7 @@
 import importlib
 import json
 import hashlib
+import base64
 from typing import Any, Optional, Iterable, Union, Dict
 from w3lib.url import canonicalize_url
 
@@ -190,11 +191,15 @@ def request_to_dict(request: Request, spider=None) -> Dict[str, Any]:
         'url': request.url,
         'method': request.method,
         'headers': dict(request.headers),
-        'body': request.body,
+        'body': base64.b64encode(request.body).decode('ascii') if isinstance(request.body, bytes) else request.body,
         'meta': request.meta.copy(),  # 复制一份
         'flags': request.flags.copy(),
         'cb_kwargs': request.cb_kwargs.copy(),
     }
+
+    # 标记 body 是否为 base64 编码
+    if isinstance(request.body, bytes):
+        d['_body_b64'] = True
 
     # 1. 处理 callback
     #    不能直接序列化函数，所以存储其路径
@@ -231,7 +236,13 @@ def request_from_dict(d: Dict[str, Any], spider=None) -> Request:
     else:
         cls = _get_request_class()
 
-    # 2. 提取回调函数
+    # 2. 处理 body（base64 解码）
+    body = d.get('body')
+    if d.pop('_body_b64', False) and isinstance(body, str):
+        body = base64.b64decode(body)
+    d.pop('body', None)  # 先移除，后续由 Request 构造处理
+
+    # 3. 提取回调函数
     callback_path = d.pop('_callback', None)
     callback = _get_function_from_path(callback_path, spider) if callback_path else None
 
@@ -240,16 +251,20 @@ def request_from_dict(d: Dict[str, Any], spider=None) -> Request:
     errback = _get_function_from_path(errback_path, spider) if errback_path else None
 
     # 5. 创建 Request 实例
-    request = cls(
-        url=d['url'],
-        method=d.get('method', 'GET'),
-        headers=d.get('headers', {}),
-        body=d.get('body'),
-        callback=callback,
-        meta=d.get('meta', {}),
-        flags=d.get('flags', []),
-        cb_kwargs=d.get('cb_kwargs', {}),
-    )
+    request_kwargs = {
+        'url': d['url'],
+        'method': d.get('method', 'GET'),
+        'headers': d.get('headers', {}),
+        'meta': d.get('meta', {}),
+        'flags': d.get('flags', []),
+        'cb_kwargs': d.get('cb_kwargs', {}),
+    }
+    if body is not None:
+        request_kwargs['body'] = body
+    if callback is not None:
+        request_kwargs['callback'] = callback
+
+    request = cls(**request_kwargs)
     
     # 手动设置 err_back 属性
     if errback is not None:

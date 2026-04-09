@@ -113,7 +113,13 @@ class CurlParser:
                 header_line = parts[i + 1]
                 if ':' in header_line:
                     k, v = header_line.split(':', 1)
-                    result['headers'][k.strip()] = v.strip()
+                    key_lower = k.strip().lower()
+                    val = v.strip()
+                    # Cookie header 特殊处理：提取到 cookies 字典
+                    if key_lower == 'cookie':
+                        result['cookies'] = _parse_cookies(val)
+                    else:
+                        result['headers'][k.strip()] = val
                 i += 2
 
             # -d / --data / --data-raw / --data-binary
