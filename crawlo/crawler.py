@@ -659,9 +659,33 @@ class CrawlerProcess:
                 
             merged_settings = self._merge_settings(settings)
             crawler = Crawler(spider_cls, merged_settings)
+            
+            # 将 crawler 添加到信号处理器的列表中
+            if crawler not in self._crawlers:
+                self._crawlers.append(crawler)
                 
             async with self._semaphore:
-                await crawler.crawl()
+                # 创建爬虫任务
+                crawl_task = asyncio.create_task(crawler.crawl())
+                
+                # 等待爬虫完成或收到关闭信号
+                done, pending = await asyncio.wait(
+                    [crawl_task, asyncio.create_task(self._shutdown_event.wait())],
+                    return_when=asyncio.FIRST_COMPLETED
+                )
+                
+                # 如果收到关闭信号，取消爬虫任务
+                if self._shutdown_event.is_set() and not crawl_task.done():
+                    self._logger.info(f"Shutdown requested, cancelling spider: {spider_cls.name}")
+                    crawl_task.cancel()
+                    try:
+                        await crawl_task
+                    except asyncio.CancelledError:
+                        pass
+                
+                # 检查爬虫任务是否异常
+                if crawl_task.exception():
+                    raise crawl_task.exception()
                 
             # 清理crawler资源，防止内存泄漏
             await self._cleanup_crawler(crawler, spider_cls.name)

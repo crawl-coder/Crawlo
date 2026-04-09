@@ -36,8 +36,16 @@ class ProcessSignalHandler:
             self.shutdown_requested = True
             self.shutdown_event.set()
             
-            # 在主线程中调度关闭操作
-            asyncio.create_task(self.graceful_shutdown())
+            # 尝试在主线程的事件循环中调度关闭操作
+            try:
+                loop = asyncio.get_running_loop()
+                if loop.is_running():
+                    loop.create_task(self.graceful_shutdown())
+                else:
+                    self.logger.warning("Event loop is not running, shutdown will be handled by await")
+            except RuntimeError:
+                # 没有运行中的事件循环，忽略（将在 crawl() 方法中处理）
+                self.logger.debug("No running event loop, shutdown will be handled by crawl() method")
         
         # 注册SIGINT (Ctrl+C) 和 SIGTERM 信号处理器
         signal.signal(signal.SIGINT, signal_handler)
