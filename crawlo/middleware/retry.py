@@ -50,7 +50,7 @@ except ImportError:
         pass
 
 from crawlo.logging import get_logger
-from crawlo.stats_collector import StatsCollector
+from crawlo.stats import StatsCollector
 
 _retry_exceptions = [
     EndOfStream,

@@ -43,7 +43,7 @@ def create_scheduler(crawler, **kwargs):
 
 # StatsCollector组件
 def create_stats(crawler, **kwargs):
-    from crawlo.stats_collector import StatsCollector
+    from crawlo.stats import StatsCollector
     return StatsCollector(crawler)
 
 # Subscriber组件

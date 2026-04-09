@@ -1,458 +1,250 @@
 #!/usr/bin/python
 # -*- coding: UTF-8 -*-
 """
-Crawlo 配置工厂
+Crawlo 配置中心
 ===============
-提供优雅的配置方式，让用户能够轻松选择运行模式。
+统一管理框架的所有配置、运行模式切换及合法性验证。
 
-配置加载优先级（从低到高）：
-    1. default_settings.py (框架默认配置)
-    2. settings.py (用户项目配置)
-    3. RUN_MODE 决定的配置（standalone/distributed/auto）
-    4. custom_settings (运行时自定义配置 - 最高优先级)
-    5. 环境变量（可覆盖部分配置）
-
-使用示例：
-    # 单机模式（默认）
-    config = CrawloConfig.standalone()
-    
-    # 分布式模式
-    config = CrawloConfig.distributed(redis_host='192.168.1.100')
-    
-    # 自动检测模式
-    config = CrawloConfig.auto()
-    
-    # 从环境变量
-    config = CrawloConfig.from_env()
+核心特性：
+1. 链式调用：支持 .set().enable_debug() 等链式操作。
+2. 模式切换：内置 standalone, distributed, auto 三种模式。
+3. 自动验证：在设置或更新配置时自动执行合法性检查。
+4. 环境变量：支持从 CRAWLO_ 前缀的环境变量加载配置。
 """
+import os
+import json
+from enum import Enum
+from typing import Dict, Any, Optional, List, Tuple
+from pprint import pformat
 
-from typing import Dict, Any, Optional
-
-
-from crawlo.config_validator import validate_config
-from crawlo.mode_manager import standalone_mode, distributed_mode, auto_mode, from_env
 from crawlo.logging import get_logger
+from crawlo.utils.redis import RedisConfig
 
+
+# ==================== 常量与枚举 ====================
+
+class RunMode(Enum):
+    """运行模式枚举"""
+    STANDALONE = "standalone"
+    DISTRIBUTED = "distributed"
+    AUTO = "auto"
+
+
+BASE_CONFIG = {
+    'PROJECT_NAME': 'crawlo',
+    'CONCURRENCY': 8,
+    'MAX_RUNNING_SPIDERS': 1,
+    'DOWNLOAD_DELAY': 1.0,
+}
+
+MODE_CONFIG_MAP = {
+    'standalone': {
+        'RUN_MODE': 'standalone',
+        'QUEUE_TYPE': 'memory',
+        'FILTER_CLASS': 'crawlo.filters.memory_filter.MemoryFilter',
+        'DEFAULT_DEDUP_PIPELINE': 'crawlo.pipelines.memory_dedup_pipeline.MemoryDedupPipeline',
+    },
+    'distributed': {
+        'RUN_MODE': 'distributed',
+        'QUEUE_TYPE': 'redis',
+        'FILTER_CLASS': 'crawlo.filters.aioredis_filter.AioRedisFilter',
+        'DEFAULT_DEDUP_PIPELINE': 'crawlo.pipelines.redis_dedup_pipeline.RedisDedupPipeline',
+    }
+}
+
+
+# ==================== 配置验证器 ====================
+
+class ConfigValidator:
+    """配置验证器核心类"""
+    
+    def __init__(self):
+        self.errors = []
+        self.warnings = []
+    
+    def validate(self, config: Dict[str, Any]) -> Tuple[bool, List[str], List[str]]:
+        self.errors = []
+        self.warnings = []
+        
+        self._validate_basic(config)
+        self._validate_network(config)
+        self._validate_concurrency(config)
+        self._validate_queue(config)
+        self._validate_redis(config)
+        self._validate_logging(config)
+        
+        return len(self.errors) == 0, self.errors, self.warnings
+
+    def _validate_basic(self, config: Dict[str, Any]):
+        p_name = config.get('PROJECT_NAME', 'crawlo')
+        if not isinstance(p_name, str) or not p_name.strip():
+            self.errors.append("PROJECT_NAME 必须是非空字符串")
+
+    def _validate_network(self, config: Dict[str, Any]):
+        timeout = config.get('DOWNLOAD_TIMEOUT', 30)
+        if not isinstance(timeout, (int, float)) or timeout <= 0:
+            self.errors.append("DOWNLOAD_TIMEOUT 必须是正数")
+        
+        delay = config.get('DOWNLOAD_DELAY', 1.0)
+        if not isinstance(delay, (int, float)) or delay < 0:
+            self.errors.append("DOWNLOAD_DELAY 必须是非负数")
+
+    def _validate_concurrency(self, config: Dict[str, Any]):
+        concurrency = config.get('CONCURRENCY', 8)
+        if not isinstance(concurrency, int) or concurrency <= 0:
+            self.errors.append("CONCURRENCY 必须是正整数")
+
+    def _validate_queue(self, config: Dict[str, Any]):
+        q_type = config.get('QUEUE_TYPE', 'memory')
+        if q_type not in ['memory', 'redis', 'auto']:
+            self.errors.append(f"QUEUE_TYPE 无效: {q_type}")
+
+    def _validate_redis(self, config: Dict[str, Any]):
+        if config.get('QUEUE_TYPE') == 'redis':
+            host = config.get('REDIS_HOST', '127.0.0.1')
+            if not isinstance(host, str) or not host.strip():
+                self.errors.append("使用 Redis 模式时 REDIS_HOST 不能为空")
+
+    def _validate_logging(self, config: Dict[str, Any]):
+        level = config.get('LOG_LEVEL', 'INFO')
+        if level not in ['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL']:
+            self.errors.append(f"LOG_LEVEL 无效: {level}")
+
+
+# ==================== 配置中心核心类 ====================
 
 class CrawloConfig:
-    """Crawlo 配置工厂类"""
+    """
+    Crawlo 配置工厂类
+    
+    统一管理配置的加载、切换和验证。
+    """
     
     def __init__(self, settings: Dict[str, Any]) -> None:
-        """
-        初始化配置对象
-        
-        Args:
-            settings: 配置字典
-        """
         self.settings: Dict[str, Any] = settings
         self.logger = get_logger(self.__class__.__name__)
-        # 验证配置
+        self.validator = ConfigValidator()
         self._validate_settings()
     
-    def _validate_settings(self) -> None:
-        """验证配置"""
-        is_valid, errors, warnings = validate_config(self.settings)
-        if not is_valid:
-            error_msg = "配置验证失败:\n" + "\n".join([f"  - {error}" for error in errors])
-            raise ValueError(error_msg)
+    def _validate_settings(self, raise_error: bool = True) -> bool:
+        """内部验证方法"""
+        is_valid, errors, warnings = self.validator.validate(self.settings)
         
         if warnings:
-            warning_msg = "配置警告:\n" + "\n".join([f"  - {warning}" for warning in warnings])
-            self.logger.warning(warning_msg)
+            for w in warnings: self.logger.warning(f"配置警告: {w}")
+            
+        if not is_valid and raise_error:
+            error_msg = "配置验证失败:\n" + "\n".join([f"  - {e}" for e in errors])
+            raise ValueError(error_msg)
+            
+        return is_valid
+
+    # ----- 链式操作接口 -----
     
     def get(self, key: str, default: Any = None) -> Any:
-        """
-        获取配置项
-        
-        Args:
-            key: 配置键
-            default: 默认值
-            
-        Returns:
-            配置值
-        """
         return self.settings.get(key, default)
     
     def set(self, key: str, value: Any) -> 'CrawloConfig':
-        """
-        设置配置项（链式调用）
-        
-        注意：设置后会自动验证配置合法性
-        
-        Args:
-            key: 配置键
-            value: 配置值
-            
-        Returns:
-            self: 支持链式调用
-        """
         self.settings[key] = value
-        self._validate_settings()  # 自动验证
+        self._validate_settings()
         return self
     
     def update(self, settings: Dict[str, Any]) -> 'CrawloConfig':
-        """
-        更新配置（链式调用）
-        
-        注意：更新后会自动验证配置合法性
-        
-        Args:
-            settings: 配置字典
-            
-        Returns:
-            self: 支持链式调用
-        """
         self.settings.update(settings)
-        self._validate_settings()  # 自动验证
+        self._validate_settings()
         return self
-    
-    def set_concurrency(self, concurrency: int) -> 'CrawloConfig':
-        """
-        设置并发数
-        
-        Args:
-            concurrency: 并发数
-            
-        Returns:
-            self: 支持链式调用
-        """
-        return self.set('CONCURRENCY', concurrency)
-    
-    def set_delay(self, delay: float) -> 'CrawloConfig':
-        """
-        设置请求延迟
-        
-        Args:
-            delay: 下载延迟（秒）
-            
-        Returns:
-            self: 支持链式调用
-        """
-        return self.set('DOWNLOAD_DELAY', delay)
     
     def enable_debug(self) -> 'CrawloConfig':
-        """
-        启用调试模式
-        
-        Returns:
-            self: 支持链式调用
-        """
         return self.set('LOG_LEVEL', 'DEBUG')
     
-    def enable_mysql(self) -> 'CrawloConfig':
-        """
-        启用 MySQL 存储
-        
-        Returns:
-            self: 支持链式调用
-        """
-        pipelines = self.get('PIPELINES', [])
-        if 'crawlo.pipelines.mysql_pipeline.MySQLPipeline' not in pipelines:
-            pipelines.append('crawlo.pipelines.mysql_pipeline.MySQLPipeline')
-        return self.set('PIPELINES', pipelines)
-    
-    def set_redis_host(self, host: str) -> 'CrawloConfig':
-        """
-        设置 Redis 主机
-        
-        Args:
-            host: Redis 主机地址
-            
-        Returns:
-            self: 支持链式调用
-        """
-        return self.set('REDIS_HOST', host)
-    
+    def set_concurrency(self, count: int) -> 'CrawloConfig':
+        return self.set('CONCURRENCY', count)
+
     def to_dict(self) -> Dict[str, Any]:
-        """
-        转换为字典
-        
-        Returns:
-            配置字典的副本
-        """
         return self.settings.copy()
+
+    # ----- 运行模式静态工厂 -----
     
-    def print_summary(self) -> 'CrawloConfig':
-        """
-        打印配置摘要
+    @classmethod
+    def standalone(cls, **kwargs) -> 'CrawloConfig':
+        """单机模式"""
+        settings = BASE_CONFIG.copy()
+        settings.update(MODE_CONFIG_MAP['standalone'])
+        settings.update({k.upper(): v for k, v in kwargs.items()})
+        return cls(settings)
+    
+    @classmethod
+    def distributed(cls, redis_host='127.0.0.1', redis_port=6379, project_name='crawlo', **kwargs) -> 'CrawloConfig':
+        """分布式模式"""
+        redis_cfg = RedisConfig(host=redis_host, port=redis_port, **kwargs)
+        settings = BASE_CONFIG.copy()
+        settings.update(MODE_CONFIG_MAP['distributed'])
+        settings.update({
+            'REDIS_HOST': redis_host,
+            'REDIS_PORT': redis_port,
+            'REDIS_URL': redis_cfg.to_url(),
+            'PROJECT_NAME': project_name,
+            'SCHEDULER_QUEUE_NAME': f'crawlo:{project_name}:queue:requests',
+        })
+        # 合并剩余参数（转换为大写以匹配配置规范）
+        settings.update({k.upper(): v for k, v in kwargs.items()})
+        return cls(settings)
+    
+    @classmethod
+    def auto(cls, project_name='crawlo', **kwargs) -> 'CrawloConfig':
+        """自动检测模式"""
+        settings = BASE_CONFIG.copy()
+        settings.update(MODE_CONFIG_MAP['standalone'])
+        settings.update({
+            'RUN_MODE': 'auto',
+            'QUEUE_TYPE': 'auto',
+            'PROJECT_NAME': project_name
+        })
+        settings.update({k.upper(): v for k, v in kwargs.items()})
+        return cls(settings)
+
+    @classmethod
+    def from_env(cls, default_mode: str = 'standalone') -> 'CrawloConfig':
+        """从环境变量加载配置"""
+        mode = os.getenv('CRAWLO_MODE', default_mode).lower()
         
-        Returns:
-            self: 支持链式调用
-        """
-        mode_info = {
-            'memory': '单机模式',
-            'redis': '分布式模式', 
-            'auto': '自动检测模式'
+        # 基础参数映射
+        env_map = {
+            'CRAWLO_REDIS_HOST': 'redis_host',
+            'CRAWLO_REDIS_PORT': 'redis_port',
+            'CRAWLO_PROJECT_NAME': 'project_name',
         }
         
-        queue_type = self.settings.get('QUEUE_TYPE', 'auto')
-        filter_class = self.settings.get('FILTER_CLASS', '').split('.')[-1]
-        concurrency = self.settings.get('CONCURRENCY', 8)
-        
-        print("=" * 50)
-        print(f"Crawlo 配置摘要")
-        print("=" * 50)
-        print(f"运行模式: {mode_info.get(queue_type, queue_type)}")
-        print(f"队列类型: {queue_type}")
-        print(f"去重方式: {filter_class}")
-        print(f"并发数量: {concurrency}")
-        
-        if queue_type == 'redis':
-            redis_host = self.settings.get('REDIS_HOST', 'localhost')
-            print(f"Redis 服务器: {redis_host}")
-        
-        print("=" * 50)
+        kwargs = {}
+        for env_key, param_name in env_map.items():
+            val = os.getenv(env_key)
+            if val: kwargs[param_name] = val
+            
+        if mode == 'distributed':
+            return cls.distributed(**kwargs)
+        elif mode == 'auto':
+            return cls.auto(**kwargs)
+        return cls.standalone(**kwargs)
+
+    def print_summary(self):
+        """打印美化的配置报告"""
+        print("\n" + "="*20 + " Crawlo Config Summary " + "="*20)
+        print(f"Project: {self.get('PROJECT_NAME')}")
+        print(f"Run Mode: {self.get('RUN_MODE')}")
+        print(f"Concurrency: {self.get('CONCURRENCY')}")
+        if self.get('REDIS_HOST'):
+            print(f"Redis: {self.get('REDIS_HOST')}:{self.get('REDIS_PORT')}")
+        print("="*63 + "\n")
         return self
-    
-    def validate(self) -> bool:
-        """
-        验证当前配置
-        
-        Returns:
-            bool: 配置是否有效
-        """
-        is_valid, errors, warnings = validate_config(self.settings)
-        if not is_valid:
-            print("配置验证失败:")
-            for error in errors:
-                print(f"  - {error}")
-            return False
-        
-        if warnings:
-            print("配置警告:")
-            for warning in warnings:
-                print(f"  - {warning}")
-        
-        return True
-    
-    # ==================== 静态工厂方法 ====================
-    
-    @staticmethod
-    def standalone(
-        concurrency: int = 8,
-        download_delay: float = 1.0,
-        **kwargs: Any
-    ) -> 'CrawloConfig':
-        """
-        创建单机模式配置
-        
-        Args:
-            concurrency: 并发数
-            download_delay: 下载延迟
-            **kwargs: 其他配置项
-            
-        Returns:
-            CrawloConfig: 配置对象
-        """
-        settings = standalone_mode(
-            CONCURRENCY=concurrency,
-            DOWNLOAD_DELAY=download_delay,
-            **kwargs
-        )
-        return CrawloConfig(settings)
-    
-    @staticmethod
-    def distributed(
-        redis_host: str = '127.0.0.1',
-        redis_port: int = 6379,
-        redis_password: Optional[str] = None,
-        redis_db: int = 0,  # 添加 redis_db 参数
-        project_name: str = 'crawlo',
-        concurrency: int = 16,
-        download_delay: float = 1.0,
-        **kwargs: Any
-    ) -> 'CrawloConfig':
-        """
-        创建分布式模式配置
-        
-        Args:
-            redis_host: Redis 服务器地址
-            redis_port: Redis 端口
-            redis_password: Redis 密码
-            redis_db: Redis 数据库编号
-            project_name: 项目名称（用于命名空间）
-            concurrency: 并发数
-            download_delay: 下载延迟
-            **kwargs: 其他配置项
-            
-        Returns:
-            CrawloConfig: 配置对象
-        """
-        settings = distributed_mode(
-            redis_host=redis_host,
-            redis_port=redis_port,
-            redis_password=redis_password,
-            redis_db=redis_db,  # 传递 redis_db 参数
-            project_name=project_name,
-            CONCURRENCY=concurrency,
-            DOWNLOAD_DELAY=download_delay,
-            **kwargs
-        )
-        return CrawloConfig(settings)
-    
-    @staticmethod
-    def auto(
-        concurrency: int = 12,
-        download_delay: float = 1.0,
-        **kwargs: Any
-    ) -> 'CrawloConfig':
-        """
-        创建自动检测模式配置
-        
-        Args:
-            concurrency: 并发数
-            download_delay: 下载延迟
-            **kwargs: 其他配置项
-            
-        Returns:
-            CrawloConfig: 配置对象
-        """
-        settings = auto_mode(
-            CONCURRENCY=concurrency,
-            DOWNLOAD_DELAY=download_delay,
-            **kwargs
-        )
-        return CrawloConfig(settings)
-    
-    @staticmethod
-    def from_env(default_mode: str = 'standalone') -> 'CrawloConfig':
-        """
-        从环境变量创建配置
-        
-        支持的环境变量：
-        - CRAWLO_MODE: 运行模式 (standalone/distributed/auto)
-        - REDIS_HOST: Redis 主机
-        - REDIS_PORT: Redis 端口
-        - REDIS_PASSWORD: Redis 密码
-        - CONCURRENCY: 并发数
-        - PROJECT_NAME: 项目名称
-        
-        Args:
-            default_mode: 默认运行模式
-            
-        Returns:
-            CrawloConfig: 配置对象
-        """
-        settings = from_env(default_mode)
-        return CrawloConfig(settings)
-    
-    @staticmethod
-    def custom(settings: Dict[str, Any]) -> 'CrawloConfig':
-        """
-        创建自定义配置
-        
-        Args:
-            settings: 自定义配置字典
-            
-        Returns:
-            CrawloConfig: 配置对象
-        """
-        return CrawloConfig(settings)
-    
-    @staticmethod
-    def presets() -> 'Presets':
-        """
-        获取预设配置对象
-        
-        Returns:
-            Presets: 预设配置对象
-        """
-        return Presets()
 
 
-# ==================== 便利函数 ====================
+# ==================== 便利函数 (保持向后兼容) ====================
 
-def create_config(
-    mode: str = 'standalone',
-    **kwargs: Any
-) -> CrawloConfig:
-    """
-    便利函数：创建配置
-    
-    Args:
-        mode: 运行模式 ('standalone', 'distributed', 'auto')
-        **kwargs: 配置参数
-        
-    Returns:
-        CrawloConfig: 配置对象
-    """
-    if mode.lower() == 'standalone':
-        return CrawloConfig.standalone(**kwargs)
-    elif mode.lower() == 'distributed':
-        return CrawloConfig.distributed(**kwargs)
-    elif mode.lower() == 'auto':
-        return CrawloConfig.auto(**kwargs)
-    else:
-        raise ValueError(f"不支持的运行模式: {mode}")
+def create_config(mode: str = 'standalone', **kwargs) -> CrawloConfig:
+    if mode.lower() == 'standalone': return CrawloConfig.standalone(**kwargs)
+    if mode.lower() == 'distributed': return CrawloConfig.distributed(**kwargs)
+    if mode.lower() == 'auto': return CrawloConfig.auto(**kwargs)
+    raise ValueError(f"Unknown mode: {mode}")
 
-
-# ==================== 预设配置 ====================
-
-class Presets:
-    """预设配置类"""
-    
-    @staticmethod
-    def development() -> CrawloConfig:
-        """
-        开发环境配置
-        
-        Returns:
-            CrawloConfig: 开发环境配置对象
-        """
-        return CrawloConfig.standalone(
-            concurrency=4,
-            download_delay=2.0,
-            LOG_LEVEL='DEBUG',
-            STATS_DUMP=True
-        )
-    
-    @staticmethod
-    def production() -> CrawloConfig:
-        """
-        生产环境配置
-        
-        Returns:
-            CrawloConfig: 生产环境配置对象
-        """
-        return CrawloConfig.auto(
-            concurrency=16,
-            download_delay=1.0,
-            LOG_LEVEL='INFO',
-            RETRY_TIMES=5
-        )
-    
-    @staticmethod
-    def large_scale(redis_host: str, project_name: str) -> CrawloConfig:
-        """
-        大规模分布式配置
-        
-        Args:
-            redis_host: Redis 主机地址
-            project_name: 项目名称
-            
-        Returns:
-            CrawloConfig: 大规模分布式配置对象
-        """
-        return CrawloConfig.distributed(
-            redis_host=redis_host,
-            project_name=project_name,
-            concurrency=32,
-            download_delay=0.5,
-            SCHEDULER_MAX_QUEUE_SIZE=10000,
-            LARGE_SCALE_BATCH_SIZE=2000
-        )
-    
-    @staticmethod
-    def gentle() -> CrawloConfig:
-        """
-        温和模式配置（避免被封）
-        
-        Returns:
-            CrawloConfig: 温和模式配置对象
-        """
-        return CrawloConfig.standalone(
-            concurrency=2,
-            download_delay=3.0,
-            RANDOMNESS=True,
-            RANDOM_RANGE=(2.0, 5.0)
-        )
+def validate_config(config: Dict[str, Any]) -> Tuple[bool, List[str], List[str]]:
+    return ConfigValidator().validate(config)

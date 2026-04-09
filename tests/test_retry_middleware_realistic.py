@@ -18,7 +18,7 @@ from unittest.mock import Mock, patch
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
 from crawlo.middleware.retry import RetryMiddleware
-from crawlo.stats_collector import StatsCollector
+from crawlo.stats import StatsCollector
 from crawlo.settings.setting_manager import SettingManager
 
 
