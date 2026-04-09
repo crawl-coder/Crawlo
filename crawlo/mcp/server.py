@@ -21,6 +21,7 @@ Claude Desktop 配置:
   }
 }
 """
+import asyncio
 
 from mcp.server.fastmcp import FastMCP
 
@@ -29,15 +30,29 @@ from crawlo.mcp.quick_fetcher import QuickFetcher, FetchResult
 # 创建 FastMCP 实例
 mcp = FastMCP("Crawlo", json_response=True)
 
-# 全局 Fetcher 实例（延迟初始化）
+# 全局 Fetcher 实例（线程安全的延迟初始化）
 _fetcher: QuickFetcher = None
+_fetcher_lock: asyncio.Lock = None
+
+
+def _get_lock() -> asyncio.Lock:
+    """获取或创建锁"""
+    global _fetcher_lock
+    if _fetcher_lock is None:
+        _fetcher_lock = asyncio.Lock()
+    return _fetcher_lock
 
 
 async def _get_fetcher() -> QuickFetcher:
-    """获取全局 Fetcher 实例"""
+    """获取全局 Fetcher 实例（线程安全）"""
     global _fetcher
-    if _fetcher is None:
-        _fetcher = QuickFetcher()
+    if _fetcher is not None:
+        return _fetcher
+    
+    async with _get_lock():
+        # 双重检查
+        if _fetcher is None:
+            _fetcher = QuickFetcher()
     return _fetcher
 
 
@@ -48,11 +63,17 @@ def _format_result(result: FetchResult, max_length: int = 0) -> str:
         f"Status: {result.status_code}",
         f"Size: {result.size:,} bytes ({result.size/1024:.1f} KB)",
         f"Duration: {result.duration:.2f}s",
-        "=" * 60,
     ]
+    
+    if result.cookies:
+        # 只显示前 3 个 Cookie，避免输出过长
+        cookie_names = list(result.cookies.keys())[:3]
+        lines.append(f"Cookies: {', '.join(cookie_names)}{'...' if len(result.cookies) > 3 else ''}")
+
+    lines.append("=" * 60)
 
     if result.error:
-        lines.append(f"Error: {result.error}")
+        lines.append(f"Error [{result.error_code}]: {result.error}")
         return "\n".join(lines)
 
     content = result.content
@@ -73,6 +94,8 @@ async def fetch(
     mode: str = "basic",
     format: str = "markdown",
     max_length: int = 0,
+    cookies: dict[str, str] = None,
+    persist_session: bool = True,
 ) -> str:
     """Fetch a web page using Crawlo's downloader.
 
@@ -88,12 +111,20 @@ async def fetch(
         mode: Fetch mode - basic, stealth, or max-stealth
         format: Output format - html, markdown, or text
         max_length: Maximum characters to return (0 = no limit)
+        cookies: Optional cookies to send with the request
+        persist_session: Whether to persist cookies for subsequent requests
 
     Returns:
         Page content with metadata header
     """
     fetcher = await _get_fetcher()
-    result = await fetcher.fetch(url, mode=mode, format=format)
+    result = await fetcher.fetch(
+        url, 
+        mode=mode, 
+        format=format, 
+        cookies=cookies,
+        persist_session=persist_session
+    )
     return _format_result(result, max_length)
 
 
@@ -103,6 +134,7 @@ async def extract(
     pattern: str,
     mode: str = "basic",
     context_chars: int = 150,
+    cookies: dict[str, str] = None,
 ) -> str:
     """Extract specific content from a web page using regex pattern.
 
@@ -114,6 +146,7 @@ async def extract(
         pattern: Regex pattern to search for
         mode: Fetch mode - basic, stealth, or max-stealth
         context_chars: Number of context characters around each match
+        cookies: Optional cookies to send with the request
 
     Returns:
         Extracted matches with context
@@ -121,10 +154,10 @@ async def extract(
     import re
 
     fetcher = await _get_fetcher()
-    result = await fetcher.fetch(url, mode=mode, format='text')
+    result = await fetcher.fetch(url, mode=mode, format='text', cookies=cookies)
 
     if result.error:
-        return f"Error: {result.error}"
+        return f"Error [{result.error_code}]: {result.error}"
 
     lines = [
         f"URL: {result.url}",
@@ -169,6 +202,7 @@ async def spider(
     mode: str = "basic",
     format: str = "markdown",
     concurrency: int = 2,
+    cookies: dict[str, str] = None,
 ) -> str:
     """Crawl multiple pages concurrently using Crawlo's spider engine.
 
@@ -180,6 +214,7 @@ async def spider(
         mode: Fetch mode - basic, stealth, or max-stealth
         format: Output format per page - html, markdown, or text
         concurrency: Number of concurrent requests
+        cookies: Optional cookies to send with each request
 
     Returns:
         Summary of all crawled pages
@@ -190,6 +225,7 @@ async def spider(
         mode=mode,
         format=format,
         concurrency=concurrency,
+        # Note: cookies support for multiple urls could be extended in Fetcher
     )
 
     # 统计

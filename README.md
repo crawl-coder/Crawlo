@@ -21,13 +21,19 @@
 - 🚀 **高性能异步架构**：基于 asyncio 和 aiohttp，充分利用异步 I/O 提升爬取效率
 - 🎯 **智能调度系统**：优先级队列、并发控制、自动重试、智能限速
 - 🛡️ **强大的反反爬虫能力**：
-  - Cloudflare 自动绕过（默认集成，无需配置）
-  - 支持多种隐身浏览器（camoufox/playwright/drissionpage）
-  - 智能检测与降级策略
+  - **智能混合下载器 (HybridDownloader)**：根据请求特性、URL 正则模式或域名自动切换协议/浏览器引擎，实现性能与通过率的完美平衡
+  - **Cloudflare 自动绕过**：内置多种绕过策略（403/503 检测、Turnstile 挑战识别），默认集成，无需复杂配置
+  - **隐身浏览器集成**：支持 camoufox (最强反检测)、playwright、drissionpage，内置全链路指纹伪造 (Stealth Scripts)
+  - **资源管理优化**：Playwright 页面池复用与信号量并发控制，彻底杜绝高并发下的资源泄露
 - 🤖 **AI 集成（MCP Server）**：
-  - 让 Claude/Cursor 直接调用 Crawlo 抓取能力
-  - 三种抓取模式（basic/stealth/max-stealth）
-  - 薄适配层设计，快速响应（1-3秒）
+  - **标准化协议**：让 Claude/Cursor 直接调用 Crawlo 抓取能力，支持 `fetch`、`extract`、`spider` 等工具
+  - **智能抓取模式**：提供 basic/stealth/max-stealth 三级降级策略，自适应不同难度的网站
+  - **会话持久化**：支持 Cookie 保持与 Session 传递，方便 AI 执行多步有状态抓取任务
+  - **结构化输出**：自动转换 Markdown/Text，支持内容截断与标准化错误码返回
+- 🧠 **自适应选择器 (Adaptive Selector)**：
+  - **元素自愈能力**：当网站改版导致选择器失效时，利用多维元素指纹（Tag, Text, Attributes, DOM Path, Context）自动找回目标元素
+  - **智能匹配算法**：基于加权平均相似度匹配，支持自定义维度权重，确保定位的高准确性
+  - **高性能存储**：支持 SQLite/Redis 双后端，内置 LRU 内存缓存层，毫秒级自愈响应
 - 🔄 **灵活的配置模式**：
   - **Standalone 模式**：单机开发测试，使用内存队列
   - **Distributed 模式**：多节点分布式部署，严格要求 Redis（不允许降级）
