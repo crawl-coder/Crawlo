@@ -489,3 +489,20 @@ ADAPTIVE_STORAGE_BACKEND = 'sqlite'  # 存储后端：sqlite（单机）或 redi
 ADAPTIVE_SQLITE_PATH = 'adaptive_fingerprints.db'  # SQLite 数据库路径（默认项目根目录）
 # Redis 存储后端复用框架统一配置：REDIS_HOST / REDIS_PORT / REDIS_PASSWORD / REDIS_DB
 ADAPTIVE_SIMILARITY_THRESHOLD = 0.0  # 最低相似度阈值（0-100 百分比，0 表示不过滤）
+
+# ==============================================================================
+# 14. 检查点持久化配置
+# ==============================================================================
+
+# 检查点功能 - 支持 Ctrl+C 优雅关闭后从断点续爬
+# 保存内容：待处理请求 + 去重指纹 + 统计信息
+#
+# 使用方式：
+#   crawlo run myspider              # 默认：如有检查点则自动恢复
+#   crawlo run myspider --fresh      # 忽略检查点，从头开始
+#   crawlo run myspider --clean-checkpoint  # 清除检查点并从头开始
+#
+CHECKPOINT_ENABLED = True  # 是否启用检查点功能
+CHECKPOINT_STORAGE = 'json'  # 存储后端：json（默认，适合小规模）或 sqlite（适合大规模）
+CHECKPOINT_DIR = None  # 检查点存储目录（默认 ~/.crawlo/checkpoints/{project}/{spider}）
+CHECKPOINT_SAVE_ON_SIGNAL = True  # Ctrl+C 时是否自动保存检查点
