@@ -22,7 +22,6 @@ from difflib import SequenceMatcher
 from typing import Dict, List, Optional, Tuple
 
 from lxml.html import HtmlElement
-from lxml.etree import _ElementUnicodeResult
 
 from crawlo.logging import get_logger
 from .element_fingerprint import ElementFingerprint
@@ -31,17 +30,30 @@ from .element_fingerprint import ElementFingerprint
 class SimilarityMatcher:
     """多维相似度匹配器
 
-    算法：等权平均 + SequenceMatcher
-    各维度独立评分，最终 score / checks 得到百分比
+    算法：加权平均 + SequenceMatcher
+    各维度独立评分，最终根据权重进行加权平均计算。
     """
 
-    def __init__(self, threshold: float = 0.0):
+    # 默认权重配置（可以根据场景动态调整）
+    DEFAULT_WEIGHTS = {
+        'tag': 1.0,           # 标签名
+        'text': 2.0,          # 文本内容（通常最稳定且唯一）
+        'attributes': 1.5,     # 属性集合
+        'important_attrs': 2.0, # 关键属性 (class, id, href, src)
+        'path': 1.0,           # DOM 路径
+        'parent': 1.0,         # 父节点信息
+        'siblings': 0.5,       # 兄弟节点信息（通常变化较多，权重较低）
+    }
+
+    def __init__(self, threshold: float = 0.0, weights: Optional[Dict[str, float]] = None):
         """初始化匹配器
 
         Args:
             threshold: 最低相似度阈值（0-100百分比），低于此分数的匹配结果将被丢弃
+            weights: 维度权重配置，如果为 None 则使用默认配置
         """
         self.threshold = threshold
+        self.weights = weights or self.DEFAULT_WEIGHTS
         self.logger = get_logger(self.__class__.__name__)
 
     def calculate_similarity(self, original: ElementFingerprint, candidate: ElementFingerprint) -> float:
@@ -49,8 +61,8 @@ class SimilarityMatcher:
 
         算法逻辑：
         - 每个维度独立计分
-        - 使用 SequenceMatcher 进行模糊文本比较
-        - 最终 score / checks * 100 得到百分比
+        - 使用权重计算加权得分
+        - 最终 (加权总分 / 总权重) * 100 得到百分比
 
         Args:
             original: 原始指纹（保存的）
@@ -59,72 +71,91 @@ class SimilarityMatcher:
         Returns:
             float: 相似度百分比 (0.0 ~ 100.0)
         """
-        score: float = 0
-        checks: int = 0
+        total_score: float = 0
+        total_weight: float = 0
 
-        # 1. 标签名精确匹配（权重等同于其他维度，因为最终取平均值）
-        score += 1 if original.tag == candidate.tag else 0
-        checks += 1
+        # 1. 标签名精确匹配
+        tag_weight = self.weights.get('tag', 1.0)
+        total_score += (1 if original.tag == candidate.tag else 0) * tag_weight
+        total_weight += tag_weight
 
         # 2. 文本内容相似度（SequenceMatcher 模糊匹配）
         if original.text:
-            score += SequenceMatcher(
+            text_weight = self.weights.get('text', 2.0)
+            total_score += SequenceMatcher(
                 None, original.text, candidate.text or ""
-            ).ratio()
-            checks += 1
+            ).ratio() * text_weight
+            total_weight += text_weight
 
-        # 3. 属性字典相似度（keys 和 values 分别比较）
-        score += self._calculate_dict_diff(original.attributes, candidate.attributes)
-        checks += 1
+        # 3. 属性字典相似度
+        attr_weight = self.weights.get('attributes', 1.5)
+        total_score += self._calculate_dict_diff(original.attributes, candidate.attributes) * attr_weight
+        total_weight += attr_weight
 
-        # 4. 重要属性单独比较（class, id, href, src）
-        #    这一步对全结构变更的场景非常有帮助
+        # 4. 重要属性单独比较 (class, id, href, src)
+        important_attrs_weight = self.weights.get('important_attrs', 2.0)
+        important_checks = 0
+        important_score = 0
         for attrib in ('class', 'id', 'href', 'src'):
             if original.attributes.get(attrib):
-                score += SequenceMatcher(
+                important_score += SequenceMatcher(
                     None,
                     original.attributes[attrib],
                     candidate.attributes.get(attrib) or "",
                 ).ratio()
-                checks += 1
+                important_checks += 1
+        
+        if important_checks > 0:
+            total_score += (important_score / important_checks) * important_attrs_weight
+            total_weight += important_attrs_weight
 
         # 5. DOM 路径相似度
-        score += SequenceMatcher(None, original.path, candidate.path).ratio()
-        checks += 1
+        path_weight = self.weights.get('path', 1.0)
+        total_score += SequenceMatcher(None, original.path, candidate.path).ratio() * path_weight
+        total_weight += path_weight
 
         # 6. 父节点信息
         if original.parent_name:
+            parent_weight = self.weights.get('parent', 1.0)
+            p_score = 0
+            p_checks = 0
+            
             if candidate.parent_name:
                 # 父标签名
-                score += SequenceMatcher(
+                p_score += SequenceMatcher(
                     None, original.parent_name, candidate.parent_name or ""
                 ).ratio()
-                checks += 1
+                p_checks += 1
 
                 # 父属性
-                score += self._calculate_dict_diff(
+                p_score += self._calculate_dict_diff(
                     original.parent_attribs, candidate.parent_attribs or {}
                 )
-                checks += 1
+                p_checks += 1
 
                 # 父文本
                 if original.parent_text:
-                    score += SequenceMatcher(
+                    p_score += SequenceMatcher(
                         None,
                         original.parent_text,
                         candidate.parent_text or "",
                     ).ratio()
-                    checks += 1
+                    p_checks += 1
+            
+            if p_checks > 0:
+                total_score += (p_score / p_checks) * parent_weight
+                total_weight += parent_weight
 
         # 7. 兄弟节点相似度
         if original.siblings:
-            score += SequenceMatcher(
+            siblings_weight = self.weights.get('siblings', 0.5)
+            total_score += SequenceMatcher(
                 None, original.siblings, candidate.siblings or ()
-            ).ratio()
-            checks += 1
+            ).ratio() * siblings_weight
+            total_weight += siblings_weight
 
         # 计算百分比
-        return round((score / checks) * 100, 2) if checks > 0 else 0.0
+        return round((total_score / total_weight) * 100, 2) if total_weight > 0 else 0.0
 
     def find_best_matches(
         self,

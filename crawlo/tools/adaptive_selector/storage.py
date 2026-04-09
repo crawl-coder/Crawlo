@@ -204,6 +204,7 @@ class FingerprintStorage:
 
     根据配置自动选择存储后端，提供统一的 save/retrieve 接口。
     对外隐藏 domain 提取逻辑，调用方只需传入 url。
+    集成了内存缓存层以优化频繁读取性能。
     """
 
     def __init__(
@@ -216,6 +217,7 @@ class FingerprintStorage:
         redis_password: str = '',
         redis_db: int = 0,
         redis_client=None,
+        cache_size: int = 128,
     ):
         """
         Args:
@@ -227,6 +229,7 @@ class FingerprintStorage:
             redis_password: Redis 密码
             redis_db: Redis 数据库编号
             redis_client: 可选的 Redis 客户端实例
+            cache_size: 内存 LRU 缓存大小
         """
         self.logger = get_logger(self.__class__.__name__)
 
@@ -243,32 +246,60 @@ class FingerprintStorage:
         else:
             raise ValueError(f"Unknown storage backend: {backend}, expected 'sqlite' or 'redis'")
 
-        self.logger.debug(f"FingerprintStorage initialized with backend: {backend}")
+        # 内存 LRU 缓存层
+        from collections import OrderedDict
+        self._cache = OrderedDict()
+        self._cache_size = cache_size
+        self._cache_lock = RLock()
+
+        self.logger.debug(f"FingerprintStorage initialized with backend: {backend} (cache_size={cache_size})")
 
     def save(self, url: str, identifier: str, fingerprint: ElementFingerprint) -> None:
-        """保存元素指纹
-
-        Args:
-            url: 页面 URL（自动提取域名作为分区键）
-            identifier: 标识符（选择器字符串）
-            fingerprint: 元素指纹
-        """
+        """保存元素指纹并更新缓存"""
         domain = extract_domain_from_url(url)
+        
+        # 先保存到后端
         self._backend.save(domain, identifier, fingerprint)
+        
+        # 更新缓存
+        cache_key = (domain, identifier)
+        with self._cache_lock:
+            if cache_key in self._cache:
+                self._cache.move_to_end(cache_key)
+            self._cache[cache_key] = fingerprint.to_dict()
+            if len(self._cache) > self._cache_size:
+                self._cache.popitem(last=False)
 
     def retrieve(self, url: str, identifier: str) -> Optional[Dict]:
-        """加载元素指纹数据
-
-        Args:
-            url: 页面 URL
-            identifier: 标识符
-
-        Returns:
-            Optional[Dict]: 指纹字典
-        """
+        """加载元素指纹数据（优先查询缓存）"""
         domain = extract_domain_from_url(url)
-        return self._backend.retrieve(domain, identifier)
+        cache_key = (domain, identifier)
+
+        # 1. 尝试从缓存获取
+        with self._cache_lock:
+            if cache_key in self._cache:
+                self._cache.move_to_end(cache_key)
+                self.logger.debug(f"Cache hit: {domain}:{identifier}")
+                return self._cache[cache_key]
+
+        # 2. 从后端加载
+        data = self._backend.retrieve(domain, identifier)
+        
+        # 3. 填充缓存
+        if data:
+            with self._cache_lock:
+                self._cache[cache_key] = data
+                if len(self._cache) > self._cache_size:
+                    self._cache.popitem(last=False)
+        
+        return data
+
+    def clear_cache(self) -> None:
+        """清空内存缓存"""
+        with self._cache_lock:
+            self._cache.clear()
 
     def close(self) -> None:
         """关闭存储"""
         self._backend.close()
+        self.clear_cache()
