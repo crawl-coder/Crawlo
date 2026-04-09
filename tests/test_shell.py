@@ -412,27 +412,24 @@ def test_close_downloader_error():
 
 # ==================== 12. _try_framework_downloader ====================
 
-def test_try_framework_downloader_fallback():
-    """测试框架下载器创建失败时返回 None"""
+def test_downloader_fallback_to_simple():
+    """测试框架下载器初始化失败时回退到 _SimpleFetcher"""
     shell = CrawloShell()
-    # CrawloShell 默认 settings={}，不是 SettingManager
-    # 框架下载器创建可能失败，返回 None
-    result = shell._try_framework_downloader()
-    # 不管成功还是失败，都不应抛异常
-    assert result is None or result is not None  # 只是验证不崩溃
-    print("✅ 框架下载器回退测试通过")
+    # 如果 AioHttpDownloader 初始化失败，应回退到 _SimpleFetcher
+    result = asyncio.run(shell._get_downloader())
+    assert result is not None  # 至少有 _SimpleFetcher
+    print("✅ 下载器回退机制测试通过")
 
 
-def test_try_framework_downloader_with_setting_manager():
-    """测试使用 SettingManager 的框架下载器创建"""
+def test_downloader_with_setting_manager():
+    """测试使用 SettingManager 的下载器初始化"""
     try:
         from crawlo.settings.setting_manager import SettingManager
         settings = SettingManager()
         shell = CrawloShell(settings=settings)
-        result = shell._try_framework_downloader()
-        # 验证不崩溃
-        assert result is None or hasattr(result, 'download')
-        print("✅ SettingManager 框架下载器测试通过")
+        result = asyncio.run(shell._get_downloader())
+        assert result is not None
+        print("✅ SettingManager 下载器初始化测试通过")
     except ImportError:
         print("⚠️ SettingManager 不可用，跳过此测试")
 
@@ -728,9 +725,9 @@ def run_all_tests():
         test_close_without_downloader,
         test_close_downloader_error,
         
-        # _try_framework_downloader
-        test_try_framework_downloader_fallback,
-        test_try_framework_downloader_with_setting_manager,
+        # _try_framework_downloader -> _get_downloader
+        test_downloader_fallback_to_simple,
+        test_downloader_with_setting_manager,
         
         # _run_async
         test_run_async_no_loop,

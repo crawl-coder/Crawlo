@@ -79,6 +79,7 @@ class CrawloShell:
         self._downloader = None
         self._loop = None
         self._temp_files = []
+        self._user_ns = {}  # 交互式终端命名空间
         
         # 注册清理
         atexit.register(self._cleanup_temp_files)
@@ -112,6 +113,10 @@ class CrawloShell:
             if self.response:
                 status = getattr(self.response, 'status_code', getattr(self.response, 'status', '?'))
                 self.logger.info(f"Fetched {url} (status={status})")
+                
+                # 更新交互式命名空间中的 request/response
+                self._user_ns['request'] = self.request
+                self._user_ns['response'] = self.response
             else:
                 self.logger.warning(f"Failed to fetch {url}")
             
@@ -178,7 +183,7 @@ class CrawloShell:
         Returns:
             可在交互式终端中使用的变量字典
         """
-        return {
+        self._user_ns.update({
             # 核心函数
             'fetch': self.sync_fetch,      # 同步 fetch（原生 Console 用）
             'view': self.view,             # 浏览器预览
@@ -190,14 +195,14 @@ class CrawloShell:
             
             # 工具类
             'Request': Request,
-        }
+        })
+        return self._user_ns
     
     def update_namespace(self) -> Dict[str, Any]:
         """更新命名空间中的动态变量（fetch 后调用）"""
-        return {
-            'request': self.request,
-            'response': self.response,
-        }
+        self._user_ns['request'] = self.request
+        self._user_ns['response'] = self.response
+        return self._user_ns
     
     # ==================== 终端启动 ====================
     
@@ -208,6 +213,9 @@ class CrawloShell:
         Args:
             url: 可选，启动时预抓取的 URL
         """
+        # 初始化命名空间
+        self.get_namespace()
+        
         # 如有 URL，先抓取
         if url:
             self.logger.info(f"Pre-fetching {url}...")
@@ -216,21 +224,16 @@ class CrawloShell:
         # 启动终端
         try:
             from IPython import embed
-            from IPython.terminal.interactiveshell import TerminalInteractiveShell
             
             # 使用 IPython
-            ns = self.get_namespace()
-            ns['fetch_async'] = self.fetch  # 保留异步版本
-            
-            # 为 IPython 提供 asyncio 支持
-            user_ns = ns.copy()
+            self._user_ns['fetch_async'] = self.fetch  # 保留异步版本
             
             self.logger.info("Starting IPython shell...")
             self.logger.info("Available: fetch(url), view(response), request, response, settings")
             self.logger.info("Use 'await fetch_async(url)' for async fetch in IPython")
             
             embed(
-                user_ns=user_ns,
+                user_ns=self._user_ns,
                 colors='Neutral',
                 banner2=self._get_banner(url),
             )
@@ -244,19 +247,18 @@ class CrawloShell:
         """启动原生 Python 交互式终端"""
         import code
         
-        ns = self.get_namespace()
         banner = self._get_banner(url)
         banner += "\n(Note: Install IPython for async support: pip install ipython)"
         
-        console = code.InteractiveConsole(locals=ns)
+        console = code.InteractiveConsole(locals=self._user_ns)
         console.interact(banner=banner, exitmsg="Crawlo Shell closed")
     
     def _get_banner(self, url: Optional[str] = None) -> str:
         """获取启动横幅"""
         lines = [
-            "=" * 50,
+            "=" * 60,
             "  Crawlo Shell - Interactive Console",
-            "=" * 50,
+            "=" * 60,
             "",
             "Available objects:",
             "  fetch(url)        - Fetch a URL and update request/response",
@@ -264,6 +266,15 @@ class CrawloShell:
             "  request           - Last Request object",
             "  response          - Last Response object",
             "  settings          - Project settings",
+            "",
+            "Selector tips:",
+            "  response.css('div.title::text').get()",
+            "  response.xpath('//h1/text()').getall()",
+            "  response.json()",
+            "  response.css('.btn', adaptive=True).get() # Try adaptive mode",
+            "",
+            "Dynamic rendering (if HybridDownloader is used):",
+            "  fetch(url, meta={'use_dynamic_loader': True})",
         ]
         
         if url:
@@ -271,7 +282,7 @@ class CrawloShell:
             lines.append(f"Pre-fetched: {url}")
         
         lines.append("")
-        lines.append("=" * 50)
+        lines.append("=" * 60)
         return "\n".join(lines)
     
     # ==================== 内部方法 ====================
@@ -280,49 +291,36 @@ class CrawloShell:
         """延迟初始化下载器
         
         优先级：
-        1. 框架下载器（通过 download 方法直接下载，绕过中间件）
-        2. _SimpleFetcher（纯 aiohttp，无框架依赖）
+        1. AioHttpDownloader (框架下载器，绕过中间件直接 download)
+        2. _SimpleFetcher (纯 aiohttp 回退)
+        
+        注意：不使用 HybridDownloader，因为其 _get_or_create_downloader()
+        会调用子下载器的 open()，而 open() 必须初始化 MiddlewareManager，
+        在 Shell 场景中无法提供完整 Crawler 上下文。
         """
         if self._downloader is not None:
             return self._downloader
         
-        # 先尝试框架下载器
-        downloader = self._try_framework_downloader()
-        if downloader is not None:
-            self._downloader = _DownloaderAdapter(downloader)
-            return self._downloader
+        crawler = _MockCrawler(settings=self.settings)
         
-        # 回退到纯 aiohttp
+        # 1. 尝试 AioHttpDownloader（轻量，session 由 _DownloaderAdapter 管理）
+        try:
+            from crawlo.downloader.aiohttp_downloader import AioHttpDownloader
+            dl = AioHttpDownloader(crawler)
+            self._downloader = _DownloaderAdapter(dl)
+            self.logger.info("Using AioHttpDownloader (shell mode)")
+            return self._downloader
+        except Exception as e:
+            self.logger.debug(f"Failed to init AioHttpDownloader: {e}")
+        
+        # 2. 回退到纯 aiohttp
         try:
             self._downloader = _SimpleFetcher()
-            self.logger.info("Using simple aiohttp fetcher")
+            self.logger.info("Using simple aiohttp fetcher (no framework features)")
             return self._downloader
         except Exception as e:
             self.logger.error(f"Failed to initialize any downloader: {e}")
             return None
-    
-    def _try_framework_downloader(self):
-        """尝试创建框架下载器实例
-        
-        注意：Shell 场景下无法使用完整中间件链（需要 crawler.engine），
-        因此这里创建的下载器仅用于直接调用 download() 方法（通过 _DownloaderAdapter），
-        不走中间件。
-        
-        如果 open() 因中间件初始化失败，则跳过该下载器，回退到 _SimpleFetcher。
-        """
-        crawler = _MockCrawler(settings=self.settings)
-        
-        # 尝试 AioHttpDownloader（最轻量）
-        try:
-            from crawlo.downloader.aiohttp_downloader import AioHttpDownloader
-            dl = AioHttpDownloader(crawler)
-            # 跳过 open()，因为中间件初始化会失败
-            # 直接通过 _DownloaderAdapter 调用 download()
-            return dl
-        except Exception:
-            pass
-        
-        return None
     
     def _run_async(self, coro):
         """在事件循环中运行异步协程（同步包装）"""
@@ -366,8 +364,11 @@ class CrawloShell:
 class _DownloaderAdapter:
     """下载器适配器，绕过中间件直接调用 download 方法
     
-    Shell 场景不需要完整的中间件链，直接调用下载器的 download 方法即可。
-    对于需要 session 的下载器（如 AioHttpDownloader），在首次 fetch 时自动初始化 session。
+    Shell 场景不需要完整的中间件链。
+    核心职责：
+    1. 跳过 open()（避免 MiddlewareManager 初始化）
+    2. 手动管理 session 生命周期（_ensure_session / close）
+    3. 直接调用 download() 绕过 fetch() 的中间件链路
     """
     
     def __init__(self, downloader):
@@ -377,7 +378,6 @@ class _DownloaderAdapter:
     async def fetch(self, request: Request) -> Optional[Response]:
         """直接调用下载器的 download 方法"""
         try:
-            # 确保 session 已初始化（针对 AioHttpDownloader 等）
             await self._ensure_session()
             return await self._downloader.download(request)
         except Exception as e:
@@ -385,23 +385,31 @@ class _DownloaderAdapter:
             return None
     
     async def _ensure_session(self):
-        """确保下载器 session 已初始化"""
+        """确保下载器 session 已初始化
+        
+        对于 AioHttpDownloader，由于跳过了 open()，需要手动创建 session
+        并设置必要的属性（max_download_size 等）。
+        """
         if self._session_initialized:
             return
         
-        # 对于 AioHttpDownloader，手动创建 session
-        if hasattr(self._downloader, 'session') and self._downloader.session is None:
+        dl = self._downloader
+        
+        if hasattr(dl, 'session') and dl.session is None:
             try:
                 import aiohttp
                 from aiohttp import TCPConnector
-                self._downloader.session = aiohttp.ClientSession(
+                
+                dl.session = aiohttp.ClientSession(
                     connector=TCPConnector(limit=10, ttl_dns_cache=300),
                     timeout=aiohttp.ClientTimeout(total=30)
                 )
+                
                 # 设置默认的最大下载大小（10MB）
-                if hasattr(self._downloader, 'max_download_size'):
-                    if self._downloader.max_download_size == 0:
-                        self._downloader.max_download_size = 10 * 1024 * 1024
+                # open() 未调用时此值为 0，会导致所有请求被拒绝
+                if hasattr(dl, 'max_download_size') and dl.max_download_size == 0:
+                    dl.max_download_size = 10 * 1024 * 1024
+                
                 self._session_initialized = True
             except Exception as e:
                 get_logger(__name__).debug(f"Failed to init session: {e}")
@@ -409,14 +417,15 @@ class _DownloaderAdapter:
             self._session_initialized = True
     
     async def close(self):
-        """关闭下载器"""
+        """关闭下载器，优先关闭手动创建的 session"""
         try:
-            # 如果我们创建了 session，先关闭它
+            # 先关闭我们手动创建的 session
             if self._session_initialized and hasattr(self._downloader, 'session'):
                 session = self._downloader.session
-                if session and not session.closed:
+                if session and not getattr(session, 'closed', True):
                     await session.close()
                     self._downloader.session = None
+            # 再尝试下载器自身的 close
             await self._downloader.close()
         except Exception:
             pass
