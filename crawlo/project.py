@@ -217,12 +217,19 @@ def _get_mode_settings(settings: SettingManager, run_mode: str) -> dict:
     Returns:
         模式配置字典
     """
-    from crawlo.mode_manager import ModeManager
+    from crawlo.config import CrawloConfig
     
     # 获取模式配置
-    mode_manager = ModeManager()
     project_name = settings.get('PROJECT_NAME', 'crawlo')
-    mode_settings = mode_manager.resolve_mode_settings(run_mode, project_name=project_name)
+    
+    if run_mode == 'distributed':
+        config = CrawloConfig.distributed(project_name=project_name)
+    elif run_mode == 'auto':
+        config = CrawloConfig.auto(project_name=project_name)
+    else:
+        config = CrawloConfig.standalone(project_name=project_name)
+    
+    mode_settings = config.to_dict()
     
     # 特殊处理：如果用户在settings.py中明确设置了QUEUE_TYPE，
     # 应该尊重用户的设置，除非是standalone模式下的redis设置

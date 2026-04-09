@@ -17,7 +17,7 @@ import unittest
 # 添加项目根目录到路径
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
-from crawlo.config_validator import ConfigValidator
+from crawlo.config import ConfigValidator
 
 
 class TestConfigValidator(unittest.TestCase):
@@ -166,7 +166,7 @@ class TestConfigValidator(unittest.TestCase):
             'LOG_LEVEL': 'INFO'
         }
         
-        from crawlo.config_validator import validate_config
+        from crawlo.config import validate_config
         is_valid, errors, warnings = validate_config(config)
         self.assertTrue(is_valid)
         self.assertEqual(len(errors), 0)
