@@ -54,8 +54,7 @@ class ProcessSignalHandler:
     async def graceful_shutdown(self):
         """优雅地关闭所有爬虫
         
-        Args:
-            crawlers: 爬虫实例列表
+        在关闭前保存检查点，确保 Ctrl+C 后可以续爬。
         """
         self.logger.info("开始优雅关闭所有爬虫...")
 
@@ -76,7 +75,7 @@ class ProcessSignalHandler:
             except Exception as e:
                 self.logger.warning(f"取消爬虫任务时出错: {e}")
         
-        # 通知所有爬虫开始关闭
+        # 通知所有爬虫开始关闭（使用 reason='shutdown' 触发检查点保存）
         for crawler in self.crawlers:
             try:
                 # 使用字符串比较状态，避免直接引用CrawlerState
@@ -85,7 +84,17 @@ class ProcessSignalHandler:
                 if hasattr(current_state, 'value'):
                     current_state = current_state.value
                 if str(current_state) not in closing_states:
-                    self.logger.debug(f"关闭爬虫: {getattr(getattr(crawler, 'spider', None), 'name', 'Unknown')}")
+                    spider_name = getattr(getattr(crawler, 'spider', None), 'name', 'Unknown')
+                    self.logger.debug(f"关闭爬虫: {spider_name}")
+                    
+                    # 先通过 Engine 保存检查点
+                    if hasattr(crawler, '_engine') and crawler._engine:
+                        try:
+                            await crawler._engine._save_checkpoint()
+                            self.logger.info(f"检查点已保存: {spider_name}")
+                        except Exception as e:
+                            self.logger.warning(f"保存检查点失败: {spider_name} - {e}")
+                    
                     await crawler._cleanup()
             except Exception as e:
                 self.logger.warning(f"关闭爬虫时出错: {e}")

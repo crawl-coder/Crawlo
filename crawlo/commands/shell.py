@@ -56,11 +56,23 @@ def main(args):
     
     用法:
         crawlo shell [url]
+        crawlo shell --curl 'curl https://example.com -H "Key: val"'
     """
-    # 解析 URL 参数
+    # 解析参数
     url = None
-    if args and not args[0].startswith('-'):
-        url = args[0]
+    curl_cmd = None
+    
+    i = 0
+    while i < len(args):
+        arg = args[i]
+        if arg == '--curl' and i + 1 < len(args):
+            curl_cmd = args[i + 1]
+            i += 2
+        elif not arg.startswith('-') and url is None:
+            url = arg
+            i += 1
+        else:
+            i += 1
     
     print("\n" + "=" * 50)
     print("  Crawlo Shell - Interactive Console")
@@ -76,6 +88,8 @@ def main(args):
     
     if url:
         print(f"  Pre-fetch URL: {url}")
+    if curl_cmd:
+        print(f"  Pre-fetch via: curl command")
     
     print("=" * 50 + "\n")
     
@@ -83,8 +97,14 @@ def main(args):
     shell = CrawloShell(settings=settings)
     
     try:
-        # 启动 Shell
-        asyncio.run(shell.start(url=url))
+        if curl_cmd:
+            # 先通过 curl 命令预抓取，再启动 Shell
+            async def _start_with_curl():
+                await shell.from_curl(curl_cmd)
+                await shell.start(url=None)
+            asyncio.run(_start_with_curl())
+        else:
+            asyncio.run(shell.start(url=url))
     except KeyboardInterrupt:
         print("\nShell interrupted by user")
     except SystemExit:

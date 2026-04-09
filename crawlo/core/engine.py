@@ -32,6 +32,7 @@ class Engine(object):
         self.scheduler: Optional[Scheduler] = None
         self.processor: Optional[Processor] = None
         self.start_requests: Optional[Iterator] = None
+        self._close_reason: str = 'finished'  # 关闭原因：finished / shutdown
         
         # 安全获取CONCURRENCY设置，提供默认值
         concurrency = safe_get_config(self.settings, 'CONCURRENCY', 8, int)
@@ -99,7 +100,7 @@ class Engine(object):
         # 将INFO级别日志改为DEBUG级别，避免与CrawlerProcess启动日志重复
         self.logger.debug(f"Crawlo框架已启动 {version}")
 
-    async def start_spider(self, spider):
+    async def start_spider(self, spider, resume=True):
         self.spider = spider
 
         self.scheduler = Scheduler.create_instance(self.crawler)
@@ -139,18 +140,26 @@ class Engine(object):
 
         # 启动引擎
         self.engine_start()
+
+        # 检查点恢复：如果存在检查点且 resume=True，从检查点恢复
+        checkpoint_resumed = False
+        if resume:
+            checkpoint_resumed = await self._try_resume_from_checkpoint(spider)
+
+        if not checkpoint_resumed:
+            # 正常流程：从 start_requests 开始
+            self.logger.debug("开始创建start_requests迭代器")
+            try:
+                # 先收集所有请求到列表中，避免在检查时消耗迭代器
+                requests_list = list(spider.start_requests())
+                self.logger.debug(f"收集到 {len(requests_list)} 个请求")
+                self.start_requests = iter(requests_list)
+                self.logger.debug("start_requests迭代器创建成功")
+            except Exception as e:
+                self.logger.error(f"创建start_requests迭代器失败: {e}")
+                import traceback
+                self.logger.error(traceback.format_exc())
         
-        self.logger.debug("开始创建start_requests迭代器")
-        try:
-            # 先收集所有请求到列表中，避免在检查时消耗迭代器
-            requests_list = list(spider.start_requests())
-            self.logger.debug(f"收集到 {len(requests_list)} 个请求")
-            self.start_requests = iter(requests_list)
-            self.logger.debug("start_requests迭代器创建成功")
-        except Exception as e:
-            self.logger.error(f"创建start_requests迭代器失败: {e}")
-            import traceback
-            self.logger.error(traceback.format_exc())
         await self._open_spider()
 
     async def crawl(self):
@@ -481,9 +490,19 @@ class Engine(object):
         
         return False
 
-    async def close_spider(self):
+    async def close_spider(self, reason='finished'):
+        self._close_reason = reason
+
         if self.task_manager is not None:
             await asyncio.gather(*self.task_manager.current_task)
+        
+        # 检查点保存：Ctrl+C 触发的关闭时保存状态
+        if reason == 'shutdown':
+            await self._save_checkpoint()
+        
+        # 正常完成时清除检查点
+        if reason == 'finished':
+            await self._clear_checkpoint()
         
         # 关闭 pipeline（刷新批量数据、清理资源）
         if self.processor is not None and hasattr(self.processor, 'pipelines'):
@@ -493,6 +512,93 @@ class Engine(object):
         # 这里不再重复调用 downloader.close()
         if self.scheduler is not None:
             await self.scheduler.close()
+    
+    async def _try_resume_from_checkpoint(self, spider) -> bool:
+        """尝试从检查点恢复爬取状态
+        
+        Args:
+            spider: 爬虫实例
+            
+        Returns:
+            bool: 是否成功从检查点恢复
+        """
+        try:
+            from crawlo.checkpoint import CheckpointManager
+            
+            checkpoint_mgr = CheckpointManager(spider.name, self.settings)
+            if not checkpoint_mgr.enabled or not await checkpoint_mgr.has_checkpoint():
+                return False
+            
+            checkpoint = await checkpoint_mgr.load()
+            if checkpoint is None:
+                return False
+            
+            # 恢复请求到调度器
+            requests_data = checkpoint.get('requests', [])
+            restored_count = 0
+            for req_data in requests_data:
+                try:
+                    request = checkpoint_mgr.restore_request(req_data, spider)
+                    if request and self.scheduler is not None:
+                        # 设置 dont_filter=True 避免被过滤器拦截
+                        request.dont_filter = True
+                        await self.scheduler.enqueue_request(request)
+                        restored_count += 1
+                except Exception as e:
+                    self.logger.debug(f"Failed to restore request: {e}")
+            
+            # 恢复去重指纹
+            fingerprints = checkpoint.get('fingerprints', set())
+            if fingerprints and self.scheduler is not None:
+                checkpoint_mgr.restore_fingerprints(fingerprints, self.scheduler)
+            
+            # 跳过 start_requests（检查点中已包含未完成的请求）
+            self.start_requests = None
+            
+            self.logger.info(
+                f"Resumed from checkpoint: {restored_count}/{len(requests_data)} requests restored, "
+                f"{len(fingerprints)} fingerprints recovered"
+            )
+            return True
+            
+        except Exception as e:
+            self.logger.warning(f"Failed to resume from checkpoint: {e}")
+            return False
+    
+    async def _save_checkpoint(self):
+        """保存检查点"""
+        try:
+            from crawlo.checkpoint import CheckpointManager
+            
+            spider_name = self.spider.name if self.spider else 'unknown'
+            checkpoint_mgr = CheckpointManager(spider_name, self.settings)
+            
+            if not checkpoint_mgr.enabled:
+                return
+            
+            save_on_signal = safe_get_config(self.settings, 'CHECKPOINT_SAVE_ON_SIGNAL', True, bool)
+            if not save_on_signal:
+                return
+            
+            stats = getattr(self.crawler, 'stats', None)
+            await checkpoint_mgr.save(self.scheduler, stats)
+            
+        except Exception as e:
+            self.logger.warning(f"Failed to save checkpoint on shutdown: {e}")
+    
+    async def _clear_checkpoint(self):
+        """清除检查点"""
+        try:
+            from crawlo.checkpoint import CheckpointManager
+            
+            spider_name = self.spider.name if self.spider else 'unknown'
+            checkpoint_mgr = CheckpointManager(spider_name, self.settings)
+            
+            if checkpoint_mgr.enabled:
+                await checkpoint_mgr.clear()
+                
+        except Exception as e:
+            self.logger.debug(f"Failed to clear checkpoint: {e}")
     
     def get_generation_stats(self) -> dict:
         """获取生成统计"""

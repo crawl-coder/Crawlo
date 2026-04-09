@@ -139,6 +139,57 @@ class CrawloShell:
         """
         return self._run_async(self.fetch(url, **kwargs))
     
+    async def from_curl(self, curl_cmd: str, **kwargs) -> Optional[Response]:
+        """
+        从 curl 命令创建请求并抓取
+        
+        解析浏览器 DevTools 复制的 curl 命令，自动转换为 Crawlo Request 并执行。
+        
+        Args:
+            curl_cmd: 完整的 curl 命令字符串
+            **kwargs: 额外覆盖参数（如 meta, callback 等）
+            
+        Returns:
+            Response 对象，失败时返回 None
+        
+        Example::
+        
+            from_curl('curl https://api.example.com -H "Authorization: Bearer xxx"')
+        """
+        try:
+            from crawlo.utils.curl_parser import CurlParser
+            request = CurlParser.to_request(curl_cmd, **kwargs)
+            
+            # 延迟初始化下载器
+            downloader = await self._get_downloader()
+            if downloader is None:
+                self.logger.error("下载器初始化失败")
+                return None
+            
+            self.request = request
+            self.response = await downloader.fetch(self.request)
+            
+            if self.response:
+                status = getattr(self.response, 'status_code', getattr(self.response, 'status', '?'))
+                self.logger.info(f"Fetched via curl: {request.url} (status={status})")
+                self._user_ns['request'] = self.request
+                self._user_ns['response'] = self.response
+            else:
+                self.logger.warning(f"Failed to fetch via curl: {request.url}")
+            
+            return self.response
+            
+        except ValueError as e:
+            self.logger.error(f"Invalid curl command: {e}")
+            return None
+        except Exception as e:
+            self.logger.error(f"Error in from_curl: {type(e).__name__}: {e}")
+            return None
+    
+    def sync_from_curl(self, curl_cmd: str, **kwargs) -> Optional[Response]:
+        """同步版本的 from_curl（供原生 Console 使用）"""
+        return self._run_async(self.from_curl(curl_cmd, **kwargs))
+    
     def view(self, response: Optional[Response] = None) -> None:
         """
         在浏览器中打开响应 HTML
@@ -185,8 +236,9 @@ class CrawloShell:
         """
         self._user_ns.update({
             # 核心函数
-            'fetch': self.sync_fetch,      # 同步 fetch（原生 Console 用）
-            'view': self.view,             # 浏览器预览
+            'fetch': self.sync_fetch,          # 同步 fetch（原生 Console 用）
+            'from_curl': self.sync_from_curl,  # curl 命令转 Request
+            'view': self.view,                 # 浏览器预览
             
             # 环境变量
             'request': self.request,
@@ -226,7 +278,8 @@ class CrawloShell:
             from IPython import embed
             
             # 使用 IPython
-            self._user_ns['fetch_async'] = self.fetch  # 保留异步版本
+            self._user_ns['fetch_async'] = self.fetch            # 保留异步版本
+            self._user_ns['from_curl_async'] = self.from_curl  # 异步 from_curl
             
             self.logger.info("Starting IPython shell...")
             self.logger.info("Available: fetch(url), view(response), request, response, settings")
@@ -262,6 +315,7 @@ class CrawloShell:
             "",
             "Available objects:",
             "  fetch(url)        - Fetch a URL and update request/response",
+            "  from_curl(curl)   - Parse curl command and fetch",
             "  view(response)    - Open response HTML in browser",
             "  request           - Last Request object",
             "  response          - Last Response object",

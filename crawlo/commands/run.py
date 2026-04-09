@@ -140,6 +140,11 @@ def main(args):
                 concurrency = int(args[concurrency_index + 1])
         except (ValueError, IndexError, TypeError):
             pass
+    
+    # 解析检查点参数
+    fresh = "--fresh" in args
+    no_resume = "--no-resume" in args
+    clean_checkpoint = "--clean-checkpoint" in args
 
     try:
         # 1. 查找项目根目录
@@ -208,7 +213,21 @@ def main(args):
         if concurrency:
             custom_settings['CONCURRENCY'] = concurrency
         
+        # 检查点相关配置
+        if fresh or no_resume:
+            custom_settings['CHECKPOINT_ENABLED'] = False
+        
         settings = initialize_framework(custom_settings if custom_settings else None)
+        
+        # 清除检查点文件
+        if clean_checkpoint and spider_arg.lower() != 'all':
+            try:
+                from crawlo.checkpoint import CheckpointManager
+                checkpoint_mgr = CheckpointManager(spider_arg, settings)
+                asyncio.run(checkpoint_mgr.clear())
+                console.print(f"[green]检查点已清除: {spider_arg}[/green]")
+            except Exception as e:
+                console.print(f"[yellow]清除检查点失败: {e}[/yellow]")
 
         # 检查Redis连接（如果是分布式模式）
         if not check_redis_connection(settings):
