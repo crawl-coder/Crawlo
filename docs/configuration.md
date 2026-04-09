@@ -4,13 +4,63 @@ Crawlo 所有的全局配置都在项目的 `settings.py` 中进行管理。
 
 ---
 
-## 1. 基础运行配置
+## 1. 运行模式与并发配置
+
+Crawlo 支持根据业务场景灵活配置运行模式，从单机开发测试到分布式大规模生产环境。
+
+### 1.1 场景化配置推荐
+
+| 场景 | 运行模式 | 爬虫数量 | CONCURRENCY | 特点 |
+| :--- | :--- | :--- | :--- | :--- |
+| **开发测试** | Standalone | 1 个 | 8 | 简单快速，无需 Redis |
+| **小规模生产** | Standalone | 3-5 个 | 16 | 单机资源充分利用 |
+| **大规模生产** | Distributed | 10+ 个 | 32 | 需要 Redis，水平扩展 |
+
+### 1.2 配置示例
+
+#### 开发测试配置（默认）
+```python
+from crawlo.config import CrawloConfig
+
+config = CrawloConfig.auto(
+    project_name='myproject',
+    concurrency=8,              # 单个爬虫并发请求数
+    download_delay=1.0,         # 下载延迟（秒）
+    max_running_spiders=1       # 最大同时运行爬虫数
+)
+```
+
+#### 小规模生产配置
+```python
+config = CrawloConfig.auto(
+    project_name='myproject',
+    concurrency=16,             # 提高单个爬虫并发
+    download_delay=0.5,         # 适当降低延迟
+    max_running_spiders=5       # 允许同时运行5个爬虫
+)
+```
+
+#### 大规模生产配置（分布式）
+```python
+config = CrawloConfig.distributed(
+    redis_host='127.0.0.1',     # Redis主机地址
+    redis_port=6379,            # Redis端口
+    project_name='myproject',
+    concurrency=32,             # 高并发
+    download_delay=0.1,         # 低延迟
+    max_running_spiders=20      # 大量爬虫并发
+)
+```
+
+### 1.3 核心参数说明
 
 | 参数 | 默认值 | 说明 |
 | :--- | :--- | :--- |
 | `PROJECT_NAME` | `""` | 项目唯一标识。用于生成日志文件前缀和 Redis Key。 |
 | `CRAWLO_MODE` | `"auto"` | 运行模式。`standalone`（单机）、`distributed`（分布式）、`auto`（自动检测 Redis 并切换模式）。 |
-| `CONCURRENCY` | `8` | 总并发请求数。控制同时抓取的网页数量。 |
+| `CONCURRENCY` | `8` | 单个爬虫的并发请求数。控制同时抓取的网页数量。 |
+| `MAX_RUNNING_SPIDERS` | `1` / `10` | 同时运行的最大爬虫数量。Standalone 模式默认 1，Distributed 模式默认 10。 |
+| `DOWNLOAD_DELAY` | `1.0` | 每个请求之间的间隔延迟（秒）。根据目标网站反爬强度调整。 |
 
 ---
 
