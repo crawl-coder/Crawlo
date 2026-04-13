@@ -20,29 +20,9 @@ from lxml.html import HtmlElement
 if TYPE_CHECKING:
     from crawlo.network.request import Request
 
-# 尝试导入 w3lib 编码检测函数
-try:
-    from w3lib.encoding import (
-        html_body_declared_encoding,
-        html_to_unicode,
-        http_content_type_encoding,
-        read_bom,
-        resolve_encoding,
-    )
-    W3LIB_AVAILABLE = True
-except ImportError:
-    W3LIB_AVAILABLE = False
-    # 当 w3lib 不可用时，从 utils 导入替代函数
-    from crawlo.utils import (
-        html_body_declared_encoding,
-        html_to_unicode,
-        http_content_type_encoding,
-        read_bom,
-        resolve_encoding,
-    )
-
 from crawlo.exceptions import DecodeError
 from crawlo.logging import get_logger
+from crawlo.utils.encoding_detector import EncodingDetector
 from crawlo.utils.request.response_helper import (
     parse_cookies,
     regex_search,
@@ -153,186 +133,27 @@ class Response:
         智能检测响应编码
         
         编码检测优先级：
-        1. Request 中指定的编码
+        1. Request 中指定的编码（最高优先级，用户显式指定）
         2. BOM 字节顺序标记
         3. HTTP Content-Type 头部
         4. HTML meta 标签声明
-        5. 内容自动检测
+        5. 内容自动检测（基于字符频率分析）
         6. 默认编码 (utf-8)
         
         Returns:
             str: 检测到的编码
         """
-        # 1. 优先使用声明的编码
-        declared_encoding = self._declared_encoding()
-        if declared_encoding:
-            return declared_encoding
-            
-        # 2. 使用 w3lib 进行编码检测（如果可用）
-        if W3LIB_AVAILABLE:
-            return self._body_inferred_encoding()
-        else:
-            # 如果 w3lib 不可用，使用原有的检测逻辑
-            # 从 Content-Type 头中检测
-            content_type = self.headers.get("content-type", "") or self.headers.get("Content-Type", "")
-            if content_type:
-                charset_match = re.search(r"charset=([\w-]+)", content_type, re.I)
-                if charset_match:
-                    return charset_match.group(1).lower()
-
-            # 从 HTML meta 标签中检测(仅对HTML内容)
-            if b'<html' in self.body[:1024].lower():
-                # 查找 <meta charset="xxx"> 或 <meta http-equiv="Content-Type" content="...charset=xxx">
-                html_start = self.body[:4096]  # 只检查前4KB
-                try:
-                    html_text = html_start.decode('ascii', errors='ignore')
-                    # <meta charset="utf-8">
-                    charset_match = re.search(r'<meta[^>]+charset=["\']?([\w-]+)', html_text, re.I)
-                    if charset_match:
-                        return charset_match.group(1).lower()
-
-                    # <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
-                    content_match = re.search(r'<meta[^>]+content=["\'][^"\'>]*charset=([\w-]+)', html_text, re.I)
-                    if content_match:
-                        return content_match.group(1).lower()
-                except Exception:
-                    pass
-
-        # 3. 默认使用 utf-8
-        return 'utf-8'
-
-    def _declared_encoding(self) -> Optional[str]:
-        """
-        获取声明的编码
-        优先级：Request编码 > BOM > HTTP头部 > HTML meta标签
-        
-        Returns:
-            Optional[str]: 声明的编码
-        """
-        # 1. Request 中指定的编码
+        # 获取 Request 中声明的编码
+        declared_encoding = None
         if self.request and getattr(self.request, 'encoding', None):
-            return self.request.encoding
-            
-        # 2. BOM 字节顺序标记
-        bom_encoding = self._bom_encoding()
-        if bom_encoding:
-            return bom_encoding
-            
-        # 3. HTTP Content-Type 头部
-        headers_encoding = self._headers_encoding()
-        if headers_encoding:
-            return headers_encoding
-            
-        # 4. HTML meta 标签声明编码
-        body_declared_encoding = self._body_declared_encoding()
-        if body_declared_encoding:
-            return body_declared_encoding
-            
-        return None
-
-    @memoize_method_noargs
-    def _bom_encoding(self) -> Optional[str]:
-        """
-        BOM 字节顺序标记编码检测
+            declared_encoding = self.request.encoding
         
-        Returns:
-            Optional[str]: BOM编码
-        """
-        if not W3LIB_AVAILABLE:
-            # 使用替代函数
-            encoding, _ = read_bom(self.body)
-            return encoding
-        return read_bom(self.body)[0]
-
-    @memoize_method_noargs
-    def _headers_encoding(self) -> Optional[str]:
-        """
-        HTTP Content-Type 头部编码检测
-        
-        Returns:
-            Optional[str]: 头部编码
-        """
-        if not W3LIB_AVAILABLE:
-            # 使用替代函数
-            content_type = self.headers.get("content-type", "") or self.headers.get("Content-Type", "")
-            return http_content_type_encoding(content_type)
-        content_type = self.headers.get("Content-Type", b"") or self.headers.get("content-type", b"")
-        if isinstance(content_type, bytes):
-            content_type = content_type.decode('latin-1')
-        return http_content_type_encoding(content_type)
-
-    @memoize_method_noargs
-    def _body_declared_encoding(self) -> Optional[str]:
-        """
-        HTML meta 标签声明编码检测
-        
-        Returns:
-            Optional[str]: HTML声明编码
-        """
-        if not W3LIB_AVAILABLE:
-            # 使用替代函数
-            return html_body_declared_encoding(self.body)
-        return html_body_declared_encoding(self.body)
-
-    @memoize_method_noargs
-    def _body_inferred_encoding(self) -> str:
-        """
-        内容自动检测编码
-        
-        Returns:
-            str: 推断的编码
-        """
-        if not W3LIB_AVAILABLE:
-            # 使用替代函数
-            content_type = self.headers.get("content-type", "") or self.headers.get("Content-Type", "")
-            # 使用 html_to_unicode 函数进行编码检测
-            encoding, _ = html_to_unicode(
-                content_type,
-                self.body,
-                auto_detect_fun=self._auto_detect_fun,
-                default_encoding=self._DEFAULT_ENCODING,
-            )
-            return encoding
-
-        content_type = self.headers.get("Content-Type", b"") or self.headers.get("content-type", b"")
-        if isinstance(content_type, bytes):
-            content_type = content_type.decode('latin-1')
-        
-        # 使用 w3lib 的 html_to_unicode 函数进行编码检测
-        benc, _ = html_to_unicode(
-            content_type,
-            self.body,
-            auto_detect_fun=self._auto_detect_fun,
-            default_encoding=self._DEFAULT_ENCODING,
+        # 使用 EncodingDetector 进行检测
+        return EncodingDetector.detect(
+            body=self.body,
+            headers=self.headers,
+            declared_encoding=declared_encoding,
         )
-        return benc
-
-    def _auto_detect_fun(self, text: bytes) -> Optional[str]:
-        """
-        自动检测编码的回调函数
-        
-        Args:
-            text: 要检测的字节文本
-            
-        Returns:
-            Optional[str]: 检测到的编码
-        """
-        if not W3LIB_AVAILABLE:
-            # 使用替代函数
-            for enc in (self._DEFAULT_ENCODING, "utf-8", "cp1252"):
-                try:
-                    text.decode(enc)
-                except UnicodeError:
-                    continue
-                return resolve_encoding(enc)
-            return None
-        for enc in (self._DEFAULT_ENCODING, "utf-8", "cp1252"):
-            try:
-                text.decode(enc)
-            except UnicodeError:
-                continue
-            return resolve_encoding(enc)
-        return None
 
     @property
     def text(self) -> str:
@@ -349,63 +170,13 @@ class Response:
             self._text_cache = ""
             return self._text_cache
 
-        # 如果可用，使用 w3lib 进行更准确的解码
-        if W3LIB_AVAILABLE:
-            try:
-                content_type = self.headers.get("Content-Type", b"") or self.headers.get("content-type", b"")
-                if isinstance(content_type, bytes):
-                    content_type = content_type.decode('latin-1')
-                
-                # 使用 w3lib 的 html_to_unicode 函数
-                _, self._text_cache = html_to_unicode(
-                    content_type,
-                    self.body,
-                    default_encoding=self.encoding
-                )
-                return self._text_cache
-            except Exception:
-                # 如果 w3lib 解码失败，回退到原有方法
-                pass
-        else:
-            # 使用替代函数
-            try:
-                content_type = self.headers.get("content-type", "") or self.headers.get("Content-Type", "")
-                # 使用 html_to_unicode 函数
-                _, self._text_cache = html_to_unicode(
-                    content_type,
-                    self.body,
-                    default_encoding=self.encoding
-                )
-                return self._text_cache
-            except Exception:
-                # 如果解码失败，回退到原有方法
-                pass
-
-        # 尝试多种编码
-        encodings_to_try = [self.encoding]
-        if self.encoding != 'utf-8':
-            encodings_to_try.append('utf-8')
-        if 'gbk' not in encodings_to_try:
-            encodings_to_try.append('gbk')
-        if 'gb2312' not in encodings_to_try:
-            encodings_to_try.append('gb2312')
-        encodings_to_try.append('latin1')  # 最后的回退选项
-
-        for encoding in encodings_to_try:
-            if not encoding:
-                continue
-            try:
-                self._text_cache = self.body.decode(encoding)
-                return self._text_cache
-            except (UnicodeDecodeError, LookupError):
-                continue
-
-        # 所有编码都失败，使用容错解码
-        try:
-            self._text_cache = self.body.decode('utf-8', errors='replace')
-            return self._text_cache
-        except Exception as e:
-            raise DecodeError(f"Failed to decode response from {self.url}: {e}")
+        # 使用 EncodingDetector 解码
+        self._text_cache = EncodingDetector.decode_body(
+            body=self.body,
+            encoding=self.encoding,
+            headers=self.headers,
+        )
+        return self._text_cache
 
     # ==================== 状态检查相关属性 ====================
     
