@@ -59,7 +59,7 @@ class Request:
         '_meta',
         'callback',
         'cb_kwargs',
-        'err_back',
+        'errback',
         'headers',
         'body',
         'method',
@@ -76,6 +76,7 @@ class Request:
         '_json_body',
         '_form_data',
         '_params',
+        '_original_url',  # 保存原始 URL（不含参数），用于 copy
         'use_dynamic_loader',
     )
 
@@ -83,7 +84,7 @@ class Request:
         self,
         url: str,
         callback: Optional[Callable] = None,
-        err_back: Optional[Callable] = None,
+        errback: Optional[Callable] = None,
         method: Optional[str] = 'GET',
         headers: Optional[Dict[str, str]] = None,
         body: Optional[Union[bytes, str, Dict[Any, Any]]] = None,
@@ -110,7 +111,7 @@ class Request:
         Args:
             url: 请求 URL（必须）
             callback: 成功回调函数
-            err_back: 错误回调函数
+            errback: 错误回调函数
             method: HTTP 方法，默认 GET
             headers: 请求头
             body: 原始请求体（bytes/str），若为 dict 且未使用 json_body/form_data，则自动转为 JSON
@@ -132,7 +133,7 @@ class Request:
             use_dynamic_loader: 是否使用动态加载器
         """
         self.callback = callback
-        self.err_back = err_back
+        self.errback = errback
         self.method = str(method).upper()
         self.headers = headers or {}
         self.cookies = cookies or {}
@@ -156,6 +157,7 @@ class Request:
         self._json_body = json_body
         self._form_data = form_data
         self._params = params
+        self._original_url = url  # 保存原始 URL（不含参数），用于 copy
 
         # 处理GET参数
         if params is not None and self.method == 'GET':
@@ -274,11 +276,13 @@ class Request:
         """
         创建当前请求的副本，保留所有高层语义（json_body/form_data/params）。
         
+        注意：使用原始 URL（不含查询参数），由 params 重新拼接，避免参数重复。
+        
         Returns:
             Request: 请求副本
         """
         return type(self)(
-            url=self.url,
+            url=self._original_url,  # 使用原始 URL，避免参数重复
             callback=self.callback,
             method=self.method,
             headers=self.headers.copy(),
@@ -287,7 +291,7 @@ class Request:
             json_body=self._json_body,
             params=self._params,
             cb_kwargs=deepcopy(self.cb_kwargs),
-            err_back=self.err_back,
+            errback=self.errback,
             cookies=self.cookies.copy(),
             meta=deepcopy(self._meta),
             priority=-self.priority,

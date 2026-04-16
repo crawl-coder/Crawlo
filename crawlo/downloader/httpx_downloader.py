@@ -190,8 +190,8 @@ class HttpXDownloader(DownloaderBase):
             return self.structure_response(request=request, response=e.response, body=error_body)
         except Exception as e:
             # 网络异常（超时、连接错误等）：重新抛出，交由 RetryMiddleware 处理
-            # 不要返回 None，否则重试中间件无法捕获异常
-            self.logger.error(f"Download error for {request.url}: {e}", exc_info=True)
+            # 使用 DEBUG 级别，不打印堆栈，因为异常会被重试中间件统一处理
+            self.logger.debug(f"Download error for {request.url}: {type(e).__name__}: {e}")
             raise  # 重新抛出异常
 
         finally:
@@ -208,7 +208,7 @@ class HttpXDownloader(DownloaderBase):
         return Response(
             url=str(response.url),
             headers=dict(response.headers),
-            status_code=response.status_code,
+            status=response.status_code,
             body=body,
             request=request
         )

@@ -197,14 +197,14 @@ class OfWeekSpiderWithNotifications(Spider):
         """解析响应 - 带进度和异常通知"""
         try:
             # 检查响应状态
-            if response.status_code != 200:
+            if response.status != 200:
                 self.stats['failed_requests'] += 1
-                error_msg = f"页面返回非200状态码: {response.status_code}"
+                error_msg = f"页面返回非200状态码: {response.status}"
                 self.logger.warning(f"{error_msg}, URL: {response.url}")
                 
                 # 保存原始响应信息
                 original_url = response.url
-                original_status = response.status_code
+                original_status = response.status
                 
                 # 发送HTTP错误通知（每10次错误发送一次，避免过于频繁）
                 if self.stats['failed_requests'] % 10 == 1:
@@ -429,15 +429,15 @@ class OfWeekSpiderWithNotifications(Spider):
             self.logger.info(f'正在解析详情页: {response.url}')
             
             # 检查响应状态
-            if response.status_code != 200:
+            if response.status != 200:
                 self.stats['failed_requests'] += 1
-                self.logger.warning(f"详情页返回非200状态码: {response.status_code}")
+                self.logger.warning(f"详情页返回非200状态码: {response.status}")
                 
                 # 发送HTTP错误通知（降低频率）
                 if self.stats['failed_requests'] % 5 == 1:
                     http_error_response = send_template_notification(
                         Template.http_error,
-                        status_code=response.status_code,
+                        status_code=response.status,
                         url=response.url,
                         response_time='1800',
                         retry_count='1',

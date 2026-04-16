@@ -88,11 +88,29 @@ class RetryMiddleware(object):
 
     @classmethod
     def create_instance(cls, crawler):
+        # 获取配置中的 RETRY_EXCEPTIONS（可能是字符串列表）
+        retry_exceptions_config = crawler.settings.get_list('RETRY_EXCEPTIONS')
+        
+        # 将字符串转换为实际的异常类型
+        retry_exceptions = []
+        for exc_str in retry_exceptions_config:
+            if isinstance(exc_str, str):
+                # 字符串格式：'httpx.ReadTimeout' 或 'httpx.TimeoutException'
+                try:
+                    from crawlo.utils.misc import load_object
+                    exc_type = load_object(exc_str)
+                    retry_exceptions.append(exc_type)
+                except Exception as e:
+                    get_logger(cls.__name__).warning(f"无法加载异常类型 '{exc_str}': {e}")
+            else:
+                # 已经是异常类型
+                retry_exceptions.append(exc_str)
+        
         o = cls(
             retry_http_codes=crawler.settings.get_list('RETRY_HTTP_CODES'),
             ignore_http_codes=crawler.settings.get_list('IGNORE_HTTP_CODES'),
             max_retry_times=crawler.settings.get_int('MAX_RETRY_TIMES'),
-            retry_exceptions=crawler.settings.get_list('RETRY_EXCEPTIONS'),
+            retry_exceptions=retry_exceptions,
             stats=crawler.stats,
             retry_priority=crawler.settings.get_int('RETRY_PRIORITY')
         )
@@ -101,16 +119,16 @@ class RetryMiddleware(object):
     def process_response(self, request, response, spider):
         if request.meta.get('dont_retry', False):
             return response
-        if response.status_code in self.ignore_http_codes:
+        if response.status in self.ignore_http_codes:
             return response
-        if response.status_code in self.retry_http_codes:
+        if response.status in self.retry_http_codes:
             # Retry logic
-            reason = f"response code {response.status_code}"
+            reason = f"response code {response.status}"
             return self._retry(request, reason, spider) or response
         
         # Check if this is a successful retry
         if request.meta.get('retry_times', 0) > 0:
-            self.logger.info(f"[Retry Success] {request.url} succeeded with status {response.status_code} (attempt {request.meta.get('retry_times')})")
+            self.logger.info(f"[Retry Success] {request.url} succeeded with status {response.status} (attempt {request.meta.get('retry_times')})")
         
         return response
 
@@ -128,16 +146,27 @@ class RetryMiddleware(object):
             request_copy = request.copy()
             request_copy.meta['retry_times'] = retry_times
                 
-            # Proxy retry logic: use proxy for first retries, then switch to direct connection
+            # Proxy retry logic: 网络错误时清除代理，让代理中间件重新分配
+            # 这样可以从代理API获取新代理，而不是继续使用故障代理
             if request_copy.proxy:
-                if retry_times <= self.proxy_switch_threshold:
-                    # First retries, continue using proxy
+                # 判断是否为 HTTP 状态码错误（如 404, 500, 502 等）
+                # HTTP 错误通常是目标服务器问题，不是代理问题，可以继续使用当前代理
+                # 其他错误（超时、连接错误等）清除代理，获取新代理
+                is_http_error = reason.isdigit() or reason.startswith('HTTP')
+                
+                if is_http_error and retry_times <= self.proxy_switch_threshold:
+                    # HTTP 错误，继续使用当前代理
                     self.logger.info(f"[Retry {retry_times}/3] ({reason}), using proxy: {request_copy.proxy}, URL: {request.url}")
                 else:
-                    # Exceeded threshold, remove proxy, switch to direct connection
+                    # 网络错误（非 HTTP 错误）或超过阈值，清除代理
                     old_proxy = request_copy.proxy
-                    self.logger.info(f"[Retry {retry_times}/3] ({reason}), removing proxy: {old_proxy}, switching to direct connection, URL: {request.url}")
-                    request_copy.proxy = None
+                    if is_http_error:
+                        # HTTP 错误但超过阈值，切换直连
+                        self.logger.info(f"[Retry {retry_times}/3] ({reason}), removing proxy: {old_proxy}, switching to direct connection, URL: {request.url}")
+                    else:
+                        # 网络错误，清除代理获取新代理
+                        self.logger.info(f"[Retry {retry_times}/3] ({reason}), clearing proxy: {old_proxy}, will get new proxy, URL: {request.url}")
+                    request_copy.proxy = None  # 清除代理，让代理中间件重新分配
             else:
                 self.logger.info(f"[Retry {retry_times}/3] ({reason}), direct connection, URL: {request.url}")
                 

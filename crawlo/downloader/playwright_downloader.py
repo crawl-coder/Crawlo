@@ -203,7 +203,7 @@ class PlaywrightDownloader(DownloaderBase):
             crawlo_response = Response(
                 url=page_url,
                 headers=headers,
-                status_code=status_code,
+                status=status_code,
                 body=page_content.encode('utf-8'),
                 request=request
             )
@@ -219,8 +219,10 @@ class PlaywrightDownloader(DownloaderBase):
             return crawlo_response
 
         except Exception as e:
-            self.logger.error(f"Error downloading {request.url}: {e}")
-            return None
+            # 网络异常：重新抛出，交由 RetryMiddleware 处理
+            # 使用 DEBUG 级别，不打印堆栈
+            self.logger.debug(f"Download error for {request.url}: {type(e).__name__}: {e}")
+            raise
         finally:
             # 归还页面到池中
             if page:

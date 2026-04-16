@@ -144,7 +144,7 @@ class CoreFinancialIndicatorsSpider(Spider):
 
         except Exception as e:
             self.logger.error(
-                f"❌ 股票 {stock_code} 响应解析失败 - 状态码: {response.status_code}, URL: {response.url}, 错误: {e}",
+                f"❌ 股票 {stock_code} 响应解析失败 - 状态码: {response.status}, URL: {response.url}, 错误: {e}",
                 exc_info=True
             )
             if retry_times < max_retry_times:

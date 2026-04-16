@@ -91,7 +91,7 @@ class Response:
             body: bytes = b"",
             method: str = 'GET',
             request: Optional['Request'] = None,  # 使用字符串注解避免循环导入
-            status_code: int = 200,
+            status: int = 200,
     ) -> None:
         """
         初始化响应对象
@@ -102,7 +102,7 @@ class Response:
             body: 响应体
             method: 请求方法
             request: 对应的请求对象
-            status_code: 状态码
+            status: HTTP 状态码
         """
         # 基本属性
         self.url: str = url
@@ -110,7 +110,7 @@ class Response:
         self.body: bytes = body
         self.method: str = method.upper()
         self.request: Optional['Request'] = request
-        self.status_code: int = status_code
+        self.status: int = status
 
         # 编码处理
         self.encoding: str = self._determine_encoding()
@@ -121,10 +121,10 @@ class Response:
         self._selector_instance: Optional[Selector] = None
 
         # 状态标记
-        self._is_success: bool = 200 <= status_code < 300
-        self._is_redirect: bool = 300 <= status_code < 400
-        self._is_client_error: bool = 400 <= status_code < 500
-        self._is_server_error: bool = status_code >= 500
+        self._is_success: bool = 200 <= status < 300
+        self._is_redirect: bool = 300 <= status < 400
+        self._is_client_error: bool = 400 <= status < 500
+        self._is_server_error: bool = status >= 500
 
     # ==================== 编码检测相关方法 ====================
     
@@ -776,4 +776,4 @@ class Response:
         return self.request.meta if self.request else {}
 
     def __str__(self) -> str:
-        return f"<{self.status_code} {self.url}>"
+        return f"<{self.status} {self.url}>"

@@ -110,8 +110,8 @@ class OfWeekSpider(Spider):
         """解析响应"""
         self.logger.info(f'正在解析页面: {response.url}')
 
-        if response.status_code != 200:
-            self.logger.warning(f"页面返回非200状态码: {response.status_code}, URL: {response.url}")
+        if response.status != 200:
+            self.logger.warning(f"页面返回非200状态码: {response.status}, URL: {response.url}")
             return
 
         if not response.text or len(response.text.strip()) == 0:
@@ -162,8 +162,8 @@ class OfWeekSpider(Spider):
         """解析详情页"""
         self.logger.info(f'正在解析详情页: {response.url}')
 
-        if response.status_code != 200:
-            self.logger.warning(f"详情页返回非200状态码: {response.status_code}, URL: {response.url}")
+        if response.status != 200:
+            self.logger.warning(f"详情页返回非200状态码: {response.status}, URL: {response.url}")
             return
 
         if not response.text or len(response.text.strip()) == 0:

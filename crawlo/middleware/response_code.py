@@ -124,17 +124,17 @@ class ResponseCodeMiddleware(object):
         Returns:
             response: 响应对象
         """
-        status_code = response.status_code
+        status = response.status
         
         # 只记录总的统计信息，不记录每个域名和每个状态码的详细信息
         # 记录状态码分类统计
-        category = self._get_status_category(status_code)
+        category = self._get_status_category(status)
         self.stats.inc_value(f'response_status_code/category/{category}')
         
         # 记录成功/失败统计
-        if self._is_success_response(status_code):
+        if self._is_success_response(status):
             self.stats.inc_value('response_status_code/success_count')
-        elif self._is_client_error(status_code) or self._is_server_error(status_code):
+        elif self._is_client_error(status) or self._is_server_error(status):
             self.stats.inc_value('response_status_code/error_count')
             
         # 记录响应大小统计
@@ -143,7 +143,7 @@ class ResponseCodeMiddleware(object):
         
         # 详细日志记录
         self.logger.debug(
-            f'收到响应: {status_code} {response.url} '
+            f'收到响应: {status} {response.url} '
             f'(分类: {category}, 大小: {getattr(response, "content_length", "unknown")} bytes)'
         )
         

@@ -121,11 +121,11 @@ class QuickFetcher:
                 return result
 
             if response:
-                result.status_code = response.status_code
+                result.status_code = response.status
                 result.headers = dict(response.headers)
                 result.cookies = response.cookies if hasattr(response, 'cookies') else {}
                 result.size = len(response.body)
-                result.success = 200 <= response.status_code < 400
+                result.success = 200 <= response.status < 400
 
                 if persist_session and result.cookies:
                     self._cookies.update(result.cookies)
@@ -158,7 +158,7 @@ class QuickFetcher:
                 url=str(resp.url),
                 headers=dict(resp.headers),
                 body=body,
-                status_code=resp.status,
+                status=resp.status,
             )
             # 提取 Cookie
             response.cookies = {c.key: c.value for c in session.cookie_jar}
@@ -208,7 +208,7 @@ class QuickFetcher:
                 url=current_url,
                 headers={'Content-Type': 'text/html; charset=utf-8'},
                 body=html.encode('utf-8') if isinstance(html, str) else html,
-                status_code=200,
+                status=200,
             )
             response.cookies = page_cookies
             return response
@@ -268,7 +268,7 @@ class QuickFetcher:
                     url=current_url,
                     headers={'Content-Type': 'text/html; charset=utf-8'},
                     body=html.encode('utf-8') if isinstance(html, str) else html,
-                    status_code=200,
+                    status=200,
                 )
                 response.cookies = page_cookies
                 return response

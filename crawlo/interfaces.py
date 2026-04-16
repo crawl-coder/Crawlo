@@ -577,7 +577,7 @@ class IMiddleware(Protocol):
                 return None
             
             async def process_response(self, request: Request, response: Response) -> Response:
-                if response.status_code in (500, 502, 503):
+                if response.status in (500, 502, 503):
                     raise RetryException()
                 return response
             

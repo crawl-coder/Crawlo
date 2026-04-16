@@ -225,8 +225,10 @@ class DrissionPageDownloader(DownloaderBase):
             return response
             
         except Exception as e:
-            self.logger.error(f"Error downloading {request.url}: {e}", exc_info=True)
-            return None
+            # 网络异常：重新抛出，交由 RetryMiddleware 处理
+            # 使用 DEBUG 级别，不打印堆栈
+            self.logger.debug(f"Download error for {request.url}: {type(e).__name__}: {e}")
+            raise
 
     def _download_sync(self, request) -> Optional[Response]:
         """同步下载（在线程中执行）"""
@@ -261,7 +263,7 @@ class DrissionPageDownloader(DownloaderBase):
             response = Response(
                 url=current_url,
                 headers={'Content-Type': 'text/html; charset=utf-8'},
-                status_code=200,
+                status=200,
                 body=page_source.encode('utf-8'),
                 request=request
             )

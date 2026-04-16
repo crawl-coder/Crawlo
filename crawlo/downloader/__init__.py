@@ -209,7 +209,8 @@ class DownloaderBase(metaclass=DownloaderMeta):
                 response = await self.middleware.download(request)
                 return response
             except Exception as e:
-                self.logger.error(f"下载请求 {request.url} 失败: {e}")
+                # 使用 DEBUG 级别，不打印堆栈，异常会传播到 Engine
+                self.logger.debug(f"Download failed for {request.url}: {type(e).__name__}: {e}")
                 raise
 
     @abstractmethod

@@ -64,5 +64,5 @@ class {{class_name}}(Spider):
         yield {
             'title': response.xpath('//title/text()').get(default=''),
             'url': response.url,
-            'status_code': response.status_code,
+            'status': response.status,
         }

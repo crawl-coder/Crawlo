@@ -256,7 +256,7 @@ class CheckpointManager:
             }
 
             # 可选字段
-            for attr in ('body', 'cookies', 'timeout', 'proxy', 'callback', 'err_back'):
+            for attr in ('body', 'cookies', 'timeout', 'proxy', 'callback', 'errback'):
                 val = getattr(request, attr, None)
                 if val is not None:
                     if callable(val):

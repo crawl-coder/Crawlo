@@ -500,7 +500,7 @@ class _SimpleFetcher:
                     body = await resp.read()
                     return Response(
                         url=request.url,
-                        status_code=resp.status,
+                        status=resp.status,
                         headers=dict(resp.headers),
                         body=body,
                         request=request,

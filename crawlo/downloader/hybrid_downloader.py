@@ -133,23 +133,19 @@ class HybridDownloader(DownloaderBase):
 
     async def download(self, request: Request) -> Optional[Response]:
         """根据请求特征选择合适的下载器并下载"""
-        try:
-            # 确定应该使用的下载器类型
-            downloader_type = self._determine_downloader_type(request)
-            
-            # 获取对应的下载器
-            downloader = self._get_or_create_downloader(downloader_type)
-            if downloader is None:
-                self.logger.error(f"No downloader available for type: {downloader_type}")
-                return None
-            
-            self.logger.debug(f"Using {downloader_type} downloader for {request.url}")
-            
-            # 执行下载
-            return await downloader.download(request)
-        except Exception as e:
-            self.logger.error(f"Error in hybrid downloader for {request.url}: {e}", exc_info=True)
+        # 确定应该使用的下载器类型
+        downloader_type = self._determine_downloader_type(request)
+        
+        # 获取对应的下载器
+        downloader = self._get_or_create_downloader(downloader_type)
+        if downloader is None:
+            self.logger.error(f"No downloader available for type: {downloader_type}")
             return None
+        
+        self.logger.debug(f"Using {downloader_type} downloader for {request.url}")
+        
+        # 执行下载（异常应该传播到 MiddlewareManager，由重试中间件处理）
+        return await downloader.download(request)
 
     def _determine_downloader_type(self, request: Request) -> str:
         """

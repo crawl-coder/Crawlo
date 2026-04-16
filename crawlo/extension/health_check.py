@@ -108,7 +108,7 @@ class HealthCheckExtension:
         self.stats['total_responses'] += 1
         
         # 记录错误响应
-        if hasattr(response, 'status_code') and response.status_code >= 400:
+        if hasattr(response, 'status') and response.status >= 400:
             self.stats['error_responses'] += 1
 
     async def _health_check_loop(self) -> None:

@@ -127,7 +127,7 @@ class BalanceSheetSpider(Spider):
 
         except Exception as e:
             self.logger.error(
-                f"❌ 响应解析失败 - URL: {response.url}, 状态码: {response.status_code}, 错误: {e}",
+                f"❌ 响应解析失败 - URL: {response.url}, 状态码: {response.status}, 错误: {e}",
                 exc_info=True
             )
             return None  # 解析失败时返回None

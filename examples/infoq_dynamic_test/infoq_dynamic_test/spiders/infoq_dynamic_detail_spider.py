@@ -40,7 +40,7 @@ class InfoqDynamicDetailSpider(Spider):
         # 输出基本信息
         self.logger.info(f"\n{'='*60}")
         self.logger.info(f"[列表页] URL: {response.url}")
-        self.logger.info(f"[列表页] 状态码: {response.status_code}")
+        self.logger.info(f"[列表页] 状态码: {response.status}")
         self.logger.info(f"[列表页] 内容长度: {len(response.text)} 字符")
         self.logger.info(f"[列表页] 下载器类型: 协议下载器（快速）")
         self.logger.info(f"{'='*60}\n")

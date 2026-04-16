@@ -65,8 +65,8 @@ class OfWeekAdaptiveSpider(Spider):
     def parse(self, response: Response):
         """解析列表页 - 使用自适应元素追踪"""
         # 检查响应状态
-        if response.status_code != 200:
-            self.logger.warning(f"页面返回非200状态码: {response.status_code}, URL: {response.url}")
+        if response.status != 200:
+            self.logger.warning(f"页面返回非200状态码: {response.status}, URL: {response.url}")
             return
 
         # 检查页面内容是否为空
@@ -128,8 +128,8 @@ class OfWeekAdaptiveSpider(Spider):
         self.logger.info(f'正在解析详情页: {response.url}')
 
         # 检查响应状态
-        if response.status_code != 200:
-            self.logger.warning(f"详情页返回非200状态码: {response.status_code}, URL: {response.url}")
+        if response.status != 200:
+            self.logger.warning(f"详情页返回非200状态码: {response.status}, URL: {response.url}")
             return
 
         # 检查页面内容是否为空

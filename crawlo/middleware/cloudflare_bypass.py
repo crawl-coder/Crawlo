@@ -161,7 +161,7 @@ class CloudflareBypassMiddleware:
     def _is_cloudflare_challenge(self, response: Response) -> bool:
         """Detect if this is a Cloudflare challenge page"""
         # Check status code
-        if response.status_code not in self.CHALLENGE_STATUS_CODES:
+        if response.status not in self.CHALLENGE_STATUS_CODES:
             return False
         
         # Check response headers

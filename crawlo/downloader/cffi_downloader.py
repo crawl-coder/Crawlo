@@ -122,8 +122,10 @@ class CurlCffiDownloader(DownloaderBase):
             return self._structure_response(request, response, body)
 
         except Exception as e:
-            await self._handle_download_error(request, e)
-            return None
+            # 网络异常：重新抛出，交由 RetryMiddleware 处理
+            # 使用 DEBUG 级别，不打印堆栈
+            self.logger.debug(f"Download error for {request.url}: {type(e).__name__}: {e}")
+            raise
 
     def _build_request_kwargs(self, request) -> Dict[str, Any]:
         """
@@ -189,7 +191,7 @@ class CurlCffiDownloader(DownloaderBase):
         return Response(
             url=str(response.url),
             headers=dict(response.headers),
-            status_code=response.status_code,
+            status=response.status,
             body=body,
             request=request,
         )

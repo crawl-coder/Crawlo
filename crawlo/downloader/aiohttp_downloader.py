@@ -130,8 +130,10 @@ class AioHttpDownloader(DownloaderBase):
                 return response
 
         except Exception as e:
-            await self._handle_download_error(request, e)
-            return None
+            # 网络异常：重新抛出，交由 RetryMiddleware 处理
+            # 使用 DEBUG 级别，不打印堆栈
+            self.logger.debug(f"Download error for {request.url}: {type(e).__name__}: {e}")
+            raise
 
     @staticmethod
     async def _send_request(session: ClientSession, request: 'Request') -> ClientResponse:
@@ -224,7 +226,7 @@ class AioHttpDownloader(DownloaderBase):
         return Response(
             url=str(resp.url),
             headers=dict(resp.headers),
-            status_code=resp.status,
+            status=resp.status,
             body=body,
             request=request,
         )

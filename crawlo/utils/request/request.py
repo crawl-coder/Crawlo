@@ -207,8 +207,8 @@ def request_to_dict(request: Request, spider=None) -> Dict[str, Any]:
         d['_callback'] = _get_function_path(request.callback)
 
     # 2. 处理 errback
-    if callable(getattr(request, 'err_back', None)):
-        d['_errback'] = _get_function_path(request.err_back)
+    if callable(getattr(request, 'errback', None)):
+        d['_errback'] = _get_function_path(request.errback)
 
     # 3. 记录原始类名，以便反序列化时创建正确的实例
     d['_class'] = request.__class__.__module__ + '.' + request.__class__.__name__
@@ -266,9 +266,9 @@ def request_from_dict(d: Dict[str, Any], spider=None) -> Request:
 
     request = cls(**request_kwargs)
     
-    # 手动设置 err_back 属性
+    # 手动设置 errback 属性
     if errback is not None:
-        request.err_back = errback
+        request.errback = errback
 
     return request
 

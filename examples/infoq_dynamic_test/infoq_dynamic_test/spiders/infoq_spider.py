@@ -55,7 +55,7 @@ class InfoqSpider(Spider):
         self.logger.info(f"# 测试模式: {self.test_mode}")
         self.logger.info(f"# 当前页码: {current_page}")
         self.logger.info(f"# URL: {response.url}")
-        self.logger.info(f"# 状态码: {response.status_code}")
+        self.logger.info(f"# 状态码: {response.status}")
         self.logger.info(f"# 内容长度: {len(response.text)} 字符")
         self.logger.info(f"# 使用动态下载器: {response.request.meta.get('use_dynamic_loader', False)}")
         self.logger.info(f"# 执行了点击操作: {'playwright_actions' in response.request.meta}")

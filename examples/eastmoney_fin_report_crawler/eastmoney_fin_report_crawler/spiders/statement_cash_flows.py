@@ -123,7 +123,7 @@ class CashFlowStatementSpider(Spider):
         except Exception as e:
             # 整体解析失败（如 JSON 格式错误）
             self.logger.error(
-                f"❌ 响应解析失败 - URL: {response.url}, 状态码: {response.status_code}, 错误: {e}",
+                f"❌ 响应解析失败 - URL: {response.url}, 状态码: {response.status}, 错误: {e}",
                 exc_info=True
             )
 
