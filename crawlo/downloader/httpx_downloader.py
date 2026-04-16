@@ -36,7 +36,7 @@ class HttpXDownloader(DownloaderBase):
         super().open()
         
         # 读取配置
-        timeout_total = safe_get_config(self.crawler.settings, "DOWNLOAD_TIMEOUT", 30, int)
+        timeout_total = safe_get_config(self.crawler.settings, "DOWNLOAD_TIMEOUT", 15, int)
         pool_limit = safe_get_config(self.crawler.settings, "CONNECTION_POOL_LIMIT", 100, int)
         pool_per_host = safe_get_config(self.crawler.settings, "CONNECTION_POOL_LIMIT_PER_HOST", 20, int)
         max_download_size = safe_get_config(self.crawler.settings, "DOWNLOAD_MAXSIZE", 10 * 1024 * 1024, int)
@@ -44,12 +44,15 @@ class HttpXDownloader(DownloaderBase):
 
         self.max_download_size = max_download_size
 
-        # 配置主客户端的超时和连接池
+        # 基于 DOWNLOAD_TIMEOUT 配置动态计算分层超时
+        # 采用分层超时策略，平衡性能与兼容性
+        # 分配比例: connect=17%, read=50%, write=17%, pool=固定1s
+        # 默认 timeout_total=15: connect=2.6s, read=7.5s, write=2.6s, pool=1s → 13.7s
         self._client_timeout = Timeout(
-            connect=10.0,     # 建立连接超时
-            read=timeout_total - 10.0 if timeout_total > 10 else timeout_total / 2,  # 读取数据超时
-            write=10.0,       # 发送数据超时
-            pool=1.0          # 从连接池获取连接的超时
+            connect=min(5.0, timeout_total * 0.17),   # 连接超时：17%（上限5秒，网络异常快速失败）
+            read=timeout_total * 0.50,                # 读取超时：50%（主要等待时间）
+            write=min(5.0, timeout_total * 0.17),     # 写入超时：17%（上限5秒）
+            pool=1.0                                  # 连接池超时：固定1秒
         )
         self._client_limits = Limits(
             max_connections=pool_limit,
@@ -158,6 +161,34 @@ class HttpXDownloader(DownloaderBase):
                         self.logger.error(
                             f"Failed to create proxy client {httpx_proxy_config} for {request.url}: {e}")
                         return None
+            
+            # 重试请求直连超时保护：检测重试次数，使用更严格的超时
+            retry_times = request.meta.get('retry_times', 0)
+            if retry_times > 0 and not request.proxy:
+                # 直连重试请求，使用严格超时防止长时间阻塞
+                # 基于 DOWNLOAD_TIMEOUT 动态计算，但比正常请求更严格
+                # 分配比例: connect=17%, read=33%, write=10%, pool=固定1s
+                # 默认 timeout_total=15: connect=2.6s, read=5.0s, write=1.5s, pool=1s → 10.1s
+                strict_timeout = Timeout(
+                    connect=min(5.0, timeout_total * 0.17),   # 连接超时：17%（上限5秒）
+                    read=timeout_total * 0.33,                # 读取超时：33%（已经重试过，更快失败）
+                    write=min(3.0, timeout_total * 0.10),     # 写入超时：10%（上限3秒）
+                    pool=1.0                                  # 连接池超时：固定1秒
+                )
+                
+                # 创建临时客户端（严格超时模式）
+                temp_client = AsyncClient(
+                    timeout=strict_timeout,
+                    limits=self._client_limits,
+                    verify=self._client_verify,
+                    http2=self._client_http2,
+                    follow_redirects=True
+                )
+                effective_client = temp_client
+                self.logger.info(
+                    f"Retry direct request (retry_times={retry_times}) with strict timeout "
+                    f"(connect={min(5.0, timeout_total * 0.17):.1f}s, read={timeout_total * 0.33:.1f}s, write={min(3.0, timeout_total * 0.10):.1f}s): {request.url}"
+                )
 
             # 发送请求
             httpx_response = await effective_client.request(**kwargs)

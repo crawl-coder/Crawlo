@@ -58,7 +58,7 @@ class AioHttpDownloader(DownloaderBase):
         super().open()
 
         # 读取配置
-        timeout_secs = safe_get_config(self.crawler.settings, "DOWNLOAD_TIMEOUT", 30, int)
+        timeout_secs = safe_get_config(self.crawler.settings, "DOWNLOAD_TIMEOUT", 15, int)
         verify_ssl = safe_get_config(self.crawler.settings, "VERIFY_SSL", True, bool)
         pool_limit = safe_get_config(self.crawler.settings, "CONNECTION_POOL_LIMIT", 100, int)
         pool_per_host = safe_get_config(self.crawler.settings, "CONNECTION_POOL_LIMIT_PER_HOST", 20, int)
@@ -77,12 +77,14 @@ class AioHttpDownloader(DownloaderBase):
             family=socket.AF_UNSPEC,
         )
 
-        # 超时控制
+        # 基于 DOWNLOAD_TIMEOUT 动态计算分层超时
+        # 分配比例: connect=17%, sock_read=50%, sock_connect=17%, total=100%
+        # 默认 timeout_secs=15: total=15s, connect=2.6s, sock_read=7.5s, sock_connect=2.6s
         timeout = ClientTimeout(
-            total=timeout_secs,
-            connect=min(5.0, timeout_secs / 2),  # 连接超时最多5秒
-            sock_read=min(10.0, timeout_secs),   # 读取超时最多10秒
-            sock_connect=min(5.0, timeout_secs / 2)  # 连接超时最多5秒
+            total=timeout_secs,                        # 总超时：15秒（覆盖99%场景）
+            connect=min(5.0, timeout_secs * 0.17),    # 连接超时：17%（上限5秒）
+            sock_read=timeout_secs * 0.50,            # 读取超时：50%（主要等待时间）
+            sock_connect=min(5.0, timeout_secs * 0.17)  # 连接超时：17%（上限5秒）
         )
 
         # 创建持久化 session
@@ -92,7 +94,11 @@ class AioHttpDownloader(DownloaderBase):
             auto_decompress=auto_decompress,
         )
 
-        self.logger.debug("AioHttpDownloader initialized.")
+        self.logger.info(
+            f"AioHttpDownloader initialized with timeout {timeout_secs}s "
+            f"(total={timeout_secs}s, connect={min(5.0, timeout_secs * 0.17):.1f}s, "
+            f"sock_read={timeout_secs * 0.50:.1f}s, sock_connect={min(5.0, timeout_secs * 0.17):.1f}s)"
+        )
 
     async def download(self, request: 'Request') -> Optional[Response]:
         """

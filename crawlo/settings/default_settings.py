@@ -77,7 +77,7 @@ QUEUE_TIMEOUT = 300  # 队列操作超时时间（秒）
 # ==============================================================================
 
 # ----- 3.1 下载器通用配置 -----
-DOWNLOAD_TIMEOUT = 30  # 下载超时时间（秒）
+DOWNLOAD_TIMEOUT = 15  # 下载超时时间（秒）- 覆盖99%场景，符合快速失败原则
 VERIFY_SSL = True  # 是否验证 SSL 证书
 CONNECTION_POOL_LIMIT = 100  # 连接池大小限制
 CONNECTION_POOL_LIMIT_PER_HOST = 20  # 每个主机的连接池大小限制
