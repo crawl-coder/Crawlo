@@ -25,17 +25,26 @@ class RequestPriority(IntEnum):
     """
     请求优先级枚举。
     
-    数值越小，优先级越高。使用 IntEnum 确保可以直接当作整数使用。
+    数值越大，优先级越高（用户传入正值，更符合直觉）。
+    内部存储时会自动取反，确保队列按值小的先出队。
     
     Examples:
         >>> request = Request(url, priority=RequestPriority.HIGH)
         >>> request.priority = RequestPriority.URGENT
+    
+    优先级映射：
+        用户传入值 → 存储值 → 出队顺序
+        URGENT(200)    → -200   → 最先出队
+        HIGH(100)      → -100   → 第二出队
+        NORMAL(0)      → 0      → 正常出队
+        LOW(-100)      → 100    → 较后出队
+        BACKGROUND(-200) → 200  → 最后出队
     """
-    URGENT = -200      # 紧急任务
-    HIGH = -100        # 高优先级  
+    URGENT = 200       # 紧急任务（最高优先级）
+    HIGH = 100         # 高优先级  
     NORMAL = 0         # 正常优先级(默认)
-    LOW = 100          # 低优先级
-    BACKGROUND = 200   # 后台任务
+    LOW = -100         # 低优先级
+    BACKGROUND = -200  # 后台任务（最低优先级）
 
 
 class Request:
