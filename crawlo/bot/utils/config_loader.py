@@ -9,7 +9,7 @@
 from typing import Optional
 
 from crawlo.logging import get_logger
-from crawlo.bot.notifier import get_notifier
+from crawlo.bot.core.notifier import get_notifier
 from crawlo.bot.channels.dingtalk import get_dingtalk_channel
 from crawlo.bot.channels.feishu import get_feishu_channel
 from crawlo.bot.channels.wecom import get_wecom_channel

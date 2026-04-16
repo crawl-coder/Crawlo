@@ -9,8 +9,8 @@
 
 from enum import Enum
 from typing import Dict, List, Optional
-from crawlo.bot.template_manager import MessageTemplateManager
-from crawlo.bot.models import NotificationType
+from crawlo.bot.templates.manager import MessageTemplateManager
+from crawlo.bot.core.models import NotificationType
 
 
 class ResourceMonitorTemplateManager:

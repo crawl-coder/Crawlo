@@ -10,7 +10,7 @@
 from typing import Dict, List, Optional, Type, Callable
 
 from crawlo.logging import get_logger
-from crawlo.bot.models import NotificationMessage, NotificationResponse, ChannelType
+from crawlo.bot.core.models import NotificationMessage, NotificationResponse, ChannelType
 
 
 logger = get_logger(__name__)

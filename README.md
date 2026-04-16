@@ -631,6 +631,19 @@ crawlo run example --log-level DEBUG
 
 Crawlo 提供了完善的多平台通知系统，支持钉钉、飞书、企业微信、邮件和短信通知。
 
+### 📦 模块结构
+
+通知系统采用模块化设计，结构清晰：
+
+```
+crawlo/bot/
+├── core/              # 核心功能（models, notifier, handlers）
+├── channels/          # 渠道适配器（dingtalk, feishu, wecom, email, sms）
+├── templates/         # 模板系统（消息模板和渲染）
+├── monitoring/        # 资源监控（数据库、Redis 监控模板）
+└── utils/             # 工具模块（配置加载、消息去重）
+```
+
 ### 📋 配置说明
 
 在 `settings.py` 中配置通知系统：

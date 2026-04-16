@@ -10,11 +10,11 @@
 from typing import Dict, Any, Optional
 
 from crawlo.logging import get_logger
-from crawlo.bot.models import NotificationMessage, NotificationResponse, NotificationType, ChannelType
-from crawlo.bot.notifier import get_notifier
-from crawlo.bot.config_loader import apply_settings_config, ensure_config_loaded
-from crawlo.bot.template_manager import get_template_manager, render_message
-from crawlo.bot.duplicate_manager import get_deduplicator  # 导入去重管理器
+from crawlo.bot.core.models import NotificationMessage, NotificationResponse, NotificationType, ChannelType
+from crawlo.bot.core.notifier import get_notifier
+from crawlo.bot.utils.config_loader import apply_settings_config, ensure_config_loaded
+from crawlo.bot.templates.manager import get_template_manager, render_message
+from crawlo.bot.utils.deduplicator import get_deduplicator  # 导入去重管理器
 
 
 logger = get_logger(__name__)
