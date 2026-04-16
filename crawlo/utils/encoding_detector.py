@@ -63,34 +63,124 @@ def _http_content_type_encoding(content_type: str) -> Optional[str]:
     return None
 
 
+def _html_body_declared_encoding(body: bytes) -> Optional[str]:
+    """Extract encoding from HTML meta tags or XML declaration.
+    
+    Similar to w3lib.html_body_declared_encoding but as fallback.
+    """
+    if not body:
+        return None
+    
+    # Check first 4KB for performance
+    chunk = body[:4096]
+    
+    # Try ASCII first (fast path)
+    try:
+        text = chunk.decode('ascii', errors='ignore')
+    except Exception:
+        return None
+    
+    # XML declaration: <?xml version="1.0" encoding="UTF-8"?>
+    xml_match = re.search(
+        r'<\?xml[^>]+encoding=["\']([\w-]+)["\']',
+        text,
+        re.IGNORECASE
+    )
+    if xml_match:
+        return xml_match.group(1).lower()
+    
+    # HTML5: <meta charset="utf-8">
+    meta_charset = re.search(
+        r'<meta\s+charset=["\']?([\w-]+)',
+        text,
+        re.IGNORECASE
+    )
+    if meta_charset:
+        return meta_charset.group(1).lower()
+    
+    # HTML4: <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+    meta_http = re.search(
+        r'<meta[^>]+http-equiv=["\']?content-type["\']?[^>]*>',
+        text,
+        re.IGNORECASE
+    )
+    if meta_http:
+        content_match = re.search(
+            r'charset=([\w-]+)',
+            meta_http.group(0),
+            re.IGNORECASE
+        )
+        if content_match:
+            return content_match.group(1).lower()
+    
+    return None
+
+
 def _resolve_encoding(encoding_alias: str) -> str:
-    """Resolve encoding alias to canonical name."""
+    """Resolve encoding alias to canonical name.
+    
+    Reference: https://docs.python.org/3/library/codecs.html#standard-encodings
+    """
+    if not encoding_alias:
+        return 'utf-8'
+    
     encoding_map = {
-        'ascii': 'ascii',
+        # Unicode
         'utf8': 'utf-8',
         'utf-8': 'utf-8',
+        'utf16': 'utf-16',
+        'utf-16': 'utf-16',
+        'utf32': 'utf-32',
+        'utf-32': 'utf-32',
+        # ASCII
+        'ascii': 'ascii',
+        'us-ascii': 'ascii',
+        # Latin-1
         'latin1': 'latin-1',
         'latin-1': 'latin-1',
         'iso-8859-1': 'latin-1',
+        'iso8859-1': 'latin-1',
+        'cp819': 'latin-1',
+        # Windows
         'cp1252': 'cp1252',
         'windows-1252': 'cp1252',
+        'cp1251': 'cp1251',
+        'windows-1251': 'cp1251',
+        # Chinese
         'gbk': 'gbk',
         'gb2312': 'gb2312',
         'gb18030': 'gb18030',
         'big5': 'big5',
         'big5-tw': 'big5',
+        'big5-hkscs': 'big5',
+        # Japanese
+        'shift_jis': 'shift_jis',
+        'shift-jis': 'shift_jis',
+        'sjis': 'shift_jis',
+        'euc-jp': 'euc_jp',
+        'eucjp': 'euc_jp',
+        'iso-2022-jp': 'iso2022_jp',
+        # Korean
+        'euc-kr': 'euc_kr',
+        'euckr': 'euc_kr',
+        # Other
+        'koi8-r': 'koi8_r',
+        'koi8r': 'koi8_r',
     }
-    return encoding_map.get(encoding_alias.lower(), encoding_alias)
+    
+    normalized = encoding_alias.lower().replace('_', '-')
+    return encoding_map.get(normalized, encoding_alias)
 
 
 # Use w3lib functions if available, otherwise use fallback
 if W3LIB_AVAILABLE:
-    read_bom = read_bom
-    http_content_type_encoding = http_content_type_encoding
-    resolve_encoding = resolve_encoding
+    # Use imported w3lib functions
+    pass
 else:
+    # Use fallback implementations
     read_bom = _read_bom
     http_content_type_encoding = _http_content_type_encoding
+    html_body_declared_encoding = _html_body_declared_encoding
     resolve_encoding = _resolve_encoding
 
 
@@ -195,6 +285,13 @@ class EncodingDetector:
         """
         内置编码检测逻辑（w3lib 不可用时使用）
         
+        检测优先级（参考 Scrapy）：
+        1. BOM 字节顺序标记
+        2. HTTP Content-Type 头部
+        3. HTML/XML body 中声明的编码
+        4. 内容自动检测
+        5. 默认编码
+        
         Args:
             body: 响应体字节内容
             headers: HTTP 响应头
@@ -214,10 +311,10 @@ class EncodingDetector:
         if encoding:
             return encoding
         
-        # 3. HTML meta 标签检测
-        encoding = cls._detect_from_html_meta(body)
+        # 3. HTML/XML body 中声明的编码（meta 标签或 XML 声明）
+        encoding = html_body_declared_encoding(body)
         if encoding:
-            return encoding
+            return resolve_encoding(encoding)
         
         # 4. 内容自动检测
         encoding = cls._detect_from_content(body)
@@ -265,7 +362,10 @@ class EncodingDetector:
     @classmethod
     def _detect_from_html_meta(cls, body: bytes) -> Optional[str]:
         """
-        从 HTML meta 标签中检测编码
+        从 HTML meta 标签或 XML 声明中检测编码
+        
+        这是 html_body_declared_encoding 的包装方法，
+        用于保持向后兼容性。
         
         Args:
             body: 响应体字节内容
@@ -273,37 +373,9 @@ class EncodingDetector:
         Returns:
             Optional[str]: 检测到的编码或 None
         """
-        # 只检查 HTML 内容
-        if b'<html' not in body[:1024].lower():
-            return None
-        
-        # 只检查前 4KB，避免大文件性能问题
-        html_start = body[:4096]
-        
-        try:
-            # 使用 ascii 解码，忽略不可解码字符
-            html_text = html_start.decode('ascii', errors='ignore')
-            
-            # 匹配 <meta charset="xxx">
-            charset_match = re.search(
-                r'<meta[^>]+charset=["\']?([\w-]+)',
-                html_text,
-                re.IGNORECASE
-            )
-            if charset_match:
-                return charset_match.group(1).lower()
-            
-            # 匹配 <meta http-equiv="Content-Type" content="...charset=xxx">
-            content_match = re.search(
-                r'<meta[^>]+content=["\'][^"\'>]*charset=([\w-]+)',
-                html_text,
-                re.IGNORECASE
-            )
-            if content_match:
-                return content_match.group(1).lower()
-        except Exception:
-            pass
-        
+        encoding = html_body_declared_encoding(body)
+        if encoding:
+            return resolve_encoding(encoding)
         return None
     
     @classmethod
@@ -342,18 +414,38 @@ class EncodingDetector:
         """
         自动检测编码的回调函数（供 w3lib 使用）
         
+        参考 Scrapy 的实现，尝试常见编码。
+        
         Args:
             text: 要检测的字节文本
             
         Returns:
             Optional[str]: 检测到的编码
         """
-        for enc in (cls.DEFAULT_ENCODING, 'utf-8', 'cp1252'):
+        # 尝试的编码顺序（参考 Scrapy）
+        encodings = [
+            'ascii',
+            'utf-8',
+            'cp1252',  # Western European
+            'cp1251',  # Cyrillic
+            'latin-1',
+        ]
+        
+        for enc in encodings:
             try:
                 text.decode(enc)
                 return resolve_encoding(enc)
             except UnicodeError:
                 continue
+        
+        # 如果常见编码都失败，尝试中文编码
+        for enc in cls.CHINESE_ENCODINGS:
+            try:
+                text.decode(enc)
+                return resolve_encoding(enc)
+            except UnicodeError:
+                continue
+        
         return None
     
     @classmethod
