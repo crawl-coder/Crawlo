@@ -31,6 +31,13 @@ try:
     W3LIB_AVAILABLE = True
 except ImportError:
     W3LIB_AVAILABLE = False
+    # Define fallback function references
+    # Actual implementations are defined below
+    html_body_declared_encoding = None
+    html_to_unicode = None
+    http_content_type_encoding = None
+    read_bom = None
+    resolve_encoding = None
 
 
 # ============================================================================
@@ -172,12 +179,8 @@ def _resolve_encoding(encoding_alias: str) -> str:
     return encoding_map.get(normalized, encoding_alias)
 
 
-# Use w3lib functions if available, otherwise use fallback
-if W3LIB_AVAILABLE:
-    # Use imported w3lib functions
-    pass
-else:
-    # Use fallback implementations
+# Assign fallback implementations if w3lib is not available
+if not W3LIB_AVAILABLE:
     read_bom = _read_bom
     http_content_type_encoding = _http_content_type_encoding
     html_body_declared_encoding = _html_body_declared_encoding
