@@ -77,7 +77,6 @@ class Request:
         '_form_data',
         '_params',
         'use_dynamic_loader',
-        'dynamic_loader_options'
     )
 
     def __init__(
@@ -103,9 +102,7 @@ class Request:
         verify: bool = True,
         flags: Optional[List[str]] = None,
         encoding: str = 'utf-8',
-        # 动态加载相关参数
-        use_dynamic_loader: bool = False,
-        dynamic_loader_options: Optional[Dict[str, Any]] = None
+        use_dynamic_loader: bool = False
     ) -> None:
         """
         初始化请求对象。
@@ -133,7 +130,6 @@ class Request:
             flags: 标记（用于调试或分类）
             encoding: 字符编码，默认 utf-8
             use_dynamic_loader: 是否使用动态加载器
-            dynamic_loader_options: 动态加载器选项
         """
         self.callback = callback
         self.err_back = err_back
@@ -154,14 +150,12 @@ class Request:
         self.encoding = encoding
         self.cb_kwargs = cb_kwargs or {}
         self.body = body
+        self.use_dynamic_loader = use_dynamic_loader
+        
         # 保存高层语义参数（用于 copy）
         self._json_body = json_body
         self._form_data = form_data
         self._params = params
-        
-        # 动态加载相关属性
-        self.use_dynamic_loader = use_dynamic_loader
-        self.dynamic_loader_options = dynamic_loader_options or {}
 
         # 处理GET参数
         if params is not None and self.method == 'GET':
@@ -305,8 +299,7 @@ class Request:
             verify=self.verify,
             flags=self.flags.copy(),
             encoding=self.encoding,
-            use_dynamic_loader=self.use_dynamic_loader,
-            dynamic_loader_options=deepcopy(self.dynamic_loader_options)
+            use_dynamic_loader=self.use_dynamic_loader
         )
 
     def set_meta(self, key: str, value: Any) -> 'Request':
@@ -416,8 +409,6 @@ class Request:
             Request: 支持链式调用
         """
         self.use_dynamic_loader = use_dynamic
-        if options:
-            self.dynamic_loader_options = options
         # 同时在meta中设置标记，供混合下载器使用
         self._meta['use_dynamic_loader'] = use_dynamic
         return self
