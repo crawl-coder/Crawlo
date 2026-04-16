@@ -17,7 +17,7 @@
 """
 
 import re
-from typing import Optional, Dict, Any, Callable
+from typing import Optional, Dict, Any
 
 # 尝试导入 w3lib 编码检测函数
 try:
@@ -31,13 +31,67 @@ try:
     W3LIB_AVAILABLE = True
 except ImportError:
     W3LIB_AVAILABLE = False
-    # 当 w3lib 不可用时，从 utils 导入替代函数
-    from crawlo.utils.request.response_helper import (
-        html_body_declared_encoding,
-        http_content_type_encoding,
-        read_bom,
-        resolve_encoding,
-    )
+
+
+# ============================================================================
+# Fallback implementations when w3lib is not available
+# ============================================================================
+
+def _read_bom(data: bytes) -> tuple:
+    """Read the byte order mark from the data, if present."""
+    if data.startswith(b'\xef\xbb\xbf'):
+        return ('utf-8', 3)
+    elif data.startswith(b'\xff\xfe\x00\x00'):
+        return ('utf-32-le', 4)
+    elif data.startswith(b'\x00\x00\xfe\xff'):
+        return ('utf-32-be', 4)
+    elif data.startswith(b'\xff\xfe'):
+        return ('utf-16-le', 2)
+    elif data.startswith(b'\xfe\xff'):
+        return ('utf-16-be', 2)
+    return (None, 0)
+
+
+def _http_content_type_encoding(content_type: str) -> Optional[str]:
+    """Extract encoding from HTTP Content-Type header."""
+    if not content_type:
+        return None
+    # Match charset in Content-Type: text/html; charset=utf-8
+    match = re.search(r'charset=([\w-]+)', content_type, re.IGNORECASE)
+    if match:
+        return match.group(1).lower()
+    return None
+
+
+def _resolve_encoding(encoding_alias: str) -> str:
+    """Resolve encoding alias to canonical name."""
+    encoding_map = {
+        'ascii': 'ascii',
+        'utf8': 'utf-8',
+        'utf-8': 'utf-8',
+        'latin1': 'latin-1',
+        'latin-1': 'latin-1',
+        'iso-8859-1': 'latin-1',
+        'cp1252': 'cp1252',
+        'windows-1252': 'cp1252',
+        'gbk': 'gbk',
+        'gb2312': 'gb2312',
+        'gb18030': 'gb18030',
+        'big5': 'big5',
+        'big5-tw': 'big5',
+    }
+    return encoding_map.get(encoding_alias.lower(), encoding_alias)
+
+
+# Use w3lib functions if available, otherwise use fallback
+if W3LIB_AVAILABLE:
+    read_bom = read_bom
+    http_content_type_encoding = http_content_type_encoding
+    resolve_encoding = resolve_encoding
+else:
+    read_bom = _read_bom
+    http_content_type_encoding = _http_content_type_encoding
+    resolve_encoding = _resolve_encoding
 
 
 class EncodingDetector:
