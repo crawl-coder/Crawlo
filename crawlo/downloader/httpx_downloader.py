@@ -189,9 +189,10 @@ class HttpXDownloader(DownloaderBase):
                 error_body = b""
             return self.structure_response(request=request, response=e.response, body=error_body)
         except Exception as e:
-            # 未知异常：安全兜底，避免爬虫崩溃
-            self.logger.error(f"Unexpected error for {request.url}: {e}", exc_info=True)
-            return None
+            # 网络异常（超时、连接错误等）：重新抛出，交由 RetryMiddleware 处理
+            # 不要返回 None，否则重试中间件无法捕获异常
+            self.logger.error(f"Download error for {request.url}: {e}", exc_info=True)
+            raise  # 重新抛出异常
 
         finally:
             # 清理：关闭临时客户端（如果存在）

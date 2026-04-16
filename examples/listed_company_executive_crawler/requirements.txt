@@ -1,0 +1,12 @@
+crawlo==1.6.2
+asyncmy
+aiomysql
+python-dotenv
+pymysql
+pandas
+sqlalchemy
+openpyxl
+aiofiles
+psutil
+cssselect
+pymysql
