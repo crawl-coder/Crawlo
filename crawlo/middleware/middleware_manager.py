@@ -10,7 +10,7 @@ from typing import List, Dict, Callable, Optional, TYPE_CHECKING
 if TYPE_CHECKING:
     from crawlo import Request, Response
 else:
-    # 为 isinstance 检查导入实际的类
+    # Import actual classes for isinstance checks
     from crawlo.network.request import Request
     from crawlo.network.response import Response
 from crawlo.logging import get_logger
@@ -24,7 +24,7 @@ from crawlo.exceptions import MiddlewareInitError, InvalidOutputError, RequestMe
 
 
 class MiddlewareManager:
-    # 类级别标志，确保只打印一次中间件启用日志
+    # Class-level flag to ensure middleware enabled log is printed only once
     _logged_enabled = False
 
     def __init__(self, crawler):
@@ -33,7 +33,7 @@ class MiddlewareManager:
         self.middlewares: List = []
         self.methods: Dict[str, List[MethodType]] = defaultdict(list)
         
-        # 安全获取MIDDLEWARES配置
+        # Safely get MIDDLEWARES configuration
         middlewares = safe_get_config(self.crawler.settings, 'MIDDLEWARES', [], list)
             
         self._add_middleware(middlewares)
@@ -54,11 +54,11 @@ class MiddlewareManager:
                     f"{self._get_method_class_name(method)}. must return None or Request or Response, got {type(result).__name__}"
                 )
             except asyncio.CancelledError:
-                # 正确处理取消异常
-                self.logger.info("请求处理被取消")
+                # Handle cancellation properly
+                self.logger.info("Request processing cancelled")
                 raise
             except Exception as e:
-                self.logger.error(f"处理请求时发生错误: {e}")
+                self.logger.error(f"Error processing request: {e}")
                 raise
         return await self.download_method(request)
 
@@ -79,7 +79,7 @@ class MiddlewareManager:
 
     async def _process_exception(self, request: 'Request', exp: Exception):
         self.logger.debug(f"Processing exception {type(exp).__name__} for {request.url}")
-        # 安全地获取可用的异常处理器名称
+        # Safely get available exception handler names
         handler_names = []
         for m in self.methods['process_exception']:
             if hasattr(m, '__self__'):
@@ -88,14 +88,14 @@ class MiddlewareManager:
                 handler_names.append(str(m))
         self.logger.debug(f"Available exception handlers: {handler_names}")
         for method in self.methods['process_exception']:
-            # 安全地获取方法所属的类名
+            # Safely get method's class name
             if hasattr(method, '__self__'):
                 class_name = method.__self__.__class__.__name__
             else:
                 class_name = str(method)
             self.logger.debug(f"Calling {class_name}.process_exception")
             response = await common_call(method, request, exp, self.crawler.spider)
-            # 安全地获取返回值的类型
+            # Safely get return value type
             if hasattr(method, '__self__'):
                 method_class_name = method.__self__.__class__.__name__
             else:
@@ -107,7 +107,7 @@ class MiddlewareManager:
                 return response
             if response:
                 break
-            # 安全地获取方法所属的类名
+            # Safely get method's class name
             if hasattr(method, '__self__'):
                 error_class_name = method.__self__.__class__.__name__
             else:

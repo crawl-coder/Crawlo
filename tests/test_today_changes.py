@@ -35,7 +35,7 @@ def test_priority_module():
     print('\n✓ BUILTIN_MIDDLEWARE_PRIORITIES:')
     expected_middleware = {
         'crawlo.middleware.request_ignore.RequestIgnoreMiddleware': 100,
-        'crawlo.middleware.download_delay.DownloadDelayMiddleware': 200,
+        'crawlo.middleware.throttle.ThrottleMiddleware': 200,
         'crawlo.middleware.default_header.DefaultHeaderMiddleware': 300,
         'crawlo.middleware.offsite.OffsiteMiddleware': 400,
         'crawlo.middleware.retry.RetryMiddleware': 600,

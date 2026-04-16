@@ -66,13 +66,61 @@ config = CrawloConfig.distributed(
 
 ## 2. 下载与频率控制
 
+### 2.1 简单配置（推荐小型项目）
+
 | 参数 | 默认值 | 说明 |
 | :--- | :--- | :--- |
 | `DOWNLOAD_DELAY` | `0.5` | 每个请求之间的间隔延迟（秒）。 |
-| `RANDOMNESS` | `True` | 是否开启随机延迟抖动。 |
-| `RANDOM_RANGE` | `[0.5, 1.5]` | 随机延迟的倍数范围。 |
+| `RANDOMNESS` | `True` | 是否开启随机延迟/智能调节。 |
+| `RANDOM_RANGE` | `[0.5, 1.5]` | 随机延迟范围倍数（仅用于日志显示）。 |
+
+**示例**：
+```python
+# 固定延迟 2 秒
+DOWNLOAD_DELAY = 2.0
+RANDOMNESS = False
+
+# 或随机延迟 1-3 秒
+DOWNLOAD_DELAY = 2.0
+RANDOMNESS = True
+RANDOM_RANGE = [0.5, 1.5]
+```
+
+### 2.2 高级配置（推荐大型项目）
+
+| 参数 | 默认值 | 说明 |
+| :--- | :--- | :--- |
+| `THROTTLE_ENABLED` | `True` | 是否启用限流中间件。 |
+| `THROTTLE_MAX_RATE` | `None` | 最大请求速率（QPS，每秒请求数）。 |
+| `THROTTLE_AUTO_THROTTLE` | `False` | 是否启用自动调节（根据响应时间动态调整延迟）。 |
+| `THROTTLE_DOMAIN_OVERRIDES` | `{}` | 域名级特定配置，支持不同域名不同延迟。 |
+
+> ⚠️ **注意**：延迟配置统一使用 `DOWNLOAD_DELAY`，`THROTTLE_DEFAULT_DELAY` 已移除。
+
+**示例**：
+```python
+# 全局默认
+DOWNLOAD_DELAY = 1.0
+
+# 域名级控制
+THROTTLE_DOMAIN_OVERRIDES = {
+    'example.com': {'delay': 2.0},  # 慢速网站
+    'api.example.com': {'delay': 0.1, 'max_rate': 10},  # API 快速
+}
+
+# 智能调节
+THROTTLE_AUTO_THROTTLE = True
+THROTTLE_MAX_RATE = 5.0
+```
+
+### 2.3 其他下载配置
+
+| 参数 | 默认值 | 说明 |
+| :--- | :--- | :--- |
 | `DOWNLOAD_TIMEOUT` | `30` | 网络请求的超时时间（秒）。 |
 | `DOWNLOAD_RETRY_TIMES` | `3` | 下载层级的重试次数。 |
+
+> 📖 **完整迁移指南**：查看 [throttle-migration-guide.md](throttle-migration-guide.md)
 
 ---
 

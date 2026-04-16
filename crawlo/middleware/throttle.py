@@ -1,23 +1,20 @@
 #!/usr/bin/python
 # -*- coding:UTF-8 -*-
 """
-域名限流中间件
-==============
-基于域名的请求速率限制中间件，自动控制请求频率。
+Throttle Middleware
+====================
+Domain-based request rate limiting middleware with automatic frequency control.
 
-配置项：
-    THROTTLE_ENABLED: 是否启用限流（默认 True）
-    THROTTLE_DEFAULT_DELAY: 默认请求延迟（默认 1.0 秒）
-    THROTTLE_MAX_RATE: 默认最大速率（默认 None，不限制）
-    THROTTLE_DOMAIN_OVERRIDES: 域名特定配置
-    THROTTLE_AUTO_THROTTLE: 是否启用自动限流（根据响应时间调整）
+Unified Configuration:
+    DOWNLOAD_DELAY = 2.0  # Unified delay setting (seconds)
+    RANDOMNESS = True     # Enable random delay / auto-throttle
 
-使用示例：
-    # settings.py
+Advanced Configuration (Optional):
     THROTTLE_ENABLED = True
-    THROTTLE_DEFAULT_DELAY = 1.0
+    THROTTLE_MAX_RATE = None  # No rate limit by default
+    THROTTLE_AUTO_THROTTLE = False
     
-    # 针对特定域名配置
+    # Domain-specific configuration
     THROTTLE_DOMAIN_OVERRIDES = {
         'example.com': {'delay': 2.0},
         'api.example.com': {'max_rate': 10, 'delay': 0.1},
@@ -33,32 +30,46 @@ from crawlo.utils.throttle import DomainThrottler, DomainConfig
 
 class ThrottleMiddleware(BaseMiddleware):
     """
-    域名限流中间件
+    Throttle Middleware - Domain-based rate limiting with automatic control
     
-    在请求发送前根据域名进行速率限制。
+    Applies rate limiting before sending requests based on domain.
     
-    特性：
-    - 基于令牌桶算法
-    - 支持域名特定配置
-    - 支持自动限流（根据响应时间动态调整）
-    - 支持突发请求
+    Features:
+    - Token bucket algorithm
+    - Domain-specific configuration
+    - Auto-throttle (dynamic adjustment based on response time)
+    - Burst request support
+    - Simple configuration mode (DOWNLOAD_DELAY)
+    - Advanced configuration mode (THROTTLE_*)
     """
     
     @classmethod
     def create_instance(cls, crawler):
-        """创建中间件实例"""
+        """Create middleware instance with support for both simple and advanced configuration"""
         settings = crawler.settings
         
-        # 读取配置
+        # Read advanced configuration
         enabled = settings.get_bool('THROTTLE_ENABLED', True)
         if not enabled:
             return None
         
-        default_delay = settings.get_float('THROTTLE_DEFAULT_DELAY', 1.0)
-        max_rate = settings.get_float('THROTTLE_MAX_RATE', None)
+        # Use DOWNLOAD_DELAY as the unified delay configuration
+        default_delay = settings.get_float('DOWNLOAD_DELAY', 1.0)
+        
+        # Handle max_rate that can be None
+        max_rate_value = settings.get('THROTTLE_MAX_RATE', None)
+        max_rate = float(max_rate_value) if max_rate_value is not None else None
+        
         auto_throttle = settings.get_bool('THROTTLE_AUTO_THROTTLE', False)
         
-        # 解析域名特定配置
+        # Check if random delay is enabled
+        randomness = settings.get_bool('RANDOMNESS', False)
+        if randomness:
+            # Random delay mode: enable auto_throttle for dynamic adjustment
+            auto_throttle = True
+            cls._log_simple_config_mode(settings, logger=get_logger(cls.__name__))
+        
+        # Parse domain-specific configuration
         domain_overrides = settings.get_dict('THROTTLE_DOMAIN_OVERRIDES', {})
         domain_configs = {}
         
@@ -76,6 +87,17 @@ class ThrottleMiddleware(BaseMiddleware):
             max_rate=max_rate,
             auto_throttle=auto_throttle,
             domain_configs=domain_configs
+        )
+    
+    @staticmethod
+    def _log_simple_config_mode(settings, logger):
+        """Log message when using simple configuration mode"""
+        delay = settings.get_float('DOWNLOAD_DELAY', 0)
+        random_range = settings.get_list('RANDOM_RANGE', [0.5, 1.5])
+        logger.info(
+            f"Using simple delay configuration: {delay}s "
+            f"(range: {delay * random_range[0]:.2f}s - {delay * random_range[1]:.2f}s), "
+            f"auto-throttle enabled for dynamic adjustment"
         )
     
     def __init__(

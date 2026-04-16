@@ -37,7 +37,7 @@ class CurlCffiDownloader(DownloaderBase):
         super().open()
 
         # 读取配置
-        timeout_secs = safe_get_config(self.crawler.settings, "DOWNLOAD_TIMEOUT", 180, int)
+        timeout_secs = safe_get_config(self.crawler.settings, "DOWNLOAD_TIMEOUT", 30, int)
         verify_ssl = safe_get_config(self.crawler.settings, "VERIFY_SSL", True, bool)
         pool_size = safe_get_config(self.crawler.settings, "CONNECTION_POOL_LIMIT", 20, int)
         self.max_download_size = safe_get_config(self.crawler.settings, "DOWNLOAD_MAXSIZE", 10 * 1024 * 1024, int)
@@ -122,7 +122,7 @@ class CurlCffiDownloader(DownloaderBase):
             return self._structure_response(request, response, body)
 
         except Exception as e:
-            self._handle_download_error(request, e)
+            await self._handle_download_error(request, e)
             return None
 
     def _build_request_kwargs(self, request) -> Dict[str, Any]:
@@ -194,15 +194,18 @@ class CurlCffiDownloader(DownloaderBase):
             request=request,
         )
 
-    def _handle_download_error(self, request, error: Exception) -> None:
+    async def _handle_download_error(self, request, error: Exception) -> None:
         """
-        处理下载错误
+        处理下载错误，不在此处重试，交由框架的 RetryMiddleware 处理
 
         Args:
             request: 请求对象
             error: 错误信息
         """
         error_type = type(error).__name__
+        
+        # 不在此处重试，避免与中间件重试逻辑冲突
+        # 框架的 RetryMiddleware 会处理重试
         if "CurlError" in error_type or "ClientError" in error_type:
             self.logger.error(f"Client error for {request.url}: {error}")
         elif "TimeoutError" in error_type:

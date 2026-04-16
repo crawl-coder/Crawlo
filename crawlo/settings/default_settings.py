@@ -227,7 +227,7 @@ CAMOUFOX_WAIT_FOR_ELEMENT = None  # 等待特定元素选择器
 MIDDLEWARES = {
     # === 请求预处理阶段 ===
     'crawlo.middleware.request_ignore.RequestIgnoreMiddleware': 100,
-    'crawlo.middleware.download_delay.DownloadDelayMiddleware': 200,
+    'crawlo.middleware.throttle.ThrottleMiddleware': 200,
     'crawlo.middleware.default_header.DefaultHeaderMiddleware': 300,
     'crawlo.middleware.DynamicRenderMiddleware': 350,
     'crawlo.middleware.cloudflare_bypass.CloudflareBypassMiddleware': 355,

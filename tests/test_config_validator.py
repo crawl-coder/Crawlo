@@ -37,7 +37,7 @@ class TestConfigValidator(unittest.TestCase):
             'LOG_LEVEL': 'INFO',
             'MIDDLEWARES': [
                 'crawlo.middleware.request_ignore.RequestIgnoreMiddleware',
-                'crawlo.middleware.download_delay.DownloadDelayMiddleware',
+                'crawlo.middleware.throttle.ThrottleMiddleware',
             ],
             'PIPELINES': [
                 'crawlo.pipelines.console_pipeline.ConsolePipeline',
@@ -62,7 +62,7 @@ class TestConfigValidator(unittest.TestCase):
             'SCHEDULER_QUEUE_NAME': 'crawlo:test_project:queue:requests',
             'MIDDLEWARES': [
                 'crawlo.middleware.request_ignore.RequestIgnoreMiddleware',
-                'crawlo.middleware.download_delay.DownloadDelayMiddleware',
+                'crawlo.middleware.throttle.ThrottleMiddleware',
             ],
             'PIPELINES': [
                 'crawlo.pipelines.console_pipeline.ConsolePipeline',

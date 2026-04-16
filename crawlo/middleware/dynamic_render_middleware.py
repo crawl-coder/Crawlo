@@ -1,22 +1,22 @@
 #!/usr/bin/python
 # -*- coding: UTF-8 -*-
 """
-动态渲染中间件
-=================
-根据配置设置请求标记，供 HybridDownloader 选择合适的下载器。
+Dynamic Render Middleware
+==========================
+Sets request markers based on configuration for HybridDownloader to select appropriate downloader.
 
-工作流程:
-1. 检查用户是否已显式指定请求标记
-2. 检查 URL 模式配置（用户配置）
-3. 检查域名配置（用户配置）
-4. 设置请求标记，供下载器层使用
+Workflow:
+1. Check if user has explicitly set request markers
+2. Check URL pattern configuration (user configured)
+3. Check domain configuration (user configured)
+4. Set request markers for downloader layer
 
-使用方法:
-    # 在 settings.py 中配置需要动态渲染的域名或URL模式
+Usage:
+    # Configure domains or URL patterns requiring dynamic rendering in settings.py
     DYNAMIC_RENDER_DOMAINS = ['www.example.com']
     DYNAMIC_RENDER_URL_PATTERNS = [r'/spa/', r'/dynamic/']
 
-    # 或者在请求中显式指定
+    # Or explicitly specify in request
     yield Request(url, meta={'use_dynamic_loader': True})
 """
 import re
@@ -29,17 +29,17 @@ from crawlo.middleware import BaseMiddleware
 
 class DynamicRenderMiddleware(BaseMiddleware):
     """
-    动态渲染中间件 - 根据配置设置请求标记
+    Dynamic Render Middleware - Sets request markers based on configuration
 
-    与 HybridDownloader 分层协作：
-    - 中间件层：根据配置设置请求标记
-    - 下载器层：读取标记，选择合适的下载器
+    Works with HybridDownloader in layered collaboration:
+    - Middleware layer: Sets request markers based on configuration
+    - Downloader layer: Reads markers, selects appropriate downloader
 
-    默认行为：使用协议下载器
-    启用动态渲染：通过 DYNAMIC_RENDER_DOMAINS 或 DYNAMIC_RENDER_URL_PATTERNS 配置
+    Default behavior: Uses protocol downloader
+    Enable dynamic rendering: Configure via DYNAMIC_RENDER_DOMAINS or DYNAMIC_RENDER_URL_PATTERNS
     """
 
-    # 类级别的标志，确保只打印一次初始化日志
+    # Class-level flag to ensure init log is printed only once
     _logged_init = False
 
     def __init__(self):

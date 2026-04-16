@@ -9,7 +9,6 @@ from aiohttp import (
     ClientSession,
     TCPConnector,
     ClientTimeout,
-    TraceConfig,
     ClientResponse,
     ClientError,
     BasicAuth,
@@ -81,22 +80,15 @@ class AioHttpDownloader(DownloaderBase):
         # 超时控制
         timeout = ClientTimeout(
             total=timeout_secs,
-            connect=timeout_secs / 2,
-            sock_read=timeout_secs,
-            sock_connect=timeout_secs / 2
+            connect=min(5.0, timeout_secs / 2),  # 连接超时最多5秒
+            sock_read=min(10.0, timeout_secs),   # 读取超时最多10秒
+            sock_connect=min(5.0, timeout_secs / 2)  # 连接超时最多5秒
         )
-
-        # 请求追踪
-        trace_config = TraceConfig()
-        trace_config.on_request_start.append(self._on_request_start)
-        trace_config.on_request_end.append(self._on_request_end)
-        trace_config.on_request_exception.append(self._on_request_exception)
 
         # 创建持久化 session
         self.session = ClientSession(
             connector=connector,
             timeout=timeout,
-            trace_configs=[trace_config],
             auto_decompress=auto_decompress,
         )
 
@@ -138,7 +130,7 @@ class AioHttpDownloader(DownloaderBase):
                 return response
 
         except Exception as e:
-            self._handle_download_error(request, e)
+            await self._handle_download_error(request, e)
             return None
 
     @staticmethod
@@ -237,15 +229,18 @@ class AioHttpDownloader(DownloaderBase):
             request=request,
         )
 
-    def _handle_download_error(self, request: 'Request', error: Exception) -> None:
+    async def _handle_download_error(self, request: 'Request', error: Exception) -> None:
         """
-        处理下载错误
+        处理下载错误，不在此处重试，交由框架的 RetryMiddleware 处理
 
         Args:
             request: 请求对象
             error: 错误信息
         """
         error_type = type(error).__name__
+        
+        # 不在此处重试，避免与中间件重试逻辑冲突
+        # 框架的 RetryMiddleware 会处理重试
         if isinstance(error, ClientError):
             self.logger.error(f"Client error for {request.url}: {error}")
         elif isinstance(error, asyncio.TimeoutError):
@@ -254,40 +249,6 @@ class AioHttpDownloader(DownloaderBase):
             self.logger.error(f"Response size error for {request.url}: {error}")
         else:
             self.logger.error(f"Unexpected error for {request.url}: {error}", exc_info=True)
-
-    # --- 请求追踪日志 ---
-    async def _on_request_start(self, session: ClientSession, trace_config_ctx: Any, params: Any) -> None:
-        """
-        请求开始时的回调
-
-        Args:
-            session: ClientSession 实例
-            trace_config_ctx: 追踪配置上下文
-            params: 参数
-        """
-        pass
-
-    async def _on_request_end(self, session: ClientSession, trace_config_ctx: Any, params: Any) -> None:
-        """
-        请求成功结束时的回调
-
-        Args:
-            session: ClientSession 实例
-            trace_config_ctx: 追踪配置上下文
-            params: 参数
-        """
-        pass
-
-    async def _on_request_exception(self, session: ClientSession, trace_config_ctx: Any, params: Any) -> None:
-        """
-        请求发生异常时的回调
-
-        Args:
-            session: ClientSession 实例
-            trace_config_ctx: 追踪配置上下文
-            params: 参数
-        """
-        pass
 
     async def close(self) -> None:
         """关闭会话资源"""

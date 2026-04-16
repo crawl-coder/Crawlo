@@ -3,51 +3,44 @@
 import asyncio
 from typing import List
 
+# Import exception classes with graceful fallback
 try:
     from anyio import EndOfStream
 except ImportError:
-    # 如果 anyio 不可用或者 EndOfStream 不存在，创建一个占位符
-    class EndOfStream(Exception):
-        pass
+    EndOfStream = type('EndOfStream', (Exception,), {})
 
 try:
     from httpcore import ReadError
 except ImportError:
-    class ReadError(Exception):
-        pass
+    ReadError = type('ReadError', (Exception,), {})
 
 try:
-    from httpx import RemoteProtocolError, ConnectError, ReadTimeout, ProxyError, TimeoutException, NetworkError
+    from httpx import (
+        RemoteProtocolError,
+        ConnectError,
+        ReadTimeout,
+        ProxyError,
+        TimeoutException,
+        NetworkError,
+    )
 except ImportError:
-    class RemoteProtocolError(Exception):
-        pass
-    class ConnectError(Exception):
-        pass
-    class ReadTimeout(Exception):
-        pass
-    class ProxyError(Exception):
-        pass
-    class TimeoutException(Exception):
-        pass
-    class NetworkError(Exception):
-        pass
+    RemoteProtocolError = type('RemoteProtocolError', (Exception,), {})
+    ConnectError = type('ConnectError', (Exception,), {})
+    ReadTimeout = type('ReadTimeout', (Exception,), {})
+    ProxyError = type('ProxyError', (Exception,), {})
+    TimeoutException = type('TimeoutException', (Exception,), {})
+    NetworkError = type('NetworkError', (Exception,), {})
 
 try:
     from aiohttp.client_exceptions import ClientConnectionError, ClientPayloadError
     from aiohttp import ClientConnectorError, ClientTimeout, ClientConnectorSSLError, ClientResponseError
 except ImportError:
-    class ClientConnectionError(Exception):
-        pass
-    class ClientPayloadError(Exception):
-        pass
-    class ClientConnectorError(Exception):
-        pass
-    class ClientTimeout(Exception):
-        pass
-    class ClientConnectorSSLError(Exception):
-        pass
-    class ClientResponseError(Exception):
-        pass
+    ClientConnectionError = type('ClientConnectionError', (Exception,), {})
+    ClientPayloadError = type('ClientPayloadError', (Exception,), {})
+    ClientConnectorError = type('ClientConnectorError', (Exception,), {})
+    ClientTimeout = type('ClientTimeout', (Exception,), {})
+    ClientConnectorSSLError = type('ClientConnectorSSLError', (Exception,), {})
+    ClientResponseError = type('ClientResponseError', (Exception,), {})
 
 from crawlo.logging import get_logger
 from crawlo.stats import StatsCollector
@@ -90,7 +83,7 @@ class RetryMiddleware(object):
         self.retry_priority = retry_priority
         self.stats = stats
         self.logger = get_logger(self.__class__.__name__)
-        # 添加一个代理切换阈值，通常是最大重试次数的一半，至少为1
+        # Add proxy switch threshold, usually half of max retries, at least 1
         self.proxy_switch_threshold = max(1, (max_retry_times + 1) // 2)
 
     @classmethod
@@ -111,11 +104,11 @@ class RetryMiddleware(object):
         if response.status_code in self.ignore_http_codes:
             return response
         if response.status_code in self.retry_http_codes:
-            # 重试逻辑
+            # Retry logic
             reason = f"response code {response.status_code}"
             return self._retry(request, reason, spider) or response
         
-        # 检查是否是重试成功的请求
+        # Check if this is a successful retry
         if request.meta.get('retry_times', 0) > 0:
             self.logger.info(f"[Retry Success] {request.url} succeeded with status {response.status_code} (attempt {request.meta.get('retry_times')})")
         
@@ -135,13 +128,13 @@ class RetryMiddleware(object):
             request_copy = request.copy()
             request_copy.meta['retry_times'] = retry_times
                 
-            # 代理重试逻辑：前几次使用代理，超过阈值后使用直连
+            # Proxy retry logic: use proxy for first retries, then switch to direct connection
             if request_copy.proxy:
                 if retry_times <= self.proxy_switch_threshold:
-                    # 前几次重试，继续使用代理
+                    # First retries, continue using proxy
                     self.logger.info(f"[Retry {retry_times}/3] ({reason}), using proxy: {request_copy.proxy}, URL: {request.url}")
                 else:
-                    # 超过阈值，移除代理，使用直连
+                    # Exceeded threshold, remove proxy, switch to direct connection
                     old_proxy = request_copy.proxy
                     self.logger.info(f"[Retry {retry_times}/3] ({reason}), removing proxy: {old_proxy}, switching to direct connection, URL: {request.url}")
                     request_copy.proxy = None
@@ -150,7 +143,7 @@ class RetryMiddleware(object):
                 
             request_copy.priority = request.priority + self.retry_priority
             self.stats.inc_value("retry_count")
-            # 添加重试标识，用于统计时识别
+            # Add retry flag for statistics identification
             request_copy.meta['is_retry'] = True
             return request_copy
         else:
