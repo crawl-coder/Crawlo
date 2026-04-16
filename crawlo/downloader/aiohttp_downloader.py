@@ -119,27 +119,95 @@ class AioHttpDownloader(DownloaderBase):
             start_time = time.time()
 
         try:
-            async with await self._send_request(self.session, request) as resp:
-                # 安全检查：防止大响应体导致 OOM
-                content_length = resp.headers.get("Content-Length")
-                if content_length and int(content_length) > self.max_download_size:
-                    raise OverflowError(f"Response too large: {content_length} > {self.max_download_size}")
+            # 检查是否为重试请求
+            is_retry = request.meta.get("retry_times", 0) > 0
 
-                body = await resp.read()
-                response = self._structure_response(request, resp, body)
+            # 重试请求直连超时保护
+            # 基于 DOWNLOAD_TIMEOUT 动态计算，但比正常请求更严格
+            # 默认 timeout_secs=15: total=10.1s, connect=2.6s, sock_read=5.0s, sock_connect=2.6s
+            if is_retry:
+                timeout_secs = safe_get_config(self.crawler.settings, "DOWNLOAD_TIMEOUT", 15, int)
+                strict_timeout = ClientTimeout(
+                    total=min(10.1, timeout_secs * 0.67),             # 67%（上限10.1秒）
+                    connect=min(5.0, timeout_secs * 0.17),           # 17%（上限5秒）
+                    sock_read=timeout_secs * 0.33,                   # 33%（更严格）
+                    sock_connect=min(5.0, timeout_secs * 0.17)       # 17%（上限5秒）
+                )
+                # 使用 asyncio.wait_for 强制超时保护
+                response = await asyncio.wait_for(
+                    self._download_with_timeout(request, strict_timeout),
+                    timeout=min(10.1, timeout_secs * 0.67)
+                )
+            else:
+                response = await self._download_with_timeout(request)
 
-                # 记录下载统计
-                if start_time:
-                    download_time = time.time() - start_time
-                    self.logger.debug(f"Downloaded {request.url} in {download_time:.3f}s, size: {len(body)} bytes")
+            # 记录下载统计
+            if start_time:
+                download_time = time.time() - start_time
+                self.logger.debug(f"Downloaded {request.url} in {download_time:.3f}s")
 
-                return response
+            return response
 
         except Exception as e:
             # 网络异常：重新抛出，交由 RetryMiddleware 处理
             # 使用 DEBUG 级别，不打印堆栈
             self.logger.debug(f"Download error for {request.url}: {type(e).__name__}: {e}")
             raise
+
+    async def _download_with_timeout(self, request: 'Request', timeout: Optional[ClientTimeout] = None) -> Response:
+        """
+        执行下载操作，支持自定义超时
+
+        Args:
+            request: 请求对象
+            timeout: 自定义超时配置（可选）
+
+        Returns:
+            Response: 响应对象
+        """
+        # 如果有自定义超时，需要创建临时 session
+        if timeout is not None:
+            connector = TCPConnector(
+                verify_ssl=safe_get_config(self.crawler.settings, "VERIFY_SSL", True, bool),
+                limit=safe_get_config(self.crawler.settings, "CONNECTION_POOL_LIMIT", 100, int),
+                limit_per_host=safe_get_config(self.crawler.settings, "CONNECTION_POOL_LIMIT_PER_HOST", 20, int),
+                ttl_dns_cache=300,
+                keepalive_timeout=15,
+                force_close=False,
+                use_dns_cache=True,
+                family=socket.AF_UNSPEC,
+            )
+            async with ClientSession(connector=connector, timeout=timeout) as temp_session:
+                async with await self._send_request(temp_session, request) as resp:
+                    return await self._process_response(request, resp)
+        else:
+            # 使用默认 session
+            async with await self._send_request(self.session, request) as resp:
+                return await self._process_response(request, resp)
+
+    async def _process_response(self, request: 'Request', resp: ClientResponse) -> Response:
+        """
+        处理响应数据
+
+        Args:
+            request: 请求对象
+            resp: aiohttp 响应对象
+
+        Returns:
+            Response: 框架响应对象
+        """
+        # 安全检查：防止大响应体导致 OOM
+        content_length = resp.headers.get("Content-Length")
+        if content_length and int(content_length) > self.max_download_size:
+            raise OverflowError(f"Response too large: {content_length} > {self.max_download_size}")
+
+        body = await resp.read()
+        response = self._structure_response(request, resp, body)
+
+        # 记录下载大小
+        self.logger.debug(f"Downloaded {request.url}, size: {len(body)} bytes")
+
+        return response
 
     @staticmethod
     async def _send_request(session: ClientSession, request: 'Request') -> ClientResponse:

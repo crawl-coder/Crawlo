@@ -1,5 +1,6 @@
 #!/usr/bin/python
 # -*- coding: UTF-8 -*-
+import asyncio
 import time
 from typing import Optional, Dict, Any
 from curl_cffi.requests import AsyncSession
@@ -92,43 +93,103 @@ class CurlCffiDownloader(DownloaderBase):
             start_time = time.time()
 
         try:
-            kwargs = self._build_request_kwargs(request)
-            method = request.method.lower()
+            # 检查是否为重试请求
+            is_retry = request.meta.get("retry_times", 0) > 0
 
-            if not hasattr(self.session, method):
-                raise ValueError(f"不支持的 HTTP 方法: {request.method}")
-
-            method_func = getattr(self.session, method)
-            response = await method_func(request.url, **kwargs)
-
-            # 检查 Content-Length
-            content_length = response.headers.get("Content-Length")
-            if content_length:
-                try:
-                    cl = int(content_length)
-                    if cl > self.max_download_size:
-                        raise OverflowError(f"响应过大 (Content-Length): {cl} > {self.max_download_size}")
-                except ValueError:
-                    self.logger.warning(f"无效的 Content-Length 头部: {content_length}")
-
-            body = response.content
-            actual_size = len(body)
-
-            if actual_size > self.max_download_size:
-                raise OverflowError(f"响应体过大: {actual_size} > {self.max_download_size}")
+            # 重试请求直连超时保护
+            # 基于 DOWNLOAD_TIMEOUT 动态计算，但比正常请求更严格
+            # 默认 timeout_secs=15: 正常=15s, 重试=10.1s
+            if is_retry:
+                timeout_secs = safe_get_config(self.crawler.settings, "DOWNLOAD_TIMEOUT", 15, int)
+                strict_timeout = min(10.1, timeout_secs * 0.67)
+                # 使用 asyncio.wait_for 强制超时保护
+                response = await asyncio.wait_for(
+                    self._download_with_timeout(request, strict_timeout),
+                    timeout=strict_timeout
+                )
+            else:
+                response = await self._download_with_timeout(request)
 
             # 记录下载统计
             if start_time:
                 download_time = time.time() - start_time
-                self.logger.debug(f"Downloaded {request.url} in {download_time:.3f}s, size: {actual_size} bytes")
+                self.logger.debug(f"Downloaded {request.url} in {download_time:.3f}s")
 
-            return self._structure_response(request, response, body)
+            return response
 
         except Exception as e:
             # 网络异常：重新抛出，交由 RetryMiddleware 处理
             # 使用 DEBUG 级别，不打印堆栈
             self.logger.debug(f"Download error for {request.url}: {type(e).__name__}: {e}")
             raise
+
+    async def _download_with_timeout(self, request, timeout: Optional[float] = None) -> Response:
+        """
+        执行下载操作，支持自定义超时
+
+        Args:
+            request: 请求对象
+            timeout: 自定义超时配置（可选，秒）
+
+        Returns:
+            Response: 响应对象
+        """
+        # 如果有自定义超时，需要创建临时 session
+        if timeout is not None:
+            verify_ssl = safe_get_config(self.crawler.settings, "VERIFY_SSL", True, bool)
+            pool_size = safe_get_config(self.crawler.settings, "CONNECTION_POOL_LIMIT", 20, int)
+            
+            async with AsyncSession(
+                timeout=timeout,
+                verify=verify_ssl,
+                max_clients=pool_size,
+                impersonate=self.browser_type_str,
+            ) as temp_session:
+                return await self._execute_download(temp_session, request)
+        else:
+            # 使用默认 session
+            return await self._execute_download(self.session, request)
+
+    async def _execute_download(self, session, request) -> Response:
+        """
+        执行实际的下载操作
+
+        Args:
+            session: AsyncSession 实例
+            request: 请求对象
+
+        Returns:
+            Response: 响应对象
+        """
+        kwargs = self._build_request_kwargs(request)
+        method = request.method.lower()
+
+        if not hasattr(session, method):
+            raise ValueError(f"不支持的 HTTP 方法: {request.method}")
+
+        method_func = getattr(session, method)
+        response = await method_func(request.url, **kwargs)
+
+        # 检查 Content-Length
+        content_length = response.headers.get("Content-Length")
+        if content_length:
+            try:
+                cl = int(content_length)
+                if cl > self.max_download_size:
+                    raise OverflowError(f"响应过大 (Content-Length): {cl} > {self.max_download_size}")
+            except ValueError:
+                self.logger.warning(f"无效的 Content-Length 头部: {content_length}")
+
+        body = response.content
+        actual_size = len(body)
+
+        if actual_size > self.max_download_size:
+            raise OverflowError(f"响应体过大: {actual_size} > {self.max_download_size}")
+
+        # 记录下载大小
+        self.logger.debug(f"Downloaded {request.url}, size: {actual_size} bytes")
+
+        return self._structure_response(request, response, body)
 
     def _build_request_kwargs(self, request) -> Dict[str, Any]:
         """

@@ -137,8 +137,15 @@ class MiddlewareManager:
         if isinstance(response, Response):
             response = await self._process_response(request, response)
         if isinstance(response, Request):
-            await self.crawler.engine.enqueue_request(response)
-            return None
+            # 检测是否是重试请求
+            if response.meta.get('retry_times', 0) > 0:
+                # 重试请求，立即执行，不入队
+                self.logger.debug(f"立即重试请求: {response.url} (retry_times={response.meta['retry_times']})")
+                return await self.download(response)
+            else:
+                # 普通新请求，入队等待调度
+                await self.crawler.engine.enqueue_request(response)
+                return None
         return response
 
     @classmethod
