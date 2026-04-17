@@ -41,14 +41,50 @@ class MiddlewareManager:
 
         self.download_method: Callable = crawler.engine.downloader.download
         self._stats = crawler.stats
+        
+        # 包装下载器方法，添加诊断日志
+        original_download = self.download_method
+        async def wrapped_download(request):
+            self.logger.debug(f"MiddlewareManager 调用下载器: {request.url}")
+            try:
+                result = await original_download(request)
+                self.logger.debug(f"下载器返回结果: {request.url} (result={type(result).__name__ if result else 'None'})")
+                return result
+            except Exception as e:
+                self.logger.debug(f"下载器抛出异常: {request.url} ({type(e).__name__}: {e})")
+                raise
+        
+        self.download_method = wrapped_download
 
     async def _process_request(self, request: 'Request'):
-        for method in self.methods['process_request']:
+        # 添加诊断日志：追踪请求进入中间件链
+        retry_times = request.meta.get('retry_times', 0)
+        self.logger.debug(
+            f"_process_request 开始: {request.url} (retry_times={retry_times}, "
+            f"middlewares={len(self.methods['process_request'])})"
+        )
+        
+        for idx, method in enumerate(self.methods['process_request']):
             try:
+                # 获取中间件类名
+                if hasattr(method, '__self__'):
+                    middleware_name = method.__self__.__class__.__name__
+                else:
+                    middleware_name = str(method)
+                
+                self.logger.debug(
+                    f"执行中间件 [{idx+1}/{len(self.methods['process_request'])}]: "
+                    f"{middleware_name}.process_request for {request.url}"
+                )
+                
                 result = await common_call(method, request, self.crawler.spider)
+                
                 if result is None:
                     continue
                 if isinstance(result, (Request, Response)):
+                    self.logger.debug(
+                        f"中间件 {middleware_name} 返回 {type(result).__name__}: {request.url}"
+                    )
                     return result
                 raise InvalidOutputError(
                     f"{self._get_method_class_name(method)}. must return None or Request or Response, got {type(result).__name__}"
@@ -60,6 +96,9 @@ class MiddlewareManager:
             except Exception as e:
                 self.logger.error(f"Error processing request: {e}")
                 raise
+        
+        # 所有中间件处理完成，调用下载器
+        self.logger.debug(f"所有中间件处理完成，调用下载器: {request.url}")
         return await self.download_method(request)
 
     async def _process_response(self, request: 'Request', response: 'Response'):
@@ -134,6 +173,7 @@ class MiddlewareManager:
         else:
             create_task(self.crawler.subscriber.notify(CrawlerEvent.RESPONSE_RECEIVED, response, self.crawler.spider))
             self._stats.inc_value('response_received_count')
+        
         if isinstance(response, Response):
             response = await self._process_response(request, response)
         if isinstance(response, Request):
@@ -154,6 +194,11 @@ class MiddlewareManager:
                 else:
                     self.logger.debug(f"立即重试请求: {response.url} (retry_times={response.meta['retry_times']})")
                 self.logger.debug(f"开始执行重试下载: {response.url}")
+                # 添加诊断日志：追踪重试请求进入递归下载
+                retry_times = response.meta.get('retry_times', 0)
+                self.logger.debug(
+                    f"重试请求递归调用 download(): {response.url} (retry_times={retry_times})"
+                )
                 return await self.download(response)
             else:
                 # 普通新请求，入队等待调度

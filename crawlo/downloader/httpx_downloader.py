@@ -33,6 +33,11 @@ class HttpXDownloader(DownloaderBase):
         self._timeout_total: int = 15  # 总超时配置，用于重试时动态计算
         self.max_download_size: int = 0
         self.logger = get_logger(self.__class__.__name__)
+        
+        # 并发控制
+        self._concurrency = 12  # 默认并发数
+        self._semaphore: Optional[asyncio.Semaphore] = None
+        self._active_requests = 0  # 当前活跃请求数
 
     def open(self) -> None:
         """初始化下载器，创建持久化 AsyncClient"""
@@ -47,6 +52,11 @@ class HttpXDownloader(DownloaderBase):
 
         self.max_download_size = max_download_size
         self._timeout_total = timeout_total  # 保存为实例变量
+        
+        # 初始化并发控制
+        self._concurrency = safe_get_config(self.crawler.settings, "CONCURRENCY", 12, int)
+        self._semaphore = asyncio.Semaphore(self._concurrency)
+        self.logger.debug(f"并发控制初始化: CONCURRENCY={self._concurrency}")
 
         # 基于 DOWNLOAD_TIMEOUT 配置动态计算分层超时
         # 采用分层超时策略，平衡性能与兼容性
@@ -109,8 +119,22 @@ class HttpXDownloader(DownloaderBase):
             f"Download request (retry={retry_times}, proxy={has_proxy}): {request.url}"
         )
         
+        # 并发控制：等待信号量
+        if self._semaphore:
+            self.logger.debug(
+                f"等待并发槽位: {request.url} (active={self._active_requests}/{self._concurrency})"
+            )
+            await self._semaphore.acquire()
+            self._active_requests += 1
+            self.logger.debug(
+                f"获取并发槽位成功: {request.url} (active={self._active_requests}/{self._concurrency})"
+            )
+        
         if not self._client:
             self.logger.error("HttpXDownloader client is not available.")
+            if self._semaphore:
+                self._active_requests -= 1
+                self._semaphore.release()
             return None
 
         start_time = None
@@ -338,6 +362,14 @@ class HttpXDownloader(DownloaderBase):
                     await temp_client.aclose()
                 except Exception as e:
                     self.logger.warning(f"Error closing temporary client: {e}")
+            
+            # 释放并发槽位
+            if self._semaphore:
+                self._active_requests -= 1
+                self._semaphore.release()
+                self.logger.debug(
+                    f"释放并发槽位: {request.url} (active={self._active_requests}/{self._concurrency})"
+                )
 
     @staticmethod
     def structure_response(request, response: httpx.Response, body: bytes) -> Response:
@@ -362,3 +394,12 @@ class HttpXDownloader(DownloaderBase):
                 self._client = None
         
         self.logger.debug("HttpXDownloader closed.")
+    
+    def idle(self) -> bool:
+        """检查下载器是否空闲（无活跃请求）"""
+        is_idle = self._active_requests == 0
+        if not is_idle:
+            self.logger.debug(
+                f"下载器忙碌: active_requests={self._active_requests}/{self._concurrency}"
+            )
+        return is_idle

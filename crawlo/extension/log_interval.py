@@ -107,20 +107,17 @@ class LogIntervalExtension:
         while True:
             try:
                 iteration += 1
-                self.logger.debug(f"Interval log iteration {iteration} starting")
+                
+                # 获取统计数据
                 last_item_count = self.stats.get_value('item_successful_count', default=0)
                 last_response_count = self.stats.get_value('response_received_count', default=0)
                 item_rate = last_item_count - self.item_count
                 response_rate = last_response_count - self.response_count
                 
-                # 添加调试信息
-                self.logger.debug(f"Debug info - Iteration: {iteration}, Last item count: {last_item_count}, Last response count: {last_response_count}")
-                self.logger.debug(f"Debug info - Previous item count: {self.item_count}, Previous response count: {self.response_count}")
-                self.logger.debug(f"Debug info - Item rate: {item_rate}, Response rate: {response_rate}")
-                
+                # 更新计数器
                 self.item_count, self.response_count = last_item_count, last_response_count
                 
-                # 修复效率计算，确保使用正确的单位
+                # 计算速率并输出日志
                 if self.unit == 'min' and self.seconds > 0:
                     # 转换为每分钟速率
                     pages_per_min = response_rate * 60 / self.seconds if self.seconds > 0 else 0
@@ -135,7 +132,15 @@ class LogIntervalExtension:
                         f'Crawled {last_response_count} pages (at {response_rate} pages/{self.interval_display}{self.unit}),'
                         f' Got {last_item_count} items (at {item_rate} items/{self.interval_display}{self.unit}).'
                     )
-                self.logger.debug(f"Interval log iteration {iteration} completed, sleeping for {self.seconds} seconds")
+                
+                # 调试日志（合并为一条）
+                self.logger.debug(
+                    f"Interval log [{iteration}]: "
+                    f"items={item_rate} (total={last_item_count}), "
+                    f"responses={response_rate} (total={last_response_count}), "
+                    f"next_log_in={self.seconds}s"
+                )
+                
                 await asyncio.sleep(self.seconds)
             except Exception as e:
                 self.logger.error(f"Error in interval logging: {e}")

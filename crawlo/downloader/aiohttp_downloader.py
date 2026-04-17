@@ -48,6 +48,11 @@ class AioHttpDownloader(DownloaderBase):
         self._timeout_secs: int = 30  # 总超时配置，用于重试时动态计算（增加到30秒）
         self.max_download_size: int = 0
         self.logger = get_logger(self.__class__.__name__)
+        
+        # 并发控制
+        self._concurrency = 12  # 默认并发数
+        self._semaphore: Optional[asyncio.Semaphore] = None
+        self._active_requests = 0  # 当前活跃请求数
 
     def open(self) -> None:
         """
@@ -69,6 +74,11 @@ class AioHttpDownloader(DownloaderBase):
 
         # 保存为实例变量
         self._timeout_secs = timeout_secs
+        
+        # 初始化并发控制
+        self._concurrency = safe_get_config(self.crawler.settings, "CONCURRENCY", 12, int)
+        self._semaphore = asyncio.Semaphore(self._concurrency)
+        self.logger.debug(f"并发控制初始化: CONCURRENCY={self._concurrency}")
 
         # 创建连接器（优化配置，防止连接泄漏和死锁）
         # 关键优化说明：
@@ -132,6 +142,17 @@ class AioHttpDownloader(DownloaderBase):
         self.logger.debug(
             f"Download request (retry={retry_times}, proxy={has_proxy}): {request.url}"
         )
+        
+        # 并发控制：等待信号量
+        if self._semaphore:
+            self.logger.debug(
+                f"等待并发槽位: {request.url} (active={self._active_requests}/{self._concurrency})"
+            )
+            await self._semaphore.acquire()
+            self._active_requests += 1
+            self.logger.debug(
+                f"获取并发槽位成功: {request.url} (active={self._active_requests}/{self._concurrency})"
+            )
 
         start_time = None
         if self.crawler.settings.get_bool("DOWNLOAD_STATS", True):
@@ -197,6 +218,14 @@ class AioHttpDownloader(DownloaderBase):
             # 使用 DEBUG 级别，不打印堆栈
             self.logger.debug(f"Download error for {request.url}: {type(e).__name__}: {e}")
             raise
+        finally:
+            # 释放并发槽位
+            if self._semaphore:
+                self._active_requests -= 1
+                self._semaphore.release()
+                self.logger.debug(
+                    f"释放并发槽位: {request.url} (active={self._active_requests}/{self._concurrency})"
+                )
 
     async def _download_with_timeout(self, request: 'Request', timeout: Optional[ClientTimeout] = None) -> Response:
         """
@@ -396,5 +425,15 @@ class AioHttpDownloader(DownloaderBase):
                 self.logger.warning(f"Error during session close: {e}")
             finally:
                 self.session = None
-
+            self.logger.debug("AioHttpDownloader session closed.")
+        
         self.logger.debug("AioHttpDownloader closed.")
+    
+    def idle(self) -> bool:
+        """检查下载器是否空闲（无活跃请求）"""
+        is_idle = self._active_requests == 0
+        if not is_idle:
+            self.logger.debug(
+                f"下载器忙碌: active_requests={self._active_requests}/{self._concurrency}"
+            )
+        return is_idle

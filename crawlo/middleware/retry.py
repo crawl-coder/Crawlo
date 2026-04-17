@@ -142,6 +142,8 @@ class RetryMiddleware(object):
             return self._retry(request=request, reason=type(exc).__name__, spider=spider)
 
     def _retry(self, request, reason, spider):
+        # Retry logic: create a new request copy with incremented retry count
+        
         retry_times = request.meta.get('retry_times', 0)
         if retry_times < self.max_retry_times:
             retry_times += 1
@@ -183,6 +185,7 @@ class RetryMiddleware(object):
             self.stats.inc_value("retry_count")
             # Add retry flag for statistics identification
             request_copy.meta['is_retry'] = True
+            
             return request_copy
         else:
             self.logger.warning(f"{request.url} {reason} retry max {self.max_retry_times} times, give up.")
