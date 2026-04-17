@@ -125,6 +125,116 @@ class LogIntervalExtension:
             self.logger.debug(f"Failed to get queue size: {e}")
             return 0
 
+    async def _get_backpressure_info(self) -> tuple:
+        """
+        获取背压信息
+        
+        Returns:
+            tuple: (is_active, delay, utilization)
+                - is_active: 背压是否激活
+                - delay: 当前背压延迟（秒）
+                - utilization: 队列使用率（0-1）
+        """
+        try:
+            if hasattr(self.stats, 'crawler') and self.stats.crawler:
+                crawler = self.stats.crawler
+                if hasattr(crawler, 'engine') and crawler.engine:
+                    engine = crawler.engine
+                    if hasattr(engine, 'scheduler') and engine.scheduler:
+                        scheduler = engine.scheduler
+                        if hasattr(scheduler, 'queue_manager') and scheduler.queue_manager:
+                            queue_manager = scheduler.queue_manager
+                            
+                            # 获取队列大小和最大大小
+                            queue_size = 0
+                            max_size = 0
+                            
+                            if hasattr(queue_manager, 'size'):
+                                if asyncio.iscoroutinefunction(queue_manager.size):
+                                    queue_size = await queue_manager.size()
+                                else:
+                                    queue_size = queue_manager.size()
+                            
+                            # 尝试获取最大队列大小（支持多种属性名）
+                            if hasattr(queue_manager, 'max_queue_size'):
+                                max_size = queue_manager.max_queue_size
+                            elif hasattr(queue_manager, 'max_size'):
+                                max_size = queue_manager.max_size
+                            elif hasattr(queue_manager, '_max_size'):
+                                max_size = queue_manager._max_size
+                            elif hasattr(queue_manager, 'config') and hasattr(queue_manager.config, 'max_queue_size'):
+                                max_size = queue_manager.config.max_queue_size
+                            
+                            # 计算使用率
+                            utilization = queue_size / max_size if max_size > 0 else 0
+                            
+                            # 检查背压控制器
+                            if hasattr(queue_manager, '_backpressure_controller') and queue_manager._backpressure_controller:
+                                controller = queue_manager._backpressure_controller
+                                
+                                # 获取背压状态
+                                is_active = False
+                                delay = 0.0
+                                
+                                if hasattr(controller, '_strategy') and controller._strategy:
+                                    strategy = controller._strategy
+                                    
+                                    # 检查是否应该应用背压
+                                    if hasattr(strategy, 'should_apply'):
+                                        try:
+                                            if asyncio.iscoroutinefunction(strategy.should_apply):
+                                                is_active = await strategy.should_apply(queue_manager)
+                                            else:
+                                                is_active = strategy.should_apply(queue_manager)
+                                        except Exception as e:
+                                            self.logger.debug(f"Failed to check should_apply: {e}")
+                                    
+                                    # 获取延迟
+                                    if hasattr(strategy, 'calculate_delay'):
+                                        try:
+                                            if asyncio.iscoroutinefunction(strategy.calculate_delay):
+                                                delay = await strategy.calculate_delay(queue_manager)
+                                            else:
+                                                delay = strategy.calculate_delay(queue_manager)
+                                        except Exception as e:
+                                            self.logger.debug(f"Failed to calculate delay: {e}")
+                                
+                                # 如果没有成功获取到状态，根据使用率估算
+                                if not is_active and utilization >= 0.5:
+                                    is_active = True
+                                    # 根据使用率估算延迟
+                                    if utilization >= 0.95:
+                                        delay = max(delay, 5.0)
+                                    elif utilization >= 0.9:
+                                        delay = max(delay, 2.0)
+                                    elif utilization >= 0.8:
+                                        delay = max(delay, 1.0)
+                                    else:
+                                        delay = max(delay, 0.5)
+                                
+                                return (is_active, delay, utilization)
+                            
+                            # 如果没有背压控制器，根据使用率估算
+                            threshold = getattr(queue_manager, '_backpressure_threshold', 0.8)
+                            is_active = utilization >= threshold
+                            
+                            # 简单估算延迟
+                            if utilization >= 0.95:
+                                delay = 5.0
+                            elif utilization >= 0.9:
+                                delay = 2.0
+                            elif utilization >= threshold:
+                                delay = 0.5 * (1 + (utilization - threshold) / (0.95 - threshold) * 3)
+                            else:
+                                delay = 0.0
+                            
+                            return (is_active, delay, utilization)
+            
+            return (False, 0.0, 0.0)
+        except Exception as e:
+            self.logger.debug(f"Failed to get backpressure info: {e}")
+            return (False, 0.0, 0.0)
+
     async def interval_log(self) -> None:
         iteration = 0
         while True:
@@ -137,11 +247,18 @@ class LogIntervalExtension:
                 item_rate = last_item_count - self.item_count
                 response_rate = last_response_count - self.response_count
                 
-                # 获取队列大小
+                # 获取队列大小和背压信息
                 queue_size = await self._get_queue_size()
+                bp_active, bp_delay, bp_util = await self._get_backpressure_info()
                 
                 # 更新计数器
                 self.item_count, self.response_count = last_item_count, last_response_count
+                
+                # 构建背压信息字符串
+                if bp_active:
+                    bp_info = f"BP: ON ({bp_delay:.2f}s, {bp_util:.0%})"
+                else:
+                    bp_info = f"BP: off ({bp_util:.0%})"
                 
                 # 计算速率并输出日志
                 if self.unit == 'min' and self.seconds > 0:
@@ -151,14 +268,14 @@ class LogIntervalExtension:
                     self.logger.info(
                         f'Crawled {last_response_count} pages (at {pages_per_min:.0f} pages/min),'
                         f' Got {last_item_count} items (at {items_per_min:.0f} items/min),'
-                        f' Queue: {queue_size} pending.'
+                        f' Queue: {queue_size} pending, {bp_info}'
                     )
                 else:
                     # 使用原始单位
                     self.logger.info(
                         f'Crawled {last_response_count} pages (at {response_rate} pages/{self.interval_display}{self.unit}),'
                         f' Got {last_item_count} items (at {item_rate} items/{self.interval_display}{self.unit}),'
-                        f' Queue: {queue_size} pending.'
+                        f' Queue: {queue_size} pending, {bp_info}'
                     )
                 
                 # 调试日志（合并为一条）
@@ -167,6 +284,7 @@ class LogIntervalExtension:
                     f"items={item_rate} (total={last_item_count}), "
                     f"responses={response_rate} (total={last_response_count}), "
                     f"queue={queue_size}, "
+                    f"backpressure={bp_active}, delay={bp_delay:.3f}s, util={bp_util:.1%}, "
                     f"next_log_in={self.seconds}s"
                 )
                 

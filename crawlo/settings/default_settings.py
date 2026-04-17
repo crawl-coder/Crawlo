@@ -59,20 +59,40 @@ RANDOM_RANGE = [0.5, 1.5]  # 随机延迟范围因子
 
 # 调度器配置
 DEPTH_PRIORITY = 1  # 深度优先级（负数表示深度优先，正数表示广度优先）
-SCHEDULER_MAX_QUEUE_SIZE = 5000  # 调度器队列最大大小
-BACKPRESSURE_RATIO = 0.8  # 背压触发阈值 (80%)
-BACKPRESSURE_DELAY_BASE = 0.5  # 背压基础延迟 (秒)
-BACKPRESSURE_DELAY_MAX = 5.0  # 背压最大延迟 (秒)
+
+# ----- 2.1 队列大小配置 -----
+SCHEDULER_MAX_QUEUE_SIZE = 10000  # 调度器队列最大大小（生产环境推荐值，平衡内存与吞吐）
+
+# ----- 2.2 背压控制配置 -----
+# 背压策略：当队列使用率超过阈值时，自动增加入队延迟，防止队列溢出
+# 策略选择：
+#   - queue_size（默认推荐）: 基于队列使用率，简单高效，适合99%场景
+#   - adaptive（实验性）: 自适应调整，但有已知bug，暂不推荐
+#   - composite（高级）: 组合多策略，需自定义配置
+BACKPRESSURE_STRATEGY = 'queue_size'  # 背压策略（默认queue_size）
+BACKPRESSURE_RATIO = 0.75  # 背压触发阈值（75%队列使用率时开始限流）
+BACKPRESSURE_DELAY_BASE = 0.2  # 背压基础延迟（秒），初始限流强度
+BACKPRESSURE_DELAY_MAX = 3.0  # 背压最大延迟（秒），队列接近满载时的最大限制
+BACKPRESSURE_CHECK_INTERVAL = 0.1  # 背压检查间隔（秒）
+
+# 背压级别阈值（用于日志和监控）
+BACKPRESSURE_WARNING_THRESHOLD = 0.7  # 警告级别阈值（70%）
+BACKPRESSURE_CRITICAL_THRESHOLD = 0.9  # 危险级别阈值（90%）
+
+# 自适应背压（高级功能，根据历史数据动态调整参数）
+ADAPTIVE_BACKPRESSURE_ENABLED = False  # 是否启用自适应背压（实验性功能）
 
 # 请求生成控制
 REQUEST_GENERATION_BATCH_SIZE = 10  # 请求生成批处理大小
 REQUEST_GENERATION_INTERVAL = 0.01  # 请求生成间隔（秒）
 ENABLE_CONTROLLED_REQUEST_GENERATION = False  # 是否启用受控请求生成
 
-# 队列配置
-QUEUE_TYPE = 'auto'  # 队列类型：memory/redis/auto
+# ----- 2.3 队列类型与持久化配置 -----
+QUEUE_TYPE = 'auto'  # 队列类型：memory（单机）/ redis（分布式）/ disk（持久化）/ auto（自动检测）
 QUEUE_MAX_RETRIES = 3  # 队列操作最大重试次数
 QUEUE_TIMEOUT = 300  # 队列操作超时时间（秒）
+QUEUE_DISK_PATH = None  # 磁盘队列存储路径（None表示使用临时目录）
+QUEUE_SERIALIZATION_FORMAT = 'pickle'  # 序列化格式：pickle（性能最优）/ json（跨语言）/ msgpack（高性能跨语言）
 
 # ==============================================================================
 # 3. 下载器配置
