@@ -60,7 +60,9 @@ RANDOM_RANGE = [0.5, 1.5]  # 随机延迟范围因子
 # 调度器配置
 DEPTH_PRIORITY = 1  # 深度优先级（负数表示深度优先，正数表示广度优先）
 SCHEDULER_MAX_QUEUE_SIZE = 5000  # 调度器队列最大大小
-BACKPRESSURE_RATIO = 0.9  # 背压触发阈值
+BACKPRESSURE_RATIO = 0.8  # 背压触发阈值 (80%)
+BACKPRESSURE_DELAY_BASE = 0.5  # 背压基础延迟 (秒)
+BACKPRESSURE_DELAY_MAX = 5.0  # 背压最大延迟 (秒)
 
 # 请求生成控制
 REQUEST_GENERATION_BATCH_SIZE = 10  # 请求生成批处理大小

@@ -194,6 +194,9 @@ class QueueConfig:
             run_mode: Optional[str] = None,  # 新增：运行模式
             settings=None,  # 新增：保存settings引用
             serialization_format: str = 'pickle',  # 新增：序列化格式
+            backpressure_ratio: float = 0.8,  # 背压触发阈值
+            backpressure_delay_base: float = 0.5,  # 背压基础延迟
+            backpressure_delay_max: float = 5.0,  # 背压最大延迟
             **kwargs
     ):
         self.queue_type = QueueType(queue_type) if isinstance(queue_type, str) else queue_type
@@ -220,6 +223,9 @@ class QueueConfig:
         self.max_queue_size = max_queue_size
         self.max_retries = max_retries
         self.timeout = timeout
+        self.backpressure_ratio = backpressure_ratio
+        self.backpressure_delay_base = backpressure_delay_base
+        self.backpressure_delay_max = backpressure_delay_max
         self.extra_config = kwargs
 
     @classmethod
@@ -250,6 +256,11 @@ class QueueConfig:
         # 新增：获取序列化格式配置
         serialization_format = safe_get_config(settings, 'SERIALIZATION_FORMAT', 'pickle')
         
+        # 获取背压配置
+        backpressure_ratio = safe_get_config(settings, 'BACKPRESSURE_RATIO', 0.8)
+        backpressure_delay_base = safe_get_config(settings, 'BACKPRESSURE_DELAY_BASE', 0.5)
+        backpressure_delay_max = safe_get_config(settings, 'BACKPRESSURE_DELAY_MAX', 5.0)
+        
         return cls(
             queue_type=queue_type,
             redis_url=redis_url,
@@ -264,7 +275,10 @@ class QueueConfig:
             timeout=timeout,
             run_mode=run_mode,
             settings=settings,  # 传递settings
-            serialization_format=serialization_format  # 新增：传递序列化格式
+            serialization_format=serialization_format,  # 新增：传递序列化格式
+            backpressure_ratio=backpressure_ratio,
+            backpressure_delay_base=backpressure_delay_base,
+            backpressure_delay_max=backpressure_delay_max
         )
 
 
@@ -288,7 +302,9 @@ class QueueManager:
         self._backpressure_controller = BackPressureController(
             max_queue_size=config.max_queue_size,
             backpressure_ratio=getattr(config, 'backpressure_ratio', 0.8),
-            concurrency_limit=getattr(config, 'max_concurrency', 8)
+            concurrency_limit=getattr(config, 'max_concurrency', 8),
+            base_delay=getattr(config, 'backpressure_delay_base', 0.5),
+            max_delay=getattr(config, 'backpressure_delay_max', 5.0)
         )
 
     @property
@@ -369,18 +385,46 @@ class QueueManager:
             # 获取当前队列大小用于背压控制
             current_queue_size = await self.size() if self._queue else 0
             
-            # 更新背压控制器的统计信息
-            if hasattr(self, '_backpressure_controller'):
-                # 获取当前并发数（模拟，实际需要从task_manager获取）
-                current_concurrency = 0  # 这里需要根据实际情况获取
-                self._backpressure_controller.update_stats(current_queue_size, current_concurrency)
+            # 获取配置的最大队列大小
+            max_size = self.config.max_queue_size if hasattr(self, 'config') else 1000
+            
+            # ===== 硬限制：队列满时拒绝请求 =====
+            if current_queue_size >= max_size:
+                self.logger.warning(
+                    f"Queue full ({current_queue_size}/{max_size}), "
+                    f"rejecting request: {request.url}"
+                )
+                return False
+            
+            # ===== 软限制：队列超过阈值时延迟入队 =====
+            if hasattr(self, '_backpressure_controller') and self._backpressure_controller:
+                # 计算软限制阈值 (默认 80%)
+                soft_limit = int(max_size * self._backpressure_controller.backpressure_ratio)
                 
-                # 检查是否需要应用背压
-                if self._backpressure_controller.should_apply_backpressure(current_queue_size, current_concurrency):
-                    # 获取背压延迟时间
+                if current_queue_size >= soft_limit:
+                    # 计算背压延迟
+                    delay = self._backpressure_controller.calculate_delay(current_queue_size)
+                    
+                    # 仅在状态变更时记录日志
+                    if not self._backpressure_controller.backpressure_active:
+                        self.logger.info(
+                            f"Backpressure activated: queue={current_queue_size}/{soft_limit} "
+                            f"(utilization: {current_queue_size/max_size:.0%})"
+                        )
+                    
+                    # 更新背压状态
+                    self._backpressure_controller.backpressure_active = True
+                    self._backpressure_controller.throttling_events += 1
+                    
+                    if delay > 0:
+                        self.logger.debug(f"Backpressure delay: {delay:.2f}s (queue={current_queue_size})")
+                        await asyncio.sleep(delay)
+            else:
+                # 使用默认的背压逻辑
+                self._backpressure_controller.update_stats(current_queue_size, 0)
+                if self._backpressure_controller.should_apply_backpressure(current_queue_size, 0):
                     delay = self._backpressure_controller.get_backpressure_delay()
                     if delay > 0:
-                        self.logger.debug(f"应用背压控制，延迟 {delay} 秒")
                         await asyncio.sleep(delay)
 
             # 背压控制（仅对内存队列）
@@ -867,7 +911,8 @@ class BackPressureController:
     用于实现更精细的背压控制机制
     """
     
-    def __init__(self, max_queue_size: int = 1000, backpressure_ratio: float = 0.8, concurrency_limit: int = 8):
+    def __init__(self, max_queue_size: int = 1000, backpressure_ratio: float = 0.8, concurrency_limit: int = 8,
+                 base_delay: float = 0.5, max_delay: float = 5.0):
         """
         初始化背压控制器
         
@@ -875,10 +920,14 @@ class BackPressureController:
             max_queue_size: 最大队列大小
             backpressure_ratio: 触发背压的比例
             concurrency_limit: 并发限制
+            base_delay: 基础延迟（秒）
+            max_delay: 最大延迟（秒）
         """
         self.max_queue_size = max_queue_size
         self.backpressure_ratio = backpressure_ratio
         self.concurrency_limit = concurrency_limit
+        self.base_delay = base_delay
+        self.max_delay = max_delay
         self.current_queue_size = 0
         self.current_concurrency = 0
         self.backpressure_active = False
@@ -933,6 +982,33 @@ class BackPressureController:
         
         return self.backpressure_active
     
+    def calculate_delay(self, current_queue_size: int) -> float:
+        """
+        根据队列使用率计算背压延迟
+        
+        队列使用率        延迟
+        80%-90%          0.5-1.0s
+        90%-95%          1.0-2.0s
+        95%-100%          2.0-5.0s
+        
+        Args:
+            current_queue_size: 当前队列大小
+            
+        Returns:
+            float: 延迟时间（秒）
+        """
+        utilization = current_queue_size / self.max_queue_size if self.max_queue_size > 0 else 0
+        
+        if utilization >= 0.95:
+            return self.max_delay  # 5s
+        elif utilization >= 0.90:
+            return self.base_delay * 4  # 2s
+        elif utilization >= self.backpressure_ratio:
+            ratio = (utilization - self.backpressure_ratio) / (0.95 - self.backpressure_ratio)
+            return self.base_delay * (1 + ratio * 3)  # 0.5-2s
+        else:
+            return 0.0  # 未触发背压
+    
     def get_backpressure_delay(self) -> float:
         """
         获取背压延迟时间
@@ -943,19 +1019,7 @@ class BackPressureController:
         if not self.backpressure_active:
             return 0.0
         
-        # 根据队列使用率计算延迟时间
-        queue_utilization = self.current_queue_size / self.max_queue_size if self.max_queue_size > 0 else 0
-        base_delay = 0.01  # 基础延迟
-        
-        # 队列越满，延迟越大
-        if queue_utilization > 0.95:
-            return base_delay * 10  # 队列接近满时大幅增加延迟
-        elif queue_utilization > 0.9:
-            return base_delay * 5   # 队列很满时增加延迟
-        elif queue_utilization > 0.85:
-            return base_delay * 2   # 队列较满时小幅增加延迟
-        else:
-            return base_delay       # 正常延迟
+        return self.calculate_delay(self.current_queue_size)
     
     def update_stats(self, queue_size: int, concurrency: int):
         """
