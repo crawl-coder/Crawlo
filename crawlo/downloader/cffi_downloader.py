@@ -9,6 +9,7 @@ from crawlo.network.response import Response
 from crawlo.downloader import DownloaderBase
 from crawlo.logging import get_logger
 from crawlo.utils.misc import safe_get_config
+from crawlo.exceptions import DownloadError
 
 
 class CurlCffiDownloader(DownloaderBase):
@@ -25,6 +26,7 @@ class CurlCffiDownloader(DownloaderBase):
         super().__init__(crawler)
         self.logger = get_logger(self.__class__.__name__)
         self.session: Optional[AsyncSession] = None
+        self._timeout_secs: int = 15  # 总超时配置，用于重试时动态计算
         self.max_download_size: int = 0
 
     def open(self) -> None:
@@ -43,6 +45,9 @@ class CurlCffiDownloader(DownloaderBase):
         pool_size = safe_get_config(self.crawler.settings, "CONNECTION_POOL_LIMIT", 20, int)
         self.max_download_size = safe_get_config(self.crawler.settings, "DOWNLOAD_MAXSIZE", 10 * 1024 * 1024, int)
 
+        # 保存为实例变量
+        self._timeout_secs = timeout_secs
+
         # 浏览器指纹模拟配置
         user_browser_map = safe_get_config(self.crawler.settings, "CURL_BROWSER_VERSION_MAP", {}, dict)
         default_browser_map = self._get_default_browser_map()
@@ -51,7 +56,17 @@ class CurlCffiDownloader(DownloaderBase):
         raw_browser_type_str = safe_get_config(self.crawler.settings, "CURL_BROWSER_TYPE", "chrome", str)
         self.browser_type_str = effective_browser_map.get(raw_browser_type_str.lower(), raw_browser_type_str)
 
-        # 创建持久化 session
+        # 基于 curl_cffi 源码分析创建持久化 session：
+        # AsyncSession 参数说明：
+        # - timeout: 总超时（秒），可以是 float 或 tuple(connect, read)
+        # - verify: SSL 证书验证
+        # - max_clients: 最大并发连接数（对应连接池大小）
+        # - impersonate: 浏览器指纹模拟（chrome136, edge101, 等）
+        # 
+        # 连接池管理：
+        # - 使用 asyncio.LifoQueue 管理连接（后进先出）
+        # - 连接会被复用和回收，提高性能
+        # - 池满时会阻塞等待可用连接
         self.session = AsyncSession(
             timeout=timeout_secs,
             verify=verify_ssl,
@@ -95,20 +110,53 @@ class CurlCffiDownloader(DownloaderBase):
         try:
             # 检查是否为重试请求
             is_retry = request.meta.get("retry_times", 0) > 0
+            
+            # 检查是否为代理请求
+            is_proxy_request = bool(getattr(request, 'proxy', None))
 
-            # 重试请求直连超时保护
-            # 基于 DOWNLOAD_TIMEOUT 动态计算，但比正常请求更严格
-            # 默认 timeout_secs=15: 正常=15s, 重试=10.1s
+            # 基于 curl_cffi 源码分析优化：
+            # curl_cffi 的超时在 libcurl 层应用，但代理连接可能在更底层阻塞
+            # 因此需要两层保护：
+            # 1. curl_cffi timeout（HTTP 层超时）
+            # 2. asyncio.wait_for（外层绝对超时）
+            
+            # 所有请求都使用绝对超时保护
+            # 代理请求：40秒绝对超时
+            # 正常/重试请求：35秒绝对超时
+            absolute_timeout = 40.0 if is_proxy_request else 35.0
+
+            # 重试请求使用更严格的超时
             if is_retry:
-                timeout_secs = safe_get_config(self.crawler.settings, "DOWNLOAD_TIMEOUT", 15, int)
-                strict_timeout = min(10.1, timeout_secs * 0.67)
-                # 使用 asyncio.wait_for 强制超时保护
-                response = await asyncio.wait_for(
-                    self._download_with_timeout(request, strict_timeout),
-                    timeout=strict_timeout
-                )
+                strict_timeout = min(10.1, self._timeout_secs * 0.67)
+                try:
+                    response = await asyncio.wait_for(
+                        self._download_with_timeout(request, strict_timeout),
+                        timeout=absolute_timeout
+                    )
+                except asyncio.TimeoutError:
+                    self.logger.error(
+                        f"重试请求绝对超时（{absolute_timeout:.0f}s），代理连接可能死锁: {request.url} "
+                        f"(retry_times={request.meta.get('retry_times', 0)})"
+                    )
+                    raise DownloadError(
+                        f"Connection timeout to host {request.url} (absolute timeout {absolute_timeout:.0f}s)",
+                        url=request.url
+                    )
             else:
-                response = await self._download_with_timeout(request)
+                # 正常请求也添加绝对超时保护
+                try:
+                    response = await asyncio.wait_for(
+                        self._download_with_timeout(request),
+                        timeout=absolute_timeout
+                    )
+                except asyncio.TimeoutError:
+                    self.logger.error(
+                        f"请求绝对超时（{absolute_timeout:.0f}s），代理连接可能死锁: {request.url}"
+                    )
+                    raise DownloadError(
+                        f"Connection timeout to host {request.url} (absolute timeout {absolute_timeout:.0f}s)",
+                        url=request.url
+                    )
 
             # 记录下载统计
             if start_time:
@@ -127,6 +175,12 @@ class CurlCffiDownloader(DownloaderBase):
         """
         执行下载操作，支持自定义超时
 
+        基于 curl_cffi 源码分析优化：
+        - curl_cffi 使用 asyncio.LifoQueue 管理连接池
+        - max_clients 控制并发连接数
+        - timeout 可以是 float（总超时）或 tuple（connect, read 超时）
+        - 代理连接可能在 libcurl 层阻塞，需要外层 asyncio.wait_for 保护
+
         Args:
             request: 请求对象
             timeout: 自定义超时配置（可选，秒）
@@ -139,6 +193,7 @@ class CurlCffiDownloader(DownloaderBase):
             verify_ssl = safe_get_config(self.crawler.settings, "VERIFY_SSL", True, bool)
             pool_size = safe_get_config(self.crawler.settings, "CONNECTION_POOL_LIMIT", 20, int)
             
+            # 基于 curl_cffi 源码：AsyncSession(max_clients, timeout, verify, impersonate)
             async with AsyncSession(
                 timeout=timeout,
                 verify=verify_ssl,

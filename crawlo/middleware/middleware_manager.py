@@ -139,8 +139,21 @@ class MiddlewareManager:
         if isinstance(response, Request):
             # 检测是否是重试请求
             if response.meta.get('retry_times', 0) > 0:
-                # 重试请求，立即执行，不入队
-                self.logger.debug(f"立即重试请求: {response.url} (retry_times={response.meta['retry_times']})")
+                # 重试请求，应用指数退避等待
+                backoff_time = response.meta.get('retry_backoff', 0)
+                if backoff_time > 0:
+                    self.logger.debug(
+                        f"重试请求（等待 {backoff_time}s）: {response.url} "
+                        f"(retry_times={response.meta['retry_times']})"
+                    )
+                    await asyncio.sleep(backoff_time)
+                    self.logger.debug(
+                        f"等待完成，准备重试: {response.url} "
+                        f"(retry_times={response.meta['retry_times']})"
+                    )
+                else:
+                    self.logger.debug(f"立即重试请求: {response.url} (retry_times={response.meta['retry_times']})")
+                self.logger.debug(f"开始执行重试下载: {response.url}")
                 return await self.download(response)
             else:
                 # 普通新请求，入队等待调度

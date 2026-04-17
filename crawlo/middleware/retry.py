@@ -44,6 +44,7 @@ except ImportError:
 
 from crawlo.logging import get_logger
 from crawlo.stats import StatsCollector
+from crawlo.exceptions import DownloadError
 
 _retry_exceptions = [
     EndOfStream,
@@ -60,7 +61,8 @@ _retry_exceptions = [
     ClientConnectionError,
     ProxyError,
     TimeoutException,
-    NetworkError
+    NetworkError,
+    DownloadError,  
 ]
 
 
@@ -169,6 +171,13 @@ class RetryMiddleware(object):
                     request_copy.proxy = None  # 清除代理，让代理中间件重新分配
             else:
                 self.logger.info(f"[Retry {retry_times}/3] ({reason}), direct connection, URL: {request.url}")
+            
+            # 指数退避重试：避免快速连续重试导致资源浪费
+            # 第1次重试：等待 1秒
+            # 第2次重试：等待 2秒
+            # 第3次重试：等待 4秒
+            backoff_time = min(2 ** (retry_times - 1), 4)  # 最多等待4秒
+            request_copy.meta['retry_backoff'] = backoff_time
                 
             request_copy.priority = request.priority + self.retry_priority
             self.stats.inc_value("retry_count")

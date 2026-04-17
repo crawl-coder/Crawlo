@@ -18,6 +18,7 @@ from crawlo.network.response import Response
 from crawlo.logging import get_logger
 from crawlo.downloader import DownloaderBase
 from crawlo.utils.misc import safe_get_config
+from crawlo.exceptions import DownloadError
 
 if TYPE_CHECKING:
     from crawlo.network.request import Request
@@ -44,6 +45,7 @@ class AioHttpDownloader(DownloaderBase):
         """
         super().__init__(crawler)
         self.session: Optional[ClientSession] = None
+        self._timeout_secs: int = 30  # 总超时配置，用于重试时动态计算（增加到30秒）
         self.max_download_size: int = 0
         self.logger = get_logger(self.__class__.__name__)
 
@@ -58,33 +60,43 @@ class AioHttpDownloader(DownloaderBase):
         super().open()
 
         # 读取配置
-        timeout_secs = safe_get_config(self.crawler.settings, "DOWNLOAD_TIMEOUT", 15, int)
+        timeout_secs = safe_get_config(self.crawler.settings, "DOWNLOAD_TIMEOUT", 30, int)
         verify_ssl = safe_get_config(self.crawler.settings, "VERIFY_SSL", True, bool)
         pool_limit = safe_get_config(self.crawler.settings, "CONNECTION_POOL_LIMIT", 100, int)
-        pool_per_host = safe_get_config(self.crawler.settings, "CONNECTION_POOL_LIMIT_PER_HOST", 20, int)
+        pool_per_host = safe_get_config(self.crawler.settings, "CONNECTION_POOL_LIMIT_PER_HOST", 0, int)  # 0=不限制
         self.max_download_size = safe_get_config(self.crawler.settings, "DOWNLOAD_MAXSIZE", 10 * 1024 * 1024, int)
         auto_decompress = safe_get_config(self.crawler.settings, "AIOHTTP_AUTO_DECOMPRESS", True, bool)
 
-        # 创建连接器
+        # 保存为实例变量
+        self._timeout_secs = timeout_secs
+
+        # 创建连接器（优化配置，防止连接泄漏和死锁）
+        # 关键优化说明：
+        # 1. limit_per_host=0: 不限制单主机连接数（由全局 limit 控制）
+        # 2. keepalive_timeout=15: 使用 aiohttp 默认值（15秒）
+        # 3. enable_cleanup_closed=True: 防止 SSL 连接泄漏（重要！）
+        # 4. happy_eyeballs_delay=0.25: RFC 8305 快速连接建立（默认已启用）
         connector = TCPConnector(
             verify_ssl=verify_ssl,
             limit=pool_limit,
-            limit_per_host=pool_per_host,
-            ttl_dns_cache=300,
-            keepalive_timeout=15,
-            force_close=False,
+            limit_per_host=pool_per_host,  # 0=不限制单主机连接
+            ttl_dns_cache=300,  # DNS 缓存 5 分钟
+            keepalive_timeout=15.0,  # 使用 aiohttp 默认值
+            force_close=False,  # 启用连接复用
             use_dns_cache=True,
             family=socket.AF_UNSPEC,
+            enable_cleanup_closed=True,  # 启用 SSL 连接清理（防止泄漏）
+            happy_eyeballs_delay=0.25,  # RFC 8305 快速连接建立
         )
 
         # 基于 DOWNLOAD_TIMEOUT 动态计算分层超时
-        # 分配比例: connect=17%, sock_read=50%, sock_connect=17%, total=100%
-        # 默认 timeout_secs=15: total=15s, connect=2.6s, sock_read=7.5s, sock_connect=2.6s
+        # 优化分配比例: connect=33%, sock_read=50%, sock_connect=33%, total=100%
+        # 默认 timeout_secs=30: total=30s, connect=10s, sock_read=15s, sock_connect=10s
         timeout = ClientTimeout(
-            total=timeout_secs,                        # 总超时：15秒（覆盖99%场景）
-            connect=min(5.0, timeout_secs * 0.17),    # 连接超时：17%（上限5秒）
+            total=timeout_secs,                        # 总超时：30秒（覆盖99%场景）
+            connect=min(10.0, timeout_secs * 0.33),   # 连接超时：33%（上限10秒，给足连接时间）
             sock_read=timeout_secs * 0.50,            # 读取超时：50%（主要等待时间）
-            sock_connect=min(5.0, timeout_secs * 0.17)  # 连接超时：17%（上限5秒）
+            sock_connect=min(10.0, timeout_secs * 0.33)  # 连接超时：33%（上限10秒）
         )
 
         # 创建持久化 session
@@ -96,8 +108,8 @@ class AioHttpDownloader(DownloaderBase):
 
         self.logger.info(
             f"AioHttpDownloader initialized with timeout {timeout_secs}s "
-            f"(total={timeout_secs}s, connect={min(5.0, timeout_secs * 0.17):.1f}s, "
-            f"sock_read={timeout_secs * 0.50:.1f}s, sock_connect={min(5.0, timeout_secs * 0.17):.1f}s)"
+            f"(total={timeout_secs}s, connect={min(10.0, timeout_secs * 0.33):.1f}s, "
+            f"sock_read={timeout_secs * 0.50:.1f}s, sock_connect={min(10.0, timeout_secs * 0.33):.1f}s)"
         )
 
     async def download(self, request: 'Request') -> Optional[Response]:
@@ -114,6 +126,13 @@ class AioHttpDownloader(DownloaderBase):
             self.logger.error("AioHttpDownloader session is not open.")
             return None
 
+        # 添加入口日志，用于诊断请求是否到达下载器
+        retry_times = request.meta.get('retry_times', 0)
+        has_proxy = bool(request.proxy)
+        self.logger.debug(
+            f"Download request (retry={retry_times}, proxy={has_proxy}): {request.url}"
+        )
+
         start_time = None
         if self.crawler.settings.get_bool("DOWNLOAD_STATS", True):
             start_time = time.time()
@@ -122,24 +141,49 @@ class AioHttpDownloader(DownloaderBase):
             # 检查是否为重试请求
             is_retry = request.meta.get("retry_times", 0) > 0
 
-            # 重试请求直连超时保护
-            # 基于 DOWNLOAD_TIMEOUT 动态计算，但比正常请求更严格
-            # 默认 timeout_secs=15: total=10.1s, connect=2.6s, sock_read=5.0s, sock_connect=2.6s
+            # 所有请求都使用绝对超时保护（防止代理连接永久阻塞）
+            # 重试请求：40秒绝对超时
+            # 正常请求：35秒绝对超时（比重试短，因为不需要等待）
+            absolute_timeout = 40.0 if is_retry else 35.0
+            
             if is_retry:
-                timeout_secs = safe_get_config(self.crawler.settings, "DOWNLOAD_TIMEOUT", 15, int)
-                strict_timeout = ClientTimeout(
-                    total=min(10.1, timeout_secs * 0.67),             # 67%（上限10.1秒）
-                    connect=min(5.0, timeout_secs * 0.17),           # 17%（上限5秒）
-                    sock_read=timeout_secs * 0.33,                   # 33%（更严格）
-                    sock_connect=min(5.0, timeout_secs * 0.17)       # 17%（上限5秒）
+                # 重试时使用正常超时，因为已经切换了代理或等待了一段时间
+                retry_timeout = ClientTimeout(
+                    total=self._timeout_secs,                  # 100%（30秒）
+                    connect=min(10.0, self._timeout_secs * 0.33),  # 33%（10秒）
+                    sock_read=self._timeout_secs * 0.50,       # 50%（15秒）
+                    sock_connect=min(10.0, self._timeout_secs * 0.33)  # 33%（10秒）
                 )
                 # 使用 asyncio.wait_for 强制超时保护
-                response = await asyncio.wait_for(
-                    self._download_with_timeout(request, strict_timeout),
-                    timeout=min(10.1, timeout_secs * 0.67)
-                )
+                try:
+                    response = await asyncio.wait_for(
+                        self._download_with_timeout(request, retry_timeout),
+                        timeout=absolute_timeout
+                    )
+                except asyncio.TimeoutError:
+                    self.logger.error(
+                        f"重试请求绝对超时（{absolute_timeout:.0f}s），代理连接可能死锁: {request.url} "
+                        f"(retry_times={request.meta.get('retry_times', 0)})"
+                    )
+                    raise DownloadError(
+                        f"Connection timeout to host {request.url} (absolute timeout {absolute_timeout:.0f}s)",
+                        url=request.url
+                    )
             else:
-                response = await self._download_with_timeout(request)
+                # 正常请求也添加绝对超时保护
+                try:
+                    response = await asyncio.wait_for(
+                        self._download_with_timeout(request),
+                        timeout=absolute_timeout
+                    )
+                except asyncio.TimeoutError:
+                    self.logger.error(
+                        f"请求绝对超时（{absolute_timeout:.0f}s），代理连接可能死锁: {request.url}"
+                    )
+                    raise DownloadError(
+                        f"Connection timeout to host {request.url} (absolute timeout {absolute_timeout:.0f}s)",
+                        url=request.url
+                    )
 
             # 记录下载统计
             if start_time:
@@ -165,21 +209,36 @@ class AioHttpDownloader(DownloaderBase):
         Returns:
             Response: 响应对象
         """
+        # 记录请求详情（用于诊断）
+        client_type = "临时session(重试)" if timeout is not None else "主session(正常)"
+        timeout_value = timeout.total if timeout and timeout.total else (40.0 if request.meta.get('retry_times', 0) > 0 else 35.0)
+        self.logger.debug(
+            f"Sending request via {client_type} (absolute_timeout={timeout_value:.0f}s): {request.url}"
+        )
+        
         # 如果有自定义超时，需要创建临时 session
         if timeout is not None:
+            # 优化连接池配置，防止连接泄漏和死锁
+            # 与主连接器保持一致的配置，确保行为一致
             connector = TCPConnector(
                 verify_ssl=safe_get_config(self.crawler.settings, "VERIFY_SSL", True, bool),
                 limit=safe_get_config(self.crawler.settings, "CONNECTION_POOL_LIMIT", 100, int),
-                limit_per_host=safe_get_config(self.crawler.settings, "CONNECTION_POOL_LIMIT_PER_HOST", 20, int),
+                limit_per_host=0,  # 不限制单主机连接
                 ttl_dns_cache=300,
-                keepalive_timeout=15,
+                keepalive_timeout=15.0,  # 使用默认值
                 force_close=False,
                 use_dns_cache=True,
                 family=socket.AF_UNSPEC,
+                enable_cleanup_closed=True,  # 启用 SSL 连接清理
+                happy_eyeballs_delay=0.25,  # 快速连接建立
             )
-            async with ClientSession(connector=connector, timeout=timeout) as temp_session:
-                async with await self._send_request(temp_session, request) as resp:
-                    return await self._process_response(request, resp)
+            try:
+                async with ClientSession(connector=connector, timeout=timeout) as temp_session:
+                    async with await self._send_request(temp_session, request) as resp:
+                        return await self._process_response(request, resp)
+            finally:
+                # 确保连接器被正确关闭（防止连接泄漏）
+                await connector.close()
         else:
             # 使用默认 session
             async with await self._send_request(self.session, request) as resp:

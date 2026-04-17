@@ -64,10 +64,11 @@ class ThrottleMiddleware(BaseMiddleware):
         
         # Check if random delay is enabled
         randomness = settings.get_bool('RANDOMNESS', False)
+        simple_config = None
         if randomness:
             # Random delay mode: enable auto_throttle for dynamic adjustment
             auto_throttle = True
-            cls._log_simple_config_mode(settings, logger=get_logger(cls.__name__))
+            simple_config = cls._log_simple_config_mode(settings)
         
         # Parse domain-specific configuration
         domain_overrides = settings.get_dict('THROTTLE_DOMAIN_OVERRIDES', {})
@@ -86,26 +87,31 @@ class ThrottleMiddleware(BaseMiddleware):
             default_delay=default_delay,
             max_rate=max_rate,
             auto_throttle=auto_throttle,
-            domain_configs=domain_configs
+            domain_configs=domain_configs,
+            simple_config=simple_config
         )
     
     @staticmethod
-    def _log_simple_config_mode(settings, logger):
-        """Log message when using simple configuration mode"""
+    def _log_simple_config_mode(settings) -> tuple:
+        """
+        Get simple configuration mode log parameters
+        
+        Returns:
+            tuple: (delay, min_delay, max_delay) for logging
+        """
         delay = settings.get_float('DOWNLOAD_DELAY', 0)
         random_range = settings.get_list('RANDOM_RANGE', [0.5, 1.5])
-        logger.info(
-            f"Using simple delay configuration: {delay}s "
-            f"(range: {delay * random_range[0]:.2f}s - {delay * random_range[1]:.2f}s), "
-            f"auto-throttle enabled for dynamic adjustment"
-        )
+        min_delay = delay * random_range[0]
+        max_delay = delay * random_range[1]
+        return delay, min_delay, max_delay
     
     def __init__(
         self,
         default_delay: float = 1.0,
         max_rate: Optional[float] = None,
         auto_throttle: bool = False,
-        domain_configs: Optional[Dict[str, DomainConfig]] = None
+        domain_configs: Optional[Dict[str, DomainConfig]] = None,
+        simple_config: Optional[tuple] = None
     ):
         """
         初始化限流中间件
@@ -115,6 +121,7 @@ class ThrottleMiddleware(BaseMiddleware):
             max_rate: 默认最大速率
             auto_throttle: 是否启用自动限流
             domain_configs: 域名特定配置
+            simple_config: 简单配置日志参数 (delay, min_delay, max_delay)
         """
         self.default_delay = default_delay
         self.max_rate = max_rate
@@ -129,11 +136,20 @@ class ThrottleMiddleware(BaseMiddleware):
         # 响应时间追踪（用于自动限流）
         self._response_times: Dict[str, list] = {}
         
+        # 整合日志：一条日志输出所有配置信息
         self.logger = get_logger(self.__class__.__name__)
-        self.logger.info(
-            f"ThrottleMiddleware enabled: delay={default_delay}s, "
-            f"auto_throttle={auto_throttle}"
-        )
+        if simple_config:
+            delay, min_delay, max_delay = simple_config
+            self.logger.info(
+                f"ThrottleMiddleware enabled: delay={default_delay}s "
+                f"(range: {min_delay:.2f}s - {max_delay:.2f}s), "
+                f"auto_throttle={auto_throttle}"
+            )
+        else:
+            self.logger.info(
+                f"ThrottleMiddleware enabled: delay={default_delay}s, "
+                f"auto_throttle={auto_throttle}"
+            )
     
     async def process_request(self, request, spider):
         """

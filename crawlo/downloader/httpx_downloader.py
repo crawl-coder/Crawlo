@@ -1,6 +1,7 @@
 #!/usr/bin/python
 # -*- coding:UTF-8 -*-
 import httpx
+import asyncio
 from typing import Optional
 
 from httpx import HTTPStatusError
@@ -10,6 +11,7 @@ from crawlo.network.response import Response
 from crawlo.downloader import DownloaderBase
 from crawlo.logging import get_logger
 from crawlo.utils.misc import safe_get_config
+from crawlo.exceptions import DownloadError
 
 
 class HttpXDownloader(DownloaderBase):
@@ -28,6 +30,7 @@ class HttpXDownloader(DownloaderBase):
         self._client_limits: Optional[Limits] = None
         self._client_verify: bool = True
         self._client_http2: bool = False
+        self._timeout_total: int = 15  # 总超时配置，用于重试时动态计算
         self.max_download_size: int = 0
         self.logger = get_logger(self.__class__.__name__)
 
@@ -43,9 +46,16 @@ class HttpXDownloader(DownloaderBase):
         verify_ssl = safe_get_config(self.crawler.settings, "VERIFY_SSL", True, bool)
 
         self.max_download_size = max_download_size
+        self._timeout_total = timeout_total  # 保存为实例变量
 
         # 基于 DOWNLOAD_TIMEOUT 配置动态计算分层超时
         # 采用分层超时策略，平衡性能与兼容性
+        # 基于 httpx 源码分析：Timeout(connect, read, write, pool)
+        # - connect: TCP 连接建立（三次握手 + TLS 协商）
+        # - read: 等待并读取响应数据（主要等待时间）
+        # - write: 发送请求数据（通常很快）
+        # - pool: 从连接池获取可用连接
+        # 
         # 分配比例: connect=17%, read=50%, write=17%, pool=固定1s
         # 默认 timeout_total=15: connect=2.6s, read=7.5s, write=2.6s, pool=1s → 13.7s
         self._client_timeout = Timeout(
@@ -54,9 +64,20 @@ class HttpXDownloader(DownloaderBase):
             write=min(5.0, timeout_total * 0.17),     # 写入超时：17%（上限5秒）
             pool=1.0                                  # 连接池超时：固定1秒
         )
+        # 基于 httpx 源码分析优化连接池配置：
+        # httpx 使用 Limits(max_connections, max_keepalive_connections, keepalive_expiry)
+        # - max_connections: 最大并发连接数（对应 CONNECTION_POOL_LIMIT）
+        # - max_keepalive_connections: 保活连接数（对应 CONNECTION_POOL_LIMIT_PER_HOST）
+        # - keepalive_expiry: 空闲连接保活时间（默认5秒，超时后关闭）
+        # 
+        # 优化策略：
+        # 1. keepalive_expiry=5.0：使用 httpx 默认值，平衡性能与资源占用
+        # 2. 过短（<3s）：连接复用率低，频繁重建连接
+        # 3. 过长（>10s）：占用过多文件描述符，可能遇到服务器关闭连接
         self._client_limits = Limits(
-            max_connections=pool_limit,
-            max_keepalive_connections=pool_per_host
+            max_connections=pool_limit,                      # 最大连接数
+            max_keepalive_connections=pool_per_host,         # 最大保活连接数
+            keepalive_expiry=5.0                             # 保活连接过期时间（5秒，httpx 默认值）
         )
         self._client_verify = verify_ssl
         self._client_http2 = True  # 启用 HTTP/2 支持
@@ -81,6 +102,13 @@ class HttpXDownloader(DownloaderBase):
         2. 发送请求，网络异常时降级为直连
         3. 安全检查、读取响应、返回结果
         """
+        # 添加入口日志，用于诊断请求是否到达下载器
+        retry_times = request.meta.get('retry_times', 0)
+        has_proxy = bool(request.proxy)
+        self.logger.debug(
+            f"Download request (retry={retry_times}, proxy={has_proxy}): {request.url}"
+        )
+        
         if not self._client:
             self.logger.error("HttpXDownloader client is not available.")
             return None
@@ -138,16 +166,34 @@ class HttpXDownloader(DownloaderBase):
                 if httpx_proxy_config:
                     try:
                         # 代理客户端使用更严格的超时（快速失败）
-                        proxy_timeout = Timeout(
-                            connect=5.0,   # 连接超时
-                            read=8.0,      # 读取超时
-                            write=5.0,     # 写入超时
-                            pool=1.0       # 连接池超时
-                        )
+                        # 基于 httpx 源码分析：Timeout(connect, read, write, pool)
+                        # connect: 代理连接建立（TCP 握手 + SSL）
+                        # read: 等待响应数据
+                        # write: 发送请求数据
+                        # pool: 从连接池获取连接
+                        # 
+                        # 重试请求的代理超时更严格（已经失败过一次）
+                        is_retry = request.meta.get("retry_times", 0) > 0
+                        if is_retry:
+                            # 重试请求：更严格的超时
+                            proxy_timeout = Timeout(
+                                connect=3.0,   # 连接超时：3秒（快速失败）
+                                read=5.0,      # 读取超时：5秒（已经重试过）
+                                write=3.0,     # 写入超时：3秒
+                                pool=0.5       # 连接池超时：0.5秒
+                            )
+                        else:
+                            # 正常请求：正常超时
+                            proxy_timeout = Timeout(
+                                connect=5.0,   # 连接超时：5秒（代理服务器响应慢）
+                                read=8.0,      # 读取超时：8秒（等待目标服务器响应）
+                                write=5.0,     # 写入超时：5秒（发送请求体）
+                                pool=1.0       # 连接池超时：1秒（获取可用连接）
+                            )
                         
                         temp_client = AsyncClient(
                             timeout=proxy_timeout,
-                            limits=self._client_limits,
+                            limits=self._client_limits,      # 复用主客户端的连接池配置
                             verify=self._client_verify,
                             http2=self._client_http2,
                             follow_redirects=True,
@@ -166,20 +212,20 @@ class HttpXDownloader(DownloaderBase):
             retry_times = request.meta.get('retry_times', 0)
             if retry_times > 0 and not request.proxy:
                 # 直连重试请求，使用严格超时防止长时间阻塞
-                # 基于 DOWNLOAD_TIMEOUT 动态计算，但比正常请求更严格
+                # 基于 httpx 源码分析：已经重试过，应该更快失败
                 # 分配比例: connect=17%, read=33%, write=10%, pool=固定1s
                 # 默认 timeout_total=15: connect=2.6s, read=5.0s, write=1.5s, pool=1s → 10.1s
                 strict_timeout = Timeout(
-                    connect=min(5.0, timeout_total * 0.17),   # 连接超时：17%（上限5秒）
-                    read=timeout_total * 0.33,                # 读取超时：33%（已经重试过，更快失败）
-                    write=min(3.0, timeout_total * 0.10),     # 写入超时：10%（上限3秒）
-                    pool=1.0                                  # 连接池超时：固定1秒
+                    connect=min(5.0, self._timeout_total * 0.17),   # 连接超时：17%（上限5秒）
+                    read=self._timeout_total * 0.33,                # 读取超时：33%（已经重试过，更快失败）
+                    write=min(3.0, self._timeout_total * 0.10),     # 写入超时：10%（上限3秒）
+                    pool=1.0                                        # 连接池超时：固定1秒
                 )
                 
                 # 创建临时客户端（严格超时模式）
                 temp_client = AsyncClient(
                     timeout=strict_timeout,
-                    limits=self._client_limits,
+                    limits=self._client_limits,      # 复用主客户端的连接池配置
                     verify=self._client_verify,
                     http2=self._client_http2,
                     follow_redirects=True
@@ -187,11 +233,71 @@ class HttpXDownloader(DownloaderBase):
                 effective_client = temp_client
                 self.logger.info(
                     f"Retry direct request (retry_times={retry_times}) with strict timeout "
-                    f"(connect={min(5.0, timeout_total * 0.17):.1f}s, read={timeout_total * 0.33:.1f}s, write={min(3.0, timeout_total * 0.10):.1f}s): {request.url}"
+                    f"(connect={min(5.0, self._timeout_total * 0.17):.1f}s, read={self._timeout_total * 0.33:.1f}s, write={min(3.0, self._timeout_total * 0.10):.1f}s): {request.url}"
                 )
 
-            # 发送请求
-            httpx_response = await effective_client.request(**kwargs)
+            # 发送请求（使用绝对超时保护，防止代理连接永久阻塞）
+            # 判断是否为代理请求（有代理配置即为代理请求）
+            is_proxy_request = bool(httpx_proxy_config)
+            
+            # 所有请求都使用绝对超时保护
+            # 代理请求：30秒绝对超时（减少等待时间）
+            # 正常/重试请求：25秒绝对超时
+            absolute_timeout = 30.0 if is_proxy_request else 25.0
+            
+            # 记录请求详情（用于诊断）
+            client_type = "代理客户端" if is_proxy_request else "主客户端(直连)"
+            self.logger.debug(
+                f"Sending request via {client_type} (absolute_timeout={absolute_timeout:.0f}s): {request.url}"
+            )
+            
+            # 基于 httpx 源码分析优化：
+            # httpx 的 Timeout 在 httpcore 层应用，但代理连接可能在更底层阻塞
+            # asyncio.wait_for 可能无法中断 httpcore 的底层 socket 操作
+            # 因此使用 asyncio.create_task + task.cancel() 强制取消
+            kwargs["timeout"] = effective_client.timeout  # 显式传递超时配置
+            
+            try:
+                # 创建请求任务
+                request_task = asyncio.create_task(
+                    effective_client.request(**kwargs)
+                )
+                
+                # 等待任务完成或超时
+                done, pending = await asyncio.wait(
+                    [request_task],
+                    timeout=absolute_timeout
+                )
+                
+                if done:
+                    # 请求成功
+                    httpx_response = done.pop().result()
+                else:
+                    # 超时，取消任务
+                    self.logger.error(
+                        f"请求绝对超时（{absolute_timeout:.0f}s），强制取消: {request.url}"
+                    )
+                    request_task.cancel()
+                    try:
+                        await request_task
+                    except asyncio.CancelledError:
+                        pass
+                    
+                    raise DownloadError(
+                        f"Connection timeout to host {request.url} (absolute timeout {absolute_timeout:.0f}s)",
+                        url=request.url
+                    )
+            except DownloadError:
+                raise
+            except asyncio.CancelledError:
+                self.logger.warning(f"请求被取消: {request.url}")
+                raise DownloadError(
+                    f"Request cancelled for {request.url}",
+                    url=request.url
+                )
+            except Exception as e:
+                self.logger.error(f"请求异常: {type(e).__name__}: {e}")
+                raise
 
             # 安全检查：防止大响应体导致 OOM
             content_length = httpx_response.headers.get("Content-Length")
