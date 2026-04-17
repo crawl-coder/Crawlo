@@ -86,16 +86,13 @@ RANDOMNESS = True
 RANDOM_RANGE = [0.5, 1.5]
 ```
 
-### 2.2 高级配置（推荐大型项目）
+### 2.2 域名级配置（可选）
 
 | 参数 | 默认值 | 说明 |
 | :--- | :--- | :--- |
-| `THROTTLE_ENABLED` | `True` | 是否启用限流中间件。 |
-| `THROTTLE_MAX_RATE` | `None` | 最大请求速率（QPS，每秒请求数）。 |
-| `THROTTLE_AUTO_THROTTLE` | `False` | 是否启用自动调节（根据响应时间动态调整延迟）。 |
-| `THROTTLE_DOMAIN_OVERRIDES` | `{}` | 域名级特定配置，支持不同域名不同延迟。 |
+| `DOWNLOAD_DELAY_OVERRIDES` | `{}` | 域名级特定配置，支持不同域名不同延迟。 |
 
-> ⚠️ **注意**：延迟配置统一使用 `DOWNLOAD_DELAY`，`THROTTLE_DEFAULT_DELAY` 已移除。
+> ⚠️ **注意**：早期版本的 `THROTTLE_*` 参数已移除，统一使用 `DOWNLOAD_DELAY` 相关参数。
 
 **示例**：
 ```python
@@ -103,14 +100,10 @@ RANDOM_RANGE = [0.5, 1.5]
 DOWNLOAD_DELAY = 1.0
 
 # 域名级控制
-THROTTLE_DOMAIN_OVERRIDES = {
+DOWNLOAD_DELAY_OVERRIDES = {
     'example.com': {'delay': 2.0},  # 慢速网站
-    'api.example.com': {'delay': 0.1, 'max_rate': 10},  # API 快速
+    'api.example.com': {'delay': 0.1},  # API 快速
 }
-
-# 智能调节
-THROTTLE_AUTO_THROTTLE = True
-THROTTLE_MAX_RATE = 5.0
 ```
 
 ### 2.3 其他下载配置
