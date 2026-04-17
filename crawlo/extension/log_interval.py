@@ -106,17 +106,20 @@ class LogIntervalExtension:
         """获取队列大小（待处理请求数）"""
         try:
             # 尝试从 crawler 获取 scheduler 的队列大小
+            # scheduler 在 crawler.engine 中
             if hasattr(self.stats, 'crawler') and self.stats.crawler:
                 crawler = self.stats.crawler
-                if hasattr(crawler, 'scheduler') and crawler.scheduler:
-                    scheduler = crawler.scheduler
-                    if hasattr(scheduler, 'queue_manager') and scheduler.queue_manager:
-                        queue_manager = scheduler.queue_manager
-                        if hasattr(queue_manager, 'size'):
-                            if asyncio.iscoroutinefunction(queue_manager.size):
-                                return await queue_manager.size()
-                            else:
-                                return queue_manager.size()
+                if hasattr(crawler, 'engine') and crawler.engine:
+                    engine = crawler.engine
+                    if hasattr(engine, 'scheduler') and engine.scheduler:
+                        scheduler = engine.scheduler
+                        if hasattr(scheduler, 'queue_manager') and scheduler.queue_manager:
+                            queue_manager = scheduler.queue_manager
+                            if hasattr(queue_manager, 'size'):
+                                if asyncio.iscoroutinefunction(queue_manager.size):
+                                    return await queue_manager.size()
+                                else:
+                                    return queue_manager.size()
             return 0
         except Exception as e:
             self.logger.debug(f"Failed to get queue size: {e}")
