@@ -102,6 +102,26 @@ class LogIntervalExtension:
             # 从监控管理器中注销
             monitor_manager.unregister_monitor('log_interval_monitor')
 
+    async def _get_queue_size(self) -> int:
+        """获取队列大小（待处理请求数）"""
+        try:
+            # 尝试从 crawler 获取 scheduler 的队列大小
+            if hasattr(self.stats, 'crawler') and self.stats.crawler:
+                crawler = self.stats.crawler
+                if hasattr(crawler, 'scheduler') and crawler.scheduler:
+                    scheduler = crawler.scheduler
+                    if hasattr(scheduler, 'queue_manager') and scheduler.queue_manager:
+                        queue_manager = scheduler.queue_manager
+                        if hasattr(queue_manager, 'size'):
+                            if asyncio.iscoroutinefunction(queue_manager.size):
+                                return await queue_manager.size()
+                            else:
+                                return queue_manager.size()
+            return 0
+        except Exception as e:
+            self.logger.debug(f"Failed to get queue size: {e}")
+            return 0
+
     async def interval_log(self) -> None:
         iteration = 0
         while True:
@@ -114,6 +134,9 @@ class LogIntervalExtension:
                 item_rate = last_item_count - self.item_count
                 response_rate = last_response_count - self.response_count
                 
+                # 获取队列大小
+                queue_size = await self._get_queue_size()
+                
                 # 更新计数器
                 self.item_count, self.response_count = last_item_count, last_response_count
                 
@@ -124,13 +147,15 @@ class LogIntervalExtension:
                     items_per_min = item_rate * 60 / self.seconds if self.seconds > 0 else 0
                     self.logger.info(
                         f'Crawled {last_response_count} pages (at {pages_per_min:.0f} pages/min),'
-                        f' Got {last_item_count} items (at {items_per_min:.0f} items/min).'
+                        f' Got {last_item_count} items (at {items_per_min:.0f} items/min),'
+                        f' Queue: {queue_size} pending.'
                     )
                 else:
                     # 使用原始单位
                     self.logger.info(
                         f'Crawled {last_response_count} pages (at {response_rate} pages/{self.interval_display}{self.unit}),'
-                        f' Got {last_item_count} items (at {item_rate} items/{self.interval_display}{self.unit}).'
+                        f' Got {last_item_count} items (at {item_rate} items/{self.interval_display}{self.unit}),'
+                        f' Queue: {queue_size} pending.'
                     )
                 
                 # 调试日志（合并为一条）
@@ -138,6 +163,7 @@ class LogIntervalExtension:
                     f"Interval log [{iteration}]: "
                     f"items={item_rate} (total={last_item_count}), "
                     f"responses={response_rate} (total={last_response_count}), "
+                    f"queue={queue_size}, "
                     f"next_log_in={self.seconds}s"
                 )
                 
