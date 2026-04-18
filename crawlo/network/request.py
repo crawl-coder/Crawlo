@@ -25,17 +25,26 @@ class RequestPriority(IntEnum):
     """
     请求优先级枚举。
     
-    数值越小，优先级越高。使用 IntEnum 确保可以直接当作整数使用。
+    数值越大，优先级越高（用户传入正值，更符合直觉）。
+    内部存储时会自动取反，确保队列按值小的先出队。
     
     Examples:
         >>> request = Request(url, priority=RequestPriority.HIGH)
         >>> request.priority = RequestPriority.URGENT
+    
+    优先级映射：
+        用户传入值 → 存储值 → 出队顺序
+        URGENT(200)    → -200   → 最先出队
+        HIGH(100)      → -100   → 第二出队
+        NORMAL(0)      → 0      → 正常出队
+        LOW(-100)      → 100    → 较后出队
+        BACKGROUND(-200) → 200  → 最后出队
     """
-    URGENT = -200      # 紧急任务
-    HIGH = -100        # 高优先级  
+    URGENT = 200       # 紧急任务（最高优先级）
+    HIGH = 100         # 高优先级  
     NORMAL = 0         # 正常优先级(默认)
-    LOW = 100          # 低优先级
-    BACKGROUND = 200   # 后台任务
+    LOW = -100         # 低优先级
+    BACKGROUND = -200  # 后台任务（最低优先级）
 
 
 class Request:
@@ -50,7 +59,7 @@ class Request:
         '_meta',
         'callback',
         'cb_kwargs',
-        'err_back',
+        'errback',
         'headers',
         'body',
         'method',
@@ -67,15 +76,15 @@ class Request:
         '_json_body',
         '_form_data',
         '_params',
+        '_original_url',  # 保存原始 URL（不含参数），用于 copy
         'use_dynamic_loader',
-        'dynamic_loader_options'
     )
 
     def __init__(
         self,
         url: str,
         callback: Optional[Callable] = None,
-        err_back: Optional[Callable] = None,
+        errback: Optional[Callable] = None,
         method: Optional[str] = 'GET',
         headers: Optional[Dict[str, str]] = None,
         body: Optional[Union[bytes, str, Dict[Any, Any]]] = None,
@@ -94,9 +103,7 @@ class Request:
         verify: bool = True,
         flags: Optional[List[str]] = None,
         encoding: str = 'utf-8',
-        # 动态加载相关参数
-        use_dynamic_loader: bool = False,
-        dynamic_loader_options: Optional[Dict[str, Any]] = None
+        use_dynamic_loader: bool = False
     ) -> None:
         """
         初始化请求对象。
@@ -104,7 +111,7 @@ class Request:
         Args:
             url: 请求 URL（必须）
             callback: 成功回调函数
-            err_back: 错误回调函数
+            errback: 错误回调函数
             method: HTTP 方法，默认 GET
             headers: 请求头
             body: 原始请求体（bytes/str），若为 dict 且未使用 json_body/form_data，则自动转为 JSON
@@ -124,10 +131,9 @@ class Request:
             flags: 标记（用于调试或分类）
             encoding: 字符编码，默认 utf-8
             use_dynamic_loader: 是否使用动态加载器
-            dynamic_loader_options: 动态加载器选项
         """
         self.callback = callback
-        self.err_back = err_back
+        self.errback = errback
         self.method = str(method).upper()
         self.headers = headers or {}
         self.cookies = cookies or {}
@@ -145,14 +151,13 @@ class Request:
         self.encoding = encoding
         self.cb_kwargs = cb_kwargs or {}
         self.body = body
+        self.use_dynamic_loader = use_dynamic_loader
+        
         # 保存高层语义参数（用于 copy）
         self._json_body = json_body
         self._form_data = form_data
         self._params = params
-        
-        # 动态加载相关属性
-        self.use_dynamic_loader = use_dynamic_loader
-        self.dynamic_loader_options = dynamic_loader_options or {}
+        self._original_url = url  # 保存原始 URL（不含参数），用于 copy
 
         # 处理GET参数
         if params is not None and self.method == 'GET':
@@ -271,11 +276,13 @@ class Request:
         """
         创建当前请求的副本，保留所有高层语义（json_body/form_data/params）。
         
+        注意：使用原始 URL（不含查询参数），由 params 重新拼接，避免参数重复。
+        
         Returns:
             Request: 请求副本
         """
         return type(self)(
-            url=self.url,
+            url=self._original_url,  # 使用原始 URL，避免参数重复
             callback=self.callback,
             method=self.method,
             headers=self.headers.copy(),
@@ -284,7 +291,7 @@ class Request:
             json_body=self._json_body,
             params=self._params,
             cb_kwargs=deepcopy(self.cb_kwargs),
-            err_back=self.err_back,
+            errback=self.errback,
             cookies=self.cookies.copy(),
             meta=deepcopy(self._meta),
             priority=-self.priority,
@@ -296,8 +303,7 @@ class Request:
             verify=self.verify,
             flags=self.flags.copy(),
             encoding=self.encoding,
-            use_dynamic_loader=self.use_dynamic_loader,
-            dynamic_loader_options=deepcopy(self.dynamic_loader_options)
+            use_dynamic_loader=self.use_dynamic_loader
         )
 
     def set_meta(self, key: str, value: Any) -> 'Request':
@@ -407,8 +413,6 @@ class Request:
             Request: 支持链式调用
         """
         self.use_dynamic_loader = use_dynamic
-        if options:
-            self.dynamic_loader_options = options
         # 同时在meta中设置标记，供混合下载器使用
         self._meta['use_dynamic_loader'] = use_dynamic
         return self

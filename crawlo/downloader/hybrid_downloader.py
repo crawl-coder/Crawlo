@@ -16,8 +16,15 @@
 3. 支持基于请求标记的下载器选择
 4. 统一的接口和响应格式
 5. 自动资源管理和优化
+6. 与 DynamicRenderMiddleware 分层协作
+
+协作模式:
+- DynamicRenderMiddleware（中间件层）：检测页面类型，设置请求标记
+- HybridDownloader（下载器层）：读取标记，选择合适的下载器执行
 """
-from typing import Optional, Dict, Type
+import importlib
+from typing import Optional, Dict, Type, List
+import re
 from urllib.parse import urlparse
 
 from crawlo.downloader import DownloaderBase
@@ -25,157 +32,197 @@ from crawlo.network.request import Request
 from crawlo.network.response import Response
 from crawlo.logging import get_logger
 
-# 动态导入下载器（避免循环导入）
-try:
-    from .aiohttp_downloader import AioHttpDownloader
-except ImportError:
-    AioHttpDownloader = None
-
-try:
-    from .httpx_downloader import HttpXDownloader
-except ImportError:
-    HttpXDownloader = None
-
-try:
-    from .cffi_downloader import CurlCffiDownloader
-except ImportError:
-    CurlCffiDownloader = None
-
-try:
-    from .selenium_downloader import SeleniumDownloader
-except ImportError:
-    SeleniumDownloader = None
-
-try:
-    from .playwright_downloader import PlaywrightDownloader
-except ImportError:
-    PlaywrightDownloader = None
-
 
 class HybridDownloader(DownloaderBase):
     """
     混合下载器 - 根据请求特征智能选择合适的下载器
+
+    与 DynamicRenderMiddleware 分层协作：
+    - 中间件层检测页面类型，设置 use_dynamic_loader / use_protocol_loader 标记
+    - 下载器层读取标记，选择合适的下载器
+
+    检测优先级：
+    1. 请求标记（中间件设置或用户显式指定）
+    2. URL 模式配置
+    3. 域名配置
+    4. 文件扩展名判断
+    5. 请求方法判断
+    6. URL 动态标识判断
+    7. 默认策略
     """
 
     def __init__(self, crawler):
         super().__init__(crawler)
         self.logger = get_logger(self.__class__.__name__)
-        
+
         # 下载器实例缓存
         self._downloaders: Dict[str, DownloaderBase] = {}
-        
+
         # 配置选项
         self.default_protocol_downloader = crawler.settings.get("HYBRID_DEFAULT_PROTOCOL_DOWNLOADER", "aiohttp")
         self.default_dynamic_downloader = crawler.settings.get("HYBRID_DEFAULT_DYNAMIC_DOWNLOADER", "playwright")
-        
-        # URL模式配置
-        self.dynamic_url_patterns = set(crawler.settings.get_list("HYBRID_DYNAMIC_URL_PATTERNS", []))
-        self.protocol_url_patterns = set(crawler.settings.get_list("HYBRID_PROTOCOL_URL_PATTERNS", []))
-        
+
+        # URL模式配置（支持正则表达式）
+        self.dynamic_url_patterns: List[re.Pattern] = [
+            re.compile(p) for p in crawler.settings.get_list("HYBRID_DYNAMIC_URL_PATTERNS", [])
+        ]
+        self.protocol_url_patterns: List[re.Pattern] = [
+            re.compile(p) for p in crawler.settings.get_list("HYBRID_PROTOCOL_URL_PATTERNS", [])
+        ]
+
         # 域名配置
         self.dynamic_domains = set(crawler.settings.get_list("HYBRID_DYNAMIC_DOMAINS", []))
         self.protocol_domains = set(crawler.settings.get_list("HYBRID_PROTOCOL_DOMAINS", []))
 
+        # 是否启用智能检测日志
+        self.verbose_logging = crawler.settings.get_bool("HYBRID_VERBOSE_LOGGING", False)
+
     def open(self):
         super().open()
-        self.logger.info("Opening HybridDownloader")
         
         # 初始化默认下载器
         self._initialize_default_downloaders()
 
     def _initialize_default_downloaders(self):
-        """初始化默认下载器"""
+        """初始化默认下载器
+        
+        默认只初始化协议下载器，动态下载器按需懒加载。
+        这样可以避免不必要的 Playwright 初始化开销。
+        """
         # 初始化协议下载器
         protocol_downloader_cls = self._get_downloader_class(self.default_protocol_downloader)
         if protocol_downloader_cls:
             self._downloaders["protocol"] = protocol_downloader_cls(self.crawler)
             self._downloaders["protocol"].open()
-            
-        # 初始化动态下载器
-        dynamic_downloader_cls = self._get_downloader_class(self.default_dynamic_downloader)
-        if dynamic_downloader_cls:
-            self._downloaders["dynamic"] = dynamic_downloader_cls(self.crawler)
-            # 使用标准的 open 方法初始化下载器
-            self._downloaders["dynamic"].open()
-                
-        self.logger.debug("Default downloaders initialized")
+        
+        # 动态下载器不预先初始化，按需懒加载
+        # 只有当检测到需要动态渲染时，才在 _get_or_create_downloader 中初始化
+        
+        # 打印汇总日志
+        protocol_downloader_name = self._downloaders["protocol"].__class__.__name__ if "protocol" in self._downloaders else "None"
+        self.logger.info(
+            f"enabled downloader: HybridDownloader (protocol: {protocol_downloader_name}, "
+            f"dynamic: lazy-loaded)"
+        )
 
     def _get_downloader_class(self, downloader_type: str) -> Optional[Type[DownloaderBase]]:
-        """根据类型获取下载器类"""
+        """根据类型获取下载器类 (延迟加载以避免循环导入和不必要的启动开销)"""
+        # 下载器映射配置：(模块相对路径, 类名)
         downloader_map = {
-            "aiohttp": AioHttpDownloader,
-            "httpx": HttpXDownloader,
-            "curl_cffi": CurlCffiDownloader,
-            "selenium": SeleniumDownloader,
-            "playwright": PlaywrightDownloader
+            "aiohttp": (".aiohttp_downloader", "AioHttpDownloader"),
+            "httpx": (".httpx_downloader", "HttpXDownloader"),
+            "curl_cffi": (".cffi_downloader", "CurlCffiDownloader"),
+            "drissionpage": (".drissionpage_downloader", "DrissionPageDownloader"),
+            "playwright": (".playwright_downloader", "PlaywrightDownloader"),
+            "camoufox": (".camoufox_downloader", "CamoufoxDownloader"),
         }
-        return downloader_map.get(downloader_type.lower())
+        
+        target = downloader_type.lower()
+        if target not in downloader_map:
+            return None
+            
+        module_path, class_name = downloader_map[target]
+        
+        try:
+            # 动态导入模块，package 参数确保相对导入正确工作
+            module = importlib.import_module(module_path, package=__package__)
+            return getattr(module, class_name)
+        except (ImportError, AttributeError) as e:
+            self.logger.error(f"Failed to load downloader '{downloader_type}': {e}")
+            return None
 
     async def download(self, request: Request) -> Optional[Response]:
         """根据请求特征选择合适的下载器并下载"""
-        try:
-            # 确定应该使用的下载器类型
-            downloader_type = self._determine_downloader_type(request)
-            
-            # 获取对应的下载器
-            downloader = self._get_or_create_downloader(downloader_type)
-            if not downloader:
-                self.logger.error(f"No downloader available for type: {downloader_type}")
-                return None
-            
-            self.logger.debug(f"Using {downloader_type} downloader for {request.url}")
-            
-            # 执行下载
-            return await downloader.download(request)
-        except Exception as e:
-            self.logger.error(f"Error in hybrid downloader for {request.url}: {e}", exc_info=True)
+        # 确定应该使用的下载器类型
+        downloader_type = self._determine_downloader_type(request)
+        
+        # 获取对应的下载器
+        downloader = self._get_or_create_downloader(downloader_type)
+        if downloader is None:
+            self.logger.error(f"No downloader available for type: {downloader_type}")
             return None
+        
+        self.logger.debug(f"Using {downloader_type} downloader for {request.url}")
+        
+        # 执行下载（异常应该传播到 MiddlewareManager，由重试中间件处理）
+        return await downloader.download(request)
 
     def _determine_downloader_type(self, request: Request) -> str:
-        """根据请求特征确定下载器类型"""
+        """
+        根据请求特征确定下载器类型
+
+        检测优先级：
+        1. 请求标记（中间件设置或用户显式指定）- 最高优先级
+        2. URL 模式配置
+        3. 域名配置
+        4. 文件扩展名判断
+        5. 默认策略：使用协议下载器
+
+        注意：不再自动检测 POST 请求或 URL 关键词，
+              只有在明确配置时才使用动态下载器。
+
+        Returns:
+            "dynamic" - 使用动态下载器
+            "protocol" - 使用协议下载器
+        """
         url = request.url
         parsed_url = urlparse(url)
         domain = parsed_url.netloc.lower()
-        
-        # 1. 检查请求标记
+
+        # 1. 检查请求标记（最高优先级，由 DynamicRenderMiddleware 或用户设置）
         if request.meta.get("use_dynamic_loader"):
+            detection_reason = "request_meta:use_dynamic_loader"
+            if self.verbose_logging:
+                self.logger.debug(f"[Hybrid] {url} -> dynamic (reason: {detection_reason})")
             return "dynamic"
         elif request.meta.get("use_protocol_loader"):
+            detection_reason = "request_meta:use_protocol_loader"
+            if self.verbose_logging:
+                self.logger.debug(f"[Hybrid] {url} -> protocol (reason: {detection_reason})")
             return "protocol"
-            
-        # 2. 检查URL模式
+
+        # 2. 检查URL模式配置（使用正则表达式匹配）
         for pattern in self.dynamic_url_patterns:
-            if pattern in url:
+            if pattern.search(url):
+                detection_reason = f"url_pattern:dynamic:{pattern.pattern}"
+                if self.verbose_logging:
+                    self.logger.debug(f"[Hybrid] {url} -> dynamic (reason: {detection_reason})")
                 return "dynamic"
-                
+
         for pattern in self.protocol_url_patterns:
-            if pattern in url:
+            if pattern.search(url):
+                detection_reason = f"url_pattern:protocol:{pattern.pattern}"
+                if self.verbose_logging:
+                    self.logger.debug(f"[Hybrid] {url} -> protocol (reason: {detection_reason})")
                 return "protocol"
-                
-        # 3. 检查域名
+
+        # 3. 检查域名配置
         if domain in self.dynamic_domains:
+            detection_reason = f"domain_config:dynamic:{domain}"
+            if self.verbose_logging:
+                self.logger.debug(f"[Hybrid] {url} -> dynamic (reason: {detection_reason})")
             return "dynamic"
-            
+
         if domain in self.protocol_domains:
+            detection_reason = f"domain_config:protocol:{domain}"
+            if self.verbose_logging:
+                self.logger.debug(f"[Hybrid] {url} -> protocol (reason: {detection_reason})")
             return "protocol"
-            
-        # 4. 检查文件扩展名（动态内容通常没有特定扩展名）
+
+        # 4. 检查文件扩展名（静态资源通常有特定扩展名）
         path = parsed_url.path.lower()
         static_extensions = {'.js', '.css', '.jpg', '.jpeg', '.png', '.gif', '.ico', '.pdf', '.zip', '.doc', '.docx'}
         if any(path.endswith(ext) for ext in static_extensions):
+            detection_reason = "file_extension:static"
+            if self.verbose_logging:
+                self.logger.debug(f"[Hybrid] {url} -> protocol (reason: {detection_reason})")
             return "protocol"
-            
-        # 5. 检查请求方法（POST请求更可能需要动态加载）
-        if request.method.upper() == "POST":
-            return "dynamic"
-            
-        # 6. 默认策略：根据内容类型推测
-        # 如果URL中包含典型的动态内容标识符
-        dynamic_indicators = ['ajax', 'api', 'dynamic', 'spa', 'react', 'vue', 'angular']
-        if any(indicator in url.lower() for indicator in dynamic_indicators):
-            return "dynamic"
-            
-        # 默认使用协议下载器
+
+        # 5. 默认使用协议下载器
+        # 不再自动检测 POST 请求或 URL 关键词
+        detection_reason = "default:protocol"
+        if self.verbose_logging:
+            self.logger.debug(f"[Hybrid] {url} -> protocol (reason: {detection_reason})")
         return "protocol"
 
     def _get_or_create_downloader(self, downloader_type: str) -> Optional[DownloaderBase]:
@@ -183,20 +230,21 @@ class HybridDownloader(DownloaderBase):
         # 如果已经存在，直接返回
         if downloader_type in self._downloaders:
             return self._downloaders[downloader_type]
-            
+        
         # 创建新的下载器实例
         if downloader_type == "protocol":
             downloader_cls = self._get_downloader_class(self.default_protocol_downloader)
         elif downloader_type == "dynamic":
             downloader_cls = self._get_downloader_class(self.default_dynamic_downloader)
         else:
+            self.logger.warning(f"Unknown downloader type: {downloader_type}")
             return None
             
-        if not downloader_cls:
+        if downloader_cls is None:
+            self.logger.warning(f"Failed to get downloader class for: {downloader_type}")
             return None
             
         downloader = downloader_cls(self.crawler)
-        # 使用标准的 open 方法初始化下载器
         downloader.open()
             
         self._downloaders[downloader_type] = downloader
@@ -206,13 +254,8 @@ class HybridDownloader(DownloaderBase):
         """关闭所有下载器"""
         for name, downloader in self._downloaders.items():
             try:
-                if hasattr(downloader, 'close_async'):
-                    await downloader.close_async()
-                else:
-                    await downloader.close()
-                self.logger.debug(f"Closed {name} downloader")
+                await downloader.close()
             except Exception as e:
                 self.logger.warning(f"Error closing {name} downloader: {e}")
                 
         self._downloaders.clear()
-        self.logger.info("HybridDownloader closed.")

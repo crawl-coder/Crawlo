@@ -17,6 +17,8 @@ Crawler系统
 """
 
 import asyncio
+import logging
+import sys
 import time
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
@@ -266,7 +268,7 @@ class Crawler:
                 await self._initialize_components()
                 await self._run_crawler()
         except asyncio.CancelledError:
-            self._logger.info("爬取任务被取消")
+            self._logger.info("爬取任务被取消（Ctrl+C）")
             # 重新抛出CancelledError以便调用者可以正确处理
             raise
         except Exception as e:
@@ -284,13 +286,15 @@ class Crawler:
             yield
         except asyncio.CancelledError:
             self._logger.info("爬虫任务被取消，开始清理资源...")
-            await self._cleanup()
+            await self._cleanup(reason='shutdown')
             raise
         except Exception as e:
             await self._handle_error(e)
             raise
         finally:
-            await self._cleanup()
+            # 只有在非 CancelledError 的情况下才清理（CancelledError 已在 except 中清理）
+            if not isinstance(sys.exc_info()[1], asyncio.CancelledError):
+                await self._cleanup()
             self._metrics.end_time = time.time()
     
     async def _initialize_components(self) -> None:
@@ -408,8 +412,12 @@ class Crawler:
         
         # 这里可以添加错误恢复逻辑
     
-    async def _cleanup(self) -> None:
-        """清理资源"""
+    async def _cleanup(self, reason: str = 'finished') -> None:
+        """清理资源
+        
+        Args:
+            reason: 关闭原因，'finished' 或 'shutdown'
+        """
         async with self._state_lock:
             if self._state not in [CrawlerState.CLOSING, CrawlerState.CLOSED]:
                 self._state = CrawlerState.CLOSING
@@ -423,39 +431,21 @@ class Crawler:
                 f"{cleanup_result['errors']}失败, 耗时{cleanup_result['duration']:.2f}s"
             )
             
-            # 关闭各个组件（继续兼容旧逻辑）
-            if self._engine and hasattr(self._engine, 'close'):
-                try:
-                    await self._engine.close()
-                except Exception as e:
-                    self._logger.warning(f"Engine cleanup failed: {e}")
+            # 关闭Engine组件
+            await self._cleanup_engine(reason)
             
-            # 调用StatsCollector的close_spider方法，设置reason和spider_name
-            if self._stats and hasattr(self._stats, 'close_spider'):
-                try:
-                    # 使用默认的'finished'作为reason
-                    self._stats.close_spider(self._spider, reason='finished')
-                except Exception as e:
-                    self._logger.warning(f"Stats close_spider failed: {e}")
+            # 关闭Stats组件
+            await self._cleanup_stats(reason)
             
             # 触发spider_closed事件，通知所有订阅者（包括扩展）
-            # 传递reason参数，这里使用默认的'finished'作为reason
             if self.subscriber:
                 from crawlo.event import CrawlerEvent
-                await self.subscriber.notify(CrawlerEvent.SPIDER_CLOSED, reason='finished')
-            
-            if self._stats and hasattr(self._stats, 'close'):
-                try:
-                    close_result = self._stats.close()
-                    if asyncio.iscoroutine(close_result):
-                        await close_result
-                except Exception as e:
-                    self._logger.warning(f"Stats cleanup failed: {e}")
+                await self.subscriber.notify(CrawlerEvent.SPIDER_CLOSED, reason=reason)
             
             async with self._state_lock:
                 self._state = CrawlerState.CLOSED
             
-            self._logger.debug("Crawler cleanup completed")
+            self._logger.debug(f"Crawler cleanup completed (reason={reason})")
             
             # 显式关闭所有日志handlers，释放文件句柄
             self._close_logger_handlers()
@@ -465,8 +455,44 @@ class Crawler:
             # 即使发生错误也要清理handlers
             try:
                 self._close_logger_handlers()
-            except Exception as handler_error:
+            except Exception:
                 pass
+    
+    async def _cleanup_engine(self, reason: str) -> None:
+        """清理Engine资源"""
+        if not self._engine:
+            return
+            
+        if hasattr(self._engine, 'close'):
+            try:
+                await self._engine.close()
+            except Exception as e:
+                self._logger.warning(f"Engine cleanup failed: {e}")
+        
+        if hasattr(self._engine, 'close_spider'):
+            try:
+                await self._engine.close_spider(reason=reason)
+            except Exception as e:
+                self._logger.warning(f"Engine close_spider failed: {e}")
+    
+    async def _cleanup_stats(self, reason: str) -> None:
+        """清理Stats资源"""
+        if not self._stats:
+            return
+            
+        if hasattr(self._stats, 'close_spider'):
+            try:
+                self._stats.close_spider(self._spider, reason=reason)
+            except Exception as e:
+                self._logger.warning(f"Stats close_spider failed: {e}")
+        
+        if hasattr(self._stats, 'close'):
+            try:
+                close_result = self._stats.close()
+                if asyncio.iscoroutine(close_result):
+                    await close_result
+            except Exception as e:
+                self._logger.warning(f"Stats cleanup failed: {e}")
     
     def _close_logger_handlers(self) -> None:
         """
@@ -475,8 +501,6 @@ class Crawler:
         这是解决PermissionError的关键步骤，确保文件句柄被正确释放
         特别是在Windows上，多个进程同时访问同一日志文件时会出现问题
         """
-        import logging
-        
         try:
             # 获取当前logger的所有handlers
             if self._logger:
@@ -546,9 +570,19 @@ class CrawlerProcess:
         self._setup_signal_handlers()
     
     def _setup_signal_handlers(self):
-        """设置信号处理器以优雅地处理关闭信号"""
+        """设置信号处理器以优雅地处理关闭信号
+        
+        注意：在 Windows 上，信号处理器需要在事件循环启动后设置
+        """
         self._signal_handler.set_crawlers(self._crawlers)
-        self._signal_handler.setup_signal_handlers()
+        # 延迟信号处理器设置到事件循环启动后
+        try:
+            loop = asyncio.get_running_loop()
+            # 如果事件循环已经在运行，直接设置
+            self._signal_handler.setup_signal_handlers()
+        except RuntimeError:
+            # 事件循环尚未启动，将在 crawl() 方法中设置
+            self._logger.debug("Event loop not running, signal handlers will be set up later")
     
     async def _graceful_shutdown(self):
         """优雅地关闭所有爬虫"""
@@ -631,12 +665,34 @@ class CrawlerProcess:
         import sys
         if sys.platform.lower().startswith('win'):
             asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
-    
-        # 判断输入是单个还是多个爬虫
-        if not isinstance(spider_cls_or_name, list):
-            return await self._crawl_single(spider_cls_or_name, settings)
-        else:
-            return await self._crawl_multiple(spider_cls_or_name, settings)
+        
+        # 确保信号处理器已设置（在事件循环启动后）
+        self._signal_handler.setup_signal_handlers()
+        
+        result = None
+        try:
+            # 判断输入是单个还是多个爬虫
+            if not isinstance(spider_cls_or_name, list):
+                result = await self._crawl_single(spider_cls_or_name, settings)
+            else:
+                result = await self._crawl_multiple(spider_cls_or_name, settings)
+            return result
+            
+        except KeyboardInterrupt:
+            # 捕获 Ctrl+C (Windows/Linux 都支持)
+            self._shutdown_event.set()
+            # 执行优雅关闭
+            await self._graceful_shutdown()
+            # 重新抛出以便调用者知道是被中断的
+            raise
+        except asyncio.CancelledError:
+            # 处理取消异常
+            await self._graceful_shutdown()
+            raise
+        except Exception as e:
+            self._logger.error(f"Error during crawl: {e}")
+            await self._graceful_shutdown()
+            raise
         
     async def _crawl_single(self, spider_cls_or_name: Union[Type['Spider'], str], settings: Optional[Dict[str, Any]] = None) -> Crawler:
         """
@@ -649,27 +705,64 @@ class CrawlerProcess:
         Returns:
             Crawler: 爬虫实例
         """
-        try:
-            spider_cls = self._resolve_spider_class(spider_cls_or_name)
+        spider_cls = self._resolve_spider_class(spider_cls_or_name)
+            
+        # 记录启动的爬虫名称
+        self._logger.info(f"Starting spider: {spider_cls.name}")
+            
+        merged_settings = self._merge_settings(settings)
+        crawler = Crawler(spider_cls, merged_settings)
+        
+        # 将 crawler 添加到信号处理器的列表中
+        if crawler not in self._crawlers:
+            self._crawlers.append(crawler)
+            
+        async with self._semaphore:
+            # 创建爬虫任务
+            crawl_task = asyncio.create_task(crawler.crawl())
+            
+            try:
+                # 等待爬虫完成或收到关闭信号
+                done, pending = await asyncio.wait(
+                    [crawl_task, asyncio.create_task(self._shutdown_event.wait())],
+                    return_when=asyncio.FIRST_COMPLETED
+                )
                 
-            # 记录启动的爬虫名称
-            from crawlo.logging import get_logger
-            logger = get_logger('crawlo.framework')
-            logger.info(f"Starting spider: {spider_cls.name}")
+                # 如果收到关闭信号，取消爬虫任务
+                if self._shutdown_event.is_set() and not crawl_task.done():
+                    self._logger.info(f"Shutdown requested, cancelling spider: {spider_cls.name}")
+                    crawl_task.cancel()
+                    try:
+                        await crawl_task
+                    except asyncio.CancelledError:
+                        self._logger.debug(f"Spider {spider_cls.name} cancelled successfully")
                 
-            merged_settings = self._merge_settings(settings)
-            crawler = Crawler(spider_cls, merged_settings)
-                
-            async with self._semaphore:
-                await crawler.crawl()
-                
-            # 清理crawler资源，防止内存泄漏
-            await self._cleanup_crawler(crawler, spider_cls.name)
-                
-            return crawler
-        except Exception as e:
-            self._logger.error(f"Error running crawler: {e}")
-            raise
+                # 检查爬虫任务是否异常（排除 CancelledError）
+                if crawl_task.done() and not crawl_task.cancelled():
+                    exc = crawl_task.exception()
+                    if exc:
+                        raise exc
+                        
+            except asyncio.CancelledError:
+                # 处理任务取消异常
+                self._logger.debug(f"Crawl task was cancelled: {spider_cls.name}")
+                raise
+            finally:
+                # 确保任务被清理
+                if not crawl_task.done():
+                    crawl_task.cancel()
+                    try:
+                        await crawl_task
+                    except asyncio.CancelledError:
+                        pass
+        
+        # 执行优雅关闭流程（保存检查点、打印统计信息等）
+        await self._graceful_shutdown()
+        
+        # 清理crawler资源，防止内存泄漏
+        await self._cleanup_crawler(crawler, spider_cls.name)
+        
+        return crawler
         
     async def _crawl_multiple(self, spider_classes_or_names: List[Union[Type['Spider'], str]], settings: Optional[Dict[str, Any]] = None) -> List[Union[Crawler, BaseException]]:
         """
@@ -692,12 +785,10 @@ class CrawlerProcess:
                 
             # 记录启动的爬虫名称
             spider_names = [cls.name for cls in spider_classes]
-            from crawlo.logging import get_logger
-            logger = get_logger('crawlo.framework')
             if len(spider_names) == 1:
-                logger.info(f"Starting spider: {spider_names[0]}")
+                self._logger.info(f"Starting spider: {spider_names[0]}")
             else:
-                logger.info(f"Starting spiders: {', '.join(spider_names)}")
+                self._logger.info(f"Starting spiders: {', '.join(spider_names)}")
                 
             tasks = []
             for spider_cls in spider_classes:
@@ -735,25 +826,30 @@ class CrawlerProcess:
             crawler: 爬虫实例
             spider_name: 爬虫名称
         """
-        try:
-            if hasattr(crawler, '_resource_manager'):
-                await crawler._resource_manager.cleanup_all()
-            self._logger.debug(f"Cleaned up crawler: {spider_name}")
-        except Exception as e:
-            self._logger.warning(f"Failed to cleanup crawler: {e}")
-        
+        await self._cleanup_single_crawler(crawler)
+        self._logger.debug(f"Cleaned up crawler: {spider_name}")
+    
     async def _cleanup_all_crawlers(self) -> None:
         """清理所有爬虫资源"""
         self._logger.debug(f"Cleaning up {len(self._crawlers)} crawler(s)...")
         for crawler in self._crawlers:
-            try:
-                if hasattr(crawler, '_resource_manager'):
-                    await crawler._resource_manager.cleanup_all()
-            except Exception as e:
-                self._logger.warning(f"Failed to cleanup crawler: {e}")
+            await self._cleanup_single_crawler(crawler)
             
         # 清空crawlers列表，释放引用
         self._crawlers.clear()
+    
+    async def _cleanup_single_crawler(self, crawler: Crawler) -> None:
+        """
+        清理单个爬虫资源的内部方法
+        
+        Args:
+            crawler: 爬虫实例
+        """
+        try:
+            if hasattr(crawler, '_resource_manager'):
+                await crawler._resource_manager.cleanup_all()
+        except Exception as e:
+            self._logger.warning(f"Failed to cleanup crawler: {e}")
     
     async def _run_with_semaphore(self, crawler: Crawler) -> Crawler:
         """

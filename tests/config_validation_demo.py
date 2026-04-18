@@ -11,7 +11,7 @@ import os
 # 添加项目根目录到路径
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
-from crawlo.config_validator import validate_config
+from crawlo.config import validate_config
 
 
 def demo_valid_config():
@@ -27,7 +27,7 @@ def demo_valid_config():
         'LOG_LEVEL': 'INFO',
         'MIDDLEWARES': [
             'crawlo.middleware.request_ignore.RequestIgnoreMiddleware',
-            'crawlo.middleware.download_delay.DownloadDelayMiddleware',
+            'crawlo.middleware.throttle.ThrottleMiddleware',
         ],
         'PIPELINES': [
             'crawlo.pipelines.console_pipeline.ConsolePipeline',
@@ -99,7 +99,7 @@ def demo_distributed_config():
         'SCHEDULER_QUEUE_NAME': 'crawlo:distributed_test:queue:requests',  # 添加队列名称
         'MIDDLEWARES': [
             'crawlo.middleware.request_ignore.RequestIgnoreMiddleware',
-            'crawlo.middleware.download_delay.DownloadDelayMiddleware',
+            'crawlo.middleware.throttle.ThrottleMiddleware',
         ],
         'PIPELINES': [
             'crawlo.pipelines.console_pipeline.ConsolePipeline',

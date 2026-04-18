@@ -15,7 +15,7 @@ from typing import Dict, Any, Optional
 
 from crawlo.logging import get_logger
 from crawlo.bot.channels.base import NotificationChannel
-from crawlo.bot.models import NotificationMessage, NotificationResponse, ChannelType
+from crawlo.bot.core.models import NotificationMessage, NotificationResponse, ChannelType
 
 
 logger = get_logger(__name__)

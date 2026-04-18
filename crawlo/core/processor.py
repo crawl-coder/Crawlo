@@ -92,6 +92,17 @@ class Processor:
         """初始化处理器"""
         from crawlo.pipelines.pipeline_manager import PipelineManager
         self.pipelines = await PipelineManager.from_crawler(self.crawler)
+        
+        # 调用所有 pipeline 的 open_spider 方法（如果存在）
+        if self.crawler.spider and hasattr(self.pipelines, 'pipelines'):
+            for pipeline in self.pipelines.pipelines:
+                if hasattr(pipeline, 'open_spider'):
+                    try:
+                        await pipeline.open_spider(self.crawler.spider)
+                    except Exception as e:
+                        self.logger.error(f"Failed to open pipeline {pipeline.__class__.__name__}: {e}")
+                        raise
+        
         self.logger.debug("Processor initialized")
     
     async def start(self) -> asyncio.Task:

@@ -2,18 +2,24 @@
 # -*- coding: UTF-8 -*-
 """
 统一的队列管理器
-提供简洁、一致的队列接口，自动处理不同队列类型的差异
+
+提供简洁、一致的队列接口，自动处理不同队列类型的差异。
+
+重新设计的队列和背压系统：
+- 支持多种队列类型：内存、Redis
+- 内置背压控制机制
+- 统一的接口设计
 """
 import asyncio
 import time
 import traceback
-from enum import Enum
 from typing import Optional, Dict, Any, Union, TYPE_CHECKING
 
 if TYPE_CHECKING:
     from crawlo import Request
 
 from crawlo.queue.pqueue import SpiderPriorityQueue
+from crawlo.queue.queue_types import QueueType
 from crawlo.utils.error_handler import ErrorHandler
 from crawlo.logging import get_logger
 from crawlo.utils.request.request_serializer import RequestSerializer
@@ -27,13 +33,6 @@ try:
 except ImportError:
     RedisPriorityQueue = None
     REDIS_AVAILABLE = False
-
-
-class QueueType(Enum):
-    """Queue type enumeration"""
-    MEMORY = "memory"
-    REDIS = "redis"
-    AUTO = "auto"  # 自动选择
 
 
 class IntelligentScheduler:
@@ -194,6 +193,9 @@ class QueueConfig:
             run_mode: Optional[str] = None,  # 新增：运行模式
             settings=None,  # 新增：保存settings引用
             serialization_format: str = 'pickle',  # 新增：序列化格式
+            backpressure_ratio: float = 0.8,  # 背压触发阈值
+            backpressure_delay_base: float = 0.5,  # 背压基础延迟
+            backpressure_delay_max: float = 5.0,  # 背压最大延迟
             **kwargs
     ):
         self.queue_type = QueueType(queue_type) if isinstance(queue_type, str) else queue_type
@@ -220,6 +222,9 @@ class QueueConfig:
         self.max_queue_size = max_queue_size
         self.max_retries = max_retries
         self.timeout = timeout
+        self.backpressure_ratio = backpressure_ratio
+        self.backpressure_delay_base = backpressure_delay_base
+        self.backpressure_delay_max = backpressure_delay_max
         self.extra_config = kwargs
 
     @classmethod
@@ -243,12 +248,54 @@ class QueueConfig:
         # 获取整数配置
         redis_port = safe_get_config(settings, 'REDIS_PORT', 6379, int)
         redis_db = safe_get_config(settings, 'REDIS_DB', 0, int)
-        max_queue_size = safe_get_config(settings, 'SCHEDULER_MAX_QUEUE_SIZE', 1000, int)
         max_retries = safe_get_config(settings, 'QUEUE_MAX_RETRIES', 3, int)
         timeout = safe_get_config(settings, 'QUEUE_TIMEOUT', 300, int)
         
-        # 新增：获取序列化格式配置
+        # 获取序列化格式配置
         serialization_format = safe_get_config(settings, 'SERIALIZATION_FORMAT', 'pickle')
+        
+        # 根据队列类型选择对应的背压配置
+        # 将QUEUE_TYPE转换为字符串进行比较
+        queue_type_str = queue_type.value if isinstance(queue_type, QueueType) else str(queue_type).lower()
+        
+        if queue_type_str == 'redis':
+            # Redis队列配置：更早触发背压，允许更大延迟
+            max_queue_size = safe_get_config(settings, 'REDIS_SCHEDULER_MAX_QUEUE_SIZE', 
+                                           safe_get_config(settings, 'SCHEDULER_MAX_QUEUE_SIZE', 50000), int)
+            backpressure_ratio = safe_get_config(settings, 'REDIS_BACKPRESSURE_RATIO',
+                                               safe_get_config(settings, 'BACKPRESSURE_RATIO', 0.6))
+            backpressure_delay_base = safe_get_config(settings, 'REDIS_BACKPRESSURE_DELAY_BASE',
+                                                    safe_get_config(settings, 'BACKPRESSURE_DELAY_BASE', 0.5))
+            backpressure_delay_max = safe_get_config(settings, 'REDIS_BACKPRESSURE_DELAY_MAX',
+                                                   safe_get_config(settings, 'BACKPRESSURE_DELAY_MAX', 5.0))
+            backpressure_warning_threshold = safe_get_config(settings, 'REDIS_BACKPRESSURE_WARNING_THRESHOLD',
+                                                           safe_get_config(settings, 'BACKPRESSURE_WARNING_THRESHOLD', 0.5))
+            backpressure_critical_threshold = safe_get_config(settings, 'REDIS_BACKPRESSURE_CRITICAL_THRESHOLD',
+                                                            safe_get_config(settings, 'BACKPRESSURE_CRITICAL_THRESHOLD', 0.8))
+        elif queue_type_str == 'memory':
+            # 内存队列配置：更高阈值，更小延迟
+            max_queue_size = safe_get_config(settings, 'MEMORY_SCHEDULER_MAX_QUEUE_SIZE',
+                                           safe_get_config(settings, 'SCHEDULER_MAX_QUEUE_SIZE', 5000), int)
+            backpressure_ratio = safe_get_config(settings, 'MEMORY_BACKPRESSURE_RATIO',
+                                               safe_get_config(settings, 'BACKPRESSURE_RATIO', 0.8))
+            backpressure_delay_base = safe_get_config(settings, 'MEMORY_BACKPRESSURE_DELAY_BASE',
+                                                    safe_get_config(settings, 'BACKPRESSURE_DELAY_BASE', 0.2))
+            backpressure_delay_max = safe_get_config(settings, 'MEMORY_BACKPRESSURE_DELAY_MAX',
+                                                   safe_get_config(settings, 'BACKPRESSURE_DELAY_MAX', 2.0))
+            backpressure_warning_threshold = safe_get_config(settings, 'MEMORY_BACKPRESSURE_WARNING_THRESHOLD',
+                                                           safe_get_config(settings, 'BACKPRESSURE_WARNING_THRESHOLD', 0.7))
+            backpressure_critical_threshold = safe_get_config(settings, 'MEMORY_BACKPRESSURE_CRITICAL_THRESHOLD',
+                                                            safe_get_config(settings, 'BACKPRESSURE_CRITICAL_THRESHOLD', 0.9))
+        else:
+            # AUTO或其他：使用通用配置（向后兼容）
+            max_queue_size = safe_get_config(settings, 'SCHEDULER_MAX_QUEUE_SIZE', 10000, int)
+            backpressure_ratio = safe_get_config(settings, 'BACKPRESSURE_RATIO', 0.75)
+            backpressure_delay_base = safe_get_config(settings, 'BACKPRESSURE_DELAY_BASE', 0.2)
+            backpressure_delay_max = safe_get_config(settings, 'BACKPRESSURE_DELAY_MAX', 3.0)
+            backpressure_warning_threshold = safe_get_config(settings, 'BACKPRESSURE_WARNING_THRESHOLD', 0.7)
+            backpressure_critical_threshold = safe_get_config(settings, 'BACKPRESSURE_CRITICAL_THRESHOLD', 0.9)
+        
+        backpressure_check_interval = safe_get_config(settings, 'BACKPRESSURE_CHECK_INTERVAL', 0.1)
         
         return cls(
             queue_type=queue_type,
@@ -263,8 +310,16 @@ class QueueConfig:
             max_retries=max_retries,
             timeout=timeout,
             run_mode=run_mode,
-            settings=settings,  # 传递settings
-            serialization_format=serialization_format  # 新增：传递序列化格式
+            settings=settings,
+            serialization_format=serialization_format,
+            backpressure_ratio=backpressure_ratio,
+            backpressure_delay_base=backpressure_delay_base,
+            backpressure_delay_max=backpressure_delay_max,
+            extra_config={
+                'backpressure_check_interval': backpressure_check_interval,
+                'backpressure_warning_threshold': backpressure_warning_threshold,
+                'backpressure_critical_threshold': backpressure_critical_threshold,
+            }
         )
 
 
@@ -284,12 +339,46 @@ class QueueManager:
         self._health_status = "unknown"
         self._intelligent_scheduler = IntelligentScheduler()  # 智能调度器
         
-        # 初始化背压控制
-        self._backpressure_controller = BackPressureController(
-            max_queue_size=config.max_queue_size,
-            backpressure_ratio=getattr(config, 'backpressure_ratio', 0.8),
-            concurrency_limit=getattr(config, 'max_concurrency', 8)
+        # 初始化新的背压策略系统
+        from crawlo.backpressure import (
+            BackpressureController,
+            QueueSizeStrategy,
+            BackpressureStrategyConfig
         )
+        
+        # 获取背压策略类型配置
+        strategy_type = safe_get_config(
+            self.config.settings,
+            'BACKPRESSURE_STRATEGY',
+            'queue_size'
+        )
+        
+        # 创建策略配置
+        bp_config = BackpressureStrategyConfig(
+            threshold=config.backpressure_ratio,
+            base_delay=config.backpressure_delay_base,
+            max_delay=config.backpressure_delay_max,
+        )
+        
+        # 根据配置创建对应策略
+        if strategy_type == 'adaptive':
+            from crawlo.backpressure import AdaptiveStrategy
+            strategy = AdaptiveStrategy(config=bp_config)
+        elif strategy_type == 'composite':
+            from crawlo.backpressure import CompositeStrategy
+            strategy = CompositeStrategy([
+                QueueSizeStrategy(config=bp_config)
+            ])
+        else:  # 默认使用queue_size策略
+            strategy = QueueSizeStrategy(config=bp_config)
+        
+        # 创建背压控制器
+        self._backpressure_controller = BackpressureController(
+            strategy=strategy,
+            enabled=True
+        )
+        
+        self._backpressure_strategy_type = strategy_type
 
     @property
     def logger(self):
@@ -316,17 +405,31 @@ class QueueManager:
             self.logger.info(f"Queue initialized successfully Type: {queue_type.value}")
             # 只在调试模式下输出详细配置信息
             self.logger.debug(f"Queue configuration: {self._get_queue_info()}")
+            
+            # 输出背压策略初始化信息（仅在未重新创建时输出，避免与 recreated 日志重复）
+            if hasattr(self, '_backpressure_controller') and self._backpressure_controller:
+                # 检查是否是重新创建过的（通过比较 config 和 controller 的配置是否一致）
+                config_ratio = self.config.backpressure_ratio
+                controller_ratio = self._backpressure_controller._strategy._config.threshold
+                
+                if abs(config_ratio - controller_ratio) < 0.001:  # 配置一致，说明可能被 recreated 过
+                    # 配置一致，但仍需输出关键信息（INFO 级别）
+                    self.logger.info(
+                        f"Backpressure initialized with strategy: {self._backpressure_strategy_type} "
+                        f"(threshold: {self._backpressure_controller._strategy._config.threshold:.0%}, "
+                        f"base_delay: {self._backpressure_controller._strategy._config.base_delay}s, "
+                        f"max_delay: {self._backpressure_controller._strategy._config.max_delay}s)"
+                    )
+                else:
+                    # 配置不一致，说明已经被 recreated 过，详细日志已在 recreated 中输出
+                    self.logger.debug(
+                        f"Backpressure initialized with strategy: {self._backpressure_strategy_type} "
+                        f"(threshold: {self._backpressure_controller._strategy._config.threshold:.0%})"
+                    )
 
             # 如果健康检查返回True，表示队列类型发生了切换，需要更新配置
             if health_check_result:
                 return True
-
-            # 如果队列类型是Redis，检查是否需要更新配置
-            if queue_type == QueueType.REDIS:
-                # 这个检查需要在调度器中进行，因为队列管理器无法访问crawler.settings
-                # 但我们不需要总是返回True，只有在确实需要更新时才返回True
-                # 调度器会进行更详细的检查
-                pass
 
             return False  # 默认不需要更新配置
 
@@ -369,18 +472,39 @@ class QueueManager:
             # 获取当前队列大小用于背压控制
             current_queue_size = await self.size() if self._queue else 0
             
-            # 更新背压控制器的统计信息
-            if hasattr(self, '_backpressure_controller'):
-                # 获取当前并发数（模拟，实际需要从task_manager获取）
-                current_concurrency = 0  # 这里需要根据实际情况获取
-                self._backpressure_controller.update_stats(current_queue_size, current_concurrency)
-                
-                # 检查是否需要应用背压
-                if self._backpressure_controller.should_apply_backpressure(current_queue_size, current_concurrency):
-                    # 获取背压延迟时间
-                    delay = self._backpressure_controller.get_backpressure_delay()
+            # 获取配置的最大队列大小
+            max_size = self.config.max_queue_size if hasattr(self, 'config') else 1000
+            
+            # ===== 硬限制：队列满时拒绝请求 =====
+            if current_queue_size >= max_size:
+                self.logger.warning(
+                    f"Queue full ({current_queue_size}/{max_size}), "
+                    f"rejecting request: {request.url}"
+                )
+                return False
+            
+            # ===== 软限制：队列超过阈值时延迟入队 =====
+            if hasattr(self, '_backpressure_controller') and self._backpressure_controller.enabled:
+                # 使用新的背压策略系统检查是否需要应用背压
+                if await self._backpressure_controller.should_apply(self):
+                    # 计算背压延迟
+                    delay = await self._backpressure_controller.calculate_delay(self)
+                    
                     if delay > 0:
-                        self.logger.debug(f"应用背压控制，延迟 {delay} 秒")
+                        # 记录背压激活日志（仅在状态变更时）
+                        if not self._backpressure_controller.active:
+                            metrics = await self._backpressure_controller.get_metrics(self)
+                            self.logger.info(
+                                f"Backpressure activated: queue={metrics.queue_size}/{metrics.max_queue_size} "
+                                f"(utilization: {metrics.utilization:.0%}, delay: {delay:.2f}s, "
+                                f"level: {metrics.level.value})"
+                            )
+                        
+                        # 应用背压延迟
+                        self.logger.debug(
+                            f"Backpressure delay: {delay:.2f}s "
+                            f"(queue={current_queue_size}/{max_size})"
+                        )
                         await asyncio.sleep(delay)
 
             # 背压控制（仅对内存队列）
@@ -392,7 +516,6 @@ class QueueManager:
             # 统一的入队操作
             success = False
             # 使用明确的类型检查来确定调用哪个方法
-            from crawlo.queue.redis_priority_queue import RedisPriorityQueue
             if isinstance(self._queue, RedisPriorityQueue):
                 # Redis队列需要两个参数
                 success = await self._queue.put(request, final_priority)
@@ -479,6 +602,11 @@ class QueueManager:
         except Exception as e:
             self.logger.warning(f"Failed to get queue size: {e}")
             return 0
+    
+    @property
+    def max_size(self) -> int:
+        """返回最大队列大小（IQueue接口）"""
+        return self.config.max_queue_size
 
     def empty(self) -> bool:
         """Check if queue is empty (synchronous version, for compatibility)"""
@@ -516,7 +644,6 @@ class QueueManager:
             elif self._queue and self._queue_type == QueueType.REDIS:
                 # 对于 Redis 队列，使用异步检查
                 # 直接使用Redis队列的qsize方法，它会同时检查主队列和处理中队列
-                from crawlo.queue.redis_priority_queue import RedisPriorityQueue
                 if isinstance(self._queue, RedisPriorityQueue):
                     try:
                         size = await self._queue.qsize()
@@ -557,8 +684,8 @@ class QueueManager:
         
         # 添加性能统计信息
         performance_stats = {}
-        if hasattr(self, '_backpressure_controller'):
-            performance_stats.update(self._backpressure_controller.get_status())
+        if hasattr(self, '_backpressure_controller') and self._backpressure_controller:
+            performance_stats.update(self._backpressure_controller.get_stats())
         
         status['performance'] = performance_stats
         return status
@@ -597,8 +724,8 @@ class QueueManager:
             stats['current_queue_size'] = 'error'
         
         # 获取背压控制器状态
-        if hasattr(self, '_backpressure_controller'):
-            stats['backpressure_status'] = self._backpressure_controller.get_status()
+        if hasattr(self, '_backpressure_controller') and self._backpressure_controller:
+            stats['backpressure_status'] = self._backpressure_controller.get_stats()
         
         # 获取智能调度器统计信息
         if hasattr(self, '_intelligent_scheduler'):
@@ -655,20 +782,25 @@ class QueueManager:
             if REDIS_AVAILABLE and self.config.redis_url:
                 # 测试 Redis 连接
                 try:
-                    from crawlo.queue.redis_priority_queue import RedisPriorityQueue
                     test_queue = RedisPriorityQueue(
                         redis_url=self.config.redis_url,
                         project_name="default"
                     )
                     await test_queue.connect()
                     await test_queue.close()
-                    self.logger.debug("Auto-detection: Redis available, using distributed queue")
+                    self.logger.info("Auto-detection: Redis available, using Redis queue")
+                    # 重要：AUTO模式检测到Redis后，更新背压配置为Redis配置
+                    self._apply_redis_backpressure_config()
                     return QueueType.REDIS
                 except Exception as e:
-                    self.logger.debug(f"Auto-detection: Redis unavailable ({e}), using memory queue")
+                    self.logger.info(f"Auto-detection: Redis unavailable ({e}), falling back to memory queue")
+                    # 重要：AUTO模式Redis不可用时，更新背压配置为Memory配置
+                    self._apply_memory_backpressure_config()
                     return QueueType.MEMORY
             else:
-                self.logger.debug("Auto-detection: Redis not configured, using memory queue")
+                self.logger.info("Auto-detection: Redis not configured, using memory queue")
+                # 重要：AUTO模式无Redis配置时，更新背压配置为Memory配置
+                self._apply_memory_backpressure_config()
                 return QueueType.MEMORY
 
         elif self.config.queue_type == QueueType.REDIS:
@@ -693,7 +825,6 @@ class QueueManager:
                 
                 # 测试 Redis 连接
                 try:
-                    from crawlo.queue.redis_priority_queue import RedisPriorityQueue
                     test_queue = RedisPriorityQueue(
                         redis_url=self.config.redis_url,
                         project_name="default"
@@ -720,7 +851,6 @@ class QueueManager:
                 if REDIS_AVAILABLE and self.config.redis_url:
                     # 测试 Redis 连接
                     try:
-                        from crawlo.queue.redis_priority_queue import RedisPriorityQueue
                         test_queue = RedisPriorityQueue(
                             redis_url=self.config.redis_url,
                             project_name="default"
@@ -745,11 +875,9 @@ class QueueManager:
     async def _create_queue(self, queue_type: QueueType):
         """Create queue instance"""
         if queue_type == QueueType.REDIS:
-            # 延迟导入Redis队列
-            try:
-                from crawlo.queue.redis_priority_queue import RedisPriorityQueue
-            except ImportError as e:
-                raise RuntimeError(f"Redis队列不可用：未能导入RedisPriorityQueue ({e})")
+            # RedisPriorityQueue 已在文件顶部导入
+            if not REDIS_AVAILABLE:
+                raise RuntimeError(f"Redis队列不可用：未能导入RedisPriorityQueue")
 
             # 统一使用RedisKeyManager.from_settings来解析项目名称和爬虫名称
             project_name = "default"
@@ -801,7 +929,6 @@ class QueueManager:
             if self._queue_type == QueueType.REDIS and self._queue:
                 # 测试 Redis 连接
                 # 使用明确的类型检查确保只对Redis队列调用connect方法
-                from crawlo.queue.redis_priority_queue import RedisPriorityQueue
                 if isinstance(self._queue, RedisPriorityQueue):
                     await self._queue.connect()
                 self._health_status = "healthy"
@@ -837,12 +964,160 @@ class QueueManager:
                 # 重新创建内存队列
                 self._queue = await self._create_queue(QueueType.MEMORY)
                 self._queue_type = QueueType.MEMORY
+                # 重要：更新背压配置为Memory配置
+                self._apply_memory_backpressure_config()
                 self._queue_semaphore = asyncio.Semaphore(self.config.max_queue_size)
                 self._health_status = "healthy"
-                self.logger.info("Switched to memory queue")
+                self.logger.info("Switched to memory queue with memory backpressure config")
                 # 返回一个信号，表示需要更新过滤器和去重管道配置
                 return True
         return False
+
+    def _apply_redis_backpressure_config(self):
+        """应用Redis队列的背压配置（用于AUTO模式）"""
+        from crawlo.utils.misc import safe_get_config
+        
+        settings = self.config.settings if hasattr(self.config, 'settings') and self.config.settings else {}
+        
+        # 更新QueueConfig的背压参数为Redis配置
+        self.config.max_queue_size = safe_get_config(
+            settings, 'REDIS_SCHEDULER_MAX_QUEUE_SIZE',
+            safe_get_config(settings, 'SCHEDULER_MAX_QUEUE_SIZE', 50000), int
+        )
+        self.config.backpressure_ratio = safe_get_config(
+            settings, 'REDIS_BACKPRESSURE_RATIO',
+            safe_get_config(settings, 'BACKPRESSURE_RATIO', 0.6)
+        )
+        self.config.backpressure_delay_base = safe_get_config(
+            settings, 'REDIS_BACKPRESSURE_DELAY_BASE',
+            safe_get_config(settings, 'BACKPRESSURE_DELAY_BASE', 0.5)
+        )
+        self.config.backpressure_delay_max = safe_get_config(
+            settings, 'REDIS_BACKPRESSURE_DELAY_MAX',
+            safe_get_config(settings, 'BACKPRESSURE_DELAY_MAX', 5.0)
+        )
+        
+        # 更新extra_config中的阈值
+        if hasattr(self.config, 'extra_config') and self.config.extra_config:
+            self.config.extra_config['backpressure_warning_threshold'] = safe_get_config(
+                settings, 'REDIS_BACKPRESSURE_WARNING_THRESHOLD',
+                safe_get_config(settings, 'BACKPRESSURE_WARNING_THRESHOLD', 0.5)
+            )
+            self.config.extra_config['backpressure_critical_threshold'] = safe_get_config(
+                settings, 'REDIS_BACKPRESSURE_CRITICAL_THRESHOLD',
+                safe_get_config(settings, 'BACKPRESSURE_CRITICAL_THRESHOLD', 0.8)
+            )
+        
+        self.logger.debug(
+            f"Applied Redis backpressure config: "
+            f"max_size={self.config.max_queue_size}, "
+            f"ratio={self.config.backpressure_ratio}, "
+            f"delay_base={self.config.backpressure_delay_base}s, "
+            f"delay_max={self.config.backpressure_delay_max}s"
+        )
+        
+        # 重要：重新创建背压控制器以应用新配置
+        self._recreate_backpressure_controller()
+
+    def _apply_memory_backpressure_config(self):
+        """应用内存队列的背压配置（用于AUTO模式）"""
+        from crawlo.utils.misc import safe_get_config
+        
+        settings = self.config.settings if hasattr(self.config, 'settings') and self.config.settings else {}
+        
+        # 更新QueueConfig的背压参数为Memory配置
+        self.config.max_queue_size = safe_get_config(
+            settings, 'MEMORY_SCHEDULER_MAX_QUEUE_SIZE',
+            safe_get_config(settings, 'SCHEDULER_MAX_QUEUE_SIZE', 5000), int
+        )
+        self.config.backpressure_ratio = safe_get_config(
+            settings, 'MEMORY_BACKPRESSURE_RATIO',
+            safe_get_config(settings, 'BACKPRESSURE_RATIO', 0.8)
+        )
+        self.config.backpressure_delay_base = safe_get_config(
+            settings, 'MEMORY_BACKPRESSURE_DELAY_BASE',
+            safe_get_config(settings, 'BACKPRESSURE_DELAY_BASE', 0.2)
+        )
+        self.config.backpressure_delay_max = safe_get_config(
+            settings, 'MEMORY_BACKPRESSURE_DELAY_MAX',
+            safe_get_config(settings, 'BACKPRESSURE_DELAY_MAX', 2.0)
+        )
+        
+        # 更新extra_config中的阈值
+        if hasattr(self.config, 'extra_config') and self.config.extra_config:
+            self.config.extra_config['backpressure_warning_threshold'] = safe_get_config(
+                settings, 'MEMORY_BACKPRESSURE_WARNING_THRESHOLD',
+                safe_get_config(settings, 'BACKPRESSURE_WARNING_THRESHOLD', 0.7)
+            )
+            self.config.extra_config['backpressure_critical_threshold'] = safe_get_config(
+                settings, 'MEMORY_BACKPRESSURE_CRITICAL_THRESHOLD',
+                safe_get_config(settings, 'BACKPRESSURE_CRITICAL_THRESHOLD', 0.9)
+            )
+        
+        self.logger.debug(
+            f"Applied Memory backpressure config: "
+            f"max_size={self.config.max_queue_size}, "
+            f"ratio={self.config.backpressure_ratio}, "
+            f"delay_base={self.config.backpressure_delay_base}s, "
+            f"delay_max={self.config.backpressure_delay_max}s"
+        )
+        
+        # 重要：重新创建背压控制器以应用新配置
+        self._recreate_backpressure_controller()
+
+    def _recreate_backpressure_controller(self):
+        """
+        重新创建背压控制器以应用更新后的配置
+        
+        当AUTO模式检测到Redis可用或不可用时，会更新self.config的背压参数，
+        需要重新创建背压控制器才能使新配置生效。
+        """
+        from crawlo.backpressure import (
+            BackpressureController,
+            QueueSizeStrategy,
+            BackpressureStrategyConfig
+        )
+        
+        # 获取背压策略类型配置
+        strategy_type = safe_get_config(
+            self.config.settings,
+            'BACKPRESSURE_STRATEGY',
+            'queue_size'
+        )
+        
+        # 使用更新后的配置创建新的策略配置
+        bp_config = BackpressureStrategyConfig(
+            threshold=self.config.backpressure_ratio,
+            base_delay=self.config.backpressure_delay_base,
+            max_delay=self.config.backpressure_delay_max,
+        )
+        
+        # 根据配置创建对应策略
+        if strategy_type == 'adaptive':
+            from crawlo.backpressure import AdaptiveStrategy
+            strategy = AdaptiveStrategy(config=bp_config)
+        elif strategy_type == 'composite':
+            from crawlo.backpressure import CompositeStrategy
+            strategy = CompositeStrategy([
+                QueueSizeStrategy(config=bp_config)
+            ])
+        else:  # 默认使用queue_size策略
+            strategy = QueueSizeStrategy(config=bp_config)
+        
+        # 创建新的背压控制器
+        self._backpressure_controller = BackpressureController(
+            strategy=strategy,
+            enabled=True
+        )
+        
+        self._backpressure_strategy_type = strategy_type
+        
+        self.logger.info(
+            f"Backpressure controller recreated with strategy: {strategy_type} "
+            f"(threshold: {bp_config.threshold:.0%}, "
+            f"base_delay: {bp_config.base_delay}s, "
+            f"max_delay: {bp_config.max_delay}s)"
+        )
 
     def _get_queue_info(self) -> Dict[str, Any]:
         """Get queue configuration information"""
@@ -861,126 +1136,3 @@ class QueueManager:
         return info
 
 
-class BackPressureController:
-    """
-    背压控制器
-    用于实现更精细的背压控制机制
-    """
-    
-    def __init__(self, max_queue_size: int = 1000, backpressure_ratio: float = 0.8, concurrency_limit: int = 8):
-        """
-        初始化背压控制器
-        
-        Args:
-            max_queue_size: 最大队列大小
-            backpressure_ratio: 触发背压的比例
-            concurrency_limit: 并发限制
-        """
-        self.max_queue_size = max_queue_size
-        self.backpressure_ratio = backpressure_ratio
-        self.concurrency_limit = concurrency_limit
-        self.current_queue_size = 0
-        self.current_concurrency = 0
-        self.backpressure_active = False
-        self.last_check_time = 0
-        self.check_interval = 0.1  # 检查间隔（秒）
-        
-        # 统计信息
-        self.throttling_events = 0
-        self.recovery_events = 0
-    
-    def should_apply_backpressure(self, current_queue_size: int = None, current_concurrency: int = None) -> bool:
-        """
-        判断是否需要应用背压
-        
-        Args:
-            current_queue_size: 当前队列大小
-            current_concurrency: 当前并发数
-            
-        Returns:
-            bool: 是否需要应用背压
-        """
-        import time
-        current_time = time.time()
-        
-        # 限制检查频率
-        if current_time - self.last_check_time < self.check_interval:
-            return self.backpressure_active
-        
-        self.last_check_time = current_time
-        
-        # 使用传入的值或当前值
-        queue_size = current_queue_size if current_queue_size is not None else self.current_queue_size
-        concurrency = current_concurrency if current_concurrency is not None else self.current_concurrency
-        
-        # 计算队列使用率
-        queue_utilization = queue_size / self.max_queue_size if self.max_queue_size > 0 else 0
-        
-        # 判断是否需要应用背压
-        should_throttle = (
-            queue_utilization >= self.backpressure_ratio or  # 队列使用率过高
-            concurrency >= self.concurrency_limit  # 并发数过高
-        )
-        
-        if should_throttle and not self.backpressure_active:
-            # 开始背压控制
-            self.backpressure_active = True
-            self.throttling_events += 1
-        elif not should_throttle and self.backpressure_active:
-            # 恢复正常状态
-            self.backpressure_active = False
-            self.recovery_events += 1
-        
-        return self.backpressure_active
-    
-    def get_backpressure_delay(self) -> float:
-        """
-        获取背压延迟时间
-        
-        Returns:
-            float: 延迟时间（秒）
-        """
-        if not self.backpressure_active:
-            return 0.0
-        
-        # 根据队列使用率计算延迟时间
-        queue_utilization = self.current_queue_size / self.max_queue_size if self.max_queue_size > 0 else 0
-        base_delay = 0.01  # 基础延迟
-        
-        # 队列越满，延迟越大
-        if queue_utilization > 0.95:
-            return base_delay * 10  # 队列接近满时大幅增加延迟
-        elif queue_utilization > 0.9:
-            return base_delay * 5   # 队列很满时增加延迟
-        elif queue_utilization > 0.85:
-            return base_delay * 2   # 队列较满时小幅增加延迟
-        else:
-            return base_delay       # 正常延迟
-    
-    def update_stats(self, queue_size: int, concurrency: int):
-        """
-        更新统计信息
-        
-        Args:
-            queue_size: 当前队列大小
-            concurrency: 当前并发数
-        """
-        self.current_queue_size = queue_size
-        self.current_concurrency = concurrency
-    
-    def get_status(self) -> dict:
-        """
-        获取背压控制器状态
-        
-        Returns:
-            dict: 状态信息
-        """
-        return {
-            'backpressure_active': self.backpressure_active,
-            'queue_utilization': self.current_queue_size / self.max_queue_size if self.max_queue_size > 0 else 0,
-            'throttling_events': self.throttling_events,
-            'recovery_events': self.recovery_events,
-            'recommended_delay': self.get_backpressure_delay(),
-            'current_queue_size': self.current_queue_size,
-            'max_queue_size': self.max_queue_size
-        }

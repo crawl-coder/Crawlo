@@ -19,7 +19,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
 from crawlo.middleware.default_header import DefaultHeaderMiddleware
 from crawlo.settings.setting_manager import SettingManager
-from crawlo.data.user_agents import get_user_agents
+from crawlo.middleware.user_agents import get_user_agents
 
 
 class MockLogger:

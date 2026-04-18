@@ -329,12 +329,27 @@ class Scheduler:
             return None
             
         try:
+            # 获取出队前的队列大小
+            queue_size_before = await self.queue_manager.size()
+            
             request = await self.queue_manager.get()
+            
+            # 获取出队后的队列大小
+            queue_size_after = await self.queue_manager.size()
             
             # 恢复 callback（从 Redis 队列取出时）
             if request:
                 spider = getattr(self.crawler, 'spider', None)
                 request = self.request_serializer.restore_after_deserialization(request, spider)
+                self.logger.debug(
+                    f"[队列] 请求出队成功: {request.url} | "
+                    f"队列大小: {queue_size_before} -> {queue_size_after}"
+                )
+            elif queue_size_before > 0:
+                self.logger.debug(
+                    f"[队列] 请求出队: 队列为空 | "
+                    f"队列大小: {queue_size_before} -> {queue_size_after}"
+                )
             
             return request
         except Exception as e:
@@ -371,15 +386,24 @@ class Scheduler:
         set_request(request, self.priority)
         
         try:
+            # 获取入队前的队列大小
+            queue_size_before = await self.queue_manager.size()
+            
             # 使用统一的队列接口
             success = await self.queue_manager.put(request, priority=getattr(request, 'priority', 0))
+            
+            # 获取入队后的队列大小
+            queue_size_after = await self.queue_manager.size()
             
             # 更新智能调度器的统计信息
             if hasattr(self.queue_manager, '_intelligent_scheduler'):
                 self.queue_manager._intelligent_scheduler.update_crawl_frequency(request)
             
             if success:
-                self.logger.debug(f"Request enqueued successfully: {request.url}")
+                self.logger.debug(
+                    f"[队列] 请求入队成功: {request.url} | "
+                    f"队列大小: {queue_size_before} -> {queue_size_after}"
+                )
             
             return success
         except Exception as e:

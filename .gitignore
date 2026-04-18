@@ -8,6 +8,7 @@ __pycache__/
 *.so
 articles/
 benchmark/
+listed_company_executive_crawler/
 
 # Distribution / packaging
 .Python
@@ -17,6 +18,7 @@ dist/
 downloads/
 eggs/
 .eggs/
+.checkpoints/
 lib/
 lib64/
 parts/

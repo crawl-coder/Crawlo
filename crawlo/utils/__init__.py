@@ -19,6 +19,13 @@ from .request.fingerprint import FingerprintGenerator
 
 from .request.request_serializer import RequestSerializer
 
+# 编码检测
+from .encoding_detector import (
+    EncodingDetector,
+    detect_encoding,
+    decode_body,
+)
+
 # 批量处理
 from .batch import (
     BatchProcessor,
@@ -45,6 +52,10 @@ __all__ = [
     "FingerprintGenerator",
     # request_serializer
     "RequestSerializer",
+    # encoding_detector
+    "EncodingDetector",
+    "detect_encoding",
+    "decode_body",
     # batch
     "BatchProcessor",
     "RedisBatchProcessor",

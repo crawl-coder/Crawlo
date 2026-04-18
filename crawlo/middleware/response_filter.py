@@ -75,7 +75,7 @@ class ResponseFilterMiddleware:
         Returns:
             bool: 是否被允许
         """
-        status_code = response.status_code
+        status_code = response.status
         
         # 首先检查是否被明确拒绝
         if status_code in self.denied_codes:
@@ -128,9 +128,9 @@ class ResponseFilterMiddleware:
             return response
             
         # 响应被过滤
-        reason = self._get_filter_reason(response.status_code)
-        self.logger.debug(f"过滤响应: {response.status_code} {response.url} - {reason}")
+        reason = self._get_filter_reason(response.status)
+        self.logger.debug(f"过滤响应: {response.status} {response.url} - {reason}")
         
         # 抛出异常以忽略该响应
         # 优化：只包含状态码和原因，避免每个URL产生独立统计项
-        raise IgnoreRequestError(f"response filtered: {reason} - {response.status_code}")
+        raise IgnoreRequestError(f"response filtered: {reason} - {response.status}")

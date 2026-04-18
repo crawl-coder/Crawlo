@@ -28,7 +28,7 @@ class OfweekSpiderMiddleware:
         """
         在响应被 Spider 处理前调用
         """
-        self.logger.info(f"收到响应: {request.url} - 状态码: {response.status_code}")
+        self.logger.info(f"收到响应: {request.url} - 状态码: {response.status}")
         return response
 
     def process_exception(self, request, exception, spider):

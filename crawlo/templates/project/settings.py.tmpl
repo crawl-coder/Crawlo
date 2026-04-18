@@ -11,11 +11,22 @@
 from datetime import datetime
 from crawlo.config import CrawloConfig
 
-# 使用自动检测模式配置工厂创建配置
+# =================================== 0. 基础配置 ===================================
+# 
+# 本配置为单机版模板，适合开发测试和小规模生产环境。
+# 
+# 如需分布式配置，请使用 CrawloConfig.distributed() 并参考分布式部署文档。
+# 
+# 配置说明：
+#   - concurrency: 单个爬虫的并发请求数（默认8，生产环境可调整为16）
+#   - download_delay: 请求间隔延迟（秒），根据目标网站反爬强度调整
+#   - max_running_spiders: 同时运行的最大爬虫数（单机版通常1-5个）
+
 config = CrawloConfig.auto(
     project_name='{{project_name}}',
-    concurrency=8,
-    download_delay=1.0
+    concurrency=8,              # 并发请求数：开发8，生产16-32
+    download_delay=1.0,         # 下载延迟（秒）
+    max_running_spiders=1       # 最大同时运行爬虫数
 )
 
 # 将配置转换为当前模块的全局变量
@@ -101,7 +112,7 @@ MYSQL_TABLE = '{{project_name}}_data'
 # MySQL 冲突处理策略（三者互斥，按优先级生效）
 MYSQL_UPDATE_COLUMNS = ()      # 优先级最高：主键冲突时更新指定列，使用 ON DUPLICATE KEY UPDATE
 MYSQL_AUTO_UPDATE = False      # 优先级中等：是否使用 REPLACE INTO（完全覆盖已存在记录）
-MYSQL_INSERT_IGNORE = False    # 优先级最低：是否使用 INSERT IGNORE（忽略重复数据）
+MYSQL_INSERT_IGNORE = True    # 优先级最低：是否使用 INSERT IGNORE（忽略重复数据）
 MYSQL_PREFER_ALIAS_SYNTAX = True      # 是否优先使用 AS `alias` 语法，False 则使用 VALUES() 语法
 MYSQL_BATCH_SIZE = 100
 MYSQL_USE_BATCH = False  # 是否启用批量插入
@@ -182,6 +193,78 @@ OUTPUT_DIR = 'output'
 # 动态代理（ProxyMiddleware）
 # 配置代理API URL后中间件自动启用
 # PROXY_API_URL = "http://your-proxy-api.com/get-proxy"
+
+# =================================== 6.1 动态渲染配置 ===================================
+
+# DynamicRenderMiddleware - 自动检测页面是否需要动态渲染
+# 与 HybridDownloader 分层协作：中间件检测页面类型，设置请求标记
+# DYNAMIC_RENDER_ENABLED = True  # 是否启用动态渲染检测
+# DYNAMIC_RENDER_DEFAULT_DYNAMIC = False  # 默认是否使用动态下载器（默认为 False，需用户显式配置）
+# DYNAMIC_RENDER_CACHE_ENABLED = True  # 是否启用检测结果缓存
+# 
+# # 动态内容 URL 模式（正则表达式列表）- 用户显式配置需要动态渲染的 URL
+# DYNAMIC_RENDER_URL_PATTERNS = [
+#     r'/#/',  # Hash 路由（SPA）
+#     r'/app/',  # 应用页面
+#     r'/spa/',  # SPA 页面
+# ]
+# 
+# # 静态内容 URL 模式（正则表达式列表）
+# DYNAMIC_RENDER_STATIC_PATTERNS = [
+#     r'\.(html?|htm)$',
+#     r'\.(xml|json|rss|atom)$',
+# ]
+# 
+# # 需要动态渲染的域名列表（用户显式配置）
+# DYNAMIC_RENDER_DOMAINS = ['www.example.com', 'spa.example.com']
+# 
+# # 静态内容域名列表
+# DYNAMIC_RENDER_STATIC_DOMAINS = ['static.example.com']
+
+# =================================== 6.2 Playwright 下载器配置 ===================================
+
+# PlaywrightDownloader - 动态浏览器下载器
+# PLAYWRIGHT_BROWSER_TYPE = "chromium"  # 浏览器类型：chromium, firefox, webkit
+# PLAYWRIGHT_HEADLESS = True  # 是否无头模式
+# PLAYWRIGHT_TIMEOUT = 30000  # 默认超时时间（毫秒）
+# PLAYWRIGHT_LOAD_TIMEOUT = 10000  # 页面加载超时时间（毫秒）
+# PLAYWRIGHT_SINGLE_BROWSER_MODE = True  # 单浏览器多标签页模式
+# PLAYWRIGHT_MAX_PAGES_PER_BROWSER = 10  # 每个浏览器的最大页面数
+
+# ===== 智能等待配置 =====
+# PLAYWRIGHT_WAIT_STRATEGY = "auto"  # 等待策略：auto, networkidle, domcontentloaded, element, custom
+# PLAYWRIGHT_WAIT_TIMEOUT = 10000  # 等待超时时间（毫秒）
+# PLAYWRIGHT_WAIT_FOR_ELEMENT = None  # 等待特定元素选择器
+
+# ===== 资源屏蔽配置（提升性能）=====
+# PLAYWRIGHT_BLOCK_RESOURCES = ["image", "font", "media"]  # 屏蔽的资源类型
+# PLAYWRIGHT_BLOCK_ADS = True  # 是否屏蔽广告
+
+# ===== 反检测配置 =====
+# PLAYWRIGHT_STEALTH_LEVEL = 'basic'  # 反检测级别: none, basic, advanced
+
+# ===== 自动滚动配置 =====
+# PLAYWRIGHT_AUTO_SCROLL = False  # 是否自动滚动加载更多内容
+# PLAYWRIGHT_SCROLL_COUNT = 3  # 滚动次数
+# PLAYWRIGHT_SCROLL_DELAY = 500  # 滚动延迟（毫秒）
+
+# ===== 代理配置 =====
+# PLAYWRIGHT_PROXY = None  # 代理服务器配置，例如 "http://proxy:8080" 或 {"server": "http://proxy:8080"}
+
+# =================================== 6.3 HybridDownloader 配置 ===================================
+
+# HybridDownloader - 智能混合下载器
+# HYBRID_DEFAULT_PROTOCOL_DOWNLOADER = "aiohttp"  # 默认协议下载器：aiohttp, httpx, curl_cffi
+# HYBRID_DEFAULT_DYNAMIC_DOWNLOADER = "playwright"  # 默认动态下载器：playwright, drissionpage
+# HYBRID_VERBOSE_LOGGING = False  # 是否启用详细日志
+# 
+# # URL 模式配置
+# HYBRID_DYNAMIC_URL_PATTERNS = []  # 需要动态加载的 URL 模式
+# HYBRID_PROTOCOL_URL_PATTERNS = []  # 需要协议请求的 URL 模式
+# 
+# # 域名配置
+# HYBRID_DYNAMIC_DOMAINS = []  # 需要动态加载的域名
+# HYBRID_PROTOCOL_DOMAINS = []  # 需要协议请求的域名
 
 # =================================== 7. 通知系统配置 ===================================
 # 通知系统默认禁用，如需启用请取消注释并配置相关参数

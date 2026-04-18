@@ -18,6 +18,7 @@ from crawlo.core.engine_helpers import GenerationStats, BackpressureController
 from crawlo.utils.misc import load_object
 from crawlo.utils.misc import safe_get_config
 from crawlo.utils.func_tools import transform
+from crawlo.__version__ import __version__
 
 
 class Engine(object):
@@ -32,28 +33,40 @@ class Engine(object):
         self.scheduler: Optional[Scheduler] = None
         self.processor: Optional[Processor] = None
         self.start_requests: Optional[Iterator] = None
+        self._close_reason: str = 'finished'  # 关闭原因：finished / shutdown
         
-        # 安全获取CONCURRENCY设置，提供默认值
+        # ========== 统一配置获取（集中在初始化阶段） ==========
+        
+        # 并发控制配置
         concurrency = safe_get_config(self.settings, 'CONCURRENCY', 8, int)
-        
         self.task_manager: Optional[TaskManager] = TaskManager(concurrency)
-
-        # 安全获取其他设置
-        max_queue_size = safe_get_config(self.settings, 'SCHEDULER_MAX_QUEUE_SIZE', 200, int)
-        generation_batch_size = safe_get_config(self.settings, 'REQUEST_GENERATION_BATCH_SIZE', 10, int)
-        generation_interval = safe_get_config(self.settings, 'REQUEST_GENERATION_INTERVAL', 0.01, float)
-        backpressure_ratio = safe_get_config(self.settings, 'BACKPRESSURE_RATIO', 0.9, float)
         
-        self.max_queue_size = max_queue_size
-        self.generation_batch_size = generation_batch_size
-        self.generation_interval = generation_interval
-        self.backpressure_ratio = backpressure_ratio
+        # 请求生成配置
+        self.max_queue_size = safe_get_config(self.settings, 'SCHEDULER_MAX_QUEUE_SIZE', 200, int)
+        self.generation_batch_size = safe_get_config(self.settings, 'REQUEST_GENERATION_BATCH_SIZE', 10, int)
+        self.generation_interval = safe_get_config(self.settings, 'REQUEST_GENERATION_INTERVAL', 0.01, float)
+        self.backpressure_ratio = safe_get_config(self.settings, 'BACKPRESSURE_RATIO', 0.9, float)
+        self.enable_controlled_generation = safe_get_config(
+            self.settings, 'ENABLE_CONTROLLED_REQUEST_GENERATION', False, bool
+        )
         
-        # 使用独立工具类（局部提取，不改变结构）
+        # 版本配置（直接从 __version__.py 导入，不从配置文件获取）
+        self.version = __version__
+        
+        # 检查点配置
+        self.checkpoint_save_on_signal = safe_get_config(
+            self.settings, 'CHECKPOINT_SAVE_ON_SIGNAL', True, bool
+        )
+        
+        # 下载器配置
+        self.downloader_type = safe_get_config(self.settings, 'DOWNLOADER_TYPE')
+        self.downloader_path = safe_get_config(self.settings, 'DOWNLOADER')
+        
+        # 初始化辅助工具类
         self._generation_stats = GenerationStats()
         self._backpressure_ctrl = BackpressureController(
-            max_queue_size=max_queue_size,
-            backpressure_ratio=backpressure_ratio
+            max_queue_size=self.max_queue_size,
+            backpressure_ratio=self.backpressure_ratio
         )
 
         self.logger = get_logger(name=self.__class__.__name__)
@@ -66,40 +79,32 @@ class Engine(object):
             Type[DownloaderBase]: 下载器类
         """
         # 方式1: 使用 DOWNLOADER_TYPE 配置（推荐）
-        downloader_type = safe_get_config(self.settings, 'DOWNLOADER_TYPE')
-        if downloader_type:
+        if self.downloader_type:
             try:
                 from crawlo.downloader import get_downloader_class
-                downloader_cls = get_downloader_class(downloader_type)
-                self.logger.debug(f"使用下载器类型: {downloader_type} -> {downloader_cls.__name__}")
+                downloader_cls = get_downloader_class(self.downloader_type)
+                self.logger.debug(f"使用下载器类型: {self.downloader_type} -> {downloader_cls.__name__}")
                 return downloader_cls
             except (ImportError, ValueError) as e:
-                self.logger.warning(f"无法使用下载器类型 '{downloader_type}': {e}，回退到默认配置")
+                self.logger.warning(f"无法使用下载器类型 '{self.downloader_type}': {e}，回退到默认配置")
         
         # 方式2: 使用 DOWNLOADER 完整类路径（兼容旧版本）
-        downloader_path = safe_get_config(self.settings, 'DOWNLOADER')
-        
         # 如果没有配置下载器，使用默认下载器
-        if not downloader_path:
+        if not self.downloader_path:
             from crawlo.downloader import HttpXDownloader
             return HttpXDownloader
             
-        downloader_cls = load_object(downloader_path)
+        downloader_cls = load_object(self.downloader_path)
         if not issubclass(downloader_cls, DownloaderBase):
             raise TypeError(f'下载器 {downloader_cls.__name__} 不是 DownloaderBase 的子类。')
         return downloader_cls
 
     def engine_start(self):
         self.running = True
-        # 获取版本号，如果获取失败则使用默认值
-        version = safe_get_config(self.settings, 'VERSION', '1.0.0')
-                    
-        if not version or version == 'None':
-            version = '1.0.0'
-        # 将INFO级别日志改为DEBUG级别，避免与CrawlerProcess启动日志重复
-        self.logger.debug(f"Crawlo框架已启动 {version}")
+        # 使用初始化时获取的版本配置
+        self.logger.debug(f"Crawlo框架已启动 {self.version}")
 
-    async def start_spider(self, spider):
+    async def start_spider(self, spider, resume=True):
         self.spider = spider
 
         self.scheduler = Scheduler.create_instance(self.crawler)
@@ -139,18 +144,26 @@ class Engine(object):
 
         # 启动引擎
         self.engine_start()
+
+        # 检查点恢复：如果存在检查点且 resume=True，从检查点恢复
+        checkpoint_resumed = False
+        if resume:
+            checkpoint_resumed = await self._try_resume_from_checkpoint(spider)
+
+        if not checkpoint_resumed:
+            # 正常流程：从 start_requests 开始
+            self.logger.debug("开始创建start_requests迭代器")
+            try:
+                # 先收集所有请求到列表中，避免在检查时消耗迭代器
+                requests_list = list(spider.start_requests())
+                self.logger.debug(f"收集到 {len(requests_list)} 个请求")
+                self.start_requests = iter(requests_list)
+                self.logger.debug("start_requests迭代器创建成功")
+            except Exception as e:
+                self.logger.error(f"创建start_requests迭代器失败: {e}")
+                import traceback
+                self.logger.error(traceback.format_exc())
         
-        self.logger.debug("开始创建start_requests迭代器")
-        try:
-            # 先收集所有请求到列表中，避免在检查时消耗迭代器
-            requests_list = list(spider.start_requests())
-            self.logger.debug(f"收集到 {len(requests_list)} 个请求")
-            self.start_requests = iter(requests_list)
-            self.logger.debug("start_requests迭代器创建成功")
-        except Exception as e:
-            self.logger.error(f"创建start_requests迭代器失败: {e}")
-            import traceback
-            self.logger.error(traceback.format_exc())
         await self._open_spider()
 
     async def crawl(self):
@@ -160,10 +173,8 @@ class Engine(object):
         generation_task = None
         
         try:
-            # 启动请求生成任务（如果启用了受控生成）
-            enable_controlled_generation = safe_get_config(self.settings, 'ENABLE_CONTROLLED_REQUEST_GENERATION', False, bool)
-            
-            if self.start_requests and enable_controlled_generation:
+            # 启动请求生成任务（使用初始化时获取的配置）
+            if self.start_requests and self.enable_controlled_generation:
                 self.logger.debug("创建受控请求生成任务")
                 generation_task = asyncio.create_task(
                     self._controlled_request_generation()
@@ -181,6 +192,7 @@ class Engine(object):
             loop_count = 0
             last_exit_check = 0  # 记录上次检查退出条件的时间
             exit_check_interval = 1  # 每1次循环检查一次退出条件，进一步提高检查频率
+            last_component_states = None  # 记录上次的组件状态，用于减少冗余日志
             
             while self.running:
                 loop_count += 1
@@ -190,7 +202,7 @@ class Engine(object):
                 
                 # 优化退出条件检查频率
                 if loop_count - last_exit_check >= exit_check_interval:
-                    should_exit = await self._should_exit()
+                    should_exit, last_component_states = await self._should_exit(last_component_states)
                     if should_exit:
                         self.logger.debug("满足退出条件，准备退出循环")
                         break
@@ -207,9 +219,13 @@ class Engine(object):
                 try:
                     await generation_task
                 except asyncio.CancelledError:
-                    pass
+                    self.logger.debug("Generation task cancelled")
             
-            await self.close_spider()
+            # 优雅关闭爬虫（reason 已经在 signal handler 中设置）
+            try:
+                await self.close_spider()
+            except asyncio.CancelledError:
+                self.logger.debug("close_spider cancelled")
 
     async def _traditional_request_generation(self):
         """传统请求生成方法（兼容旧版本）"""
@@ -366,14 +382,19 @@ class Engine(object):
 
         # 使用异步任务创建，遵守并发限制
         if self.task_manager:
+            coro = crawl_task()
             try:
-                await self.task_manager.create_task(crawl_task())
+                await self.task_manager.create_task(coro)
             except asyncio.CancelledError:
                 self.logger.info("爬取任务被取消")
+                # 确保协程被正确关闭，避免 RuntimeWarning
+                coro.close()
                 # 重新抛出CancelledError以便调用者可以正确处理
                 raise
             except Exception as e:
                 self.logger.error(f"创建爬取任务时发生错误: {e}")
+                # 确保协程被正确关闭
+                coro.close()
 
     async def _fetch(self, request):
         async def _successful(_response):
@@ -431,12 +452,17 @@ class Engine(object):
             return True
         return False
 
-    async def _should_exit(self) -> bool:
-        """检查是否应该退出"""
-        self.logger.debug(f"检查退出条件: start_requests={self.start_requests is not None}")
+    async def _should_exit(self, last_component_states=None) -> tuple[bool, tuple]:
+        """检查是否应该退出
+        
+        Args:
+            last_component_states: 上次的组件状态元组，用于减少冗余日志
+            
+        Returns:
+            tuple: (should_exit, current_states)
+        """
         # 没有启动请求，且所有队列都空闲
         if self.start_requests is None:
-            self.logger.debug("start_requests 为 None，检查其他组件状态")
             # 使用异步的idle检查方法以获得更精确的结果
             scheduler_idle = False
             downloader_idle = False
@@ -452,7 +478,16 @@ class Engine(object):
             if self.processor is not None:
                 processor_idle = self.processor.idle()
             
-            self.logger.debug(f"组件状态 - Scheduler: {scheduler_idle}, Downloader: {downloader_idle}, TaskManager: {task_manager_done}, Processor: {processor_idle}")
+            current_states = (scheduler_idle, downloader_idle, task_manager_done, processor_idle)
+            
+            # 只在组件状态发生变化时输出日志
+            if current_states != last_component_states:
+                self.logger.debug(
+                    f"组件状态变化 - Scheduler: {scheduler_idle}, "
+                    f"Downloader: {downloader_idle}, "
+                    f"TaskManager: {task_manager_done}, "
+                    f"Processor: {processor_idle}"
+                )
             
             if (scheduler_idle and 
                 downloader_idle and 
@@ -468,31 +503,144 @@ class Engine(object):
                 if self.processor is not None:
                     processor_idle = self.processor.idle()
                 
-                self.logger.debug(f"二次检查组件状态 - Scheduler: {scheduler_idle}, Downloader: {downloader_idle}, TaskManager: {task_manager_done}, Processor: {processor_idle}")
+                # 二次检查状态也只在变化时输出
+                second_states = (scheduler_idle, downloader_idle, task_manager_done, processor_idle)
+                if second_states != current_states:
+                    self.logger.debug(
+                        f"二次检查组件状态 - Scheduler: {scheduler_idle}, "
+                        f"Downloader: {downloader_idle}, "
+                        f"TaskManager: {task_manager_done}, "
+                        f"Processor: {processor_idle}"
+                    )
                 
                 if (scheduler_idle and 
                     downloader_idle and 
                     task_manager_done and 
                     processor_idle):
                     self.logger.info("All components are idle, preparing to exit")
-                    return True
+                    return True, current_states
         else:
             self.logger.debug("start_requests 不为 None，不退出")
+            current_states = None
         
-        return False
+        return False, current_states
 
-    async def close_spider(self):
-        if self.task_manager is not None:
-            await asyncio.gather(*self.task_manager.current_task)
+    async def close_spider(self, reason='finished'):
+        self._close_reason = reason
+
+        # 等待所有活跃任务完成，正确处理取消情况
+        if self.task_manager is not None and self.task_manager.current_task:
+            try:
+                # 使用 return_exceptions=True 避免单个任务异常影响其他任务
+                await asyncio.gather(*self.task_manager.current_task, return_exceptions=True)
+            except asyncio.CancelledError:
+                self.logger.debug("Task manager gather cancelled")
+            except Exception as e:
+                self.logger.debug(f"Task manager gather completed with errors: {e}")
+        
+        # 检查点保存：Ctrl+C 触发的关闭时保存状态
+        if reason == 'shutdown':
+            await self._save_checkpoint()
+        
+        # 正常完成时清除检查点
+        if reason == 'finished':
+            await self._clear_checkpoint()
         
         # 关闭 pipeline（刷新批量数据、清理资源）
         if self.processor is not None and hasattr(self.processor, 'pipelines'):
             await self.processor.pipelines.close()
         
+        # 注意：downloader 已注册到 ResourceManager，由 ResourceManager 统一清理
+        # 这里不再重复调用 downloader.close()
         if self.scheduler is not None:
             await self.scheduler.close()
-        if self.downloader is not None:
-            await self.downloader.close()
+    
+    async def _try_resume_from_checkpoint(self, spider) -> bool:
+        """尝试从检查点恢复爬取状态
+        
+        Args:
+            spider: 爬虫实例
+            
+        Returns:
+            bool: 是否成功从检查点恢复
+        """
+        try:
+            from crawlo.checkpoint import CheckpointManager
+            
+            checkpoint_mgr = CheckpointManager(spider.name, self.settings)
+            if not checkpoint_mgr.enabled or not await checkpoint_mgr.has_checkpoint():
+                return False
+            
+            checkpoint = await checkpoint_mgr.load()
+            if checkpoint is None:
+                return False
+            
+            # 恢复请求到调度器
+            requests_data = checkpoint.get('requests', [])
+            restored_count = 0
+            for req_data in requests_data:
+                try:
+                    request = checkpoint_mgr.restore_request(req_data, spider)
+                    if request and self.scheduler is not None:
+                        # 设置 dont_filter=True 避免被过滤器拦截
+                        request.dont_filter = True
+                        await self.scheduler.enqueue_request(request)
+                        restored_count += 1
+                except Exception as e:
+                    self.logger.debug(f"Failed to restore request: {e}")
+            
+            # 恢复去重指纹
+            fingerprints = checkpoint.get('fingerprints', set())
+            if fingerprints and self.scheduler is not None:
+                checkpoint_mgr.restore_fingerprints(fingerprints, self.scheduler)
+            
+            # 跳过 start_requests（检查点中已包含未完成的请求）
+            self.start_requests = None
+            
+            self.logger.info(
+                f"Resumed from checkpoint: {restored_count}/{len(requests_data)} requests restored, "
+                f"{len(fingerprints)} fingerprints recovered"
+            )
+            return True
+            
+        except Exception as e:
+            self.logger.warning(f"Failed to resume from checkpoint: {e}")
+            return False
+    
+    async def _save_checkpoint(self):
+        """保存检查点"""
+        try:
+            from crawlo.checkpoint import CheckpointManager
+            
+            spider_name = self.spider.name if self.spider else 'unknown'
+            checkpoint_mgr = CheckpointManager(spider_name, self.settings)
+            
+            if not checkpoint_mgr.enabled:
+                return
+            
+            # 使用初始化时获取的检查点配置
+            if not self.checkpoint_save_on_signal:
+                return
+            
+            stats = getattr(self.crawler, 'stats', None)
+            await checkpoint_mgr.save(self.scheduler, stats)
+            
+        except Exception as e:
+            self.logger.warning(f"Failed to save checkpoint on shutdown: {e}")
+    
+    async def _clear_checkpoint(self):
+        """清除检查点"""
+        try:
+            from crawlo.checkpoint import CheckpointManager
+            
+            spider_name = self.spider.name if self.spider else 'unknown'
+            checkpoint_mgr = CheckpointManager(spider_name, self.settings)
+            
+            if checkpoint_mgr.enabled:
+                await checkpoint_mgr.clear()
+                
+        except Exception as e:
+            self.logger.debug(f"Failed to clear checkpoint: {e}")
     
     def get_generation_stats(self) -> dict:
         """获取生成统计"""

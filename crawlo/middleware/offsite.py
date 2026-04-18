@@ -1,8 +1,8 @@
 #!/usr/bin/python
 # -*- coding:UTF-8 -*-
 """
-OffsiteMiddleware 中间件
-用于过滤掉不在指定域名范围内的请求
+OffsiteMiddleware
+Filters out requests that are outside the allowed domains
 """
 import re
 from urllib.parse import urlparse
@@ -13,8 +13,8 @@ from crawlo.exceptions import IgnoreRequestError
 
 class OffsiteMiddleware:
     """
-    OffsiteMiddleware 中间件
-    用于过滤掉不在指定域名范围内的请求，防止爬虫爬取到不相关的网站
+    OffsiteMiddleware
+    Filters out requests outside the allowed domains to prevent crawling unrelated sites
     """
 
     def __init__(self, stats, allowed_domains=None):
@@ -25,79 +25,79 @@ class OffsiteMiddleware:
     @classmethod
     def create_instance(cls, crawler):
         """
-        创建中间件实例
-        从爬虫设置中获取允许的域名列表
+        Create middleware instance
+        Retrieves allowed domains list from crawler settings
         """
-        # 优先使用 Spider 实例的 allowed_domains，回退到全局设置中的 ALLOWED_DOMAINS
+        # Priority: Spider's allowed_domains > Global ALLOWED_DOMAINS setting
         allowed_domains = []
         
-        # 检查当前爬虫实例是否有 allowed_domains 属性
+        # Check if spider instance has allowed_domains attribute
         if hasattr(crawler, 'spider') and crawler.spider and hasattr(crawler.spider, 'allowed_domains'):
             allowed_domains = getattr(crawler.spider, 'allowed_domains', [])
         
-        # 如果 Spider 实例没有设置 allowed_domains，则从全局设置中获取
+        # Fallback to global settings if spider doesn't have allowed_domains
         if not allowed_domains:
             allowed_domains = crawler.settings.get_list('ALLOWED_DOMAINS')
         
-        # 如果没有配置允许的域名，则禁用此中间件
+        # Disable middleware if no allowed domains configured
         if not allowed_domains:
             from crawlo.exceptions import NotConfiguredError
-            raise NotConfiguredError("未配置ALLOWED_DOMAINS，OffsiteMiddleware已禁用")
+            raise NotConfiguredError("ALLOWED_DOMAINS not configured, OffsiteMiddleware disabled")
             
         o = cls(
             stats=crawler.stats,
             allowed_domains=allowed_domains
         )
         
-        # 编译域名正则表达式以提高性能
+        # Compile domain regex patterns for better performance
         o._compile_domains()
         
-        # 使用中间件自己的logger而不是crawler.logger
-        o.logger.debug(f"OffsiteMiddleware 已启用，允许的域名: {allowed_domains}")
+        # Use middleware's own logger instead of crawler.logger
+        o.logger.debug(f"OffsiteMiddleware enabled, allowed domains: {allowed_domains}")
         return o
 
     def _compile_domains(self):
         """
-        编译域名正则表达式
+        Compile domain regex patterns for efficient matching
         """
         self._domain_regexes = []
         for domain in self.allowed_domains:
-            # 转义域名中的特殊字符
+            # Escape special characters in domain
             escaped_domain = re.escape(domain)
-            # 创建匹配域名的正则表达式（支持子域名）
+            # Create regex pattern matching domain and subdomains
             regex = re.compile(r'(^|.*\.)' + escaped_domain + '$', re.IGNORECASE)
             self._domain_regexes.append(regex)
 
     def _is_offsite_request(self, request):
         """
-        判断请求是否为站外请求
+        Check if request is offsite (outside allowed domains)
         """
         try:
             parsed_url = urlparse(request.url)
             hostname = parsed_url.hostname
             
             if not hostname:
-                return True  # 无效URL
+                return True  # Invalid URL
                 
-            # 检查是否匹配允许的域名
+            # Check if hostname matches any allowed domain
             for regex in self._domain_regexes:
                 if regex.match(hostname):
-                    return False  # 匹配允许的域名
+                    return False  # Matches allowed domain
                     
-            return True  # 不匹配任何允许的域名
+            return True  # No match found
         except Exception:
-            # URL解析失败，视为站外请求
+            # URL parsing failed, treat as offsite
             return True
 
     async def process_request(self, request, spider):
         """
-        处理请求，过滤站外请求
+        Process request, filter offsite requests
         """
         if self._is_offsite_request(request):
-            # 记录被过滤的请求
+            # Record filtered request
             self.stats.inc_value('offsite_request_count')
             
-            # 记录被过滤的域名
+            # Record filtered domain
             try:
                 parsed_url = urlparse(request.url)
                 hostname = parsed_url.hostname or "unknown"
@@ -105,20 +105,20 @@ class OffsiteMiddleware:
             except:
                 self.stats.inc_value('offsite_request_count/invalid_url')
             
-            self.logger.info(f"过滤站外请求: {request.url}")
+            self.logger.info(f"Filtered offsite request: {request.url}")
             
-            # 抛出异常以忽略该请求
-            # 优化：只包含原因，避免每个URL产生独立统计项
-            raise IgnoreRequestError("站外请求被过滤")
+            # Raise exception to ignore this request
+            # Optimization: only include reason to avoid generating separate stats per URL
+            raise IgnoreRequestError("Offsite request filtered")
             
         return None
 
     def process_exception(self, request, exception, spider):
         """
-        处理异常
+        Handle exception
         """
-        # 如果是IgnoreRequestError且是我们产生的，则处理它
-        if isinstance(exception, IgnoreRequestError) and "站外请求被过滤" in str(exception):
-            self.logger.debug(f"已过滤站外请求: {request.url}")
-            return True  # 表示异常已被处理
+        # If this is IgnoreRequestError that we raised, handle it
+        if isinstance(exception, IgnoreRequestError) and "Offsite request filtered" in str(exception):
+            self.logger.debug(f"Filtered offsite request: {request.url}")
+            return True  # Exception has been handled
         return None

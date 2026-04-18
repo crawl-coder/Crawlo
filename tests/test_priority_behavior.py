@@ -135,7 +135,7 @@ async def test_retry_middleware_priority():
     print("\n=== 测试重试中间件优先级调整 ===")
     
     from crawlo.middleware.retry import RetryMiddleware
-    from crawlo.stats_collector import StatsCollector
+    from crawlo.stats import StatsCollector
     from crawlo.settings.setting_manager import SettingManager
     
     # 创建设置管理器

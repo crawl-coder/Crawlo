@@ -20,17 +20,32 @@
 
 - 🚀 **高性能异步架构**：基于 asyncio 和 aiohttp，充分利用异步 I/O 提升爬取效率
 - 🎯 **智能调度系统**：优先级队列、并发控制、自动重试、智能限速
+- 🛡️ **强大的反反爬虫能力**：
+  - **智能混合下载器 (HybridDownloader)**：根据请求特性、URL 正则模式或域名自动切换协议/浏览器引擎，实现性能与通过率的完美平衡
+  - **Cloudflare 自动绕过**：内置多种绕过策略（403/503 检测、Turnstile 挑战识别），默认集成，无需复杂配置
+  - **隐身浏览器集成**：支持 camoufox (最强反检测)、playwright、drissionpage，内置全链路指纹伪造 (Stealth Scripts)
+  - **资源管理优化**：Playwright 页面池复用与信号量并发控制，彻底杜绝高并发下的资源泄露
+- 🤖 **AI 集成（MCP Server）**：
+  - **标准化协议**：让 Claude/Cursor 直接调用 Crawlo 抓取能力，支持 `fetch`、`extract`、`spider` 等工具
+  - **智能抓取模式**：提供 basic/stealth/max-stealth 三级降级策略，自适应不同难度的网站
+  - **会话持久化**：支持 Cookie 保持与 Session 传递，方便 AI 执行多步有状态抓取任务
+  - **结构化输出**：自动转换 Markdown/Text，支持内容截断与标准化错误码返回
+- 🧠 **自适应选择器 (Adaptive Selector)**：
+  - **元素自愈能力**：当网站改版导致选择器失效时，利用多维元素指纹（Tag, Text, Attributes, DOM Path, Context）自动找回目标元素
+  - **智能匹配算法**：基于加权平均相似度匹配，支持自定义维度权重，确保定位的高准确性
+  - **高性能存储**：支持 SQLite/Redis 双后端，内置 LRU 内存缓存层，毫秒级自愈响应
 - 🔄 **灵活的配置模式**：
   - **Standalone 模式**：单机开发测试，使用内存队列
   - **Distributed 模式**：多节点分布式部署，严格要求 Redis（不允许降级）
   - **Auto 模式**：智能检测 Redis 可用性，自动选择最佳配置（推荐）
 - 📦 **丰富的组件生态**：
   - 内置 Redis 和 MongoDB 支持
-  - MySQL 异步连接池（基于 asyncmy 和 aiomysql 双驱动支持）
+  - MySQL 异步连接池（基于 asyncmy 驱动）
   - 连接池健康检查与自动修复机制
   - 多种过滤器和去重管道（Memory/Redis）
   - 代理中间件支持（简单代理/动态代理）
-  - 多种下载器（aiohttp、httpx、curl-cffi）
+  - 多种下载器（aiohttp、httpx、curl-cffi、Playwright）
+  - 多平台通知系统（钉钉/飞书/企业微信/邮件/短信）
 - 🛠 **开发友好**：
   - 类 Scrapy 的项目结构和 API 设计
   - 配置工厂模式（`CrawloConfig.auto()`）
@@ -616,6 +631,19 @@ crawlo run example --log-level DEBUG
 
 Crawlo 提供了完善的多平台通知系统，支持钉钉、飞书、企业微信、邮件和短信通知。
 
+### 📦 模块结构
+
+通知系统采用模块化设计，结构清晰：
+
+```
+crawlo/bot/
+├── core/              # 核心功能（models, notifier, handlers）
+├── channels/          # 渠道适配器（dingtalk, feishu, wecom, email, sms）
+├── templates/         # 模板系统（消息模板和渲染）
+├── monitoring/        # 资源监控（数据库、Redis 监控模板）
+└── utils/             # 工具模块（配置加载、消息去重）
+```
+
 ### 📋 配置说明
 
 在 `settings.py` 中配置通知系统：
@@ -819,6 +847,359 @@ spider.custom_settings > settings.py > 默认值
 | `helper.exists(table, conditions)` | 检查数据是否存在 |
 | `helper.insert(table, data)` | 插入单条数据 |
 | `helper.batch_insert(table, data_list)` | 批量插入数据 |
+
+### 协议下载器 (默认行为)
+
+Crawlo 默认使用协议下载器处理所有请求，无需额外配置。协议下载器基于 httpx/aiohttp/curl_cffi 实现，适用于常规的 HTTP/HTTPS 请求。
+
+#### 1. 默认行为
+
+```python
+# 默认配置（无需设置）
+# DOWNLOADER = "crawlo.downloader.hybrid_downloader.HybridDownloader"
+# HYBRID_DEFAULT_PROTOCOL_DOWNLOADER = "httpx"
+
+# 所有请求默认使用协议下载器
+class MySpider(Spider):
+    name = 'protocol_spider'
+    start_urls = ['https://example.com']
+    
+    async def parse(self, response):
+        # 直接解析静态页面内容
+        title = response.css('h1::text').get()
+        yield {'title': title}
+```
+
+#### 2. 选择协议下载器类型
+
+```python
+# settings.py
+
+# 可选：指定默认的协议下载器
+HYBRID_DEFAULT_PROTOCOL_DOWNLOADER = "httpx"  # 推荐，功能最全
+# HYBRID_DEFAULT_PROTOCOL_DOWNLOADER = "aiohttp"  # 性能最好
+# HYBRID_DEFAULT_PROTOCOL_DOWNLOADER = "curl_cffi"  # 模拟浏览器TLS指纹
+```
+
+#### 3. 协议下载器的优势
+
+- **高性能**：基于异步 HTTP 客户端，支持高并发
+- **低资源**：无需启动浏览器，内存占用小
+- **稳定可靠**：成熟稳定，适合大规模爬取
+- **支持丰富**：支持代理、cookie、自定义请求头等
+
+#### 4. 重要说明
+
+从 v1.6.1 开始，框架**不再自动检测**以下情况并强制使用动态下载器：
+- ❌ POST 请求
+- ❌ URL 包含 ajax/api/dynamic 等关键词
+
+**只有明确配置时才会使用动态下载器**，避免误判和性能浪费。
+
+### 动态下载器 (PlaywrightDownloader)
+
+动态下载器基于 Playwright 实现，专门用于处理需要 JavaScript 渲染的动态页面。**注意：默认情况下不会使用动态下载器，必须显式配置。**
+
+#### 1. 何时使用动态下载器？
+
+只有以下场景需要使用动态下载器：
+- ✅ 页面内容由 JavaScript 动态加载（AJAX/SPA）
+- ✅ 需要执行 JavaScript 交互（点击、滚动等）
+- ✅ 页面内容在浏览器中可见，但 HTTP 请求无法获取
+
+#### 2. 启用动态下载器的方法
+
+**方法一：全局配置域名（推荐）**
+
+```python
+# settings.py
+
+# 指定需要动态渲染的域名
+DYNAMIC_RENDER_DOMAINS = ['spa.example.com', 'react-app.com']
+
+# 或使用 URL 模式（正则表达式）
+DYNAMIC_RENDER_URL_PATTERNS = [
+    r'.*\.spa\.example\.com.*',
+    r'.*/dynamic/.*'
+]
+```
+
+**方法二：单个请求启用**
+
+```python
+from crawlo import Spider
+from crawlo.http import Request
+
+class DynamicSpider(Spider):
+    name = 'dynamic_spider'
+    
+    async def parse(self, response):
+        # 为单个请求启用动态渲染
+        yield Request(
+            url='https://spa.example.com/page',
+            callback=self.parse_spa,
+            meta={'use_dynamic_loader': True}  # 显式指定
+        )
+    
+    async def parse_spa(self, response):
+        # 此页面通过 Playwright 渲染
+        title = response.css('h1::text').get()
+        yield {'title': title}
+```
+
+#### 3. Playwright 配置
+
+启用动态下载器后，需要配置 Playwright 参数：
+
+```python
+# settings.py
+
+# 浏览器配置
+PLAYWRIGHT_BROWSER_TYPE = 'chromium'  # 浏览器类型：chromium/firefox/webkit
+PLAYWRIGHT_HEADLESS = True  # True=无头模式，False=显示浏览器窗口
+PLAYWRIGHT_TIMEOUT = 30000  # 超时时间（毫秒）
+
+# 窗口大小
+PLAYWRIGHT_VIEWPORT_WIDTH = 1280   # 窗口宽度
+PLAYWRIGHT_VIEWPORT_HEIGHT = 720   # 窗口高度
+
+# 页面池配置
+PLAYWRIGHT_SINGLE_BROWSER_MODE = True  # 单浏览器多标签页模式
+PLAYWRIGHT_MAX_PAGES_PER_BROWSER = 10  # 最大并发标签页数
+```
+
+#### 4. 智能滚动加载
+
+自动处理懒加载页面，滚动到底部触发新内容加载：
+
+```python
+async def parse(self, response):
+    # 请求时添加滚动配置
+    yield Request(
+        url='https://example.com/infinite-scroll',
+        callback=self.parse_content,
+        meta={
+            'use_dynamic_loader': True,  # 必须启用动态渲染
+            'playwright_actions': [
+                {
+                    'type': 'scroll_to_bottom',
+                    'params': {
+                        'scroll_delay': 500,      # 每次滚动间隔（毫秒）
+                        'max_no_content': 2        # 连续N次无新内容则认为到底
+                    }
+                }
+            ]
+        }
+    )
+
+async def parse_content(self, response):
+    # 提取滚动加载后的所有内容
+    items = response.css('.item').getall()
+    self.logger.info(f"加载了 {len(items)} 个条目")
+```
+
+#### 5. 点击翻页
+
+处理"加载更多"、"下一页"等点击交互：
+
+```python
+async def parse(self, response):
+    current_page = response.meta.get('page', 1)
+    max_pages = response.meta.get('max_pages', 3)
+    
+    # 提取当前页数据
+    articles = response.css('.article').getall()
+    self.logger.info(f"第 {current_page} 页: {len(articles)} 篇文章")
+    
+    # 如果还有下一页，点击加载
+    if current_page < max_pages:
+        yield Request(
+            url=response.url,
+            callback=self.parse,
+            dont_filter=True,  # 允许重复URL
+            meta={
+                'page': current_page + 1,
+                'max_pages': max_pages,
+                'use_dynamic_loader': True,  # 必须启用动态渲染
+                'playwright_actions': [
+                    # 先滚动到底部，让按钮可见
+                    {
+                        'type': 'scroll_to_bottom',
+                        'params': {
+                            'scroll_delay': 500,
+                            'max_no_content': 2
+                        }
+                    },
+                    # 等待按钮渲染
+                    {
+                        'type': 'wait',
+                        'params': {'timeout': 1000}
+                    },
+                    # 点击"加载更多"按钮
+                    {
+                        'type': 'click_and_wait',
+                        'params': {
+                            'selector': '//div[contains(@class, "more-button")]',  # XPath
+                            'wait_timeout': 3000,  # 等待超时
+                            'wait_for': 'networkidle'  # 等待网络空闲
+                        }
+                    }
+                ]
+            }
+        )
+```
+
+#### 6. 复杂交互操作
+
+支持多种页面操作类型：
+
+```python
+meta={
+    'use_dynamic_loader': True,  # 必须启用动态渲染
+    'playwright_actions': [
+        # 1. 智能滚动到底部
+        {
+            'type': 'scroll_to_bottom',
+            'params': {'scroll_delay': 500, 'max_no_content': 2}
+        },
+        
+        # 2. 等待固定时间
+        {
+            'type': 'wait',
+            'params': {'timeout': 2000}
+        },
+        
+        # 3. 点击元素并等待
+        {
+            'type': 'click_and_wait',
+            'params': {
+                'selector': '.load-more-btn',  # CSS选择器
+                'wait_timeout': 5000,
+                'wait_for': 'selector:.new-content'  # 等待新元素出现
+            }
+        },
+        
+        # 4. 自定义 JavaScript 执行
+        {
+            'type': 'evaluate',
+            'params': {
+                'script': '() => document.querySelectorAll(".item").length'
+            }
+        },
+        
+        # 5. 等待元素出现
+        {
+            'type': 'wait_for_selector',
+            'params': {
+                'selector': '#dynamic-content',
+                'timeout': 10000
+            }
+        }
+    ]
+}
+```
+
+#### 7. 并发控制
+
+Playwright 使用单浏览器多标签页模式，自动管理页面池：
+
+```python
+# settings.py
+
+# 最大并发标签页数（默认10）
+PLAYWRIGHT_MAX_PAGES_PER_BROWSER = 10
+
+# 说明：
+# - 只启动一个浏览器窗口
+# - 创建多个标签页（tab）复用
+# - 标签页使用完毕后回到池中，不关闭
+# - 支持并发处理多个请求（如10个详情页同时渲染）
+```
+
+#### 8. 完整示例 - InfoQ 动态页面爬取
+
+```python
+from crawlo import Spider
+from crawlo.http import Request
+from crawlo.items import Item, Field
+
+class InfoqArticle(Item):
+    """InfoQ 文章数据项"""
+    url = Field()
+    title = Field()
+    author = Field()
+    date = Field()
+    content = Field()
+
+class InfoqSpider(Spider):
+    name = 'infoq_spider'
+    start_urls = ['https://www.infoq.cn/zones/harmonyos/latest']
+    
+    async def parse(self, response):
+        current_page = response.meta.get('page', 1)
+        max_pages = response.meta.get('max_pages', 3)
+        
+        self.logger.info(f"# 当前页码: {current_page}")
+        
+        # 提取文章列表
+        articles = response.css('.article-item')
+        self.logger.info(f"找到文章容器: {len(articles)} 个")
+        
+        for article in articles:
+            yield InfoqArticle(
+                url=article.css('a::attr(href)').get(),
+                title=article.css('h3::text').get(),
+                author=article.css('.author::text').get(),
+                date=article.css('.date::text').get(),
+            )
+        
+        # 点击"加载更多"
+        if current_page < max_pages:
+            self.logger.info(f"点击'更多'按钮加载第 {current_page + 1} 页...")
+            yield Request(
+                url=response.url,
+                callback=self.parse,
+                dont_filter=True,
+                meta={
+                    'page': current_page + 1,
+                    'max_pages': max_pages,
+                    'playwright_actions': [
+                        # 滚动到底部
+                        {
+                            'type': 'scroll_to_bottom',
+                            'params': {'scroll_delay': 500, 'max_no_content': 2}
+                        },
+                        # 等待
+                        {'type': 'wait', 'params': {'timeout': 1000}},
+                        # 点击按钮
+                        {
+                            'type': 'click_and_wait',
+                            'params': {
+                                'selector': '//div[contains(@class, "more-button")]',
+                                'wait_timeout': 3000,
+                                'wait_for': 'networkidle'
+                            }
+                        }
+                    ]
+                }
+            )
+        else:
+            self.logger.info(f"已达到最大页数限制 ({max_pages} 页)，停止翻页")
+```
+
+#### 9. 常见问题
+
+**Q: 如何调试动态页面？**
+
+A: 设置 `PLAYWRIGHT_HEADLESS = False` 显示浏览器窗口，观察页面交互过程。
+
+**Q: 页面池满了怎么办？**
+
+A: 当并发请求数超过 `PLAYWRIGHT_MAX_PAGES_PER_BROWSER` 时，会创建临时页面。建议根据实际需求调整并发数。
+
+**Q: 如何选择合适的选择器？**
+
+A: 优先使用 CSS 选择器（性能更好），复杂场景使用 XPath。可在浏览器开发者工具中测试选择器。
 
 ### 配置工厂模式
 
@@ -1186,6 +1567,171 @@ PROXY_LIST = [
 PROXY_API_URL = "http://your-proxy-api.com/get-proxy"
 ```
 
+## MCP Server（AI 集成）
+
+Crawlo 提供了 MCP (Model Context Protocol) Server，让 AI 助手（如 Claude、Cursor）可以直接调用 Crawlo 的抓取能力。
+
+### 设计理念
+
+Crawlo MCP 采用**薄适配层**设计：
+- ✅ 快速响应（basic 模式 1-3 秒）
+- ✅ 无状态请求（不占用内存）
+- ✅ 三种抓取模式（basic/stealth/max-stealth）
+- ✅ 直接调用 Crawlo 框架能力
+
+### 安装
+
+```bash
+pip install crawlo[mcp]
+```
+
+### 配置 Claude Desktop
+
+编辑 `claude_desktop_config.json`（Windows: `%APPDATA%/Claude/`，macOS: `~/Library/Application Support/Claude/`）：
+
+```json
+{
+  "mcpServers": {
+    "crawlo": {
+      "command": "uvx",
+      "args": ["crawlo-mcp"]
+    }
+  }
+}
+```
+
+重启 Claude Desktop 后，即可通过对话让 AI 自动调用 Crawlo。
+
+### 可用工具
+
+| 工具 | 功能 | 示例 |
+|------|------|------|
+| `fetch` | 抓取单个页面 | "帮我抓取 https://example.com" |
+| `extract` | 正则提取内容 | "从页面中提取邮箱地址" |
+| `spider` | 多页面并发抓取 | "抓取这 10 个商品页面" |
+| `status` | 检查环境状态 | "检查 Crawlo 环境" |
+
+### 三种抓取模式
+
+| 模式 | 技术 | 速度 | 适用场景 |
+|------|------|------|----------|
+| `basic` | aiohttp | 1-3秒 | 普通网站 |
+| `stealth` | DrissionPage | 3-10秒 | 有反爬的网站 |
+| `max-stealth` | Camoufox | 10秒+ | Cloudflare 保护 |
+
+### Python 直接使用
+
+```python
+import asyncio
+from crawlo.mcp import QuickFetcher
+
+async def main():
+    fetcher = QuickFetcher()
+    
+    # 单页面抓取
+    result = await fetcher.fetch(
+        'https://example.com',
+        mode='basic',           # basic/stealth/max-stealth
+        format='markdown'       # html/markdown/text
+    )
+    print(result.content)
+    
+    # 多页面并发
+    results = await fetcher.fetch_multiple(
+        ['https://url1.com', 'https://url2.com'],
+        concurrency=2
+    )
+    
+    await fetcher.close()
+
+asyncio.run(main())
+```
+
+## 反反爬虫功能
+
+Crawlo 内置了强大的反反爬虫能力，自动绕过 Cloudflare 等常见防护。
+
+### Cloudflare 绕过中间件
+
+CloudflareBypassMiddleware 已默认集成到框架中，**无需手动配置即可自动工作**。
+
+#### 自动检测机制
+
+中间件会自动检测以下 Cloudflare 挑战页面：
+- HTTP 状态码：403, 503, 520, 521, 522, 523, 524
+- 页面特征：包含 `cloudflare`、`Checking your browser`、`DDoS protection` 等关键词
+
+#### 绕过策略
+
+检测到 Cloudflare 挑战后，中间件会：
+1. 自动使用隐身浏览器重新请求
+2. 支持多种浏览器后端（camoufox/playwright/drissionpage）
+3. 智能重试机制
+
+#### 配置方法
+
+```python
+# settings.py
+
+# 选择绕过时使用的浏览器（默认 camoufox）
+CLOUDFLARE_BYPASS_DOWNLOADER = 'camoufox'  # 推荐
+# CLOUDFLARE_BYPASS_DOWNLOADER = 'playwright'
+# CLOUDFLARE_BYPASS_DOWNLOADER = 'drissionpage'
+
+# 可选：请求级别覆盖
+yield Request(
+    url='https://protected-site.com',
+    meta={'cloudflare_bypass_downloader': 'camoufox'}
+)
+```
+
+#### 三种浏览器对比
+
+| 浏览器 | 反检测能力 | 速度 | 推荐场景 |
+|--------|-----------|------|----------|
+| **camoufox** | ⭐⭐⭐⭐⭐ | 中等 | Cloudflare 最强防护 |
+| **playwright** | ⭐⭐⭐ | 快 | 一般反爬 |
+| **drissionpage** | ⭐⭐⭐⭐ | 快 | 平衡选择 |
+
+### 使用示例
+
+```python
+from crawlo import Spider
+from crawlo.http import Request
+
+class ProtectedSpider(Spider):
+    name = 'protected_spider'
+    start_urls = ['https://cf-protected-site.com']
+    
+    async def parse(self, response):
+        # Cloudflare 绕过由中间件自动处理
+        # 无需额外配置
+        
+        title = response.css('h1::text').get()
+        yield {'title': title}
+```
+
+### 依赖安装
+
+```bash
+# Camoufox（推荐，最强反检测）
+pip install camoufox
+
+# Playwright
+pip install playwright
+playwright install chromium
+
+# DrissionPage
+pip install DrissionPage
+```
+
+### 注意事项
+
+1. **无需手动启用**：中间件已在框架中默认注册
+2. **仅在需要时触发**：只有检测到 Cloudflare 才会使用浏览器
+3. **性能影响**：浏览器绕过会增加 3-10 秒延迟
+4. **推荐方案**：优先使用 camoufox 获得最佳绕过效果
+
 ## 学习路径
 
 如果您是 Crawlo 的新用户，建议按以下顺序学习：
@@ -1212,6 +1758,42 @@ PROXY_API_URL = "http://your-proxy-api.com/get-proxy"
 MIT License - 详见 [LICENSE](LICENSE) 文件
 
 ## 变更日志
+
+### v1.6.2 (2026-04-07)
+
+- **MCP Server 架构重构**：采用薄适配层设计
+  - 删除冗余的 tools 目录（386+ 行代码）
+  - 新建 quick_fetcher.py（152 行），支持三种抓取模式
+  - 重写 server.py（202 行），暴露 4 个 MCP 工具
+  - 验证通过：https://httpbin.org/get 抓取成功（200，1.10s）
+
+- **反反爬虫功能完善**：
+  - CloudflareBypassMiddleware 默认集成，自动工作
+  - 支持 camoufox/playwright/drissionpage 三种浏览器
+  - 自动检测 Cloudflare 挑战页面（403/503/52x）
+  - 智能重试机制
+
+- **文档补充**：
+  - 添加 MCP Server 完整使用指南
+  - 添加反反爬虫功能说明
+  - 配置 Claude Desktop 教程
+  - 三种抓取模式对比表
+
+### v1.6.1 (2026-04-07)
+
+- **下载器默认行为调整**：默认使用协议下载器，避免性能浪费
+  - 移除自动检测 POST 请求和 URL 关键词的逻辑
+  - 只有在明确配置时才使用动态下载器（Playwright）
+  - 默认协议下载器改为 httpx（功能最全）
+
+- **文档完善**：添加协议下载器和动态下载器完整使用指南
+  - 协议下载器：默认行为，无需配置
+  - 动态下载器：明确配置才启用
+  - 智能滚动加载（scroll_to_bottom）
+  - 点击翻页（click_and_wait）
+  - 复杂页面交互操作
+  - 单浏览器多标签页并发控制
+  - InfoQ 动态页面完整示例
 
 ### v1.6.0 (2026-04-07)
 

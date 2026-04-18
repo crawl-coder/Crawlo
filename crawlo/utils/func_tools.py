@@ -49,34 +49,3 @@ async def transform(
 
     except Exception as e:
         yield e
-
-# #!/usr/bin/python
-# # -*- coding:UTF-8 -*-
-# from typing import Callable, Union
-# from inspect import isgenerator, isasyncgen
-# from crawlo import Response, Request, Item
-# from crawlo.exceptions import TransformTypeError
-#
-#
-# T = Union[Request, Item]
-#
-#
-# async def transform(func: Callable, response: Response):
-#     def set_request(t: T) -> T:
-#         if isinstance(t, Request):
-#             t.meta['depth'] = response.meta['depth']
-#         return t
-#     try:
-#         if isgenerator(func):
-#             for f in func:
-#                 yield set_request(f)
-#         elif isasyncgen(func):
-#             async for f in func:
-#                 yield set_request(f)
-#         else:
-#             raise TransformTypeError(
-#                 f'callback return type error: {type(func)} must be `generator` or `async generator`'
-#             )
-#     except Exception as exp:
-#         yield exp
-

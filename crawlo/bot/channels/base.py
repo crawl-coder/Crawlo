@@ -10,7 +10,7 @@
 from abc import ABC, abstractmethod
 from typing import Dict, Any, Optional
 
-from crawlo.bot.models import NotificationMessage, NotificationResponse, ChannelType, ChannelResponse
+from crawlo.bot.core.models import NotificationMessage, NotificationResponse, ChannelType, ChannelResponse
 
 
 class NotificationChannel(ABC):

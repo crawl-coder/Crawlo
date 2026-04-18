@@ -46,6 +46,15 @@ from .file_downloader import (
     FileDownloader,
 )
 
+# 自适应元素选择器
+from .adaptive_selector import (
+    ElementFingerprint,
+    SimilarityMatcher,
+    FingerprintStorage,
+    SqliteStorage,
+    RedisStorage,
+)
+
 __all__ = [
     # 日期工具
     "TimeUtils",
@@ -74,4 +83,11 @@ __all__ = [
     
     # 文件下载工具
     "FileDownloader",
+    
+    # 自适应元素选择器
+    "ElementFingerprint",
+    "SimilarityMatcher",
+    "FingerprintStorage",
+    "SqliteStorage",
+    "RedisStorage",
 ]

@@ -212,12 +212,12 @@ class ProxyMiddleware:
         """
         if request.proxy:
             # 检查是否是502错误（代理网关错误）
-            if hasattr(response, 'status') and response.status_code == 502:
+            if hasattr(response, 'status') and response.status == 502:
                 self.logger.warning(f"代理请求收到502错误: {request.proxy} | {request.url}")
                 self._mark_bad_proxy(request.proxy)
             else:
                 self.logger.debug(
-                    f"代理请求成功: {request.proxy} | {request.url} | Status: {response.status_code}"
+                    f"代理请求成功: {request.proxy} | {request.url} | Status: {response.status}"
                 )
         return response
 

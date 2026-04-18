@@ -74,7 +74,7 @@ class RequestRecorderExtension:
                 'timestamp': datetime.now().isoformat(),
                 'type': 'response',
                 'url': response.url,
-                'status_code': response.status_code,
+                'status': response.status,
                 'headers': dict(response.headers),
             }
             

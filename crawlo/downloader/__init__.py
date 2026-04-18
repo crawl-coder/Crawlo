@@ -127,10 +127,41 @@ class DownloaderBase(metaclass=DownloaderMeta):
             
         # 获取下载器类的完整路径
         downloader_class = f"{type(self).__module__}.{type(self).__name__}"
-        
-        # 输出启用的下载器信息
-        self.logger.info(f"enabled downloader: {downloader_class}")
-        
+            
+        # 子下载器（由 HybridDownloader 管理的）不单独打印启用日志
+        # 判断逻辑：检查 DOWNLOADER 配置是否是 HybridDownloader
+        _sub_downloaders = {
+            'crawlo.downloader.aiohttp_downloader.AioHttpDownloader',
+            'crawlo.downloader.playwright_downloader.PlaywrightDownloader',
+            'crawlo.downloader.httpx_downloader.HttpXDownloader',
+            'crawlo.downloader.cffi_downloader.CurlCffiDownloader',
+            'crawlo.downloader.drissionpage_downloader.DrissionPageDownloader',
+        }
+                    
+        # HybridDownloader 本身也不打印，由子类自行处理
+        _hybrid_downloaders = {
+            'crawlo.downloader.hybrid_downloader.HybridDownloader',
+        }
+                    
+        # 获取配置的主下载器
+        main_downloader = None
+        if self.crawler and self.crawler.settings:
+            if hasattr(self.crawler.settings, 'get'):
+                main_downloader = self.crawler.settings.get('DOWNLOADER', '')
+                    
+        # 只有在主下载器是 HybridDownloader 时，子下载器才不打印日志
+        is_sub_of_hybrid = (
+            downloader_class in _sub_downloaders and
+            main_downloader and
+            'HybridDownloader' in str(main_downloader)
+        )
+                
+        # HybridDownloader 本身不打印，由子类自行处理
+        is_hybrid = downloader_class in _hybrid_downloaders
+                    
+        if not is_sub_of_hybrid and not is_hybrid:
+            self.logger.info(f"enabled downloader: {downloader_class}")
+    
         # 安全获取CONCURRENCY配置
         concurrency = 8
         if self.crawler and self.crawler.settings is not None:
@@ -178,7 +209,8 @@ class DownloaderBase(metaclass=DownloaderMeta):
                 response = await self.middleware.download(request)
                 return response
             except Exception as e:
-                self.logger.error(f"下载请求 {request.url} 失败: {e}")
+                # 使用 DEBUG 级别，不打印堆栈，异常会传播到 Engine
+                self.logger.debug(f"Download failed for {request.url}: {type(e).__name__}: {e}")
                 raise
 
     @abstractmethod
@@ -190,9 +222,6 @@ class DownloaderBase(metaclass=DownloaderMeta):
         """关闭下载器并清理资源"""
         if not self._closed:
             self._closed = True
-            if self._stats_enabled:
-                stats = self.get_stats()
-                self.logger.info(f"{self.__class__.__name__} 统计: {stats}")
             self.logger.debug(f"{self.__class__.__name__} 已关闭")
 
     def idle(self) -> bool:
@@ -202,6 +231,10 @@ class DownloaderBase(metaclass=DownloaderMeta):
     def __len__(self) -> int:
         """返回活跃请求数"""
         return len(self._active)
+    
+    def __bool__(self) -> bool:
+        """始终返回True，避免空活跃请求时被判定为False"""
+        return True
     
     def get_stats(self) -> dict:
         """获取下载器统计信息"""
@@ -248,9 +281,9 @@ except ImportError:
     HttpXDownloader = None
 
 try:
-    from .selenium_downloader import SeleniumDownloader
+    from .drissionpage_downloader import DrissionPageDownloader
 except ImportError:
-    SeleniumDownloader = None
+    DrissionPageDownloader = None
 
 try:
     from .playwright_downloader import PlaywrightDownloader
@@ -261,6 +294,12 @@ try:
     from .hybrid_downloader import HybridDownloader
 except ImportError:
     HybridDownloader = None
+
+try:
+    from .page_action_handler import PageActionHandler, SelectorConverter
+except ImportError:
+    PageActionHandler = None
+    SelectorConverter = None
 
 # 导出所有可用的类
 __all__ = [
@@ -276,12 +315,16 @@ if CurlCffiDownloader:
     __all__.append('CurlCffiDownloader')
 if HttpXDownloader:
     __all__.append('HttpXDownloader')
-if SeleniumDownloader:
-    __all__.append('SeleniumDownloader')
+if DrissionPageDownloader:
+    __all__.append('DrissionPageDownloader')
 if PlaywrightDownloader:
     __all__.append('PlaywrightDownloader')
 if HybridDownloader:
     __all__.append('HybridDownloader')
+if PageActionHandler:
+    __all__.append('PageActionHandler')
+if SelectorConverter:
+    __all__.append('SelectorConverter')
 
 # 提供便捷的下载器映射
 DOWNLOADER_MAP = {
@@ -289,7 +332,7 @@ DOWNLOADER_MAP = {
     'httpx': HttpXDownloader, 
     'curl_cffi': CurlCffiDownloader,
     'cffi': CurlCffiDownloader,  # 别名
-    'selenium': SeleniumDownloader,
+    'drissionpage': DrissionPageDownloader,
     'playwright': PlaywrightDownloader,
     'hybrid': HybridDownloader,
 }

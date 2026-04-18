@@ -10,7 +10,7 @@ from typing import List, Dict, Callable, Optional, TYPE_CHECKING
 if TYPE_CHECKING:
     from crawlo import Request, Response
 else:
-    # 为 isinstance 检查导入实际的类
+    # Import actual classes for isinstance checks
     from crawlo.network.request import Request
     from crawlo.network.response import Response
 from crawlo.logging import get_logger
@@ -18,11 +18,14 @@ from crawlo.utils.misc import load_object
 from crawlo.middleware import BaseMiddleware
 from crawlo.project import common_call
 from crawlo.event import CrawlerEvent
+from crawlo.utils.misc import safe_get_config
 from crawlo.exceptions import MiddlewareInitError, InvalidOutputError, RequestMethodError, IgnoreRequestError, \
     NotConfiguredError
 
 
 class MiddlewareManager:
+    # Class-level flag to ensure middleware enabled log is printed only once
+    _logged_enabled = False
 
     def __init__(self, crawler):
         self.crawler = crawler
@@ -30,8 +33,7 @@ class MiddlewareManager:
         self.middlewares: List = []
         self.methods: Dict[str, List[MethodType]] = defaultdict(list)
         
-        # 安全获取MIDDLEWARES配置
-        from crawlo.utils.misc import safe_get_config
+        # Safely get MIDDLEWARES configuration
         middlewares = safe_get_config(self.crawler.settings, 'MIDDLEWARES', [], list)
             
         self._add_middleware(middlewares)
@@ -39,25 +41,64 @@ class MiddlewareManager:
 
         self.download_method: Callable = crawler.engine.downloader.download
         self._stats = crawler.stats
+        
+        # 包装下载器方法，添加诊断日志
+        original_download = self.download_method
+        async def wrapped_download(request):
+            self.logger.debug(f"MiddlewareManager 调用下载器: {request.url}")
+            try:
+                result = await original_download(request)
+                self.logger.debug(f"下载器返回结果: {request.url} (result={type(result).__name__ if result else 'None'})")
+                return result
+            except Exception as e:
+                self.logger.debug(f"下载器抛出异常: {request.url} ({type(e).__name__}: {e})")
+                raise
+        
+        self.download_method = wrapped_download
 
     async def _process_request(self, request: 'Request'):
-        for method in self.methods['process_request']:
+        # 添加诊断日志：追踪请求进入中间件链
+        retry_times = request.meta.get('retry_times', 0)
+        self.logger.debug(
+            f"_process_request 开始: {request.url} (retry_times={retry_times}, "
+            f"middlewares={len(self.methods['process_request'])})"
+        )
+        
+        for idx, method in enumerate(self.methods['process_request']):
             try:
+                # 获取中间件类名
+                if hasattr(method, '__self__'):
+                    middleware_name = method.__self__.__class__.__name__
+                else:
+                    middleware_name = str(method)
+                
+                self.logger.debug(
+                    f"执行中间件 [{idx+1}/{len(self.methods['process_request'])}]: "
+                    f"{middleware_name}.process_request for {request.url}"
+                )
+                
                 result = await common_call(method, request, self.crawler.spider)
+                
                 if result is None:
                     continue
                 if isinstance(result, (Request, Response)):
+                    self.logger.debug(
+                        f"中间件 {middleware_name} 返回 {type(result).__name__}: {request.url}"
+                    )
                     return result
                 raise InvalidOutputError(
                     f"{self._get_method_class_name(method)}. must return None or Request or Response, got {type(result).__name__}"
                 )
             except asyncio.CancelledError:
-                # 正确处理取消异常
-                self.logger.info("请求处理被取消")
+                # Handle cancellation properly
+                self.logger.info("Request processing cancelled")
                 raise
             except Exception as e:
-                self.logger.error(f"处理请求时发生错误: {e}")
+                self.logger.error(f"Error processing request: {e}")
                 raise
+        
+        # 所有中间件处理完成，调用下载器
+        self.logger.debug(f"所有中间件处理完成，调用下载器: {request.url}")
         return await self.download_method(request)
 
     async def _process_response(self, request: 'Request', response: 'Response'):
@@ -77,7 +118,7 @@ class MiddlewareManager:
 
     async def _process_exception(self, request: 'Request', exp: Exception):
         self.logger.debug(f"Processing exception {type(exp).__name__} for {request.url}")
-        # 安全地获取可用的异常处理器名称
+        # Safely get available exception handler names
         handler_names = []
         for m in self.methods['process_exception']:
             if hasattr(m, '__self__'):
@@ -86,14 +127,14 @@ class MiddlewareManager:
                 handler_names.append(str(m))
         self.logger.debug(f"Available exception handlers: {handler_names}")
         for method in self.methods['process_exception']:
-            # 安全地获取方法所属的类名
+            # Safely get method's class name
             if hasattr(method, '__self__'):
                 class_name = method.__self__.__class__.__name__
             else:
                 class_name = str(method)
             self.logger.debug(f"Calling {class_name}.process_exception")
             response = await common_call(method, request, exp, self.crawler.spider)
-            # 安全地获取返回值的类型
+            # Safely get return value type
             if hasattr(method, '__self__'):
                 method_class_name = method.__self__.__class__.__name__
             else:
@@ -105,7 +146,7 @@ class MiddlewareManager:
                 return response
             if response:
                 break
-            # 安全地获取方法所属的类名
+            # Safely get method's class name
             if hasattr(method, '__self__'):
                 error_class_name = method.__self__.__class__.__name__
             else:
@@ -132,11 +173,37 @@ class MiddlewareManager:
         else:
             create_task(self.crawler.subscriber.notify(CrawlerEvent.RESPONSE_RECEIVED, response, self.crawler.spider))
             self._stats.inc_value('response_received_count')
+        
         if isinstance(response, Response):
             response = await self._process_response(request, response)
         if isinstance(response, Request):
-            await self.crawler.engine.enqueue_request(response)
-            return None
+            # 检测是否是重试请求
+            if response.meta.get('retry_times', 0) > 0:
+                # 重试请求，应用指数退避等待
+                backoff_time = response.meta.get('retry_backoff', 0)
+                if backoff_time > 0:
+                    self.logger.debug(
+                        f"重试请求（等待 {backoff_time}s）: {response.url} "
+                        f"(retry_times={response.meta['retry_times']})"
+                    )
+                    await asyncio.sleep(backoff_time)
+                    self.logger.debug(
+                        f"等待完成，准备重试: {response.url} "
+                        f"(retry_times={response.meta['retry_times']})"
+                    )
+                else:
+                    self.logger.debug(f"立即重试请求: {response.url} (retry_times={response.meta['retry_times']})")
+                self.logger.debug(f"开始执行重试下载: {response.url}")
+                # 添加诊断日志：追踪重试请求进入递归下载
+                retry_times = response.meta.get('retry_times', 0)
+                self.logger.debug(
+                    f"重试请求递归调用 download(): {response.url} (retry_times={retry_times})"
+                )
+                return await self.download(response)
+            else:
+                # 普通新请求，入队等待调度
+                await self.crawler.engine.enqueue_request(response)
+                return None
         return response
 
     @classmethod
@@ -174,21 +241,24 @@ class MiddlewareManager:
                 enabled_middlewares.append((middleware_path, priority))
         
         if enabled_middlewares:
-            # 恢复INFO级别日志，保留关键的启用信息
-            # 格式化中间件列表，使其更像字典格式，更易读
-            if len(enabled_middlewares) == 1:
-                # 只有一个中间件时，单行显示
-                middleware_path, priority = enabled_middlewares[0]
-                self.logger.info(f'Enabled middlewares: {{{middleware_path!r}: {priority}}}')
-            else:
-                # 多个中间件时，多行显示，类似字典格式
-                formatted_output = '{\n'
-                for i, (middleware_path, priority) in enumerate(enabled_middlewares):
-                    is_last = (i == len(enabled_middlewares) - 1)
-                    comma = ',' if not is_last else ''
-                    formatted_output += f"  {middleware_path!r}: {priority}{comma}\n"
-                formatted_output += '}'
-                self.logger.info(f'Enabled middlewares:\n{formatted_output}')
+            # 只打印一次中间件启用日志（避免多个下载器实例重复打印）
+            if not MiddlewareManager._logged_enabled:
+                MiddlewareManager._logged_enabled = True
+                # 恢复INFO级别日志，保留关键的启用信息
+                # 格式化中间件列表，使其更像字典格式，更易读
+                if len(enabled_middlewares) == 1:
+                    # 只有一个中间件时，单行显示
+                    middleware_path, priority = enabled_middlewares[0]
+                    self.logger.info(f'Enabled middlewares: {{{middleware_path!r}: {priority}}}')
+                else:
+                    # 多个中间件时，多行显示，类似字典格式
+                    formatted_output = '{\n'
+                    for i, (middleware_path, priority) in enumerate(enabled_middlewares):
+                        is_last = (i == len(enabled_middlewares) - 1)
+                        comma = ',' if not is_last else ''
+                        formatted_output += f"  {middleware_path!r}: {priority}{comma}\n"
+                    formatted_output += '}'
+                    self.logger.info(f'Enabled middlewares:\n{formatted_output}')
 
     def _validate_middleware(self, middleware):
         middleware_cls = load_object(middleware)

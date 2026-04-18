@@ -1,109 +1,170 @@
 #!/usr/bin/python
 # -*- coding:UTF-8 -*-
 """
-DownloadDelayMiddleware 中间件
-用于控制请求之间的延迟时间，支持固定延迟和随机延迟
+DownloadDelayMiddleware
+=======================
+Simple request delay control middleware.
+
+Configuration:
+    DOWNLOAD_DELAY = 2.0  # Delay between requests (seconds)
+    RANDOMNESS = True     # Enable random delay
+    RANDOM_RANGE = [0.5, 1.5]  # Random delay range multiplier
+
+Domain-specific delays:
+    DOWNLOAD_DELAY_OVERRIDES = {
+        'example.com': 3.0,
+        'api.example.com': 0.5,
+    }
 """
-
 import asyncio
-from asyncio import sleep
+import time
 from random import uniform
+from typing import Dict, Optional
+from urllib.parse import urlparse
+
 from crawlo.logging import get_logger
-from crawlo.exceptions import NotConfiguredError
+from crawlo.middleware import BaseMiddleware
 
 
-class DownloadDelayMiddleware(object):
+class DownloadDelayMiddleware(BaseMiddleware):
     """
-    DownloadDelayMiddleware 中间件
-    用于控制请求之间的延迟时间，支持固定延迟和随机延迟
+    DownloadDelayMiddleware - Simple request delay control
     
-    功能特性:
-    - 支持固定延迟时间
-    - 支持随机延迟时间
-    - 提供详细的日志信息
-    - 记录延迟统计信息
+    Controls the delay between requests to avoid overwhelming target servers.
+    Each domain has independent delay tracking.
     """
-
-    def __init__(self, settings, stats=None):
+    
+    def __init__(
+        self,
+        delay: float = 1.0,
+        randomness: bool = False,
+        random_range: tuple = (0.5, 1.5),
+        domain_overrides: Optional[Dict[str, float]] = None
+    ):
         """
-        初始化中间件
+        Initialize middleware
         
         Args:
-            settings: 设置管理器
-            stats: 统计信息收集器（可选）
+            delay: Default delay between requests (seconds)
+            randomness: Enable random delay
+            random_range: (min, max) multiplier for random delay
+            domain_overrides: Domain-specific delay settings
         """
-        self.delay = settings.get_float("DOWNLOAD_DELAY")
-        if not self.delay:
-            raise NotConfiguredError("DOWNLOAD_DELAY not set or is zero")
-            
-        self.randomness = settings.get_bool("RANDOMNESS", False)
+        self.default_delay = delay
+        self.randomness = randomness
+        self.random_range = random_range
+        self.domain_overrides = domain_overrides or {}
         
-        # 安全地获取随机范围配置
-        random_range = settings.get_list("RANDOM_RANGE")
-        if len(random_range) >= 2:
-            try:
-                self.floor = float(random_range[0])
-                self.upper = float(random_range[1])
-            except (ValueError, TypeError):
-                # 如果配置无效，使用默认值
-                self.floor, self.upper = 0.5, 1.5
-        else:
-            # 如果配置不完整，使用默认值
-            self.floor, self.upper = 0.5, 1.5
-            
+        # Track last request time per domain
+        self._last_request_time: Dict[str, float] = {}
+        
         self.logger = get_logger(self.__class__.__name__)
-        self.stats = stats
-
+    
     @classmethod
     def create_instance(cls, crawler):
         """
-        创建中间件实例
+        Create middleware instance from crawler settings
         
         Args:
-            crawler: 爬虫实例
+            crawler: Crawler instance
             
         Returns:
-            DownloadDelayMiddleware: 中间件实例
+            DownloadDelayMiddleware: Configured instance
         """
-        o = cls(
-            settings=crawler.settings,
-            stats=getattr(crawler, 'stats', None)
+        settings = crawler.settings
+        
+        delay = settings.get_float('DOWNLOAD_DELAY', 0.0)
+        randomness = settings.get_bool('RANDOMNESS', False)
+        
+        # Parse random range
+        random_range = settings.get_list('RANDOM_RANGE', [0.5, 1.5])
+        if len(random_range) >= 2:
+            try:
+                random_range = (float(random_range[0]), float(random_range[1]))
+            except (ValueError, TypeError):
+                random_range = (0.5, 1.5)
+        else:
+            random_range = (0.5, 1.5)
+        
+        # Domain-specific overrides
+        domain_overrides = settings.get_dict('DOWNLOAD_DELAY_OVERRIDES', {})
+        
+        return cls(
+            delay=delay,
+            randomness=randomness,
+            random_range=random_range,
+            domain_overrides=domain_overrides
         )
-        return o
-
-    async def process_request(self, _request, _spider):
+    
+    def _get_delay(self, domain: str) -> float:
         """
-        处理请求，添加延迟
+        Get delay for domain
         
         Args:
-            _request: 请求对象
-            _spider: 爬虫实例
+            domain: Domain name
+            
+        Returns:
+            float: Delay in seconds
         """
-        try:
-            if self.randomness:
-                # 计算随机延迟时间
-                delay_time = uniform(self.delay * self.floor, self.delay * self.upper)
-                await sleep(delay_time)
-                
-                # 记录统计信息
-                if self.stats:
-                    self.stats.inc_value('download_delay/random_count')
-                    self.stats.inc_value('download_delay/random_total_time', delay_time)
-                    
-                # 记录日志
-                self.logger.debug(f"应用随机延迟: {delay_time:.2f}秒 (范围: {self.delay * self.floor:.2f} - {self.delay * self.upper:.2f})")
-            else:
-                # 应用固定延迟
-                await sleep(self.delay)
-                
-                # 记录统计信息
-                if self.stats:
-                    self.stats.inc_value('download_delay/fixed_count')
-                    self.stats.inc_value('download_delay/fixed_total_time', self.delay)
-                    
-                # 记录日志
-                self.logger.debug(f"应用固定延迟: {self.delay:.2f}秒")
-        except asyncio.CancelledError:
-            # 正确处理取消异常
-            self.logger.info("下载延迟被取消")
-            raise
+        # Check domain override
+        if domain in self.domain_overrides:
+            return self.domain_overrides[domain]
+        
+        # Check wildcard patterns
+        for pattern, delay in self.domain_overrides.items():
+            if pattern.startswith('*.'):
+                suffix = pattern[2:]
+                if domain.endswith(suffix):
+                    return delay
+        
+        return self.default_delay
+    
+    def _calculate_wait_time(self, domain: str) -> float:
+        """
+        Calculate how long to wait before next request
+        
+        Args:
+            domain: Domain name
+            
+        Returns:
+            float: Wait time in seconds (0 if no wait needed)
+        """
+        delay = self._get_delay(domain)
+        
+        # Apply randomness
+        if self.randomness:
+            delay = uniform(delay * self.random_range[0], delay * self.random_range[1])
+        
+        # Calculate actual wait time
+        last_time = self._last_request_time.get(domain, 0)
+        elapsed = time.time() - last_time
+        
+        wait_time = max(0, delay - elapsed)
+        return wait_time
+    
+    async def process_request(self, request, spider):
+        """
+        Process request - apply delay if needed
+        
+        Args:
+            request: Request object
+            spider: Spider instance
+            
+        Returns:
+            None: Continue processing
+        """
+        domain = urlparse(request.url).netloc
+        
+        wait_time = self._calculate_wait_time(domain)
+        
+        if wait_time > 0:
+            self.logger.debug(f"Delaying request to {domain}: {wait_time:.2f}s")
+            await asyncio.sleep(wait_time)
+        
+        # Record request time
+        self._last_request_time[domain] = time.time()
+        
+        return None
+
+
+__all__ = ['DownloadDelayMiddleware']
