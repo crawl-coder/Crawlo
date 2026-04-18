@@ -7,11 +7,10 @@
 import threading
 from typing import Optional
 from .config import LogConfig
-from crawlo.utils.singleton import singleton
+from crawlo.utils.singleton import SingletonMeta
 
 
-@singleton
-class LogManager:
+class LogManager(metaclass=SingletonMeta):
     """
     日志管理器 - 单例模式
     

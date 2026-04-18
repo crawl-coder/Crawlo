@@ -431,10 +431,13 @@ class Crawler:
                 f"{cleanup_result['errors']}失败, 耗时{cleanup_result['duration']:.2f}s"
             )
             
-            # 关闭Engine组件
-            await self._cleanup_engine(reason)
+            # 注意：不再调用 _cleanup_engine()，因为 Engine.close_spider()
+            # 已在 Engine.crawl() 的 finally 块中被调用。
+            # Engine.close_spider() 现在是幂等的，即使被多次调用也安全。
+            # 如果 Engine 未启动（初始化失败），_engine 可能为 None 或未运行，
+            # 此时 close_spider 也不会被调用，无需额外清理。
             
-            # 关闭Stats组件
+            # 关闭Stats组件（Stats未注册到ResourceManager，需要显式清理）
             await self._cleanup_stats(reason)
             
             # 触发spider_closed事件，通知所有订阅者（包括扩展）
@@ -496,10 +499,9 @@ class Crawler:
     
     def _close_logger_handlers(self) -> None:
         """
-        显式关闭所有日志handlers
+        显式关闭当前 crawler 自己创建的日志 handlers
         
-        这是解决PermissionError的关键步骤，确保文件句柄被正确释放
-        特别是在Windows上，多个进程同时访问同一日志文件时会出现问题
+        注意：不再关闭根 logger 的 handlers，避免影响其他爬虫和库的日志输出。
         """
         try:
             # 获取当前logger的所有handlers
@@ -510,14 +512,7 @@ class Crawler:
                         self._logger.removeHandler(handler)
                     except Exception:
                         pass  # 忽略关闭handler时的错误
-                
-                # 也关闭根logger的handlers（如果有的话）
-                root_logger = logging.getLogger()
-                for handler in root_logger.handlers[:]:
-                    try:
-                        handler.close()
-                    except Exception:
-                        pass
+                # 不再关闭根 logger 的 handlers，防止影响其他组件
         except Exception:
             pass
 

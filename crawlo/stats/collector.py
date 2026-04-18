@@ -34,6 +34,7 @@ class StatsCollector:
         self.crawler = crawler
         from crawlo.utils.misc import safe_get_config
         self._dump = safe_get_config(self.crawler.settings, 'STATS_DUMP', True, bool)
+        self._closed = False  # 防止 close 重复调用
         
         # 创建统计后端
         self.backend = StatsBackendFactory.from_settings(self.crawler.settings)
@@ -90,6 +91,11 @@ class StatsCollector:
 
     def close(self) -> None:
         """关闭统计收集器并输出统计信息报告"""
+        # 幂等保护：防止 close 被重复调用
+        if self._closed:
+            return
+        self._closed = True
+        
         if self._dump:
             stats = self.backend.get_stats()
             spider_name = stats.get('spider_name', 'unknown')

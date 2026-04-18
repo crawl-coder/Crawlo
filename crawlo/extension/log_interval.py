@@ -11,9 +11,10 @@ from crawlo.utils.monitor.monitor_manager import monitor_manager
 class LogIntervalExtension:
 
     def __init__(self, crawler: Any):
-        # 检查是否在调度器模式下运行（用于定时任务模式）
-        scheduler_enabled = crawler.settings.get('SCHEDULER_ENABLED', False)
-        self.disabled = scheduler_enabled  # 在调度器启用时禁用日志扩展
+        # 始终启用间隔日志监控，不受 SCHEDULER_ENABLED 影响
+        # 定时任务模式和普通模式都应该正常工作
+        # 通过智能检测（爬虫空闲时跳过）来避免等待阶段的无意义日志
+        self.disabled = False
         
         self.task: Optional[asyncio.Task] = None
         self.stats = crawler.stats
@@ -40,24 +41,10 @@ class LogIntervalExtension:
         # 监控管理器
         self.monitor_manager = monitor_manager
         
-        if self.disabled:
-            self.logger.debug("LogIntervalExtension disabled in scheduler mode")
-            return
-        
-        self.logger.info(f"LogIntervalExtension initialized with interval: {self.seconds} seconds")
-        
-        # 添加调试信息（在logger初始化之后）
-        self.logger.info(f"LogIntervalExtension: INTERVAL={self.seconds} seconds")
+        self.logger.info(f"LogIntervalExtension initialized: INTERVAL={self.seconds} seconds")
 
     @classmethod
     def create_instance(cls, crawler: Any) -> 'LogIntervalExtension':
-        # 检查是否在调度器模式下运行
-        scheduler_enabled = crawler.settings.get('SCHEDULER_ENABLED', False)
-        if scheduler_enabled:
-            # 在调度器模式下，禁用此扩展以避免重复日志
-            o = cls(crawler)
-            return o
-        
         # 检查是否已有日志间隔监控实例在运行
         existing_monitor = monitor_manager.get_monitor('log_interval_monitor')
         if existing_monitor is not None:
@@ -81,7 +68,6 @@ class LogIntervalExtension:
             self.logger.debug(f"Spider opened, LogIntervalExtension disabled, skipping task creation (instance: {id(self)})")
             return
         
-        self.logger.info(f"Spider opened, starting interval logging task (instance: {id(self)})")
         if self.task is None or self.task.done():
             self.task = asyncio.create_task(self.interval_log())
             self.logger.info(f"Interval logging task started (instance: {id(self)})")
@@ -91,7 +77,7 @@ class LogIntervalExtension:
     async def spider_closed(self, **kwargs) -> None:
         # 只有主要监控实例才处理关闭
         if monitor_manager.get_monitor('log_interval_monitor') == self:
-            self.logger.info("Spider closed, stopping interval logging task")
+            self.logger.debug("Spider closed, stopping interval logging task")
             if self.task:
                 self.task.cancel()
                 try:
@@ -247,8 +233,14 @@ class LogIntervalExtension:
                 item_rate = last_item_count - self.item_count
                 response_rate = last_response_count - self.response_count
                 
-                # 获取队列大小和背压信息
+                # 智能检测：如果爬虫已停止（无新数据且队列为空），跳过日志输出
                 queue_size = await self._get_queue_size()
+                if item_rate == 0 and response_rate == 0 and queue_size == 0:
+                    # 爬虫可能已停止，静默跳过，不打印日志
+                    await asyncio.sleep(self.seconds)
+                    continue
+                
+                # 获取队列大小和背压信息
                 bp_active, bp_delay, bp_util = await self._get_backpressure_info()
                 
                 # 更新计数器

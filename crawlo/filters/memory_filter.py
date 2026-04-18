@@ -10,13 +10,15 @@
 - MemoryFileFilter: 内存+文件持久化，支持重启恢复
 """
 import os
-import threading
+import asyncio
+import warnings
 from weakref import WeakSet
 from typing import Set, TextIO, Optional
 
 from crawlo.filters import BaseFilter
 from crawlo.logging import get_logger
 from crawlo.utils.misc import safe_get_config
+from crawlo.utils.async_lock import AsyncRLock
 
 
 class MemoryFilter(BaseFilter):
@@ -43,7 +45,7 @@ class MemoryFilter(BaseFilter):
         """
         self.fingerprints: Set[str] = set()  # 主指纹存储
         self._temp_weak_refs = WeakSet()     # 弱引用临时存储
-        self._lock = threading.RLock()       # 线程安全锁
+        self._lock = AsyncRLock()            # 异步安全锁（替代 threading.RLock）
 
         # 安全初始化日志和统计
         debug = False
@@ -68,7 +70,35 @@ class MemoryFilter(BaseFilter):
 
     def add_fingerprint(self, fp: str) -> None:
         """
-        线程安全地添加请求指纹
+        添加请求指纹（同步方法，仅用于向后兼容）
+
+        :param fp: 请求指纹字符串
+        :raises TypeError: 如果指纹不是字符串类型
+        :deprecated: 请使用 add_fingerprint_async
+        """
+        warnings.warn(
+            "add_fingerprint() is deprecated, use add_fingerprint_async() instead",
+            DeprecationWarning,
+            stacklevel=2
+        )
+        if not isinstance(fp, str):
+            raise TypeError(f"指纹必须是字符串类型，得到 {type(fp)}")
+
+        # 简单的同步添加实现
+        if fp not in self.fingerprints:
+            # 检查容量限制
+            if len(self.fingerprints) >= self._max_capacity:
+                self._cleanup_old_fingerprints()
+            
+            self.fingerprints.add(fp)
+            self._unique_count += 1
+            
+            if self.debug:
+                self.logger.debug(f"添加指纹: {fp[:20]}...")
+
+    async def add_fingerprint_async(self, fp: str) -> None:
+        """
+        异步安全地添加请求指纹
 
         :param fp: 请求指纹字符串
         :raises TypeError: 如果指纹不是字符串类型
@@ -76,7 +106,7 @@ class MemoryFilter(BaseFilter):
         if not isinstance(fp, str):
             raise TypeError(f"指纹必须是字符串类型，得到 {type(fp)}")
 
-        with self._lock:
+        async with self._lock:
             if fp not in self.fingerprints:
                 # 检查容量限制
                 if len(self.fingerprints) >= self._max_capacity:
@@ -101,46 +131,81 @@ class MemoryFilter(BaseFilter):
 
     def requested(self, request) -> bool:
         """
-        线程安全地检查请求是否重复（主要接口）
+        检查请求是否重复（同步方法，仅用于向后兼容）
+
+        :param request: 请求对象
+        :return: 是否重复
+        :deprecated: 请使用 requested_async
+        """
+        warnings.warn(
+            "MemoryFilter.requested() is deprecated, use requested_async() instead",
+            DeprecationWarning,
+            stacklevel=2
+        )
+        # 同步实现
+        fp = self._get_fingerprint(request)
+        if fp in self.fingerprints:
+            self._dupe_count += 1
+            return True
+
+        self.add_fingerprint(fp)
+        return False
+
+    async def requested_async(self, request) -> bool:
+        """
+        异步安全地检查请求是否重复
 
         :param request: 请求对象
         :return: 是否重复
         """
-        with self._lock:
-            # 使用基类的指纹生成方法
+        async with self._lock:
             fp = self._get_fingerprint(request)
             if fp in self.fingerprints:
                 self._dupe_count += 1
                 return True
 
-            self.add_fingerprint(fp)
+            # 检查容量限制
+            if len(self.fingerprints) >= self._max_capacity:
+                self._cleanup_old_fingerprints()
+            
+            self.fingerprints.add(fp)
+            self._unique_count += 1
             return False
 
     def __contains__(self, item: str) -> bool:
         """
-        线程安全地支持 in 操作符检查
+        支持 in 操作符检查（同步方法）
 
         :param item: 要检查的指纹
         :return: 是否已存在
         """
-        with self._lock:
+        # 简单的同步实现
+        return item in self.fingerprints
+
+    async def contains_async(self, item: str) -> bool:
+        """
+        异步安全地支持 in 操作符检查
+
+        :param item: 要检查的指纹
+        :return: 是否已存在
+        """
+        async with self._lock:
             return item in self.fingerprints
 
     @property
     def stats_summary(self) -> dict:
         """获取过滤器统计信息"""
-        with self._lock:
-            return {
-                'filter_type': 'MemoryFilter',
-                'capacity': len(self.fingerprints),
-                'max_capacity': self._max_capacity,
-                'duplicates': self._dupe_count,
-                'uniques': self._unique_count,
-                'total_processed': self._dupe_count + self._unique_count,
-                'duplicate_rate': f"{self._dupe_count / max(1, self._dupe_count + self._unique_count) * 100:.2f}%",
-                'memory_usage': self._estimate_memory(),
-                'capacity_usage': f"{len(self.fingerprints) / self._max_capacity * 100:.2f}%"
-            }
+        return {
+            'filter_type': 'MemoryFilter',
+            'capacity': len(self.fingerprints),
+            'max_capacity': self._max_capacity,
+            'duplicates': self._dupe_count,
+            'uniques': self._unique_count,
+            'total_processed': self._dupe_count + self._unique_count,
+            'duplicate_rate': f"{self._dupe_count / max(1, self._dupe_count + self._unique_count) * 100:.2f}%",
+            'memory_usage': self._estimate_memory(),
+            'capacity_usage': f"{len(self.fingerprints) / self._max_capacity * 100:.2f}%"
+        }
 
     def _estimate_memory(self) -> str:
         """估算内存使用量（近似值）"""
@@ -158,8 +223,20 @@ class MemoryFilter(BaseFilter):
             return f"{total / (1024 * 1024):.2f} MB"
 
     def clear(self) -> None:
-        """线程安全地清空所有指纹数据"""
-        with self._lock:
+        """
+        清空所有指纹数据
+        """
+        self.fingerprints.clear()
+        self._dupe_count = 0
+        self._unique_count = 0
+        if self.debug:
+            self.logger.debug("已清空所有指纹")
+
+    async def clear_async(self) -> None:
+        """
+        异步安全地清空所有指纹数据
+        """
+        async with self._lock:
             self.fingerprints.clear()
             self._dupe_count = 0
             self._unique_count = 0
@@ -185,7 +262,7 @@ class MemoryFileFilter(BaseFilter):
         :param crawler: 爬虫框架Crawler对象，用于获取配置
         """
         self.fingerprints: Set[str] = set()  # 主存储集合
-        self._lock = threading.RLock()  # 线程安全锁
+        self._lock = AsyncRLock()            # 异步安全锁（替代 threading.RLock）
         self._file: Optional[TextIO] = None  # 文件句柄
 
         debug = crawler.settings.get_bool("FILTER_DEBUG", False)
@@ -198,40 +275,54 @@ class MemoryFileFilter(BaseFilter):
             self._init_file_store(request_dir)
 
     def _init_file_store(self, request_dir: str) -> None:
-        """原子化初始化文件存储"""
-        with self._lock:
-            try:
-                os.makedirs(request_dir, exist_ok=True)
-                file_path = os.path.join(request_dir, 'request_fingerprints.txt')
+        """初始化文件存储（同步方法，仅用于初始化）"""
+        try:
+            os.makedirs(request_dir, exist_ok=True)
+            file_path = os.path.join(request_dir, 'request_fingerprints.txt')
 
-                # 原子化操作：读取现有指纹
-                if os.path.exists(file_path):
-                    with open(file_path, 'r', encoding='utf-8') as f:
-                        self.fingerprints.update(
-                            line.strip() for line in f
-                            if line.strip()
-                        )
+            # 原子化操作：读取现有指纹
+            if os.path.exists(file_path):
+                with open(file_path, 'r', encoding='utf-8') as f:
+                    self.fingerprints.update(
+                        line.strip() for line in f
+                        if line.strip()
+                    )
 
-                # 以追加模式打开文件
-                self._file = open(file_path, 'a+', encoding='utf-8')
-                self.logger.info(f"Initialized fingerprint file: {file_path}")
+            # 以追加模式打开文件
+            self._file = open(file_path, 'a+', encoding='utf-8')
+            self.logger.info(f"Initialized fingerprint file: {file_path}")
 
-            except Exception as e:
-                self.logger.error(f"Failed to init file store: {str(e)}")
-                raise
+        except Exception as e:
+            self.logger.error(f"Failed to init file store: {str(e)}")
+            raise
 
     def add_fingerprint(self, fp: str) -> None:
         """
-        线程安全的指纹添加操作
+        添加指纹（同步方法，仅用于向后兼容）
+        :param fp: 请求指纹字符串
+        :deprecated: 请使用 add_fingerprint_async
+        """
+        warnings.warn(
+            "MemoryFileFilter.add_fingerprint() is deprecated, use add_fingerprint_async() instead",
+            DeprecationWarning,
+            stacklevel=2
+        )
+        if fp not in self.fingerprints:
+            self.fingerprints.add(fp)
+            self._persist_fp(fp)
+
+    async def add_fingerprint_async(self, fp: str) -> None:
+        """
+        异步安全地添加指纹
         :param fp: 请求指纹字符串
         """
-        with self._lock:
+        async with self._lock:
             if fp not in self.fingerprints:
                 self.fingerprints.add(fp)
                 self._persist_fp(fp)
 
     def _persist_fp(self, fp: str) -> None:
-        """持久化指纹到文件（需在锁保护下调用）"""
+        """持久化指纹到文件"""
         if self._file:
             try:
                 self._file.write(f"{fp}\n")
@@ -242,23 +333,45 @@ class MemoryFileFilter(BaseFilter):
 
     def __contains__(self, item: str) -> bool:
         """
-        线程安全的指纹检查
+        支持 in 操作符检查（同步方法）
         :param item: 要检查的指纹
         :return: 是否已存在
         """
-        with self._lock:
+        return item in self.fingerprints
+
+    async def contains_async(self, item: str) -> bool:
+        """
+        异步安全地支持 in 操作符检查
+        :param item: 要检查的指纹
+        :return: 是否已存在
+        """
+        async with self._lock:
             return item in self.fingerprints
 
     def close(self) -> None:
-        """安全关闭资源（同步方法）"""
-        with self._lock:
-            if self._file and not self._file.closed:
-                try:
-                    self._file.flush()
-                    os.fsync(self._file.fileno())
-                finally:
-                    self._file.close()
-                self.logger.info(f"Closed fingerprint file: {self._file.name}")
+        """关闭资源（同步方法）"""
+        if self._file and not self._file.closed:
+            try:
+                self._file.flush()
+                os.fsync(self._file.fileno())
+            finally:
+                self._file.close()
+            self.logger.info(f"Closed fingerprint file: {self._file.name}")
+
+    async def close_async(self) -> None:
+        """异步安全地关闭资源"""
+        async with self._lock:
+            await self._close_file()
+
+    async def _close_file(self) -> None:
+        """关闭文件（需在锁保护下调用）"""
+        if self._file and not self._file.closed:
+            try:
+                self._file.flush()
+                os.fsync(self._file.fileno())
+            finally:
+                self._file.close()
+            self.logger.info(f"Closed fingerprint file: {self._file.name}")
 
     def __del__(self):
         """析构函数双保险"""

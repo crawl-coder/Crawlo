@@ -36,7 +36,15 @@ except ImportError:
 
 
 class IntelligentScheduler:
-    """智能调度器"""
+    """智能调度器
+    
+    注意：内部维护多个统计字典，为防止长时间运行导致内存泄漏，
+    url_stats 和 domain_stats 有最大容量限制，超出时自动淘汰最旧的记录。
+    """
+
+    # 内存控制常量
+    MAX_DOMAINS = 1000       # 最多跟踪 1000 个域名
+    MAX_URLS = 10000         # 最多跟踪 10000 个 URL
 
     def __init__(self):
         self.domain_stats = {}  # 域名统计信息
@@ -111,23 +119,50 @@ class IntelligentScheduler:
         return priority
 
     def update_stats(self, request: "Request"):
-        """更新统计信息"""
+        """更新统计信息（带内存控制）"""
         domain = self._extract_domain(request.url)
 
-        # 更新域名统计
+        # 更新域名统计（带容量控制）
         if domain not in self.domain_stats:
+            # 超出限制时淘汰最旧的域名记录
+            if len(self.domain_stats) >= self.MAX_DOMAINS:
+                self._evict_oldest_domain()
             self.domain_stats[domain] = {'count': 0, 'last_time': 0}
 
         self.domain_stats[domain]['count'] += 1
         self.domain_stats[domain]['last_time'] = time.time()
 
-        # 更新URL统计
+        # 更新URL统计（带容量控制）
         if request.url not in self.url_stats:
+            # 超出限制时淘汰最旧的 URL 记录
+            if len(self.url_stats) >= self.MAX_URLS:
+                self._evict_oldest_urls(int(self.MAX_URLS * 0.1))  # 淘汰 10%
             self.url_stats[request.url] = 0
         self.url_stats[request.url] += 1
 
         # 更新最后请求时间
         self.last_request_time[domain] = time.time()
+    
+    def _evict_oldest_domain(self) -> None:
+        """淘汰最旧的域名记录（基于 last_time）"""
+        if not self.domain_stats:
+            return
+        oldest_domain = min(
+            self.domain_stats.keys(),
+            key=lambda d: self.domain_stats[d].get('last_time', 0)
+        )
+        self.domain_stats.pop(oldest_domain, None)
+        # 同步清理关联的统计
+        self.error_counts.pop(oldest_domain, None)
+        self.crawl_frequency.pop(oldest_domain, None)
+        self.response_times.pop(oldest_domain, None)
+        self.last_request_time.pop(oldest_domain, None)
+    
+    def _evict_oldest_urls(self, count: int) -> None:
+        """淘汰指定数量的 URL 记录（FIFO 策略）"""
+        keys_to_remove = list(self.url_stats.keys())[:count]
+        for key in keys_to_remove:
+            self.url_stats.pop(key, None)
 
     def update_response_time(self, request: "Request", response_time: float):
         """更新响应时间统计"""
@@ -609,7 +644,11 @@ class QueueManager:
         return self.config.max_queue_size
 
     def empty(self) -> bool:
-        """Check if queue is empty (synchronous version, for compatibility)"""
+        """Check if queue is empty (synchronous version, for compatibility)
+        
+        对于 Redis 队列使用保守策略返回 False，避免 Engine 过早退出。
+        上层应通过 async_empty() 获取精确结果。
+        """
         try:
             # 对于内存队列，可以同步检查
             if self._queue and self._queue_type == QueueType.MEMORY:
@@ -619,11 +658,11 @@ class QueueManager:
                 else:
                     # 如果没有qsize方法，假设队列为空
                     return True
-            # 对于 Redis 队列，由于需要异步操作，这里返回近似值
-            # 为了确保程序能正常退出，我们返回True，让上层通过更精确的异步检查来判断
-            return True
+            # 对于 Redis 队列：无法同步确定，使用保守策略返回 False
+            # 防止 Engine._exit() 同步检查时误判为空闲而过早退出
+            return False
         except Exception:
-            return True
+            return False
 
     async def async_empty(self) -> bool:
         """Check if queue is empty (asynchronous version, more accurate)"""

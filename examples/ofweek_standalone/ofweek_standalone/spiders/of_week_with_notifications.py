@@ -12,8 +12,8 @@ import random
 from crawlo.spider import Spider
 from crawlo import Request, Response
 from ..items import OfWeekStandaloneItem
-from crawlo.bot.models import ChannelType
-from crawlo.bot.handlers import send_crawler_status
+# 正确的导入路径：通过 crawlo.bot 导入
+from crawlo.bot import ChannelType, send_crawler_status
 from crawlo.bot import (
     send_template_notification, 
     Template,

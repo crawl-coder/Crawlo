@@ -1,6 +1,7 @@
 #!/usr/bin/python
 # -*- coding: UTF-8 -*-
 import asyncio
+import inspect
 import socket
 import time
 from typing import Optional, TYPE_CHECKING, Dict, Any
@@ -18,6 +19,17 @@ from crawlo.network.response import Response
 from crawlo.logging import get_logger
 from crawlo.downloader import DownloaderBase
 from crawlo.utils.misc import safe_get_config
+
+# 检查 aiohttp 版本是否支持 happy_eyeballs_delay 参数
+# 该参数在 aiohttp 3.9.0+ 中引入，但某些 3.9.x 版本可能不包含
+def _supports_happy_eyeballs():
+    try:
+        sig = inspect.signature(TCPConnector.__init__)
+        return 'happy_eyeballs_delay' in sig.parameters
+    except Exception:
+        return False
+
+_HAPPY_EYEBALLS_SUPPORTED = _supports_happy_eyeballs()
 from crawlo.exceptions import DownloadError
 
 if TYPE_CHECKING:
@@ -85,19 +97,22 @@ class AioHttpDownloader(DownloaderBase):
         # 1. limit_per_host=0: 不限制单主机连接数（由全局 limit 控制）
         # 2. keepalive_timeout=15: 使用 aiohttp 默认值（15秒）
         # 3. enable_cleanup_closed=True: 防止 SSL 连接泄漏（重要！）
-        # 4. happy_eyeballs_delay=0.25: RFC 8305 快速连接建立（默认已启用）
-        connector = TCPConnector(
-            verify_ssl=verify_ssl,
-            limit=pool_limit,
-            limit_per_host=pool_per_host,  # 0=不限制单主机连接
-            ttl_dns_cache=300,  # DNS 缓存 5 分钟
-            keepalive_timeout=15.0,  # 使用 aiohttp 默认值
-            force_close=False,  # 启用连接复用
-            use_dns_cache=True,
-            family=socket.AF_UNSPEC,
-            enable_cleanup_closed=True,  # 启用 SSL 连接清理（防止泄漏）
-            happy_eyeballs_delay=0.25,  # RFC 8305 快速连接建立
-        )
+        # 4. happy_eyeballs_delay=0.25: RFC 8305 快速连接建立（如果支持）
+        connector_kwargs = {
+            'verify_ssl': verify_ssl,
+            'limit': pool_limit,
+            'limit_per_host': pool_per_host,  # 0=不限制单主机连接
+            'ttl_dns_cache': 300,  # DNS 缓存 5 分钟
+            'keepalive_timeout': 15.0,  # 使用 aiohttp 默认值
+            'force_close': False,  # 启用连接复用
+            'use_dns_cache': True,
+            'family': socket.AF_UNSPEC,
+            'enable_cleanup_closed': True,  # 启用 SSL 连接清理（防止泄漏）
+        }
+        if _HAPPY_EYEBALLS_SUPPORTED:
+            connector_kwargs['happy_eyeballs_delay'] = 0.25  # RFC 8305 快速连接建立
+        
+        connector = TCPConnector(**connector_kwargs)
 
         # 基于 DOWNLOAD_TIMEOUT 动态计算分层超时
         # 优化分配比例: connect=33%, sock_read=50%, sock_connect=33%, total=100%
@@ -249,18 +264,21 @@ class AioHttpDownloader(DownloaderBase):
         if timeout is not None:
             # 优化连接池配置，防止连接泄漏和死锁
             # 与主连接器保持一致的配置，确保行为一致
-            connector = TCPConnector(
-                verify_ssl=safe_get_config(self.crawler.settings, "VERIFY_SSL", True, bool),
-                limit=safe_get_config(self.crawler.settings, "CONNECTION_POOL_LIMIT", 100, int),
-                limit_per_host=0,  # 不限制单主机连接
-                ttl_dns_cache=300,
-                keepalive_timeout=15.0,  # 使用默认值
-                force_close=False,
-                use_dns_cache=True,
-                family=socket.AF_UNSPEC,
-                enable_cleanup_closed=True,  # 启用 SSL 连接清理
-                happy_eyeballs_delay=0.25,  # 快速连接建立
-            )
+            temp_connector_kwargs = {
+                'verify_ssl': safe_get_config(self.crawler.settings, "VERIFY_SSL", True, bool),
+                'limit': safe_get_config(self.crawler.settings, "CONNECTION_POOL_LIMIT", 100, int),
+                'limit_per_host': 0,  # 不限制单主机连接
+                'ttl_dns_cache': 300,
+                'keepalive_timeout': 15.0,  # 使用默认值
+                'force_close': False,
+                'use_dns_cache': True,
+                'family': socket.AF_UNSPEC,
+                'enable_cleanup_closed': True,  # 启用 SSL 连接清理
+            }
+            if _HAPPY_EYEBALLS_SUPPORTED:
+                temp_connector_kwargs['happy_eyeballs_delay'] = 0.25  # 快速连接建立
+            
+            connector = TCPConnector(**temp_connector_kwargs)
             try:
                 async with ClientSession(connector=connector, timeout=timeout) as temp_session:
                     async with await self._send_request(temp_session, request) as resp:

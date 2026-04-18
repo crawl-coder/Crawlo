@@ -243,7 +243,7 @@ class Spider(metaclass=SpiderMeta):
                     yield Request(
                         url=url, 
                         callback=self.parse,
-                        dont_filter=not is_distributed,
+                        dont_filter=False,  # 始终经过过滤器，由过滤器决定是否去重
                         meta={'spider_name': self.name}
                     )
                     generated_count += 1
@@ -262,7 +262,7 @@ class Spider(metaclass=SpiderMeta):
                 yield Request(
                     url=url, 
                     callback=self.parse,
-                    dont_filter=not is_distributed,
+                    dont_filter=False,  # 始终经过过滤器，由过滤器决定是否去重
                     meta={'spider_name': self.name}
                 )
             else:
@@ -699,6 +699,16 @@ def unregister_spider(name: str) -> bool:
     return False
 
 
+def reset_spider_registry():
+    """
+    重置爬虫注册表（用于测试隔离）
+    
+    警告：此函数会清空所有已注册的爬虫，仅在测试中使用
+    """
+    global _DEFAULT_SPIDER_REGISTRY
+    _DEFAULT_SPIDER_REGISTRY.clear()
+
+
 # 导出的公共接口
 __all__ = [
     'Spider',
@@ -710,5 +720,6 @@ __all__ = [
     'get_all_spider_classes',
     'get_spider_names',
     'is_spider_registered',
-    'unregister_spider'
+    'unregister_spider',
+    'reset_spider_registry'
 ]

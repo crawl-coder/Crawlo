@@ -2,7 +2,7 @@
 # -*- coding:UTF-8 -*-
 import asyncio
 import time
-from inspect import iscoroutine
+from inspect import iscoroutine, isasyncgen, isgenerator
 from typing import Optional, Callable, Any, Union, Dict, Iterator
 
 from crawlo import Request, Item
@@ -34,6 +34,7 @@ class Engine(object):
         self.processor: Optional[Processor] = None
         self.start_requests: Optional[Iterator] = None
         self._close_reason: str = 'finished'  # 关闭原因：finished / shutdown
+        self._spider_closed: bool = False  # 防止 close_spider 重复调用
         
         # ========== 统一配置获取（集中在初始化阶段） ==========
         
@@ -401,11 +402,70 @@ class Engine(object):
             if self.spider is None:
                 return None
             callback: Callable = request.callback or self.spider.parse
-            if _outputs := callback(_response):
-                if iscoroutine(_outputs):
-                    await _outputs
-                else:
-                    return transform(_outputs, _response)
+            _outputs = callback(_response)
+            
+            if _outputs is None:
+                return None
+            
+            # 异步生成器（async def + yield） - 最常见且正确的用法
+            if isasyncgen(_outputs):
+                return transform(_outputs, _response)
+            
+            # 同步生成器（def + yield）
+            if isgenerator(_outputs):
+                return transform(_outputs, _response)
+            
+            # 协程（async def 不使用 yield） - await 获取结果后再判断
+            if iscoroutine(_outputs):
+                result = await _outputs
+                if result is None:
+                    return None
+                # await 后的结果可能是生成器或单个值
+                if isasyncgen(result):
+                    return transform(result, _response)
+                if isgenerator(result):
+                    return transform(result, _response)
+                # 单个 Request/Item 返回值，包装为异步生成器
+                if isinstance(result, (Request, Item)):
+                    async def _single_output():
+                        yield result
+                    return transform(_single_output(), _response)
+                # 列表/元组返回值
+                if isinstance(result, (list, tuple)):
+                    async def _list_output():
+                        for item in result:
+                            if isinstance(item, (Request, Item)):
+                                yield item
+                    return transform(_list_output(), _response)
+                # 其他类型结果，记录警告
+                self.logger.warning(
+                    f"Callback {callback.__name__} returned unexpected type "
+                    f"{type(result).__name__} from coroutine. "
+                    f"Use 'yield' instead of 'return' for producing output."
+                )
+                return None
+            
+            # 同步函数返回单个 Request/Item（非生成器）
+            if isinstance(_outputs, (Request, Item)):
+                async def _sync_single_output():
+                    yield _outputs
+                return transform(_sync_single_output(), _response)
+            
+            # 同步函数返回列表/元组
+            if isinstance(_outputs, (list, tuple)):
+                async def _sync_list_output():
+                    for item in _outputs:
+                        if isinstance(item, (Request, Item)):
+                            yield item
+                return transform(_sync_list_output(), _response)
+            
+            # 其他未知类型，记录警告
+            self.logger.warning(
+                f"Callback {callback.__name__} returned unexpected type "
+                f"{type(_outputs).__name__}. Expected generator, async generator, "
+                f"Request, Item, or list/tuple of them."
+            )
+            return None
 
         if self.downloader is None:
             return None
@@ -445,10 +505,22 @@ class Engine(object):
                 raise OutputError(f'{type(self.spider)} must return `Request` or `Item`.')
 
     async def _exit(self):
-        if (self.scheduler is not None and self.scheduler.idle() and 
-            self.downloader is not None and self.downloader.idle() and 
-            self.task_manager is not None and self.task_manager.all_done() and 
-            self.processor is not None and self.processor.idle()):
+        # 使用异步 idle 检查，避免非原子状态检查的竞态条件
+        scheduler_idle = False
+        downloader_idle = False
+        task_manager_done = False
+        processor_idle = False
+        
+        if self.scheduler is not None:
+            scheduler_idle = await self.scheduler.async_idle() if hasattr(self.scheduler, 'async_idle') else self.scheduler.idle()
+        if self.downloader is not None:
+            downloader_idle = self.downloader.idle()
+        if self.task_manager is not None:
+            task_manager_done = self.task_manager.all_done()
+        if self.processor is not None:
+            processor_idle = await self.processor.idle_async()
+        
+        if (scheduler_idle and downloader_idle and task_manager_done and processor_idle):
             return True
         return False
 
@@ -476,7 +548,7 @@ class Engine(object):
             if self.task_manager is not None:
                 task_manager_done = self.task_manager.all_done()
             if self.processor is not None:
-                processor_idle = self.processor.idle()
+                processor_idle = await self.processor.idle_async()
             
             current_states = (scheduler_idle, downloader_idle, task_manager_done, processor_idle)
             
@@ -501,7 +573,7 @@ class Engine(object):
                 if self.task_manager is not None:
                     task_manager_done = self.task_manager.all_done()
                 if self.processor is not None:
-                    processor_idle = self.processor.idle()
+                    processor_idle = await self.processor.idle_async()
                 
                 # 二次检查状态也只在变化时输出
                 second_states = (scheduler_idle, downloader_idle, task_manager_done, processor_idle)
@@ -526,6 +598,11 @@ class Engine(object):
         return False, current_states
 
     async def close_spider(self, reason='finished'):
+        # 幂等保护：防止 close_spider 被重复调用
+        if self._spider_closed:
+            self.logger.debug("close_spider already called, skipping")
+            return
+        self._spider_closed = True
         self._close_reason = reason
 
         # 等待所有活跃任务完成，正确处理取消情况

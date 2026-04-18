@@ -102,7 +102,7 @@ class Request:
         auth: Optional[tuple] = None,
         verify: bool = True,
         flags: Optional[List[str]] = None,
-        encoding: str = 'utf-8',
+        encoding: Optional[str] = None,  # 修改：默认为 None，让 Response 自动检测编码
         use_dynamic_loader: bool = False
     ) -> None:
         """
@@ -447,7 +447,9 @@ class Request:
         if any(url.lower().startswith(scheme) for scheme in dangerous_schemes):
             raise ValueError(f"URL scheme 不安全: {url[:20]}...")
 
-        s = safe_url_string(url, self.encoding)
+        # URL 编码使用 UTF-8 作为默认值（仅用于 URL 字符串处理）
+        url_encoding = self.encoding if self.encoding else 'utf-8'
+        s = safe_url_string(url, url_encoding)
         escaped_url = escape_ajax(s)
         
         if not escaped_url.startswith(('http://', 'https://')):

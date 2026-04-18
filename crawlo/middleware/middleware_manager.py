@@ -26,8 +26,13 @@ from crawlo.exceptions import MiddlewareInitError, InvalidOutputError, RequestMe
 class MiddlewareManager:
     # Class-level flag to ensure middleware enabled log is printed only once
     _logged_enabled = False
+    
+    # 重试保护配置
+    MAX_RETRY_DEPTH = 5  # 最大重试深度
+    RETRY_BACKOFF_BASE = 1.0  # 基础退避时间（秒）
+    RETRY_BACKOFF_MAX = 30.0  # 最大退避时间（秒）
 
-    def __init__(self, crawler):
+    def __init__(self, crawler, download_func: Callable = None):
         self.crawler = crawler
         self.logger = get_logger(self.__class__.__name__)
         self.middlewares: List = []
@@ -39,22 +44,43 @@ class MiddlewareManager:
         self._add_middleware(middlewares)
         self._add_method()
 
-        self.download_method: Callable = crawler.engine.downloader.download
+        # 使用延迟绑定避免循环依赖
+        # 如果提供了 download_func，直接使用
+        # 否则在首次调用时通过 crawler.engine.downloader 获取
+        if download_func is not None:
+            self._download_func = download_func
+        else:
+            self._download_func = None
+        
         self._stats = crawler.stats
+    
+    @property
+    def download_method(self) -> Callable:
+        """
+        获取下载方法（延迟绑定）
         
-        # 包装下载器方法，添加诊断日志
-        original_download = self.download_method
-        async def wrapped_download(request):
-            self.logger.debug(f"MiddlewareManager 调用下载器: {request.url}")
-            try:
-                result = await original_download(request)
-                self.logger.debug(f"下载器返回结果: {request.url} (result={type(result).__name__ if result else 'None'})")
-                return result
-            except Exception as e:
-                self.logger.debug(f"下载器抛出异常: {request.url} ({type(e).__name__}: {e})")
-                raise
+        避免在 __init__ 时直接引用 downloader.download，
+        从而解决循环依赖问题
+        """
+        if self._download_func is not None:
+            return self._download_func
         
-        self.download_method = wrapped_download
+        # 首次访问时获取下载方法
+        if hasattr(self.crawler, 'engine') and self.crawler.engine is not None:
+            downloader = getattr(self.crawler.engine, 'downloader', None)
+            if downloader is not None:
+                self._download_func = downloader.download
+                return self._download_func
+        
+        raise RuntimeError(
+            "无法获取下载方法: crawler.engine.downloader 未初始化。\n"
+            "请确保在调用中间件之前先初始化下载器。"
+        )
+    
+    @download_method.setter
+    def download_method(self, func: Callable):
+        """设置下载方法"""
+        self._download_func = func
 
     async def _process_request(self, request: 'Request'):
         # 添加诊断日志：追踪请求进入中间件链
@@ -99,7 +125,22 @@ class MiddlewareManager:
         
         # 所有中间件处理完成，调用下载器
         self.logger.debug(f"所有中间件处理完成，调用下载器: {request.url}")
-        return await self.download_method(request)
+        
+        # 使用属性获取下载方法，支持延迟绑定
+        download_fn = self.download_method
+        
+        # 包装下载方法，添加诊断日志
+        async def wrapped_download(req):
+            self.logger.debug(f"MiddlewareManager 调用下载器: {req.url}")
+            try:
+                result = await download_fn(req)
+                self.logger.debug(f"下载器返回结果: {req.url} (result={type(result).__name__ if result else 'None'})")
+                return result
+            except Exception as e:
+                self.logger.debug(f"下载器抛出异常: {req.url} ({type(e).__name__}: {e})")
+                raise
+        
+        return await wrapped_download(request)
 
     async def _process_response(self, request: 'Request', response: 'Response'):
         for method in reversed(self.methods['process_response']):
@@ -178,27 +219,43 @@ class MiddlewareManager:
             response = await self._process_response(request, response)
         if isinstance(response, Request):
             # 检测是否是重试请求
-            if response.meta.get('retry_times', 0) > 0:
-                # 重试请求，应用指数退避等待
-                backoff_time = response.meta.get('retry_backoff', 0)
+            retry_times = response.meta.get('retry_times', 0)
+            retry_depth = response.meta.get('_retry_depth', 0)
+            
+            # 检查重试深度限制，防止无限递归
+            if retry_depth >= self.MAX_RETRY_DEPTH:
+                self.logger.error(
+                    f"达到最大重试深度 ({self.MAX_RETRY_DEPTH})，放弃重试: {response.url}"
+                )
+                raise RuntimeError(
+                    f"Maximum retry depth ({self.MAX_RETRY_DEPTH}) exceeded for: {response.url}"
+                )
+            
+            if retry_times > 0:
+                # 重试请求，计算指数退避时间
+                backoff_time = min(
+                    self.RETRY_BACKOFF_BASE * (2 ** (retry_times - 1)),
+                    self.RETRY_BACKOFF_MAX
+                )
+                response.meta['retry_backoff'] = backoff_time
+                
                 if backoff_time > 0:
                     self.logger.debug(
-                        f"重试请求（等待 {backoff_time}s）: {response.url} "
-                        f"(retry_times={response.meta['retry_times']})"
+                        f"重试请求（退避 {backoff_time:.1f}s）: {response.url} "
+                        f"(retry_times={retry_times})"
                     )
                     await asyncio.sleep(backoff_time)
                     self.logger.debug(
                         f"等待完成，准备重试: {response.url} "
-                        f"(retry_times={response.meta['retry_times']})"
+                        f"(retry_times={retry_times})"
                     )
                 else:
-                    self.logger.debug(f"立即重试请求: {response.url} (retry_times={response.meta['retry_times']})")
-                self.logger.debug(f"开始执行重试下载: {response.url}")
-                # 添加诊断日志：追踪重试请求进入递归下载
-                retry_times = response.meta.get('retry_times', 0)
-                self.logger.debug(
-                    f"重试请求递归调用 download(): {response.url} (retry_times={retry_times})"
-                )
+                    self.logger.debug(f"立即重试请求: {response.url} (retry_times={retry_times})")
+                
+                # 更新重试深度
+                response.meta['_retry_depth'] = retry_depth + 1
+                
+                self.logger.debug(f"开始执行重试下载: {response.url} (depth={response.meta['_retry_depth']})")
                 return await self.download(response)
             else:
                 # 普通新请求，入队等待调度

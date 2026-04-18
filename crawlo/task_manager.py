@@ -105,10 +105,23 @@ class DynamicSemaphore:
         return True
     
     def release(self) -> None:
-        """释放信号量"""
-        self._active_count = max(0, self._active_count - 1)
+        """释放信号量
         
-        # 尝试唤醒等待的任务
+        注意：此方法在 done_callback 中调用（同步回调），在 asyncio
+        单线程事件循环中是安全的。唤醒逻辑统一使用 _wake_waiters()。
+        """
+        self._active_count = max(0, self._active_count - 1)
+        self._wake_waiters()
+    
+    def _wake_waiters(self) -> None:
+        """安全唤醒等待者
+        
+        统一的唤醒逻辑，被 release() 和 _adjust_semaphore_value() 共用。
+        在 asyncio 单线程模型中，此方法是安全的，因为：
+        1. release() 在 done_callback 中调用（事件循环内）
+        2. _adjust_semaphore_value() 在 asyncio.Lock 保护下调用
+        3. 两者不会同时执行
+        """
         try:
             while not self._waiters.empty() and self._active_count < self._target_value:
                 event = self._waiters.get_nowait()
@@ -163,13 +176,7 @@ class DynamicSemaphore:
         
         # 如果新值更大，唤醒等待的任务
         if new_value > old_value:
-            try:
-                while not self._waiters.empty() and self._active_count < self._target_value:
-                    event = self._waiters.get_nowait()
-                    self._active_count += 1
-                    event.set()
-            except asyncio.QueueEmpty:
-                pass
+            self._wake_waiters()
     
     @property
     def current_value(self) -> int:

@@ -35,10 +35,10 @@ SPIDER_MODULES = ['ofweek_standalone.spiders']
 
 # 数据管道
 # 如需添加自定义管道，请取消注释并添加
-PIPELINES = [
-    'crawlo.pipelines.mysql_pipeline.MySQLPipeline',  # MySQL 存储（使用asyncmy异步库）
-    # 'ofweek_standalone.pipelines.CustomPipeline',  # 用户自定义管道示例
-]
+# PIPELINES = [
+#     'crawlo.pipelines.mysql_pipeline.MySQLPipeline',  # MySQL 存储（使用asyncmy异步库）
+#     # 'ofweek_standalone.pipelines.CustomPipeline',  # 用户自定义管道示例
+# ]
 
 # =================================== 系统配置 ===================================
 
@@ -116,13 +116,16 @@ MYSQL_UPDATE_COLUMNS = ()  # 冲突时需更新的列名；指定后 MYSQL_AUTO_
 # =================================== 定时任务配置 ===================================
 
 # 启用定时任务 - 用于测试
-SCHEDULER_ENABLED = True
+SCHEDULER_ENABLED = True  
+
+# 间隔日志配置（秒）- 用于测试间隔日志功能
+INTERVAL = 10  # 每10秒打印一次监控日志（测试用，生产环境建议60秒）  
 
 # 定时任务配置
 SCHEDULER_JOBS = [
     {
         'spider': 'of_week',           # 爬虫名称（对应spider的name属性）
-        'cron': '*/2 * * * *',       # 每2分钟执行一次
+        'cron': '*/3 * * * *',       # 每2分钟执行一次
         'enabled': True,              # 任务启用状态
         'priority': 10,               # 任务优先级
         'max_retries': 3,             # 最大重试次数

@@ -2,8 +2,9 @@
 # -*- coding:UTF-8 -*-
 import asyncio
 from collections import defaultdict
+from dataclasses import dataclass, field
 from inspect import iscoroutinefunction
-from typing import Dict, Callable, Coroutine, Any, TypeAlias, List, Tuple
+from typing import Dict, Callable, Coroutine, Any, TypeAlias, List, Tuple, Optional
 
 from crawlo.logging import get_logger
 
@@ -16,20 +17,75 @@ class ReceiverTypeError(TypeError):
 ReceiverCoroutine: TypeAlias = Callable[..., Coroutine[Any, Any, Any]]
 
 
+# 关键事件列表 - 这些事件的订阅者失败时使用 WARNING 级别日志
+CRITICAL_EVENTS = frozenset({
+    'spider_closed',
+    'spider_error',
+    'spider_opened',
+})
+
+
+@dataclass
+class NotifyResult:
+    """notify() 的结构化返回结果
+    
+    提供比纯列表更丰富的错误信息，便于调用方判断通知执行状态。
+    """
+    results: List[Any] = field(default_factory=list)
+    errors: List[Tuple[str, Exception]] = field(default_factory=list)
+    event: str = ""
+    
+    @property
+    def has_errors(self) -> bool:
+        """是否有订阅者执行失败"""
+        return len(self.errors) > 0
+    
+    @property
+    def success_count(self) -> int:
+        """成功的订阅者数量"""
+        return len(self.results) - len(self.errors)
+    
+    @property
+    def error_count(self) -> int:
+        """失败的订阅者数量"""
+        return len(self.errors)
+
+
 class Subscriber:
     """
     一个支持异步协程的发布/订阅（Pub/Sub）模式实现。
 
     这个类允许你注册（订阅）协程函数来监听特定事件，并在事件发生时
     以并发的方式异步地通知所有订阅者。
+
+    增强特性：
+    - 超时控制：防止订阅者执行时间过长
+    - 错误处理策略：可配置的异常处理方式
+    - 并发控制：支持限制最大并发数
     """
 
-    def __init__(self):
-        """初始化一个空的订阅者字典。"""
+    def __init__(self, error_handling: str = "log", timeout: float = 5.0, max_concurrency: int = 0):
+        """
+        初始化订阅者
+
+        Args:
+            error_handling: 错误处理策略
+                - "log": 记录错误但继续（默认）
+                - "raise": 重新抛出第一个错误
+                - "gather": 返回所有错误结果
+            timeout: 每个订阅者的最大执行时间（秒），0表示无限制
+            max_concurrency: 最大并发数，0表示无限制
+        """
         # 使用弱引用字典避免内存泄漏
         self._subscribers: Dict[str, Dict[ReceiverCoroutine, int]] = defaultdict(dict)
         # 用于缓存排序后的订阅者列表，提高频繁事件的处理性能
         self._sorted_subscribers_cache: Dict[str, List[Tuple[ReceiverCoroutine, int]]] = {}
+        # 配置参数
+        self._error_handling = error_handling
+        self._timeout = timeout
+        self._max_concurrency = max_concurrency
+        self._last_notify_result: Optional[NotifyResult] = None
+        self._logger = get_logger(self.__class__.__name__)
 
     def subscribe(self, receiver: ReceiverCoroutine, *, event: str, priority: int = 0) -> None:
         """
@@ -104,6 +160,12 @@ class Subscriber:
         此方法会等待所有订阅者任务完成后再返回，并收集所有结果或异常。
         订阅者按优先级顺序执行，优先级高的先执行。
     
+        增强特性：
+        - 支持超时控制
+        - 支持错误处理策略
+        - 支持并发控制
+        - 关键事件（spider_closed, spider_error, spider_opened）失败时使用 WARNING 级别
+    
         Args:
             event: 要触发的事件名称。
             *args: 传递给接收者的位置参数。
@@ -111,6 +173,7 @@ class Subscriber:
     
         Returns:
             一个列表，包含每个订阅者任务的返回结果或在执行期间捕获的异常。
+            同时更新 self._last_notify_result 供调用方检查执行状态。
         """
         logger = get_logger(self.__class__.__name__)
         
@@ -118,28 +181,146 @@ class Subscriber:
         logger.debug(f"[{event}] 订阅者数量：{len(sorted_subscribers)}")
         if not sorted_subscribers:
             logger.debug(f"[{event}] 没有订阅者")
+            self._last_notify_result = NotifyResult(event=event)
             return []
         
         # 为频繁触发的事件重用任务对象以提高性能
         tasks = []
         for receiver, priority in sorted_subscribers:
             try:
-                # 创建任务并添加到列表
-                task = asyncio.create_task(receiver(*args, **kwargs))
-                tasks.append(task)
+                # 创建包装任务以支持超时
+                if self._timeout > 0:
+                    coro = self._safe_execute(receiver, *args, **kwargs)
+                    task = asyncio.create_task(coro)
+                else:
+                    task = asyncio.create_task(receiver(*args, **kwargs))
+                tasks.append((task, receiver))
             except Exception as e:
                 # 如果创建任务失败，记录异常并继续处理其他订阅者
-                logger.warning(f"订阅者 {receiver.__name__} 执行失败: {e}")
-                tasks.append(asyncio.Future())
-                tasks[-1].set_exception(e)
+                logger.warning(f"订阅者 {receiver.__name__} 创建任务失败: {e}")
+                tasks.append((None, receiver))
         
-        # 并发执行所有任务并返回结果列表（包括异常）
-        logger.debug(f"等待 {len(tasks)} 个任务完成")
-        results = await asyncio.gather(*tasks, return_exceptions=True)
-        logger.debug(f"任务完成，结果数量：{len(results)}")
-        for i, (task, result) in enumerate(zip(tasks, results)):
-            if isinstance(result, Exception):
-                logger.error(f"任务{i}异常：{result}")
-            else:
-                logger.debug(f"任务{i}完成：{result}")
+        # 并发控制
+        if self._max_concurrency > 0:
+            await self._throttle_tasks(tasks)
+        
+        # 判断是否为关键事件
+        is_critical = event in CRITICAL_EVENTS
+        
+        # 等待所有任务完成
+        results = []
+        errors = []
+        first_error = None
+        
+        for i, (task, receiver) in enumerate(tasks):
+            if task is None:
+                results.append(None)
+                continue
+            
+            try:
+                if self._timeout > 0:
+                    result = await asyncio.wait_for(task, timeout=self._timeout)
+                else:
+                    result = await task
+                
+                if isinstance(result, Exception):
+                    if first_error is None:
+                        first_error = result
+                    receiver_name = getattr(receiver, '__name__', str(receiver))
+                    errors.append((receiver_name, result))
+                    # 关键事件使用 WARNING 级别，其他事件使用 ERROR 级别
+                    if is_critical:
+                        logger.warning(
+                            f"[{event}] 关键事件订阅者 {receiver_name} 异常：{result}"
+                        )
+                    else:
+                        logger.error(f"任务 {receiver_name} 异常：{result}")
+                else:
+                    receiver_name = getattr(receiver, '__name__', str(receiver))
+                    logger.debug(f"任务 {receiver_name} 完成")
+                results.append(result)
+            except asyncio.TimeoutError:
+                receiver_name = getattr(receiver, '__name__', str(receiver))
+                errors.append((receiver_name, asyncio.TimeoutError(
+                    f"执行超时 ({self._timeout}s)"
+                )))
+                if is_critical:
+                    logger.warning(
+                        f"[{event}] 关键事件订阅者 {receiver_name} 执行超时 ({self._timeout}s)"
+                    )
+                else:
+                    logger.warning(f"任务 {receiver_name} 执行超时 ({self._timeout}s)")
+                task.cancel()
+                results.append(None)
+            except Exception as e:
+                receiver_name = getattr(receiver, '__name__', str(receiver))
+                errors.append((receiver_name, e))
+                if first_error is None:
+                    first_error = e
+                if is_critical:
+                    logger.warning(
+                        f"[{event}] 关键事件订阅者 {receiver_name} 执行失败: {e}"
+                    )
+                else:
+                    logger.error(f"任务 {receiver_name} 执行失败: {e}")
+                results.append(e)
+        
+        # 更新结构化结果
+        self._last_notify_result = NotifyResult(
+            results=results,
+            errors=errors,
+            event=event,
+        )
+        
+        # 关键事件有错误时，输出汇总 WARNING
+        if is_critical and errors:
+            logger.warning(
+                f"[{event}] 关键事件有 {len(errors)}/{len(tasks)} 个订阅者执行失败"
+            )
+        
+        # 根据错误处理策略处理
+        if self._error_handling == "raise" and first_error:
+            raise first_error
+        
         return results
+    
+    async def _safe_execute(self, receiver: ReceiverCoroutine, *args, **kwargs) -> Any:
+        """
+        安全执行订阅者，支持超时控制
+        
+        Args:
+            receiver: 订阅者函数
+            *args: 位置参数
+            **kwargs: 关键字参数
+            
+        Returns:
+            执行结果
+        """
+        if asyncio.iscoroutinefunction(receiver):
+            return await receiver(*args, **kwargs)
+        else:
+            return receiver(*args, **kwargs)
+    
+    async def _throttle_tasks(self, tasks: List[Tuple]) -> None:
+        """
+        限制并发任务数
+        
+        Args:
+            tasks: 任务列表
+        """
+        semaphore = asyncio.Semaphore(self._max_concurrency)
+        
+        async def throttled_task(task):
+            async with semaphore:
+                return await task
+        
+        # 只对有效的任务应用限制
+        throttled = []
+        for task, receiver in tasks:
+            if task is not None:
+                throttled.append(asyncio.create_task(throttled_task(task)))
+            else:
+                throttled.append(None)
+        
+        # 等待所有任务
+        await asyncio.gather(*[t for t in throttled if t is not None], return_exceptions=True)

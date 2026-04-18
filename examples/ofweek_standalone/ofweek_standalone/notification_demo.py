@@ -8,8 +8,13 @@ ofweek_standalone 项目钉钉通知使用示例
 """
 
 import asyncio
-from crawlo.bot.handlers import send_crawler_status, send_crawler_alert, send_crawler_progress
-from crawlo.bot.models import ChannelType
+# 修正：从 crawlo.bot 统一导入
+from crawlo.bot import (
+    send_crawler_status, 
+    send_crawler_alert, 
+    send_crawler_progress,
+    ChannelType
+)
 
 
 class NotificationDemo:

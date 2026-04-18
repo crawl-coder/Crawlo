@@ -4,10 +4,11 @@
 组件注册表 - 管理所有组件的注册和创建
 """
 
-import threading
+import asyncio
 from typing import Dict, List, Type, Any, Optional
 
 from .base import ComponentFactory, ComponentSpec, DefaultComponentFactory
+from crawlo.utils.async_lock import AsyncRLock
 
 
 class ComponentRegistry:
@@ -25,30 +26,71 @@ class ComponentRegistry:
         self._specs: Dict[str, ComponentSpec] = {}
         self._factories: List[ComponentFactory] = []
         self._default_factory = DefaultComponentFactory()
-        self._lock = threading.RLock()
+        self._lock = AsyncRLock()  # 异步安全锁
     
-    def register(self, spec: ComponentSpec):
-        """注册组件规范"""
-        with self._lock:
+    async def register_async(self, spec: ComponentSpec):
+        """异步安全的注册方法"""
+        async with self._lock:
             self._specs[spec.name] = spec
     
-    def register_factory(self, factory: ComponentFactory):
-        """注册组件工厂"""
-        with self._lock:
+    async def register_factory_async(self, factory: ComponentFactory):
+        """异步安全的工厂注册方法"""
+        async with self._lock:
             self._factories.append(factory)
     
-    def get_spec(self, name: str) -> Optional[ComponentSpec]:
-        """获取组件规范"""
-        with self._lock:
+    async def get_spec_async(self, name: str) -> Optional[ComponentSpec]:
+        """异步安全的获取规范方法"""
+        async with self._lock:
             return self._specs.get(name)
     
-    def get_factory(self, component_type: Type) -> ComponentFactory:
-        """获取支持指定类型的工厂"""
-        with self._lock:
+    async def get_factory_async(self, component_type: Type) -> ComponentFactory:
+        """异步安全的获取工厂方法"""
+        async with self._lock:
             for factory in self._factories:
                 if factory.supports(component_type):
                     return factory
             return self._default_factory
+    
+    async def list_components_async(self) -> List[str]:
+        """异步安全的列出组件方法"""
+        async with self._lock:
+            return list(self._specs.keys())
+    
+    def register(self, spec: ComponentSpec):
+        """
+        注册组件规范（同步方法，仅用于向后兼容）
+        :deprecated: 请使用 register_async
+        """
+        import warnings
+        warnings.warn(
+            "ComponentRegistry.register() is deprecated, use register_async() instead",
+            DeprecationWarning,
+            stacklevel=2
+        )
+        self._specs[spec.name] = spec
+    
+    def register_factory(self, factory: ComponentFactory):
+        """
+        注册组件工厂（同步方法，仅用于向后兼容）
+        :deprecated: 请使用 register_factory_async
+        """
+        self._factories.append(factory)
+    
+    def get_spec(self, name: str) -> Optional[ComponentSpec]:
+        """
+        获取组件规范（同步方法，仅用于向后兼容）
+        :deprecated: 请使用 get_spec_async
+        """
+        return self._specs.get(name)
+    
+    def get_factory(self, component_type: Type) -> ComponentFactory:
+        """
+        获取支持指定类型的工厂（同步方法）
+        """
+        for factory in self._factories:
+            if factory.supports(component_type):
+                return factory
+        return self._default_factory
     
     def create(self, name: str, **kwargs) -> Any:
         """创建组件实例"""
@@ -64,16 +106,18 @@ class ComponentRegistry:
         return self.create(name, **kwargs)
     
     def list_components(self) -> List[str]:
-        """列出所有已注册的组件"""
-        with self._lock:
-            return list(self._specs.keys())
+        """
+        列出所有已注册的组件（同步方法）
+        """
+        return list(self._specs.keys())
     
     def clear(self):
-        """清空注册表"""
-        with self._lock:
-            self._specs.clear()
-            self._factories.clear()
-            self._default_factory.clear_singletons()
+        """
+        清空注册表
+        """
+        self._specs.clear()
+        self._factories.clear()
+        self._default_factory.clear_singletons()
 
 
 # 全局组件注册表
