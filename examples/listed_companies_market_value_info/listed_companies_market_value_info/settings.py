@@ -17,7 +17,7 @@ from crawlo.config import CrawloConfig
 _PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 # 使用自动检测模式配置工厂创建配置
-config = CrawloConfig.standalone(
+config = CrawloConfig.auto(
     project_name='listed_companies_market_value_info',
     concurrency=8,
     download_delay=1.0

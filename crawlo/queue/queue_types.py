@@ -20,8 +20,8 @@ class QueueType(Enum):
     """
     MEMORY = "memory"
     REDIS = "redis"
-    DISK = "disk"  # 保留用于兼容，但不在框架中使用
     AUTO = "auto"
+    DISK = "disk"  # 保留用于兼容，但不在框架中使用
     
     @classmethod
     def from_string(cls, value: str) -> 'QueueType':
