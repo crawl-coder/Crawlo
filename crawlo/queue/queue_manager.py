@@ -6,23 +6,20 @@
 提供简洁、一致的队列接口，自动处理不同队列类型的差异。
 
 重新设计的队列和背压系统：
-- 支持多种队列类型：内存、Redis、磁盘
+- 支持多种队列类型：内存、Redis
 - 内置背压控制机制
 - 统一的接口设计
 """
 import asyncio
 import time
 import traceback
-from enum import Enum
 from typing import Optional, Dict, Any, Union, TYPE_CHECKING
 
 if TYPE_CHECKING:
     from crawlo import Request
 
 from crawlo.queue.pqueue import SpiderPriorityQueue
-from crawlo.queue.queue_types import QueueType, QueueStats
-from crawlo.queue.interfaces import IQueue, BackpressureableQueueMixin
-from crawlo.queue.memory_queue import MemoryQueue, QueueItem
+from crawlo.queue.queue_types import QueueType
 from crawlo.utils.error_handler import ErrorHandler
 from crawlo.logging import get_logger
 from crawlo.utils.request.request_serializer import RequestSerializer
@@ -37,13 +34,6 @@ try:
 except ImportError:
     RedisPriorityQueue = None
     REDIS_AVAILABLE = False
-
-
-class QueueType(Enum):
-    """Queue type enumeration"""
-    MEMORY = "memory"
-    REDIS = "redis"
-    AUTO = "auto"  # 自动选择
 
 
 class IntelligentScheduler:
@@ -259,23 +249,54 @@ class QueueConfig:
         # 获取整数配置
         redis_port = safe_get_config(settings, 'REDIS_PORT', 6379, int)
         redis_db = safe_get_config(settings, 'REDIS_DB', 0, int)
-        max_queue_size = safe_get_config(settings, 'SCHEDULER_MAX_QUEUE_SIZE', 1000, int)
         max_retries = safe_get_config(settings, 'QUEUE_MAX_RETRIES', 3, int)
         timeout = safe_get_config(settings, 'QUEUE_TIMEOUT', 300, int)
         
         # 获取序列化格式配置
         serialization_format = safe_get_config(settings, 'SERIALIZATION_FORMAT', 'pickle')
         
-        # 获取背压配置
-        backpressure_ratio = safe_get_config(settings, 'BACKPRESSURE_RATIO', 0.8)
-        backpressure_delay_base = safe_get_config(settings, 'BACKPRESSURE_DELAY_BASE', 0.5)
-        backpressure_delay_max = safe_get_config(settings, 'BACKPRESSURE_DELAY_MAX', 5.0)
-        backpressure_check_interval = safe_get_config(settings, 'BACKPRESSURE_CHECK_INTERVAL', 0.1)
-        backpressure_warning_threshold = safe_get_config(settings, 'BACKPRESSURE_WARNING_THRESHOLD', 0.7)
-        backpressure_critical_threshold = safe_get_config(settings, 'BACKPRESSURE_CRITICAL_THRESHOLD', 0.9)
+        # 根据队列类型选择对应的背压配置
+        # 将QUEUE_TYPE转换为字符串进行比较
+        queue_type_str = queue_type.value if isinstance(queue_type, QueueType) else str(queue_type).lower()
         
-        # 获取磁盘队列配置
-        queue_disk_path = safe_get_config(settings, 'QUEUE_DISK_PATH')
+        if queue_type_str == 'redis':
+            # Redis队列配置：更早触发背压，允许更大延迟
+            max_queue_size = safe_get_config(settings, 'REDIS_SCHEDULER_MAX_QUEUE_SIZE', 
+                                           safe_get_config(settings, 'SCHEDULER_MAX_QUEUE_SIZE', 50000), int)
+            backpressure_ratio = safe_get_config(settings, 'REDIS_BACKPRESSURE_RATIO',
+                                               safe_get_config(settings, 'BACKPRESSURE_RATIO', 0.6))
+            backpressure_delay_base = safe_get_config(settings, 'REDIS_BACKPRESSURE_DELAY_BASE',
+                                                    safe_get_config(settings, 'BACKPRESSURE_DELAY_BASE', 0.5))
+            backpressure_delay_max = safe_get_config(settings, 'REDIS_BACKPRESSURE_DELAY_MAX',
+                                                   safe_get_config(settings, 'BACKPRESSURE_DELAY_MAX', 5.0))
+            backpressure_warning_threshold = safe_get_config(settings, 'REDIS_BACKPRESSURE_WARNING_THRESHOLD',
+                                                           safe_get_config(settings, 'BACKPRESSURE_WARNING_THRESHOLD', 0.5))
+            backpressure_critical_threshold = safe_get_config(settings, 'REDIS_BACKPRESSURE_CRITICAL_THRESHOLD',
+                                                            safe_get_config(settings, 'BACKPRESSURE_CRITICAL_THRESHOLD', 0.8))
+        elif queue_type_str == 'memory':
+            # 内存队列配置：更高阈值，更小延迟
+            max_queue_size = safe_get_config(settings, 'MEMORY_SCHEDULER_MAX_QUEUE_SIZE',
+                                           safe_get_config(settings, 'SCHEDULER_MAX_QUEUE_SIZE', 5000), int)
+            backpressure_ratio = safe_get_config(settings, 'MEMORY_BACKPRESSURE_RATIO',
+                                               safe_get_config(settings, 'BACKPRESSURE_RATIO', 0.8))
+            backpressure_delay_base = safe_get_config(settings, 'MEMORY_BACKPRESSURE_DELAY_BASE',
+                                                    safe_get_config(settings, 'BACKPRESSURE_DELAY_BASE', 0.2))
+            backpressure_delay_max = safe_get_config(settings, 'MEMORY_BACKPRESSURE_DELAY_MAX',
+                                                   safe_get_config(settings, 'BACKPRESSURE_DELAY_MAX', 2.0))
+            backpressure_warning_threshold = safe_get_config(settings, 'MEMORY_BACKPRESSURE_WARNING_THRESHOLD',
+                                                           safe_get_config(settings, 'BACKPRESSURE_WARNING_THRESHOLD', 0.7))
+            backpressure_critical_threshold = safe_get_config(settings, 'MEMORY_BACKPRESSURE_CRITICAL_THRESHOLD',
+                                                            safe_get_config(settings, 'BACKPRESSURE_CRITICAL_THRESHOLD', 0.9))
+        else:
+            # AUTO或其他：使用通用配置（向后兼容）
+            max_queue_size = safe_get_config(settings, 'SCHEDULER_MAX_QUEUE_SIZE', 10000, int)
+            backpressure_ratio = safe_get_config(settings, 'BACKPRESSURE_RATIO', 0.75)
+            backpressure_delay_base = safe_get_config(settings, 'BACKPRESSURE_DELAY_BASE', 0.2)
+            backpressure_delay_max = safe_get_config(settings, 'BACKPRESSURE_DELAY_MAX', 3.0)
+            backpressure_warning_threshold = safe_get_config(settings, 'BACKPRESSURE_WARNING_THRESHOLD', 0.7)
+            backpressure_critical_threshold = safe_get_config(settings, 'BACKPRESSURE_CRITICAL_THRESHOLD', 0.9)
+        
+        backpressure_check_interval = safe_get_config(settings, 'BACKPRESSURE_CHECK_INTERVAL', 0.1)
         
         return cls(
             queue_type=queue_type,
@@ -299,7 +320,6 @@ class QueueConfig:
                 'backpressure_check_interval': backpressure_check_interval,
                 'backpressure_warning_threshold': backpressure_warning_threshold,
                 'backpressure_critical_threshold': backpressure_critical_threshold,
-                'queue_disk_path': queue_disk_path,
             }
         )
 
@@ -767,13 +787,19 @@ class QueueManager:
                     )
                     await test_queue.connect()
                     await test_queue.close()
-                    self.logger.debug("Auto-detection: Redis available, using distributed queue")
+                    self.logger.info("Auto-detection: Redis available, using Redis queue")
+                    # 重要：AUTO模式检测到Redis后，更新背压配置为Redis配置
+                    self._apply_redis_backpressure_config()
                     return QueueType.REDIS
                 except Exception as e:
-                    self.logger.debug(f"Auto-detection: Redis unavailable ({e}), using memory queue")
+                    self.logger.info(f"Auto-detection: Redis unavailable ({e}), falling back to memory queue")
+                    # 重要：AUTO模式Redis不可用时，更新背压配置为Memory配置
+                    self._apply_memory_backpressure_config()
                     return QueueType.MEMORY
             else:
-                self.logger.debug("Auto-detection: Redis not configured, using memory queue")
+                self.logger.info("Auto-detection: Redis not configured, using memory queue")
+                # 重要：AUTO模式无Redis配置时，更新背压配置为Memory配置
+                self._apply_memory_backpressure_config()
                 return QueueType.MEMORY
 
         elif self.config.queue_type == QueueType.REDIS:
@@ -942,12 +968,100 @@ class QueueManager:
                 # 重新创建内存队列
                 self._queue = await self._create_queue(QueueType.MEMORY)
                 self._queue_type = QueueType.MEMORY
+                # 重要：更新背压配置为Memory配置
+                self._apply_memory_backpressure_config()
                 self._queue_semaphore = asyncio.Semaphore(self.config.max_queue_size)
                 self._health_status = "healthy"
-                self.logger.info("Switched to memory queue")
+                self.logger.info("Switched to memory queue with memory backpressure config")
                 # 返回一个信号，表示需要更新过滤器和去重管道配置
                 return True
         return False
+
+    def _apply_redis_backpressure_config(self):
+        """应用Redis队列的背压配置（用于AUTO模式）"""
+        from crawlo.utils.misc import safe_get_config
+        
+        settings = self.config.settings if hasattr(self.config, 'settings') and self.config.settings else {}
+        
+        # 更新QueueConfig的背压参数为Redis配置
+        self.config.max_queue_size = safe_get_config(
+            settings, 'REDIS_SCHEDULER_MAX_QUEUE_SIZE',
+            safe_get_config(settings, 'SCHEDULER_MAX_QUEUE_SIZE', 50000), int
+        )
+        self.config.backpressure_ratio = safe_get_config(
+            settings, 'REDIS_BACKPRESSURE_RATIO',
+            safe_get_config(settings, 'BACKPRESSURE_RATIO', 0.6)
+        )
+        self.config.backpressure_delay_base = safe_get_config(
+            settings, 'REDIS_BACKPRESSURE_DELAY_BASE',
+            safe_get_config(settings, 'BACKPRESSURE_DELAY_BASE', 0.5)
+        )
+        self.config.backpressure_delay_max = safe_get_config(
+            settings, 'REDIS_BACKPRESSURE_DELAY_MAX',
+            safe_get_config(settings, 'BACKPRESSURE_DELAY_MAX', 5.0)
+        )
+        
+        # 更新extra_config中的阈值
+        if hasattr(self.config, 'extra_config') and self.config.extra_config:
+            self.config.extra_config['backpressure_warning_threshold'] = safe_get_config(
+                settings, 'REDIS_BACKPRESSURE_WARNING_THRESHOLD',
+                safe_get_config(settings, 'BACKPRESSURE_WARNING_THRESHOLD', 0.5)
+            )
+            self.config.extra_config['backpressure_critical_threshold'] = safe_get_config(
+                settings, 'REDIS_BACKPRESSURE_CRITICAL_THRESHOLD',
+                safe_get_config(settings, 'BACKPRESSURE_CRITICAL_THRESHOLD', 0.8)
+            )
+        
+        self.logger.debug(
+            f"Applied Redis backpressure config: "
+            f"max_size={self.config.max_queue_size}, "
+            f"ratio={self.config.backpressure_ratio}, "
+            f"delay_base={self.config.backpressure_delay_base}s, "
+            f"delay_max={self.config.backpressure_delay_max}s"
+        )
+
+    def _apply_memory_backpressure_config(self):
+        """应用内存队列的背压配置（用于AUTO模式）"""
+        from crawlo.utils.misc import safe_get_config
+        
+        settings = self.config.settings if hasattr(self.config, 'settings') and self.config.settings else {}
+        
+        # 更新QueueConfig的背压参数为Memory配置
+        self.config.max_queue_size = safe_get_config(
+            settings, 'MEMORY_SCHEDULER_MAX_QUEUE_SIZE',
+            safe_get_config(settings, 'SCHEDULER_MAX_QUEUE_SIZE', 5000), int
+        )
+        self.config.backpressure_ratio = safe_get_config(
+            settings, 'MEMORY_BACKPRESSURE_RATIO',
+            safe_get_config(settings, 'BACKPRESSURE_RATIO', 0.8)
+        )
+        self.config.backpressure_delay_base = safe_get_config(
+            settings, 'MEMORY_BACKPRESSURE_DELAY_BASE',
+            safe_get_config(settings, 'BACKPRESSURE_DELAY_BASE', 0.2)
+        )
+        self.config.backpressure_delay_max = safe_get_config(
+            settings, 'MEMORY_BACKPRESSURE_DELAY_MAX',
+            safe_get_config(settings, 'BACKPRESSURE_DELAY_MAX', 2.0)
+        )
+        
+        # 更新extra_config中的阈值
+        if hasattr(self.config, 'extra_config') and self.config.extra_config:
+            self.config.extra_config['backpressure_warning_threshold'] = safe_get_config(
+                settings, 'MEMORY_BACKPRESSURE_WARNING_THRESHOLD',
+                safe_get_config(settings, 'BACKPRESSURE_WARNING_THRESHOLD', 0.7)
+            )
+            self.config.extra_config['backpressure_critical_threshold'] = safe_get_config(
+                settings, 'MEMORY_BACKPRESSURE_CRITICAL_THRESHOLD',
+                safe_get_config(settings, 'BACKPRESSURE_CRITICAL_THRESHOLD', 0.9)
+            )
+        
+        self.logger.debug(
+            f"Applied Memory backpressure config: "
+            f"max_size={self.config.max_queue_size}, "
+            f"ratio={self.config.backpressure_ratio}, "
+            f"delay_base={self.config.backpressure_delay_base}s, "
+            f"delay_max={self.config.backpressure_delay_max}s"
+        )
 
     def _get_queue_info(self) -> Dict[str, Any]:
         """Get queue configuration information"""

@@ -323,7 +323,7 @@ class CrawloConfig:
         })
         settings.update({k.upper(): v for k, v in kwargs.items()})
         return cls(settings)
-    
+
     @classmethod
     def auto(cls, project_name: str = 'crawlo', **kwargs) -> 'CrawloConfig':
         """

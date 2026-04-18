@@ -13,12 +13,14 @@ class QueueType(Enum):
     支持的队列类型：
     - MEMORY: 内存队列，适用于单机小规模爬虫
     - REDIS: Redis 队列，适用于分布式爬虫
-    - DISK: 磁盘持久化队列，适用于大规模持久化场景
     - AUTO: 自动选择，根据环境自动选择合适的队列类型
+    
+    注：DiskQueue 仍存在于 crawlo.queue.disk_queue 模块中，
+    但已不在框架中集成，可单独导入使用。
     """
     MEMORY = "memory"
     REDIS = "redis"
-    DISK = "disk"
+    DISK = "disk"  # 保留用于兼容，但不在框架中使用
     AUTO = "auto"
     
     @classmethod
@@ -45,7 +47,7 @@ class QueueType(Enum):
         Returns:
             bool: 是否支持分布式
         """
-        return self in (QueueType.REDIS, QueueType.DISK)
+        return self == QueueType.REDIS
     
     def requires_external_service(self) -> bool:
         """
