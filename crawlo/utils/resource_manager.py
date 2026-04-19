@@ -244,8 +244,6 @@ class ResourceManager:
                 self._logger.debug("No resources to cleanup")
                 return self._get_cleanup_stats()
             
-            self._logger.info(f"Starting cleanup of {len(self._resources)} resources...")
-            
             # 计算正确的清理顺序（依赖感知）
             cleanup_order = self._compute_cleanup_order()
             
