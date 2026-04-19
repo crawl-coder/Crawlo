@@ -15,31 +15,35 @@ Crawlo 框架的 MySQL 数据存在性检查工具，用于在爬虫列表页采
 特点：
 1. 简单易用：只需传入 SQL 语句即可判断存在性
 2. 自动配置：自动从 settings 获取数据库连接信息
-3. 资源安全：自动管理连接池生命周期
+3. 连接池复用：使用单例模式，避免频繁创建/销毁连接
 4. 协程集成：与框架异步协程无缝配合
+5. 生命周期管理：爬虫结束时统一关闭连接池
 
 使用示例：
 ```python
 from crawlo.tools.mysql_exists_checker import MySQLExistsChecker
 
-# 在 Spider 中使用
+# 在 Spider 中使用（连接池在整个爬虫生命周期内复用）
 class MySpider(Spider):
     name = 'my_spider'
     
+    async def start_requests(self):
+        # 创建检查器（在爬虫开始时）
+        self.db_checker = MySQLExistsChecker.from_settings(self.settings)
+        yield from self._get_initial_requests()
+    
     async def parse_list(self, response):
         for item in response.json():
-            # 检查数据是否已存在
-            sql = f"SELECT 1 FROM articles WHERE url = '{item['url']}' LIMIT 1"
-            checker = MySQLExistsChecker(self.settings)
-            exists = await checker.exists(sql)
+            # 检查数据是否已存在（复用连接池）
+            sql = "SELECT 1 FROM articles WHERE url = %s LIMIT 1"
+            exists = await self.db_checker.exists(sql, (item['url'],))
             
             if not exists:
-                # 数据不存在，解析详情页
                 yield Request(item['detail_url'], callback=self.parse_detail)
     
-    async def parse_detail(self, response):
-        # 解析详情页数据
-        yield {'url': response.url, 'title': response.css('title::text').get()}
+    async def closed(self):
+        # 爬虫结束时统一关闭（重要！）
+        await self.db_checker.close()
 ```
 
 Author: Crawlo Team
@@ -47,17 +51,129 @@ Version: 0.2.0
 """
 
 import asyncio
-from typing import Optional, Any
+from typing import Optional, Any, Dict
 from crawlo.logging import get_logger
 
-# 导入连接池管理器
+# MySQL 驱动导入（同时支持 asyncmy 和 aiomysql）
 try:
-    from crawlo.utils.db.mysql_connection_pool import MySQLConnectionPoolManager
-    POOL_MANAGER_AVAILABLE = True
+    from asyncmy import create_pool as asyncmy_create_pool
+    ASYNCMY_AVAILABLE = True
 except ImportError:
-    POOL_MANAGER_AVAILABLE = False
-    MySQLConnectionPoolManager = None
+    asyncmy_create_pool = None
+    ASYNCMY_AVAILABLE = False
 
+try:
+    import aiomysql
+    AIOMYSQL_AVAILABLE = True
+except ImportError:
+    aiomysql = None
+    AIOMYSQL_AVAILABLE = False
+
+
+# ============================================================
+# 单例连接池管理器（模块级）
+# ============================================================
+
+class _MySQLPoolManager:
+    """
+    MySQL 连接池单例管理器
+    
+    确保整个爬虫生命周期内只有一个连接池实例，
+    避免频繁创建/销毁连接带来的性能开销。
+    
+    Attributes:
+        _pools: Dict[str, pool] - 按配置哈希存储的连接池
+        _lock: asyncio.Lock - 创建连接池时的锁
+    """
+    
+    _pools: Dict[str, Any] = {}
+    _lock = asyncio.Lock()
+    
+    @classmethod
+    async def get_pool(cls, config: Dict[str, Any]) -> Any:
+        """
+        获取或创建连接池（单例模式）
+        
+        Args:
+            config: 数据库配置字典
+            
+        Returns:
+            连接池实例
+        """
+        # 生成配置哈希作为 key
+        pool_key = cls._generate_key(config)
+        
+        # 检查是否已存在
+        if pool_key in cls._pools:
+            return cls._pools[pool_key]
+        
+        # 创建新的连接池
+        async with cls._lock:
+            # 双重检查
+            if pool_key in cls._pools:
+                return cls._pools[pool_key]
+            
+            pool = await cls._create_pool(config)
+            cls._pools[pool_key] = pool
+            return pool
+    
+    @classmethod
+    def _generate_key(cls, config: Dict[str, Any]) -> str:
+        """生成配置哈希"""
+        return f"{config['host']}:{config['port']}/{config['db']}"
+    
+    @classmethod
+    async def _create_pool(cls, config: Dict[str, Any]) -> Any:
+        """创建连接池"""
+        pool_config = {
+            'host': config['host'],
+            'port': config['port'],
+            'user': config['user'],
+            'password': config['password'],
+            'db': config['db'],
+            'minsize': config.get('minsize', 2),
+            'maxsize': config.get('maxsize', 5),
+        }
+        
+        logger = get_logger('MySQLExistsChecker.Pool')
+        
+        # 优先使用 asyncmy（性能更好），其次 aiomysql
+        if ASYNCMY_AVAILABLE:
+            pool = await asyncmy_create_pool(**pool_config)
+            logger.debug(f"asyncmy 连接池已创建: {pool_config['host']}:{pool_config['port']}")
+        elif AIOMYSQL_AVAILABLE:
+            pool = await aiomysql.create_pool(**pool_config)
+            logger.debug(f"aiomysql 连接池已创建: {pool_config['host']}:{pool_config['port']}")
+        else:
+            raise RuntimeError(
+                f"MySQL 连接池不可用，请安装 asyncmy 或 aiomysql\n"
+                f"安装命令: pip install asyncmy 或 pip install aiomysql"
+            )
+        
+        return pool
+    
+    @classmethod
+    async def close_all(cls):
+        """关闭所有连接池（爬虫结束时调用）"""
+        async with cls._lock:
+            for key, pool in list(cls._pools.items()):
+                try:
+                    pool.close()
+                    await pool.wait_closed()
+                    get_logger('MySQLExistsChecker.Pool').debug(f"连接池已关闭: {key}")
+                except Exception as e:
+                    get_logger('MySQLExistsChecker.Pool').warning(f"关闭连接池失败: {key}, {e}")
+            cls._pools.clear()
+    
+    @classmethod
+    def get_pool_count(cls) -> int:
+        """获取当前连接池数量"""
+        return len(cls._pools)
+
+
+# ============================================================
+# MySQLExistsChecker
+# ============================================================
 
 class MySQLExistsChecker:
     """
@@ -68,52 +184,63 @@ class MySQLExistsChecker:
     
     使用方法：
     ```python
-    # 方式1：在 Spider 生命周期内使用（推荐）
-    checker = MySQLExistsChecker(crawler.settings)
-    
-    # 检查数据是否存在
-    exists = await checker.exists("SELECT 1 FROM articles WHERE url = %s LIMIT 1", ("https://...",))
-    
-    # 关闭连接池（通常在 Spider 关闭时调用）
-    await checker.close()
-    
-    # 方式2：使用上下文管理器（自动管理资源）
-    async with MySQLExistsChecker(crawler.settings) as checker:
-        exists = await checker.exists("SELECT 1 FROM articles WHERE id = %s", (123,))
+    # 在 Spider 中使用
+    class MySpider(Spider):
+        async def start_requests(self):
+            self.db_checker = MySQLExistsChecker.from_settings(self.settings)
+            # ...
+        
+        async def parse_list(self, response):
+            exists = await self.db_checker.exists(sql, (url,))
+            if not exists:
+                yield Request(url, callback=self.parse_detail)
+        
+        async def closed(self):
+            await self.db_checker.close()
     ```
     
     Attributes:
-        settings: Crawlo 配置对象
+        _config: 数据库配置
+        _pool: 连接池引用（不持有所有权）
         logger: 日志记录器
     """
     
-    def __init__(self, settings: Optional[Any] = None):
+    def __init__(self, config: Dict[str, Any]):
         """
-        初始化存在性检查器
+        初始化检查器
+        
+        Args:
+            config: 数据库配置字典
+                   {
+                       'host': 'localhost',
+                       'port': 3306,
+                       'user': 'root',
+                       'password': '',
+                       'db': 'crawlo',
+                       'minsize': 2,
+                       'maxsize': 5,
+                   }
+        """
+        self._config = config
+        self._pool = None
+        self.logger = get_logger(f'MySQLExistsChecker')
+        self._closed = False
+        self._lock = asyncio.Lock()
+    
+    @classmethod
+    def from_settings(cls, settings: Any) -> 'MySQLExistsChecker':
+        """
+        从 Crawlo settings 创建检查器（推荐方式）
         
         Args:
             settings: Crawlo 配置对象（支持 Settings 类或 dict）
-                      如果为 None，将尝试使用默认配置
-        """
-        self.settings = settings
-        self.logger = get_logger(f'MySQLExistsChecker.{id(self)}')
-        self._pool = None
-        self._pool_key = f'exists_checker_{id(self)}'
-        self._closed = False
-        self._lock = asyncio.Lock()
-        
-        # 从 settings 提取数据库配置
-        self._db_config = self._extract_db_config()
-    
-    def _extract_db_config(self) -> dict:
-        """
-        从 settings 提取数据库配置
         
         Returns:
-            dict: 数据库连接配置
+            MySQLExistsChecker 实例
         """
-        if self.settings is None:
-            return {
+        # 提取配置
+        if settings is None:
+            config = {
                 'host': 'localhost',
                 'port': 3306,
                 'user': 'root',
@@ -122,85 +249,50 @@ class MySQLExistsChecker:
                 'minsize': 2,
                 'maxsize': 5,
             }
-        
-        # 支持 Settings 对象或 dict
-        get = getattr(self.settings, 'get', None)
-        get_int = getattr(self.settings, 'get_int', None)
-        
-        if get and get_int:
-            # Settings 对象
-            return {
-                'host': get('MYSQL_HOST', 'localhost'),
-                'port': get_int('MYSQL_PORT', 3306),
-                'user': get('MYSQL_USER', 'root'),
-                'password': get('MYSQL_PASSWORD', ''),
-                'db': get('MYSQL_DB', 'crawlo'),
-                'minsize': get_int('MYSQL_POOL_MIN', 2),
-                'maxsize': get_int('MYSQL_POOL_MAX', 5),
-            }
-        elif isinstance(self.settings, dict):
-            # dict 对象
-            return {
-                'host': self.settings.get('MYSQL_HOST', 'localhost'),
-                'port': self.settings.get('MYSQL_PORT', 3306),
-                'user': self.settings.get('MYSQL_USER', 'root'),
-                'password': self.settings.get('MYSQL_PASSWORD', ''),
-                'db': self.settings.get('MYSQL_DB', 'crawlo'),
-                'minsize': self.settings.get('MYSQL_POOL_MIN', 2),
-                'maxsize': self.settings.get('MYSQL_POOL_MAX', 5),
+        elif isinstance(settings, dict):
+            config = {
+                'host': settings.get('MYSQL_HOST', 'localhost'),
+                'port': settings.get('MYSQL_PORT', 3306),
+                'user': settings.get('MYSQL_USER', 'root'),
+                'password': settings.get('MYSQL_PASSWORD', ''),
+                'db': settings.get('MYSQL_DB', 'crawlo'),
+                'minsize': settings.get('MYSQL_POOL_MIN', 2),
+                'maxsize': settings.get('MYSQL_POOL_MAX', 5),
             }
         else:
-            # 默认配置
-            return {
-                'host': 'localhost',
-                'port': 3306,
-                'user': 'root',
-                'password': '',
-                'db': 'crawlo',
-                'minsize': 2,
-                'maxsize': 5,
+            # Settings 对象
+            config = {
+                'host': settings.get('MYSQL_HOST', 'localhost'),
+                'port': settings.get_int('MYSQL_PORT', 3306),
+                'user': settings.get('MYSQL_USER', 'root'),
+                'password': settings.get('MYSQL_PASSWORD', ''),
+                'db': settings.get('MYSQL_DB', 'crawlo'),
+                'minsize': settings.get_int('MYSQL_POOL_MIN', 2),
+                'maxsize': settings.get_int('MYSQL_POOL_MAX', 5),
             }
+        
+        return cls(config)
     
     async def _get_pool(self):
         """
-        获取或创建连接池（懒加载）
+        获取连接池（懒加载，单例模式）
         
         Returns:
             连接池实例
         """
         if self._closed:
-            raise RuntimeError("MySQLExistsChecker 已关闭，无法获取连接池")
+            raise RuntimeError("MySQLExistsChecker 已关闭，请重新创建实例")
         
         if self._pool is None:
             async with self._lock:
-                # 双重检查
                 if self._pool is None:
-                    if not POOL_MANAGER_AVAILABLE:
-                        raise RuntimeError(
-                            "MySQL 连接池不可用，请确保已安装 asyncmy 或 aiomysql"
-                        )
-                    
-                    self._pool = await MySQLConnectionPoolManager.get_pool(
-                        host=self._db_config['host'],
-                        port=self._db_config['port'],
-                        user=self._db_config['user'],
-                        password=self._db_config['password'],
-                        db=self._db_config['db'],
-                        minsize=self._db_config['minsize'],
-                        maxsize=self._db_config['maxsize'],
-                        shared=True,  # 共享连接池，复用框架连接
-                    )
-                    self.logger.debug(
-                        f"连接池已创建: {self._db_config['host']}:{self._db_config['port']}"
-                    )
+                    self._pool = await _MySQLPoolManager.get_pool(self._config)
         
         return self._pool
     
     async def exists(self, sql: str, params: tuple = None) -> bool:
         """
         检查数据是否存在
-        
-        执行指定的 SQL 查询（通常使用 LIMIT 1），返回是否存在记录。
         
         Args:
             sql: SQL 查询语句，必须使用 LIMIT 1 限制返回行数
@@ -213,52 +305,34 @@ class MySQLExistsChecker:
         
         Raises:
             RuntimeError: 如果检查器已关闭
-            Exception: 数据库执行错误
         
         Example:
             ```python
-            # 基本用法
-            checker = MySQLExistsChecker(settings)
+            checker = MySQLExistsChecker.from_settings(settings)
             exists = await checker.exists(
                 "SELECT 1 FROM articles WHERE url = %s LIMIT 1",
                 ("https://example.com/article/1",)
-            )
-            
-            # 多条件查询
-            exists = await checker.exists(
-                "SELECT 1 FROM articles WHERE title = %s AND date = %s LIMIT 1",
-                ("标题", "2024-01-01")
-            )
-            
-            # 使用格式化字符串（注意 SQL 注入风险，建议使用参数）
-            exists = await checker.exists(
-                f"SELECT 1 FROM articles WHERE url = 'https://example.com' LIMIT 1"
             )
             ```
         """
         if self._closed:
             raise RuntimeError("MySQLExistsChecker 已关闭，请重新创建实例")
         
-        try:
-            pool = await self._get_pool()
-            
-            async with pool.acquire() as conn:
-                async with conn.cursor() as cursor:
-                    # 执行查询
+        pool = await self._get_pool()
+        
+        async with pool.acquire() as conn:
+            async with conn.cursor() as cursor:
+                try:
                     if params:
                         await cursor.execute(sql, params)
                     else:
                         await cursor.execute(sql)
                     
-                    # 获取结果
                     result = await cursor.fetchone()
-                    
-                    # 返回是否存在
                     return result is not None
-                    
-        except Exception as e:
-            self.logger.error(f"执行存在性检查失败: {e}, SQL: {sql[:100]}...")
-            raise
+                except Exception as e:
+                    self.logger.error(f"执行存在性检查失败: {e}, SQL: {sql[:100]}...")
+                    raise
     
     async def batch_exists(
         self, 
@@ -272,7 +346,7 @@ class MySQLExistsChecker:
         
         Args:
             sql: SQL 查询语句，必须使用 IN 占位符
-                 示例: "SELECT url FROM articles WHERE url IN ({}) LIMIT 1"
+                 示例: "SELECT url FROM articles WHERE url IN ({})"
             params_list: 参数列表
                          示例: [("url1",), ("url2",), ("url3",)]
         
@@ -282,12 +356,11 @@ class MySQLExistsChecker:
         
         Example:
             ```python
-            checker = MySQLExistsChecker(settings)
+            checker = MySQLExistsChecker.from_settings(settings)
             urls = ["url1", "url2", "url3"]
             placeholders = ", ".join(["%s"] * len(urls))
             sql = f"SELECT url FROM articles WHERE url IN ({placeholders})"
             
-            # 获取已存在的 URL
             params_list = [(url,) for url in urls]
             exists_list = await checker.batch_exists(sql, params_list)
             
@@ -299,29 +372,24 @@ class MySQLExistsChecker:
         if self._closed:
             raise RuntimeError("MySQLExistsChecker 已关闭，请重新创建实例")
         
-        try:
-            pool = await self._get_pool()
-            
-            async with pool.acquire() as conn:
-                async with conn.cursor() as cursor:
+        pool = await self._get_pool()
+        
+        async with pool.acquire() as conn:
+            async with conn.cursor() as cursor:
+                try:
                     # 合并所有参数
                     all_params = []
                     for params in params_list:
                         all_params.extend(params)
                     
-                    # 执行查询
                     await cursor.execute(sql, all_params)
                     results = await cursor.fetchall()
                     
-                    # 获取存在的值
                     existing = {r[0] for r in results}
-                    
-                    # 返回每个参数的存在性
                     return [params[0] in existing for params in params_list]
-                    
-        except Exception as e:
-            self.logger.error(f"批量存在性检查失败: {e}")
-            raise
+                except Exception as e:
+                    self.logger.error(f"批量存在性检查失败: {e}")
+                    raise
     
     async def count(self, sql: str, params: tuple = None) -> int:
         """
@@ -329,7 +397,7 @@ class MySQLExistsChecker:
         
         Args:
             sql: SQL 查询语句
-                 示例: "SELECT COUNT(*) FROM articles WHERE status = %s"
+                 示例: "SELECT COUNT(*) FROM articles WHERE date = %s"
             params: SQL 参数元组（可选）
         
         Returns:
@@ -337,7 +405,7 @@ class MySQLExistsChecker:
         
         Example:
             ```python
-            checker = MySQLExistsChecker(settings)
+            checker = MySQLExistsChecker.from_settings(settings)
             count = await checker.count(
                 "SELECT COUNT(*) FROM articles WHERE date = %s",
                 ("2024-01-01",)
@@ -348,11 +416,11 @@ class MySQLExistsChecker:
         if self._closed:
             raise RuntimeError("MySQLExistsChecker 已关闭，请重新创建实例")
         
-        try:
-            pool = await self._get_pool()
-            
-            async with pool.acquire() as conn:
-                async with conn.cursor() as cursor:
+        pool = await self._get_pool()
+        
+        async with pool.acquire() as conn:
+            async with conn.cursor() as cursor:
+                try:
                     if params:
                         await cursor.execute(sql, params)
                     else:
@@ -360,55 +428,53 @@ class MySQLExistsChecker:
                     
                     result = await cursor.fetchone()
                     return result[0] if result else 0
-                    
-        except Exception as e:
-            self.logger.error(f"统计查询失败: {e}")
-            raise
+                except Exception as e:
+                    self.logger.error(f"统计查询失败: {e}")
+                    raise
     
     async def close(self):
         """
-        关闭检查器并释放资源
+        关闭检查器
         
-        注意：由于使用共享连接池，此方法不会真正关闭连接池，
-        只是清理当前实例的引用。连接池由 MySQLConnectionPoolManager
-        统一管理。
+        注意：此方法只标记检查器为已关闭，
+        实际连接池由 _MySQLPoolManager 统一管理，
+        不会在这里关闭。连接池的关闭应该在爬虫结束时
+        调用 MySQLExistsChecker.close_all() 统一关闭。
         
-        调用此方法后，检查器将无法继续使用。
+        这样设计的好处：
+        1. 多个检查器可以共享同一个连接池
+        2. 避免重复创建/销毁连接
+        3. 爬虫结束时统一关闭所有连接池
         """
         if self._closed:
             return
         
         self._closed = True
-        self._pool = None
-        self.logger.debug("MySQLExistsChecker 资源已清理")
+        self._pool = None  # 只是断开引用，不关闭连接池
+        self.logger.debug("MySQLExistsChecker 已标记为关闭")
     
-    async def __aenter__(self):
-        """异步上下文管理器入口"""
-        return self
+    async def close_all():
+        """
+        关闭所有连接池（类方法）
+        
+        在爬虫结束时调用，关闭所有由 MySQLExistsChecker 创建的连接池。
+        
+        Example:
+            ```python
+            class MySpider(Spider):
+                async def closed(self):
+                    await MySQLExistsChecker.close_all()
+            ```
+        """
+        await _MySQLPoolManager.close_all()
     
-    async def __aexit__(self, exc_type, exc_val, exc_tb):
-        """异步上下文管理器出口，自动关闭"""
-        await self.close()
-        return False
-    
-    def __del__(self):
-        """析构函数，确保资源清理"""
-        if not self._closed and self._pool:
-            # 尝试创建异步任务关闭（如果在事件循环中）
-            try:
-                loop = asyncio.get_event_loop()
-                if loop.is_running():
-                    asyncio.create_task(self.close())
-            except Exception:
-                pass
+    @staticmethod
+    def get_pool_count() -> int:
+        """获取当前连接池数量"""
+        return _MySQLPoolManager.get_pool_count()
     
     def is_closed(self) -> bool:
-        """
-        检查检查器是否已关闭
-        
-        Returns:
-            bool: 是否已关闭
-        """
+        """检查检查器是否已关闭"""
         return self._closed
 
 
@@ -416,12 +482,12 @@ class MySQLExistsChecker:
 async def check_exists(
     sql: str, 
     params: tuple = None,
-    settings: Optional[Any] = None
+    settings: Any = None
 ) -> bool:
     """
     快速检查数据是否存在（便捷函数）
     
-    适用于一次性检查场景，自动管理资源。
+    适用于一次性检查场景。建议在批量操作时使用 MySQLExistsChecker 类。
     
     Args:
         sql: SQL 查询语句
@@ -441,8 +507,11 @@ async def check_exists(
         )
         ```
     """
-    async with MySQLExistsChecker(settings) as checker:
+    checker = MySQLExistsChecker.from_settings(settings)
+    try:
         return await checker.exists(sql, params)
+    finally:
+        await checker.close()
 
 
 # 导出
