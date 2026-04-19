@@ -296,27 +296,77 @@ class Engine(object):
             self.logger.debug(f"Request generation completed, total: {total_generated}")
 
     async def _process_generation_batch(self, batch) -> int:
-        """Process a batch of requests"""
+        """
+        处理一批请求
+               
+        优化点：
+        - 使用 asyncio.gather 并发入队，减少串行等待
+        - 动态调整生成间隔，避免过度限流
+        - 添加批量统计信息
+        """
         generated = 0
         
-        for request in batch:
-            if not self.running:
-                break
+        # 优化：如果队列有足够空间，批量并发入队
+        queue_size = len(self.scheduler) if self.scheduler else 0
+        available_space = self.max_queue_size - queue_size
+        
+        if available_space >= len(batch):
+            # 队列有足够空间，并发入队
+            tasks = []
+            for request in batch:
+                if not self.running:
+                    break
+                tasks.append(self._enqueue_single_request(request))
             
-            # 等待队列有空间
-            while await self._is_queue_full() and self.running:
-                await asyncio.sleep(0.01)  # 减少等待时间
-            
-            if self.running:
-                await self.enqueue_request(request)
-                generated += 1
-                self._generation_stats.increment_generated()
-            
-            # 控制生成速度，但使用更小的间隔
-            if self.generation_interval > 0:
-                await asyncio.sleep(self.generation_interval)
+            if tasks:
+                results = await asyncio.gather(*tasks, return_exceptions=True)
+                for result in results:
+                    if isinstance(result, bool) and result:
+                        generated += 1
+                        self._generation_stats.increment_generated()
+        else:
+            # 队列空间不足，逐个入队并等待
+            for request in batch:
+                if not self.running:
+                    break
+                
+                # 等待队列有空间
+                wait_count = 0
+                while await self._is_queue_full() and self.running:
+                    await asyncio.sleep(0.005)  # 减少等待间隔
+                    wait_count += 1
+                    if wait_count > 200:  # 最多等待1秒
+                        self.logger.warning("Queue full timeout, skipping remaining requests")
+                        break
+                
+                if self.running:
+                    success = await self._enqueue_single_request(request)
+                    if success:
+                        generated += 1
+                        self._generation_stats.increment_generated()
+                
+                # 动态调整生成间隔：根据队列使用率调整
+                if self.generation_interval > 0:
+                    queue_usage = queue_size / max(1, self.max_queue_size)
+                    # 队列使用率高时增加间隔，低时减少间隔
+                    adaptive_interval = self.generation_interval * (0.5 + queue_usage)
+                    await asyncio.sleep(adaptive_interval)
         
         return generated
+    
+    async def _enqueue_single_request(self, request) -> bool:
+        """
+        单个请求入队
+        
+        Returns:
+            bool: 是否成功入队
+        """
+        try:
+            await self.enqueue_request(request)
+            return True
+        except Exception as e:
+            self.logger.debug(f"Failed to enqueue request {request.url}: {e}")
+            return False
 
     async def _should_pause_generation(self) -> bool:
         """Determine whether generation should be paused"""

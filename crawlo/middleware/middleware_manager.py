@@ -37,6 +37,7 @@ class MiddlewareManager:
         self.logger = get_logger(self.__class__.__name__)
         self.middlewares: List = []
         self.methods: Dict[str, List[MethodType]] = defaultdict(list)
+        self._initialized = False  # 生命周期状态标记
         
         # Safely get MIDDLEWARES configuration
         middlewares = safe_get_config(self.crawler.settings, 'MIDDLEWARES', [], list)
@@ -81,6 +82,76 @@ class MiddlewareManager:
     def download_method(self, func: Callable):
         """设置下载方法"""
         self._download_func = func
+    
+    async def open(self) -> None:
+        """
+        中间件管理器初始化（生命周期方法）
+        
+        在爬虫启动时调用，初始化所有中间件。
+        支持中间件的 open() 生命周期钩子。
+        """
+        if self._initialized:
+            self.logger.debug("MiddlewareManager already initialized")
+            return
+        
+        self.logger.debug(f"Initializing {len(self.middlewares)} middlewares...")
+        
+        for middleware in self.middlewares:
+            try:
+                # 调用中间件的 open 生命周期方法（如果存在）
+                if hasattr(middleware, 'open'):
+                    open_method = middleware.open
+                    if asyncio.iscoroutinefunction(open_method):
+                        await open_method()
+                    else:
+                        result = open_method()
+                        if asyncio.iscoroutine(result):
+                            await result
+                    
+                    self.logger.debug(f"Middleware {middleware.__class__.__name__} opened")
+            except Exception as e:
+                self.logger.error(
+                    f"Failed to open middleware {middleware.__class__.__name__}: {e}"
+                )
+                raise
+        
+        self._initialized = True
+        self.logger.info(f"MiddlewareManager initialized with {len(self.middlewares)} middlewares")
+    
+    async def close(self) -> None:
+        """
+        中间件管理器关闭（生命周期方法）
+        
+        在爬虫关闭时调用，清理所有中间件资源。
+        支持中间件的 close() 生命周期钩子。
+        """
+        if not self._initialized:
+            self.logger.debug("MiddlewareManager not initialized, skipping close")
+            return
+        
+        self.logger.debug(f"Closing {len(self.middlewares)} middlewares...")
+        
+        # 反向关闭（与初始化顺序相反）
+        for middleware in reversed(self.middlewares):
+            try:
+                # 调用中间件的 close 生命周期方法（如果存在）
+                if hasattr(middleware, 'close'):
+                    close_method = middleware.close
+                    if asyncio.iscoroutinefunction(close_method):
+                        await close_method()
+                    else:
+                        result = close_method()
+                        if asyncio.iscoroutine(result):
+                            await result
+                    
+                    self.logger.debug(f"Middleware {middleware.__class__.__name__} closed")
+            except Exception as e:
+                self.logger.warning(
+                    f"Error closing middleware {middleware.__class__.__name__}: {e}"
+                )
+        
+        self._initialized = False
+        self.logger.info("MiddlewareManager closed")
 
     async def _process_request(self, request: 'Request'):
         # 添加诊断日志：追踪请求进入中间件链

@@ -108,6 +108,14 @@ class Processor:
                         self.logger.error(f"Failed to open pipeline {pipeline.__class__.__name__}: {e}")
                         raise
         
+        # 调用中间件管理器的 open 生命周期方法
+        if hasattr(self.crawler, 'middleware_manager') and self.crawler.middleware_manager:
+            try:
+                await self.crawler.middleware_manager.open()
+            except Exception as e:
+                self.logger.error(f"Failed to open middleware manager: {e}")
+                raise
+        
         self.logger.debug("Processor initialized")
     
     async def start(self) -> asyncio.Task:
@@ -281,6 +289,27 @@ class Processor:
         """
         async with self._lock:
             return len(self._processing) == 0 and self.queue.empty()
+    
+    async def close(self) -> None:
+        """
+        关闭处理器并清理资源
+        
+        调用中间件和管道的 close 生命周期方法。
+        """
+        self.logger.debug("Closing processor...")
+        
+        # 关闭中间件管理器
+        if hasattr(self.crawler, 'middleware_manager') and self.crawler.middleware_manager:
+            try:
+                await self.crawler.middleware_manager.close()
+            except Exception as e:
+                self.logger.warning(f"Error closing middleware manager: {e}")
+        
+        # 关闭管道（已在 engine.close_spider 中调用）
+        # if self.pipelines and hasattr(self.pipelines, 'close'):
+        #     await self.pipelines.close()
+        
+        self.logger.debug("Processor closed")
     
     def idle(self) -> bool:
         """
