@@ -204,6 +204,10 @@ class TaskManager(Generic[T]):
         self._stats._start_time = time.time()
         self._closed = False
         
+        # 并发监控
+        self._max_concurrent_seen = 0  # 峰值并发数
+        self._concurrency_limit = total_concurrency  # 并发限制
+        
     async def create_task(
         self, 
         coroutine, 
@@ -236,6 +240,9 @@ class TaskManager(Generic[T]):
         self.current_task.add(task)
         self._stats.active_tasks = len(self.current_task)
         self._stats.total_tasks += 1
+        
+        # 更新峰值并发数
+        self._max_concurrent_seen = max(self._max_concurrent_seen, self._stats.active_tasks)
 
         def done_callback(_future: Future[T]) -> None:
             try:
@@ -308,7 +315,17 @@ class TaskManager(Generic[T]):
             self._stats.tasks_per_second = self._stats.total_tasks / max(1, elapsed)
         
         self._stats.current_concurrency = self.semaphore.current_value
-        return self._stats.to_dict()
+        
+        # 构建完整的统计信息
+        stats = self._stats.to_dict()
+        stats.update({
+            'concurrency_limit': self._concurrency_limit,
+            'max_concurrent_seen': self._max_concurrent_seen,
+            'concurrency_utilization': round(
+                self._max_concurrent_seen / max(1, self._concurrency_limit) * 100, 2
+            ),
+        })
+        return stats
     
     async def close(self, timeout: float = 30.0, cancel_pending: bool = False) -> None:
         """

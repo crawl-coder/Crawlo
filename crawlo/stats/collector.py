@@ -112,6 +112,41 @@ class StatsCollector:
             except (ValueError, TypeError):
                 pass
         
+        # 集成并发监控指标
+        self._collect_task_manager_stats()
+        
+
+    def _collect_task_manager_stats(self) -> None:
+        """
+        收集 TaskManager 并发监控指标
+        
+        将并发统计集成到 StatsCollector 中，统一输出格式。
+        """
+        try:
+            # 从 crawler 获取 engine
+            engine = getattr(self.crawler, '_engine', None)
+            if not engine or not hasattr(engine, 'task_manager'):
+                return
+            
+            task_manager = engine.task_manager
+            if task_manager is None:
+                return
+            
+            # 获取并发统计
+            tm_stats = task_manager.get_stats()
+            
+            # 集成到统计后端
+            self.backend.set_value('concurrency_limit', tm_stats.get('concurrency_limit', 0))
+            self.backend.set_value('max_concurrent_seen', tm_stats.get('max_concurrent_seen', 0))
+            self.backend.set_value('concurrency_utilization', tm_stats.get('concurrency_utilization', 0))
+            
+            # 转换响应时间为毫秒
+            avg_response_time = tm_stats.get('avg_response_time', 0)
+            if avg_response_time:
+                self.backend.set_value('avg_response_time_ms', round(avg_response_time * 1000, 2))
+        except Exception as e:
+            self.logger.debug(f"Failed to collect task manager stats: {e}")
+
 
     def __getitem__(self, item: str) -> Any:
         return self.backend.get_value(item)

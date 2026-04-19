@@ -12,7 +12,9 @@ Crawlo 框架异常定义
     ├── DataException (数据处理)
     ├── RequestException (请求/响应)
     ├── OutputException (输出)
-    └── ConfigException (配置)
+    ├── ConfigException (配置)
+    ├── ScheduleException (调度)
+    └── DetailedException (详细错误)
 
 使用示例：
     >>> try:
@@ -22,7 +24,8 @@ Crawlo 框架异常定义
     ... except Exception as e:
     ...     # 其他异常
 """
-from typing import Optional, Any
+from typing import Optional, Any, Dict
+from datetime import datetime
 
 
 # ============= 基础异常 =============
@@ -282,6 +285,79 @@ class QueueEmptyError(ScheduleException):
         self.queue_name = queue_name
 
 
+class QueueClosedError(ScheduleException):
+    """队列已关闭异常"""
+    pass
+
+
+# ============= 详细错误异常（用于错误处理工具）=============
+class DetailedException(CrawloException):
+    """
+    带有详细信息的异常
+    
+    用于错误处理工具，提供上下文、错误代码等额外信息。
+    
+    Attributes:
+        message: 异常消息
+        context: 错误上下文信息
+        error_code: 错误代码
+        details: 额外详情字典
+        timestamp: 异常发生时间
+    """
+    
+    def __init__(
+        self, 
+        message: str, 
+        context: Optional['ErrorContext'] = None,
+        error_code: Optional[str] = None, 
+        **kwargs
+    ) -> None:
+        super().__init__(message)
+        self.context = context
+        self.error_code = error_code
+        self.details = kwargs
+        self.timestamp = datetime.now()
+        
+    def __str__(self) -> str:
+        base_msg = super().__str__()
+        if self.context:
+            return f"{base_msg} ({self.context})"
+        return base_msg
+    
+    def get_full_details(self) -> Dict:
+        """获取完整的错误详情"""
+        return {
+            "message": str(self),
+            "error_code": self.error_code,
+            "context": str(self.context) if self.context else None,
+            "details": self.details,
+            "timestamp": self.timestamp.isoformat(),
+            "exception_type": self.__class__.__name__
+        }
+
+
+# ============= 错误上下文（用于DetailedException）=============
+class ErrorContext:
+    """错误上下文信息"""
+    
+    def __init__(self, context: str = "", module: str = "", function: str = ""):
+        self.context = context
+        self.module = module
+        self.function = function
+        self.timestamp = datetime.now()
+        
+    def __str__(self) -> str:
+        parts = []
+        if self.module:
+            parts.append(f"Module: {self.module}")
+        if self.function:
+            parts.append(f"Function: {self.function}")
+        if self.context:
+            parts.append(f"Context: {self.context}")
+        parts.append(f"Time: {self.timestamp.strftime('%Y-%m-%d %H:%M:%S')}")
+        return " | ".join(parts)
+
+
 # ============= 导出所有异常 =============
 __all__ = [
     # 基础异常
@@ -333,4 +409,9 @@ __all__ = [
     'ScheduleException',
     'QueueFullError',
     'QueueEmptyError',
+    'QueueClosedError',
+    
+    # 详细错误
+    'DetailedException',
+    'ErrorContext',
 ]

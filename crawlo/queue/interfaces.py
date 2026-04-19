@@ -14,6 +14,7 @@ if TYPE_CHECKING:
     from crawlo.network.request import Request
 
 from crawlo.queue.queue_types import QueueType, QueueStats
+from crawlo.exceptions import QueueClosedError, QueueFullError, QueueEmptyError
 
 
 class IQueue(ABC):
@@ -196,21 +197,6 @@ class IQueue(ABC):
         if result is None and self._closed:
             raise StopAsyncIteration
         return result
-
-
-class QueueClosedError(Exception):
-    """队列已关闭异常"""
-    pass
-
-
-class QueueFullError(Exception):
-    """队列已满异常"""
-    pass
-
-
-class QueueEmptyError(Exception):
-    """队列为空异常"""
-    pass
 
 
 class BackpressureableQueueMixin(ABC):

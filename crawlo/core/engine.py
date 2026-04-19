@@ -10,6 +10,7 @@ from crawlo.spider import Spider
 from crawlo.event import CrawlerEvent
 from crawlo.logging import get_logger
 from crawlo.exceptions import OutputError
+from crawlo.error_types import ErrorClassifier
 from crawlo.task_manager import TaskManager
 from crawlo.downloader import DownloaderBase
 from crawlo.core.processor import Processor
@@ -22,6 +23,9 @@ from crawlo.__version__ import __version__
 
 
 class Engine(object):
+    
+    # 关键错误类型配置，从 error_types 模块导入
+    CRITICAL_EXCEPTIONS = ErrorClassifier.CRITICAL_EXCEPTIONS
 
     def __init__(self, crawler):
         self.running = False
@@ -377,8 +381,12 @@ class Engine(object):
                     if hasattr(request, 'url'):
                         self.crawler.stats.inc_value(f'downloader/failed_urls_count')
                 
-                # 不再重新抛出异常，避免未处理的Task异常
-                # 继续处理下一个请求而不是退出整个程序
+                # 关键错误需要重新抛出，避免系统处于不稳定状态
+                if ErrorClassifier.is_critical(e):
+                    self.logger.critical(f"遇到关键错误，停止爬虫: {type(e).__name__}: {e}")
+                    raise
+                
+                # 非关键错误继续处理下一个请求
                 return None
 
         # 使用异步任务创建，遵守并发限制
@@ -627,10 +635,26 @@ class Engine(object):
         if self.processor is not None and hasattr(self.processor, 'pipelines'):
             await self.processor.pipelines.close()
         
-        # 注意：downloader 已注册到 ResourceManager，由 ResourceManager 统一清理
-        # 这里不再重复调用 downloader.close()
+        # 关闭下载器（带超时保护）
+        if self.downloader is not None and hasattr(self.downloader, 'close'):
+            try:
+                close_result = self.downloader.close()
+                # 如果是协程，使用超时等待
+                if asyncio.iscoroutine(close_result):
+                    await asyncio.wait_for(close_result, timeout=5.0)
+            except asyncio.TimeoutError:
+                self.logger.warning("下载器关闭超时，强制清理资源")
+            except Exception as e:
+                self.logger.debug(f"下载器关闭时发生错误: {e}")
+        
+        # 关闭调度器
         if self.scheduler is not None:
-            await self.scheduler.close()
+            try:
+                await asyncio.wait_for(self.scheduler.close(), timeout=5.0)
+            except asyncio.TimeoutError:
+                self.logger.warning("调度器关闭超时")
+            except Exception as e:
+                self.logger.debug(f"调度器关闭时发生错误: {e}")
     
     async def _try_resume_from_checkpoint(self, spider) -> bool:
         """尝试从检查点恢复爬取状态
