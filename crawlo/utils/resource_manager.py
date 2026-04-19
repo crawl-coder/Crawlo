@@ -255,8 +255,17 @@ class ResourceManager:
             
             for managed in cleanup_order:
                 try:
+                    resource_cleanup_start = time.time()
                     self._logger.debug(f"Cleaning up: {managed.name} (priority={managed.priority})")
                     await managed.cleanup()
+                    resource_cleanup_duration = time.time() - resource_cleanup_start
+                    
+                    # 超过 100ms 输出警告
+                    if resource_cleanup_duration > 0.1:
+                        self._logger.warning(
+                            f"Resource {managed.name} cleanup took {resource_cleanup_duration:.3f}s"
+                        )
+                    
                     success_count += 1
                     self._stats['total_cleaned'] += 1
                     self._stats['active_resources'] -= 1

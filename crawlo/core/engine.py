@@ -196,10 +196,14 @@ class Engine(object):
             # 主爬取循环
             loop_count = 0
             last_exit_check = 0  # 记录上次检查退出条件的循环次数
-            exit_check_interval = 10  # 每10次循环检查一次退出条件，减少检查频率
             last_component_states = None  # 记录上次的组件状态，用于减少冗余日志
             batch_size = 5  # 批量获取请求的数量
             idle_count = 0  # 连续空闲计数
+            
+            # 动态退出检查间隔
+            exit_check_interval = 10
+            min_check_interval = 5  # 最小检查间隔
+            max_check_interval = 20  # 最大检查间隔
             
             while self.running:
                 loop_count += 1
@@ -218,10 +222,28 @@ class Engine(object):
                     # 并发处理批量请求
                     tasks = [self._crawl(req) for req in requests]
                     await asyncio.gather(*tasks, return_exceptions=True)
+                    
+                    # 有请求处理时，增加检查间隔（减少开销）
+                    exit_check_interval = min(exit_check_interval + 1, max_check_interval)
                 else:
                     idle_count += 1
+                    
+                    # 首次检测到空闲时，立即检查退出条件
+                    if idle_count == 1:
+                        should_exit, last_component_states = await self._should_exit(last_component_states)
+                        if should_exit:
+                            # 添加短暂等待，避免瞬时空闲误判
+                            await asyncio.sleep(0.001)
+                            # 再次确认所有组件仍然空闲
+                            if await self._check_all_idle():
+                                self.logger.debug("二次确认所有组件空闲，准备退出循环")
+                                break
+                        last_exit_check = loop_count
+                    
+                    # 空闲状态，减少检查间隔（加快退出）
+                    exit_check_interval = max(exit_check_interval - 1, min_check_interval)
                 
-                # 优化退出条件检查频率（每10次循环检查一次）
+                # 优化退出条件检查频率
                 if loop_count - last_exit_check >= exit_check_interval:
                     should_exit, last_component_states = await self._should_exit(last_component_states)
                     if should_exit:
@@ -605,6 +627,16 @@ class Engine(object):
         if (scheduler_idle and downloader_idle and task_manager_done and processor_idle):
             return True
         return False
+    
+    async def _check_all_idle(self) -> bool:
+        """二次确认所有组件是否仍然空闲
+        
+        用于在退出前添加短暂等待后再次确认，避免瞬时空闲误判。
+        
+        Returns:
+            bool: 所有组件是否都空闲
+        """
+        return await self._exit()
 
     async def _should_exit(self, last_component_states=None) -> tuple[bool, tuple]:
         """检查是否应该退出
@@ -647,32 +679,8 @@ class Engine(object):
                 downloader_idle and 
                 task_manager_done and 
                 processor_idle):
-                # 立即进行二次检查，不等待
-                if self.scheduler is not None:
-                    scheduler_idle = await self.scheduler.async_idle() if hasattr(self.scheduler, 'async_idle') else self.scheduler.idle()
-                if self.downloader is not None:
-                    downloader_idle = self.downloader.idle()
-                if self.task_manager is not None:
-                    task_manager_done = self.task_manager.all_done()
-                if self.processor is not None:
-                    processor_idle = await self.processor.idle_async()
-                
-                # 二次检查状态也只在变化时输出
-                second_states = (scheduler_idle, downloader_idle, task_manager_done, processor_idle)
-                if second_states != current_states:
-                    self.logger.debug(
-                        f"二次检查组件状态 - Scheduler: {scheduler_idle}, "
-                        f"Downloader: {downloader_idle}, "
-                        f"TaskManager: {task_manager_done}, "
-                        f"Processor: {processor_idle}"
-                    )
-                
-                if (scheduler_idle and 
-                    downloader_idle and 
-                    task_manager_done and 
-                    processor_idle):
-                    self.logger.info("All components are idle, preparing to exit")
-                    return True, current_states
+                self.logger.info("All components are idle, preparing to exit")
+                return True, current_states
         else:
             self.logger.debug("start_requests 不为 None，不退出")
             current_states = None
@@ -687,10 +695,10 @@ class Engine(object):
         self._spider_closed = True
         self._close_reason = reason
 
-        # 等待所有活跃任务完成，正确处理取消情况
-        if self.task_manager is not None and self.task_manager.current_task:
+        # 仅在非正常退出时等待活跃任务完成
+        if reason != 'finished' and self.task_manager is not None and self.task_manager.current_task:
+            self.logger.debug(f"Waiting for {len(self.task_manager.current_task)} active tasks to complete...")
             try:
-                # 使用 return_exceptions=True 避免单个任务异常影响其他任务
                 await asyncio.gather(*self.task_manager.current_task, return_exceptions=True)
             except asyncio.CancelledError:
                 self.logger.debug("Task manager gather cancelled")
