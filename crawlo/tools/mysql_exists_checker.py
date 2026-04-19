@@ -134,7 +134,8 @@ class MySQLExistsChecker:
         """关闭检查器（不关闭连接池，由框架统一管理）"""
         self._closed = True
     
-    async def close_all():
+    @classmethod
+    async def close_all(cls):
         """关闭所有连接池（类方法，爬虫结束时调用）"""
         await close_all_mysql_pools()
     

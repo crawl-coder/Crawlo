@@ -5,6 +5,7 @@
 
 from crawlo.spider import Spider
 from crawlo import Request, Response
+from crawlo.tools.mysql_exists_checker import MySQLExistsChecker
 from ..items import OfWeekStandaloneItem
 
 
@@ -14,9 +15,14 @@ class OfWeekSpider(Spider):
     allowed_domains = ['ee.ofweek.com']
     start_urls = ['https://ee.ofweek.com/']
     
-    # 自定义设置（可选）
-    custom_settings = {}
-
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.db_checker = None
+        self._checker_initialized = False
+        self.total_count = 0
+        self.new_count = 0
+        self.skip_count = 0
+    
     def start_requests(self):
         """生成初始请求"""
         max_pages = 5
@@ -29,7 +35,7 @@ class OfWeekSpider(Spider):
         for url in start_urls:
             yield Request(url, callback=self.parse, dont_filter=True)
 
-    def parse(self, response: Response):
+    async def parse(self, response: Response):
         """解析响应"""
         # 检查响应状态
         if response.status != 200:
@@ -69,15 +75,34 @@ class OfWeekSpider(Spider):
                         self.logger.warning(f"无效的URL格式，跳过: {absolute_url}")
                         continue
 
-                    # self.logger.info(f"提取到详情页链接: {absolute_url}, 标题: {title}")
-                    yield Request(
-                        url=absolute_url,
-                        meta={
-                            "title": title.strip() if title else '',
-                            "parent_url": response.url
-                        },
-                        callback=self.parse_detail
-                    )
+                    # 统计总数
+                    self.total_count += 1
+
+                    # 延迟初始化检查器
+                    if not self._checker_initialized:
+                        self.db_checker = MySQLExistsChecker.from_settings(self.crawler.settings)
+                        self._checker_initialized = True
+                        self.logger.info("✅ MySQLExistsChecker 已创建，连接池已初始化")
+
+                    # 检查数据是否已存在
+                    sql = "SELECT 1 FROM ofweek_news WHERE url = %s LIMIT 1"
+                    exists = await self.db_checker.exists(sql, (absolute_url,))
+
+                    if exists:
+                        self.skip_count += 1
+                        self.logger.info(f"数据已存在，跳过: {title}")
+                        continue
+                    else:
+                        self.new_count += 1
+                        # self.logger.info(f"提取到详情页链接: {absolute_url}, 标题: {title}")
+                        yield Request(
+                            url=absolute_url,
+                            meta={
+                                "title": title.strip() if title else '',
+                                "parent_url": response.url
+                            },
+                            callback=self.parse_detail
+                        )
                 except Exception as e:
                     self.logger.error(f"处理条目时出错: {e}, 条目内容: {row.get()}")
                     continue
@@ -138,3 +163,16 @@ class OfWeekSpider(Spider):
 
         except Exception as e:
             self.logger.error(f"解析详情页 {response.url} 时出错: {e}")
+    
+    async def closed(self, reason):
+        """爬虫结束时关闭连接池"""
+        if self.db_checker:
+            await self.db_checker.close()
+            self.logger.info("🔒 MySQL 连接池已关闭")
+        
+        # 输出统计信息
+        self.logger.info(f"📊 数据统计:")
+        self.logger.info(f"   - 总条目数: {self.total_count}")
+        self.logger.info(f"   - 新数据: {self.new_count}")
+        self.logger.info(f"   - 跳过: {self.skip_count}")
+        self.logger.info(f"   - 关闭原因: {reason}")
