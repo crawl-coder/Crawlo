@@ -317,7 +317,6 @@ class ResourceManager:
             按正确顺序排列的资源列表
         """
         resources = self._resources.copy()
-        name_to_resource = {r.name: r for r in resources}
         
         # 计算入度（被依赖次数）
         in_degree = {r.name: 0 for r in resources}
