@@ -55,6 +55,12 @@ from .adaptive_selector import (
     RedisStorage,
 )
 
+# MySQL 数据存在性检查工具
+from .mysql_exists_checker import (
+    MySQLExistsChecker,
+    check_exists,
+)
+
 __all__ = [
     # 日期工具
     "TimeUtils",
@@ -90,4 +96,8 @@ __all__ = [
     "FingerprintStorage",
     "SqliteStorage",
     "RedisStorage",
+    
+    # MySQL 数据存在性检查工具
+    "MySQLExistsChecker",
+    "check_exists",
 ]
