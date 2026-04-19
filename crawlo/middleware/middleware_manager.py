@@ -214,7 +214,20 @@ class MiddlewareManager:
         else:
             create_task(self.crawler.subscriber.notify(CrawlerEvent.RESPONSE_RECEIVED, response, self.crawler.spider))
             self._stats.inc_value('response_received_count')
-        
+            
+            # 实时分类统计响应状态码
+            if isinstance(response, Response):
+                status_code = response.status
+                self._stats.inc_value(f'response_status_code/{status_code}')
+                
+                # 分类统计
+                if 300 <= status_code < 400:
+                    self._stats.inc_value('response_status_code/3xx')
+                elif 400 <= status_code < 500:
+                    self._stats.inc_value('response_status_code/4xx')
+                elif 500 <= status_code < 600:
+                    self._stats.inc_value('response_status_code/5xx')
+
         if isinstance(response, Response):
             response = await self._process_response(request, response)
         if isinstance(response, Request):

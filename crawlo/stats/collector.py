@@ -111,6 +111,7 @@ class StatsCollector:
                     self.backend.set_value('pages_per_minute', round(pages_per_min, 2))
             except (ValueError, TypeError):
                 pass
+        
 
     def __getitem__(self, item: str) -> Any:
         return self.backend.get_value(item)
@@ -181,44 +182,7 @@ class StatsCollector:
                     self.backend.set_value('pages_per_minute', round(pages_per_min, 2))
             except (ValueError, TypeError):
                 pass
-        
-        # 计算响应状态码分类统计
-        self._calculate_response_status_categories(stats)
-    
-    def _calculate_response_status_categories(self, stats: Dict[str, Any]) -> None:
-        """
-        计算响应状态码分类统计（3xx、4xx、5xx）
-        
-        Args:
-            stats: 当前统计信息
-        """
-        status_3xx = 0
-        status_4xx = 0
-        status_5xx = 0
-        
-        # 遍历所有状态码统计项
-        for key, value in stats.items():
-            if key.startswith('response_status_code/'):
-                status_code_str = key.split('/')[-1]
-                try:
-                    status_code = int(status_code_str)
-                    if 300 <= status_code < 400:
-                        status_3xx += value
-                    elif 400 <= status_code < 500:
-                        status_4xx += value
-                    elif 500 <= status_code < 600:
-                        status_5xx += value
-                except (ValueError, TypeError):
-                    pass
-        
-        # 设置分类统计
-        if status_3xx > 0:
-            self.backend.set_value('response_status_code/category/3xx', status_3xx)
-        if status_4xx > 0:
-            self.backend.set_value('response_status_code/category/4xx', status_4xx)
-        if status_5xx > 0:
-            self.backend.set_value('response_status_code/category/5xx', status_5xx)
-    
+
     def _aggregate_similar_stats(self, stats: Dict[str, Any]) -> Dict[str, Any]:
         """
         聚合相似的统计项（如 403/404 错误），减少日志冗长度
@@ -230,29 +194,69 @@ class StatsCollector:
             聚合后的统计信息
         """
         aggregated_stats = {}
+        
+        # 按前缀分组聚合
+        prefix_groups = {}
+        
         for key, value in stats.items():
+            # 识别需要聚合的统计项模式
             if key.startswith('request_ignore_count/reason/'):
+                # 提取错误类型（状态码）
                 reason_part = key[len('request_ignore_count/reason/'):]
                 
-                # 聚合 403 错误
-                if '403' in reason_part and '不在允许列表中' in reason_part:
-                    agg_key = 'request_ignore_count/reason/状态码 403 不在允许列表中 - 403'
-                    aggregated_stats[agg_key] = aggregated_stats.get(agg_key, 0) + value
+                # 尝试提取状态码（支持多种格式）
+                status_code = None
                 
-                # 聚合 404 错误
-                elif '404' in reason_part and '不在允许列表中' in reason_part:
-                    agg_key = 'request_ignore_count/reason/状态码 404 不在允许列表中 - 404'
-                    aggregated_stats[agg_key] = aggregated_stats.get(agg_key, 0) + value
+                # 格式1: "状态码 403 不在允许列表中 - 403"
+                match = re.search(r'状态码\s+(\d+)', reason_part)
+                if match:
+                    status_code = match.group(1)
                 
-                # 聚合其他状态码错误
-                else:
-                    match = re.search(r'(response filtered: 状态码 \d+ 不在允许列表中) - \d+', reason_part)
+                # 格式2: "response filtered: 状态码 403 不在允许列表中 - 403"
+                if not status_code:
+                    match = re.search(r'状态码\s+(\d+)', reason_part)
                     if match:
-                        agg_key = f'request_ignore_count/reason/{match.group(1)}'
-                        aggregated_stats[agg_key] = aggregated_stats.get(agg_key, 0) + value
+                        status_code = match.group(1)
+                
+                # 格式3: 直接是状态码数字
+                if not status_code and reason_part.isdigit():
+                    status_code = reason_part
+                
+                if status_code:
+                    # 按状态码分类聚合
+                    agg_key = f'request_ignore_count/status_code/{status_code}'
+                    prefix_groups.setdefault(agg_key, 0)
+                    prefix_groups[agg_key] += value
+                else:
+                    # 无法提取状态码，保留原样
+                    aggregated_stats[key] = value
+            
+            elif key.startswith('response_status_code/') and '/' not in key[len('response_status_code/'):] and key != 'response_status_code/success_count':
+                # 聚合单个状态码到分类（如 200, 201 → 2xx）
+                status_code_str = key[len('response_status_code/'):]
+                try:
+                    status_code = int(status_code_str)
+                    if 200 <= status_code < 300:
+                        agg_key = 'response_status_code/2xx'
+                    elif 300 <= status_code < 400:
+                        agg_key = 'response_status_code/3xx'
+                    elif 400 <= status_code < 500:
+                        agg_key = 'response_status_code/4xx'
+                    elif 500 <= status_code < 600:
+                        agg_key = 'response_status_code/5xx'
                     else:
-                        aggregated_stats[key] = value
+                        agg_key = f'response_status_code/other/{status_code}'
+                    
+                    prefix_groups.setdefault(agg_key, 0)
+                    prefix_groups[agg_key] += value
+                except (ValueError, TypeError):
+                    aggregated_stats[key] = value
+            
             else:
+                # 不需要聚合的统计项，直接保留
                 aggregated_stats[key] = value
+        
+        # 合并聚合后的统计项
+        aggregated_stats.update(prefix_groups)
         
         return aggregated_stats

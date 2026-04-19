@@ -126,10 +126,8 @@ class ResponseCodeMiddleware(object):
         """
         status = response.status
         
-        # 只记录总的统计信息，不记录每个域名和每个状态码的详细信息
-        # 记录状态码分类统计
-        category = self._get_status_category(status)
-        self.stats.inc_value(f'response_status_code/category/{category}')
+        # 状态码分类统计已在 middleware_manager.py 中统一处理，避免重复统计
+        # 这里只保留成功/失败统计和响应大小统计
         
         # 记录成功/失败统计
         if self._is_success_response(status):
@@ -142,6 +140,7 @@ class ResponseCodeMiddleware(object):
             self.stats.inc_value('response_total_bytes', response.content_length)
         
         # 详细日志记录
+        category = self._get_status_category(status)
         self.logger.debug(
             f'收到响应: {status} {response.url} '
             f'(分类: {category}, 大小: {getattr(response, "content_length", "unknown")} bytes)'
