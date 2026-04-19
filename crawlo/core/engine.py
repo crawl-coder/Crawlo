@@ -195,17 +195,33 @@ class Engine(object):
             
             # 主爬取循环
             loop_count = 0
-            last_exit_check = 0  # 记录上次检查退出条件的时间
-            exit_check_interval = 1  # 每1次循环检查一次退出条件，进一步提高检查频率
+            last_exit_check = 0  # 记录上次检查退出条件的循环次数
+            exit_check_interval = 10  # 每10次循环检查一次退出条件，减少检查频率
             last_component_states = None  # 记录上次的组件状态，用于减少冗余日志
+            batch_size = 5  # 批量获取请求的数量
+            idle_count = 0  # 连续空闲计数
             
             while self.running:
                 loop_count += 1
-                # 获取并处理请求
-                if request := await self._get_next_request():
-                    await self._crawl(request)
                 
-                # 优化退出条件检查频率
+                # 批量获取请求
+                requests = []
+                for _ in range(batch_size):
+                    if request := await self._get_next_request():
+                        requests.append(request)
+                    else:
+                        break
+                
+                # 批量处理请求
+                if requests:
+                    idle_count = 0  # 重置空闲计数
+                    # 并发处理批量请求
+                    tasks = [self._crawl(req) for req in requests]
+                    await asyncio.gather(*tasks, return_exceptions=True)
+                else:
+                    idle_count += 1
+                
+                # 优化退出条件检查频率（每10次循环检查一次）
                 if loop_count - last_exit_check >= exit_check_interval:
                     should_exit, last_component_states = await self._should_exit(last_component_states)
                     if should_exit:
@@ -213,8 +229,16 @@ class Engine(object):
                         break
                     last_exit_check = loop_count
                 
-                # 短暂休息避免忙等，但减少休息时间以提高效率
-                await asyncio.sleep(0.000001)  # 从0.00001减少到0.000001
+                # 动态调整 sleep 时间，根据负载情况
+                if requests:
+                    # 有请求处理，极短休息
+                    await asyncio.sleep(0.000001)
+                elif idle_count > 10:
+                    # 连续空闲，增加休息时间
+                    await asyncio.sleep(0.01)
+                else:
+                    # 短暂休息
+                    await asyncio.sleep(0.001)
             
             self.logger.debug(f"主爬取循环结束，总共执行了 {loop_count} 次")
         
