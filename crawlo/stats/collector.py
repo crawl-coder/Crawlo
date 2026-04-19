@@ -82,6 +82,21 @@ class StatsCollector:
         self.backend.set_value('reason', reason)
         spider_name = getattr(spider, 'name', None) or spider.__class__.__name__ or '<Unknown>'
         self.backend.set_value('spider_name', spider_name)
+        
+        # 记录结束时间和消耗时间
+        from datetime import datetime
+        end_time = datetime.now()
+        self.backend.set_value('end_time', end_time.strftime('%Y-%m-%d %H:%M:%S'))
+        
+        # 计算消耗时间
+        start_time_str = self.backend.get_value('start_time')
+        if start_time_str:
+            try:
+                start_time = datetime.strptime(start_time_str, '%Y-%m-%d %H:%M:%S')
+                elapsed = (end_time - start_time).total_seconds()
+                self.backend.set_value('elapsed_time', f'{elapsed:.2f}s')
+            except (ValueError, TypeError):
+                pass
 
     def __getitem__(self, item: str) -> Any:
         return self.backend.get_value(item)
