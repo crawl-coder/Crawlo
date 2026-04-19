@@ -86,8 +86,12 @@ class {{class_name}}(Spider):
         #        self.logger.info(f"数据已存在，跳过: {title}")
         #        continue
         #
-        # 5. 爬虫关闭时清理（closed 方法）：
-        #    async def closed(self, reason):
+        # 5. 资源清理（框架自动处理，无需手动写 closed 方法）：
+        #    Crawlo 框架会自动调用 ResourceManager 清理所有注册的资源
+        #    包括 MySQLExistsChecker 的连接池
+        #
+        #    如果确实需要自定义清理逻辑，可以实现 spider_closed 钩子：
+        #    async def spider_closed(self):
         #        if self.db_checker:
         #            await self.db_checker.close()
         #            self.logger.info("🔒 MySQL 连接池已关闭")
