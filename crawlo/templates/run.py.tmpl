@@ -20,8 +20,8 @@ def main():
             start_scheduler(project_root)
         else:
             # 正常爬虫运行模式
-            # TODO: 请将 'spider_name' 替换为实际要运行的爬虫名称
-            asyncio.run(CrawlerProcess().crawl('{{spider_name}}'))
+            # 注意：如需运行其他爬虫，请修改下面的爬虫名称
+            asyncio.run(CrawlerProcess().crawl('{{project_name}}'))
     except Exception as e:
         print(f"❌ 运行失败: {e}")
         import traceback
