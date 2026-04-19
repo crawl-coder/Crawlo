@@ -79,22 +79,36 @@ class StatsCollector:
             spider: Spider 实例
             reason: 关闭原因
         """
+        from datetime import datetime
+        
         self.backend.set_value('reason', reason)
         spider_name = getattr(spider, 'name', None) or spider.__class__.__name__ or '<Unknown>'
         self.backend.set_value('spider_name', spider_name)
         
-        # 记录结束时间和消耗时间
-        from datetime import datetime
+        # 记录结束时间
         end_time = datetime.now()
         self.backend.set_value('end_time', end_time.strftime('%Y-%m-%d %H:%M:%S'))
         
-        # 计算消耗时间
+        # 计算并记录性能指标
         start_time_str = self.backend.get_value('start_time')
         if start_time_str:
             try:
                 start_time = datetime.strptime(start_time_str, '%Y-%m-%d %H:%M:%S')
-                elapsed = (end_time - start_time).total_seconds()
-                self.backend.set_value('elapsed_time', f'{elapsed:.2f}s')
+                elapsed_seconds = (end_time - start_time).total_seconds()
+                
+                # 记录消耗时间
+                self.backend.set_value('elapsed_time', f'{elapsed_seconds:.2f}s')
+                
+                # 计算每分钟速率
+                if elapsed_seconds > 0:
+                    item_count = self.backend.get_value('item_successful_count', 0)
+                    response_count = self.backend.get_value('response_received_count', 0)
+                    
+                    items_per_min = (item_count / elapsed_seconds) * 60
+                    pages_per_min = (response_count / elapsed_seconds) * 60
+                    
+                    self.backend.set_value('items_per_minute', round(items_per_min, 2))
+                    self.backend.set_value('pages_per_minute', round(pages_per_min, 2))
             except (ValueError, TypeError):
                 pass
 
@@ -122,6 +136,9 @@ class StatsCollector:
                     spider_name = spider.name
                     self.backend.set_value('spider_name', spider_name)
             
+            # 计算并添加性能指标
+            self._calculate_performance_metrics(stats)
+            
             # 格式化浮点数
             formatted_stats = {}
             for key, value in stats.items():
@@ -132,6 +149,75 @@ class StatsCollector:
             self.logger.info(f'{spider_name} stats: \n{pformat(optimized_stats)}')
         
         self.backend.close()
+    
+    def _calculate_performance_metrics(self, stats: Dict[str, Any]) -> None:
+        """
+        计算并添加性能指标
+        
+        Args:
+            stats: 当前统计信息
+        """
+        from datetime import datetime
+        
+        # 计算总耗时（秒）
+        start_time_str = stats.get('start_time')
+        end_time_str = stats.get('end_time')
+        
+        if start_time_str and end_time_str:
+            try:
+                start_time = datetime.strptime(start_time_str, '%Y-%m-%d %H:%M:%S')
+                end_time = datetime.strptime(end_time_str, '%Y-%m-%d %H:%M:%S')
+                elapsed_seconds = (end_time - start_time).total_seconds()
+                
+                if elapsed_seconds > 0:
+                    # 计算每分钟速率
+                    item_count = stats.get('item_successful_count', 0)
+                    response_count = stats.get('response_received_count', 0)
+                    
+                    items_per_min = (item_count / elapsed_seconds) * 60
+                    pages_per_min = (response_count / elapsed_seconds) * 60
+                    
+                    self.backend.set_value('items_per_minute', round(items_per_min, 2))
+                    self.backend.set_value('pages_per_minute', round(pages_per_min, 2))
+            except (ValueError, TypeError):
+                pass
+        
+        # 计算响应状态码分类统计
+        self._calculate_response_status_categories(stats)
+    
+    def _calculate_response_status_categories(self, stats: Dict[str, Any]) -> None:
+        """
+        计算响应状态码分类统计（3xx、4xx、5xx）
+        
+        Args:
+            stats: 当前统计信息
+        """
+        status_3xx = 0
+        status_4xx = 0
+        status_5xx = 0
+        
+        # 遍历所有状态码统计项
+        for key, value in stats.items():
+            if key.startswith('response_status_code/'):
+                status_code_str = key.split('/')[-1]
+                try:
+                    status_code = int(status_code_str)
+                    if 300 <= status_code < 400:
+                        status_3xx += value
+                    elif 400 <= status_code < 500:
+                        status_4xx += value
+                    elif 500 <= status_code < 600:
+                        status_5xx += value
+                except (ValueError, TypeError):
+                    pass
+        
+        # 设置分类统计
+        if status_3xx > 0:
+            self.backend.set_value('response_status_code/category/3xx', status_3xx)
+        if status_4xx > 0:
+            self.backend.set_value('response_status_code/category/4xx', status_4xx)
+        if status_5xx > 0:
+            self.backend.set_value('response_status_code/category/5xx', status_5xx)
     
     def _aggregate_similar_stats(self, stats: Dict[str, Any]) -> Dict[str, Any]:
         """
