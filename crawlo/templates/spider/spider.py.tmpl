@@ -61,6 +61,43 @@ class {{class_name}}(Spider):
         
         # ===========================================
         
+        # ========== MySQLExistsChecker 数据库去重示例（可选） ==========
+        # 用于在请求详情页前检查数据是否已存在，避免重复采集
+        # 
+        # 1. 导入（文件顶部）：
+        #    from crawlo.tools.mysql_exists_checker import MySQLExistsChecker
+        #
+        # 2. 初始化（__init__ 或延迟初始化）：
+        #    def __init__(self, *args, **kwargs):
+        #        super().__init__(*args, **kwargs)
+        #        self.db_checker = None
+        #        self._checker_initialized = False
+        #
+        # 3. 延迟初始化（在 parse 中首次使用时）：
+        #    if not self._checker_initialized:
+        #        self.db_checker = MySQLExistsChecker.from_settings(self.crawler.settings)
+        #        self._checker_initialized = True
+        #        self.logger.info("✅ MySQLExistsChecker 已创建，连接池已初始化")
+        #
+        # 4. 检查数据是否存在：
+        #    sql = "SELECT 1 FROM your_table WHERE url = %s LIMIT 1"
+        #    exists = await self.db_checker.exists(sql, (url,))
+        #    if exists:
+        #        self.logger.info(f"数据已存在，跳过: {title}")
+        #        continue
+        #
+        # 5. 爬虫关闭时清理（closed 方法）：
+        #    async def closed(self, reason):
+        #        if self.db_checker:
+        #            await self.db_checker.close()
+        #            self.logger.info("🔒 MySQL 连接池已关闭")
+        #
+        # 注意：
+        # - MySQLExistsChecker 复用单例连接池，性能开销极小（~1-3ms/次）
+        # - 确保数据库表有唯一索引，查询速度更快
+        # - 适用于大批量采集场景的去重检查
+        # ================================================================
+        
         yield {
             'title': response.xpath('//title/text()').get(default=''),
             'url': response.url,
