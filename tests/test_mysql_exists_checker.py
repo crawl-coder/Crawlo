@@ -5,7 +5,7 @@ MySQLExistsChecker 测试
 """
 import pytest
 import asyncio
-from unittest.mock import Mock, AsyncMock, patch
+from unittest.mock import Mock
 from crawlo.tools.mysql_exists_checker import MySQLExistsChecker, check_exists
 
 
