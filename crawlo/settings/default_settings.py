@@ -89,12 +89,43 @@ ADAPTIVE_BACKPRESSURE_ENABLED = False  # 是否启用自适应背压（实验性
 
 # 内存队列背压配置（适用于单机小规模）
 # 特点：访问速度快（纳秒级），队列容量小，需要更早触发背压保护
-# 优化：从 80% 降到 60%，防止队列积压过快增长导致内存溢出
-MEMORY_BACKPRESSURE_RATIO = 0.6  # 内存队列背压触发阈值（60%，更早触发保护）
-MEMORY_BACKPRESSURE_DELAY_BASE = 0.2  # 内存队列基础延迟（秒）
-MEMORY_BACKPRESSURE_DELAY_MAX = 2.0  # 内存队列最大延迟（秒）
-MEMORY_BACKPRESSURE_WARNING_THRESHOLD = 0.5  # 内存队列警告阈值（50%，提前预警）
-MEMORY_BACKPRESSURE_CRITICAL_THRESHOLD = 0.8  # 内存队列危险阈值（80%，降低风险）
+# 优化：从 60% 降到 50%，更早触发背压保护
+MEMORY_BACKPRESSURE_RATIO = 0.5  # 内存队列背压触发阈值（50%，提前触发保护）
+MEMORY_BACKPRESSURE_DELAY_BASE = 0.5  # 内存队列基础延迟（秒）
+MEMORY_BACKPRESSURE_DELAY_MAX = 5.0  # 内存队列最大延迟（秒）
+MEMORY_BACKPRESSURE_WARNING_THRESHOLD = 0.4  # 内存队列警告阈值（40%，提前预警）
+MEMORY_BACKPRESSURE_CRITICAL_THRESHOLD = 0.7  # 内存队列危险阈值（70%，降低风险）
+
+# ----- 2.3 智能背压配置（多维度自适应）-----
+# 智能背压：基于队列、吞吐、性能三大维度计算最优延迟
+INTELLIGENT_BACKPRESSURE_ENABLED = True  # 是否启用智能背压
+INTELLIGENT_BACKPRESSURE_CONFIG = {
+    # 指标采集配置
+    'window_size': 30,              # 采样窗口（秒）
+    'collect_interval': 1,          # 采集间隔（秒）
+    
+    # 指标权重配置（队列:吞吐:性能 = 4:3:3）
+    'queue_weights': (0.4, 0.3, 0.3),
+    
+    # 评分阈值配置
+    'score_thresholds': (50, 70, 85),  # (警告, 危险, 严重)
+    
+    # 延迟配置
+    'base_delay': 0.5,              # 基础延迟（秒）
+    'max_delay': 5.0,               # 最大延迟（秒）
+    
+    # 功能开关
+    'enable_prediction': True,      # 启用预测补偿
+    'enable_smoothing': True,       # 启用平滑处理
+    
+    # 监控配置
+    'monitor_interval': 10,         # 监控检查间隔（秒）
+    
+    # 资源优化配置（新增）
+    'max_history': 1000,            # 最大历史记录数（内存优化）
+    'max_response_times': 1000,     # 最大响应时间记录数（内存优化）
+    'cache_ttl': 0.1,               # 延迟计算缓存有效期（秒，CPU优化）
+}
 
 # Redis队列背压配置（适用于分布式大规模）
 # 特点：网络延迟高（毫秒级），队列容量大，应该更早触发背压保护
