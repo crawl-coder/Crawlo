@@ -57,11 +57,9 @@ class LogStats:
             pass
 
     async def response_received(self, _response: Any, _spider: Any) -> None:
-        try:
-            self._stats.inc_value('response_received_count')
-        except Exception as e:
-            # 静默处理，避免影响爬虫运行
-            pass
+        # 移除重复统计：response_received_count 已在 middleware_manager.py 中统计
+        # 保留此方法以维持事件订阅兼容性，但不重复计数
+        pass
 
     async def request_scheduled(self, _request: Any, _spider: Any) -> None:
         try:

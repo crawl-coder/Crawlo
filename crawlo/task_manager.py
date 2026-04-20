@@ -105,10 +105,23 @@ class DynamicSemaphore:
         return True
     
     def release(self) -> None:
-        """释放信号量"""
-        self._active_count = max(0, self._active_count - 1)
+        """释放信号量
         
-        # 尝试唤醒等待的任务
+        注意：此方法在 done_callback 中调用（同步回调），在 asyncio
+        单线程事件循环中是安全的。唤醒逻辑统一使用 _wake_waiters()。
+        """
+        self._active_count = max(0, self._active_count - 1)
+        self._wake_waiters()
+    
+    def _wake_waiters(self) -> None:
+        """安全唤醒等待者
+        
+        统一的唤醒逻辑，被 release() 和 _adjust_semaphore_value() 共用。
+        在 asyncio 单线程模型中，此方法是安全的，因为：
+        1. release() 在 done_callback 中调用（事件循环内）
+        2. _adjust_semaphore_value() 在 asyncio.Lock 保护下调用
+        3. 两者不会同时执行
+        """
         try:
             while not self._waiters.empty() and self._active_count < self._target_value:
                 event = self._waiters.get_nowait()
@@ -163,13 +176,7 @@ class DynamicSemaphore:
         
         # 如果新值更大，唤醒等待的任务
         if new_value > old_value:
-            try:
-                while not self._waiters.empty() and self._active_count < self._target_value:
-                    event = self._waiters.get_nowait()
-                    self._active_count += 1
-                    event.set()
-            except asyncio.QueueEmpty:
-                pass
+            self._wake_waiters()
     
     @property
     def current_value(self) -> int:
@@ -196,6 +203,10 @@ class TaskManager(Generic[T]):
         self._stats = TaskStats()
         self._stats._start_time = time.time()
         self._closed = False
+        
+        # 并发监控
+        self._max_concurrent_seen = 0  # 峰值并发数
+        self._concurrency_limit = total_concurrency  # 并发限制
         
     async def create_task(
         self, 
@@ -229,6 +240,9 @@ class TaskManager(Generic[T]):
         self.current_task.add(task)
         self._stats.active_tasks = len(self.current_task)
         self._stats.total_tasks += 1
+        
+        # 更新峰值并发数
+        self._max_concurrent_seen = max(self._max_concurrent_seen, self._stats.active_tasks)
 
         def done_callback(_future: Future[T]) -> None:
             try:
@@ -243,7 +257,10 @@ class TaskManager(Generic[T]):
                     self.logger.warning(f"Task timed out after {timeout}s")
                 except asyncio.CancelledError:
                     self._stats.cancelled_count += 1
-                    self.logger.info("Task was cancelled")
+                    # 只打印一次，避免重复
+                    if not getattr(self, '_cancel_logged', False):
+                        self.logger.info("Task was cancelled")
+                        self._cancel_logged = True
                 except Exception as exception:
                     self._stats.exception_count += 1
                     self.logger.error(
@@ -301,7 +318,17 @@ class TaskManager(Generic[T]):
             self._stats.tasks_per_second = self._stats.total_tasks / max(1, elapsed)
         
         self._stats.current_concurrency = self.semaphore.current_value
-        return self._stats.to_dict()
+        
+        # 构建完整的统计信息
+        stats = self._stats.to_dict()
+        stats.update({
+            'concurrency_limit': self._concurrency_limit,
+            'max_concurrent_seen': self._max_concurrent_seen,
+            'concurrency_utilization': round(
+                self._max_concurrent_seen / max(1, self._concurrency_limit) * 100, 2
+            ),
+        })
+        return stats
     
     async def close(self, timeout: float = 30.0, cancel_pending: bool = False) -> None:
         """

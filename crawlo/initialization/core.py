@@ -15,10 +15,10 @@ from .phases import InitializationPhase, PhaseResult, get_execution_order, get_p
 from .registry import get_global_registry
 
 
-from crawlo.utils.singleton import singleton
+from crawlo.utils.singleton import SingletonMeta
 
-@singleton
-class CoreInitializer:
+
+class CoreInitializer(metaclass=SingletonMeta):
     """
     核心初始化器 - 协调整个框架的初始化过程
     
@@ -32,6 +32,9 @@ class CoreInitializer:
     def __init__(self):
         self._context: Optional[InitializationContext] = None
         self._is_ready = False
+        # 注意：此处使用 threading.RLock 而非 asyncio.Lock，因为 initialize()
+        # 是同步方法，且仅在事件循环启动前被调用（通过 Crawler._ensure_framework_ready()）。
+        # 如果未来需要在异步上下文中调用，应改为 asyncio.Lock。
         self._init_lock = threading.RLock()
         
         # 在注册内置初始化器之前，先验证阶段依赖关系

@@ -18,6 +18,16 @@ from crawlo.backpressure.strategies import (
     AdaptiveStrategy,
     CompositeStrategy,
 )
+from crawlo.backpressure.metrics_collector import (
+    BackpressureMetricsCollector,
+    BackpressureMetrics,
+)
+from crawlo.backpressure.intelligent_calculator import (
+    IntelligentBackpressureCalculator,
+)
+from crawlo.backpressure.monitor import (
+    BackpressureMonitor,
+)
 
 
 class BackpressureController:
@@ -202,4 +212,8 @@ __all__ = [
     'QueueSizeStrategy',
     'AdaptiveStrategy',
     'CompositeStrategy',
+    # 智能背压组件
+    'BackpressureMetricsCollector',
+    'IntelligentBackpressureCalculator',
+    'BackpressureMonitor',
 ]

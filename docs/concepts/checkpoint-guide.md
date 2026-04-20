@@ -128,47 +128,63 @@ CHECKPOINT_ENABLED = False
 
 ---
 
-## 5. 编程接口
+## 5. 检查点的工作原理
 
-### 在代码中使用 CheckpointManager
+### 框架自动管理
+
+检查点系统由 Crawlo 框架**自动管理**，用户无需编写任何代码：
+
+1. **自动保存**：
+   - Ctrl+C 中断时自动保存
+   - 爬虫正常关闭时自动清除
+   - 保存位置：`.checkpoints/{project}/{spider}/`
+
+2. **自动恢复**：
+   - 运行 `crawlo run spider_name` 时自动检测
+   - 如果存在检查点，自动从断点续爬
+   - 使用 `--fresh` 参数可忽略检查点
+
+3. **内部流程**：
+   ```
+   Engine 初始化
+       ↓
+   创建 CheckpointManager
+       ↓
+   检查是否存在检查点
+       ↓
+   如果存在 → 加载并恢复
+       ↓
+   爬虫运行
+       ↓
+   Ctrl+C 或关闭 → 自动保存
+   ```
+
+### 底层实现（仅供了解）
+
+> 💡 **普通用户无需关心**，以下是框架内部实现细节。
+
+框架内部使用 `CheckpointManager` 类管理检查点：
 
 ```python
+# 框架内部代码（用户不需要写）
 from crawlo.checkpoint import CheckpointManager
 
-# 创建管理器
-manager = CheckpointManager(spider_name='myspider', settings=settings)
+# Engine 初始化时创建
+checkpoint_mgr = CheckpointManager(spider.name, settings)
 
 # 检查是否存在检查点
-if await manager.has_checkpoint():
-    print("找到检查点，可以恢复")
-
-# 保存检查点
-success = await manager.save(scheduler=scheduler, stats=stats)
-
-# 加载检查点
-data = await manager.load()
-if data:
-    print(f"待处理请求: {data['pending_count']}")
-    print(f"指纹数量: {len(data['fingerprints'])}")
-
-# 恢复单个请求
-request = manager.restore_request(data['requests'][0])
-
-# 清除检查点
-await manager.clear()
+if await checkpoint_mgr.has_checkpoint():
+    # 加载并恢复
+    data = await checkpoint_mgr.load()
+    
+# Ctrl+C 时保存
+await checkpoint_mgr.save(scheduler=scheduler, stats=stats)
 ```
 
-### 在 Spider 中手动保存
-
-```python
-class MySpider(Spider):
-    async def parse(self, response):
-        # ... 爬取逻辑 ...
-        
-        # 每处理 100 页手动保存一次
-        if self.crawl_count % 100 == 0:
-            await self.crawler.engine._save_checkpoint()
-```
+**关键点**：
+- ✅ 用户只需在 `settings.py` 中设置 `CHECKPOINT_ENABLED = True`
+- ✅ 所有保存/恢复逻辑由框架自动处理
+- ✅ 无需在 Spider 中手动调用任何方法
 
 ---
 

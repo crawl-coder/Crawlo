@@ -21,6 +21,7 @@ from enum import Enum, auto
 from crawlo import Request, Item
 from crawlo.exceptions import ItemDiscard
 from crawlo.logging import get_logger
+from crawlo.utils.async_lock import AsyncRLock
 
 
 class ProcessorState(Enum):
@@ -69,6 +70,9 @@ class Processor:
         self.pipelines = None
         self.logger = get_logger(self.__class__.__name__)
         
+        # 异步安全的锁
+        self._lock = AsyncRLock()
+        
         # 状态管理
         self._state = ProcessorState.IDLE
         self._task: Optional[asyncio.Task] = None
@@ -81,8 +85,9 @@ class Processor:
         self._error_count = 0
         
         # 正在处理的项（用于优雅关闭）
-        # 使用 List 而非 Set，因为 Item 不可哈希
-        self._processing: List[Any] = []
+        # 使用字典存储，键为 id(item)
+        self._processing: dict = {}
+        self._processing_counter = 0
         
         # 配置
         self._batch_size = getattr(crawler.settings, 'get_int', lambda x, d: d)('PROCESSOR_BATCH_SIZE', 10)
@@ -102,6 +107,14 @@ class Processor:
                     except Exception as e:
                         self.logger.error(f"Failed to open pipeline {pipeline.__class__.__name__}: {e}")
                         raise
+        
+        # 调用中间件管理器的 open 生命周期方法
+        if hasattr(self.crawler, 'middleware_manager') and self.crawler.middleware_manager:
+            try:
+                await self.crawler.middleware_manager.open()
+            except Exception as e:
+                self.logger.error(f"Failed to open middleware manager: {e}")
+                raise
         
         self.logger.debug("Processor initialized")
     
@@ -157,29 +170,39 @@ class Processor:
     
     async def _handle_result(self, result: Union[Request, Item]) -> None:
         """
-        处理单个结果
+        处理单个结果（线程安全版本）
         
         Args:
             result: Request 或 Item
         """
-        self._processing.append(result)
+        # 获取处理ID
+        async with self._lock:
+            processing_id = self._processing_counter
+            self._processing_counter += 1
+            self._processing[processing_id] = result
+        
         try:
             if isinstance(result, Request):
                 await self.crawler.engine.enqueue_request(result)
-                self._request_count += 1
+                async with self._lock:
+                    self._request_count += 1
             elif isinstance(result, Item):
                 await self._process_item(result)
-                self._item_count += 1
+                async with self._lock:
+                    self._item_count += 1
             else:
                 self.logger.warning(f"Unknown result type: {type(result)}")
             
-            self._processed_count += 1
+            async with self._lock:
+                self._processed_count += 1
             
         except Exception as e:
+            async with self._lock:
+                self._error_count += 1
             self.logger.error(f"Error processing {result}: {e}")
-            self._error_count += 1
         finally:
-            self._processing.remove(result)
+            async with self._lock:
+                self._processing.pop(processing_id, None)
     
     async def _process_item(self, item: Item) -> None:
         """
@@ -257,9 +280,40 @@ class Processor:
             except asyncio.QueueEmpty:
                 break
     
+    async def idle_async(self) -> bool:
+        """
+        异步安全地检查处理器是否空闲
+        
+        Returns:
+            bool: 是否空闲
+        """
+        async with self._lock:
+            return len(self._processing) == 0 and self.queue.empty()
+    
+    async def close(self) -> None:
+        """
+        关闭处理器并清理资源
+        
+        调用中间件和管道的 close 生命周期方法。
+        """
+        self.logger.debug("Closing processor...")
+        
+        # 关闭中间件管理器
+        if hasattr(self.crawler, 'middleware_manager') and self.crawler.middleware_manager:
+            try:
+                await self.crawler.middleware_manager.close()
+            except Exception as e:
+                self.logger.warning(f"Error closing middleware manager: {e}")
+        
+        # 关闭管道（已在 engine.close_spider 中调用）
+        # if self.pipelines and hasattr(self.pipelines, 'close'):
+        #     await self.pipelines.close()
+        
+        self.logger.debug("Processor closed")
+    
     def idle(self) -> bool:
         """
-        检查处理器是否空闲
+        检查处理器是否空闲（简化版本，可能不够精确）
         
         Returns:
             bool: 是否空闲（队列为空且无正在处理的项）

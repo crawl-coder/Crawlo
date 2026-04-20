@@ -11,9 +11,10 @@ from crawlo.utils.monitor.monitor_manager import monitor_manager
 class LogIntervalExtension:
 
     def __init__(self, crawler: Any):
-        # 检查是否在调度器模式下运行（用于定时任务模式）
-        scheduler_enabled = crawler.settings.get('SCHEDULER_ENABLED', False)
-        self.disabled = scheduler_enabled  # 在调度器启用时禁用日志扩展
+        # 始终启用间隔日志监控，不受 SCHEDULER_ENABLED 影响
+        # 定时任务模式和普通模式都应该正常工作
+        # 通过智能检测（爬虫空闲时跳过）来避免等待阶段的无意义日志
+        self.disabled = False
         
         self.task: Optional[asyncio.Task] = None
         self.stats = crawler.stats
@@ -40,24 +41,10 @@ class LogIntervalExtension:
         # 监控管理器
         self.monitor_manager = monitor_manager
         
-        if self.disabled:
-            self.logger.debug("LogIntervalExtension disabled in scheduler mode")
-            return
-        
-        self.logger.info(f"LogIntervalExtension initialized with interval: {self.seconds} seconds")
-        
-        # 添加调试信息（在logger初始化之后）
-        self.logger.info(f"LogIntervalExtension: INTERVAL={self.seconds} seconds")
+        self.logger.info(f"LogIntervalExtension initialized: INTERVAL={self.seconds} seconds")
 
     @classmethod
     def create_instance(cls, crawler: Any) -> 'LogIntervalExtension':
-        # 检查是否在调度器模式下运行
-        scheduler_enabled = crawler.settings.get('SCHEDULER_ENABLED', False)
-        if scheduler_enabled:
-            # 在调度器模式下，禁用此扩展以避免重复日志
-            o = cls(crawler)
-            return o
-        
         # 检查是否已有日志间隔监控实例在运行
         existing_monitor = monitor_manager.get_monitor('log_interval_monitor')
         if existing_monitor is not None:
@@ -81,17 +68,16 @@ class LogIntervalExtension:
             self.logger.debug(f"Spider opened, LogIntervalExtension disabled, skipping task creation (instance: {id(self)})")
             return
         
-        self.logger.info(f"Spider opened, starting interval logging task (instance: {id(self)})")
         if self.task is None or self.task.done():
             self.task = asyncio.create_task(self.interval_log())
-            self.logger.info(f"Interval logging task started (instance: {id(self)})")
+            self.logger.debug(f"Interval logging task started (instance: {id(self)})")
         else:
             self.logger.warning(f"Interval logging task already running, skipping (instance: {id(self)})")
 
     async def spider_closed(self, **kwargs) -> None:
         # 只有主要监控实例才处理关闭
         if monitor_manager.get_monitor('log_interval_monitor') == self:
-            self.logger.info("Spider closed, stopping interval logging task")
+            self.logger.debug("Spider closed, stopping interval logging task")
             if self.task:
                 self.task.cancel()
                 try:
@@ -130,10 +116,12 @@ class LogIntervalExtension:
         获取背压信息
         
         Returns:
-            tuple: (is_active, delay, utilization)
+            tuple: (is_active, delay, utilization, score, level)
                 - is_active: 背压是否激活
                 - delay: 当前背压延迟（秒）
                 - utilization: 队列使用率（0-1）
+                - score: 智能背压综合评分（0-100，智能背压启用时）
+                - level: 背压级别（normal/warning/danger/critical）
         """
         try:
             if hasattr(self.stats, 'crawler') and self.stats.crawler:
@@ -168,7 +156,30 @@ class LogIntervalExtension:
                             # 计算使用率
                             utilization = queue_size / max_size if max_size > 0 else 0
                             
-                            # 检查背压控制器
+                            # 尝试获取智能背压信息
+                            score = 0.0
+                            level = 'normal'
+                            
+                            # 检查是否启用了智能背压
+                            if hasattr(queue_manager, '_intelligent_backpressure_enabled') and queue_manager._intelligent_backpressure_enabled:
+                                # 获取智能背压指标
+                                if hasattr(queue_manager, '_metrics_collector') and queue_manager._metrics_collector:
+                                    metrics = queue_manager._metrics_collector.get_current_metrics()
+                                    if metrics:
+                                        score = metrics.overall_score
+                                        level = metrics.level
+                                        # 使用智能背压的评分判断
+                                        is_active = score >= 50  # 50分以上认为背压激活
+                                        
+                                        # 获取当前延迟
+                                        if hasattr(queue_manager, '_intelligent_calculator') and queue_manager._intelligent_calculator:
+                                            delay = await queue_manager._intelligent_calculator.calculate_delay()
+                                        else:
+                                            delay = 0.0
+                                        
+                                        return (is_active, delay, utilization, score, level)
+                            
+                            # 检查背压控制器（传统背压）
                             if hasattr(queue_manager, '_backpressure_controller') and queue_manager._backpressure_controller:
                                 controller = queue_manager._backpressure_controller
                                 
@@ -212,7 +223,15 @@ class LogIntervalExtension:
                                     else:
                                         delay = max(delay, 0.5)
                                 
-                                return (is_active, delay, utilization)
+                                # 根据使用率确定级别
+                                if utilization >= 0.85:
+                                    level = 'critical'
+                                elif utilization >= 0.7:
+                                    level = 'danger'
+                                elif utilization >= 0.5:
+                                    level = 'warning'
+                                
+                                return (is_active, delay, utilization, score, level)
                             
                             # 如果没有背压控制器，根据使用率估算
                             threshold = getattr(queue_manager, '_backpressure_threshold', 0.8)
@@ -228,12 +247,20 @@ class LogIntervalExtension:
                             else:
                                 delay = 0.0
                             
-                            return (is_active, delay, utilization)
+                            # 根据使用率确定级别
+                            if utilization >= 0.85:
+                                level = 'critical'
+                            elif utilization >= 0.7:
+                                level = 'danger'
+                            elif utilization >= 0.5:
+                                level = 'warning'
+                            
+                            return (is_active, delay, utilization, score, level)
             
-            return (False, 0.0, 0.0)
+            return (False, 0.0, 0.0, 0.0, 'normal')
         except Exception as e:
             self.logger.debug(f"Failed to get backpressure info: {e}")
-            return (False, 0.0, 0.0)
+            return (False, 0.0, 0.0, 0.0, 'normal')
 
     async def interval_log(self) -> None:
         iteration = 0
@@ -247,16 +274,26 @@ class LogIntervalExtension:
                 item_rate = last_item_count - self.item_count
                 response_rate = last_response_count - self.response_count
                 
-                # 获取队列大小和背压信息
+                # 智能检测：如果爬虫已停止（无新数据且队列为空），跳过日志输出
                 queue_size = await self._get_queue_size()
-                bp_active, bp_delay, bp_util = await self._get_backpressure_info()
+                if item_rate == 0 and response_rate == 0 and queue_size == 0:
+                    # 爬虫可能已停止，静默跳过，不打印日志
+                    await asyncio.sleep(self.seconds)
+                    continue
+                
+                # 获取队列大小和背压信息
+                bp_active, bp_delay, bp_util, bp_score, bp_level = await self._get_backpressure_info()
                 
                 # 更新计数器
                 self.item_count, self.response_count = last_item_count, last_response_count
                 
                 # 构建背压信息字符串
                 if bp_active:
-                    bp_info = f"BP: ON ({bp_delay:.2f}s, {bp_util:.0%})"
+                    # 智能背压：显示评分和级别
+                    if bp_score > 0:
+                        bp_info = f"BP: ON ({bp_delay:.2f}s, {bp_util:.0%}, score:{bp_score:.0f}, {bp_level})"
+                    else:
+                        bp_info = f"BP: ON ({bp_delay:.2f}s, {bp_util:.0%})"
                 else:
                     bp_info = f"BP: off ({bp_util:.0%})"
                 
@@ -279,14 +316,21 @@ class LogIntervalExtension:
                     )
                 
                 # 调试日志（合并为一条）
-                self.logger.debug(
+                debug_info = (
                     f"Interval log [{iteration}]: "
                     f"items={item_rate} (total={last_item_count}), "
                     f"responses={response_rate} (total={last_response_count}), "
                     f"queue={queue_size}, "
-                    f"backpressure={bp_active}, delay={bp_delay:.3f}s, util={bp_util:.1%}, "
-                    f"next_log_in={self.seconds}s"
+                    f"backpressure={bp_active}, delay={bp_delay:.3f}s, util={bp_util:.1%}"
                 )
+                
+                # 智能背压额外信息
+                if bp_score > 0:
+                    debug_info += f", score={bp_score:.1f}, level={bp_level}"
+                
+                debug_info += f", next_log_in={self.seconds}s"
+                
+                self.logger.debug(debug_info)
                 
                 await asyncio.sleep(self.seconds)
             except Exception as e:

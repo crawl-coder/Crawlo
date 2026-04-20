@@ -42,17 +42,21 @@ class ResourceStatus(Enum):
 
 
 class ManagedResource:
-    """托管资源"""
+    """托管资源（增强版，支持依赖管理）"""
     
     def __init__(self, 
                  resource: Any,
                  cleanup_func: Callable,
                  resource_type: ResourceType = ResourceType.OTHER,
-                 name: Optional[str] = None):
+                 name: Optional[str] = None,
+                 priority: int = 0,
+                 depends_on: set = None):
         self.resource = resource
         self.cleanup_func = cleanup_func
         self.resource_type = resource_type
         self.name = name or f"{resource_type.value}_{id(resource)}"
+        self.priority = priority  # 清理优先级，数字越大越先清理
+        self.depends_on = depends_on or set()  # 依赖的其他资源名称
         self.status = ResourceStatus.ACTIVE
         self.created_at = time.time()
         self.closed_at: Optional[float] = None
@@ -118,7 +122,9 @@ class ResourceManager:
                  resource: Any,
                  cleanup_func: Callable,
                  resource_type: ResourceType = ResourceType.OTHER,
-                 name: Optional[str] = None) -> ManagedResource:
+                 name: Optional[str] = None,
+                 priority: int = 0,
+                 depends_on: set = None) -> ManagedResource:
         """
         注册需要清理的资源
         
@@ -126,47 +132,138 @@ class ResourceManager:
             resource: 资源对象
             cleanup_func: 清理函数（同步或异步）
             resource_type: 资源类型
-            name: 资源名称（用于日志）
+            name: 资源名称（用于依赖管理和日志）
+            priority: 清理优先级，数字越大越先清理（默认0）
+            depends_on: 依赖的其他资源名称集合
         
         Returns:
             托管资源对象
+        
+        使用示例：
+            # 连接池不依赖其他资源
+            rm.register(
+                resource=pool,
+                cleanup_func=close_pool,
+                resource_type=ResourceType.REDIS_POOL,
+                name="main_pool",
+                priority=10,  # 高优先级，先清理
+                depends_on=set()
+            )
+            
+            # 下载器依赖连接池
+            rm.register(
+                resource=downloader,
+                cleanup_func=close_downloader,
+                resource_type=ResourceType.DOWNLOADER,
+                name="main_downloader",
+                priority=5,
+                depends_on={"main_pool"}  # 依赖 main_pool
+            )
         """
-        managed = ManagedResource(resource, cleanup_func, resource_type, name)
+        managed = ManagedResource(
+            resource, 
+            cleanup_func, 
+            resource_type, 
+            name,
+            priority=priority,
+            depends_on=depends_on
+        )
         self._resources.append(managed)
         self._stats['total_registered'] += 1
         self._stats['active_resources'] += 1
         
-        self._logger.debug(f"Resource registered: {managed.name} ({resource_type.value})")
+        self._logger.debug(f"Resource registered: {managed.name} ({resource_type.value}, priority={priority})")
         return managed
+    
+    def register_with_dependencies(self,
+                                  resource: Any,
+                                  cleanup_func: Callable,
+                                  resource_type: ResourceType,
+                                  name: str,
+                                  depends_on: list = None) -> ManagedResource:
+        """
+        便捷方法：注册带依赖关系的资源
+        
+        Args:
+            resource: 资源对象
+            cleanup_func: 清理函数
+            resource_type: 资源类型
+            name: 资源名称（必须提供）
+            depends_on: 依赖的资源名称列表
+        
+        Returns:
+            托管资源对象
+        
+        使用示例：
+            # 先注册被依赖的资源
+            rm.register_with_dependencies(
+                resource=connection_pool,
+                cleanup_func=close_pool,
+                resource_type=ResourceType.REDIS_POOL,
+                name="main_pool",
+                depends_on=[]
+            )
+            
+            # 再注册依赖它的资源
+            rm.register_with_dependencies(
+                resource=downloader,
+                cleanup_func=close_downloader,
+                resource_type=ResourceType.DOWNLOADER,
+                name="main_downloader",
+                depends_on=["main_pool"]
+            )
+        """
+        return self.register(
+            resource=resource,
+            cleanup_func=cleanup_func,
+            resource_type=resource_type,
+            name=name,
+            priority=0,
+            depends_on=set(depends_on) if depends_on else set()
+        )
     
     async def cleanup_all(self, reverse: bool = True) -> Dict[str, Any]:
         """
         清理所有注册的资源
         
         Args:
-            reverse: 是否反向清理（LIFO，推荐）
+            reverse: 是否反向清理（LIFO - 后进先出）
+                     对于依赖感知的清理，此参数将被忽略
         
         Returns:
             清理结果统计
+        
+        注意：
+            现在使用依赖感知的清理顺序：
+            1. 被依赖的资源会先清理
+            2. 依赖者会在被依赖者之后清理
+            3. 相同优先级的资源按注册顺序清理
         """
         async with self._lock:
             if not self._resources:
                 self._logger.debug("No resources to cleanup")
                 return self._get_cleanup_stats()
             
-            self._logger.info(f"Starting cleanup of {len(self._resources)} resources...")
-            
-            # 反向清理（后创建的先清理）
-            resources = reversed(self._resources) if reverse else self._resources
+            # 计算正确的清理顺序（依赖感知）
+            cleanup_order = self._compute_cleanup_order()
             
             cleanup_start = time.time()
             success_count = 0
             error_count = 0
             
-            for managed in resources:
+            for managed in cleanup_order:
                 try:
-                    self._logger.debug(f"Cleaning up: {managed.name}")
+                    resource_cleanup_start = time.time()
+                    self._logger.debug(f"Cleaning up: {managed.name} (priority={managed.priority})")
                     await managed.cleanup()
+                    resource_cleanup_duration = time.time() - resource_cleanup_start
+                    
+                    # 超过 100ms 输出警告
+                    if resource_cleanup_duration > 0.1:
+                        self._logger.warning(
+                            f"Resource {managed.name} cleanup took {resource_cleanup_duration:.3f}s"
+                        )
+                    
                     success_count += 1
                     self._stats['total_cleaned'] += 1
                     self._stats['active_resources'] -= 1
@@ -206,6 +303,54 @@ class ResourceManager:
                 )
             
             return result
+    
+    def _compute_cleanup_order(self) -> List[ManagedResource]:
+        """
+        计算正确的清理顺序
+        
+        使用拓扑排序确保：
+        1. 被依赖的资源会先清理（先清理依赖者会导致悬空引用）
+        2. 相同依赖深度的资源按优先级排序
+        3. 循环依赖时强制处理
+        
+        Returns:
+            按正确顺序排列的资源列表
+        """
+        resources = self._resources.copy()
+        
+        # 计算入度（被依赖次数）
+        in_degree = {r.name: 0 for r in resources}
+        for r in resources:
+            for dep in r.depends_on:
+                if dep in in_degree:
+                    in_degree[r.name] += 1
+        
+        result = []
+        remaining = resources.copy()
+        
+        while remaining:
+            # 找到入度为0（无依赖）的资源
+            candidates = [r for r in remaining if in_degree[r.name] == 0]
+            
+            if not candidates:
+                # 存在循环依赖，强制选择一个
+                self._logger.warning("Circular dependency detected, forcing cleanup")
+                candidates = [remaining[0]]
+            
+            # 按优先级排序（高优先级在前）
+            candidates.sort(key=lambda x: (-x.priority, x.created_at))
+            
+            # 选择第一个
+            selected = candidates[0]
+            result.append(selected)
+            remaining.remove(selected)
+            
+            # 更新依赖该资源的其他资源的入度
+            for r in remaining:
+                if selected.name in r.depends_on:
+                    in_degree[r.name] -= 1
+        
+        return result
     
     async def cleanup_by_type(self, resource_type: ResourceType) -> int:
         """

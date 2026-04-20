@@ -36,7 +36,7 @@ FILTER_CLASS = 'crawlo.filters.aioredis_filter.AioRedisFilter'
 
 # 默认去重管道：MemoryDedupPipeline/RedisDedupPipeline
 # 高性能模式下，如果Redis可用则使用Redis去重，否则使用内存去重
-DEFAULT_DEDUP_PIPELINE = 'crawlo.pipelines.redis_dedup_pipeline.RedisDedupPipeline'
+DEFAULT_DEDUP_PIPELINE = 'crawlo.pipelines.RedisDedupPipeline'
 
 # =================================== 爬虫配置 ===================================
 
@@ -52,7 +52,7 @@ SPIDER_MODULES = ['{{project_name}}.spiders']
 # 数据管道
 # 如需添加自定义管道，请取消注释并添加
 # PIPELINES = {
-#     'crawlo.pipelines.mysql_pipeline.MySQLPipeline': 500,  # MySQL 存储（使用asyncmy异步库）
+#     'crawlo.pipelines.MySQLPipeline': 500,  # MySQL 存储（使用asyncmy异步库）
 #     '{{project_name}}.pipelines.CustomPipeline': 600,  # 用户自定义管道示例
 # }
 

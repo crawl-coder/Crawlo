@@ -10,6 +10,7 @@ sys.path.insert(0, "/Users/oscar/projects/Crawlo")
 """
 import asyncio
 import sys
+import pytest
 from unittest.mock import Mock
 from crawlo.core.scheduler import Scheduler
 from crawlo.network.request import Request
@@ -21,6 +22,8 @@ class MockCrawler:
     def __init__(self, use_redis=True):
         self.settings = MockSettings(use_redis)
         self.stats = Mock()
+        self.spider = Mock()  # 添加 spider 属性
+        self.spider.name = 'test_spider'
 
 
 class MockSettings:
@@ -86,6 +89,7 @@ class MockFilter:
         pass
 
 
+@pytest.mark.asyncio
 async def test_memory_scheduler():
     """测试内存调度器"""
     print("🔍 测试内存调度器...")
@@ -119,6 +123,7 @@ async def test_memory_scheduler():
     print("   内存调度器测试完成")
 
 
+@pytest.mark.asyncio
 async def test_redis_scheduler():
     """测试 Redis 调度器"""
     print("🔍 测试 Redis 调度器...")
@@ -171,6 +176,7 @@ async def test_redis_scheduler():
         traceback.print_exc()
 
 
+@pytest.mark.asyncio
 async def test_concurrent_redis():
     """测试并发 Redis 操作"""
     print("🔍 测试并发 Redis 操作...")

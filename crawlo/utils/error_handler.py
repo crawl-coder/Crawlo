@@ -6,60 +6,10 @@
 """
 import traceback
 from functools import wraps
-from datetime import datetime
 from typing import Optional, Callable, Any, Dict, List
 
 from crawlo.logging import get_logger
-
-
-class ErrorContext:
-    """错误上下文信息"""
-    
-    def __init__(self, context: str = "", module: str = "", function: str = ""):
-        self.context = context
-        self.module = module
-        self.function = function
-        self.timestamp = datetime.now()
-        
-    def __str__(self):
-        parts = []
-        if self.module:
-            parts.append(f"Module: {self.module}")
-        if self.function:
-            parts.append(f"Function: {self.function}")
-        if self.context:
-            parts.append(f"Context: {self.context}")
-        parts.append(f"Time: {self.timestamp.strftime('%Y-%m-%d %H:%M:%S')}")
-        return " | ".join(parts)
-
-
-class DetailedException(Exception):
-    """带有详细信息的异常基类"""
-    
-    def __init__(self, message: str, context: Optional[ErrorContext] = None, 
-                 error_code: Optional[str] = None, **kwargs):
-        super().__init__(message)
-        self.context = context
-        self.error_code = error_code
-        self.details = kwargs
-        self.timestamp = datetime.now()
-        
-    def __str__(self):
-        base_msg = super().__str__()
-        if self.context:
-            return f"{base_msg} ({self.context})"
-        return base_msg
-    
-    def get_full_details(self) -> Dict:
-        """获取完整的错误详情"""
-        return {
-            "message": str(self),
-            "error_code": self.error_code,
-            "context": str(self.context) if self.context else None,
-            "details": self.details,
-            "timestamp": self.timestamp.isoformat(),
-            "exception_type": self.__class__.__name__
-        }
+from crawlo.exceptions import DetailedException, ErrorContext
 
 
 class ErrorHandler:

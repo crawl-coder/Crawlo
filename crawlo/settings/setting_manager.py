@@ -26,7 +26,8 @@ import json
 from copy import deepcopy
 from importlib import import_module
 from collections.abc import MutableMapping
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional, Union, Type
+from enum import Enum
 
 from crawlo.settings import default_settings
 
@@ -237,19 +238,23 @@ class SettingManager(MutableMapping):
     
     # ==================== 配置获取方法 ====================
     
+    # 哨兵值：用于区分"未设置"和"显式设置为 None"
+    _SENTINEL = object()
+    
     def get(self, key: str, default: Any = None) -> Any:
         """
         获取配置值
         
         Args:
             key: 配置键名
-            default: 默认值
+            default: 默认值（仅在键不存在时使用，显式设置为 None 的键返回 None）
             
         Returns:
-            配置值，不存在时返回默认值
+            配置值。如果键存在则返回对应值（包括 None），不存在时返回 default。
         """
-        value = self.attributes.get(key, default)
-        return value if value is not None else default
+        if key in self.attributes:
+            return self.attributes[key]
+        return default
     
     def get_int(self, key: str, default: int = 0) -> int:
         """获取整数配置值"""
@@ -295,6 +300,46 @@ class SettingManager(MutableMapping):
             return dict(value)
         except TypeError:
             return value
+    
+    def get_enum(self, key: str, enum_class: Type[Enum], default: Enum = None) -> Enum:
+        """
+        获取枚举配置值
+        
+        Args:
+            key: 配置键名
+            enum_class: 枚举类
+            default: 默认值
+            
+        Returns:
+            Enum: 枚举值
+            
+        Raises:
+            ValueError: 如果值无法转换为枚举
+        """
+        value = self.get(key)
+        if value is None:
+            if default is not None:
+                return default
+            raise ValueError(f"配置项 '{key}' 不存在，且未提供默认值")
+        
+        # 如果已经是枚举类型，直接返回
+        if isinstance(value, enum_class):
+            return value
+        
+        # 尝试从字符串或整数转换
+        try:
+            # 优先尝试按名称查找
+            if isinstance(value, str):
+                try:
+                    return enum_class[value.upper()]
+                except KeyError:
+                    pass
+            # 然后尝试按值查找
+            return enum_class(value)
+        except (ValueError, KeyError) as e:
+            raise ValueError(
+                f"无法将配置值 '{value}' 转换为枚举 {enum_class.__name__}"
+            ) from e
     
     # ==================== 配置设置方法 ====================
     

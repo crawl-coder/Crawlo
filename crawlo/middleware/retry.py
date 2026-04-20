@@ -135,13 +135,16 @@ class RetryMiddleware(object):
         return response
 
     def process_exception(self, request, exc, spider):
-        # self.logger.debug(f"Checking exception {type(exc).__name__} for request {request.url}")
-        # self.logger.debug(f"Is instance of retry_exceptions: {isinstance(exc, self.retry_exceptions)}")
-        self.logger.info(f"dont_retry: {request.meta.get('dont_retry', False)}")
+        self.logger.debug(f"dont_retry: {request.meta.get('dont_retry', False)}")
         if isinstance(exc, self.retry_exceptions) and not request.meta.get('dont_retry', False):
             return self._retry(request=request, reason=type(exc).__name__, spider=spider)
 
     def _retry(self, request, reason, spider):
+        # 检查爬虫是否正在关闭，如果是则不重试
+        if getattr(spider, '_closing', False):
+            self.logger.debug(f"爬虫正在关闭，跳过重试: {request.url}")
+            return None
+        
         # Retry logic: create a new request copy with incremented retry count
         
         retry_times = request.meta.get('retry_times', 0)

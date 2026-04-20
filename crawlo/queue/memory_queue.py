@@ -18,6 +18,15 @@ from crawlo.queue.queue_types import QueueType
 if TYPE_CHECKING:
     from crawlo.network.request import Request
 
+# 智能背压组件（可选导入）
+try:
+    from crawlo.backpressure.metrics_collector import BackpressureMetricsCollector
+    from crawlo.backpressure.intelligent_calculator import IntelligentBackpressureCalculator
+    from crawlo.backpressure.monitor import BackpressureMonitor
+    INTELLIGENT_BP_AVAILABLE = True
+except ImportError:
+    INTELLIGENT_BP_AVAILABLE = False
+
 logger = logging.getLogger(__name__)
 
 
@@ -83,6 +92,8 @@ class MemoryQueue(BackpressureableQueueMixin, IQueue):
         name: str = "memory",
         backpressure_enabled: bool = True,
         backpressure_threshold: float = 0.8,
+        intelligent_backpressure: bool = True,
+        backpressure_config: Optional[Dict[str, Any]] = None,
     ):
         """
         初始化内存队列
@@ -92,11 +103,23 @@ class MemoryQueue(BackpressureableQueueMixin, IQueue):
             name: 队列名称
             backpressure_enabled: 是否启用背压
             backpressure_threshold: 背压触发阈值 (0-1)
+            intelligent_backpressure: 是否启用智能背压（多维度自适应）
+            backpressure_config: 背压配置字典
         """
         super().__init__(max_size=max_size, name=name)
         self._queue: Optional[asyncio.PriorityQueue] = None
         self._backpressure_enabled = backpressure_enabled
         self._backpressure_threshold = backpressure_threshold
+        self._intelligent_backpressure_enabled = intelligent_backpressure and INTELLIGENT_BP_AVAILABLE
+        
+        # 智能背压组件
+        self._metrics_collector: Optional[BackpressureMetricsCollector] = None
+        self._intelligent_calculator: Optional[IntelligentBackpressureCalculator] = None
+        self._backpressure_monitor: Optional[BackpressureMonitor] = None
+        
+        # 初始化智能背压（如果启用）
+        if self._intelligent_backpressure_enabled:
+            self._init_intelligent_backpressure(backpressure_config or {})
         
         # 序列号生成器，用于保证 FIFO 顺序
         self._sequence_counter = 0
@@ -110,16 +133,66 @@ class MemoryQueue(BackpressureableQueueMixin, IQueue):
         # 元数据存储（用于存储与请求相关的元信息）
         self._metadata: Dict[str, Any] = {}
     
+    def _init_intelligent_backpressure(self, config: Dict[str, Any]):
+        """
+        初始化智能背压组件
+        
+        Args:
+            config: 背压配置
+        """
+        try:
+            # 创建指标采集器（带资源优化参数）
+            self._metrics_collector = BackpressureMetricsCollector(
+                window_size=config.get('window_size', 30),
+                collect_interval=config.get('collect_interval', 1),
+                queue_weights=config.get('queue_weights', (0.4, 0.3, 0.3)),
+                score_thresholds=config.get('score_thresholds', (50, 70, 85)),
+                queue_size_func=lambda: len(self) if self._queue else 0,
+                queue_max_size_func=lambda: self._max_size if self._max_size > 0 else 1,
+                max_history=config.get('max_history', 1000),
+                max_response_times=config.get('max_response_times', 1000)
+            )
+            
+            # 创建智能延迟计算器（带缓存优化）
+            self._intelligent_calculator = IntelligentBackpressureCalculator(
+                metrics_collector=self._metrics_collector,
+                base_delay=config.get('base_delay', 0.5),
+                max_delay=config.get('max_delay', 5.0),
+                enable_prediction=config.get('enable_prediction', True),
+                enable_smoothing=config.get('enable_smoothing', True),
+                cache_ttl=config.get('cache_ttl', 0.1)
+            )
+            
+            # 创建背压监控器
+            self._backpressure_monitor = BackpressureMonitor(
+                metrics_collector=self._metrics_collector,
+                check_interval=config.get('monitor_interval', 10)
+            )
+            
+            logger.debug(f"MemoryQueue '{self._name}': 智能背压已启用")
+            
+        except Exception as e:
+            logger.error(f"初始化智能背压失败: {e}")
+            self._intelligent_backpressure_enabled = False
+    
     async def open(self) -> None:
         """
         打开队列
         
-        初始化 asyncio.PriorityQueue。
+        初始化 asyncio.PriorityQueue 和智能背压组件。
         """
         if self._queue is None:
             # 使用 max_size=0 创建无界队列，实际限制通过逻辑控制
             self._queue = asyncio.PriorityQueue(maxsize=self._max_size if self._max_size > 0 else 0)
             self._stats.mark_start()
+            
+            # 启动智能背压组件
+            if self._intelligent_backpressure_enabled:
+                if self._metrics_collector:
+                    await self._metrics_collector.start()
+                if self._backpressure_monitor:
+                    await self._backpressure_monitor.start()
+            
             logger.debug(f"MemoryQueue '{self._name}' opened with max_size={self._max_size}")
     
     async def put(self, item: Any, priority: int = 0) -> bool:
@@ -177,7 +250,12 @@ class MemoryQueue(BackpressureableQueueMixin, IQueue):
             queue_item = QueueItem(priority, item, sequence)
             await self._queue.put(queue_item)
             self._total_puts += 1
-            self._stats.record_enqueue(wait_time=time.time() - start_time)
+            wait_time = time.time() - start_time
+            self._stats.record_enqueue(wait_time=wait_time)
+            
+            # 记录智能背压指标
+            if self._intelligent_backpressure_enabled and self._metrics_collector:
+                self._metrics_collector.record_enqueue()
             
             # 更新最大队列大小
             current_size = await self.size()
@@ -219,10 +297,22 @@ class MemoryQueue(BackpressureableQueueMixin, IQueue):
             )
             self._total_gets += 1
             self._stats.record_dequeue()
+            
+            # 记录智能背压指标
+            if self._intelligent_backpressure_enabled and self._metrics_collector:
+                self._metrics_collector.record_dequeue()
+            
             # 返回 QueueItem 中包装的实际元素
             return queue_item.item if isinstance(queue_item, QueueItem) else queue_item
             
         except asyncio.TimeoutError:
+            # 记录超时
+            if self._intelligent_backpressure_enabled and self._metrics_collector:
+                self._metrics_collector.record_response(
+                    response_time=timeout_value if timeout_value else 5.0,
+                    is_timeout=True,
+                    is_success=False
+                )
             return None
         except asyncio.CancelledError:
             raise
@@ -310,6 +400,13 @@ class MemoryQueue(BackpressureableQueueMixin, IQueue):
         self._closed = True
         self._stats.mark_end()
         
+        # 停止智能背压组件
+        if self._intelligent_backpressure_enabled:
+            if self._backpressure_monitor:
+                await self._backpressure_monitor.stop()
+            if self._metrics_collector:
+                await self._metrics_collector.stop()
+        
         if self._queue is not None:
             # 清空队列
             while not self._queue.empty():
@@ -342,7 +439,7 @@ class MemoryQueue(BackpressureableQueueMixin, IQueue):
         Returns:
             Dict: 扩展统计信息
         """
-        return {
+        stats = {
             'queue_type': QueueType.MEMORY.value,
             'name': self._name,
             'max_size': self._max_size,
@@ -352,8 +449,37 @@ class MemoryQueue(BackpressureableQueueMixin, IQueue):
             'backpressure_enabled': self._backpressure_enabled,
             'backpressure_threshold': self._backpressure_threshold,
             'backpressure_active': self._backpressure_active,
+            'intelligent_backpressure_enabled': self._intelligent_backpressure_enabled,
             'base_stats': self._stats.to_dict(),
         }
+        
+        # 添加智能背压指标
+        if self._intelligent_backpressure_enabled and self._backpressure_monitor:
+            stats['intelligent_bp'] = self._backpressure_monitor.get_current_status()
+            stats['alert_summary'] = self._backpressure_monitor.get_alert_summary()
+        
+        return stats
+    
+    async def calculate_backpressure_delay(self) -> float:
+        """
+        计算背压延迟
+        
+        如果启用了智能背压，使用智能计算器；
+        否则使用父类的默认实现。
+        
+        Returns:
+            float: 延迟时间（秒）
+        """
+        # 如果启用了智能背压，使用智能计算器
+        if self._intelligent_backpressure_enabled and self._intelligent_calculator:
+            try:
+                delay = await self._intelligent_calculator.calculate_delay()
+                return delay
+            except Exception as e:
+                logger.error(f"智能背压计算失败，回退到默认: {e}")
+        
+        # 回退到父类的默认实现
+        return await super().calculate_backpressure_delay()
     
     def _on_backpressure_state_change(self, active: bool) -> None:
         """

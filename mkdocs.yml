@@ -2,60 +2,229 @@ site_name: Crawlo Documentation
 site_url: https://crawlo.readthedocs.io/
 site_description: 一个基于 asyncio 的现代化、高性能异步爬虫框架
 site_author: Crawlo Team
+docs_dir: docs
+site_dir: site
 
 repo_url: https://github.com/crawl-coder/Crawlo
-edit_uri: ""
+repo_name: crawl-coder/Crawlo
+edit_uri: edit/master/docs/
+copyright: Copyright &copy; 2024 Crawlo Team
 
 theme:
   name: material
   language: zh
+  
+  # 自定义主题颜色
   palette:
+    # 浅色模式 - 使用蓝色主题
     - scheme: default
+      primary: indigo
+      accent: indigo
       toggle:
         icon: material/brightness-7
         name: 切换到深色模式
+    # 深色模式 - 使用深蓝灰色
     - scheme: slate
+      primary: indigo
+      accent: indigo
       toggle:
         icon: material/brightness-4
         name: 切换到浅色模式
+  
+  # 字体配置
+  font:
+    text: Roboto
+    code: Roboto Mono
+  
+  # Logo 和图标
+  logo: assets/logo.svg
+  favicon: assets/logo.svg
+  
+  # 功能增强
   features:
+    # 导航增强
     - navigation.tabs
+    - navigation.tabs.sticky  # 固定顶部导航栏
     - navigation.sections
+    - navigation.expand  # 默认展开所有分组
+    - navigation.indexes  # 支持分组索引页
+    - navigation.top  # 返回顶部按钮
+    - navigation.path  # 显示导航路径
+    - navigation.prune  # 性能优化，只渲染当前页面
+    
+    # 目录增强
     - toc.integrate
-    - navigation.top
+    - toc.follow  # 侧边栏自动跟随
+    
+    # 搜索增强
     - search.suggest
     - search.highlight
+    - search.share  # 分享搜索结果
+    
+    # 代码增强
     - content.tabs.link
     - content.code.annotation
     - content.code.copy
+    - content.code.select  # 支持选择代码
+    
+    # 其他增强
+    - header.autohide  # 自动隐藏头部
+    - announce.dismiss  # 允许关闭公告
+    
   icon:
     repo: fontawesome/brands/github
+    admonition:
+      note: octicons/light-bulb-16
+      abstract: octicons/checklist-16
+      info: octicons/info-16
+      tip: octicons/squirrel-16
+      success: octicons/check-16
+      question: octicons/question-16
+      warning: octicons/alert-16
+      failure: octicons/x-circle-16
+      danger: octicons/zap-16
+      bug: octicons/bug-16
+      example: octicons/beaker-16
+      quote: octicons/quote-16
 
 nav:
-  - 简介: index.md
-  - 🔰 新手手把手教程: beginner-tutorial.md
-  - 快速入门: getting-started.md
-  - 🏗️ 核心架构: architecture.md
-  - 🛠️ 核心组件: core-components.md
-  - ⚙️ 参数配置详解: configuration.md
-  - 💡 实战案例库: examples.md
-  - 高级特性: advanced-features.md
-  - 命令行参考: cli-reference.md
+  - 🏠 首页: index.md
+  - 🚀 快速开始:
+    - 概览: getting-started/index.md
+    - 5分钟快速上手: getting-started/5min-quickstart.md
+    - 安装指南: getting-started/installation.md
+    - 创建第一个爬虫: getting-started/first-spider.md
+  - 📚 教程系列:
+    - 概览: tutorials/index.md
+    - 部署到生产环境: tutorials/deploy-production.md
+  - 🎯 使用指南:
+    - 概览: guides/index.md
+    - 配置指南:
+      - 概览: guides/configuration/index.md
+      - 运行模式详解: guides/configuration/run-modes.md
+    - 调度指南:
+      - 背压系统: guides/scheduling/backpressure.md
+  - 📖 核心概念:
+    - 概览: concepts/index.md
+    - 架构设计: concepts/architecture.md
+    - 核心组件: concepts/core-components.md
+    - 请求生命周期: concepts/request-lifecycle.md
+    - 爬虫生命周期: concepts/spider-lifecycle.md
+    - 中间件链: concepts/middleware-chain.md
+    - 错误处理机制: concepts/error-handling.md
+    - 检查点系统: concepts/checkpoint-guide.md
+  - 🔧 API参考:
+    - 概览: reference/index.md
+    - 命令行参考: reference/cli-reference.md
+  - 💡 实战案例:
+    - 概览: examples/index.md
+    - 基础示例: examples/basic-examples.md
+  - ❓ 常见问题:
+    - 概览: faq/index.md
+    - 一般问题: faq/general.md
+    - 安装问题: faq/installation.md
+    - 配置问题: faq/configuration.md
+    - 性能问题: faq/performance.md
+    - 故障排查: faq/troubleshooting.md
+  - 🔄 迁移指南:
+    - 概览: migration/index.md
+    - Curl转换: migration/curl-conversion.md
 
 plugins:
-  - search
+  - search:
+      lang: 
+        - zh
+        - en
+      separator: '[\s\u200b\-]+'
+  # 可选：生成站点地图
+  - git-revision-date-localized:
+      enable_creation_date: true
+      type: timeago
+      locale: zh
+  # 可选：自动修复死链
+  - literate-nav:
+      nav_file: NAV.md
 
 markdown_extensions:
-  - pymdownx.highlight
-  - pymdownx.superfences
-  - pymdownx.tabbed:
-      alternate_style: true
+  # Python Markdown
+  - abbr
   - admonition
+  - attr_list
+  - def_list
+  - footnotes
+  - md_in_html
+  - toc:
+      permalink: true
+      permalink_title: 永久链接
+      slugify: !!python/object/apply:pymdownx.slugs.slugify
+        kwds:
+          case: lower
+  
+  # Python Markdown Extensions
+  - pymdownx.arithmatex:
+      generic: true
+  - pymdownx.betterem:
+      smart_enable: all
+  - pymdownx.caret
   - pymdownx.details
   - pymdownx.emoji:
       emoji_index: !!python/name:material.extensions.emoji.twemoji
       emoji_generator: !!python/name:material.extensions.emoji.to_svg
-  - pymdownx.arithmatex:
-      generic: true
-  - toc:
-      permalink: true
+      options:
+        custom_icons:
+          - docs/.icons
+  - pymdownx.highlight:
+      anchor_linenums: true
+      line_spans: __span
+      pygments_lang_class: true
+  - pymdownx.inlinehilite
+  - pymdownx.keys
+  - pymdownx.magiclink:
+      normalize_issue_symbols: true
+      repo_url_shorthand: true
+      user: crawl-coder
+      repo: Crawlo
+  - pymdownx.mark
+  - pymdownx.smartsymbols
+  - pymdownx.snippets:
+      auto_append:
+        - includes/mkdocs.md
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.tabbed:
+      alternate_style: true
+      combine_header_slug: true
+      slugify: !!python/object/apply:pymdownx.slugs.slugify
+        kwds:
+          case: lower
+  - pymdownx.tasklist:
+      custom_checkbox: true
+
+# 额外配置
+extra:
+  # 社交媒体链接
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/crawl-coder/Crawlo
+      name: Crawlo on GitHub
+    - icon: fontawesome/brands/python
+      link: https://pypi.org/project/crawlo/
+      name: Crawlo on PyPI
+  
+  # 分析（可选：添加Google Analytics）
+  # analytics:
+  #   provider: google
+  #   property: G-XXXXXXXXXX
+  
+  # 版本选择器（可选：需要mike插件）
+  # version:
+  #   provider: mike
+
+extra_css:
+  - stylesheets/extra.css
+
+extra_javascript:
+  - https://unpkg.com/mermaid@10/dist/mermaid.min.js
