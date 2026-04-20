@@ -187,8 +187,10 @@ class MiddlewareManager:
                     f"{self._get_method_class_name(method)}. must return None or Request or Response, got {type(result).__name__}"
                 )
             except asyncio.CancelledError:
-                # Handle cancellation properly
-                self.logger.info("Request processing cancelled")
+                # Handle cancellation properly（只打印一次，避免重复）
+                if not getattr(self, '_cancel_logged', False):
+                    self.logger.info("Request processing cancelled")
+                    self._cancel_logged = True
                 raise
             except Exception as e:
                 self.logger.error(f"Error processing request: {e}")

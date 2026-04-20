@@ -459,9 +459,8 @@ class Engine(object):
                 # 由于我们不再使用处理队列，不再需要确认任务完成
                 # 任务在从主队列取出时就已经被认为是完成的
             except asyncio.CancelledError:
-                # 正确处理取消异常
-                self.logger.info(f"爬取任务被取消: {getattr(request, 'url', 'Unknown URL')}")
-                # 重新抛出CancelledError以便调用者可以正确处理
+                # 正确处理取消异常（静默处理，避免重复日志）
+                # 日志已在上面的task_manager.create_task处打印
                 raise
             except Exception as e:
                 # 记录详细的异常信息
@@ -491,7 +490,10 @@ class Engine(object):
             try:
                 await self.task_manager.create_task(coro)
             except asyncio.CancelledError:
-                self.logger.info("爬取任务被取消")
+                # 只在第一次取消时打印日志，避免重复
+                if not getattr(self, '_cancel_logged', False):
+                    self.logger.info("爬取任务被取消")
+                    self._cancel_logged = True
                 # 确保协程被正确关闭，避免 RuntimeWarning
                 coro.close()
                 # 重新抛出CancelledError以便调用者可以正确处理

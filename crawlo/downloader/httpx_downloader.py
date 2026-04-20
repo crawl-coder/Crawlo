@@ -314,7 +314,10 @@ class HttpXDownloader(DownloaderBase):
             except DownloadError:
                 raise
             except asyncio.CancelledError:
-                self.logger.warning(f"请求被取消: {request.url}")
+                # 只在第一次取消时打印日志，避免重复
+                if not getattr(self, '_cancel_logged', False):
+                    self.logger.warning(f"请求被取消: {request.url}")
+                    self._cancel_logged = True
                 raise DownloadError(
                     f"Request cancelled for {request.url}",
                     url=request.url

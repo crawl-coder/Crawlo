@@ -140,6 +140,11 @@ class RetryMiddleware(object):
             return self._retry(request=request, reason=type(exc).__name__, spider=spider)
 
     def _retry(self, request, reason, spider):
+        # 检查爬虫是否正在关闭，如果是则不重试
+        if getattr(spider, '_closing', False):
+            self.logger.debug(f"爬虫正在关闭，跳过重试: {request.url}")
+            return None
+        
         # Retry logic: create a new request copy with incremented retry count
         
         retry_times = request.meta.get('retry_times', 0)
