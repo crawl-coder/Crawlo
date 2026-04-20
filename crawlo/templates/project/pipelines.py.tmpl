@@ -6,30 +6,45 @@
 """
 
 from crawlo.logging import get_logger
+from crawlo.pipelines import BasePipeline
 
 
-class {{project_name|title}}Pipeline:
+class {{project_name|title}}Pipeline(BasePipeline):
     """
     {{project_name}} 项目的数据管道
+    
+    继承 BasePipeline 获得：
+    - from_crawler() 方法（框架要求）
+    - 标准的异步接口
+    - 类型提示支持
     """
+    
+    @classmethod
+    def from_crawler(cls, crawler):
+        """创建Pipeline实例（框架要求）"""
+        return cls()
     
     def __init__(self):
         self.logger = get_logger(self.__class__.__name__)
 
-    def process_item(self, item, spider):
+    async def process_item(self, item, spider):
         """
         处理数据项
+        
+        Returns:
+            Item: 返回处理后的item
+            None: 丢弃该item
         """
         self.logger.info(f"处理数据项: {item}")
         return item
 
-    def open_spider(self, spider):
+    async def open_spider(self, spider):
         """
         爬虫启动时调用
         """
         self.logger.info(f"管道已启动，准备处理爬虫 '{spider.name}' 的数据")
 
-    def close_spider(self, spider):
+    async def close_spider(self, spider):
         """
         爬虫关闭时调用
         """

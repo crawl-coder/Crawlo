@@ -1,0 +1,83 @@
+/* Crawlo 文档自定义样式 */
+
+/* 优化代码块样式 */
+.md-typeset pre > code {
+    border-radius: 8px;
+    font-size: 0.85em;
+}
+
+/* 优化表格样式 */
+.md-typeset table:not([class]) {
+    font-size: 0.9em;
+}
+
+.md-typeset table:not([class]) th {
+    background-color: var(--md-primary-fg-color);
+    color: var(--md-primary-bg-color);
+}
+
+/* 优化提示框样式 */
+.md-typeset .admonition {
+    border-radius: 8px;
+    border-width: 2px;
+}
+
+/* 自定义 Crawlo 品牌色 */
+:root {
+    --md-primary-fg-color: #3f51b5;
+    --md-primary-fg-color--light: #5c6bc0;
+    --md-primary-fg-color--dark: #303f9f;
+}
+
+/* 优化导航栏 */
+.md-tabs {
+    background-color: var(--md-primary-fg-color);
+}
+
+/* 代码行号样式优化 */
+.linenos {
+    border-radius: 4px;
+    padding-right: 8px;
+}
+
+/* 优化搜索框 */
+.md-search__form {
+    border-radius: 8px;
+}
+
+/* 响应式优化 */
+@media screen and (max-width: 76.234375em) {
+    .md-nav--primary .md-nav__title[for="__drawer"] {
+        background-color: var(--md-primary-fg-color);
+    }
+}
+
+/* 优化链接悬停效果 */
+.md-typeset a {
+    text-decoration: none;
+    transition: all 0.2s ease;
+}
+
+.md-typeset a:hover {
+    text-decoration: underline;
+    color: var(--md-accent-fg-color);
+}
+
+/* 自定义滚动条 */
+::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+    background: var(--md-default-fg-color--lightest);
+    border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: var(--md-default-fg-color--lighter);
+}

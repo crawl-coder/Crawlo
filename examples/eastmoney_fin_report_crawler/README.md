@@ -74,12 +74,12 @@ python run.py
 
 | 爬虫命令 | 爬取数据类型 |
 |---------|------------|
-| `crawlo crawl core_financial_indicators` | 核心财务指标 |
-| `crawlo crawl balance_sheet` | 资产负债表 |
-| `crawlo crawl income_statement` | 利润表 |
-| `crawlo crawl statement_cash_flows` | 现金流量表 |
-| `crawlo crawl listed_executive_changes` | 高管变动 |
-| `crawlo crawl senior_executives` | 高管信息 |
+| `crawlo run core_financial_indicators` | 核心财务指标 |
+| `crawlo run balance_sheet` | 资产负债表 |
+| `crawlo run income_statement` | 利润表 |
+| `crawlo run statement_cash_flows` | 现金流量表 |
+| `crawlo run listed_executive_changes` | 高管变动 |
+| `crawlo run senior_executives` | 高管信息 |
 
 ## 数据使用指南
 

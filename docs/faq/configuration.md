@@ -1,0 +1,274 @@
+# 配置问题
+
+## 如何选择运行模式？
+
+Crawlo 提供三种运行模式：
+
+### Standalone 模式（单机）
+
+**适用场景**：
+- 本地开发调试
+- 小规模数据采集（< 10万条）
+- 不需要分布式
+
+**配置**：
+```python
+from crawlo.config import CrawloConfig
+
+config = CrawloConfig.standalone(
+    project_name='myproject',
+    concurrency=8
+)
+```
+
+### Distributed 模式（分布式）
+
+**适用场景**：
+- 多节点协同爬取
+- 大规模数据采集
+- 需要断点续爬
+
+**配置**：
+```python
+config = CrawloConfig.distributed(
+    project_name='myproject',
+    redis_host='localhost',
+    redis_port=6379,
+    concurrency=16
+)
+```
+
+### Auto 模式（推荐）⭐
+
+**适用场景**：
+- 生产环境部署
+- 需要容错能力
+- 不确定是否有 Redis
+
+**配置**：
+```python
+config = CrawloConfig.auto(
+    project_name='myproject',
+    concurrency=12
+)
+```
+
+**优势**：
+- ✅ Redis 可用时使用 Redis 队列
+- ✅ Redis 不可用时自动降级到内存队列
+- ✅ 同一份代码可在不同环境运行
+
+查看 [运行模式详解](../guides/configuration/run-modes.md) 了解更多。
+
+## Redis 是必需的吗？
+
+**不是！** 取决于运行模式：
+
+| 模式 | Redis 要求 |
+|------|-----------|
+| Standalone | ❌ 不需要 |
+| Distributed | ✅ 必需 |
+| Auto | ⚠️ 可选（推荐） |
+
+**建议**：
+- 开发测试：使用 Standalone 模式，无需 Redis
+- 生产环境：使用 Auto 模式，有 Redis 更好
+
+## 如何配置代理？
+
+### 简单代理
+
+```python
+# settings.py
+PROXY_ENABLED = True
+PROXY_LIST = [
+    'http://proxy1.example.com:8080',
+    'http://proxy2.example.com:8080',
+]
+PROXY_MODE = 'round-robin'  # 轮询
+```
+
+### 动态代理
+
+```python
+# settings.py
+PROXY_ENABLED = True
+PROXY_API_URL = 'https://proxy-api.example.com/get'
+PROXY_API_PARAMS = {'key': 'your_api_key'}
+```
+
+### 在请求中使用代理
+
+```python
+yield Request(
+    url='https://example.com',
+    meta={'proxy': 'http://proxy:8080'}
+)
+```
+
+查看 [代理中间件源码](../../crawlo/middleware/proxy.py) 了解更多。
+
+## 如何调整并发数？
+
+```python
+# settings.py
+CONCURRENCY = 16  # 同时请求数
+```
+
+**建议值**：
+- 小规模爬取：4-8
+- 中等规模：8-16
+- 大规模：16-32
+- 有代理支持：32-64
+
+**注意**：并发数过高可能导致：
+- 目标网站拒绝服务
+- 本地资源耗尽
+- IP 被封禁
+
+## 如何设置下载延迟？
+
+```python
+# settings.py
+DOWNLOAD_DELAY = 1.0  # 基础延迟（秒）
+RANDOMNESS = True     # 启用随机抖动
+```
+
+**实际延迟**：`DOWNLOAD_DELAY * (0.5 ~ 1.5)`
+
+例如 `DOWNLOAD_DELAY = 1.0` 时，实际延迟为 0.5~1.5 秒。
+
+## 如何启用浏览器渲染？
+
+### 方式1: 在请求中指定
+
+```python
+yield Request(
+    url='https://example.com',
+    meta={'use_dynamic_loader': True}
+)
+```
+
+### 方式2: 全局配置
+
+```python
+# settings.py
+DEFAULT_USE_DYNAMIC_LOADER = True
+```
+
+### 方式3: 按域名配置
+
+```python
+# settings.py
+DYNAMIC_LOADER_URL_PATTERNS = [
+    r'.*\.example\.com/.*',  # example.com 使用浏览器
+]
+```
+
+## 如何配置数据存储？
+
+### 保存到文件
+
+```bash
+crawlo run myspider -o output.json
+```
+
+### 保存到 MySQL
+
+```python
+# settings.py
+MYSQL_HOST = 'localhost'
+MYSQL_PORT = 3306
+MYSQL_USER = 'root'
+MYSQL_PASSWORD = 'password'
+MYSQL_DATABASE = 'mydb'
+
+# 方式1：短路径（推荐，需 v1.6.0+）
+PIPELINES = {
+    'crawlo.pipelines.MySQLPipeline': 300,
+}
+
+# 方式2：完整路径（兼容所有版本）
+# PIPELINES = {
+#     'crawlo.pipelines.mysql_pipeline.MySQLPipeline': 300,
+# }
+```
+
+### 保存到 MongoDB
+
+```python
+# settings.py
+MONGO_URI = 'mongodb://localhost:27017'
+MONGO_DATABASE = 'mydb'
+
+# 方式1：短路径（推荐）
+PIPELINES = {
+    'crawlo.pipelines.MongoPipeline': 300,
+}
+
+# 方式2：完整路径
+# PIPELINES = {
+#     'crawlo.pipelines.mongo_pipeline.MongoPipeline': 300,
+# }
+```
+
+## 如何配置日志？
+
+```python
+# settings.py
+LOG_LEVEL = 'INFO'  # DEBUG/INFO/WARNING/ERROR
+LOG_FILE = 'spider.log'  # 日志文件
+LOG_FORMAT = '%(asctime)s - [%(name)s] - %(levelname)s: %(message)s'
+```
+
+**日志级别**：
+- `DEBUG`: 详细信息（开发调试）
+- `INFO`: 一般信息（生产推荐）
+- `WARNING`: 警告信息
+- `ERROR`: 错误信息
+
+## 如何配置重试？
+
+```python
+# settings.py
+RETRY_ENABLED = True
+RETRY_TIMES = 3  # 最大重试次数
+RETRY_HTTP_CODES = [500, 502, 503, 504, 408]
+```
+
+## 如何配置去重？
+
+```python
+# settings.py
+# 内存去重（Standalone 模式）
+DEFAULT_DEDUP_PIPELINE = 'crawlo.pipelines.MemoryDedupPipeline'
+
+# Redis 去重（Distributed 模式）
+DEFAULT_DEDUP_PIPELINE = 'crawlo.pipelines.RedisDedupPipeline'
+```
+
+## 配置文件优先级？
+
+Crawlo 配置有多个层级，优先级从低到高：
+
+1. **默认配置**（框架内置）
+2. **项目配置**（settings.py）
+3. **爬虫配置**（spider 类属性）
+4. **请求配置**（Request.meta）
+5. **命令行参数**（最高）
+
+**示例**：
+```python
+# settings.py（优先级低）
+CONCURRENCY = 8
+
+# 爬虫代码中（优先级高）
+class MySpider(Spider):
+    custom_settings = {
+        'CONCURRENCY': 16,  # 覆盖 settings.py
+    }
+```
+
+---
+
+**还有其他配置问题？** 查看 [配置指南](../guides/configuration/) 或提交 [GitHub Issue](https://github.com/crawl-coder/Crawlo/issues)。

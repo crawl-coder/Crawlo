@@ -36,7 +36,8 @@ SPIDER_MODULES = ['ofweek_standalone.spiders']
 # 数据管道
 # 如需添加自定义管道，请取消注释并添加
 PIPELINES = [
-    'crawlo.pipelines.mysql_pipeline.MySQLPipeline',  # MySQL 存储（使用asyncmy异步库）
+    # 'crawlo.pipelines.mysql_pipeline.MySQLPipeline',  # MySQL 存储（使用asyncmy异步库）
+    'crawlo.pipelines.MySQLPipeline',  # MySQL 存储（使用asyncmy异步库）
     # 'ofweek_standalone.pipelines.CustomPipeline',  # 用户自定义管道示例
 ]
 
@@ -78,11 +79,18 @@ REDIS_DB = 0
 
 
 # MySQL配置
+# MYSQL_HOST = '127.0.0.1'
+# MYSQL_PORT = 3306
+# MYSQL_USER = 'crawlo'
+# MYSQL_PASSWORD = 'crawlo123'
+# MYSQL_DB = 'crawlo_deployer'
+
 MYSQL_HOST = '127.0.0.1'
 MYSQL_PORT = 3306
-MYSQL_USER = 'crawlo'
-MYSQL_PASSWORD = 'crawlo123'
-MYSQL_DB = 'crawlo_deployer'
+MYSQL_USER = 'root'
+MYSQL_PASSWORD = 'oscar&0503'
+MYSQL_DB = 'crawlo_db'
+
 MYSQL_TABLE = 'ofweek_news'
 MYSQL_BATCH_SIZE = 10  # 优化：增加批量大小以减少批量操作次数
 MYSQL_USE_BATCH = True  # 是否启用批量插入
