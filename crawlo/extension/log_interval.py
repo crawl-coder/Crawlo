@@ -70,7 +70,7 @@ class LogIntervalExtension:
         
         if self.task is None or self.task.done():
             self.task = asyncio.create_task(self.interval_log())
-            self.logger.info(f"Interval logging task started (instance: {id(self)})")
+            self.logger.debug(f"Interval logging task started (instance: {id(self)})")
         else:
             self.logger.warning(f"Interval logging task already running, skipping (instance: {id(self)})")
 
