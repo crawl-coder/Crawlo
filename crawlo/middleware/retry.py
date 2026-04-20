@@ -135,9 +135,7 @@ class RetryMiddleware(object):
         return response
 
     def process_exception(self, request, exc, spider):
-        # self.logger.debug(f"Checking exception {type(exc).__name__} for request {request.url}")
-        # self.logger.debug(f"Is instance of retry_exceptions: {isinstance(exc, self.retry_exceptions)}")
-        self.logger.info(f"dont_retry: {request.meta.get('dont_retry', False)}")
+        self.logger.debug(f"dont_retry: {request.meta.get('dont_retry', False)}")
         if isinstance(exc, self.retry_exceptions) and not request.meta.get('dont_retry', False):
             return self._retry(request=request, reason=type(exc).__name__, spider=spider)
 
