@@ -59,12 +59,12 @@ def create_settings_with_backpressure(queue_type='auto'):
         'REDIS_BACKPRESSURE_CRITICAL_THRESHOLD': 0.8,
         
         # Memory 专用背压配置
-        'MEMORY_SCHEDULER_MAX_QUEUE_SIZE': 3000,  # 优化：从 5000 降到 3000
-        'MEMORY_BACKPRESSURE_RATIO': 0.6,  # 优化：从 0.8 降到 0.6
-        'MEMORY_BACKPRESSURE_DELAY_BASE': 0.2,
-        'MEMORY_BACKPRESSURE_DELAY_MAX': 2.0,
-        'MEMORY_BACKPRESSURE_WARNING_THRESHOLD': 0.5,  # 优化：从 0.7 降到 0.5
-        'MEMORY_BACKPRESSURE_CRITICAL_THRESHOLD': 0.8,  # 优化：从 0.9 降到 0.8
+        'MEMORY_SCHEDULER_MAX_QUEUE_SIZE': 8000,  # 优化：从 3000 增加到 8000
+        'MEMORY_BACKPRESSURE_RATIO': 0.5,  # 优化：从 0.8 降到 0.6 再降到 0.5
+        'MEMORY_BACKPRESSURE_DELAY_BASE': 0.5,  # 优化：从 0.2 增加到 0.5
+        'MEMORY_BACKPRESSURE_DELAY_MAX': 5.0,  # 优化：从 2.0 增加到 5.0
+        'MEMORY_BACKPRESSURE_WARNING_THRESHOLD': 0.4,  # 优化：从 0.7 降到 0.5 再降到 0.4
+        'MEMORY_BACKPRESSURE_CRITICAL_THRESHOLD': 0.7,  # 优化：从 0.9 降到 0.8 再降到 0.7
     })
 
 
@@ -95,8 +95,8 @@ async def test_memory_mode():
     print(f"  背压最大延迟: {queue_manager.config.backpressure_delay_max}s")
     
     # 验证是否使用了 Memory 配置
-    expected_max_size = 3000  # MEMORY_SCHEDULER_MAX_QUEUE_SIZE (优化：从 5000 降到 3000)
-    expected_ratio = 0.6      # MEMORY_BACKPRESSURE_RATIO (优化：从 0.8 降到 0.6)
+    expected_max_size = 8000  # MEMORY_SCHEDULER_MAX_QUEUE_SIZE (优化：从 3000 增加到 8000)
+    expected_ratio = 0.5      # MEMORY_BACKPRESSURE_RATIO (优化：从 0.8 降到 0.5)
     
     assert queue_manager._queue_type == QueueType.MEMORY, "应该使用内存队列"
     assert queue_manager.config.max_queue_size == expected_max_size, f"最大队列大小应该是 {expected_max_size}"
@@ -195,8 +195,8 @@ async def test_auto_mode_with_redis():
         assert queue_manager.config.max_queue_size == expected_max_size
         assert queue_manager.config.backpressure_ratio == expected_ratio
     else:
-        expected_max_size = 3000   # MEMORY_SCHEDULER_MAX_QUEUE_SIZE (优化：从 5000 降到 3000)
-        expected_ratio = 0.6       # MEMORY_BACKPRESSURE_RATIO (优化：从 0.8 降到 0.6)
+        expected_max_size = 8000   # MEMORY_SCHEDULER_MAX_QUEUE_SIZE (优化：从 3000 增加到 8000)
+        expected_ratio = 0.5       # MEMORY_BACKPRESSURE_RATIO (优化：从 0.8 降到 0.5)
         print(f"\n✅ AUTO 模式测试通过 (Redis 不可用，降级到 Memory)!")
         print(f"   验证: 使用了 Memory 专用背压配置 (max_size={expected_max_size}, ratio={expected_ratio})")
         assert queue_manager.config.max_queue_size == expected_max_size
