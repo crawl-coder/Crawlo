@@ -24,6 +24,8 @@ anyio>=4.3.0
 httpcore>=1.0.5
 msgpack>=1.0.0
 yarl>=1.17.0
+mkdocs-material>=9.5.0
+pymdown-extensions>=10.0
 
 # 可选依赖（使用 pip install crawlo[render] 安装）
 # playwright>=1.55.0
