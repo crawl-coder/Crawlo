@@ -43,54 +43,54 @@ class MySpider(Spider):
 
 ## 文档导航
 
-### [🔰 新手手把手教程](beginner-tutorial.md)
-**推荐！** 从零开始，手把手教您构建第一个爬虫，包含核心参数配置指南。
+### [🔰 新手教程](tutorials/index.md)
+**推荐！** 从零开始，系统学习Crawlo爬虫框架。
 
-### [🚀 快速入门](getting-started.md)
+### [🚀 快速入门](getting-started/index.md)
 项目初始化、爬虫编写及运行基础。
 
-### [🏗️ 核心架构](architecture.md)
+### [🏗️ 核心架构](concepts/architecture.md)
 深入了解 Crawlo 的异步引擎、洋葱模型中间件以及灵活的运行模式（单机/分布式）。
 
-### [🛠️ 核心组件](core-components.md)
+### [🛠️ 核心组件](concepts/core-components.md)
 详解下载器、调度器、管道和爬虫基类。学习如何配置代理、处理重试以及对接 MySQL/MongoDB。
 
-### [⚙️ 配置指南](configuration.md)
+### [⚙️ 配置指南](guides/configuration/index.md)
 三种运行模式（Standalone/Auto/Distributed）详解，配置优先级与合并策略。
 
-### [💡 实战案例库](examples.md)
+### [💡 实战案例库](examples/index.md)
 包含东方财富、InfoQ、OFweek 等多个真实场景的完整案例代码。
 
-### [🌟 高级特性](advanced-features.md)
+### [🌟 高级特性](reference/index.md)
 探索 Crawlo 的杀手级功能：
 - **AI 适配层 (MCP)**：让 Claude/Cursor 直接驱动爬虫。
 - **自适应选择器**：网页改版后的自动修复技术。
 - **混合下载器**：协议与浏览器的智能切换。
 - **Cloudflare 绕过**：自动识别并处理验证码挑战。
 
-### [💻 命令行参考](cli-reference.md)
+### [💻 命令行参考](reference/cli-reference.md)
 一站式查阅所有 `crawlo` 命令及参数。
 
 ### [🐚 Shell 交互式终端](shell-guide.md)
 实时调试选择器、测试动态渲染，无需编写完整爬虫。
 
-### [🔄 curl 命令转换](curl-conversion.md)
+### [🔄 curl 命令转换](migration/curl-conversion.md)
 将浏览器 DevTools 的 curl 命令直接转换为 Crawlo Request，快速复现浏览器请求。
 
-### [💾 检查点持久化](checkpoint-guide.md)
+### [💾 检查点持久化](concepts/checkpoint-guide.md)
 Ctrl+C 优雅关闭后从断点续爬，支持 JSON/SQLite 双存储后端。
 
 ## 学习路径
 
 如果您是 Crawlo 的新用户，建议按以下顺序学习：
 
-1. **入门** - 阅读[快速入门指南](getting-started.md)，运行第一个示例。
-2. **架构** - 了解[核心架构](architecture.md)设计及运行模式。
-3. **深入** - 掌握[核心组件](core-components.md)的使用。
+1. **入门** - 阅读[快速入门指南](getting-started/index.md)，运行第一个示例。
+2. **架构** - 了解[核心架构](concepts/architecture.md)设计及运行模式。
+3. **深入** - 掌握[核心组件](concepts/core-components.md)的使用。
 4. **调试** - 使用 [Shell 交互式终端](shell-guide.md)实时调试选择器。
-   - 尝试 [curl 命令转换](curl-conversion.md)：从浏览器复制 curl 直接执行
-5. **持久化** - 了解[检查点持久化](checkpoint-guide.md)：Ctrl+C 后断点续爬
-6. **高阶** - 探索[高级特性](advanced-features.md)如 AI 适配、自适应选择器。
+   - 尝试 [curl 命令转换](migration/curl-conversion.md)：从浏览器复制 curl 直接执行
+5. **持久化** - 了解[检查点持久化](concepts/checkpoint-guide.md)：Ctrl+C 后断点续爬
+6. **高阶** - 探索[高级特性](reference/index.md)如 AI 适配、自适应选择器。
 
 ## 贡献
 

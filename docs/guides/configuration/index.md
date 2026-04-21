@@ -113,8 +113,6 @@ DOWNLOAD_DELAY_OVERRIDES = {
 | `DOWNLOAD_TIMEOUT` | `30` | 网络请求的超时时间（秒）。 |
 | `DOWNLOAD_RETRY_TIMES` | `3` | 下载层级的重试次数。 |
 
-> 📖 **完整迁移指南**：查看 [throttle-migration-guide.md](throttle-migration-guide.md)
-
 ---
 
 ## 3. 混合下载器 (Hybrid) 配置

@@ -118,7 +118,7 @@ crawlo shell --curl 'curl https://api.com -H "Authorization: Bearer xxx"'
 
 > **提示**：从浏览器 DevTools → Network → 右键请求 → Copy as cURL (bash)，粘贴即可。
 > 
-> 详细用法请参阅 [curl 命令转换](curl-conversion.md)。
+> 详细用法请参阅 [curl 命令转换](migration/curl-conversion.md)。
 
 ## 终端后端
 

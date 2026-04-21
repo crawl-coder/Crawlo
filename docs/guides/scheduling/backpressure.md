@@ -424,9 +424,9 @@ async def schedule_next_request():
 
 ## 📚 相关文档
 
-- [调度指南概览](index.md)
-- [请求调度](request-scheduling.md)
-- [并发控制](concurrency-control.md)
+- [调度指南概览](../index.md)
+- [配置指南](../configuration/index.md)
+- [核心概念](../../concepts/index.md)
 - [限速策略](rate-limiting.md)
 - [性能优化 FAQ](../../faq/performance.md)
 

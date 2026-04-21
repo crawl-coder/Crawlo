@@ -443,4 +443,4 @@ A: **Distributed 模式**（有 Redis 时）性能最好，因为：
 
 ---
 
-**需要了解配置详情？** 查看 [基础配置](settings-basics.md) 或 [高级配置](advanced-config.md)。
+**需要了解配置详情？** 查看 [配置指南](index.md)。
