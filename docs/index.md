@@ -43,8 +43,8 @@ class MySpider(Spider):
 
 ## 文档导航
 
-### [🔰 新手手把手教程](beginner-tutorial.md)
-**推荐！** 从零开始，手把手教您构建第一个爬虫，包含核心参数配置指南。
+### [🔰 新手教程](tutorials/index.md)
+**推荐！** 从零开始，系统学习Crawlo爬虫框架。
 
 ### [🚀 快速入门](getting-started.md)
 项目初始化、爬虫编写及运行基础。
