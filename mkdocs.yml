@@ -136,14 +136,14 @@ plugins:
         - zh
         - en
       separator: '[\s\u200b\-]+'
-  # 可选：生成站点地图
-  - git-revision-date-localized:
-      enable_creation_date: true
-      type: timeago
-      locale: zh
-  # 可选：自动修复死链
-  - literate-nav:
-      nav_file: NAV.md
+  # 可选：生成站点地图（需要安装 mkdocs-git-revision-date-localized-plugin）
+  # - git-revision-date-localized:
+  #     enable_creation_date: true
+  #     type: timeago
+  #     locale: zh
+  # 可选：自动修复死链（需要安装 mkdocs-literate-nav）
+  # - literate-nav:
+  #     nav_file: NAV.md
 
 markdown_extensions:
   # Python Markdown

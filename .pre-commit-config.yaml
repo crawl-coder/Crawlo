@@ -1,12 +1,147 @@
+# Pre-commit configuration for Crawlo
+# See https://pre-commit.com for more information
+# See https://pre-commit.com/hooks.html for more hooks
+
 repos:
+  # ==========================================
+  # 代码格式化
+  # ==========================================
+  
+  # Black - Python代码格式化
+  - repo: https://github.com/psf/black
+    rev: 24.10.0
+    hooks:
+      - id: black
+        name: black (Python formatter)
+        description: "统一的Python代码格式化器"
+        language_version: python3
+        args: [--line-length=88, --target-version=py38]
+        types: [python]
+  
+  # isort - 导入语句排序
+  - repo: https://github.com/pycqa/isort
+    rev: 5.13.2
+    hooks:
+      - id: isort
+        name: isort (import sorter)
+        description: "对Python import语句进行排序和分离"
+        args: [--profile=black, --line-length=88, --py=38]
+        types: [python]
+  
+  # ==========================================
+  # 代码质量检查
+  # ==========================================
+  
+  # Flake8 - 代码风格检查
+  - repo: https://github.com/pycqa/flake8
+    rev: 7.1.1
+    hooks:
+      - id: flake8
+        name: flake8 (linter)
+        description: "检查Python代码的风格和质量"
+        args: [--max-line-length=88, --extend-ignore=E203, --max-complexity=10]
+        types: [python]
+        exclude: ^(docs/|tests/|examples/)
+  
+  # ==========================================
+  # 文件检查
+  # ==========================================
+  
+  # 检查 YAML 格式
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: check-yaml
+        name: check-yaml
+        description: "检查YAML文件格式"
+        args: [--allow-multiple-documents]
+      
+      # 检查 JSON 格式
+      - id: check-json
+        name: check-json
+        description: "检查JSON文件格式"
+      
+      # 检查文件末尾是否有换行
+      - id: end-of-file-fixer
+        name: end-of-file-fixer
+        description: "确保文件末尾有一个换行符"
+        exclude: ^(.git/|docs/.*\.svg|assets/.*)
+      
+      # 删除末尾空白
+      - id: trailing-whitespace
+        name: trailing-whitespace-fixer
+        description: "删除行末空白字符"
+        args: [--markdown-linebreak-ext=md]
+        exclude: ^(.git/|docs/.*\.md)
+      
+      # 检查合并冲突标记
+      - id: check-merge-conflict
+        name: check-merge-conflict
+        description: "检查文件中的合并冲突标记"
+      
+      # 检查大文件
+      - id: check-added-large-files
+        name: check-added-large-files
+        description: "防止提交大文件（>5MB）"
+        args: [--maxkb=5120]
+      
+      # 检查调试语句
+      - id: debug-statements
+        name: debug-statements
+        description: "检查代码中的debug语句（import pdb, breakpoint等）"
+        types: [python]
+  
+  # ==========================================
+  # 文档检查
+  # ==========================================
+  
+  # Markdown 链接检查
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: check-case-conflict
+        name: check-case-conflict
+        description: "检查文件名大小写冲突"
+      
+      # 检查文档中的TODO/FIXME
+      - id: todo-checker
+        name: todo-checker
+        description: "检查代码中的TODO/FIXME注释"
+        args: [--tags=TODO,FIXME,XXX,HACK]
+  
+  # ==========================================
+  # Crawlo 自定义检查
+  # ==========================================
+  
+  # Crawlo Spider 规范检查
   - repo: local
     hooks:
       - id: crawlo-check
         name: Crawlo Spider Compliance Check
-        description: 检查所有爬虫是否符合规范（仅在 Crawlo 项目中运行）
+        description: "检查所有爬虫是否符合规范（仅在 Crawlo 项目中运行）"
         entry: bash -c 'if [ -f "crawlo.cfg" ]; then crawlo check --ci; else echo "ℹ️  Not a Crawlo project, skipping check."; fi'
         language: system
         pass_filenames: false
         always_run: true
         verbose: true
         stages: [pre-commit]
+
+# ==========================================
+# 配置说明
+# ==========================================
+# 
+# 常用命令：
+#   pre-commit run                  # 运行所有钩子
+#   pre-commit run --all-files      # 检查所有文件
+#   pre-commit run <hook_id>        # 运行特定钩子
+#   pre-commit autoupdate           # 更新所有钩子版本
+#   pre-commit clean                # 清理缓存
+#   pre-commit uninstall            # 卸载pre-commit
+# 
+# 跳过检查：
+#   git commit --no-verify          # 跳过pre-commit检查
+# 
+# 配置文件：
+#   .flake8                         # Flake8配置
+#   pyproject.toml                  # Black/isort配置
+# ==========================================
