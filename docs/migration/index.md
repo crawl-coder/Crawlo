@@ -4,18 +4,6 @@
 
 ## 📖 迁移指南
 
-### 🔄 [从 Scrapy 迁移](from-scrapy.md) 🆕
-- Scrapy vs Crawlo 对比
-- 代码迁移步骤
-- 配置迁移
-- 常见问题
-
-### ⬆️ [版本升级](version-upgrades.md) 🆕
-- 1.x 到 2.x 的变更
-- 废弃的 API
-- 新增功能
-- 升级步骤
-
 ### 🔧 [Curl 转换](curl-conversion.md)
 - Curl 命令转 Request
 - 自动化转换工具
