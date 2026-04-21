@@ -505,7 +505,6 @@ class CustomMiddleware(BaseMiddleware):
 
 ## 更多信息
 
-- [架构文档](architecture.md)
-- [配置指南](configuration.md)
-- [设计缺陷修复](design-defects-fix.md)
-- [示例代码](examples.md)
+- [架构文档](../../concepts/architecture.md)
+- [配置指南](../../guides/configuration/index.md)
+- [实战案例](../../examples/index.md)

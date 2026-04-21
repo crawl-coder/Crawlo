@@ -107,4 +107,4 @@ Shell 支持直接将浏览器的 curl 命令转换为 Request 并执行：
 crawlo shell --curl 'curl https://api.example.com -H "Authorization: Bearer xxx"'
 ```
 
-详细用法请参阅 [curl 命令转换](curl-conversion.md) 和 [Shell 交互式终端](shell-guide.md)。
+详细用法请参阅 [curl 命令转换](migration/curl-conversion.md) 和 [Shell 交互式终端](shell-guide.md)。

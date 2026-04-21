@@ -2,33 +2,43 @@
 
 本系列教程将带你从基础到高级，全面掌握 Crawlo 框架的使用技巧。
 
-## 📚 教程目录
+## 📚 学习资源
 
-### 基础教程
-- [基础爬虫开发](basic-crawler.md) - 学习爬虫的核心开发流程
-- [数据提取技巧](data-extraction.md) - CSS/XPath选择器高级用法
-- [错误处理](handle-errors.md) - 优雅处理各种异常情况
+### 快速开始
+- [5分钟快速上手](../getting-started/5min-quickstart.md) - 最快速入门
+- [安装指南](../getting-started/installation.md) - 环境配置
+- [创建第一个爬虫](../getting-started/first-spider.md) - 实战演练
 
-### 进阶教程
-- [使用代理](use-proxies.md) - 配置和使用代理中间件
-- [数据存储](store-data.md) - MySQL/MongoDB/Redis数据存储
-- [反检测技巧](anti-detection.md) - 绕过反爬虫机制
+### 核心概念
+- [架构设计](../concepts/architecture.md) - 了解框架架构
+- [核心组件](../concepts/core-components.md) - 组件详解
+- [请求生命周期](../concepts/request-lifecycle.md) - 请求处理流程
+- [中间件链](../concepts/middleware-chain.md) - 中间件机制
 
-### 生产部署
-- [部署到生产环境](deploy-production.md) - 生产环境最佳实践
-- [监控和日志](monitoring.md) - 爬虫运行监控
-- [性能优化](performance.md) - 提升爬取效率的技巧
+### 使用指南
+- [配置指南](../guides/configuration/index.md) - 配置详解
+- [运行模式详解](../guides/configuration/run-modes.md) - standalone/distributed模式
+- [背压系统](../guides/scheduling/backpressure.md) - 流量控制
+
+### 实战案例
+- [基础示例](../examples/basic-examples.md) - 简单案例
+- [完整项目案例](../examples/index.md) - 真实项目
+
+### 常见问题
+- [故障排查](../faq/troubleshooting.md) - 问题诊断
+- [性能问题](../faq/performance.md) - 性能优化
+- [配置问题](../faq/configuration.md) - 配置答疑
 
 ## 🎯 学习路径建议
 
 ### 新手路径
-1. [快速开始](../getting-started/) - 5分钟上手
-2. 本教程系列 - 系统学习
+1. [5分钟快速上手](../getting-started/5min-quickstart.md) - 5分钟上手
+2. [创建第一个爬虫](../getting-started/first-spider.md) - 实战练习
 3. [使用指南](../guides/) - 解决具体问题
 
 ### 开发者路径
 1. [配置指南](../guides/configuration/) - 深入了解配置系统
-2. [API参考](../reference/api/) - 完整API文档
+2. [核心概念](../concepts/) - 理解架构设计
 3. [实战案例](../examples/) - 学习真实项目
 
 ## 💡 学习建议
@@ -40,4 +50,4 @@
 
 ---
 
-**准备好学习了？** → [基础爬虫开发](basic-crawler.md)
+**准备好开始了？** → [5分钟快速上手](../getting-started/5min-quickstart.md)
