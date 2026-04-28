@@ -38,7 +38,8 @@ class Engine(object):
         self.downloader: Optional[DownloaderBase] = None
         self.scheduler: Optional[Scheduler] = None
         self.processor: Optional[Processor] = None
-        self.start_requests: Optional[Iterator] = None
+        self._start_requests_source = None  # 原始生成器（sync gen / async gen / iter）
+        self._start_requests_is_async = False  # 是否为异步生成器
         self._close_reason: str = 'finished'  # 关闭原因：finished / shutdown
         self._spider_closed: bool = False  # 防止 close_spider 重复调用
         
@@ -158,16 +159,84 @@ class Engine(object):
             checkpoint_resumed = await self._try_resume_from_checkpoint(spider)
 
         if not checkpoint_resumed:
-            # 正常流程：从 start_requests 开始
-            self.logger.debug("开始创建start_requests迭代器")
+            # 正常流程：从 start_requests 开始（流式，不物化）
+            # 支持三种 start_requests 签名：
+            #   1. def start_requests(self)          -> 同步生成器
+            #   2. async def start_requests(self)     -> 异步生成器
+            #   3. async def start_requests(self)     -> 协程（返回列表/值）
+            self.logger.debug("开始解析 start_requests")
             try:
-                # 先收集所有请求到列表中，避免在检查时消耗迭代器
-                requests_list = list(spider.start_requests())
-                self.logger.debug(f"收集到 {len(requests_list)} 个请求")
-                self.start_requests = iter(requests_list)
-                self.logger.debug("start_requests迭代器创建成功")
+                result = spider.start_requests()
+
+                if isasyncgen(result):
+                    # async def + yield -> 异步生成器，直接流式消费
+                    self._start_requests_source = result
+                    self._start_requests_is_async = True
+                    self.logger.debug("start_requests 类型: 异步生成器（流式）")
+                elif iscoroutine(result):
+                    # async def + return -> 协程，await 后按返回值类型处理
+                    awaited = await result
+                    if isasyncgen(awaited):
+                        self._start_requests_source = awaited
+                        self._start_requests_is_async = True
+                        self.logger.debug("start_requests 类型: 协程→异步生成器（流式）")
+                    elif isgenerator(awaited):
+                        self._start_requests_source = awaited
+                        self._start_requests_is_async = False
+                        self.logger.debug("start_requests 类型: 协程→同步生成器（流式）")
+                    elif awaited is None:
+                        self._start_requests_source = None
+                        self._start_requests_is_async = False
+                    elif isinstance(awaited, (Request, Item)):
+                        # 单个值包装为迭代器
+                        self._start_requests_source = iter([awaited])
+                        self._start_requests_is_async = False
+                        self.logger.debug("start_requests 类型: 协程→单个值")
+                    elif isinstance(awaited, (list, tuple)):
+                        # 列表/元组包装为迭代器（小数据量，不会 OOM）
+                        self._start_requests_source = iter(awaited)
+                        self._start_requests_is_async = False
+                        self.logger.debug(f"start_requests 类型: 协程→列表({len(awaited)}个)")
+                    else:
+                        self.logger.warning(
+                            f"start_requests 协程返回了未知类型 {type(awaited).__name__}，"
+                            "已作为单元素包装"
+                        )
+                        self._start_requests_source = iter([awaited])
+                        self._start_requests_is_async = False
+                else:
+                    # 同步返回值：按类型分发
+                    if isgenerator(result):
+                        self._start_requests_source = result
+                        self._start_requests_is_async = False
+                        self.logger.debug("start_requests 类型: 同步生成器（流式）")
+                    elif isinstance(result, (list, tuple)):
+                        self._start_requests_source = iter(result)
+                        self._start_requests_is_async = False
+                        self.logger.debug(f"start_requests 类型: 同步列表({len(result)}个)")
+                    elif isinstance(result, (Request, Item)):
+                        self._start_requests_source = iter([result])
+                        self._start_requests_is_async = False
+                        self.logger.debug("start_requests 类型: 同步单值")
+                    elif result is None:
+                        self._start_requests_source = None
+                        self._start_requests_is_async = False
+                    else:
+                        # 未知可迭代类型，尝试 iter() 包装
+                        try:
+                            self._start_requests_source = iter(result)
+                            self._start_requests_is_async = False
+                            self.logger.debug("start_requests 类型: 同步可迭代对象（流式）")
+                        except TypeError:
+                            self.logger.warning(
+                                f"start_requests 返回了不可迭代的类型 {type(result).__name__}"
+                            )
+                            self._start_requests_source = None
+                            self._start_requests_is_async = False
+
+                self.logger.debug("start_requests 解析成功")
             except Exception as e:
-                self.logger.error(f"创建start_requests迭代器失败: {e}")
+                self.logger.error(f"解析 start_requests 失败: {e}")
                 import traceback
                 self.logger.error(traceback.format_exc())
         
@@ -181,7 +250,7 @@ class Engine(object):
         
         try:
             # 启动请求生成任务（使用初始化时获取的配置）
-            if self.start_requests and self.enable_controlled_generation:
+            if self._start_requests_source is not None and self.enable_controlled_generation:
                 self.logger.debug("创建受控请求生成任务")
                 generation_task = asyncio.create_task(
                     self._controlled_request_generation()
@@ -281,67 +350,90 @@ class Engine(object):
                 self.logger.debug("close_spider cancelled")
 
     async def _traditional_request_generation(self):
-        """传统请求生成方法（兼容旧版本）"""
-        self.logger.debug("开始处理传统请求生成")
+        """流式请求生成方法（支持 sync/async 生成器，不物化）"""
+        self.logger.debug("开始流式请求生成")
         processed_count = 0
-        while self.running and self.start_requests is not None:
-            try:
-                start_request = next(self.start_requests)
-                # 请求入队
-                await self.enqueue_request(start_request)
-                processed_count += 1
-            except StopIteration:
-                self.logger.debug("所有起始请求处理完成")
-                self.start_requests = None
-                break
-            except Exception as exp:
-                self.logger.error(f"处理请求时发生异常: {exp}")
-                import traceback
-                self.logger.error(traceback.format_exc())
-                if not await self._exit():
-                    continue
-                self.running = False
-                if self.start_requests is not None:
-                    self.logger.error(f"Error occurred while starting request: {str(exp)}")
-            # 减少等待时间以提高效率
-            await asyncio.sleep(0.00001)  # 从0.0001减少到0.00001
-        self.logger.debug(f"传统请求生成完成，总共处理了 {processed_count} 个请求")
+        try:
+            while self.running and self._start_requests_source is not None:
+                try:
+                    if self._start_requests_is_async:
+                        start_request = await self._start_requests_source.__anext__()
+                    else:
+                        start_request = next(self._start_requests_source)
+                    # 请求入队
+                    await self.enqueue_request(start_request)
+                    processed_count += 1
+                except (StopIteration, StopAsyncIteration):
+                    self.logger.debug(f"所有起始请求处理完成，共 {processed_count} 个")
+                    break
+                except Exception as exp:
+                    self.logger.error(f"处理请求时发生异常: {exp}")
+                    import traceback
+                    self.logger.error(traceback.format_exc())
+                    if not await self._exit():
+                        continue
+                    self.running = False
+                    if self._start_requests_source is not None:
+                        self.logger.error(f"Error occurred while starting request: {str(exp)}")
+                # 短暂让出控制权
+                await asyncio.sleep(0.00001)
+        finally:
+            # 确保异步生成器被正确关闭，避免资源泄露
+            if self._start_requests_is_async and self._start_requests_source is not None:
+                try:
+                    await self._start_requests_source.aclose()
+                except Exception:
+                    pass
+            self._start_requests_source = None
+        self.logger.debug(f"流式请求生成完成，总共处理了 {processed_count} 个请求")
 
     async def _controlled_request_generation(self):
-        """Controlled request generation (enhanced features)"""
-        self.logger.debug("Starting controlled request generation")
-        
-        if self.start_requests is None:
+        """受控流式请求生成（支持 sync/async 生成器，背压控制生效）"""
+        self.logger.debug("开始受控流式请求生成")
+
+        if self._start_requests_source is None:
             return
-            
+
         batch = []
         total_generated = 0
-        
+
         try:
-            for request in self.start_requests:
-                batch.append(request)
-                
-                # 批量处理
-                if len(batch) >= self.generation_batch_size:
-                    generated = await self._process_generation_batch(batch)
-                    total_generated += generated
-                    batch = []
-                
-                # 背压检查
-                if await self._should_pause_generation():
-                    await self._wait_for_capacity()
-            
+            if self._start_requests_is_async:
+                async for request in self._start_requests_source:
+                    batch.append(request)
+                    if len(batch) >= self.generation_batch_size:
+                        generated = await self._process_generation_batch(batch)
+                        total_generated += generated
+                        batch = []
+                    if await self._should_pause_generation():
+                        await self._wait_for_capacity()
+            else:
+                for request in self._start_requests_source:
+                    batch.append(request)
+                    if len(batch) >= self.generation_batch_size:
+                        generated = await self._process_generation_batch(batch)
+                        total_generated += generated
+                        batch = []
+                    if await self._should_pause_generation():
+                        await self._wait_for_capacity()
+
             # 处理剩余请求
             if batch:
                 generated = await self._process_generation_batch(batch)
                 total_generated += generated
-        
+
         except Exception as e:
-            self.logger.error(f"Request generation failed: {e}")
-        
+            self.logger.error(f"受控请求生成失败: {e}")
+
         finally:
-            self.start_requests = None
-            self.logger.debug(f"Request generation completed, total: {total_generated}")
+            # 确保异步生成器被正确关闭，避免资源泄露
+            if self._start_requests_is_async and self._start_requests_source is not None:
+                try:
+                    await self._start_requests_source.aclose()
+                except Exception:
+                    pass
+            self._start_requests_source = None
+            self.logger.debug(f"受控请求生成完成，总计: {total_generated}")
 
     async def _process_generation_batch(self, batch) -> int:
         """
@@ -709,7 +801,7 @@ class Engine(object):
             tuple: (should_exit, current_states)
         """
         # 没有启动请求，且所有队列都空闲
-        if self.start_requests is None:
+        if self._start_requests_source is None:
             # 使用异步的idle检查方法以获得更精确的结果
             scheduler_idle = False
             downloader_idle = False
@@ -839,7 +931,7 @@ class Engine(object):
                 checkpoint_mgr.restore_fingerprints(fingerprints, self.scheduler)
             
             # 跳过 start_requests（检查点中已包含未完成的请求）
-            self.start_requests = None
+            self._start_requests_source = None
             
             self.logger.info(
                 f"Resumed from checkpoint: {restored_count}/{len(requests_data)} requests restored, "
