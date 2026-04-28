@@ -340,6 +340,17 @@ class AioHttpDownloader(DownloaderBase):
             "allow_redirects": request.allow_redirects,
         }
 
+        # Per-request auth: HTTP Basic Auth
+        if request.auth:
+            if isinstance(request.auth, (list, tuple)) and len(request.auth) == 2:
+                kwargs["auth"] = BasicAuth(*request.auth)
+            else:
+                kwargs["auth"] = request.auth
+
+        # Per-request SSL verification override
+        if not request.verify:
+            kwargs["ssl"] = False
+
         # 处理代理（由 ProxyMiddleware 分配）
         proxy = getattr(request, "proxy", None)
         proxy_auth = None

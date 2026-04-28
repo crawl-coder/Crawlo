@@ -8,6 +8,7 @@ from typing import Optional, Callable, Any, Union, Dict, Iterator
 from crawlo import Request, Item
 from crawlo.spider import Spider
 from crawlo.event import CrawlerEvent
+from crawlo.project import common_call
 from crawlo.logging import get_logger
 from crawlo.exceptions import OutputError
 from crawlo.error_types import ErrorClassifier
@@ -446,6 +447,11 @@ class Engine(object):
     async def _crawl(self, request):
         async def crawl_task():
             start_time = time.time()
+            # 记录请求标记（flags）用于调试追踪
+            if getattr(request, 'flags', None):
+                self.logger.debug(
+                    f"Processing request with flags: {request.flags} -> {request.url}"
+                )
             try:
                 outputs = await self._fetch(request)
                 # 记录响应时间
@@ -475,6 +481,20 @@ class Engine(object):
                     self.crawler.stats.inc_value(f'downloader/exception_type_count/{type(e).__name__}')
                     if hasattr(request, 'url'):
                         self.crawler.stats.inc_value(f'downloader/failed_urls_count')
+                
+                # ========== 调用用户定义的 errback ==========
+                errback = getattr(request, 'errback', None)
+                if errback and callable(errback):
+                    try:
+                        errback_result = await common_call(errback, e)
+                        if errback_result is not None:
+                            await self._handle_errback_output(errback_result)
+                    except Exception as errback_error:
+                        self.logger.error(
+                            f"errback 执行失败 [{getattr(request, 'url', 'Unknown URL')}]: "
+                            f"{type(errback_error).__name__}: {errback_error}"
+                        )
+                # ==========================================
                 
                 # 关键错误需要重新抛出，避免系统处于不稳定状态
                 if ErrorClassifier.is_critical(e):
@@ -508,7 +528,7 @@ class Engine(object):
             if self.spider is None:
                 return None
             callback: Callable = request.callback or self.spider.parse
-            _outputs = callback(_response)
+            _outputs = callback(_response, **request.cb_kwargs)
             
             if _outputs is None:
                 return None
@@ -609,6 +629,44 @@ class Engine(object):
                 raise spider_output
             else:
                 raise OutputError(f'{type(self.spider)} must return `Request` or `Item`.')
+
+    async def _handle_errback_output(self, result):
+        """
+        处理 errback 的返回值，包装后委托给 _handle_spider_output。
+
+        支持与 callback 相同的返回类型：
+        - 单个 Request / Item
+        - 列表 / 元组
+        - 异步生成器
+        - 同步生成器
+        - 协程
+        """
+        if isinstance(result, (Request, Item)):
+            async def _gen():
+                yield result
+            await self._handle_spider_output(_gen())
+        elif isinstance(result, (list, tuple)):
+            async def _gen():
+                for item in result:
+                    if isinstance(item, (Request, Item)):
+                        yield item
+            await self._handle_spider_output(_gen())
+        elif isasyncgen(result):
+            await self._handle_spider_output(result)
+        elif isgenerator(result):
+            async def _wrap_sync_gen():
+                for item in result:
+                    if isinstance(item, (Request, Item)):
+                        yield item
+            await self._handle_spider_output(_wrap_sync_gen())
+        elif iscoroutine(result):
+            awaited = await result
+            if awaited is not None:
+                await self._handle_errback_output(awaited)
+        else:
+            self.logger.warning(
+                f"errback returned unexpected type {type(result).__name__}, ignored"
+            )
 
     async def _exit(self):
         # 使用异步 idle 检查，避免非原子状态检查的竞态条件
