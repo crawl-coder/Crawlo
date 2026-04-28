@@ -9,6 +9,7 @@ from crawlo import Request, Item
 from crawlo.spider import Spider
 from crawlo.event import CrawlerEvent
 from crawlo.project import common_call
+from crawlo.failure import Failure
 from crawlo.logging import get_logger
 from crawlo.exceptions import OutputError
 from crawlo.error_types import ErrorClassifier
@@ -486,7 +487,7 @@ class Engine(object):
                 errback = getattr(request, 'errback', None)
                 if errback and callable(errback):
                     try:
-                        errback_result = await common_call(errback, e)
+                        errback_result = await common_call(errback, Failure(e, request=request))
                         if errback_result is not None:
                             await self._handle_errback_output(errback_result)
                     except Exception as errback_error:
