@@ -19,6 +19,7 @@ from crawlo.network.response import Response
 from crawlo.logging import get_logger
 from crawlo.downloader import DownloaderBase
 from crawlo.utils.misc import safe_get_config
+from crawlo.constants import ABSOLUTE_TIMEOUT_MULTIPLIER_NORMAL, ABSOLUTE_TIMEOUT_MULTIPLIER_EXTENDED
 
 # 检查 aiohttp 版本是否支持 happy_eyeballs_delay 参数
 # 该参数在 aiohttp 3.9.0+ 中引入，但某些 3.9.x 版本可能不包含
@@ -178,9 +179,11 @@ class AioHttpDownloader(DownloaderBase):
             is_retry = request.meta.get("retry_times", 0) > 0
 
             # 所有请求都使用绝对超时保护（防止代理连接永久阻塞）
-            # 重试请求：40秒绝对超时
-            # 正常请求：35秒绝对超时（比重试短，因为不需要等待）
-            absolute_timeout = 40.0 if is_retry else 35.0
+            # 从 DOWNLOAD_TIMEOUT 配置派生，乘以超时系数作为安全防线
+            absolute_timeout = (
+                self._timeout_secs * ABSOLUTE_TIMEOUT_MULTIPLIER_EXTENDED if is_retry
+                else self._timeout_secs * ABSOLUTE_TIMEOUT_MULTIPLIER_NORMAL
+            )
             
             if is_retry:
                 # 重试时使用正常超时，因为已经切换了代理或等待了一段时间
@@ -267,7 +270,7 @@ class AioHttpDownloader(DownloaderBase):
         """
         # 记录请求详情（用于诊断）
         client_type = "临时session(重试)" if timeout is not None else "主session(正常)"
-        timeout_value = timeout.total if timeout and timeout.total else (40.0 if request.meta.get('retry_times', 0) > 0 else 35.0)
+        timeout_value = timeout.total if timeout and timeout.total else (self._timeout_secs * ABSOLUTE_TIMEOUT_MULTIPLIER_EXTENDED if request.meta.get('retry_times', 0) > 0 else self._timeout_secs * ABSOLUTE_TIMEOUT_MULTIPLIER_NORMAL)
         self.logger.debug(
             f"Sending request via {client_type} (absolute_timeout={timeout_value:.0f}s): {request.url}"
         )

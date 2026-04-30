@@ -9,7 +9,9 @@ from crawlo.utils.misc import load_object
 from crawlo.utils.request import set_request
 from crawlo.utils.error_handler import ErrorHandler
 from crawlo.utils.request.request_serializer import RequestSerializer
-from crawlo.queue.queue_manager import QueueManager, QueueConfig, QueueType
+from crawlo.queue.queue_manager import QueueManager
+from crawlo.queue.config import QueueConfig
+from crawlo.queue.queue_types import QueueType
 
 
 class Scheduler:

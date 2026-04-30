@@ -22,6 +22,7 @@ import time
 from typing import Optional, Dict, List
 
 from DrissionPage import ChromiumPage, ChromiumOptions
+from crawlo.constants import SUBPROCESS_RUN_TIMEOUT
 
 from crawlo.downloader import DownloaderBase
 from crawlo.utils.page_utils import PageActionHandler, SelectorConverter
@@ -79,7 +80,7 @@ class DrissionPageDownloader(DownloaderBase):
                     ['tasklist', '/FI', 'IMAGENAME eq chrome.exe', '/FO', 'CSV', '/NH'],
                     capture_output=True,
                     text=True,
-                    timeout=5
+                    timeout=SUBPROCESS_RUN_TIMEOUT
                 )
                 if result.returncode == 0 and 'chrome.exe' in result.stdout.lower():
                     # 不强制清理，因为用户可能在使用 Chrome
@@ -90,7 +91,7 @@ class DrissionPageDownloader(DownloaderBase):
                     ['pgrep', '-f', 'drissionpage'],
                     capture_output=True,
                     text=True,
-                    timeout=5
+                    timeout=SUBPROCESS_RUN_TIMEOUT
                 )
                 if result.returncode == 0 and result.stdout.strip():
                     pids = result.stdout.strip().split('\n')

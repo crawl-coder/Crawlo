@@ -6,6 +6,8 @@
 """
 from typing import Dict, Any, Optional
 
+from crawlo.constants import QUEUE_OPERATION_TIMEOUT, QUEUE_EXTENDED_TIMEOUT
+
 
 class QueueHelper:
     """队列配置辅助类"""
@@ -112,7 +114,7 @@ class QueuePresets:
         port=6379,
         queue_name="crawlo:production",
         max_retries=5,
-        timeout=600
+        timeout=QUEUE_EXTENDED_TIMEOUT
     )
     
     # 测试环境：自动选择，Redis 不可用时使用内存队列
@@ -130,7 +132,7 @@ class QueuePresets:
         port=6379,
         queue_name="crawlo:cluster",
         max_retries=10,
-        timeout=300
+        timeout=QUEUE_OPERATION_TIMEOUT
     )
 
 

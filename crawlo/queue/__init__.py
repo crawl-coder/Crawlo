@@ -1,10 +1,14 @@
 """队列管理模块"""
-from crawlo.queue.queue_manager import QueueManager, QueueConfig, QueueType
+from crawlo.queue.queue_manager import QueueManager
+from crawlo.queue.config import QueueConfig
+from crawlo.queue.queue_types import QueueType
+from crawlo.queue.intelligent_scheduler import IntelligentScheduler
 from crawlo.queue.pqueue import SpiderPriorityQueue
 
 __all__ = [
     'QueueManager',
     'QueueConfig',
     'QueueType',
+    'IntelligentScheduler',
     'SpiderPriorityQueue',
 ]

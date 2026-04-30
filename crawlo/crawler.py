@@ -17,66 +17,21 @@ Crawler系统
 """
 
 import asyncio
-import logging
 import sys
 import time
 from contextlib import asynccontextmanager
-from dataclasses import dataclass
-from enum import Enum
 from typing import Optional, Type, Dict, Any, List, Union, TYPE_CHECKING, cast
 
 from crawlo.factories import get_component_registry
 from crawlo.initialization import initialize_framework, is_framework_ready
 from crawlo.logging import get_logger
 from crawlo.utils.resource_manager import ResourceManager, ResourceType
+from crawlo.crawler_models import CrawlerState, CrawlerMetrics
 
 if TYPE_CHECKING:
     from crawlo.spider import Spider
     from crawlo.settings.setting_manager import SettingManager
 
-
-class CrawlerState(Enum):
-    """Crawler状态枚举"""
-    CREATED = "created"
-    INITIALIZING = "initializing"
-    READY = "ready"
-    RUNNING = "running"
-    CLOSING = "closing"
-    CLOSED = "closed"
-    ERROR = "error"
-
-
-@dataclass
-class CrawlerMetrics:
-    """Crawler性能指标"""
-    start_time: Optional[float] = None
-    end_time: Optional[float] = None
-    initialization_duration: float = 0.0
-    crawl_duration: float = 0.0
-    request_count: int = 0
-    success_count: int = 0
-    error_count: int = 0
-    
-    def get_total_duration(self) -> float:
-        """
-        获取总执行时间
-        
-        Returns:
-            float: 总执行时间（秒）
-        """
-        if self.start_time and self.end_time:
-            return self.end_time - self.start_time
-        return 0.0
-    
-    def get_success_rate(self) -> float:
-        """
-        获取成功率
-        
-        Returns:
-            float: 成功率（百分比）
-        """
-        total = self.success_count + self.error_count
-        return (self.success_count / total * 100) if total > 0 else 0.0
 
 
 class Crawler:

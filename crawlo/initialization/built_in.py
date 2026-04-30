@@ -75,7 +75,7 @@ class LoggingInitializer(BaseInitializer):
         """
         # 导入日志配置类
         from crawlo.logging import LogConfig
-        from crawlo.utils.config_manager import ConfigUtils
+        from crawlo.utils.misc import ConfigUtils
         
         # 按优先级获取配置：自定义配置 > 上下文配置 > 项目配置 > 默认配置
         config_sources = [
@@ -106,7 +106,7 @@ class LoggingInitializer(BaseInitializer):
         """
         # 导入日志配置类
         from crawlo.logging import LogConfig
-        from crawlo.utils.config_manager import ConfigUtils
+        from crawlo.utils.misc import ConfigUtils
         
         # 检查配置源是否有效
         if not config_source:
@@ -173,7 +173,7 @@ class LoggingInitializer(BaseInitializer):
                         settings_module = importlib.import_module(settings_module_path)
                         
                         # 创建配置字典
-                        from crawlo.utils.config_manager import ConfigUtils
+                        from crawlo.utils.misc import ConfigUtils
                         project_config = ConfigUtils.merge_config_sources([settings_module])
                         
                         return project_config

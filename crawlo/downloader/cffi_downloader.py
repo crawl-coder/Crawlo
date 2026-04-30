@@ -10,6 +10,7 @@ from crawlo.downloader import DownloaderBase
 from crawlo.logging import get_logger
 from crawlo.utils.misc import safe_get_config
 from crawlo.exceptions import DownloadError
+from crawlo.constants import ABSOLUTE_TIMEOUT_MULTIPLIER_NORMAL, ABSOLUTE_TIMEOUT_MULTIPLIER_EXTENDED
 
 
 class CurlCffiDownloader(DownloaderBase):
@@ -120,10 +121,12 @@ class CurlCffiDownloader(DownloaderBase):
             # 1. curl_cffi timeout（HTTP 层超时）
             # 2. asyncio.wait_for（外层绝对超时）
             
-            # 所有请求都使用绝对超时保护
-            # 代理请求：40秒绝对超时
-            # 正常/重试请求：35秒绝对超时
-            absolute_timeout = 40.0 if is_proxy_request else 35.0
+            # 所有请求都使用绝对超时保护，从 DOWNLOAD_TIMEOUT 配置派生
+            # 代理请求使用 EXTENDED 系数，正常/重试请求使用 NORMAL 系数
+            absolute_timeout = (
+                self._timeout_secs * ABSOLUTE_TIMEOUT_MULTIPLIER_EXTENDED if is_proxy_request
+                else self._timeout_secs * ABSOLUTE_TIMEOUT_MULTIPLIER_NORMAL
+            )
 
             # 重试请求使用更严格的超时
             if is_retry:

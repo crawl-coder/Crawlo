@@ -12,6 +12,7 @@ from crawlo.downloader import DownloaderBase
 from crawlo.logging import get_logger
 from crawlo.utils.misc import safe_get_config
 from crawlo.exceptions import DownloadError
+from crawlo.constants import ABSOLUTE_TIMEOUT_MULTIPLIER_NORMAL, ABSOLUTE_TIMEOUT_MULTIPLIER_EXTENDED
 
 
 class HttpXDownloader(DownloaderBase):
@@ -272,10 +273,12 @@ class HttpXDownloader(DownloaderBase):
             # 判断是否为代理请求（有代理配置即为代理请求）
             is_proxy_request = bool(httpx_proxy_config)
             
-            # 所有请求都使用绝对超时保护
-            # 代理请求：30秒绝对超时（减少等待时间）
-            # 正常/重试请求：25秒绝对超时
-            absolute_timeout = 30.0 if is_proxy_request else 25.0
+            # 所有请求都使用绝对超时保护，从 DOWNLOAD_TIMEOUT 配置派生
+            # 代理请求使用 EXTENDED 系数，正常/重试请求使用 NORMAL 系数
+            absolute_timeout = (
+                self._timeout_total * ABSOLUTE_TIMEOUT_MULTIPLIER_EXTENDED if is_proxy_request
+                else self._timeout_total * ABSOLUTE_TIMEOUT_MULTIPLIER_NORMAL
+            )
             
             # 记录请求详情（用于诊断）
             client_type = "代理客户端" if is_proxy_request else "主客户端(直连)"

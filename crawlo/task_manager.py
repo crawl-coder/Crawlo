@@ -209,6 +209,9 @@ class TaskManager(Generic[T]):
         self._max_concurrent_seen = 0  # 峰值并发数
         self._concurrency_limit = total_concurrency  # 并发限制
         
+        # 全部任务完成事件（替代忙轮询）
+        self._all_done_event = asyncio.Event()
+        
     async def create_task(
         self, 
         coroutine, 
@@ -238,6 +241,9 @@ class TaskManager(Generic[T]):
             coroutine = self._wrap_with_timeout(coroutine, timeout)
         
         task = asyncio.create_task(coroutine)
+        # 首次添加任务时清除完成事件
+        if not self.current_task:
+            self._all_done_event.clear()
         self.current_task.add(task)
         self._stats.active_tasks = len(self.current_task)
         self._stats.total_tasks += 1
@@ -249,6 +255,10 @@ class TaskManager(Generic[T]):
             try:
                 self.current_task.discard(task)
                 self._stats.active_tasks = len(self.current_task)
+                
+                # 所有任务完成时通知等待者
+                if not self.current_task:
+                    self._all_done_event.set()
                 
                 # 获取任务结果或异常
                 try:
@@ -386,9 +396,8 @@ class TaskManager(Generic[T]):
                     await asyncio.gather(*self.current_task, return_exceptions=True)
     
     async def _wait_all_done(self) -> None:
-        """等待所有任务完成"""
-        while self.current_task:
-            await asyncio.sleep(0.1)
+        """等待所有任务完成（通过 Event 避免忙轮询）"""
+        await self._all_done_event.wait()
     
     def __enter__(self):
         """上下文管理器入口"""

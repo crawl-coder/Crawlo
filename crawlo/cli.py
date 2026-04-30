@@ -4,7 +4,7 @@
 import sys
 import argparse
 from crawlo.commands import get_commands
-from crawlo.utils.config_manager import EnvConfigManager
+from crawlo.settings.setting_manager import EnvConfigManager
 
 
 def main():

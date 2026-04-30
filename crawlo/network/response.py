@@ -41,26 +41,7 @@ from crawlo.tools.adaptive_selector import (
     SimilarityMatcher,
     ElementFingerprint,
 )
-
-
-def memoize_method_noargs(func):
-    """
-    装饰器，用于缓存无参数方法的结果
-    
-    Args:
-        func: 要装饰的函数
-        
-    Returns:
-        function: 装饰后的函数
-    """
-    cache_attr = f'_cache_{func.__name__}'
-    
-    def wrapper(self):
-        if not hasattr(self, cache_attr):
-            setattr(self, cache_attr, func(self))
-        return getattr(self, cache_attr)
-    
-    return wrapper
+from crawlo.utils.decorators import memoize_method_noargs
 
 
 class Response:

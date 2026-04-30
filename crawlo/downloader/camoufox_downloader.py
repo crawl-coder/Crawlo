@@ -31,6 +31,11 @@ from crawlo.downloader import DownloaderBase
 from crawlo.utils.page_utils import PageActionHandler, SelectorConverter
 from crawlo.network.response import Response
 from crawlo.logging import get_logger
+from crawlo.constants import (
+    BROWSER_PAGE_GOTO_BLANK_TIMEOUT_MS,
+    BROWSER_ELEMENT_WAIT_TIMEOUT_MS,
+    BROWSER_NETWORK_IDLE_TIMEOUT_MS,
+)
 
 
 class CamoufoxDownloader(DownloaderBase):
@@ -246,7 +251,7 @@ class CamoufoxDownloader(DownloaderBase):
         if page_id in self._used_pages:
             self._used_pages.discard(page_id)
             try:
-                await page.goto("about:blank", timeout=1000)
+                await page.goto("about:blank", timeout=BROWSER_PAGE_GOTO_BLANK_TIMEOUT_MS)
             except:
                 pass
         else:
@@ -309,14 +314,14 @@ class CamoufoxDownloader(DownloaderBase):
             try:
                 element = page.locator(selector).first
                 if await element.count() > 0:
-                    await element.wait_for(timeout=3000)
+                    await element.wait_for(timeout=BROWSER_ELEMENT_WAIT_TIMEOUT_MS)
                     break
             except Exception:
                 continue
         
         # 额外等待网络稳定
         try:
-            await page.wait_for_load_state("networkidle", timeout=5000)
+            await page.wait_for_load_state("networkidle", timeout=BROWSER_NETWORK_IDLE_TIMEOUT_MS)
         except Exception:
             pass
 

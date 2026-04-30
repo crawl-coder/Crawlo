@@ -1,6 +1,6 @@
 import importlib
 import pkgutil
-from typing import Iterator, Any, Type, Union, Dict
+from typing import Iterator, Any, List, Type, Union, Dict
 
 from crawlo.spider import Spider
 
@@ -127,3 +127,107 @@ def safe_get_config(settings, key, default=None, value_type=None):
         return value
     except (TypeError, ValueError, AttributeError, Exception):
         return default
+
+
+class ConfigUtils:
+    """通用配置工具类"""
+
+    @staticmethod
+    def get_config_value(
+        config_sources: List[Union[Dict, Any]],
+        key: str,
+        default: Any = None,
+        value_type: type = str
+    ) -> Any:
+        """
+        从多个配置源中获取配置值
+
+        Args:
+            config_sources: 配置源列表，按优先级排序
+            key: 配置键名
+            default: 默认值
+            value_type: 值类型
+
+        Returns:
+            配置值或默认值
+        """
+        for config_source in config_sources:
+            if not config_source:
+                continue
+
+            value = None
+            if hasattr(config_source, 'get'):
+                value = config_source.get(key)
+            elif hasattr(config_source, key):
+                value = getattr(config_source, key)
+            else:
+                continue
+
+            if value is not None:
+                try:
+                    if value_type == bool:
+                        if isinstance(value, str):
+                            return value.lower() in ('1', 'true', 'yes', 'on')
+                        return bool(value)
+                    elif value_type == int:
+                        return int(value)
+                    elif value_type == float:
+                        return float(value)
+                    else:
+                        return value_type(value)
+                except (ValueError, TypeError):
+                    continue
+
+        return default
+
+    @staticmethod
+    def has_config_prefix(config_source: Union[Dict, Any], prefix: str) -> bool:
+        """
+        检查配置源是否包含指定前缀的配置项
+
+        Args:
+            config_source: 配置源
+            prefix: 前缀
+
+        Returns:
+            是否包含指定前缀的配置项
+        """
+        if not config_source:
+            return False
+
+        if hasattr(config_source, 'keys'):
+            return any(key.startswith(prefix) for key in config_source.keys())
+        else:
+            return any(key.startswith(prefix) for key in dir(config_source))
+
+    @staticmethod
+    def merge_config_sources(config_sources: List[Union[Dict, Any]]) -> Dict[str, Any]:
+        """
+        合并多个配置源，后面的配置源优先级更高
+
+        Args:
+            config_sources: 配置源列表
+
+        Returns:
+            合并后的配置字典
+        """
+        merged_config = {}
+
+        for config_source in config_sources:
+            if not config_source:
+                continue
+
+            if hasattr(config_source, 'keys'):
+                for key, value in config_source.items():
+                    if key.isupper():
+                        merged_config[key] = value
+            elif hasattr(config_source, '__dict__'):
+                for key, value in config_source.__dict__.items():
+                    if key.isupper():
+                        merged_config[key] = value
+            else:
+                for key in dir(config_source):
+                    if key.isupper():
+                        merged_config[key] = getattr(config_source, key)
+
+        return merged_config

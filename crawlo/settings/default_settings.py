@@ -18,7 +18,7 @@
 12. 自适应选择器配置 - 选择器自愈功能
 """
 # 添加环境变量配置工具导入
-from crawlo.utils.config_manager import EnvConfigManager
+from crawlo.settings.setting_manager import EnvConfigManager
 
 # ==============================================================================
 # 1. 框架基础配置

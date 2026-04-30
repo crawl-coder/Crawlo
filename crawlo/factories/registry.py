@@ -58,15 +58,9 @@ class ComponentRegistry:
     
     def register(self, spec: ComponentSpec):
         """
-        注册组件规范（同步方法，仅用于向后兼容）
-        :deprecated: 请使用 register_async
+        注册组件规范（同步版本，用于初始化阶段）
+        异步环境请使用 register_async() 以获取锁保护
         """
-        import warnings
-        warnings.warn(
-            "ComponentRegistry.register() is deprecated, use register_async() instead",
-            DeprecationWarning,
-            stacklevel=2
-        )
         self._specs[spec.name] = spec
     
     def register_factory(self, factory: ComponentFactory):

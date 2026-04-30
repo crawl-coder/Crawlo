@@ -18,18 +18,7 @@ import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
 from crawlo.utils.fingerprint import FingerprintGenerator
-
-
-class MockItem:
-    """模拟数据项类"""
-    
-    def __init__(self, **kwargs):
-        for key, value in kwargs.items():
-            setattr(self, key, value)
-    
-    def to_dict(self):
-        """转换为字典"""
-        return {k: v for k, v in self.__dict__.items() if not k.startswith('_')}
+from tests.fixtures.mock_item import MockItem
 
 
 def test_all_pipeline_fingerprints():
