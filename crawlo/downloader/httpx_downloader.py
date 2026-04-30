@@ -156,6 +156,14 @@ class HttpXDownloader(DownloaderBase):
                 "follow_redirects": request.allow_redirects,
             }
 
+            # Per-request auth: HTTP Basic Auth / Bearer token
+            if request.auth:
+                kwargs["auth"] = request.auth
+
+            # Per-request SSL verification override
+            if not request.verify:
+                kwargs["verify"] = False
+
             # 处理请求体
             if hasattr(request, "_json_body") and request._json_body is not None:
                 kwargs["json"] = request._json_body  # JSON 格式

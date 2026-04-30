@@ -112,6 +112,9 @@ class Response:
         self.request: Optional['Request'] = request
         self.status: int = status
 
+        # 请求标记（从 Request.flags 传递，供回调函数检查）
+        self.flags: list = getattr(request, 'flags', []) if request else []
+
         # 编码处理
         self.encoding: str = self._determine_encoding()
 

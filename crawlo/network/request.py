@@ -102,7 +102,7 @@ class Request:
         auth: Optional[tuple] = None,
         verify: bool = True,
         flags: Optional[List[str]] = None,
-        encoding: Optional[str] = None,  # 修改：默认为 None，让 Response 自动检测编码
+        encoding: Optional[str] = None,  
         use_dynamic_loader: bool = False
     ) -> None:
         """
