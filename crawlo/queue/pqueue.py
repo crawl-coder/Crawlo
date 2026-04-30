@@ -1,6 +1,5 @@
 # -*- coding:UTF-8 -*-
 import asyncio
-import sys
 from asyncio import PriorityQueue
 from typing import Optional, Any
 
@@ -23,13 +22,8 @@ class SpiderPriorityQueue(PriorityQueue):
             队列元素(优先级, 值)或None(超时)
         """
         try:
-            # 根据Python版本选择超时实现方式
-            if sys.version_info >= (3, 11):
-                async with asyncio.timeout(timeout):
-                    item = await super().get()
-                    return item
-            else:
-                item = await asyncio.wait_for(super().get(), timeout=timeout)
+            async with asyncio.timeout(timeout):
+                item = await super().get()
                 return item
         except asyncio.TimeoutError:
             return None
@@ -37,7 +31,7 @@ class SpiderPriorityQueue(PriorityQueue):
     def qsize(self) -> int:
         """获取队列大小"""
         return super().qsize()
-        
+
     async def close(self) -> None:
         """关闭队列（空实现，用于与Redis队列接口保持一致）"""
         pass

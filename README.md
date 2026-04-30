@@ -9,6 +9,10 @@
 </p>
 
 <p align="center">
+  <strong>Python 3.11+</strong> · <strong>已适配 Python 3.14</strong>
+</p>
+
+<p align="center">
   <a href="#-快速开始3步上手">快速开始</a> •
   <a href="#-核心特性">核心特性</a> •
   <a href="#-文档">文档</a> •

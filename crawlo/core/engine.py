@@ -870,22 +870,42 @@ class Engine(object):
         if self.processor is not None and hasattr(self.processor, 'pipelines'):
             await self.processor.pipelines.close()
         
-        # 关闭下载器（带超时保护）
+        # 关闭下载器（带超时保护，超时后取消内部协程防止资源泄漏）
         if self.downloader is not None and hasattr(self.downloader, 'close'):
             try:
                 close_result = self.downloader.close()
                 # 如果是协程，使用超时等待
                 if asyncio.iscoroutine(close_result):
-                    await asyncio.wait_for(close_result, timeout=5.0)
+                    close_task = asyncio.ensure_future(close_result)
+                    try:
+                        async with asyncio.timeout(5.0):
+                            await close_task
+                    except asyncio.TimeoutError:
+                        close_task.cancel()
+                        try:
+                            await close_task
+                        except asyncio.CancelledError:
+                            pass
+                        raise  # 重新抛给外层 except 处理
             except asyncio.TimeoutError:
                 self.logger.warning("下载器关闭超时，强制清理资源")
             except Exception as e:
                 self.logger.debug(f"下载器关闭时发生错误: {e}")
         
-        # 关闭调度器
+        # 关闭调度器（带超时保护，超时后取消内部协程防止资源泄漏）
         if self.scheduler is not None:
             try:
-                await asyncio.wait_for(self.scheduler.close(), timeout=5.0)
+                close_task = asyncio.ensure_future(self.scheduler.close())
+                try:
+                    async with asyncio.timeout(5.0):
+                        await close_task
+                except asyncio.TimeoutError:
+                    close_task.cancel()
+                    try:
+                        await close_task
+                    except asyncio.CancelledError:
+                        pass
+                    raise  # 重新抛给外层 except 处理
             except asyncio.TimeoutError:
                 self.logger.warning("调度器关闭超时")
             except Exception as e:

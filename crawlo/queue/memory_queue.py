@@ -290,11 +290,9 @@ class MemoryQueue(BackpressureableQueueMixin, IQueue):
         timeout_value = timeout if timeout is not None else 0
         
         try:
-            # 使用 try/except 处理超时
-            queue_item = await asyncio.wait_for(
-                self._queue.get(),
-                timeout=timeout_value if timeout_value > 0 else None
-            )
+            # 使用 async with asyncio.timeout 处理超时
+            async with asyncio.timeout(timeout_value if timeout_value > 0 else None):
+                queue_item = await self._queue.get()
             self._total_gets += 1
             self._stats.record_dequeue()
             

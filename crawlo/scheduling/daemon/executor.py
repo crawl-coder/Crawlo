@@ -45,8 +45,20 @@ class JobExecutor:
             timeout = self.settings.get_int('SCHEDULER_JOB_TIMEOUT', 3600)
             
             try:
-                # 使用 asyncio.wait_for 实现超时控制
-                await asyncio.wait_for(self._run_spider_job(job), timeout=timeout)
+                # 使用 asyncio.timeout 实现超时控制
+                # 将 spider 协程包装为 Task，超时后显式 cancel 防止后台并发运行
+                job_task = asyncio.ensure_future(self._run_spider_job(job))
+                try:
+                    async with asyncio.timeout(timeout):
+                        await job_task
+                except asyncio.TimeoutError:
+                    # 超时后必须显式取消任务，避免后续调度周期并发执行 spider
+                    job_task.cancel()
+                    try:
+                        await job_task
+                    except asyncio.CancelledError:
+                        pass
+                    raise  # 重新抛给外层 except 处理
                 
                 # 更新成功统计
                 self._stats['successful_executions'] += 1

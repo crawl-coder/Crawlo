@@ -219,7 +219,8 @@ class Subscriber:
             
             try:
                 if self._timeout > 0:
-                    result = await asyncio.wait_for(task, timeout=self._timeout)
+                    async with asyncio.timeout(self._timeout):
+                        result = await task
                 else:
                     result = await task
                 

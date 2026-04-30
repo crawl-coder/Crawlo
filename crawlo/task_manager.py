@@ -33,6 +33,7 @@ from collections import deque
 from asyncio import Task, Future, Semaphore
 from dataclasses import dataclass, field
 
+from crawlo.utils.py314_compat import get_task_info
 from crawlo.logging import get_logger
 
 
@@ -263,8 +264,10 @@ class TaskManager(Generic[T]):
                         self._cancel_logged = True
                 except Exception as exception:
                     self._stats.exception_count += 1
+                    task_info = get_task_info(task)
                     self.logger.error(
-                        f"Task completed with exception: {type(exception).__name__}: {exception}"
+                        f"Task completed with exception: {type(exception).__name__}: {exception} | "
+                        f"Task: {task_info['name']}, active: {task_info.get('coroutine', 'N/A')}"
                     )
                     self.logger.debug("Task exception details:", exc_info=exception)
                     
@@ -282,9 +285,19 @@ class TaskManager(Generic[T]):
         task.add_done_callback(done_callback)
         return task
     
-    def _wrap_with_timeout(self, coroutine, timeout: float):
-        """包装协程添加超时控制"""
-        return asyncio.wait_for(coroutine, timeout=timeout)
+    async def _wrap_with_timeout(self, coroutine, timeout: float):
+        """包装协程添加超时控制，超时后取消内部协程防止资源泄漏"""
+        task = asyncio.ensure_future(coroutine)
+        try:
+            async with asyncio.timeout(timeout):
+                return await task
+        except asyncio.TimeoutError:
+            task.cancel()
+            try:
+                await task
+            except asyncio.CancelledError:
+                pass
+            raise
 
     def all_done(self) -> bool:
         """检查所有任务是否完成"""
@@ -362,10 +375,8 @@ class TaskManager(Generic[T]):
         else:
             # 等待任务完成
             try:
-                await asyncio.wait_for(
-                    self._wait_all_done(),
-                    timeout=timeout
-                )
+                async with asyncio.timeout(timeout):
+                    await self._wait_all_done()
                 self.logger.info("All tasks completed gracefully")
             except asyncio.TimeoutError:
                 self.logger.warning(f"Timeout waiting for tasks ({timeout}s), cancelling remaining...")

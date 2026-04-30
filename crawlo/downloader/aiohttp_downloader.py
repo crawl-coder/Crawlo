@@ -190,13 +190,19 @@ class AioHttpDownloader(DownloaderBase):
                     sock_read=self._timeout_secs * 0.50,       # 50%（15秒）
                     sock_connect=min(10.0, self._timeout_secs * 0.33)  # 33%（10秒）
                 )
-                # 使用 asyncio.wait_for 强制超时保护
+                # 使用 asyncio.timeout 强制超时保护，超时后取消下载防止连接泄漏
                 try:
-                    response = await asyncio.wait_for(
-                        self._download_with_timeout(request, retry_timeout),
-                        timeout=absolute_timeout
+                    download_task = asyncio.ensure_future(
+                        self._download_with_timeout(request, retry_timeout)
                     )
+                    async with asyncio.timeout(absolute_timeout):
+                        response = await download_task
                 except asyncio.TimeoutError:
+                    download_task.cancel()
+                    try:
+                        await download_task
+                    except asyncio.CancelledError:
+                        pass
                     self.logger.error(
                         f"重试请求绝对超时（{absolute_timeout:.0f}s），代理连接可能死锁: {request.url} "
                         f"(retry_times={request.meta.get('retry_times', 0)})"
@@ -206,13 +212,19 @@ class AioHttpDownloader(DownloaderBase):
                         url=request.url
                     )
             else:
-                # 正常请求也添加绝对超时保护
+                # 正常请求也添加绝对超时保护，超时后取消下载防止连接泄漏
                 try:
-                    response = await asyncio.wait_for(
-                        self._download_with_timeout(request),
-                        timeout=absolute_timeout
+                    download_task = asyncio.ensure_future(
+                        self._download_with_timeout(request)
                     )
+                    async with asyncio.timeout(absolute_timeout):
+                        response = await download_task
                 except asyncio.TimeoutError:
+                    download_task.cancel()
+                    try:
+                        await download_task
+                    except asyncio.CancelledError:
+                        pass
                     self.logger.error(
                         f"请求绝对超时（{absolute_timeout:.0f}s），代理连接可能死锁: {request.url}"
                     )

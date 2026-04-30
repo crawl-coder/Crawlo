@@ -145,10 +145,8 @@ class Processor:
             try:
                 # 使用超时避免永久阻塞
                 try:
-                    result = await asyncio.wait_for(
-                        self.queue.get(), 
-                        timeout=self._timeout
-                    )
+                    async with asyncio.timeout(self._timeout):
+                        result = await self.queue.get()
                 except asyncio.TimeoutError:
                     # 超时后继续检查停止信号
                     continue
@@ -241,7 +239,8 @@ class Processor:
         
         if self._task and not self._task.done():
             try:
-                await asyncio.wait_for(self._task, timeout=timeout)
+                async with asyncio.timeout(timeout):
+                    await self._task
             except asyncio.TimeoutError:
                 self.logger.warning("Processor stop timeout, cancelling")
                 self._task.cancel()

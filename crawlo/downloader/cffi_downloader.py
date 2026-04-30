@@ -129,11 +129,17 @@ class CurlCffiDownloader(DownloaderBase):
             if is_retry:
                 strict_timeout = min(10.1, self._timeout_secs * 0.67)
                 try:
-                    response = await asyncio.wait_for(
-                        self._download_with_timeout(request, strict_timeout),
-                        timeout=absolute_timeout
+                    download_task = asyncio.ensure_future(
+                        self._download_with_timeout(request, strict_timeout)
                     )
+                    async with asyncio.timeout(absolute_timeout):
+                        response = await download_task
                 except asyncio.TimeoutError:
+                    download_task.cancel()
+                    try:
+                        await download_task
+                    except asyncio.CancelledError:
+                        pass
                     self.logger.error(
                         f"重试请求绝对超时（{absolute_timeout:.0f}s），代理连接可能死锁: {request.url} "
                         f"(retry_times={request.meta.get('retry_times', 0)})"
@@ -145,11 +151,17 @@ class CurlCffiDownloader(DownloaderBase):
             else:
                 # 正常请求也添加绝对超时保护
                 try:
-                    response = await asyncio.wait_for(
-                        self._download_with_timeout(request),
-                        timeout=absolute_timeout
+                    download_task = asyncio.ensure_future(
+                        self._download_with_timeout(request)
                     )
+                    async with asyncio.timeout(absolute_timeout):
+                        response = await download_task
                 except asyncio.TimeoutError:
+                    download_task.cancel()
+                    try:
+                        await download_task
+                    except asyncio.CancelledError:
+                        pass
                     self.logger.error(
                         f"请求绝对超时（{absolute_timeout:.0f}s），代理连接可能死锁: {request.url}"
                     )
