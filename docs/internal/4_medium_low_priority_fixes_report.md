@@ -84,7 +84,66 @@ tests/
 
 ---
 
-## 四、验证结论
+## 四、重点缺陷修复
+
+本次提交同时包含了遗留的未暂存修改，涉及以下关键缺陷修复与代码治理：
+
+### 4.1 TaskManager 忙轮询 → Event 驱动
+
+**文件**：[`crawlo/task_manager.py`](file:///d:/dowell/others/Crawlo/crawlo/task_manager.py)
+
+**问题**：`_wait_all_done()` 使用 `while self.current_task: await asyncio.sleep(0.1)` 忙轮询检查任务完成状态，每个 Crawler 实例每 100ms 唤醒一次，多爬虫场景下 CPU 浪费明显。
+
+**修复**：引入 `asyncio.Event`，任务全部移除时 set()，`_wait_all_done()` 通过 `await self._all_done_event.wait()` 阻塞等待，零 CPU 空转。
+
+---
+
+### 4.2 ConfigUtils import 路径修正
+
+**文件**：[`crawlo/initialization/built_in.py`](file:///d:/dowell/others/Crawlo/crawlo/initialization/built_in.py)（3 处）
+
+**问题**：`logging_initializer.py` 中仍引用 `crawlo.utils.config_manager.ConfigUtils`，但 `ConfigUtils` 已迁移至 `crawlo.utils.misc`，旧路径在特定条件下引发 ImportError。
+
+**修复**：所有 `from crawlo.utils.config_manager import ConfigUtils` 改为 `from crawlo.utils.misc import ConfigUtils`。
+
+---
+
+### 4.3 ComponentRegistry.register() 废弃警告清理
+
+**文件**：[`crawlo/factories/registry.py`](file:///d:/dowell/others/Crawlo/crawlo/factories/registry.py)
+
+**问题**：`register()` 方法内嵌 `DeprecationWarning` 提示改用 `register_async()`，但初始化阶段大量使用同步 `register()` 注册组件，每次调用都产生噪音警告。
+
+**修复**：移除废弃警告及 import。`register()` 作为初始化阶段的标准同步入口保留，`register_async()` 用于异步上下文。
+
+---
+
+### 4.4 config_manager.py 废弃代码清理
+
+**文件**：[`crawlo/utils/config_manager.py`](file:///d:/dowell/others/Crawlo/crawlo/utils/config_manager.py)
+
+**问题**：`LargeScaleConfig` 类（含 3 个预设配置方法 + `apply_large_scale_config` 函数）共 445 行，功能已被 `setting_manager.py` 替代多年，属于死代码。
+
+**修复**：整体删除 `LargeScaleConfig` 类和 `apply_large_scale_config` 函数，精简 `__all__` 导出。
+
+---
+
+### 4.5 超大文件拆分重构
+
+为降低模块复杂度，对 4 个超大文件进行拆分：
+
+| 原始文件 | 减少行数 | 拆分目标 | 新增行数 |
+|---------|---------|---------|---------|
+| `crawlo/core/engine.py` | -186 | `crawlo/core/engine_generation.py`（RequestGenerationMixin） | +196 |
+| `crawlo/crawler.py` | -47 | `crawlo/crawler_models.py`（CrawlerState/CrawlerMetrics） | +56 |
+| `crawlo/downloader/playwright_downloader.py` | -307 | `stealth.py` + `wait_strategies.py` | +330 |
+| `crawlo/queue/queue_manager.py` | -325 | `queue/config.py` + `queue/intelligent_scheduler.py` | +332 |
+
+效果：各源文件行数回归可控范围，逻辑内聚性提升，便于维护和单模块测试。
+
+---
+
+## 五、验证结论
 
 - **语法检查**：全部通过。
 - **集成测试**：1 PASSED, 1 SKIPPED。
