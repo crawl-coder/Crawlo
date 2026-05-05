@@ -7,7 +7,8 @@ Crawlo - 一个异步爬虫框架
 # 为了向后兼容，从tools中导入cleaners相关的功能
 import crawlo.tools as cleaners
 from crawlo import tools
-from crawlo.crawler import Crawler, CrawlerProcess
+from crawlo.crawler import Crawler
+from crawlo.crawler_process import CrawlerProcess
 from crawlo.downloader import DownloaderBase
 from crawlo.items import Item, Field
 from crawlo.middleware import BaseMiddleware

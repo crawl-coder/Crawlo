@@ -182,6 +182,7 @@ local_config.py
 .qoder/
 .flink-checkpoints
 .flink-checkpoints/
+*.db
 .data
 .data/
 
