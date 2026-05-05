@@ -397,9 +397,9 @@ class Scheduler:
             # 获取入队后的队列大小
             queue_size_after = await self.queue_manager.size()
             
-            # 更新智能调度器的统计信息
-            if hasattr(self.queue_manager, '_intelligent_scheduler'):
-                self.queue_manager._intelligent_scheduler.update_crawl_frequency(request)
+            # 更新优先级计算器的统计信息
+            if hasattr(self.queue_manager, '_priority_calculator'):
+                self.queue_manager._priority_calculator.update_crawl_frequency(request)
             
             if success:
                 self.logger.debug(

@@ -21,7 +21,7 @@ if TYPE_CHECKING:
 from crawlo.queue.pqueue import SpiderPriorityQueue
 from crawlo.queue.queue_types import QueueType
 from crawlo.queue.config import QueueConfig
-from crawlo.queue.intelligent_scheduler import IntelligentScheduler
+from crawlo.core.priority_calculator import PriorityCalculator
 from crawlo.utils.error_handler import ErrorHandler
 from crawlo.logging import get_logger
 from crawlo.utils.request.request_serializer import RequestSerializer
@@ -51,7 +51,7 @@ class QueueManager:
         self._queue_semaphore = None
         self._queue_type = None
         self._health_status = "unknown"
-        self._intelligent_scheduler = IntelligentScheduler()  # 智能调度器
+        self._priority_calculator = PriorityCalculator()  # 优先级计算器
         
         # 初始化新的背压策略系统
         from crawlo.backpressure import (
@@ -172,12 +172,12 @@ class QueueManager:
 
         try:
             # 应用智能调度算法计算优先级
-            intelligent_priority = self._intelligent_scheduler.calculate_priority(request)
+            intelligent_priority = self._priority_calculator.calculate_priority(request)
             # 结合原始优先级和智能优先级
             final_priority = priority + intelligent_priority
 
             # 更新统计信息
-            self._intelligent_scheduler.update_stats(request)
+            self._priority_calculator.update_stats(request)
 
             # 序列化处理（仅对 Redis 队列）
             if self._queue_type == QueueType.REDIS:
@@ -421,7 +421,7 @@ class QueueManager:
             'current_queue_size': 0,
             'max_queue_size': self.config.max_queue_size,
             'backpressure_status': {},
-            'intelligent_scheduler_stats': {}
+            'priority_calculator_stats': {}
         }
         
         # 获取队列大小
@@ -445,14 +445,14 @@ class QueueManager:
         if hasattr(self, '_backpressure_controller') and self._backpressure_controller:
             stats['backpressure_status'] = self._backpressure_controller.get_stats()
         
-        # 获取智能调度器统计信息
-        if hasattr(self, '_intelligent_scheduler'):
-            stats['intelligent_scheduler_stats'] = {
-                'domain_count': len(getattr(self._intelligent_scheduler, 'domain_stats', {})),
-                'url_count': len(getattr(self._intelligent_scheduler, 'url_stats', {})),
-                'response_time_count': len(getattr(self._intelligent_scheduler, 'response_times', {})),
-                'error_count': len(getattr(self._intelligent_scheduler, 'error_counts', {})),
-                'crawl_frequency_count': len(getattr(self._intelligent_scheduler, 'crawl_frequency', {}))
+        # 获取优先级计算器统计信息
+        if hasattr(self, '_priority_calculator'):
+            stats['priority_calculator_stats'] = {
+                'domain_count': len(getattr(self._priority_calculator, 'domain_stats', {})),
+                'url_count': len(getattr(self._priority_calculator, 'url_stats', {})),
+                'response_time_count': len(getattr(self._priority_calculator, 'response_times', {})),
+                'error_count': len(getattr(self._priority_calculator, 'error_counts', {})),
+                'crawl_frequency_count': len(getattr(self._priority_calculator, 'crawl_frequency', {}))
             }
         
         # 如果队列是Redis队列，获取其统计信息
@@ -477,16 +477,16 @@ class QueueManager:
             }
             stats.update(back_pressure_stats)
         
-        # 添加智能调度器的详细统计信息
-        if hasattr(self, '_intelligent_scheduler'):
+        # 添加优先级计算器的详细统计信息
+        if hasattr(self, '_priority_calculator'):
             intelligent_stats = {
-                'intelligent_scheduler_stats_detail': {
-                    'domain_frequencies': dict(getattr(self._intelligent_scheduler, 'domain_stats', {})),
-                    'url_patterns': dict(getattr(self._intelligent_scheduler, 'url_stats', {})),
+                'priority_calculator_stats_detail': {
+                    'domain_frequencies': dict(getattr(self._priority_calculator, 'domain_stats', {})),
+                    'url_patterns': dict(getattr(self._priority_calculator, 'url_stats', {})),
                     'crawl_depths': {},  # 爬取深度统计（如果有的话）
-                    'response_times': dict(getattr(self._intelligent_scheduler, 'response_times', {})),
-                    'error_counts': dict(getattr(self._intelligent_scheduler, 'error_counts', {})),
-                    'content_type_preferences': dict(getattr(self._intelligent_scheduler, 'content_type_preferences', {}))
+                    'response_times': dict(getattr(self._priority_calculator, 'response_times', {})),
+                    'error_counts': dict(getattr(self._priority_calculator, 'error_counts', {})),
+                    'content_type_preferences': dict(getattr(self._priority_calculator, 'content_type_preferences', {}))
                 }
             }
             stats.update(intelligent_stats)

@@ -19,9 +19,9 @@ from crawlo.core.processor import Processor
 from crawlo.core.scheduler import Scheduler
 from crawlo.core.engine_helpers import GenerationStats, BackpressureController
 from crawlo.core.engine_generation import RequestGenerationMixin
+from crawlo.core.engine_generation import resolve_start_requests, process_callback_output
 from crawlo.utils.misc import load_object
 from crawlo.utils.misc import safe_get_config
-from crawlo.utils.func_tools import transform
 from crawlo.__version__ import __version__
 
 
@@ -161,80 +161,10 @@ class Engine(RequestGenerationMixin):
 
         if not checkpoint_resumed:
             # 正常流程：从 start_requests 开始（流式，不物化）
-            # 支持三种 start_requests 签名：
-            #   1. def start_requests(self)          -> 同步生成器
-            #   2. async def start_requests(self)     -> 异步生成器
-            #   3. async def start_requests(self)     -> 协程（返回列表/值）
-            self.logger.debug("开始解析 start_requests")
             try:
-                result = spider.start_requests()
-
-                if isasyncgen(result):
-                    # async def + yield -> 异步生成器，直接流式消费
-                    self._start_requests_source = result
-                    self._start_requests_is_async = True
-                    self.logger.debug("start_requests 类型: 异步生成器（流式）")
-                elif iscoroutine(result):
-                    # async def + return -> 协程，await 后按返回值类型处理
-                    awaited = await result
-                    if isasyncgen(awaited):
-                        self._start_requests_source = awaited
-                        self._start_requests_is_async = True
-                        self.logger.debug("start_requests 类型: 协程→异步生成器（流式）")
-                    elif isgenerator(awaited):
-                        self._start_requests_source = awaited
-                        self._start_requests_is_async = False
-                        self.logger.debug("start_requests 类型: 协程→同步生成器（流式）")
-                    elif awaited is None:
-                        self._start_requests_source = None
-                        self._start_requests_is_async = False
-                    elif isinstance(awaited, (Request, Item)):
-                        # 单个值包装为迭代器
-                        self._start_requests_source = iter([awaited])
-                        self._start_requests_is_async = False
-                        self.logger.debug("start_requests 类型: 协程→单个值")
-                    elif isinstance(awaited, (list, tuple)):
-                        # 列表/元组包装为迭代器（小数据量，不会 OOM）
-                        self._start_requests_source = iter(awaited)
-                        self._start_requests_is_async = False
-                        self.logger.debug(f"start_requests 类型: 协程→列表({len(awaited)}个)")
-                    else:
-                        self.logger.warning(
-                            f"start_requests 协程返回了未知类型 {type(awaited).__name__}，"
-                            "已作为单元素包装"
-                        )
-                        self._start_requests_source = iter([awaited])
-                        self._start_requests_is_async = False
-                else:
-                    # 同步返回值：按类型分发
-                    if isgenerator(result):
-                        self._start_requests_source = result
-                        self._start_requests_is_async = False
-                        self.logger.debug("start_requests 类型: 同步生成器（流式）")
-                    elif isinstance(result, (list, tuple)):
-                        self._start_requests_source = iter(result)
-                        self._start_requests_is_async = False
-                        self.logger.debug(f"start_requests 类型: 同步列表({len(result)}个)")
-                    elif isinstance(result, (Request, Item)):
-                        self._start_requests_source = iter([result])
-                        self._start_requests_is_async = False
-                        self.logger.debug("start_requests 类型: 同步单值")
-                    elif result is None:
-                        self._start_requests_source = None
-                        self._start_requests_is_async = False
-                    else:
-                        # 未知可迭代类型，尝试 iter() 包装
-                        try:
-                            self._start_requests_source = iter(result)
-                            self._start_requests_is_async = False
-                            self.logger.debug("start_requests 类型: 同步可迭代对象（流式）")
-                        except TypeError:
-                            self.logger.warning(
-                                f"start_requests 返回了不可迭代的类型 {type(result).__name__}"
-                            )
-                            self._start_requests_source = None
-                            self._start_requests_is_async = False
-
+                source, is_async = await resolve_start_requests(spider, self.logger)
+                self._start_requests_source = source
+                self._start_requests_is_async = is_async
                 self.logger.debug("start_requests 解析成功")
             except Exception as e:
                 self.logger.error(f"解析 start_requests 失败: {e}")
@@ -435,81 +365,18 @@ class Engine(RequestGenerationMixin):
                 coro.close()
 
     async def _fetch(self, request):
-        async def _successful(_response):
-            if self.spider is None:
-                return None
-            callback: Callable = request.callback or self.spider.parse
-            _outputs = callback(_response, **request.cb_kwargs)
-            
-            if _outputs is None:
-                return None
-            
-            # 异步生成器（async def + yield） - 最常见且正确的用法
-            if isasyncgen(_outputs):
-                return transform(_outputs, _response)
-            
-            # 同步生成器（def + yield）
-            if isgenerator(_outputs):
-                return transform(_outputs, _response)
-            
-            # 协程（async def 不使用 yield） - await 获取结果后再判断
-            if iscoroutine(_outputs):
-                result = await _outputs
-                if result is None:
-                    return None
-                # await 后的结果可能是生成器或单个值
-                if isasyncgen(result):
-                    return transform(result, _response)
-                if isgenerator(result):
-                    return transform(result, _response)
-                # 单个 Request/Item 返回值，包装为异步生成器
-                if isinstance(result, (Request, Item)):
-                    async def _single_output():
-                        yield result
-                    return transform(_single_output(), _response)
-                # 列表/元组返回值
-                if isinstance(result, (list, tuple)):
-                    async def _list_output():
-                        for item in result:
-                            if isinstance(item, (Request, Item)):
-                                yield item
-                    return transform(_list_output(), _response)
-                # 其他类型结果，记录警告
-                self.logger.warning(
-                    f"Callback {callback.__name__} returned unexpected type "
-                    f"{type(result).__name__} from coroutine. "
-                    f"Use 'yield' instead of 'return' for producing output."
-                )
-                return None
-            
-            # 同步函数返回单个 Request/Item（非生成器）
-            if isinstance(_outputs, (Request, Item)):
-                async def _sync_single_output():
-                    yield _outputs
-                return transform(_sync_single_output(), _response)
-            
-            # 同步函数返回列表/元组
-            if isinstance(_outputs, (list, tuple)):
-                async def _sync_list_output():
-                    for item in _outputs:
-                        if isinstance(item, (Request, Item)):
-                            yield item
-                return transform(_sync_list_output(), _response)
-            
-            # 其他未知类型，记录警告
-            self.logger.warning(
-                f"Callback {callback.__name__} returned unexpected type "
-                f"{type(_outputs).__name__}. Expected generator, async generator, "
-                f"Request, Item, or list/tuple of them."
-            )
-            return None
-
         if self.downloader is None:
             return None
         _response = await self.downloader.fetch(request)
         if _response is None:
             return None
-        output = await _successful(_response)
+        output = await process_callback_output(
+            self.spider,
+            request.callback or self.spider.parse,
+            request.cb_kwargs,
+            _response,
+            self.logger
+        )
         return output
 
     async def enqueue_request(self, start_request):

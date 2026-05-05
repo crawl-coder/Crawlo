@@ -7,6 +7,139 @@ Engine 请求生成 Mixin
 遵循单一职责原则，独立维护生成策略。
 """
 import asyncio
+from inspect import isasyncgen, iscoroutine, isgenerator
+from typing import Tuple, Optional, Any
+
+from crawlo import Request, Item
+from crawlo.utils.func_tools import transform
+
+
+async def resolve_start_requests(spider, logger) -> Tuple[Optional[Any], bool]:
+    """
+    通用 start_requests 返回值解析器
+
+    统一处理同步生成器、异步生成器、协程、列表/元组、
+    单个 Request/Item 等多种返回类型，返回 (source, is_async)。
+
+    Returns:
+        (source, is_async): source 为可迭代对象或 None，is_async 标识是否为异步
+    """
+    logger.debug("开始解析 start_requests")
+    result = spider.start_requests()
+
+    if isasyncgen(result):
+        logger.debug("start_requests 类型: 异步生成器（流式）")
+        return result, True
+
+    if iscoroutine(result):
+        awaited = await result
+        if isasyncgen(awaited):
+            logger.debug("start_requests 类型: 协程→异步生成器（流式）")
+            return awaited, True
+        if isgenerator(awaited):
+            logger.debug("start_requests 类型: 协程→同步生成器（流式）")
+            return awaited, False
+        if awaited is None:
+            return None, False
+        if isinstance(awaited, (Request, Item)):
+            logger.debug("start_requests 类型: 协程→单个值")
+            return iter([awaited]), False
+        if isinstance(awaited, (list, tuple)):
+            logger.debug(f"start_requests 类型: 协程→列表({len(awaited)}个)")
+            return iter(awaited), False
+        logger.warning(
+            f"start_requests 协程返回了未知类型 {type(awaited).__name__}，已作为单元素包装"
+        )
+        return iter([awaited]), False
+
+    # 同步返回值
+    if isgenerator(result):
+        logger.debug("start_requests 类型: 同步生成器（流式）")
+        return result, False
+    if isinstance(result, (list, tuple)):
+        logger.debug(f"start_requests 类型: 同步列表({len(result)}个)")
+        return iter(result), False
+    if isinstance(result, (Request, Item)):
+        logger.debug("start_requests 类型: 同步单值")
+        return iter([result]), False
+    if result is None:
+        return None, False
+    # 未知可迭代类型
+    try:
+        source = iter(result)
+        logger.debug("start_requests 类型: 同步可迭代对象（流式）")
+        return source, False
+    except TypeError:
+        logger.warning(f"start_requests 返回了不可迭代的类型 {type(result).__name__}")
+        return None, False
+
+
+async def process_callback_output(spider, callback, cb_kwargs, response, logger):
+    """
+    通用 callback 返回值处理器
+
+    将 callback(response, **cb_kwargs) 的返回值标准化为
+    transform() 可消费的异步生成器。
+
+    Returns:
+        异步生成器对象或 None
+    """
+    if spider is None:
+        return None
+
+    _outputs = callback(response, **cb_kwargs)
+    if _outputs is None:
+        return None
+
+    if isasyncgen(_outputs):
+        return transform(_outputs, response)
+
+    if isgenerator(_outputs):
+        return transform(_outputs, response)
+
+    if iscoroutine(_outputs):
+        result = await _outputs
+        if result is None:
+            return None
+        if isasyncgen(result):
+            return transform(result, response)
+        if isgenerator(result):
+            return transform(result, response)
+        if isinstance(result, (Request, Item)):
+            async def _single_output():
+                yield result
+            return transform(_single_output(), response)
+        if isinstance(result, (list, tuple)):
+            async def _list_output():
+                for item in result:
+                    if isinstance(item, (Request, Item)):
+                        yield item
+            return transform(_list_output(), response)
+        logger.warning(
+            f"Callback {callback.__name__} returned unexpected type "
+            f"{type(result).__name__} from coroutine. "
+            f"Use 'yield' instead of 'return' for producing output."
+        )
+        return None
+
+    if isinstance(_outputs, (Request, Item)):
+        async def _sync_single_output():
+            yield _outputs
+        return transform(_sync_single_output(), response)
+
+    if isinstance(_outputs, (list, tuple)):
+        async def _sync_list_output():
+            for item in _outputs:
+                if isinstance(item, (Request, Item)):
+                    yield item
+        return transform(_sync_list_output(), response)
+
+    logger.warning(
+        f"Callback {callback.__name__} returned unexpected type "
+        f"{type(_outputs).__name__}. Expected generator, async generator, "
+        f"Request, Item, or list/tuple of them."
+    )
+    return None
 
 
 class RequestGenerationMixin:
@@ -187,10 +320,8 @@ class RequestGenerationMixin:
         """Wait for system to have sufficient capacity"""
         self._generation_stats.increment_backpressure()
         self.logger.debug("Backpressure triggered, pausing request generation")
-        
-        wait_time = 0.01  # 减少初始等待时间
-        max_wait = 1.0  # 减少最大等待时间
-        
-        while await self._should_pause_generation() and self.running:
-            await asyncio.sleep(wait_time)
-            wait_time = min(wait_time * 1.1, max_wait)
+        await self._backpressure_ctrl.wait_for_capacity(
+            self.scheduler,
+            self.task_manager,
+            running_check=lambda: self.running
+        )

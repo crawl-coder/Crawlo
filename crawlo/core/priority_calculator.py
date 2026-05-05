@@ -1,11 +1,13 @@
 #!/usr/bin/python
 # -*- coding: UTF-8 -*-
 """
-智能调度器
+优先级计算器
 
 基于域名/URL/响应时间/错误计数的多维度优先级计算，
 内置内存淘汰机制防止统计字典无限增长。
+
 """
+
 import time
 from typing import TYPE_CHECKING
 
@@ -13,11 +15,12 @@ if TYPE_CHECKING:
     from crawlo import Request
 
 
-class IntelligentScheduler:
-    """智能调度器
-    
-    注意：内部维护多个统计字典，为防止长时间运行导致内存泄漏，
-    url_stats 和 domain_stats 有最大容量限制，超出时自动淘汰最旧的记录。
+class PriorityCalculator:
+    """优先级计算器
+
+    管理请求优先级的多维度评分逻辑。内部维护多个统计字典，
+    为防止长时间运行导致内存泄漏，url_stats 和 domain_stats
+    有最大容量限制，超出时自动淘汰最旧的记录。
     """
 
     # 内存控制常量
