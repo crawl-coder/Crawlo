@@ -24,16 +24,6 @@ from crawlo.settings.setting_manager import EnvConfigManager
 # 1. 框架基础配置
 # ==============================================================================
 
-# 框架初始化控制
-FRAMEWORK_INIT_ORDER = [
-    'log_system',  # 日志系统
-    'settings_system',  # 配置系统
-    'core_components',  # 核心组件
-    'extensions',  # 扩展组件
-    'full_initialization'  # 完全初始化
-]
-FRAMEWORK_INIT_STATE = 'uninitialized'  # 框架初始化状态
-
 # 项目基础配置
 runtime_config = EnvConfigManager.get_runtime_config()
 PROJECT_NAME = runtime_config['PROJECT_NAME']  # 项目名称（用于日志、Redis Key 等标识）
@@ -97,37 +87,6 @@ MEMORY_BACKPRESSURE_DELAY_MAX = 5.0  # 内存队列最大延迟（秒）
 MEMORY_BACKPRESSURE_WARNING_THRESHOLD = 0.4  # 内存队列警告阈值（40%，提前预警）
 MEMORY_BACKPRESSURE_CRITICAL_THRESHOLD = 0.7  # 内存队列危险阈值（70%，降低风险）
 
-# ----- 2.3 智能背压配置（多维度自适应）-----
-# 智能背压：基于队列、吞吐、性能三大维度计算最优延迟
-INTELLIGENT_BACKPRESSURE_ENABLED = True  # 是否启用智能背压
-INTELLIGENT_BACKPRESSURE_CONFIG = {
-    # 指标采集配置
-    'window_size': 30,              # 采样窗口（秒）
-    'collect_interval': 1,          # 采集间隔（秒）
-    
-    # 指标权重配置（队列:吞吐:性能 = 4:3:3）
-    'queue_weights': (0.4, 0.3, 0.3),
-    
-    # 评分阈值配置
-    'score_thresholds': (50, 70, 85),  # (警告, 危险, 严重)
-    
-    # 延迟配置
-    'base_delay': 0.5,              # 基础延迟（秒）
-    'max_delay': 5.0,               # 最大延迟（秒）
-    
-    # 功能开关
-    'enable_prediction': True,      # 启用预测补偿
-    'enable_smoothing': True,       # 启用平滑处理
-    
-    # 监控配置
-    'monitor_interval': 10,         # 监控检查间隔（秒）
-    
-    # 资源优化配置（新增）
-    'max_history': 1000,            # 最大历史记录数（内存优化）
-    'max_response_times': 1000,     # 最大响应时间记录数（内存优化）
-    'cache_ttl': 0.1,               # 延迟计算缓存有效期（秒，CPU优化）
-}
-
 # Redis队列背压配置（适用于分布式大规模）
 # 特点：网络延迟高（毫秒级），队列容量大，应该更早触发背压保护
 REDIS_BACKPRESSURE_RATIO = 0.6  # Redis队列背压触发阈值（60%，更早触发）
@@ -165,15 +124,9 @@ CONNECTION_POOL_LIMIT = 100  # 连接池大小限制
 CONNECTION_POOL_LIMIT_PER_HOST = 20  # 每个主机的连接池大小限制
 DOWNLOAD_MAXSIZE = 10 * 1024 * 1024  # 最大下载大小（字节）
 DOWNLOAD_STATS = True  # 是否启用下载统计
-DOWNLOAD_WARN_SIZE = 1024 * 1024  # 下载警告大小（字节）
 DOWNLOAD_RETRY_TIMES = 3  # 下载重试次数
-CONNECTION_TTL_DNS_CACHE = 300  # DNS 缓存 TTL（秒）
 
-# 下载器健康检查
-DOWNLOADER_HEALTH_CHECK = True  # 是否启用下载器健康检查
 HEALTH_CHECK_INTERVAL = 60  # 健康检查间隔（秒）
-REQUEST_STATS_ENABLED = True  # 是否启用请求统计
-STATS_RESET_ON_START = False  # 启动时是否重置统计
 
 # ----- 3.2 重试配置 -----
 MAX_RETRY_TIMES = 3  # 最大重试次数
@@ -184,13 +137,8 @@ RETRY_EXCEPTIONS = []  # 额外的自定义重试异常类型列表
 
 # ----- 3.3 协议下载器配置 -----
 
-# HttpX 下载器
-HTTPX_HTTP2 = True  # 是否启用 HTTP/2 支持
-HTTPX_FOLLOW_REDIRECTS = True  # 是否自动跟随重定向
-
 # AioHttp 下载器
 AIOHTTP_AUTO_DECOMPRESS = True  # 是否自动解压响应
-AIOHTTP_FORCE_CLOSE = False  # 是否强制关闭连接
 
 # Curl-Cffi 下载器（TLS 指纹模拟）
 # curl_cffi 可以绕过部分 Cloudflare 检测
@@ -244,7 +192,6 @@ PLAYWRIGHT_BLOCK_ADS = True  # 是否屏蔽广告
 # 自动滚动配置
 PLAYWRIGHT_AUTO_SCROLL = False  # 是否自动滚动加载更多内容
 PLAYWRIGHT_SCROLL_DELAY = 500  # 滚动延迟（毫秒）
-PLAYWRIGHT_MAX_NO_CONTENT = 2  # 连续无新内容的最大次数
 
 # 反检测配置
 PLAYWRIGHT_STEALTH_LEVEL = 'basic'  # 反检测级别: none, basic, advanced
@@ -276,9 +223,6 @@ DRISSIONPAGE_STEALTH_LEVEL = 'basic'  # 反检测级别: none, basic, advanced
 # - none: 不使用任何反检测
 # - basic: 仅隐藏 webdriver 标识
 # - advanced: 全链路指纹伪造（Canvas、WebGL、AudioContext 等）
-DRISSIONPAGE_BLOCK_WEBRTC = False  # 是否阻止 WebRTC 泄露本地 IP
-DRISSIONPAGE_HIDE_CANVAS = False  # 是否为 Canvas 添加随机噪声
-DRISSIONPAGE_IGNORE_HTTPS_ERRORS = True  # 是否忽略 HTTPS 错误
 
 # ----- 3.7 Camoufox 隐身浏览器配置 -----
 
@@ -366,7 +310,6 @@ MYSQL_BATCH_TIMEOUT = 90  # 批量操作超时时间（秒）
 MYSQL_UPDATE_COLUMNS = ()  # 主键冲突时更新指定列（ON DUPLICATE KEY UPDATE）
 MYSQL_AUTO_UPDATE = False  # 是否使用 REPLACE INTO（完全覆盖）
 MYSQL_INSERT_IGNORE = False  # 是否使用 INSERT IGNORE（忽略重复）
-MYSQL_PREFER_ALIAS_SYNTAX = True  # SQL 语法偏好（True=AS `alias`，False=VALUES()）
 
 # 连接池配置
 MYSQL_POOL_MIN = 2  # 最小连接数
@@ -399,7 +342,6 @@ DEFAULT_REQUEST_HEADERS = {
     'Accept-Encoding': 'gzip, deflate, br',
 }
 USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36"
-RANDOM_USER_AGENT_ENABLED = False  # 是否启用随机 User-Agent
 
 # ----- 7.2 代理配置 -----
 PROXY_LIST = []  # 静态代理列表
@@ -507,27 +449,6 @@ WECOM_AGENT_ID = ""  # 企业微信应用 AgentId
 WECOM_AT_USERS = []  # 需要 @ 的用户 ID 列表
 WECOM_AT_MOBILE = []  # 需要 @ 的手机号列表
 WECOM_IS_AT_ALL = False  # 是否 @ 所有人
-
-# ----- 11.5 邮件通知配置 -----
-EMAIL_SMTP_SERVER = ""  # SMTP 服务器地址
-EMAIL_SMTP_PORT = 587  # SMTP 服务器端口
-EMAIL_USERNAME = ""  # 邮箱用户名
-EMAIL_PASSWORD = ""  # 邮箱密码或授权码
-EMAIL_FROM = ""  # 发送方邮箱地址
-EMAIL_TO = []  # 接收方邮箱地址列表
-
-# ----- 11.6 短信通知配置 -----
-SMS_PROVIDER = ""  # 短信服务提供商（alibaba/tencent 等）
-SMS_ACCESS_KEY_ID = ""  # 短信服务 Access Key ID
-SMS_ACCESS_KEY_SECRET = ""  # 短信服务 Access Key Secret
-SMS_SIGN_NAME = ""  # 短信签名名称
-SMS_TEMPLATE_CODE = ""  # 短信模板代码
-
-# ----- 11.7 通知重试配置 -----
-NOTIFICATION_RETRY_ENABLED = True  # 是否启用通知发送失败重试
-NOTIFICATION_RETRY_TIMES = 3  # 通知发送失败重试次数
-NOTIFICATION_RETRY_DELAY = 5  # 通知发送失败重试延迟（秒）
-NOTIFICATION_TIMEOUT = 30  # 通知发送超时时间（秒）
 
 # ==============================================================================
 # 12. 定时任务配置
