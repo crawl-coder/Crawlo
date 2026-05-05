@@ -8,8 +8,9 @@
 import os
 import sys
 import asyncio
-import configparser
 from importlib import import_module
+
+from crawlo.project import read_crawlo_cfg
 
 from rich import box
 from rich.console import Console
@@ -169,20 +170,10 @@ def main(args):
 
         # 2. 读取 crawlo.cfg 获取 settings 模块
         cfg_file = os.path.join(project_root, "crawlo.cfg")
-        if not os.path.exists(cfg_file):
-            msg = f"在 {project_root} 中未找到 crawlo.cfg"
-            if show_json:
-                console.print_json(data={"success": False, "error": msg})
-                return 1
-            else:
-                console.print(Panel(msg, title="缺少配置文件", border_style="red"))
-                return 1
+        settings_module = read_crawlo_cfg(cfg_file)
 
-        config = configparser.ConfigParser()
-        config.read(cfg_file, encoding="utf-8")
-
-        if not config.has_section("settings") or not config.has_option("settings", "default"):
-            msg = "crawlo.cfg 中缺少 [settings] 部分或 'default' 选项"
+        if not settings_module:
+            msg = "crawlo.cfg 无效或不存在"
             if show_json:
                 console.print_json(data={"success": False, "error": msg})
                 return 1
@@ -190,7 +181,6 @@ def main(args):
                 console.print(Panel(msg, title="无效配置", border_style="red"))
                 return 1
 
-        settings_module = config.get("settings", "default")
         project_package = settings_module.split(".")[0]
 
         # 3. 确保项目包可导入

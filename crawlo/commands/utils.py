@@ -5,10 +5,11 @@
 提供命令行工具的公共函数和工具
 """
 import sys
-import configparser
 from pathlib import Path
 from importlib import import_module
 from typing import Optional, Tuple
+
+from crawlo.project import read_crawlo_cfg
 
 from rich.console import Console
 from rich.panel import Panel
@@ -54,19 +55,13 @@ def validate_project_environment() -> Tuple[bool, Optional[str], Optional[str]]:
         sys.path.insert(0, project_root_str)
     
     # 3. 读取配置文件
-    cfg_file = project_root / "crawlo.cfg"
-    config = configparser.ConfigParser()
+    cfg_file = str(project_root / "crawlo.cfg")
+    settings_module = read_crawlo_cfg(cfg_file)
     
-    try:
-        config.read(cfg_file, encoding="utf-8")
-    except Exception as e:
-        return False, None, f"读取 crawlo.cfg 失败: {e}"
-    
-    if not config.has_section("settings") or not config.has_option("settings", "default"):
-        return False, None, "无效的 crawlo.cfg：缺少 [settings] 部分或 'default' 选项"
+    if not settings_module:
+        return False, None, "crawlo.cfg 无效或不存在：缺少 [settings] 部分或 'default' 选项"
     
     # 4. 获取项目包名
-    settings_module = config.get("settings", "default")
     project_package = settings_module.split(".")[0]
     
     # 5. 验证项目包是否可导入

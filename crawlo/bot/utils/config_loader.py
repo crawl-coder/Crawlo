@@ -120,28 +120,16 @@ def _get_settings_module_from_cfg():
         settings 模块路径，如果未找到则返回 None
     """
     import os
-    import configparser
+    from crawlo.project import read_crawlo_cfg
     
-    # 获取当前工作目录
     current_dir = os.getcwd()
     cfg_path = os.path.join(current_dir, 'crawlo.cfg')
+    settings_path = read_crawlo_cfg(cfg_path)
     
-    # 检查 crawlo.cfg 是否存在
-    if os.path.exists(cfg_path):
-        try:
-            config = configparser.ConfigParser()
-            config.read(cfg_path, encoding='utf-8')
-            
-            # 读取 [settings] 部分的 default 键
-            if 'settings' in config and 'default' in config['settings']:
-                settings_path = config['settings']['default'].strip()
-                if settings_path:
-                    logger.debug(f"[ConfigLoader] 从 crawlo.cfg 读取到 settings 路径: {settings_path}")
-                    return settings_path
-        except Exception as e:
-            logger.warning(f"[ConfigLoader] 读取 crawlo.cfg 失败: {e}")
+    if settings_path:
+        logger.debug(f"[ConfigLoader] 从 crawlo.cfg 读取到 settings 路径: {settings_path}")
     
-    return None
+    return settings_path
 
 
 def apply_settings_config():

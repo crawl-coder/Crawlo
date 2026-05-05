@@ -82,19 +82,43 @@ async def common_call(func: Callable, *args, **kwargs):
         return func(*args, **kwargs)
 
 
-def _get_settings_module_from_cfg(cfg_path: str) -> str:
-    """从 crawlo.cfg 读取 settings 模块路径"""
-    config = configparser.ConfigParser()
+def read_crawlo_cfg(cfg_path: str) -> Optional[str]:
+    """
+    读取 crawlo.cfg 配置文件，返回 settings 模块路径
+    
+    框架统一配置文件读取入口，所有需要解析 crawlo.cfg 的地方应使用此函数。
+    
+    Args:
+        cfg_path: crawlo.cfg 文件的绝对路径
+        
+    Returns:
+        str: settings 模块路径（如 'myproject.settings'），
+        None: 文件不存在或格式无效时返回 None
+    """
+    if not os.path.exists(cfg_path):
+        return None
+    
     try:
-        config.read(cfg_path, encoding="utf-8")
-        if config.has_section("settings") and config.has_option("settings", "default"):
-            module_path = config.get("settings", "default")
-            logger().debug(f"📄 从 crawlo.cfg 加载 settings 模块: {module_path}")
-            return module_path
-        else:
-            raise RuntimeError(f"配置文件缺少 [settings] 或 default 选项: {cfg_path}")
-    except Exception as e:
-        raise RuntimeError(f"解析 crawlo.cfg 失败: {e}")
+        config = configparser.ConfigParser()
+        config.read(cfg_path, encoding='utf-8')
+        
+        if config.has_section('settings') and config.has_option('settings', 'default'):
+            module_path = config.get('settings', 'default').strip()
+            if module_path:
+                return module_path
+    except Exception:
+        pass
+    
+    return None
+
+
+def _get_settings_module_from_cfg(cfg_path: str) -> str:
+    """从 crawlo.cfg 读取 settings 模块路径（内部使用，失败时抛出异常）"""
+    module_path = read_crawlo_cfg(cfg_path)
+    if module_path:
+        logger().debug(f"📄 从 crawlo.cfg 加载 settings 模块: {module_path}")
+        return module_path
+    raise RuntimeError(f"解析 crawlo.cfg 失败或配置无效: {cfg_path}")
 
 
 def _search_project_in_path(start_path: str, checked_paths: set = None) -> Optional[str]:

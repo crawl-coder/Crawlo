@@ -142,7 +142,7 @@ class LoggingInitializer(BaseInitializer):
             # 查找项目根目录
             import os
             import sys
-            import configparser
+            from crawlo.project import read_crawlo_cfg
             
             current_path = os.getcwd()
             
@@ -155,29 +155,23 @@ class LoggingInitializer(BaseInitializer):
                 
                 # 检查crawlo.cfg
                 cfg_file = os.path.join(path, "crawlo.cfg")
-                if os.path.exists(cfg_file):
-                    # 读取配置文件
-                    config_parser = configparser.ConfigParser()
-                    config_parser.read(cfg_file, encoding="utf-8")
+                settings_module_path = read_crawlo_cfg(cfg_file)
+                
+                if settings_module_path:
+                    # 添加项目根目录到Python路径
+                    if path not in sys.path:
+                        sys.path.insert(0, path)
                     
-                    if config_parser.has_section("settings") and config_parser.has_option("settings", "default"):
-                        # 获取settings模块路径
-                        settings_module_path = config_parser.get("settings", "default")
-                        
-                        # 添加项目根目录到Python路径
-                        if path not in sys.path:
-                            sys.path.insert(0, path)
-                        
-                        # 导入项目配置模块
-                        import importlib
-                        settings_module = importlib.import_module(settings_module_path)
-                        
-                        # 创建配置字典
-                        from crawlo.utils.misc import ConfigUtils
-                        project_config = ConfigUtils.merge_config_sources([settings_module])
-                        
-                        return project_config
+                    # 导入项目配置模块
+                    import importlib
+                    settings_module = importlib.import_module(settings_module_path)
                     
+                    # 创建配置字典
+                    from crawlo.utils.misc import ConfigUtils
+                    project_config = ConfigUtils.merge_config_sources([settings_module])
+                    
+                    return project_config
+                
                 # 向上一级目录
                 parent = os.path.dirname(path)
                 if parent == path:

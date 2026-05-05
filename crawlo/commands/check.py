@@ -11,8 +11,9 @@ import astor
 import re
 import time
 from pathlib import Path
-import configparser
 from importlib import import_module
+
+from crawlo.project import read_crawlo_cfg
 
 from rich.console import Console
 from rich.panel import Panel
@@ -365,24 +366,11 @@ def main(args):
             sys.path.insert(0, project_root_str)
 
         # 2. 读取 crawlo.cfg
-        cfg_file = project_root / "crawlo.cfg"
-        if not cfg_file.exists():
-            msg = f"配置文件未找到: {cfg_file}"
-            if show_json:
-                console.print_json(data={"success": False, "error": msg})
-                return 1
-            elif show_ci:
-                console.print(f"{msg}")
-                return 1
-            else:
-                console.print(Panel(msg, title="缺少配置文件", border_style="red"))
-                return 1
+        cfg_file = str(project_root / "crawlo.cfg")
+        settings_module = read_crawlo_cfg(cfg_file)
 
-        config = configparser.ConfigParser()
-        config.read(cfg_file, encoding="utf-8")
-
-        if not config.has_section("settings") or not config.has_option("settings", "default"):
-            msg = "crawlo.cfg 中缺少 [settings] 部分或 'default' 选项"
+        if not settings_module:
+            msg = "crawlo.cfg 无效或不存在"
             if show_json:
                 console.print_json(data={"success": False, "error": msg})
                 return 1
@@ -393,7 +381,6 @@ def main(args):
                 console.print(Panel(msg, title="无效配置", border_style="red"))
                 return 1
 
-        settings_module = config.get("settings", "default")
         project_package = settings_module.split(".")[0]
 
         # 3. 确保项目包可导入
