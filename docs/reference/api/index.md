@@ -96,7 +96,7 @@ raise DropItem("Duplicate item")
 错误分类器，用于判断错误类型和重试策略。
 
 ```python
-from crawlo.error_types import ErrorClassifier
+from crawlo.core.error_types import ErrorClassifier
 ```
 
 **方法**:
@@ -218,7 +218,7 @@ TaskManager 统一管理异步任务的创建、执行和监控。
 ### 初始化
 
 ```python
-from crawlo.task_manager import TaskManager
+from crawlo.core.task_manager import TaskManager
 
 task_manager = TaskManager(total_concurrency=8)
 ```
@@ -452,7 +452,7 @@ crawler.crawl()
 ### 错误处理示例
 
 ```python
-from crawlo.error_types import ErrorClassifier
+from crawlo.core.error_types import ErrorClassifier
 
 async def process_request(request):
     try:

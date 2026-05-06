@@ -12,7 +12,7 @@
 4. 统计监控：提供详细的任务执行统计
 
 使用示例：
-    from crawlo.task_manager import TaskManager
+    from crawlo.core.task_manager import TaskManager
     
     # 创建管理器（初始并发数 8）
     tm = TaskManager(total_concurrency=8)

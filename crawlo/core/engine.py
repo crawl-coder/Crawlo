@@ -9,11 +9,11 @@ from crawlo import Request, Item
 from crawlo.spider import Spider
 from crawlo.event import CrawlerEvent
 from crawlo.project import common_call
-from crawlo.failure import Failure
+from crawlo.core.failure import Failure
 from crawlo.logging import get_logger
 from crawlo.exceptions import OutputError
-from crawlo.error_types import ErrorClassifier
-from crawlo.task_manager import TaskManager
+from crawlo.core.error_types import ErrorClassifier
+from crawlo.core.task_manager import TaskManager
 from crawlo.downloader import DownloaderBase
 from crawlo.core.processor import Processor
 from crawlo.core.scheduler import Scheduler

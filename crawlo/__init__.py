@@ -15,7 +15,7 @@ from crawlo.middleware import BaseMiddleware
 from crawlo.network.request import Request
 from crawlo.network.response import Response
 from crawlo.spider import Spider
-from crawlo.failure import Failure
+from crawlo.core.failure import Failure
 from crawlo.tools.time_utils import (
     TimeUtils,
     parse_time,

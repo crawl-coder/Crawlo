@@ -18,7 +18,7 @@ from crawlo.exceptions import (
     IgnoreRequestError,
     ItemDiscard,
 )
-from crawlo.error_types import ErrorClassifier
+from crawlo.core.error_types import ErrorClassifier
 
 
 class TestErrorClassifier:

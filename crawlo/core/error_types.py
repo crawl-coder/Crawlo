@@ -13,7 +13,7 @@ Crawlo 框架错误类型分类配置
     - 可重试错误 (Retryable): 可以通过重试机制解决的错误
 
 使用示例：
-    >>> from crawlo.error_types import ErrorClassifier
+    >>> from crawlo.core.error_types import ErrorClassifier
     >>> if ErrorClassifier.is_critical(error):
     ...     raise error  # 关键错误需要重新抛出
     >>> if ErrorClassifier.should_retry(error):
