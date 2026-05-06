@@ -211,7 +211,7 @@ async def test_sql_builder_integration():
     print("=" * 60)
     print("测试 SQL 构建器集成...")
     
-    from crawlo.utils.sql_builder import SQLBuilder
+    from crawlo.utils.db.sql_builder import SQLBuilder
     
     # 测试单条插入
     table = 'test_table'
@@ -247,7 +247,7 @@ async def test_edge_cases():
     print("=" * 60)
     print("测试边界情况...")
     
-    from crawlo.utils.sql_builder import SQLBuilder
+    from crawlo.utils.db.sql_builder import SQLBuilder
     
     # 测试空数据
     try:
