@@ -18,10 +18,10 @@ from typing import Optional, Dict, Any, Union, TYPE_CHECKING
 if TYPE_CHECKING:
     from crawlo import Request
 
-from crawlo.queue.pqueue import SpiderPriorityQueue
+from crawlo.queue.memory_queue import SpiderPriorityQueue
 from crawlo.queue.queue_types import QueueType
 from crawlo.queue.config import QueueConfig
-from crawlo.core.priority_calculator import PriorityCalculator
+from crawlo.queue.priority_calculator import PriorityCalculator
 from crawlo.utils.error_handler import ErrorHandler
 from crawlo.logging import get_logger
 from crawlo.utils.request.request_serializer import RequestSerializer

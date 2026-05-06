@@ -14,7 +14,7 @@ import asyncio
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 
-from crawlo.subscriber import Subscriber, NotifyResult, CRITICAL_EVENTS
+from crawlo.event import Subscriber, NotifyResult, CRITICAL_EVENTS
 
 
 class TestNotifyResultDataclass:
@@ -54,7 +54,7 @@ class TestCriticalEventLogging:
 
         sub.subscribe(failing_handler, event="spider_closed")
 
-        with patch('crawlo.subscriber.get_logger') as mock_get_logger:
+        with patch('crawlo.event.get_logger') as mock_get_logger:
             mock_logger = MagicMock()
             mock_get_logger.return_value = mock_logger
             
@@ -76,7 +76,7 @@ class TestCriticalEventLogging:
 
         sub.subscribe(failing_handler, event="request_scheduled")
 
-        with patch('crawlo.subscriber.get_logger') as mock_get_logger:
+        with patch('crawlo.event.get_logger') as mock_get_logger:
             mock_logger = MagicMock()
             mock_get_logger.return_value = mock_logger
             

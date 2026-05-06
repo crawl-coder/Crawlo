@@ -40,11 +40,15 @@ from .spider import (
     unregister_spider,
     reset_spider_registry,
 )
+from .loader import SpiderLoader
+from .resolver import SpiderResolver
 
 __all__ = [
     'Spider',
     'SpiderMeta', 
     'SpiderStatsTracker',
+    'SpiderLoader',
+    'SpiderResolver',
     'create_spider_from_template',
     'get_global_spider_registry',
     'get_spider_by_name',

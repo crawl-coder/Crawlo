@@ -1,7 +1,6 @@
 """
-时间工具函数
+时间格式化工具函数
 """
-
 from datetime import datetime
 from typing import Optional
 

@@ -121,7 +121,7 @@ class SchedulerDaemon:
         
         while self.running:
             try:
-                from crawlo.utils.time_utils import format_datetime
+                from crawlo.utils.time_format import format_datetime
                 self.logger.debug(f"检查任务，当前时间: {format_datetime(time.time())}")
                 await self._check_and_execute_jobs()
                 await asyncio.sleep(check_interval)

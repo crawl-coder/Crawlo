@@ -145,34 +145,3 @@ def apply_queue_config(settings_dict: Dict[str, Any], config: Dict[str, Any]) ->
         config: 队列配置字典
     """
     settings_dict.update(config)
-
-
-# 使用示例和文档
-USAGE_EXAMPLES = """
-# 使用示例：
-
-# 1. 在 settings.py 中使用内存队列
-from crawlo.utils.queue_helper import QueueHelper
-apply_queue_config(locals(), QueueHelper.use_memory_queue())
-
-# 2. 在 settings.py 中使用 Redis 队列
-apply_queue_config(locals(), QueueHelper.use_redis_queue(
-    host="redis.example.com",
-    password="your_password"
-))
-
-# 3. 使用预定义配置
-from crawlo.utils.queue_helper import QueuePresets
-apply_queue_config(locals(), QueuePresets.PRODUCTION)
-
-# 4. 自动选择队列类型
-apply_queue_config(locals(), QueueHelper.auto_queue(
-    host="127.0.0.1",
-    port=6379
-))
-
-# 5. 直接在 settings 中配置
-QUEUE_TYPE = 'auto'  # 'memory', 'redis', 'auto'
-REDIS_URL = 'redis://127.0.0.1:6379/0'
-SCHEDULER_MAX_QUEUE_SIZE = 2000
-"""

@@ -11,10 +11,10 @@ import os
 def test_priority_module():
     """测试1: 优先级模块"""
     print('=' * 60)
-    print('[测试1] 优先级模块 (crawlo.utils.priority)')
+    print('[测试1] 优先级模块 (crawlo.middleware.priority)')
     print('=' * 60)
     
-    from crawlo.utils.priority import (
+    from crawlo.middleware.priority import (
         MiddlewarePriority, 
         MiddlewarePriorityGroup, 
         BUILTIN_MIDDLEWARE_PRIORITIES,
@@ -254,7 +254,7 @@ def test_module_imports():
     print('=' * 60)
     
     modules = [
-        'crawlo.utils.priority',
+        'crawlo.middleware.priority',
         'crawlo.middleware.throttle',
         'crawlo.utils.throttle',
         'crawlo.settings.default_settings',

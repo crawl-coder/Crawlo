@@ -36,7 +36,7 @@ from crawlo.settings.default_settings import (
     ADAPTIVE_SIMILARITY_THRESHOLD,
     REDIS_HOST, REDIS_PORT, REDIS_PASSWORD, REDIS_DB,
 )
-from crawlo.tools.adaptive_selector import (
+from crawlo.helpers.adaptive_selector import (
     FingerprintStorage,
     SimilarityMatcher,
     ElementFingerprint,

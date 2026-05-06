@@ -12,7 +12,7 @@
 """
 import asyncio
 from crawlo import Spider, Request
-from crawlo.tools.scenario_adapter import create_scenario_adapter, create_adapter_for_platform
+from crawlo.helpers.scenario_adapter import create_scenario_adapter, create_adapter_for_platform
 
 
 class DynamicLoadingSpider(Spider):

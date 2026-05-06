@@ -6,7 +6,7 @@ from typing import Any, Optional, Dict
 
 from crawlo.event import CrawlerEvent
 from crawlo.logging import get_logger
-from crawlo.utils.monitor.monitor_manager import monitor_manager
+from crawlo.extension.monitor.monitor_manager import monitor_manager
 
 
 class HealthCheckExtension:

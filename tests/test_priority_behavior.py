@@ -19,7 +19,7 @@ from unittest.mock import Mock, patch
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
 from crawlo.network.request import Request
-from crawlo.queue.pqueue import SpiderPriorityQueue
+from crawlo.queue.memory_queue import SpiderPriorityQueue
 from crawlo.queue.redis_priority_queue import RedisPriorityQueue
 
 

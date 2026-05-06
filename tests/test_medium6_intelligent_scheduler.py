@@ -18,7 +18,7 @@ class TestPriorityCalculatorMemoryControl:
 
     def test_max_constants_exist(self):
         """MAX_DOMAINS 和 MAX_URLS 常量存在"""
-        from crawlo.core.priority_calculator import PriorityCalculator
+        from crawlo.queue.priority_calculator import PriorityCalculator
         assert hasattr(PriorityCalculator, 'MAX_DOMAINS')
         assert hasattr(PriorityCalculator, 'MAX_URLS')
         assert PriorityCalculator.MAX_DOMAINS > 0
@@ -26,19 +26,19 @@ class TestPriorityCalculatorMemoryControl:
 
     def test_evict_oldest_domain_method(self):
         """_evict_oldest_domain 方法存在"""
-        from crawlo.core.priority_calculator import PriorityCalculator
+        from crawlo.queue.priority_calculator import PriorityCalculator
         calculator = PriorityCalculator()
         assert hasattr(calculator, '_evict_oldest_domain')
 
     def test_evict_oldest_urls_method(self):
         """_evict_oldest_urls 方法存在"""
-        from crawlo.core.priority_calculator import PriorityCalculator
+        from crawlo.queue.priority_calculator import PriorityCalculator
         calculator = PriorityCalculator()
         assert hasattr(calculator, '_evict_oldest_urls')
 
     def test_domain_eviction_when_exceeds_limit(self):
         """超出 MAX_DOMAINS 限制时淘汰旧域名"""
-        from crawlo.core.priority_calculator import PriorityCalculator
+        from crawlo.queue.priority_calculator import PriorityCalculator
         
         calculator = PriorityCalculator()
         calculator.MAX_DOMAINS = 5  # 设置较小的限制方便测试
@@ -62,7 +62,7 @@ class TestPriorityCalculatorMemoryControl:
 
     def test_url_eviction_when_exceeds_limit(self):
         """超出 MAX_URLS 限制时淘汰旧 URL"""
-        from crawlo.core.priority_calculator import PriorityCalculator
+        from crawlo.queue.priority_calculator import PriorityCalculator
         
         calculator = PriorityCalculator()
         calculator.MAX_URLS = 10  # 设置较小的限制方便测试
@@ -86,7 +86,7 @@ class TestPriorityCalculatorMemoryControl:
 
     def test_evict_oldest_domain_cleans_related_stats(self):
         """淘汰域名时同步清理关联统计"""
-        from crawlo.core.priority_calculator import PriorityCalculator
+        from crawlo.queue.priority_calculator import PriorityCalculator
         
         calculator = PriorityCalculator()
         calculator.MAX_DOMAINS = 2

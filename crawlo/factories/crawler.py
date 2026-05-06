@@ -48,7 +48,7 @@ def create_stats(crawler, **kwargs):
 
 # Subscriber组件
 def create_subscriber(**kwargs):
-    from crawlo.subscriber import Subscriber
+    from crawlo.event import Subscriber
     return Subscriber()
 
 # ExtensionManager组件

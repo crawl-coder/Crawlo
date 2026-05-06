@@ -9,7 +9,7 @@ sys.path.insert(0, "/Users/oscar/projects/Crawlo")
 高级工具测试
 """
 import unittest
-from crawlo.tools import (
+from crawlo.helpers import (
     # 数据处理工具
     clean_text,
     format_currency,

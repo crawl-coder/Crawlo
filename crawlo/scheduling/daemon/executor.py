@@ -10,7 +10,7 @@ from typing import Any, Dict, Optional, Set
 
 from crawlo.scheduling.job import ScheduledJob
 from crawlo.logging import get_logger
-from crawlo.utils.time_utils import format_datetime, format_duration
+from crawlo.utils.time_format import format_datetime, format_duration
 
 
 class JobExecutor:

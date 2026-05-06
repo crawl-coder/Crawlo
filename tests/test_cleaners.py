@@ -9,7 +9,7 @@ sys.path.insert(0, "/Users/oscar/projects/Crawlo")
 数据清洗工具测试
 """
 import unittest
-from crawlo.tools import (
+from crawlo.helpers import (
     TextCleaner,
     DataFormatter,
     remove_html_tags,

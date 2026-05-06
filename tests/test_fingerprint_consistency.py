@@ -19,7 +19,7 @@ from crawlo.pipelines.memory_dedup_pipeline import MemoryDedupPipeline
 from crawlo.pipelines.redis_dedup_pipeline import RedisDedupPipeline
 from crawlo.pipelines.bloom_dedup_pipeline import BloomDedupPipeline
 from crawlo.pipelines.database_dedup_pipeline import DatabaseDedupPipeline
-from crawlo.tools.distributed_coordinator import DeduplicationTool
+from crawlo.helpers.distributed_coordinator import DeduplicationTool
 from crawlo.utils.fingerprint import FingerprintGenerator
 
 

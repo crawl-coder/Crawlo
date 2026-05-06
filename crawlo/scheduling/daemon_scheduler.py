@@ -36,7 +36,7 @@ def start_scheduler(project_root: str = None):
     
     from crawlo.project import get_settings
     from crawlo.scheduling.daemon import SchedulerDaemon
-    from crawlo.utils.time_utils import format_datetime, format_duration
+    from crawlo.utils.time_format import format_datetime, format_duration
     
     settings = temp_settings
     

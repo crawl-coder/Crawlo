@@ -11,7 +11,7 @@ of_week_with_exists_checker - 使用 MySQLExistsChecker 进行数据存在性检
 
 from crawlo.spider import Spider
 from crawlo import Request, Response
-from crawlo.tools.mysql_exists_checker import MySQLExistsChecker
+from crawlo.helpers.mysql_exists_checker import MySQLExistsChecker
 from ..items import OfWeekStandaloneItem
 
 

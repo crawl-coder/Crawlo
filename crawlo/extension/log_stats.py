@@ -8,7 +8,7 @@ import asyncio
 from typing import Any
 
 from crawlo.logging import get_logger
-from crawlo.tools import now, time_diff
+from crawlo.helpers import now, time_diff
 
 
 class LogStats:

@@ -78,7 +78,7 @@ class IQueue(ABC):
         
         Args:
             item: 要入队的元素
-            priority: 优先级，数值越大优先级越高
+            priority: 优先级，数值越小越优先（与 asyncio.PriorityQueue 最小堆语义一致）
             
         Returns:
             bool: 入队是否成功

@@ -82,7 +82,7 @@ def test_all_pipeline_fingerprints():
     
     # 测试分布式协调工具指纹生成方法
     try:
-        from crawlo.tools.distributed_coordinator import DeduplicationTool
+        from crawlo.helpers.distributed_coordinator import DeduplicationTool
         dedup_tool = DeduplicationTool()
         tool_fingerprint = dedup_tool.generate_fingerprint(test_item.to_dict())
         print(f"Deduplication tool fingerprint: {tool_fingerprint}")

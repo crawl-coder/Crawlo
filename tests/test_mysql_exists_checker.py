@@ -6,7 +6,7 @@ MySQLExistsChecker 测试
 import pytest
 import asyncio
 from unittest.mock import Mock
-from crawlo.tools.mysql_exists_checker import MySQLExistsChecker, check_exists
+from crawlo.helpers.mysql_exists_checker import MySQLExistsChecker, check_exists
 
 
 class TestMySQLExistsChecker:
@@ -90,7 +90,7 @@ class TestCheckExists:
     
     def test_import(self):
         """测试导入"""
-        from crawlo.tools import MySQLExistsChecker, check_exists
+        from crawlo.helpers import MySQLExistsChecker, check_exists
         assert MySQLExistsChecker is not None
         assert check_exists is not None
     

@@ -4,9 +4,9 @@
 Crawlo - 一个异步爬虫框架
 """
 
-# 为了向后兼容，从tools中导入cleaners相关的功能
-import crawlo.tools as cleaners
-from crawlo import tools
+# 为了向后兼容，从helpers中导入cleaners相关的功能
+import crawlo.helpers as cleaners
+from crawlo import helpers
 from crawlo.crawler import Crawler
 from crawlo.crawler_process import CrawlerProcess
 from crawlo.downloader import DownloaderBase
@@ -16,7 +16,7 @@ from crawlo.network.request import Request
 from crawlo.network.response import Response
 from crawlo.spider import Spider
 from crawlo.core.failure import Failure
-from crawlo.tools.time_utils import (
+from crawlo.helpers.time_helper import (
     TimeUtils,
     parse_time,
     format_time,
@@ -82,7 +82,7 @@ __all__ = [
     'to_local',
     'from_timestamp_with_tz',
     'cleaners',
-    'tools',
+    'helpers',
     'Crawler',
     'CrawlerProcess',
     'get_framework_initializer',

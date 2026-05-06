@@ -11,7 +11,7 @@ MySQLExistsChecker 端到端测试
 import asyncio
 import sys
 from unittest.mock import Mock, AsyncMock
-from crawlo.tools.mysql_exists_checker import MySQLExistsChecker
+from crawlo.helpers.mysql_exists_checker import MySQLExistsChecker
 
 
 # Mock settings（使用实际数据库配置）

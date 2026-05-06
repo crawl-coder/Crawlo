@@ -9,7 +9,7 @@ MySQL 数据存在性检查工具
 
 使用示例：
 ```python
-from crawlo.tools.mysql_exists_checker import MySQLExistsChecker
+from crawlo.helpers.mysql_exists_checker import MySQLExistsChecker
 
 class MySpider(Spider):
     async def start_requests(self):

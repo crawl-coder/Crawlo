@@ -3,20 +3,18 @@
 """
 内存队列实现
 
-基于 asyncio.PriorityQueue 的内存优先队列实现，
-支持背压控制和请求优先级。
+基于 asyncio.PriorityQueue 的内存优先队列实现。
+提供两套队列系统：
+- MemoryQueue / DomainAwareQueue：完整 IQueue 实现，支持背压控制、域名感知
+- SpiderPriorityQueue：轻量级 PriorityQueue 封装，供 QueueManager 内存模式使用
 """
 import asyncio
 import time
 import logging
-import uuid
-from typing import Optional, Any, Dict, List, TYPE_CHECKING
+from typing import Optional, Any, Dict, List
 
-from crawlo.queue.interfaces import IQueue, QueueClosedError, BackpressureableQueueMixin
 from crawlo.queue.queue_types import QueueType
-
-if TYPE_CHECKING:
-    from crawlo.network.request import Request
+from crawlo.queue.interfaces import IQueue, BackpressureableQueueMixin
 
 # 智能背压组件（可选导入）
 try:
@@ -61,7 +59,7 @@ class QueueItem:
         优先级相同时按序列号排序，确保 FIFO 顺序
         """
         if self.priority != other.priority:
-            return self.priority > other.priority  # 高优先级在前
+            return self.priority < other.priority  # 数值越小越优先（与 Request 约定一致）
         return self.sequence < other.sequence  # 先入队的在前
     
     def __repr__(self) -> str:
@@ -201,7 +199,7 @@ class MemoryQueue(BackpressureableQueueMixin, IQueue):
         
         Args:
             item: 要入队的元素
-            priority: 优先级，数值越大优先级越高
+            priority: 优先级（数值越小越优先，与 Request 内部存储值一致）
             
         Returns:
             bool: 入队是否成功
@@ -659,7 +657,41 @@ class DomainAwareQueue(MemoryQueue):
         }
 
 
+class SpiderPriorityQueue(asyncio.PriorityQueue):
+    """带超时功能的异步优先级队列（MemoryQueue 的轻量级替代）"""
+
+    def __init__(self, maxsize: int = 0) -> None:
+        """初始化队列，maxsize为0表示无大小限制"""
+        super().__init__(maxsize)
+
+    async def get(self, timeout: float = 0.01) -> Optional[Any]:
+        """
+        异步获取队列元素，带超时功能
+
+        Args:
+            timeout: 超时时间（秒），默认0.01秒
+
+        Returns:
+            队列元素(优先级, 值)或None(超时)
+        """
+        try:
+            async with asyncio.timeout(timeout if timeout > 0 else None):
+                item = await super().get()
+                return item
+        except asyncio.TimeoutError:
+            return None
+
+    def qsize(self) -> int:
+        """获取队列大小"""
+        return super().qsize()
+
+    async def close(self) -> None:
+        """关闭队列（空实现，用于与Redis队列接口保持一致）"""
+        pass
+
+
 __all__ = [
     'MemoryQueue',
     'DomainAwareQueue',
+    'SpiderPriorityQueue',
 ]
