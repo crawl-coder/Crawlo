@@ -82,21 +82,18 @@ class ProcessSignalHandler:
     
     async def graceful_shutdown(self):
         """优雅地关闭所有爬虫
-        
+
         在关闭前保存检查点，确保 Ctrl+C 后可以续爬。
         """
         # 取消所有正在运行的任务
         for crawler in self.crawlers:
             try:
-                # 检查crawler是否正在运行
-                if hasattr(crawler, '_state') and crawler.state == getattr(crawler.__class__, 'State', {}).get('RUNNING', 'running'):
-                    # 取消crawler中的任务
-                    if hasattr(crawler, '_engine') and crawler._engine:
-                        # 取消engine中的任务
-                        if hasattr(crawler._engine, 'task_manager') and crawler._engine.task_manager:
-                            for task in list(getattr(crawler._engine.task_manager, 'current_task', [])):
-                                if not task.done():
-                                    task.cancel()
+                engine = getattr(crawler, '_engine', None)
+                task_manager = getattr(engine, 'task_manager', None) if engine else None
+                if task_manager:
+                    for task in list(getattr(task_manager, 'current_task', [])):
+                        if not task.done():
+                            task.cancel()
             except Exception as e:
                 self.logger.warning(f"取消爬虫任务时出错: {e}")
         
@@ -123,40 +120,34 @@ class SpiderDiscoveryUtils:
     def register_spider_modules(spider_modules: List[str], logger):
         """
         注册爬虫模块
-        
+
+        先尝试直接 import 每个模块（处理 Spider 定义在 __init__.py 的情况），
+        再对未发现的模块统一执行自动发现（扫描目录中的 .py 文件）。
+
         Args:
             spider_modules: 爬虫模块列表
             logger: 日志记录器
         """
         try:
-            from crawlo.spider import get_global_spider_registry
+            from crawlo.spider import get_global_spider_registry, SpiderDiscoveryState
             registry = get_global_spider_registry()
-            
+
             logger.debug(f"Registering spider modules: {spider_modules}")
-            
-            initial_spider_count = len(registry)
-            
+
             for module_path in spider_modules:
                 try:
-                    # 导入模块
                     __import__(module_path)
                     logger.debug(f"Successfully imported spider module: {module_path}")
                 except ImportError as e:
                     logger.warning(f"Failed to import spider module {module_path}: {e}")
-                    # 如果导入失败，尝试自动发现
-                    SpiderDiscoveryUtils.auto_discover_spider_modules([module_path], logger)
-            
-            # 检查注册表中的爬虫
+
+            # 统一对未发现的模块执行自动发现（auto_discover 内部通过 is_discovered 跳过已扫描的）
+            undiscovered = [m for m in spider_modules if not SpiderDiscoveryState.is_discovered(m)]
+            if undiscovered:
+                SpiderDiscoveryUtils.auto_discover_spider_modules(undiscovered, logger)
+
             spider_names = list(registry.keys())
             logger.debug(f"Registered spiders after import: {spider_names}")
-            
-            # 如果导入模块后没有新的爬虫被注册，则尝试自动发现
-            final_spider_count = len(registry)
-            if final_spider_count == initial_spider_count:
-                logger.debug("No new spiders registered after importing modules, attempting auto-discovery")
-                SpiderDiscoveryUtils.auto_discover_spider_modules(spider_modules, logger)
-                spider_names = list(registry.keys())
-                logger.debug(f"Registered spiders after auto-discovery: {spider_names}")
         except Exception as e:
             logger.warning(f"Error registering spider modules: {e}")
     
@@ -176,10 +167,15 @@ class SpiderDiscoveryUtils:
             from pathlib import Path
             import sys
             
+            from crawlo.spider import SpiderDiscoveryState
+            
             registry = get_global_spider_registry()
             initial_spider_count = len(registry)
             
             for module_path in spider_modules:
+                if SpiderDiscoveryState.is_discovered(module_path):
+                    logger.debug(f"Skipping auto-discovery for already-discovered module: {module_path}")
+                    continue
                 try:
                     # 将模块路径转换为文件系统路径
                     # 例如: ofweek_standalone.spiders -> ofweek_standalone/spiders
@@ -220,9 +216,19 @@ class SpiderDiscoveryUtils:
                                 # 导入模块以触发Spider注册
                                 importlib.import_module(full_module_path)
                             except ImportError as e:
-                                logger.warning(f"Failed to auto-import spider module {full_module_path}: {e}")
+                                logger.warning(f"Failed to auto-import spider module {full_module_path}: {type(e).__name__}: {e}")
+                                SpiderDiscoveryState.add_discovery_error(
+                                    f"{full_module_path}: {type(e).__name__}: {e}"
+                                )
+                            except Exception as e:
+                                logger.warning(f"Failed to auto-import spider module {full_module_path}: {type(e).__name__}: {e}")
+                                SpiderDiscoveryState.add_discovery_error(
+                                    f"{full_module_path}: {type(e).__name__}: {e}"
+                                )
                 except Exception as e:
                     logger.warning(f"Error during auto-discovery for module {module_path}: {e}")
+                finally:
+                    SpiderDiscoveryState.mark_discovered(module_path)
             
             # 检查是否有新的爬虫被注册
             final_spider_count = len(registry)

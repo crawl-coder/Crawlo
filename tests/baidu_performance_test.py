@@ -20,7 +20,7 @@ from crawlo.crawler import CrawlerProcess
 
 
 class BaiduTestSpider(Spider):
-    name = 'baidu_test'
+    name = 'baidu_performance'
     
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
