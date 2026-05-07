@@ -1,5 +1,6 @@
 #!/usr/bin/python
 # -*- coding:UTF-8 -*-
+import asyncio
 import traceback
 from typing import Optional, Callable
 
@@ -390,8 +391,35 @@ class Scheduler:
         try:
             # 获取入队前的队列大小
             queue_size_before = await self.queue_manager.size()
+            max_size = self.queue_manager.max_size
             
-            # 使用统一的队列接口
+            # ===== 队列满时阻塞等待，防止请求丢失 =====
+            # 当队列达到最大容量时，等待队列有空间后再入队
+            # 这样可以确保爬虫生成的所有请求都被处理，不会丢失
+            retry_count = 0
+            max_retries = 100  # 最多等待 100 次 * 0.5s = 50s
+            
+            while queue_size_before >= max_size:
+                retry_count += 1
+                if retry_count > max_retries:
+                    self.logger.error(
+                        f"Queue full for too long ({max_retries} retries), "
+                        f"dropping request: {request.url}"
+                    )
+                    return False
+                
+                # 记录首次队列满的警告
+                if retry_count == 1:
+                    self.logger.warning(
+                        f"Queue full ({queue_size_before}/{max_size}), "
+                        f"pausing spider generation until space available..."
+                    )
+                
+                # 等待队列消费（每次 0.5s）
+                await asyncio.sleep(0.5)
+                queue_size_before = await self.queue_manager.size()
+            
+            # 队列有空间，执行入队
             success = await self.queue_manager.put(request, priority=getattr(request, 'priority', 0))
             
             # 获取入队后的队列大小
@@ -402,6 +430,13 @@ class Scheduler:
                 self.queue_manager._priority_calculator.update_crawl_frequency(request)
             
             if success:
+                # 如果是等待后成功入队，记录恢复日志
+                if retry_count > 0:
+                    self.logger.info(
+                        f"Queue space available, resumed spider generation "
+                        f"(waited {retry_count * 0.5:.1f}s, queue: {queue_size_after}/{max_size})"
+                    )
+                
                 self.logger.debug(
                     f"[队列] 请求入队成功: {request.url} | "
                     f"队列大小: {queue_size_before} -> {queue_size_after}"
