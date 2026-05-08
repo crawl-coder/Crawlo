@@ -51,6 +51,7 @@ class Engine(RequestGenerationMixin):
         self.task_manager: Optional[TaskManager] = TaskManager(concurrency)
         
         # 请求生成配置
+        self.days = safe_get_config(self.settings, 'LOG_RETENTION_DAYS', 1, int)
         self.max_queue_size = safe_get_config(self.settings, 'SCHEDULER_MAX_QUEUE_SIZE', 10000, int)
         self.generation_batch_size = safe_get_config(self.settings, 'REQUEST_GENERATION_BATCH_SIZE', 10, int)
         self.generation_interval = safe_get_config(self.settings, 'REQUEST_GENERATION_INTERVAL', 0.01, float)
@@ -605,8 +606,7 @@ class Engine(RequestGenerationMixin):
             from crawlo.logging import LogManager
             
             log_manager = LogManager()
-            days = safe_get_config(self.settings, 'LOG_RETENTION_DAYS', 3, int)
-            deleted = log_manager.cleanup_old_logs(days=days)
+            deleted = log_manager.cleanup_old_logs(days=self.days)
             
             if deleted > 0:
                 self.logger.info(f"Cleaned up {deleted} expired log files (>{days} days)")
