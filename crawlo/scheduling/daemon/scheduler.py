@@ -5,10 +5,11 @@
 import asyncio
 import signal
 import time
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Optional
 
 from crawlo.logging import get_logger
 from crawlo.scheduling.job import ScheduledJob
+from crawlo.scheduling.registry import JobRegistry
 from crawlo.scheduling.daemon.executor import JobExecutor
 from crawlo.scheduling.daemon.cleanup import ResourceCleanup
 
@@ -22,7 +23,8 @@ class SchedulerDaemon:
         
         self.settings = settings
         self.running = False
-        self.jobs: List[ScheduledJob] = []
+        self._registry = JobRegistry()
+        self._sorted_jobs: list = []
         self.loop: Optional[asyncio.AbstractEventLoop] = None
         self.logger = get_logger("SchedulerDaemon")
         
@@ -68,7 +70,7 @@ class SchedulerDaemon:
                         max_retries=job_config.get('max_retries', 0),
                         retry_delay=job_config.get('retry_delay', 60)
                     )
-                    self.jobs.append(job)
+                    self._registry.register_job(job)
                     self._stats['job_stats'][job.spider_name] = {
                         'total': 0,
                         'successful': 0,
@@ -80,6 +82,9 @@ class SchedulerDaemon:
                     self.logger.info(f"已加载定时任务: {job.spider_name} - {job_config.get('cron', job_config.get('interval'))}")
                 except Exception as e:
                     self.logger.error(f"加载定时任务失败: {job_config}, 错误: {e}")
+        
+        # 按优先级预排序，供 _check_and_execute_jobs 和 jobs 属性使用
+        self._sorted_jobs = sorted(self._registry.get_all_jobs(), key=lambda j: j.priority)
     
     async def start(self):
         """启动调度守护进程"""
@@ -134,7 +139,7 @@ class SchedulerDaemon:
         """检查并执行定时任务"""
         current_time = time.time()
         
-        for job in self.jobs:
+        for job in self._sorted_jobs:
             if job.should_execute(current_time):
                 job.mark_execution_started()
                 self.logger.info(f"调度任务: {job.spider_name}")
@@ -216,6 +221,11 @@ class SchedulerDaemon:
         )
         
         self.logger.info("定时任务调度器已停止")
+    
+    @property
+    def jobs(self):
+        """获取所有定时任务（按优先级排序）"""
+        return self._sorted_jobs
     
     @property
     def running_tasks(self):

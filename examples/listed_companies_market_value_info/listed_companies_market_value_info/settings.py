@@ -108,7 +108,7 @@ SCHEDULER_ENABLED = True
 SCHEDULER_JOBS = [
     {
         'spider': 'a_market_value',  # 爬虫名称（对应spider的name属性）
-        'cron': '*/50 * * * *',       # 每2分钟执行一次
+        'cron': '*/2 * * * *',       # 每2分钟执行一次
         'enabled': True,              # 任务启用状态
         'priority': 10,               # 任务优先级
         'max_retries': 3,             # 最大重试次数

@@ -231,6 +231,52 @@ class TestSchedulerDaemon:
         assert job_stats['last_execution'] is None
         assert job_stats['last_success'] is None
         assert job_stats['last_failure'] is None
+    
+    def test_priority_sorting(self):
+        """测试任务按优先级排序（小值高优优先）"""
+        settings = Mock()
+        settings.get_bool.return_value = True
+        settings.get.return_value = [
+            {
+                'spider': 'spider_low',
+                'cron': '0 */2 * * *',
+                'enabled': True,
+                'args': {},
+                'priority': 20,
+                'max_retries': 0,
+                'retry_delay': 60
+            },
+            {
+                'spider': 'spider_high',
+                'cron': '0 */2 * * *',
+                'enabled': True,
+                'args': {},
+                'priority': 5,
+                'max_retries': 0,
+                'retry_delay': 60
+            },
+            {
+                'spider': 'spider_medium',
+                'cron': '0 */2 * * *',
+                'enabled': True,
+                'args': {},
+                'priority': 10,
+                'max_retries': 0,
+                'retry_delay': 60
+            }
+        ]
+        settings.get_int.return_value = 1
+        
+        daemon = SchedulerDaemon(settings)
+        
+        assert len(daemon.jobs) == 3
+        assert daemon.jobs[0].spider_name == 'spider_high'
+        assert daemon.jobs[1].spider_name == 'spider_medium'
+        assert daemon.jobs[2].spider_name == 'spider_low'
+        
+        # 验证优先级值排序
+        priorities = [job.priority for job in daemon.jobs]
+        assert priorities == [5, 10, 20]
 
 
 class TestSchedulerIntegration:
