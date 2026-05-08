@@ -118,22 +118,33 @@ class SchedulerDaemon:
         await self._run_scheduler()
     
     async def _run_scheduler(self):
-        """调度主循环"""
+        """调度主循环 — 按最近任务时间智能 sleep，避免忙轮询"""
         check_interval = self.settings.get_int('SCHEDULER_CHECK_INTERVAL', 1)
         
-        self.logger.debug(f"调度器主循环启动，检查间隔: {check_interval} 秒")
+        self.logger.debug(f"调度器主循环启动，最大检查间隔: {check_interval} 秒")
         
         while self.running:
             try:
-                from crawlo.utils.time_format import format_datetime
-                self.logger.debug(f"检查任务，当前时间: {format_datetime(time.time())}")
+                now = time.time()
+                min_next = self._get_min_next_execution_time()
+                if min_next != float('inf'):
+                    sleep_sec = min_next - now
+                else:
+                    sleep_sec = check_interval
+                sleep_sec = max(0.1, min(sleep_sec, check_interval))
+                await asyncio.sleep(sleep_sec)
                 await self._check_and_execute_jobs()
-                await asyncio.sleep(check_interval)
             except Exception as e:
                 self.logger.error(f"调度器运行错误: {e}")
                 await asyncio.sleep(check_interval)
         
         self.logger.info("调度器主循环停止")
+    
+    def _get_min_next_execution_time(self):
+        """获取所有任务中最近的下次执行时间"""
+        if not self._sorted_jobs:
+            return float('inf')
+        return min(job.get_next_execution_time() for job in self._sorted_jobs)
     
     async def _check_and_execute_jobs(self):
         """检查并执行定时任务"""
