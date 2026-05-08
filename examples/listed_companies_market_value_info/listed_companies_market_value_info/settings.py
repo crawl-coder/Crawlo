@@ -114,7 +114,6 @@ SCHEDULER_JOBS = [
         'max_retries': 3,             # 最大重试次数
         'retry_delay': 60,            # 重试延迟（秒）
         'args': {},                  # 传递给爬虫的参数
-        'kwargs': {}                  # 传递给爬虫的额外参数
     },
     {
         'spider': 'a_market_value',  # 爬虫名称
@@ -124,7 +123,6 @@ SCHEDULER_JOBS = [
         'max_retries': 2,             # 最大重试次数
         'retry_delay': 120,           # 重试延迟（秒）
         'args': {'daily': True},      # 传递给爬虫的参数
-        'kwargs': {}                  # 传递给爬虫的额外参数
     }
 ]
 

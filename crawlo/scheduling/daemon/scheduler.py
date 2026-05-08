@@ -64,7 +64,6 @@ class SchedulerDaemon:
                         cron=job_config.get('cron'),
                         interval=job_config.get('interval'),
                         args=job_config.get('args', {}),
-                        kwargs=job_config.get('kwargs', {}),
                         priority=job_config.get('priority', 0),
                         max_retries=job_config.get('max_retries', 0),
                         retry_delay=job_config.get('retry_delay', 60)

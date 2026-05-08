@@ -139,7 +139,6 @@ SCHEDULER_JOBS = [
         'max_retries': 3,             # 最大重试次数
         'retry_delay': 60,            # 重试延迟（秒）
         'args': {},                   # 传递给爬虫的参数
-        'kwargs': {}                  # 传递给爬虫的额外参数
     },
     {
         'spider': 'of_week_adaptive',   # 使用自适应元素追踪的爬虫
@@ -149,7 +148,6 @@ SCHEDULER_JOBS = [
         'max_retries': 3,             # 最大重试次数
         'retry_delay': 120,           # 重试延迟（秒）
         'args': {},                   # 传递给爬虫的参数
-        'kwargs': {}                  # 传递给爬虫的额外参数
     },
     # {
     #     'spider': 'of_week2',           # 爬虫名称
@@ -159,7 +157,6 @@ SCHEDULER_JOBS = [
     #     'max_retries': 3,             # 最大重试次数
     #     'retry_delay': 60,            # 重试延迟（秒）
     #     'args': {},                   # 传递给爬虫的参数
-    #     'kwargs': {}                  # 传递给爬虫的额外参数
     # },
     # {
     #     'spider': 'of_week',           # 爬虫名称

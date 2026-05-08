@@ -29,12 +29,6 @@ class JobExecutor:
         Args:
             job: 定时任务对象
         """
-        # 保存原始参数，以便参考
-        original_args = dict(job.args) if job.args else {}
-        
-        # 添加调度器内部标识
-        job.args['_INTERNAL_SCHEDULER_TASK'] = True
-        
         try:
             # 更新统计信息
             self._stats['total_executions'] += 1
@@ -85,6 +79,9 @@ class JobExecutor:
     async def _run_spider_job(self, job: ScheduledJob):
         """运行爬虫任务"""
         job_args = dict(job.args)
+        
+        # 添加调度器内部标识，用于区分定时任务触发的爬虫执行
+        job_args['_INTERNAL_SCHEDULER_TASK'] = True
         
         # 确保使用爬虫的特定日志配置
         project_log_file = self.settings.get('LOG_FILE', None)
