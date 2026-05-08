@@ -24,13 +24,32 @@ class TimeTrigger:
         # 支持扩展的6位cron表达式：秒 分钟 小时 日 月 星期（前向兼容5位标准表达式）
         parts = cron.strip().split()
         if len(parts) != 5 and len(parts) != 6:
-            raise ValueError(f"无效的cron表达式: {cron}，应为5位或6位表达式")
+            raise ValueError(f"Invalid cron expression: {cron}, expected 5 or 6 fields")
         
         # 如果是5位表达式，添加秒位（默认为0）
         if len(parts) == 5:
             parts = ['0'] + parts  # 在前面添加秒位
         
+        # 校验每个字段的格式
+        field_names = ['second', 'minute', 'hour', 'day', 'month', 'weekday']
+        for i, part in enumerate(parts):
+            self._validate_cron_field(part, field_names[i])
+        
         self._cron_parts = parts  # 现在是 [秒, 分钟, 小时, 日, 月, 星期]
+
+    CRON_FIELD_RE = re.compile(r'^(\d+(-\d+)?(/\d+)?|\*(/\d+)?)$')
+
+    @classmethod
+    def _validate_cron_field(cls, field: str, name: str):
+        """校验单个 cron 字段的格式是否合法"""
+        # 允许 comma-separated 的复合格式
+        for sub_field in field.split(','):
+            if not cls.CRON_FIELD_RE.match(sub_field):
+                raise ValueError(
+                    f"Invalid cron field '{name}': '{field}' - "
+                    f"sub-field '{sub_field}' is not a valid pattern. "
+                    f"Expected formats: *, */N, N, N-M, N-M/N, or comma-separated combinations"
+                )
     
     def _match_cron(self, dt: datetime) -> bool:
         """检查时间是否匹配cron表达式"""
