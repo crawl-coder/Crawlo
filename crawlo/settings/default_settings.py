@@ -388,6 +388,7 @@ LOG_FORMAT = '%(asctime)s - [%(name)s] - %(levelname)s: %(message)s'
 LOG_ENCODING = 'utf-8'
 STATS_DUMP = True  # 是否周期性输出统计信息
 INTERVAL = 60  # 日志输出间隔（秒）
+LOG_RETENTION_DAYS = 1  # 日志文件保留天数（爬虫关闭时自动清理过期日志）
 
 # ----- 9.2 健康检查配置 -----
 HEALTH_CHECK_ENABLED = True  # 是否启用健康检查

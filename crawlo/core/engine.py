@@ -555,6 +555,9 @@ class Engine(RequestGenerationMixin):
         if self.processor is not None and hasattr(self.processor, 'pipelines'):
             await self.processor.pipelines.close()
         
+        # 清理过期日志文件（默认 3 天）
+        await self._cleanup_old_logs()
+        
         # 关闭下载器（带超时保护，超时后取消内部协程防止资源泄漏）
         if self.downloader is not None and hasattr(self.downloader, 'close'):
             try:
@@ -595,6 +598,20 @@ class Engine(RequestGenerationMixin):
                 self.logger.warning("调度器关闭超时")
             except Exception as e:
                 self.logger.debug(f"调度器关闭时发生错误: {e}")
+    
+    async def _cleanup_old_logs(self):
+        """清理过期日志文件"""
+        try:
+            from crawlo.logging import LogManager
+            
+            log_manager = LogManager()
+            days = safe_get_config(self.settings, 'LOG_RETENTION_DAYS', 3, int)
+            deleted = log_manager.cleanup_old_logs(days=days)
+            
+            if deleted > 0:
+                self.logger.info(f"Cleaned up {deleted} expired log files (>{days} days)")
+        except Exception as e:
+            self.logger.error(f"Failed to clean up expired log files: {e}")
     
     async def _try_resume_from_checkpoint(self, spider) -> bool:
         """尝试从检查点恢复爬取状态
