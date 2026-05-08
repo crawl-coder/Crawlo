@@ -5,6 +5,7 @@
 import asyncio
 import signal
 import time
+from datetime import datetime
 from typing import Any, Dict, Optional
 
 from crawlo.logging import get_logger
@@ -12,6 +13,7 @@ from crawlo.scheduling.job import ScheduledJob
 from crawlo.scheduling.registry import JobRegistry
 from crawlo.scheduling.daemon.executor import JobExecutor
 from crawlo.scheduling.daemon.cleanup import ResourceCleanup
+from crawlo.utils.time_format import format_duration
 
 
 class SchedulerDaemon:
@@ -79,12 +81,30 @@ class SchedulerDaemon:
                         'last_success': None,
                         'last_failure': None
                     }
-                    self.logger.info(f"已加载定时任务: {job.spider_name} - {job_config.get('cron', job_config.get('interval'))}")
                 except Exception as e:
                     self.logger.error(f"加载定时任务失败: {job_config}, 错误: {e}")
         
         # 按优先级预排序，供 _check_and_execute_jobs 和 jobs 属性使用
         self._sorted_jobs = sorted(self._registry.get_all_jobs(), key=lambda j: j.priority)
+        
+        # 打印任务汇总信息
+        if self._sorted_jobs:
+            self.logger.info(f"共加载 {len(self._sorted_jobs)} 个定时任务:")
+            for job in self._sorted_jobs:
+                cron_expr = job.cron or f"每 {job.interval}s"
+                
+                # 解析下次执行时间
+                try:
+                    next_time_str = datetime.fromtimestamp(job.next_execution_time).strftime('%Y-%m-%d %H:%M:%S')
+                except (OSError, OverflowError, ValueError):
+                    next_time_str = "N/A"
+                
+                time_diff = job.next_execution_time - time.time()
+                if time_diff > 0:
+                    remaining = format_duration(time_diff)
+                    self.logger.info(f"  {job.spider_name} [{cron_expr}] 下次: {next_time_str} (剩余: {remaining})")
+                else:
+                    self.logger.info(f"  {job.spider_name} [{cron_expr}] 下次: {next_time_str} (即将执行)")
     
     async def start(self):
         """启动调度守护进程"""
@@ -93,7 +113,6 @@ class SchedulerDaemon:
             return
             
         self.running = True
-        self.logger.info("定时任务调度器启动")
         
         # 初始化执行器
         self._executor = JobExecutor(self.settings, self._stats, self.logger)
@@ -110,7 +129,7 @@ class SchedulerDaemon:
         # 启动资源监控任务（如果启用）
         if self._resource_monitor_enabled:
             self._resource_monitor_task = asyncio.create_task(self._monitor_resources())
-            self.logger.info(f"资源监控已启用，检查间隔: {self._resource_check_interval} 秒")
+            self.logger.info(f"资源监控已启用 (间隔: {self._resource_check_interval}s)")
         else:
             self.logger.info("资源监控未启用")
         
@@ -168,8 +187,6 @@ class SchedulerDaemon:
             return
         
         import gc
-        
-        self.logger.info("资源监控任务已启动")
         
         while self.running:
             try:

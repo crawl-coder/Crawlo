@@ -44,43 +44,11 @@ def start_scheduler(project_root: str = None):
         logger.info("定时任务未启用，如需启用请在配置中设置 SCHEDULER_ENABLED = True")
         return
     
+    # 初始化调度器（加载任务配置）
     daemon = SchedulerDaemon(settings)
     
-    # 记录任务信息
-    logger.info("=" * 80)
-    logger.info("定时任务调度器")
-    logger.info("=" * 80)
-    logger.info(f"当前时间: {datetime.fromtimestamp(time.time()).strftime('%Y-%m-%d %H:%M:%S')}")
-    logger.info(f"任务数量: {len(daemon.jobs)}")
-    
-    if len(daemon.jobs) == 0:
-        logger.info("No scheduled tasks configured")
-    else:
-        for job in daemon.jobs:
-            try:
-                next_time = datetime.fromtimestamp(job.next_execution_time).strftime('%Y-%m-%d %H:%M:%S')
-            except (OverflowError, OSError, ValueError) as e:
-                logger.warning(
-                    f"Task: {job.spider_name} - invalid next_execution_time "
-                    f"({job.next_execution_time}), skipping time display. Error: {e}"
-                )
-                next_time = "N/A (invalid time)"
-            
-            time_diff = job.next_execution_time - time.time()
-            if time_diff > 0 and next_time != "N/A (invalid time)":
-                time_str = format_duration(time_diff)
-                logger.info(f"Task: {job.spider_name}")
-                logger.info(f"  Cron: {job.cron or job.interval}")
-                logger.info(f"  Next run: {next_time}")
-                logger.info(f"  Remaining: {time_str}")
-            else:
-                logger.info(f"Task: {job.spider_name}")
-                logger.info(f"  Cron: {job.cron or job.interval}")
-                logger.info(f"  Next run: {next_time}")
-    
-    logger.info("=" * 80)
-    logger.info("调度器主循环启动，等待任务执行...")
-    logger.info("=" * 80)
+    # 打印启动概览
+    logger.info(f"调度器启动 - 时间: {datetime.fromtimestamp(time.time()).strftime('%Y-%m-%d %H:%M:%S')}, 任务数: {len(daemon.jobs)}")
     
     try:
         asyncio.run(daemon.start())
