@@ -174,6 +174,8 @@ class QueueManager(QueueStatusMixin, QueueBackpressureMixin):
         if not self._queue:
             raise RuntimeError("队列未初始化")
 
+        semaphore_acquired = False  # 跟踪信号量状态
+
         try:
             # 应用智能调度算法计算优先级
             intelligent_priority = self._priority_calculator.calculate_priority(request)
@@ -230,6 +232,7 @@ class QueueManager(QueueStatusMixin, QueueBackpressureMixin):
                 # 对于大量请求，使用阻塞式等待而不是跳过
                 # 这样可以确保不会丢失任何请求
                 await self._queue_semaphore.acquire()
+                semaphore_acquired = True
 
             # 统一的入队操作
             success = False
@@ -250,7 +253,8 @@ class QueueManager(QueueStatusMixin, QueueBackpressureMixin):
 
         except Exception as e:
             self.logger.error(f"Failed to enqueue request: {e}")
-            if self._queue_semaphore:
+            # 只在已获取信号量时才释放
+            if semaphore_acquired and self._queue_semaphore:
                 self._queue_semaphore.release()
             return False
 

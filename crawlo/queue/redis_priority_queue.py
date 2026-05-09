@@ -323,7 +323,7 @@ class RedisPriorityQueue:
             if not self._redis:
                 return None
                 
-            start_time = asyncio.get_event_loop().time()
+            start_time = time.time()
 
             while True:
                 # 尝试获取任务
@@ -367,7 +367,7 @@ class RedisPriorityQueue:
                         continue
 
                 # 检查是否超时
-                if asyncio.get_event_loop().time() - start_time > timeout:
+                if time.time() - start_time > timeout:
                     return None
 
                 # 短暂等待，避免空轮询，但减少等待时间以提高响应速度

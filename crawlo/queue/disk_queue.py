@@ -255,7 +255,7 @@ class DiskQueue(BackpressureableQueueMixin, IQueue):
         
         Args:
             item: 要入队的元素
-            priority: 优先级，数值越大优先级越高
+            priority: 优先级，数值越小优先级越高（与框架统一）
             
         Returns:
             bool: 入队是否成功
@@ -384,13 +384,13 @@ class DiskQueue(BackpressureableQueueMixin, IQueue):
                 with self._get_connection() as conn:
                     cursor = conn.cursor()
                     
-                    # 获取最高优先级的未处理项
+                    # 获取最高优先级的未处理项（数值越小越优先）
                     cursor.execute(
                         f"""
                         SELECT id, priority, data, created_at
                         FROM {self._config.table_name}
                         WHERE processed = 0
-                        ORDER BY priority DESC, created_at ASC
+                        ORDER BY priority ASC, created_at ASC
                         LIMIT 1
                         """
                     )

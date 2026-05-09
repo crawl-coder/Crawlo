@@ -24,6 +24,7 @@ try:
     INTELLIGENT_BP_AVAILABLE = True
 except ImportError:
     INTELLIGENT_BP_AVAILABLE = False
+    logger.debug("Intelligent backpressure not available: crawlo.backpressure module not found")
 
 logger = logging.getLogger(__name__)
 

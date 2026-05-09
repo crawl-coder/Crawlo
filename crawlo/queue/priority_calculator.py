@@ -141,7 +141,16 @@ class PriorityCalculator:
     
     def _evict_oldest_urls(self, count: int) -> None:
         """淘汰指定数量的 URL 记录（FIFO 策略）"""
-        keys_to_remove = list(self.url_stats.keys())[:count]
+        # 先收集要删除的 key，避免在迭代过程中修改字典
+        keys_to_remove = []
+        keys_iterator = iter(self.url_stats.keys())
+        for _ in range(count):
+            key = next(keys_iterator, None)
+            if key is None:
+                break
+            keys_to_remove.append(key)
+            
+        # 批量删除
         for key in keys_to_remove:
             self.url_stats.pop(key, None)
 
