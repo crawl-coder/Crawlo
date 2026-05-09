@@ -1,11 +1,13 @@
 #!/usr/bin/python
 # -*- coding: UTF-8 -*-
 """
-内置初始化器 - 提供框架核心组件的初始化实现
+Built-in Initializers - Provide initialization implementations for framework core components
 """
 
+import os
 import time
-from typing import TYPE_CHECKING
+import importlib
+from typing import TYPE_CHECKING, Optional
 
 from .registry import BaseInitializer, register_initializer
 from .phases import InitializationPhase, PhaseResult
@@ -63,17 +65,16 @@ class LoggingInitializer(BaseInitializer):
                 error=e
             )
     
-    def _get_log_config(self, context: InitializationContext) -> 'LogConfig | None':
+    def _get_log_config(self, context: InitializationContext) -> Optional['LogConfig']:
         """
-        获取日志配置
+        Get log configuration
         
         Args:
-            context: 初始化上下文
+            context: Initialization context
             
         Returns:
-            LogConfig: 日志配置对象
+            LogConfig: Log configuration object
         """
-        # 导入日志配置类
         from crawlo.logging import LogConfig
         from crawlo.utils.misc import ConfigUtils
         
@@ -94,17 +95,16 @@ class LoggingInitializer(BaseInitializer):
         # 使用默认配置
         return LogConfig()
     
-    def _create_log_config_from_source(self, config_source) -> 'LogConfig | None':
+    def _create_log_config_from_source(self, config_source) -> Optional['LogConfig']:
         """
-        从配置源创建日志配置
+        Create log configuration from config source
         
         Args:
-            config_source: 配置源
+            config_source: Configuration source
             
         Returns:
-            LogConfig: 日志配置对象，如果配置源无效则返回None
+            LogConfig: Log configuration object, None if source is invalid
         """
-        # 导入日志配置类
         from crawlo.logging import LogConfig
         from crawlo.utils.misc import ConfigUtils
         
@@ -136,13 +136,11 @@ class LoggingInitializer(BaseInitializer):
     
     def _load_project_config(self):
         """
-        自动加载项目配置以获取日志设置
+        Automatically load project configuration to retrieve log settings
         """
         try:
-            # 查找项目根目录
-            import os
-            import sys
             from crawlo.project import read_crawlo_cfg
+            from crawlo.utils.misc import ConfigUtils
             
             current_path = os.getcwd()
             
@@ -158,16 +156,14 @@ class LoggingInitializer(BaseInitializer):
                 settings_module_path = read_crawlo_cfg(cfg_file)
                 
                 if settings_module_path:
-                    # 添加项目根目录到Python路径
+                    # Add project root directory to Python path
                     if path not in sys.path:
                         sys.path.insert(0, path)
                     
-                    # 导入项目配置模块
-                    import importlib
+                    # Import project settings module
                     settings_module = importlib.import_module(settings_module_path)
                     
-                    # 创建配置字典
-                    from crawlo.utils.misc import ConfigUtils
+                    # Create configuration dictionary
                     project_config = ConfigUtils.merge_config_sources([settings_module])
                     
                     return project_config
@@ -230,24 +226,31 @@ class SettingsInitializer(BaseInitializer):
 
 
 class CoreComponentsInitializer(BaseInitializer):
-    """核心组件初始化器"""
+    """Core components initializer"""
     
     def __init__(self):
         super().__init__(InitializationPhase.CORE_COMPONENTS)
     
     def initialize(self, context: InitializationContext) -> PhaseResult:
-        """初始化核心组件"""
+        """
+        Initialize core components
+        
+        Note: Most core components require crawler parameter, so they cannot be
+        initialized in this phase. Actual initialization will occur when
+        the crawler is created. This phase serves as a placeholder.
+        """
         start_time = time.time()
         
         try:
-            # 在核心组件初始化阶段，大多数组件需要crawler参数
-            # 因此我们只初始化那些完全独立的组件
-            # 或者只记录需要初始化的组件类型，实际初始化在crawler创建时进行
+            # Log that core components will be initialized later
+            logger = context.get_shared_data('framework_logger')
+            if logger:
+                logger.debug("Core components initialization deferred to crawler creation")
             
             return self._create_result(
                 success=True,
                 duration=time.time() - start_time,
-                artifacts={}
+                artifacts={'note': 'Core components initialized during crawler creation'}
             )
             
         except Exception as e:
@@ -256,9 +259,6 @@ class CoreComponentsInitializer(BaseInitializer):
                 duration=time.time() - start_time,
                 error=e
             )
-    
-# 注意：核心组件需要crawler参数，不能在此阶段初始化
-        # 实际初始化将在crawler创建时进行
 
 
 class ExtensionsInitializer(BaseInitializer):

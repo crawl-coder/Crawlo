@@ -1,12 +1,12 @@
 #!/usr/bin/python
 # -*- coding: UTF-8 -*-
 """
-初始化阶段定义
+Initialization Phase Definitions
 """
 
 from enum import Enum
 from dataclasses import dataclass
-from typing import List, Optional, Dict
+from typing import List, Optional, Dict, Tuple
 
 
 class InitializationPhase(Enum):
@@ -210,12 +210,12 @@ def detect_circular_dependencies() -> Optional[List[InitializationPhase]]:
     return None
 
 
-def validate_phase_dependencies() -> tuple[bool, Optional[str]]:
+def validate_phase_dependencies() -> Tuple[bool, Optional[str]]:
     """
-    全面验证阶段依赖关系
+    Comprehensive validation of phase dependencies
     
     Returns:
-        tuple[bool, Optional[str]]: (是否有效, 错误信息)
+        Tuple[bool, Optional[str]]: (is_valid, error_message)
     """
     # 1. 检查依赖是否存在
     if not validate_dependencies():
