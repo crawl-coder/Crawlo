@@ -11,6 +11,8 @@ import asyncio
 import tempfile
 import webbrowser
 import atexit
+import concurrent.futures
+import threading
 from typing import Optional, Any, Dict
 
 from crawlo.logging import get_logger
@@ -25,19 +27,33 @@ class _MockCrawler:
     """
     
     def __init__(self, settings=None):
-        if settings is None or isinstance(settings, dict):
+        if settings is None:
+            # 使用默认 SettingManager
+            try:
+                from crawlo.settings.setting_manager import SettingManager
+                self.settings = SettingManager()
+            except Exception as e:
+                get_logger(__name__).warning(
+                    f"Failed to create SettingManager, using empty dict: {e}"
+                )
+                self.settings = {}
+        elif isinstance(settings, dict):
+            # 合并 dict 到 SettingManager
             try:
                 from crawlo.settings.setting_manager import SettingManager
                 sm = SettingManager()
-                if isinstance(settings, dict):
-                    # 合并用户配置到 SettingManager
-                    for k, v in settings.items():
-                        sm.attributes[k] = v
+                for k, v in settings.items():
+                    sm.attributes[k] = v
                 self.settings = sm
-            except Exception:
-                self.settings = settings or {}
+            except Exception as e:
+                get_logger(__name__).warning(
+                    f"Failed to create SettingManager, using dict: {e}"
+                )
+                self.settings = settings
         else:
+            # 已经是配置对象，直接使用
             self.settings = settings
+        
         self.spider = _MockSpider()
         self.engine = None
         self.stats = None
@@ -158,6 +174,13 @@ class CrawloShell:
         """
         try:
             from crawlo.utils.curl_parser import CurlParser
+        except ImportError:
+            self.logger.error(
+                "CurlParser not available. Install: pip install crawlo[curl]"
+            )
+            return None
+        
+        try:
             request = CurlParser.to_request(curl_cmd, **kwargs)
             
             # 延迟初始化下载器
@@ -361,7 +384,7 @@ class CrawloShell:
         try:
             from crawlo.downloader.aiohttp_downloader import AioHttpDownloader
             dl = AioHttpDownloader(crawler)
-            self._downloader = _DownloaderAdapter(dl)
+            self._downloader = _DownloaderAdapter(dl, settings=self.settings)
             self.logger.info("Using AioHttpDownloader (shell mode)")
             return self._downloader
         except Exception as e:
@@ -377,18 +400,42 @@ class CrawloShell:
             return None
     
     def _run_async(self, coro):
-        """在事件循环中运行异步协程（同步包装）"""
+        """在事件循环中运行异步协程（同步包装）
+        
+        处理两种情况：
+        1. 无事件循环：直接使用 asyncio.run()
+        2. 有事件循环（IPython）：在新线程中创建独立事件循环运行
+        """
         try:
             loop = asyncio.get_running_loop()
         except RuntimeError:
             loop = None
         
         if loop and loop.is_running():
-            # 如果已在事件循环中，创建任务
-            import concurrent.futures
-            with concurrent.futures.ThreadPoolExecutor() as pool:
-                return pool.submit(asyncio.run, coro).result()
+            # 在现有事件循环中，需要在新线程中运行以避免阻塞
+            result = [None]
+            exception = [None]
+            
+            def run_in_thread():
+                try:
+                    # 创建新事件循环
+                    new_loop = asyncio.new_event_loop()
+                    asyncio.set_event_loop(new_loop)
+                    result[0] = new_loop.run_until_complete(coro)
+                except Exception as e:
+                    exception[0] = e
+                finally:
+                    new_loop.close()
+            
+            thread = threading.Thread(target=run_in_thread)
+            thread.start()
+            thread.join()
+            
+            if exception[0]:
+                raise exception[0]
+            return result[0]
         else:
+            # 无事件循环，直接运行
             return asyncio.run(coro)
     
     async def close(self) -> None:
@@ -410,8 +457,8 @@ class CrawloShell:
             try:
                 if os.path.exists(path):
                     os.unlink(path)
-            except Exception:
-                pass
+            except OSError as e:
+                self.logger.debug(f"Failed to remove temp file {path}: {e}")
         self._temp_files.clear()
 
 
@@ -425,9 +472,10 @@ class _DownloaderAdapter:
     3. 直接调用 download() 绕过 fetch() 的中间件链路
     """
     
-    def __init__(self, downloader):
+    def __init__(self, downloader, settings=None):
         self._downloader = downloader
         self._session_initialized = False
+        self._settings = settings or {}
     
     async def fetch(self, request: Request) -> Optional[Response]:
         """直接调用下载器的 download 方法"""
@@ -454,15 +502,20 @@ class _DownloaderAdapter:
                 import aiohttp
                 from aiohttp import TCPConnector
                 
+                # 从 settings 读取配置
+                max_connections = getattr(self._settings, 'CONCURRENT_REQUESTS', 10)
+                timeout = getattr(self._settings, 'DOWNLOAD_TIMEOUT', 30)
+                max_size = getattr(self._settings, 'DOWNLOAD_MAXSIZE', 10 * 1024 * 1024)
+                
                 dl.session = aiohttp.ClientSession(
-                    connector=TCPConnector(limit=10, ttl_dns_cache=300),
-                    timeout=aiohttp.ClientTimeout(total=30)
+                    connector=TCPConnector(limit=max_connections, ttl_dns_cache=300),
+                    timeout=aiohttp.ClientTimeout(total=timeout)
                 )
                 
-                # 设置默认的最大下载大小（10MB）
+                # 设置默认的最大下载大小
                 # open() 未调用时此值为 0，会导致所有请求被拒绝
                 if hasattr(dl, 'max_download_size') and dl.max_download_size == 0:
-                    dl.max_download_size = 10 * 1024 * 1024
+                    dl.max_download_size = max_size
                 
                 self._session_initialized = True
             except Exception as e:
@@ -481,28 +534,39 @@ class _DownloaderAdapter:
                     self._downloader.session = None
             # 再尝试下载器自身的 close
             await self._downloader.close()
-        except Exception:
-            pass
+        except Exception as e:
+            get_logger(__name__).debug(f"Error closing downloader: {e}")
 
 
 class _SimpleFetcher:
     """最简单的 HTTP 抓取器（无框架依赖时的回退方案）"""
     
     async def fetch(self, request: Request) -> Optional[Response]:
-        """使用 aiohttp 直接抓取"""
+        """使用 aiohttp 直接抓取，支持所有 HTTP 方法"""
         try:
             import aiohttp
+            
+            # 获取请求方法和参数
+            method = getattr(request, 'method', 'GET').upper()
+            headers = getattr(request, 'headers', None) or {}
+            cookies = getattr(request, 'cookies', None) or {}
+            body = getattr(request, 'body', None) or getattr(request, 'data', None)
+            
             async with aiohttp.ClientSession() as session:
-                async with session.get(
+                async with session.request(
+                    method,
                     request.url,
+                    headers=headers,
+                    cookies=cookies,
+                    data=body,
                     timeout=aiohttp.ClientTimeout(total=30)
                 ) as resp:
-                    body = await resp.read()
+                    resp_body = await resp.read()
                     return Response(
                         url=request.url,
                         status=resp.status,
                         headers=dict(resp.headers),
-                        body=body,
+                        body=resp_body,
                         request=request,
                     )
         except ImportError:
