@@ -59,7 +59,17 @@ def normalize_component_config(
         return {}
     
     if isinstance(config, dict):
-        return {k: v for k, v in config.items() if k and not str(k).strip().startswith('#')}
+        result = {}
+        for k, v in config.items():
+            key_str = str(k).strip()
+            # 跳过空键和注释键
+            if not key_str or key_str.startswith('#'):
+                continue
+            # 清理值中的注释（如果是字符串）
+            if isinstance(v, str) and '#' in v:
+                v = v.split('#')[0].strip()
+            result[key_str] = v
+        return result
     
     if isinstance(config, tuple):
         config = [config]
@@ -70,8 +80,10 @@ def normalize_component_config(
             if not item:
                 continue
             if isinstance(item, str):
-                if item.strip() and not item.strip().startswith('#'):
-                    result[item.strip()] = default_priority
+                item_str = item.strip()
+                # 跳过空字符串和注释
+                if item_str and not item_str.startswith('#'):
+                    result[item_str] = default_priority
             elif isinstance(item, (list, tuple)) and len(item) >= 2:
                 path = str(item[0]).strip()
                 if path and not path.startswith('#'):
@@ -92,7 +104,8 @@ def merge_component_configs(
     """
     合并组件配置
     
-    用户配置覆盖默认配置。
+    用户配置覆盖默认配置。支持禁用机制：
+    - 设置为 None 或 0 表示禁用该组件
     
     Args:
         default: 默认配置
@@ -102,7 +115,14 @@ def merge_component_configs(
         Dict[str, int]: 合并后的配置
     """
     result = default.copy()
-    result.update(user)
+    
+    for key, value in user.items():
+        # 如果用户设置为 None 或 0，表示禁用该组件
+        if value is None or value == 0:
+            result.pop(key, None)
+        else:
+            result[key] = value
+    
     return result
 
 
@@ -207,8 +227,10 @@ class SettingManager(MutableMapping):
         # 在开头插入指定的去重管道（优先级最高：数字最小）
         if dedup_pipeline not in pipelines:
             # 找到当前最小的优先级
-            min_priority = min(pipelines.values()) if pipelines else 100
+            min_priority = min(pipelines.values()) if pipelines else 500
             # 去重管道优先级必须比所有其他管道都小，确保最先执行
+            # 使用固定差值 100，保证足够的优先级差距
+            # 例如：如果最小优先级是 300，去重管道优先级为 200
             pipelines[dedup_pipeline] = max(1, min_priority - 100)
         
         self.attributes['PIPELINES'] = pipelines
@@ -236,26 +258,44 @@ class SettingManager(MutableMapping):
         """处理动态配置项"""
         if self.attributes.get('LOG_FILE') is None:
             project_name = self.attributes.get('PROJECT_NAME', 'crawlo')
-            self.attributes['LOG_FILE'] = f'logs/{project_name}.log'
+            log_dir = self.attributes.get('LOG_DIR', 'logs')
+            self.attributes['LOG_FILE'] = f'{log_dir}/{project_name}.log'
     
     # ==================== 配置获取方法 ====================
-    
-    # 哨兵值：用于区分"未设置"和"显式设置为 None"
+        
+    # 哨兵值：用于区分“未设置”和“显式设置为 None”
     _SENTINEL = object()
-    
-    def get(self, key: str, default: Any = None) -> Any:
+        
+    def get(self, key: str, default: Any = _SENTINEL) -> Any:
         """
         获取配置值
-        
+            
         Args:
             key: 配置键名
-            default: 默认值（仅在键不存在时使用，显式设置为 None 的键返回 None）
-            
+            default: 默认值
+                - 未提供：键不存在时抛出 KeyError
+                - 提供：键不存在时返回该值
+                - 注意：如果键存在但值为 None，返回 None（不返回 default）
+                
         Returns:
-            配置值。如果键存在则返回对应值（包括 None），不存在时返回 default。
+            配置值。如果键存在则返回对应值（包括 None），不存在时根据 default 参数决定。
+                
+        Raises:
+            KeyError: 键不存在且未提供 default 时
+                
+        Examples:
+            >>> settings.get('KEY')  # 不存在时抛出 KeyError
+            >>> settings.get('KEY', 'default')  # 不存在时返回 'default'
+            >>> settings.get('KEY', None)  # 不存在时返回 None
         """
         if key in self.attributes:
             return self.attributes[key]
+            
+        # 未提供 default 参数，抛出 KeyError
+        if default is self._SENTINEL:
+            raise KeyError(f"Configuration key '{key}' not found")
+            
+        # 提供了 default 参数，返回默认值
         return default
     
     def get_int(self, key: str, default: int = 0) -> int:
@@ -285,7 +325,7 @@ class SettingManager(MutableMapping):
     
     def get_list(self, key: str, default: Optional[List] = None) -> List:
         """获取列表配置值"""
-        values = self.get(key, default or [])
+        values = self.get(key, default=default or [])
         if isinstance(values, str):
             return [v.strip() for v in values.split(',') if v.strip()]
         try:
@@ -295,7 +335,7 @@ class SettingManager(MutableMapping):
     
     def get_dict(self, key: str, default: Optional[Dict] = None) -> Dict:
         """获取字典配置值"""
-        value = self.get(key, default or {})
+        value = self.get(key, default=default or {})
         if isinstance(value, str):
             value = json.loads(value)
         try:
@@ -487,6 +527,9 @@ class SettingManager(MutableMapping):
 
 class EnvConfigManager:
     """环境变量配置管理器"""
+    
+    # 版本号缓存
+    _version_cache = None
 
     @staticmethod
     def get_env_var(var_name: str, default: Any = None, var_type: type = str) -> Any:
@@ -550,10 +593,16 @@ class EnvConfigManager:
     def get_version() -> str:
         """
         获取框架版本号
+        
+        使用模块级缓存避免重复读取文件。
 
         Returns:
             框架版本号字符串
         """
+        # 返回缓存的版本号
+        if EnvConfigManager._version_cache is not None:
+            return EnvConfigManager._version_cache
+        
         version_file = os.path.join(os.path.dirname(__file__), '..', '__version__.py')
         default_version = '1.0.0'
 
@@ -563,8 +612,10 @@ class EnvConfigManager:
                     content = f.read()
                     version_match = re.search(r"__version__\s*=\s*['\"]([^'\"]*)['\"]", content)
                     if version_match:
-                        return version_match.group(1)
+                        EnvConfigManager._version_cache = version_match.group(1)
+                        return EnvConfigManager._version_cache
             except Exception:
                 pass
 
-        return default_version
+        EnvConfigManager._version_cache = default_version
+        return EnvConfigManager._version_cache
