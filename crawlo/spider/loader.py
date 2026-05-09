@@ -121,46 +121,32 @@ class SpiderLoader(ISpiderLoader):
     
     def _load_all_spiders(self) -> None:
         """加载所有spiders"""
-        # 如果配置了SPIDER_MODULES，则从这些模块加载
-        if self.spider_modules:
-            for module_name in self.spider_modules:
-                self._load_spiders_from_package(module_name)
-        else:
-            # 向后兼容：如果没有配置SPIDER_MODULES，则使用旧的方式
-            # 这里假设默认的spiders目录结构
-            spiders_dir = Path.cwd() / 'spiders'
-            if not spiders_dir.exists():
-                spiders_dir = Path.cwd() / 'spider'
-                if not spiders_dir.exists():
-                    logger.warning("Spiders directory not found")
-                    return
-            
-            for py_file in spiders_dir.glob("*.py"):
-                if py_file.name.startswith('_'):
-                    continue
-                
-                module_name = py_file.stem
-                module = None
-                try:
-                    # 尝试不同的导入路径
-                    spider_module_path = None
-                    for possible_package in ['spiders', 'spider']:
-                        try:
-                            spider_module_path = f"{possible_package}.{module_name}"
-                            module = importlib.import_module(spider_module_path)
-                            break
-                        except ImportError:
-                            continue
-                    
-                    if module is None:
-                        raise ImportError(f"Could not import {module_name}")
-                    
-                    self._load_spiders(module)
-                except ImportError as e:
-                    logger.debug(f"Skip module {module_name}: {e}")
-                    continue
+        # 获取要加载的模块列表
+        modules_to_load = self.spider_modules or self._discover_default_modules()
+        
+        # 加载所有模块
+        for module_name in modules_to_load:
+            self._load_spiders_from_package(module_name)
         
         self._check_name_duplicates()
+    
+    def _discover_default_modules(self) -> List[str]:
+        """
+        发现默认的 spiders 目录
+        
+        Returns:
+            List[str]: 发现的模块列表
+        """
+        # 向后兼容：如果没有配置SPIDER_MODULES，则使用旧的方式
+        spiders_dir = Path.cwd() / 'spiders'
+        if not spiders_dir.exists():
+            spiders_dir = Path.cwd() / 'spider'
+            if not spiders_dir.exists():
+                logger.warning("Spiders directory not found")
+                return []
+        
+        # 返回目录名作为模块名
+        return [spiders_dir.name]
     
     def load(self, spider_name: str) -> Type[Spider]:
         """
@@ -187,15 +173,35 @@ class SpiderLoader(ISpiderLoader):
         """
         根据请求找到可以处理该请求的爬虫名称
         
+        基于 URL 域名匹配 allowed_domains 进行查找。
+        
         Args:
             request: 请求对象
             
         Returns:
             可以处理该请求的爬虫名称列表
         """
-        # 这里可以实现更复杂的匹配逻辑
-        # 目前只是返回所有爬虫名称
-        return list(self._spiders.keys())
+        from urllib.parse import urlparse
+        
+        request_domain = urlparse(request.url).netloc.lower()
+        matching_spiders = []
+        
+        for name, spider_cls in self._spiders.items():
+            allowed = getattr(spider_cls, 'allowed_domains', None)
+            
+            # 如果没有限制域名，所有爬虫都匹配
+            if not allowed:
+                matching_spiders.append(name)
+                continue
+            
+            # 检查域名是否匹配
+            for domain in allowed:
+                domain = domain.lower()
+                if request_domain == domain or request_domain.endswith('.' + domain):
+                    matching_spiders.append(name)
+                    break
+        
+        return matching_spiders
     
     def get_all(self) -> Dict[str, Type[Spider]]:
         """获取所有爬虫"""

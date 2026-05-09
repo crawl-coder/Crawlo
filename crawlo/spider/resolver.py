@@ -45,69 +45,88 @@ class SpiderResolver:
                 return ValueError(f"Failed to import spider modules: {details}")
             return ValueError(msg)
         
-        if isinstance(spider_cls_or_name, str):
-            try:
-                from crawlo.spider import get_global_spider_registry, Spider
-                registry = get_global_spider_registry()
-                if spider_cls_or_name in registry:
-                    return registry[spider_cls_or_name]
-                
-                # 尝试通过spider_modules导入所有模块来触发注册
-                if spider_modules:
-                    for module_path in spider_modules:
-                        try:
-                            __import__(module_path)
-                        except Exception as e:
-                            _add_failure(f"{module_path}: {type(e).__name__}: {e}")
-                    
-                    if spider_cls_or_name in registry:
-                        return registry[spider_cls_or_name]
-                
-                # 尝试自动发现模式（跳过已扫描过的模块）
-                if spider_modules:
-                    from crawlo.spider import SpiderDiscoveryState
-                    from crawlo.utils.process_utils import SpiderDiscoveryUtils
-                    from crawlo.logging import get_logger
-                    undiscovered_modules = [
-                        m for m in spider_modules
-                        if not SpiderDiscoveryState.is_discovered(m)
-                    ]
-                    if undiscovered_modules:
-                        SpiderDiscoveryUtils.auto_discover_spider_modules(undiscovered_modules, get_logger('crawlo.framework'))
-                    if spider_cls_or_name in registry:
-                        return registry[spider_cls_or_name]
-                
-                # 尝试直接导入模块
-                try:
-                    if '.' in spider_cls_or_name:
-                        pkg_path, class_name = spider_cls_or_name.rsplit('.', 1)
-                        module = __import__(pkg_path, fromlist=[class_name])
-                        spider_class = getattr(module, class_name)
-                        if not (isinstance(spider_class, type) and issubclass(spider_class, Spider)):
-                            raise ValueError(f"'{spider_cls_or_name}' is not a Spider subclass")
-                        registry[spider_class.name] = spider_class
-                        return spider_class
-                    else:
-                        if spider_modules:
-                            for module_path in spider_modules:
-                                try:
-                                    full_module_path = f"{module_path}.{spider_cls_or_name}"
-                                    module = __import__(full_module_path, fromlist=[spider_cls_or_name])
-                                    for attr_name in dir(module):
-                                        attr_value = getattr(module, attr_name)
-                                        if (isinstance(attr_value, type) and
-                                                issubclass(attr_value, Spider) and
-                                                attr_value.name == spider_cls_or_name):
-                                            registry[spider_cls_or_name] = attr_value
-                                            return attr_value
-                                except Exception as e:
-                                    _add_failure(f"{module_path}.{spider_cls_or_name}: {type(e).__name__}: {e}")
-                                    continue
-                except Exception as e:
-                    _add_failure(f"{spider_cls_or_name}: {type(e).__name__}: {e}")
-                
-                raise _fail(f"Spider '{spider_cls_or_name}' not found in registry")
-            except ImportError:
-                raise ValueError(f"Cannot resolve spider name '{spider_cls_or_name}'")
-        else:
+        # 如果是字符串，需要解析
+        if not isinstance(spider_cls_or_name, str):
             return cast(Type['Spider'], spider_cls_or_name)
+        
+        # 导入必要的模块
+        try:
+            from crawlo.spider import get_global_spider_registry, Spider
+        except ImportError:
+            raise ValueError(f"Cannot resolve spider name '{spider_cls_or_name}'")
+        
+        registry = get_global_spider_registry()
+        spider_name = spider_cls_or_name
+        
+        # 1. 尝试从注册表获取
+        if spider_name in registry:
+            return registry[spider_name]
+        
+        # 2. 尝试通过spider_modules导入所有模块来触发注册
+        if spider_modules:
+            SpiderResolver._import_modules(spider_modules, _add_failure)
+            if spider_name in registry:
+                return registry[spider_name]
+        
+        # 3. 尝试自动发现模式
+        if spider_modules:
+            SpiderResolver._auto_discover_spiders(spider_modules, registry)
+            if spider_name in registry:
+                return registry[spider_name]
+        
+        # 4. 尝试直接导入模块
+        SpiderResolver._try_direct_import(spider_name, registry, _add_failure)
+        if spider_name in registry:
+            return registry[spider_name]
+        
+        # 5. 所有方法都失败
+        raise _fail(f"Spider '{spider_name}' not found in registry")
+    
+    @staticmethod
+    def _import_modules(modules: List[str], add_failure) -> None:
+        """导入模块列表"""
+        for module_path in modules:
+            try:
+                __import__(module_path)
+            except Exception as e:
+                add_failure(f"{module_path}: {type(e).__name__}: {e}")
+    
+    @staticmethod
+    def _auto_discover_spiders(modules: List[str], registry: dict) -> None:
+        """自动发现爬虫"""
+        from crawlo.spider import SpiderDiscoveryState
+        from crawlo.utils.process_utils import SpiderDiscoveryUtils
+        from crawlo.logging import get_logger
+        
+        undiscovered_modules = [
+            m for m in modules
+            if not SpiderDiscoveryState.is_discovered(m)
+        ]
+        
+        if undiscovered_modules:
+            SpiderDiscoveryUtils.auto_discover_spider_modules(
+                undiscovered_modules, 
+                get_logger('crawlo.framework')
+            )
+    
+    @staticmethod
+    def _try_direct_import(spider_name: str, registry: dict, add_failure) -> None:
+        """尝试直接导入模块"""
+        from crawlo.spider import Spider
+        
+        try:
+            # 格式：module.ClassName
+            if '.' in spider_name:
+                pkg_path, class_name = spider_name.rsplit('.', 1)
+                module = __import__(pkg_path, fromlist=[class_name])
+                spider_class = getattr(module, class_name)
+                
+                if isinstance(spider_class, type) and issubclass(spider_class, Spider):
+                    registry[spider_class.name] = spider_class
+                return
+            
+            # 格式：ClassName（在spider_modules中搜索）
+            # 注：此逻辑已在 auto_discover_spiders 中处理
+            
+        except Exception as e:
+            add_failure(f"{spider_name}: {type(e).__name__}: {e}")

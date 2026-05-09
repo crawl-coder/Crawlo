@@ -68,11 +68,12 @@ class SpiderMeta(type):
         # 注册爬虫
         _DEFAULT_SPIDER_REGISTRY[spider_name] = cast(Type['Spider'], cls)
         # 延迟初始化logger避免模块级别阻塞
+        # 注意：日志系统可能尚未初始化，因此捕获异常但不影响注册流程
         try:
             from crawlo.logging import get_logger
             get_logger(__name__).debug(f"自动注册爬虫: {spider_name} -> {cls.__name__}")
-        except:
-            # 如果日志系统未初始化，静默失败
+        except Exception:
+            # 日志系统未就绪，静默失败不影响注册
             pass
 
         return cls
@@ -144,9 +145,11 @@ class Spider(metaclass=SpiderMeta):
             self.allowed_domains = []
             
         # 设置爬虫名称
-        self.name = name or getattr(self, 'name', '')
-        if not self.name:
-            raise ValueError(f"爬虫 {self.__class__.__name__} 必须指定 name 属性")
+        # 注意：name 已由 SpiderMeta 验证为字符串类型且唯一
+        # 这里允许运行时覆盖 name（虽然不推荐）
+        if name is not None:
+            self.name = name
+        # 否则使用类属性 name（已由元类验证）
         
         # 初始化其他属性
         self.crawler: Optional['Crawler'] = None
@@ -161,7 +164,13 @@ class Spider(metaclass=SpiderMeta):
     
     @property
     def logger(self):
-        """延迟初始化logger"""
+        """延迟初始化logger
+        
+        原因：
+        - 避免在模块导入时初始化日志系统
+        - 日志系统可能依赖其他尚未初始化的组件
+        - 延迟到第一次使用时初始化，确保依赖就绪
+        """
         if self._logger is None:
             from crawlo.logging import get_logger
             self._logger = get_logger(self.name)
@@ -696,14 +705,22 @@ def reset_spider_registry():
 
 class SpiderDiscoveryState:
     """
-    爬虫发现状态管理器
+    爬虫发现状态管理器（全局单例）
     
     用于记录爬虫发现过程中的诊断信息，帮助定位问题。
     不针对特定错误类型，通用记录所有导入失败信息。
+    
+    注意：这是一个全局单例，所有实例共享同一状态。
+    测试时应调用 clear() 方法重置状态。
     """
     
     _discovery_errors: List[str] = []
     _discovered_modules: set = set()
+    
+    @classmethod
+    def reset(cls) -> None:
+        """重置所有状态（用于测试隔离）"""
+        cls.clear()
     
     @classmethod
     def add_discovery_error(cls, error: str) -> None:
