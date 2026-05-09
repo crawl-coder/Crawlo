@@ -72,6 +72,9 @@ class Response:
     _adaptive_enabled_global = None  # None 表示未初始化
     _adaptive_initialized = False  # 标记是否已初始化
     _cleanup_registered = False  # 标记是否已注册清理函数
+    
+    # 响应体大小限制（100MB）
+    MAX_BODY_SIZE = 100 * 1024 * 1024
 
     def __init__(
             self,
@@ -97,6 +100,14 @@ class Response:
         # 基本属性
         self.url: str = url
         self.headers: Dict[str, Any] = headers or {}
+        
+        # 检查响应体大小限制
+        if len(body) > self.MAX_BODY_SIZE:
+            raise ValueError(
+                f"Response body too large: {len(body)} bytes "
+                f"(limit: {self.MAX_BODY_SIZE} bytes)"
+            )
+        
         self.body: bytes = body
         self.method: str = method.upper()
         self.request: Optional['Request'] = request
@@ -118,6 +129,53 @@ class Response:
         self._is_redirect: bool = 300 <= status < 400
         self._is_client_error: bool = 400 <= status < 500
         self._is_server_error: bool = status >= 500
+    
+    @classmethod
+    def from_text(cls, url: str, text: str, encoding: str = 'utf-8', **kwargs) -> 'Response':
+        """
+        Create a Response from text.
+        
+        Args:
+            url: Response URL
+            text: Response body text
+            encoding: Text encoding
+            **kwargs: Additional response parameters (status, headers, etc.)
+            
+        Returns:
+            Response: Response object
+            
+        Example:
+            >>> response = Response.from_text('http://example.com', '<html>...</html>')
+        """
+        return cls(
+            url=url,
+            body=text.encode(encoding),
+            **kwargs
+        )
+    
+    @classmethod
+    def from_json(cls, url: str, data: Dict[str, Any], **kwargs) -> 'Response':
+        """
+        Create a Response from JSON data.
+        
+        Args:
+            url: Response URL
+            data: JSON data dictionary
+            **kwargs: Additional response parameters (status, headers, etc.)
+            
+        Returns:
+            Response: Response object
+            
+        Example:
+            >>> response = Response.from_json('http://api.example.com', {'key': 'value'})
+        """
+        import json
+        return cls(
+            url=url,
+            body=json.dumps(data, ensure_ascii=False).encode('utf-8'),
+            headers={'Content-Type': 'application/json', **(kwargs.pop('headers', {}))},
+            **kwargs
+        )
 
     # ==================== 编码检测相关方法 ====================
     
@@ -288,7 +346,8 @@ class Response:
         return self._selector_instance
 
     def xpath(self, query: str, adaptive: bool = False,
-              identifier: str = '', percentage: float = 0.0) -> SelectorList:
+              identifier: str = '', percentage: float = 0.0,
+              timeout: float = 5.0) -> SelectorList:
         """
         使用 XPath 选择器查询文档。
 
@@ -297,12 +356,40 @@ class Response:
             adaptive: 启用自适应追踪（命中时保存/更新指纹，失效时自动匹配）
             identifier: 指纹标识符（默认使用 query 字符串）
             percentage: 最低匹配百分比阈值（0-100）
+            timeout: 查询超时时间（秒），默认 5 秒
 
         Returns:
             SelectorList: 查询结果
         """
-        # 先尝试原始选择器
-        result = self._selector.xpath(query)
+        import threading
+        
+        result_holder = [None]
+        exception_holder = [None]
+        
+        def _execute_xpath():
+            try:
+                result_holder[0] = self._selector.xpath(query)
+            except Exception as e:
+                exception_holder[0] = e
+        
+        # 执行 XPath 查询（带超时）
+        thread = threading.Thread(target=_execute_xpath)
+        thread.daemon = True
+        thread.start()
+        thread.join(timeout)
+        
+        # 检查超时
+        if thread.is_alive():
+            get_logger('Response').warning(
+                f"XPath query timeout after {timeout}s: {query[:50]}..."
+            )
+            return SelectorList([])
+        
+        # 检查异常
+        if exception_holder[0]:
+            raise exception_holder[0]
+        
+        result = result_holder[0]
 
         # 自适应逻辑
         if result:
@@ -333,7 +420,8 @@ class Response:
         return result
 
     def css(self, query: str, adaptive: bool = False,
-            identifier: str = '', percentage: float = 0.0) -> SelectorList:
+            identifier: str = '', percentage: float = 0.0,
+            timeout: float = 5.0) -> SelectorList:
         """
         使用 CSS 选择器查询文档。
 
@@ -342,6 +430,7 @@ class Response:
             adaptive: 启用自适应追踪（命中时保存/更新指纹，失效时自动匹配）
             identifier: 指纹标识符（默认使用 query 字符串）
             percentage: 最低匹配百分比阈值（0-100）
+            timeout: 查询超时时间（秒），默认 5 秒
 
         Returns:
             SelectorList: 查询结果
@@ -358,6 +447,7 @@ class Response:
             adaptive=adaptive,
             identifier=identifier or query,
             percentage=percentage,
+            timeout=timeout,
         )
 
     # ==================== 自适应选择器内部方法 ====================

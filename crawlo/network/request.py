@@ -176,7 +176,7 @@ class Request:
         if json_body is not None:
             if 'Content-Type' not in self.headers:
                 self.headers['Content-Type'] = 'application/json'
-            self.body = json.dumps(json_body, ensure_ascii=False).encode(encoding)
+            self.body = json.dumps(json_body, ensure_ascii=False).encode(encoding or 'utf-8')
             if self.method == 'GET':
                 self.method = 'POST'
 
@@ -340,6 +340,127 @@ class Request:
             encoding=self.encoding,
             use_dynamic_loader=self.use_dynamic_loader
         )
+    
+    def __copy__(self: _Request) -> _Request:
+        """
+        Shallow copy optimization (for performance-critical scenarios).
+        
+        Note: This is a shallow copy, use copy() for deep copy.
+        
+        Returns:
+            Request: Shallow copy of request
+        """
+        new_request = type(self).__new__(type(self))
+        for slot in self.__slots__:
+            setattr(new_request, slot, getattr(self, slot))
+        return new_request
+
+    def to_dict(self) -> Dict[str, Any]:
+        """
+        Serialize Request to dict (for queue storage, distributed transfer).
+        
+        Returns:
+            Dict[str, Any]: Serialized request dictionary
+            
+        Example:
+            >>> request = Request('http://example.com', params={'page': 1})
+            >>> data = request.to_dict()
+            >>> # {'url': 'http://example.com', 'method': 'GET', ...}
+        """
+        return {
+            'url': self._original_url,
+            'method': self.method,
+            'headers': self.headers.copy(),
+            'body': self.body.decode('utf-8', errors='replace') if isinstance(self.body, bytes) else self.body,
+            'form_data': self._form_data,
+            'json_body': self._json_body,
+            'params': self._params,
+            'cb_kwargs': deepcopy(self.cb_kwargs),
+            'cookies': self.cookies.copy(),
+            'meta': deepcopy(self._meta),
+            'priority': -self.priority,  # Negate to positive value
+            'dont_filter': self.dont_filter,
+            'timeout': self.timeout,
+            'proxy': self.proxy,
+            'allow_redirects': self.allow_redirects,
+            'auth': self.auth,
+            'verify': self.verify,
+            'flags': list(self.flags),
+            'encoding': self.encoding,
+            'use_dynamic_loader': self.use_dynamic_loader,
+        }
+    
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> 'Request':
+        """
+        Deserialize Request from dict.
+        
+        Args:
+            data: Serialized request dictionary
+            
+        Returns:
+            Request: Deserialized request object
+            
+        Example:
+            >>> data = {'url': 'http://example.com', 'method': 'GET', ...}
+            >>> request = Request.from_dict(data)
+        """
+        return cls(
+            url=data.get('url'),
+            method=data.get('method', 'GET'),
+            headers=data.get('headers'),
+            body=data.get('body'),
+            form_data=data.get('form_data'),
+            json_body=data.get('json_body'),
+            params=data.get('params'),
+            cb_kwargs=data.get('cb_kwargs'),
+            cookies=data.get('cookies'),
+            meta=data.get('meta'),
+            priority=data.get('priority', 0),
+            dont_filter=data.get('dont_filter', False),
+            timeout=data.get('timeout'),
+            proxy=data.get('proxy'),
+            allow_redirects=data.get('allow_redirects', True),
+            auth=data.get('auth'),
+            verify=data.get('verify', True),
+            flags=data.get('flags'),
+            encoding=data.get('encoding'),
+            use_dynamic_loader=data.get('use_dynamic_loader', False),
+        )
+
+    @classmethod
+    def get(cls, url: str, **kwargs) -> 'Request':
+        """
+        Create a GET request.
+        
+        Args:
+            url: Request URL
+            **kwargs: Additional request parameters
+            
+        Returns:
+            Request: GET request object
+            
+        Example:
+            >>> request = Request.get('http://example.com', params={'page': 1})
+        """
+        return cls(url, method='GET', **kwargs)
+    
+    @classmethod
+    def post(cls, url: str, **kwargs) -> 'Request':
+        """
+        Create a POST request.
+        
+        Args:
+            url: Request URL
+            **kwargs: Additional request parameters (json_body, form_data, etc.)
+            
+        Returns:
+            Request: POST request object
+            
+        Example:
+            >>> request = Request.post('http://example.com/api', json_body={'key': 'value'})
+        """
+        return cls(url, method='POST', **kwargs)
 
     def set_meta(self, key: str, value: Any) -> 'Request':
         """

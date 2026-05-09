@@ -278,9 +278,9 @@ def _is_adaptive_enabled(cls) -> bool:
 
 ## 🔵 P3 问题（建议，可选优化）
 
-### P3 #1: Request 缺少序列化/反序列化方法
+### P3 #1: Request 缺少序列化/反序列化方法 ✅ 已修复
 
-**建议**: 添加 `to_dict()` / `from_dict()` 方法
+**实现**: 添加 `to_dict()` / `from_dict()` 方法
 ```python
 def to_dict(self) -> dict:
     """序列化 Request 为字典（用于队列存储）"""
@@ -299,9 +299,9 @@ def from_dict(cls, data: dict) -> 'Request':
 
 ---
 
-### P3 #2: Response 缺少响应体大小限制
+### P3 #2: Response 缺少响应体大小限制 ✅ 已修复
 
-**建议**: 防止超大响应体耗尽内存
+**实现**: 添加 `MAX_BODY_SIZE = 100MB` 限制
 ```python
 MAX_BODY_SIZE = 100 * 1024 * 1024  # 100MB
 
@@ -313,13 +313,9 @@ def __init__(self, ..., body: bytes = b""):
 
 ---
 
-### P3 #3: Request.copy() 性能问题
+### P3 #3: Request.copy() 性能问题 ✅ 已修复
 
-**位置**: `request.py:275-307`
-
-**问题**: 每次都创建新实例，频繁 copy 时性能差
-
-**建议**: 使用 `__copy__` 浅拷贝优化
+**实现**: 添加 `__copy__()` 浅拷贝优化
 ```python
 def __copy__(self):
     """浅拷贝优化（仅拷贝必要字段）"""
@@ -331,9 +327,9 @@ def __copy__(self):
 
 ---
 
-### P3 #4: Response.xpath() 缺少超时保护
+### P3 #4: Response.xpath() 缺少超时保护 ✅ 已修复
 
-**建议**: 复杂 XPath 可能阻塞
+**实现**: 添加 `timeout` 参数（默认 5 秒）
 ```python
 def xpath(self, query: str, timeout: float = 5.0):
     import asyncio
@@ -351,9 +347,9 @@ def xpath(self, query: str, timeout: float = 5.0):
 
 ---
 
-### P3 #5: 缺少 Request/Response 工厂方法
+### P3 #5: 缺少 Request/Response 工厂方法 ✅ 已修复
 
-**建议**: 提供便捷的创建方法
+**实现**: 添加 `Request.get()`, `Request.post()`, `Response.from_text()`, `Response.from_json()`
 ```python
 class Request:
     @classmethod
@@ -379,10 +375,10 @@ class Request:
 
 | 优先级 | 数量 | 状态 |
 |--------|------|------|
-| P1 | 3 | 待修复 |
-| P2 | 4 | 待修复 |
-| P3 | 5 | 建议 |
-| **总计** | **12** | - |
+| P1 | 3 | ✅ 已修复 |
+| P2 | 4 | ✅ 已修复 |
+| P3 | 5 | ✅ 已修复 |
+| **总计** | **12** | **全部完成** |
 
 ---
 
@@ -400,11 +396,11 @@ class Request:
 4. Response 自适应选择器动态配置
 
 ### 第三批（长期优化 - P3）
-1. Request 序列化/反序列化
-2. Response 响应体大小限制
-3. Request.copy() 性能优化
-4. Response.xpath() 超时保护
-5. Request/Response 工厂方法
+1. ✅ Request 序列化/反序列化
+2. ✅ Response 响应体大小限制
+3. ✅ Request.copy() 性能优化
+4. ✅ Response.xpath() 超时保护
+5. ✅ Request/Response 工厂方法
 
 ---
 
@@ -421,23 +417,30 @@ class Request:
 | P2#2 | Response.xpath/css 异常吞没 | 添加 `strict` 参数，默认吞没+debug 日志 | ✅ 通过 |
 | P2#3 | Request._add_params_to_url 参数覆盖 | 添加 `replace` 参数，默认覆盖模式 | ✅ 通过 |
 | P2#4 | Response 自适应选择器配置硬编码 | 动态读取 settings，支持自定义 | ✅ 通过 |
+| **P3#1** | **Request 缺少序列化/反序列化** | **添加 `to_dict()` / `from_dict()` 方法** | ✅ 通过 |
+| **P3#2** | **Response 缺少响应体大小限制** | **添加 `MAX_BODY_SIZE = 100MB` 检查** | ✅ 通过 |
+| **P3#3** | **Request.copy() 性能问题** | **添加 `__copy__()` 浅拷贝优化** | ✅ 通过 |
+| **P3#4** | **Response.xpath() 缺少超时保护** | **添加 `timeout` 参数（默认 5 秒）** | ✅ 通过 |
+| **P3#5** | **缺少 Request/Response 工厂方法** | **添加 `get()`, `post()`, `from_text()`, `from_json()`** | ✅ 通过 |
 
 ### 测试覆盖
 
-- **测试文件**: `tests/test_network_fixes.py`
-- **测试数量**: 19 个
+- **测试文件 1**: `tests/test_network_fixes.py` (P1/P2 修复)
+- **测试文件 2**: `tests/test_network_p3_fixes.py` (P3 修复)
+- **测试数量**: 36 个（19 + 17）
 - **通过率**: 100%
 
 ```bash
-$ python -m pytest tests/test_network_fixes.py -v
-=========================================== 19 passed in 3.01s ============================================
+$ python -m pytest tests/test_network_fixes.py tests/test_network_p3_fixes.py -v
+=========================================== 36 passed in 4.64s ============================================
 ```
 
 ### 影响范围
 
 - **修改文件**:
-  - `crawlo/network/request.py` (+56 行)
-  - `crawlo/network/response.py` (+60 行)
+  - `crawlo/network/request.py` (+122 行)
+  - `crawlo/network/response.py` (+94 行)
+  - `tests/test_network_p3_fixes.py` (新增 308 行)
 
 - **向后兼容**: ✅ 完全兼容
   - 所有修改均为向后兼容的改进
