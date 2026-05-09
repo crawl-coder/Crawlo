@@ -125,7 +125,7 @@ def safe_get_config(settings, key, default=None, value_type=None):
                     return bool(value)
         
         return value
-    except (TypeError, ValueError, AttributeError, Exception):
+    except Exception:
         return default
 
 

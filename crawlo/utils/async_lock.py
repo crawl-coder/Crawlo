@@ -123,6 +123,11 @@ class AsyncLock:
     def __init__(self):
         self._lock = asyncio.Lock()
     
+    @property
+    def underlying_lock(self):
+        """Expose underlying asyncio.Lock for interop"""
+        return self._lock
+    
     async def acquire(self) -> bool:
         """获取锁"""
         await self._lock.acquire()
@@ -261,7 +266,8 @@ class AsyncCondition:
     
     def __init__(self, lock: AsyncLock = None):
         self._lock = lock or AsyncLock()
-        self._condition = asyncio.Condition(self._lock._lock if isinstance(self._lock, AsyncLock) else self._lock)
+        # Use the underlying_lock property to maintain encapsulation
+        self._condition = asyncio.Condition(self._lock.underlying_lock)
     
     async def wait(self) -> bool:
         """等待条件满足"""
