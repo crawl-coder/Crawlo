@@ -3,22 +3,31 @@
 """
 Request 序列化工具类
 负责处理 Request 对象的序列化前清理工作，解决 logger 等不可序列化对象的问题
+
+设计参考：Scrapy 的 request_to_dict / request_from_dict 机制
 """
 import gc
 import logging
 import pickle
+import threading
+from typing import Any, Dict, Optional, Set, TYPE_CHECKING, Literal
+
 try:
     import msgpack
     MSGPACK_AVAILABLE = True
 except ImportError:
     MSGPACK_AVAILABLE = False
-from typing import Any, Dict, Optional, TYPE_CHECKING, Literal, Union
 
 if TYPE_CHECKING:
     from crawlo.network.request import Request
     from crawlo.spider import Spider
 
 from crawlo.logging import get_logger
+
+
+# 不可序列化的类型白名单
+UNSERIALIZABLE_TYPES = (logging.Logger,)
+RLockType = type(threading.RLock())
 
 
 class RequestSerializer:
@@ -30,7 +39,6 @@ class RequestSerializer:
         Args:
             serialization_format: 序列化格式，'pickle' 或 'msgpack'
         """
-        # 延迟初始化logger避免循环依赖
         self._logger = None
         self.serialization_format = serialization_format
         
@@ -49,7 +57,11 @@ class RequestSerializer:
     def prepare_for_serialization(self, request: 'Request') -> 'Request':
         """
         为序列化准备 Request 对象
-        移除不可序列化的属性，保存必要信息用于恢复
+        
+        清理策略（三层防御）：
+        1. 快速路径：清理 callback + meta 后直接测试
+        2. 深度清理：递归清除所有不可序列化对象
+        3. 重建兜底：从安全属性重建 Request
         
         Args:
             request: 要序列化的请求对象
@@ -57,45 +69,33 @@ class RequestSerializer:
         Returns:
             Request: 清理后的请求对象
         """
-        self.logger.debug(f"Preparing request for {self.serialization_format} serialization: {request.url}" if hasattr(request, 'url') else f"Preparing request for {self.serialization_format} serialization")
+        self.logger.debug(f"Preparing request for serialization: {request.url}")
         try:
-            # 处理 callback
+            # 第 1 层：常规清理
             self._handle_callback(request)
+            self._clean_meta_and_kwargs(request)
             
-            # 清理 meta 中的 logger
-            if hasattr(request, '_meta') and request._meta:
-                self._clean_dict_recursive(request._meta)
+            if self._can_serialize(request):
+                return request
             
-            # 清理 cb_kwargs 中的 logger
-            if hasattr(request, 'cb_kwargs') and request.cb_kwargs:
-                self._clean_dict_recursive(request.cb_kwargs)
+            # 第 2 层：深度清理
+            self.logger.warning("常规清理无效，使用深度清理")
+            request = self._deep_clean_request(request)
             
-            # 清理其他可能的 logger 引用
-            for attr_name in ['headers', 'cookies']:
-                if hasattr(request, attr_name):
-                    attr_value = getattr(request, attr_name)
-                    if isinstance(attr_value, dict):
-                        self._clean_dict_recursive(attr_value)
+            if self._can_serialize(request):
+                return request
             
-            # 特别处理可能包含RLock的对象
-            self._clean_rlock_objects(request)
-            
-            # 最终验证
-            if not self._test_serialization(request):
-                self.logger.warning("常规清理无效，使用深度清理")
-                request = self._deep_clean_request(request)
-                
-            return request
+            # 第 3 层：重建兜底
+            self.logger.warning("深度清理无效，重建 Request")
+            return self._rebuild_clean_request(request)
             
         except Exception as e:
             self.logger.error(f"Request 序列化准备失败: {e}")
-            # 最后的保险：重建 Request
             return self._rebuild_clean_request(request)
     
     def restore_after_deserialization(self, request: 'Request', spider: Optional['Spider'] = None) -> 'Request':
         """
         反序列化后恢复 Request 对象
-        恢复 callback 等必要信息
         
         Args:
             request: 反序列化后的请求对象
@@ -108,7 +108,7 @@ class RequestSerializer:
             return request
             
         # 恢复 callback
-        if hasattr(request, '_meta') and '_callback_info' in request._meta:
+        if hasattr(request, '_meta') and request._meta and '_callback_info' in request._meta:
             callback_info = request._meta.pop('_callback_info')
             
             if spider:
@@ -127,7 +127,7 @@ class RequestSerializer:
     
     def _handle_callback(self, request: 'Request') -> None:
         """
-        处理 callback 相关的清理
+        处理 callback：保存信息到 meta 并移除引用
         
         Args:
             request: 请求对象
@@ -135,134 +135,115 @@ class RequestSerializer:
         if hasattr(request, 'callback') and request.callback is not None:
             callback = request.callback
             
-            # 如果是绑定方法，保存信息并移除引用
-            # 检查是否为绑定方法（有__self__属性）而不是普通函数
+            # 仅处理绑定方法（有 __self__ 和 __name__）
             if hasattr(callback, '__self__') and hasattr(callback, '__name__'):
                 try:
-                    # 安全地访问 __self__ 属性
                     spider_instance = getattr(callback, '__self__', None)
                     if spider_instance is not None:
-                        # 保存 callback 信息
                         if not hasattr(request, '_meta') or request._meta is None:
                             request._meta = {}
                         request._meta['_callback_info'] = {
                             'spider_class': spider_instance.__class__.__name__,
                             'method_name': callback.__name__
                         }
-                        
-                        # 移除 callback 引用
                         request.callback = None
                 except AttributeError:
-                    # 如果无法访问 __self__，则跳过
                     pass
     
-    def _clean_dict_recursive(self, data: Dict[str, Any], depth: int = 0) -> None:
+    def _clean_meta_and_kwargs(self, request: 'Request') -> None:
         """
-        递归清理字典中的 logger 和 RLock 对象
-        
-        Args:
-            data: 要清理的数据字典
-            depth: 递归深度
-        """
-        import threading
-        
-        if depth > 5 or not isinstance(data, dict):
-            return
-        
-        keys_to_remove = []
-        for key, value in list(data.items()):
-            if isinstance(value, logging.Logger):
-                keys_to_remove.append(key)
-            elif isinstance(value, type(threading.RLock())) or \
-                 (hasattr(value, '__class__') and value.__class__.__name__ and 'RLock' in value.__class__.__name__):
-                keys_to_remove.append(key)
-            elif isinstance(key, str) and 'logger' in key.lower():
-                keys_to_remove.append(key)
-            elif isinstance(value, dict):
-                self._clean_dict_recursive(value, depth + 1)
-            elif isinstance(value, (list, tuple)):
-                for item in value:
-                    if isinstance(item, dict):
-                        self._clean_dict_recursive(item, depth + 1)
-        
-        for key in keys_to_remove:
-            data[key] = None  # 将RLock对象设置为None而不是删除键
-    
-    def _clean_rlock_objects(self, request: 'Request') -> None:
-        """
-        清理可能包含RLock的对象
+        清理 meta 和 cb_kwargs 中的不可序列化对象
         
         Args:
             request: 请求对象
         """
-        import threading
-        
-        # 清理可能包含RLock的属性
-        rlock_attrs = ['_cookies_lock', '_headers_lock', '__dict__', '__weakref__']
-        
-        # 遍历请求对象的所有属性
-        for attr_name in dir(request):
-            try:
-                if attr_name.startswith('_') or attr_name in ['headers', 'cookies']:
-                    attr_value = getattr(request, attr_name, None)
-                    if attr_value is not None:
-                        # 检查是否为RLock对象
-                        if isinstance(attr_value, threading.RLock) or \
-                           (hasattr(attr_value, '__class__') and attr_value.__class__.__name__ and 'RLock' in attr_value.__class__.__name__):
-                            try:
-                                setattr(request, attr_name, None)
-                                self.logger.debug(f"清理RLock对象: {attr_name}")
-                            except (AttributeError, TypeError):
-                                pass
-                        # 递归清理字典中的RLock对象
-                        elif isinstance(attr_value, dict):
-                            self._clean_dict_rlock(attr_value)
-                        # 递归清理对象属性中的RLock
-                        elif hasattr(attr_value, '__dict__') or hasattr(attr_value, '__slots__'):
-                            self._clean_object_rlock(attr_value)
-            except Exception:
-                # 忽略访问属性时的异常
-                pass
+        for attr_name in ['_meta', 'cb_kwargs']:
+            if hasattr(request, attr_name):
+                attr_value = getattr(request, attr_name)
+                if isinstance(attr_value, dict):
+                    self._clean_dict(attr_value)
     
-    def _clean_dict_rlock(self, data: Dict[str, Any]) -> None:
+    def _can_serialize(self, request: 'Request') -> bool:
         """
-        清理字典中的RLock对象
+        测试 Request 是否可以序列化
         
         Args:
-            data: 数据字典
-        """
-        import threading
-        
-        if not isinstance(data, dict):
-            return
+            request: 请求对象
             
+        Returns:
+            bool: 是否可以序列化
+        """
+        try:
+            if self.serialization_format == 'msgpack' and MSGPACK_AVAILABLE:
+                pickle.dumps(request)
+            else:
+                pickle.dumps(request)
+            return True
+        except Exception:
+            return False
+    
+    def _clean_dict(self, data: Dict[str, Any], depth: int = 0, visited: Optional[Set[int]] = None) -> None:
+        """
+        递归清理字典中的不可序列化对象
+        
+        Args:
+            data: 要清理的数据字典
+            depth: 递归深度
+            visited: 已访问对象 ID 集合（防循环引用）
+        """
+        if depth > 5 or not isinstance(data, dict):
+            return
+        
+        if visited is None:
+            visited = set()
+        
+        obj_id = id(data)
+        if obj_id in visited:
+            return
+        visited.add(obj_id)
+        
         keys_to_clean = []
-        for key, value in data.items():
-            if isinstance(value, threading.RLock) or \
-               (hasattr(value, '__class__') and value.__class__.__name__ and 'RLock' in value.__class__.__name__):
+        for key, value in list(data.items()):
+            if self._is_unserializable(value):
                 keys_to_clean.append(key)
             elif isinstance(value, dict):
-                self._clean_dict_rlock(value)
+                self._clean_dict(value, depth + 1, visited)
             elif hasattr(value, '__dict__') or hasattr(value, '__slots__'):
-                self._clean_object_rlock(value)
-                
+                self._clean_object(value, visited, depth + 1)
+            elif isinstance(value, (list, tuple)):
+                for item in value:
+                    if isinstance(item, dict):
+                        self._clean_dict(item, depth + 1, visited)
+                    elif hasattr(item, '__dict__') or hasattr(item, '__slots__'):
+                        self._clean_object(item, visited, depth + 1)
+        
         for key in keys_to_clean:
             try:
                 data[key] = None
-                self.logger.debug(f"清理字典中的RLock对象: {key}")
             except (AttributeError, TypeError):
                 pass
-
-    def _clean_object_rlock(self, obj: Any) -> None:
+    
+    def _clean_object(self, obj: Any, visited: Optional[Set[int]] = None, depth: int = 0) -> None:
         """
-        清理对象属性中的RLock对象，同时支持 __dict__ 和 __slots__
+        递归清理对象中的不可序列化属性（支持 __dict__ 和 __slots__）
         
         Args:
             obj: 对象实例
+            visited: 已访问对象 ID 集合
+            depth: 递归深度
         """
-        import threading
+        if depth > 5 or not obj:
+            return
         
-        # 收集所有需要检查的属性名
+        if visited is None:
+            visited = set()
+        
+        obj_id = id(obj)
+        if obj_id in visited:
+            return
+        visited.add(obj_id)
+        
+        # 收集所有属性名（__dict__ + __slots__）
         attr_names = set()
         if hasattr(obj, '__dict__'):
             attr_names.update(obj.__dict__.keys())
@@ -276,53 +257,30 @@ class RequestSerializer:
         
         if not attr_names:
             return
-            
+        
         attrs_to_clean = []
         for attr_name in attr_names:
             try:
                 attr_value = getattr(obj, attr_name)
             except AttributeError:
                 continue
-            if isinstance(attr_value, threading.RLock) or \
-               (hasattr(attr_value, '__class__') and attr_value.__class__.__name__ and 'RLock' in attr_value.__class__.__name__):
+            
+            if self._is_unserializable(attr_value):
                 attrs_to_clean.append(attr_name)
             elif isinstance(attr_value, dict):
-                self._clean_dict_rlock(attr_value)
+                self._clean_dict(attr_value, depth + 1, visited)
             elif hasattr(attr_value, '__dict__') or hasattr(attr_value, '__slots__'):
-                self._clean_object_rlock(attr_value)
-                
+                self._clean_object(attr_value, visited, depth + 1)
+        
         for attr_name in attrs_to_clean:
             try:
                 setattr(obj, attr_name, None)
-                self.logger.debug(f"清理对象属性中的RLock对象: {attr_name}")
             except (AttributeError, TypeError):
                 pass
-
-    def _test_serialization(self, request: 'Request') -> bool:
-        """
-        测试是否可以序列化
-        
-        Args:
-            request: 请求对象
-            
-        Returns:
-            bool: 是否可以序列化
-        """
-        try:
-            if self.serialization_format == 'msgpack':
-                if MSGPACK_AVAILABLE:
-                    # msgpack不能序列化所有对象，所以先尝试pickle
-                    pickle.dumps(request)
-                    return True
-            else:
-                pickle.dumps(request)
-                return True
-        except Exception:
-            return False
     
     def _deep_clean_request(self, request: 'Request') -> 'Request':
         """
-        深度清理 Request 对象
+        深度清理 Request 对象（使用统一的 _clean_object）
         
         Args:
             request: 请求对象
@@ -330,93 +288,13 @@ class RequestSerializer:
         Returns:
             Request: 清理后的请求对象
         """
-        import logging
-        import threading
-        
-        def is_unserializable(obj: Any) -> bool:
-            """检查对象是否不可序列化"""
-            if obj is None:
-                return False
-            if isinstance(obj, logging.Logger):
-                return True
-            if isinstance(obj, type(threading.RLock())):
-                return True
-            # 检查类名（仅匹配 RLock/Logger 精确后缀，避免误伤）
-            class_name = getattr(obj, '__class__', None)
-            if class_name:
-                name = class_name.__name__ or ''
-                if 'RLock' in name or 'Logger' in name:
-                    return True
-            return False
-        
-        def recursive_clean(target: Any, visited: Optional[set] = None, depth: int = 0) -> None:
-            """递归清理对象中的不可序列化对象"""
-            if depth > 5 or not target:
-                return
-            if visited is None:
-                visited = set()
-                
-            obj_id = id(target)
-            if obj_id in visited:
-                return
-            visited.add(obj_id)
-            
-            # 收集对象的所有属性名（同时覆盖 __dict__ 和 __slots__）
-            if hasattr(target, '__dict__') or hasattr(target, '__slots__'):
-                attr_names = set()
-                if hasattr(target, '__dict__'):
-                    attr_names.update(target.__dict__.keys())
-                if hasattr(target, '__slots__'):
-                    for slot in target.__slots__:
-                        try:
-                            if hasattr(target, slot):
-                                attr_names.add(slot)
-                        except AttributeError:
-                            pass
-                
-                for attr_name in attr_names:
-                    try:
-                        attr_value = getattr(target, attr_name)
-                    except AttributeError:
-                        continue
-                    
-                    if is_unserializable(attr_value):
-                        try:
-                            setattr(target, attr_name, None)
-                        except (AttributeError, TypeError):
-                            pass
-                    elif hasattr(attr_value, '__dict__') or hasattr(attr_value, '__slots__'):
-                        recursive_clean(attr_value, visited, depth + 1)
-                    elif isinstance(attr_value, dict):
-                        recursive_clean(attr_value, visited, depth + 1)
-            
-            # 处理字典类型
-            if isinstance(target, dict):
-                keys_to_clean = []
-                for key, value in list(target.items()):
-                    if is_unserializable(value):
-                        keys_to_clean.append(key)
-                    elif hasattr(value, '__dict__') or hasattr(value, '__slots__'):
-                        recursive_clean(value, visited, depth + 1)
-                    elif isinstance(value, dict):
-                        recursive_clean(value, visited, depth + 1)
-                    elif isinstance(value, (list, tuple)):
-                        for item in value:
-                            recursive_clean(item, visited, depth + 1)
-                
-                for key in keys_to_clean:
-                    try:
-                        target[key] = None
-                    except (AttributeError, TypeError):
-                        pass
-        
-        recursive_clean(request)
+        self._clean_object(request)
         gc.collect()
         return request
     
     def _rebuild_clean_request(self, original_request: 'Request') -> 'Request':
         """
-        重建一个干净的 Request 对象
+        重建一个干净的 Request 对象（保留更多属性）
         
         Args:
             original_request: 原始请求对象
@@ -427,11 +305,11 @@ class RequestSerializer:
         from crawlo.network.request import Request
         
         try:
-            # 提取安全的属性
+            # 提取安全的 meta
             safe_meta = {}
             if hasattr(original_request, '_meta') and original_request._meta:
                 for key, value in original_request._meta.items():
-                    if not isinstance(value, logging.Logger):
+                    if not self._is_unserializable(value):
                         try:
                             pickle.dumps(value)
                             safe_meta[key] = value
@@ -441,7 +319,7 @@ class RequestSerializer:
                             except Exception:
                                 continue
             
-            # 安全地获取其他属性
+            # 安全地提取 headers
             safe_headers = {}
             if hasattr(original_request, 'headers') and original_request.headers:
                 for k, v in original_request.headers.items():
@@ -450,36 +328,70 @@ class RequestSerializer:
                     except Exception:
                         continue
             
+            # 提取其他安全属性
+            safe_kwargs = {}
+            if hasattr(original_request, 'cb_kwargs') and original_request.cb_kwargs:
+                for k, v in original_request.cb_kwargs.items():
+                    if not self._is_unserializable(v):
+                        try:
+                            pickle.dumps(v)
+                            safe_kwargs[k] = v
+                        except Exception:
+                            pass
+            
             # 创建干净的 Request
             clean_request = Request(
                 url=str(original_request.url),
                 method=getattr(original_request, 'method', 'GET'),
                 headers=safe_headers,
                 meta=safe_meta,
-                priority=getattr(original_request, 'priority', 0),  # 修正优先级处理，不需要负号
+                cb_kwargs=safe_kwargs,
+                priority=getattr(original_request, 'priority', 0),
                 dont_filter=getattr(original_request, 'dont_filter', False),
                 timeout=getattr(original_request, 'timeout', None),
-                encoding=getattr(original_request, 'encoding', 'utf-8')
+                encoding=getattr(original_request, 'encoding', 'utf-8'),
+                cookies=getattr(original_request, 'cookies', None),
+                body=getattr(original_request, 'body', None),
             )
             
             # 验证新 Request 可以序列化
-            try:
-                if self.serialization_format == 'msgpack':
-                    if MSGPACK_AVAILABLE:
-                        # msgpack不能直接序列化Request对象，所以先用pickle测试
-                        pickle.dumps(clean_request)
-                    else:
-                        pickle.dumps(clean_request)
-                else:
-                    pickle.dumps(clean_request)
+            if self._can_serialize(clean_request):
                 return clean_request
-            except Exception:
-                # 如果仍然无法序列化，创建最简化的请求
-                minimal_request = Request(url=str(original_request.url))
-                return minimal_request
+            
+            # 如果仍然无法序列化，创建最简化的请求
+            return Request(url=str(original_request.url))
             
         except Exception as e:
             self.logger.error(f"重建 Request 失败: {e}")
-            # 最简单的 fallback
             from crawlo.network.request import Request
             return Request(url=str(original_request.url))
+    
+    @staticmethod
+    def _is_unserializable(obj: Any) -> bool:
+        """
+        检查对象是否不可序列化
+        
+        Args:
+            obj: 要检查的对象
+            
+        Returns:
+            bool: 是否不可序列化
+        """
+        if obj is None:
+            return False
+        
+        # 检查类型
+        if isinstance(obj, UNSERIALIZABLE_TYPES):
+            return True
+        if isinstance(obj, RLockType):
+            return True
+        
+        # 检查类名（精确匹配，避免误伤）
+        class_name = getattr(obj, '__class__', None)
+        if class_name:
+            name = class_name.__name__ or ''
+            # 仅匹配明确的 RLock/Logger 类型
+            if name in ('RLock', 'Logger') or name.endswith(('RLock', 'Logger')):
+                return True
+        
+        return False
