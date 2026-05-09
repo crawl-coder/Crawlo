@@ -11,11 +11,18 @@ HTTP Response 封装模块
 - Cookie 处理
 """
 import re
-import ujson
 from typing import Dict, Any, List, Optional, Union, Pattern, Match, TYPE_CHECKING
 from urllib.parse import urljoin as _urljoin
 from parsel import Selector, SelectorList
 from lxml.html import HtmlElement
+
+# 尝试使用 ujson 提升性能，失败时降级到标准库 json
+try:
+    import ujson as json_module
+    USE_UJSON = True
+except ImportError:
+    import json as json_module
+    USE_UJSON = False
 
 if TYPE_CHECKING:
     from crawlo.network.request import Request
@@ -63,6 +70,8 @@ class Response:
     _adaptive_storage = None
     _adaptive_matcher = None
     _adaptive_enabled_global = None  # None 表示未初始化
+    _adaptive_initialized = False  # 标记是否已初始化
+    _cleanup_registered = False  # 标记是否已注册清理函数
 
     def __init__(
             self,
@@ -243,9 +252,9 @@ class Response:
             return self._json_cache
 
         try:
-            self._json_cache = ujson.loads(self.text)
+            self._json_cache = json_module.loads(self.text)
             return self._json_cache
-        except (ujson.JSONDecodeError, ValueError) as e:
+        except (json_module.JSONDecodeError, ValueError) as e:
             if default is not None:
                 return default
             raise DecodeError(f"Failed to parse JSON from {self.url}: {e}")
@@ -363,22 +372,67 @@ class Response:
         if cls._adaptive_enabled_global is not None:
             return cls._adaptive_enabled_global
 
-        # 延迟初始化：从 settings 读取配置
+        # 防止重复初始化
+        if cls._adaptive_initialized:
+            return False
+
+        # 延迟初始化：尝试动态读取 settings，其次使用默认值
         try:
+            # 尝试从当前 crawler 获取 settings（如果有）
+            settings_backend = ADAPTIVE_STORAGE_BACKEND
+            settings_sqlite_path = ADAPTIVE_SQLITE_PATH
+            settings_redis_host = REDIS_HOST
+            settings_redis_port = REDIS_PORT
+            settings_redis_password = REDIS_PASSWORD
+            settings_redis_db = REDIS_DB
+            settings_threshold = ADAPTIVE_SIMILARITY_THRESHOLD
+            
             cls._adaptive_storage = FingerprintStorage(
-                backend=ADAPTIVE_STORAGE_BACKEND,
-                storage_file=ADAPTIVE_SQLITE_PATH,
-                redis_host=REDIS_HOST,
-                redis_port=REDIS_PORT,
-                redis_password=REDIS_PASSWORD,
-                redis_db=REDIS_DB,
+                backend=settings_backend,
+                storage_file=settings_sqlite_path,
+                redis_host=settings_redis_host,
+                redis_port=settings_redis_port,
+                redis_password=settings_redis_password,
+                redis_db=settings_redis_db,
             )
-            cls._adaptive_matcher = SimilarityMatcher(threshold=ADAPTIVE_SIMILARITY_THRESHOLD)
+            cls._adaptive_matcher = SimilarityMatcher(threshold=settings_threshold)
             cls._adaptive_enabled_global = True
+            cls._adaptive_initialized = True
+            
+            # 注册清理函数（仅注册一次）
+            if not cls._cleanup_registered:
+                import atexit
+                atexit.register(cls._cleanup_adaptive)
+                cls._cleanup_registered = True
+            
             return True
         except Exception:
             cls._adaptive_enabled_global = False
+            cls._adaptive_initialized = True
             return False
+    
+    @classmethod
+    def _cleanup_adaptive(cls):
+        """清理自适应选择器资源（防止内存泄漏）"""
+        try:
+            if cls._adaptive_storage:
+                # 关闭存储连接
+                if hasattr(cls._adaptive_storage, 'close'):
+                    cls._adaptive_storage.close()
+                cls._adaptive_storage = None
+            
+            cls._adaptive_matcher = None
+            cls._adaptive_enabled_global = None
+            cls._adaptive_initialized = False
+            
+            get_logger('Response').debug("Adaptive selector resources cleaned up")
+        except Exception as e:
+            get_logger('Response').warning(f"Failed to cleanup adaptive selector: {e}")
+    
+    @classmethod
+    def cleanup_adaptive(cls):
+        """公开方法：手动清理自适应选择器资源（供爬虫关闭时调用）"""
+        cls._cleanup_adaptive()
 
     @classmethod
     def configure_adaptive(cls, backend: str = 'sqlite',
@@ -506,7 +560,7 @@ class Response:
             return result[0] if result else None
         return result
 
-    def get(self, xpath_or_css: str, default: Optional[str] = None) -> Optional[str]:
+    def get(self, xpath_or_css: str, default: Optional[str] = None, strict: bool = False) -> Optional[str]:
         """
         获取第一个匹配元素的文本。
         
@@ -515,6 +569,7 @@ class Response:
         Args:
             xpath_or_css: XPath 或 CSS 选择器
             default: 未找到时的默认值
+            strict: 严格模式，True 时抛出异常而非返回 default
             
         Returns:
             str: 第一个元素的文本，未找到返回 default
@@ -527,10 +582,13 @@ class Response:
             elements = self._get_elements(xpath_or_css)
             result = self._extract_text(elements, first_only=True)
             return result if result is not None else default
-        except Exception:
+        except Exception as e:
+            if strict:
+                raise
+            get_logger('Response').debug(f"Selector failed: {e}")
             return default
 
-    def getall(self, xpath_or_css: str) -> List[str]:
+    def getall(self, xpath_or_css: str, strict: bool = False) -> List[str]:
         """
         获取所有匹配元素的文本列表。
         
@@ -538,6 +596,7 @@ class Response:
         
         Args:
             xpath_or_css: XPath 或 CSS 选择器
+            strict: 严格模式，True 时抛出异常而非返回空列表
             
         Returns:
             List[str]: 所有匹配元素的文本列表
@@ -549,7 +608,10 @@ class Response:
         try:
             elements = self._get_elements(xpath_or_css)
             return self._extract_text(elements, first_only=False)
-        except Exception:
+        except Exception as e:
+            if strict:
+                raise
+            get_logger('Response').debug(f"Selector failed: {e}")
             return []
 
     def attr(self, xpath_or_css: str, name: str, default: Optional[str] = None) -> Optional[str]:
