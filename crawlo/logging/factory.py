@@ -10,26 +10,22 @@ import sys
 import threading
 from weakref import WeakValueDictionary
 
-# 已取消日志轮转功能，使用基础FileHandler
-# 不再导入RotatingFileHandler或ConcurrentRotatingFileHandler
-
 from .manager import get_config, is_configured, configure
 from .config import LogConfig
 
 
 class LoggerFactory:
     """
-    Logger工厂类 - 负责创建和缓存Logger实例
+    Logger Factory - Create and cache Logger instances
     
-    特点：
-    1. 使用WeakValueDictionary避免内存泄漏
-    2. 线程安全的Logger创建
-    3. 自动配置管理
-    4. 简单的缓存策略
-    5. Windows兼容的日志轮转处理
+    Features:
+    1. WeakValueDictionary to prevent memory leaks
+    2. Thread-safe logger creation
+    3. Automatic configuration management
+    4. Simple caching strategy
     """
     
-    # Logger缓存 - 使用弱引用避免内存泄漏
+    # Logger cache - weak references to prevent memory leaks
     _logger_cache: WeakValueDictionary = WeakValueDictionary()
     _cache_lock = threading.RLock()
     
@@ -60,7 +56,14 @@ class LoggerFactory:
     
     @classmethod
     def _create_logger(cls, name: str) -> logging.Logger:
-        """创建新的Logger实例"""
+        """Create a new Logger instance
+        
+        Args:
+            name: Logger name
+            
+        Returns:
+            logging.Logger: Configured logger instance
+        """
         config = get_config()
         if not config:
             raise RuntimeError("日志系统未配置，请先调用 configure_logging() 进行配置")
@@ -69,74 +72,73 @@ class LoggerFactory:
         logger = logging.getLogger(name)
         logger.setLevel(logging.DEBUG)  # Logger本身设为最低级别
         
-        # 清除现有handlers（避免重复添加）
+        # Clear existing handlers (avoid duplicate addition)
         logger.handlers.clear()
         
-        # 获取模块级别
+        # Get module level
         module_level = config.get_module_level(name)
         
-        # 创建formatter
+        # Create formatter
         formatter = logging.Formatter(config.get_format())
         
-        # 添加控制台Handler
+        # Add console handler
         if config.console_enabled:
             console_handler = logging.StreamHandler()
             console_handler.setFormatter(formatter)
-            # 使用专门的控制台级别或模块级别
+            # Use dedicated console level or module level
             console_level = config.get_console_level()
             level = getattr(logging, console_level.upper(), logging.INFO)
             console_handler.setLevel(level)
             logger.addHandler(console_handler)
         
-        # 添加文件Handler
+        # Add file handler
         if config.file_enabled and config.file_path:
             try:
-                # 确保日志目录存在
+                # Ensure log directory exists
                 log_dir = os.path.dirname(config.file_path)
                 if log_dir and not os.path.exists(log_dir):
                     os.makedirs(log_dir, exist_ok=True)
                 
-                
-                # 使用基础FileHandler，不支持轮转
+                # Use basic FileHandler (rotation not supported)
                 file_handler = logging.FileHandler(
                     filename=config.file_path,
                     encoding=config.encoding
                 )
                 
                 file_handler.setFormatter(formatter)
-                # 使用专门的文件级别或模块级别
+                # Use dedicated file level or module level
                 file_level = config.get_file_level()
                 level = getattr(logging, file_level.upper(), logging.INFO)
                 file_handler.setLevel(level)
                 logger.addHandler(file_handler)
-            except Exception as e:
-                # 文件Handler创建失败时，至少保证控制台输出
+            except (OSError, PermissionError) as e:
+                # When file handler creation fails, ensure console output at least
                 console_handler = logging.StreamHandler()
                 console_handler.setFormatter(formatter)
                 console_handler.setLevel(logging.WARNING)
                 logger.addHandler(console_handler)
-                logger.warning(f"无法创建文件日志处理器: {e}，仅使用控制台输出。")
+                logger.warning(f"Failed to create file log handler: {e}, using console output only.")
         
-        # 防止向上传播（避免重复输出）
+        # Prevent upward propagation (avoid duplicate output)
         logger.propagate = False
         
         return logger
     
     @classmethod
     def clear_cache(cls):
-        """清空Logger缓存"""
+        """Clear logger cache"""
         with cls._cache_lock:
             cls._logger_cache.clear()
     
     @classmethod
     def refresh_loggers(cls, new_config: LogConfig):
-        """刷新所有缓存的Logger（配置更新时使用）"""
+        """Refresh all cached loggers (used when configuration updates)"""
         with cls._cache_lock:
             # 清空缓存，强制重新创建
             cls._logger_cache.clear()
 
 
-# 便捷函数
+# Convenience function
 def get_logger(name: str = 'crawlo') -> logging.Logger:
-    """获取Logger实例的便捷函数"""
+    """Convenience function to get Logger instance"""
     return LoggerFactory.get_logger(name)
