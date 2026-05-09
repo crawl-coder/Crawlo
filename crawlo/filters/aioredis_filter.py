@@ -117,12 +117,8 @@ class AioRedisFilter(BaseFilter):
         # Generate filter key name
         redis_key = key_manager.get_filter_fingerprint_key()
         
-        # Get other configuration parameters
-        server = safe_get_config(settings, 'REDIS_SERVER', 'localhost:6379')
-        db = safe_get_config(settings, 'REDIS_DB', 0, int)
-        redis_cls = safe_get_config(settings, 'REDIS_CLASS', 'crawlo.utils.redis_manager.get_redis_pool')
+        # Get TTL configuration
         ttl = safe_get_config(settings, 'REDIS_TTL', 0, int)
-        decode_responses = safe_get_config(settings, 'DECODE_RESPONSES', True, bool)
         
         # Get debug configuration
         debug = safe_get_config(settings, 'FILTER_DEBUG', False, bool)
