@@ -1,16 +1,17 @@
-"""
-智能背压延迟计算器
+"""Intelligent backpressure delay calculator
 
-基于多维度指标计算最优背压延迟：
-1. 基础延迟：根据综合评分
-2. 调整因子：根据各项细分指标
-3. 预测补偿：根据增长趋势
+Calculates optimal backpressure delay based on multi-dimensional metrics:
+1. Base delay: Based on comprehensive score
+2. Adjustment factors: Based on detailed metrics
+3. Predictive compensation: Based on growth trend
 
 Author: Crawlo Framework Team
 """
 
+import time
 import asyncio
 from typing import Optional, Dict, Any
+from collections import deque
 from .metrics_collector import BackpressureMetricsCollector, BackpressureMetrics
 
 
@@ -56,11 +57,11 @@ class IntelligentBackpressureCalculator:
         self.enable_smoothing = enable_smoothing
         self.levels_config = levels_config or self._default_levels_config()
         
-        # 历史延迟记录（用于平滑）
-        self._delay_history = []
+        # Historical delay records for smoothing (using bounded deque)
+        self._delay_history: deque = deque(maxlen=max_history_len)
         self._max_history_len = max_history_len
         
-        # 缓存机制（优化CPU开销）
+        # Caching mechanism (optimizes CPU overhead)
         self._cache_ttl = cache_ttl
         self._cached_delay: float = 0.0
         self._cache_timestamp: float = 0.0

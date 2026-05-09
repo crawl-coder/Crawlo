@@ -1,5 +1,18 @@
 #!/usr/bin/python
 # -*- coding:UTF-8 -*-
+"""Crawlo CLI commands module
+
+Provides command-line interface commands for Crawlo framework:
+- startproject: Create new Crawlo project
+- genspider: Generate spider template
+- run: Execute spider
+- check: Validate spider definitions
+- list: List available spiders
+- stats: Show crawling statistics
+- help: Display help information
+- schedule: Schedule spider execution
+- shell: Interactive crawling shell
+"""
 
 _commands = {
     'startproject': 'crawlo.commands.startproject',

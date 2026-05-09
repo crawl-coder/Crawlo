@@ -73,19 +73,18 @@ class TaskStats:
 
 class DynamicSemaphore:
     """
-    支持动态调整的信号量
+    Dynamically adjustable semaphore
     
-    根据响应时间自动调整并发数：
-    - 响应快 (< 0.2s)：增加并发 (+5，最大 3 倍初始值)
-    - 响应慢 (> 1.0s)：减少并发 (-5，最小 1/3 初始值或 1)
+    Automatically adjusts concurrency based on response time:
+    - Fast response (< 0.2s): increase concurrency (+5, max 3x initial)
+    - Slow response (> 1.0s): decrease concurrency (-5, min 1/3 initial or 1)
     """
     
     def __init__(self, initial_value: int = 8):
-        super().__init__()
         self._initial_value = max(1, initial_value)
         self._current_value = self._initial_value
-        self._target_value = self._initial_value  # 目标并发数
-        self._active_count = 0  # 当前活跃任务数
+        self._target_value = self._initial_value  # Target concurrency
+        self._active_count = 0  # Current active tasks
         self._response_times: deque[float] = deque(maxlen=10)
         self._last_adjust_time = time.time()
         self._lock = asyncio.Lock()

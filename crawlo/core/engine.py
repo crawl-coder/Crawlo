@@ -39,18 +39,34 @@ class Engine(RequestGenerationMixin):
         self.downloader: Optional[DownloaderBase] = None
         self.scheduler: Optional[Scheduler] = None
         self.processor: Optional[Processor] = None
-        self._start_requests_source = None  # 原始生成器（sync gen / async gen / iter）
-        self._start_requests_is_async = False  # 是否为异步生成器
-        self._close_reason: str = 'finished'  # 关闭原因：finished / shutdown
-        self._spider_closed: bool = False  # 防止 close_spider 重复调用
+        self._start_requests_source = None  # Original generator (sync gen / async gen / iter)
+        self._start_requests_is_async = False  # Whether it's an async generator
+        self._close_reason: str = 'finished'  # Close reason: finished / shutdown
+        self._spider_closed: bool = False  # Prevent duplicate close_spider calls
         
-        # ========== 统一配置获取（集中在初始化阶段） ==========
+        # Initialize configurations
+        self._init_configs()
         
-        # 并发控制配置
+        # Initialize helper utilities
+        self._generation_stats = GenerationStats()
+        self._backpressure_ctrl = BackpressureController(
+            max_queue_size=self.max_queue_size,
+            backpressure_ratio=self.backpressure_ratio
+        )
+
+        self.logger = get_logger(name=self.__class__.__name__)
+    
+    def _init_configs(self) -> None:
+        """
+        Initialize all configurations from settings
+        
+        Centralized configuration extraction for better maintainability
+        """
+        # Concurrency control configuration
         concurrency = safe_get_config(self.settings, 'CONCURRENCY', 8, int)
         self.task_manager: Optional[TaskManager] = TaskManager(concurrency)
         
-        # 请求生成配置
+        # Request generation configuration
         self.days = safe_get_config(self.settings, 'LOG_RETENTION_DAYS', 1, int)
         self.max_queue_size = safe_get_config(self.settings, 'SCHEDULER_MAX_QUEUE_SIZE', 10000, int)
         self.generation_batch_size = safe_get_config(self.settings, 'REQUEST_GENERATION_BATCH_SIZE', 10, int)
@@ -60,26 +76,17 @@ class Engine(RequestGenerationMixin):
             self.settings, 'ENABLE_CONTROLLED_REQUEST_GENERATION', False, bool
         )
         
-        # 版本配置（直接从 __version__.py 导入，不从配置文件获取）
+        # Version configuration (directly from __version__.py, not from config file)
         self.version = __version__
         
-        # 检查点配置
+        # Checkpoint configuration
         self.checkpoint_save_on_signal = safe_get_config(
             self.settings, 'CHECKPOINT_SAVE_ON_SIGNAL', True, bool
         )
         
-        # 下载器配置
+        # Downloader configuration
         self.downloader_type = safe_get_config(self.settings, 'DOWNLOADER_TYPE')
         self.downloader_path = safe_get_config(self.settings, 'DOWNLOADER')
-        
-        # 初始化辅助工具类
-        self._generation_stats = GenerationStats()
-        self._backpressure_ctrl = BackpressureController(
-            max_queue_size=self.max_queue_size,
-            backpressure_ratio=self.backpressure_ratio
-        )
-
-        self.logger = get_logger(name=self.__class__.__name__)
 
     def _get_downloader_cls(self):
         """

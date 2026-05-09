@@ -1,9 +1,8 @@
 #!/usr/bin/python
 # -*- coding: UTF-8 -*-
-"""
-背压策略实现
+"""Backpressure strategy implementations
 
-提供多种背压策略实现。
+Provides multiple backpressure strategy implementations.
 """
 import time
 import asyncio
@@ -20,19 +19,26 @@ if TYPE_CHECKING:
     from crawlo.queue.interfaces import IQueue
 
 
+# Delay calculation threshold constants
+CRITICAL_UTILIZATION_THRESHOLD = 0.95
+HIGH_UTILIZATION_THRESHOLD = 0.90
+DELAY_MULTIPLIER_CRITICAL = 4
+DELAY_MULTIPLIER_MAX_RATIO = 3
+
+
 class QueueSizeStrategy(IBackpressureStrategy):
     """
-    基于队列大小的背压策略
+    Queue size-based backpressure strategy
     
-    根据队列使用率决定是否应用背压和使用多大延迟。
+    Determines whether to apply backpressure and how much delay based on queue utilization.
     """
     
     def __init__(self, config: Optional[BackpressureStrategyConfig] = None):
         """
-        初始化策略
+        Initialize strategy
         
         Args:
-            config: 策略配置
+            config: Strategy configuration
         """
         self._config = config or BackpressureStrategyConfig()
         self._last_check_time = 0.0
@@ -43,28 +49,28 @@ class QueueSizeStrategy(IBackpressureStrategy):
         return "queue_size"
     
     async def should_apply(self, queue: 'IQueue') -> bool:
-        """判断是否应该应用背压"""
+        """Determine whether backpressure should be applied"""
         utilization = await self._get_utilization(queue)
         return utilization >= self._config.threshold
     
     async def calculate_delay(self, queue: 'IQueue') -> float:
         """
-        计算背压延迟
+        Calculate backpressure delay
         
-        使用率      延迟
-        80%-90%    base_delay * (1-3)
-        90%-95%    base_delay * (3-5)
-        95%-100%   max_delay
+        Utilization    Delay
+        80%-90%       base_delay * (1-3)
+        90%-95%       base_delay * (3-5)
+        95%-100%      max_delay
         """
         utilization = await self._get_utilization(queue)
         
-        if utilization >= 0.95:
+        if utilization >= CRITICAL_UTILIZATION_THRESHOLD:
             return self._config.max_delay
-        elif utilization >= 0.90:
-            return self._config.base_delay * 4
+        elif utilization >= HIGH_UTILIZATION_THRESHOLD:
+            return self._config.base_delay * DELAY_MULTIPLIER_CRITICAL
         elif utilization >= self._config.threshold:
-            ratio = (utilization - self._config.threshold) / (0.95 - self._config.threshold)
-            return self._config.base_delay * (1 + ratio * 3)
+            ratio = (utilization - self._config.threshold) / (CRITICAL_UTILIZATION_THRESHOLD - self._config.threshold)
+            return self._config.base_delay * (1 + ratio * DELAY_MULTIPLIER_MAX_RATIO)
         else:
             return 0.0
     

@@ -1,13 +1,12 @@
 #!/usr/bin/python
 # -*- coding: UTF-8 -*-
-"""
-命令行工具公共模块
-提供命令行工具的公共函数和工具
-"""
+"""Command-line utility functions for Crawlo CLI"""
 import sys
+import re
+import unicodedata
 from pathlib import Path
 from importlib import import_module
-from typing import Optional, Tuple
+from typing import Optional, Tuple, Dict
 
 from crawlo.project import read_crawlo_cfg
 
@@ -17,16 +16,19 @@ from rich.text import Text
 
 console = Console()
 
+# Maximum directory levels to search upward for project root
+MAX_SEARCH_DEPTH = 10
+
 
 def get_project_root() -> Optional[Path]:
     """
-    自动检测项目根目录：从当前目录向上查找 crawlo.cfg
+    Automatically detect project root directory by searching upward for crawlo.cfg
     
     Returns:
-        Path: 项目根目录路径，如果未找到返回 None
+        Path: Project root directory path, or None if not found
     """
     current = Path.cwd()
-    for _ in range(10):  # 最多向上查找10层
+    for _ in range(MAX_SEARCH_DEPTH):
         cfg_file = current / "crawlo.cfg"
         if cfg_file.exists():
             return current
@@ -38,49 +40,49 @@ def get_project_root() -> Optional[Path]:
 
 def validate_project_environment() -> Tuple[bool, Optional[str], Optional[str]]:
     """
-    验证项目环境，确保在正确的 Crawlo 项目中
+    Validate project environment to ensure running in proper Crawlo project
     
     Returns:
         Tuple[bool, Optional[str], Optional[str]]: 
-        (是否有效, 项目包名, 错误信息)
+        (is_valid, project_package_name, error_message)
     """
-    # 1. 查找项目根目录
+    # 1. Find project root directory
     project_root = get_project_root()
     if not project_root:
-        return False, None, "找不到 'crawlo.cfg'。请在项目目录中运行此命令。"
+        return False, None, "Cannot find 'crawlo.cfg'. Please run this command in project directory."
     
-    # 2. 将项目根加入 Python 路径
+    # 2. Add project root to Python path
     project_root_str = str(project_root)
     if project_root_str not in sys.path:
         sys.path.insert(0, project_root_str)
     
-    # 3. 读取配置文件
+    # 3. Read configuration file
     cfg_file = str(project_root / "crawlo.cfg")
     settings_module = read_crawlo_cfg(cfg_file)
     
     if not settings_module:
-        return False, None, "crawlo.cfg 无效或不存在：缺少 [settings] 部分或 'default' 选项"
+        return False, None, "crawlo.cfg is invalid or missing: no [settings] section or 'default' option"
     
-    # 4. 获取项目包名
+    # 4. Get project package name
     project_package = settings_module.split(".")[0]
     
-    # 5. 验证项目包是否可导入
+    # 5. Verify project package is importable
     try:
         import_module(project_package)
     except ImportError as e:
-        return False, None, f"导入项目包 '{project_package}' 失败: {e}"
+        return False, None, f"Failed to import project package '{project_package}': {e}"
     
     return True, project_package, None
 
 
 def show_error_panel(title: str, message: str, show_json: bool = False) -> None:
     """
-    显示错误面板或JSON格式错误
+    Display error panel or JSON format error
     
     Args:
-        title: 错误标题
-        message: 错误消息
-        show_json: 是否以JSON格式输出
+        title: Error title
+        message: Error message
+        show_json: Whether to output in JSON format
     """
     if show_json:
         console.print_json(data={"success": False, "error": message})
@@ -93,15 +95,15 @@ def show_error_panel(title: str, message: str, show_json: bool = False) -> None:
         ))
 
 
-def show_success_panel(title: str, message: str, show_json: bool = False, data: dict = None) -> None:
+def show_success_panel(title: str, message: str, show_json: bool = False, data: Optional[Dict] = None) -> None:
     """
-    显示成功面板或JSON格式结果
+    Display success panel or JSON format result
     
     Args:
-        title: 成功标题
-        message: 成功消息
-        show_json: 是否以JSON格式输出
-        data: JSON数据（当show_json=True时）
+        title: Success title
+        message: Success message
+        show_json: Whether to output in JSON format
+        data: JSON data (when show_json=True)
     """
     if show_json:
         result = {"success": True, "message": message}
@@ -119,31 +121,30 @@ def show_success_panel(title: str, message: str, show_json: bool = False, data: 
 
 def validate_spider_name(spider_name: str) -> bool:
     """
-    验证爬虫名称是否符合规范
+    Validate spider name conforms to standards
     
     Args:
-        spider_name: 爬虫名称
+        spider_name: Spider name
         
     Returns:
-        bool: 是否有效
+        bool: Whether valid
     """
-    import re
-    # 清理爬虫名称中的不可见字符
+    # Clean invisible characters from spider name
     cleaned_name = ''.join(c for c in spider_name if not unicodedata.category(c).startswith('C'))
     
-    # 爬虫名称应该是有效的Python标识符
+    # Spider name should be a valid Python identifier
     return cleaned_name.isidentifier() and re.match(r'^[a-z][a-z0-9_]*$', cleaned_name)
 
 
 def format_file_size(size_bytes: int) -> str:
     """
-    格式化文件大小
+    Format file size
     
     Args:
-        size_bytes: 字节数
+        size_bytes: Number of bytes
         
     Returns:
-        str: 格式化后的大小字符串
+        str: Formatted size string
     """
     for unit in ['B', 'KB', 'MB', 'GB']:
         if size_bytes < 1024.0:
@@ -154,14 +155,14 @@ def format_file_size(size_bytes: int) -> str:
 
 def truncate_text(text: str, max_length: int = 80) -> str:
     """
-    截断过长的文本
+    Truncate overly long text
     
     Args:
-        text: 原始文本
-        max_length: 最大长度
+        text: Original text
+        max_length: Maximum length
         
     Returns:
-        str: 截断后的文本
+        str: Truncated text
     """
     if len(text) <= max_length:
         return text
@@ -170,16 +171,15 @@ def truncate_text(text: str, max_length: int = 80) -> str:
 
 def is_valid_domain(domain: str) -> bool:
     """
-    验证域名格式是否正确
+    Validate domain name format
     
     Args:
-        domain: 域名
+        domain: Domain name
         
     Returns:
-        bool: 是否有效
+        bool: Whether valid
     """
-    import re
-    # 清理域名中的不可见字符
+    # Clean invisible characters from domain name
     cleaned_domain = ''.join(c for c in domain if not unicodedata.category(c).startswith('C'))
     
     pattern = re.compile(
@@ -188,5 +188,4 @@ def is_valid_domain(domain: str) -> bool:
     return bool(pattern.match(cleaned_domain))
 
 
-# 添加导入
-import unicodedata
+# Remove import unicodedata from line 192

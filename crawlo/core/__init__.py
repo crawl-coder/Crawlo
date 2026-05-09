@@ -1,10 +1,11 @@
 #!/usr/bin/python
 # -*- coding:UTF-8 -*-
 
-# Crawlo核心模块
-# 提供框架的核心组件和初始化功能
+# Crawlo core modules
+# Provides core components and initialization functionality of the framework
+import warnings
 
-# 使用新的初始化系统
+# Use new initialization system
 from ..initialization import (
     initialize_framework,
     is_framework_ready
@@ -13,7 +14,12 @@ from ..initialization import (
 
 # 向后兼容的别名
 def async_initialize_framework(*args, **kwargs):
-    """Async wrapper for framework initialization"""
+    """Async wrapper for framework initialization (deprecated)"""
+    warnings.warn(
+        "async_initialize_framework is deprecated, use initialize_framework instead",
+        DeprecationWarning,
+        stacklevel=2
+    )
     return initialize_framework(*args, **kwargs)
 
 
@@ -31,7 +37,12 @@ def get_framework_logger(name='crawlo.core'):
 
 # 向后兼容
 def bootstrap_framework(*args, **kwargs):
-    """Bootstrap framework - compatibility function"""
+    """Bootstrap framework - compatibility function (deprecated)"""
+    warnings.warn(
+        "bootstrap_framework is deprecated, use initialize_framework instead",
+        DeprecationWarning,
+        stacklevel=2
+    )
     return initialize_framework(*args, **kwargs)
 
 

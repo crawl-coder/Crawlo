@@ -21,6 +21,8 @@ import uuid
 from typing import Dict, Type, Optional, Set, Any
 from dataclasses import dataclass, field
 
+from crawlo.logging import get_logger
+
 
 @dataclass
 class ApplicationContext:
@@ -75,7 +77,8 @@ class ApplicationContext:
         return False
 
     async def cleanup(self):
-        """清理上下文资源"""
+        """Clean up context resources"""
+        logger = get_logger(__name__)
         for resource in list(self.resources):
             try:
                 if hasattr(resource, 'close'):
@@ -90,8 +93,11 @@ class ApplicationContext:
                         await cleanup_method()
                     else:
                         cleanup_method()
+            except asyncio.CancelledError:
+                logger.warning(f"Resource cleanup cancelled for {type(resource).__name__}")
+                break
             except Exception as e:
-                print(f"Error cleaning up resource: {e}")
+                logger.error(f"Error cleaning up resource {type(resource).__name__}: {e}", exc_info=True)
 
         self.resources.clear()
         self.spider_registry.clear()

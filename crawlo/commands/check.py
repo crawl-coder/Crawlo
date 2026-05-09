@@ -27,6 +27,8 @@ from watchdog.events import FileSystemEventHandler
 from crawlo.crawler import CrawlerProcess
 from crawlo.logging import get_logger
 
+# Maximum directory levels to search upward for project root
+MAX_SEARCH_DEPTH = 10
 
 logger = get_logger(__name__)
 console = Console()
@@ -34,10 +36,10 @@ console = Console()
 
 def get_project_root():
     """
-    从当前目录向上查找 crawlo.cfg，确定项目根目录
+    Search upward from current directory for crawlo.cfg to determine project root
     """
     current = Path.cwd()
-    for _ in range(10):
+    for _ in range(MAX_SEARCH_DEPTH):
         cfg = current / "crawlo.cfg"
         if cfg.exists():
             return current

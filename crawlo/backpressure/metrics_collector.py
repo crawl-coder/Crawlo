@@ -1,10 +1,9 @@
-"""
-多维度背压指标采集器
+"""Multi-dimensional backpressure metrics collector
 
-采集三大类指标：
-1. 队列指标：大小、使用率、增长速率
-2. 吞吐指标：入队速率、出队速率、速率差
-3. 性能指标：响应时间、超时率、成功率
+Collects three categories of metrics:
+1. Queue metrics: size, utilization, growth rate
+2. Throughput metrics: enqueue rate, dequeue rate, rate difference
+3. Performance metrics: response time, timeout rate, success rate
 
 Author: Crawlo Framework Team
 """
@@ -14,9 +13,10 @@ import asyncio
 from dataclasses import dataclass, field
 from typing import Optional, Deque, Callable, Any
 from collections import deque
-import logging
 
-logger = logging.getLogger(__name__)
+from crawlo.logging import get_logger
+
+logger = get_logger(__name__)
 
 
 @dataclass

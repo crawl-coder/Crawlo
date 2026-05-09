@@ -1,21 +1,22 @@
 #!/usr/bin/python
 # -*- coding:UTF-8 -*-
 """
-Crawlo 框架错误类型分类配置
-============================
-集中管理框架中各种错误类型的分类，便于统一配置和维护。
+Crawlo Framework Error Type Classification Configuration
+========================================================
+Centralized management of various error type classifications in the framework
+for unified configuration and maintenance.
 
-分类体系：
-    - 关键错误 (Critical): 会导致系统不稳定的错误，需要立即停止
-    - 网络错误 (Network): 与网络通信相关的错误，通常可重试
-    - 数据错误 (Data): 数据处理相关的错误
-    - 资源错误 (Resource): 资源管理相关的错误
-    - 可重试错误 (Retryable): 可以通过重试机制解决的错误
+Classification System:
+    - Critical: Errors that cause system instability, require immediate stop
+    - Network: Network communication related errors, usually retryable
+    - Data: Data processing related errors
+    - Resource: Resource management related errors
+    - Retryable: Errors that can be resolved through retry mechanism
 
-使用示例：
+Example:
     >>> from crawlo.core.error_types import ErrorClassifier
     >>> if ErrorClassifier.is_critical(error):
-    ...     raise error  # 关键错误需要重新抛出
+    ...     raise error  # Critical errors need to be re-raised
     >>> if ErrorClassifier.should_retry(error):
     ...     return await self.retry_request(request)
 """
@@ -25,62 +26,62 @@ import asyncio
 
 class ErrorClassifier:
     """
-    错误分类器
+    Error classifier
     
-    集中管理框架中所有错误类型的分类，支持：
-    - 关键错误识别（需要立即停止爬虫）
-    - 网络错误识别（可重试）
-    - 数据错误识别
-    - 资源错误识别
-    - 重试策略判断
+    Centralized management of all error type classifications in the framework, supporting:
+    - Critical error identification (requires immediate crawler stop)
+    - Network error identification (retryable)
+    - Data error identification
+    - Resource error identification
+    - Retry strategy determination
     """
     
-    # ========== 关键错误类型 ==========
-    # 这些错误会导致系统处于不稳定状态，需要立即停止爬虫
+    # ========== Critical Error Types ==========
+    # These errors cause system instability and require immediate crawler stop
     CRITICAL_EXCEPTIONS: Tuple[Type[Exception], ...] = (
-        MemoryError,       # 内存不足
-        SystemError,       # 系统错误
-        RecursionError,    # 递归深度超限
-        KeyboardInterrupt, # 用户中断
-        SystemExit,        # 系统退出
+        MemoryError,       # Memory exhausted
+        SystemError,       # System error
+        RecursionError,    # Recursion depth exceeded
+        KeyboardInterrupt, # User interrupt
+        SystemExit,        # System exit
     )
     
-    # ========== 网络错误类型 ==========
-    # 与网络通信相关的错误，通常可以通过重试解决
+    # ========== Network Error Types ==========
+    # Network communication related errors, usually retryable
+    # Note: asyncio.TimeoutError is an alias of TimeoutError in Python 3.11+
     NETWORK_EXCEPTIONS: Tuple[Type[Exception], ...] = (
-        ConnectionError,           # 连接错误
-        TimeoutError,              # 超时错误
-        asyncio.TimeoutError,      # 异步超时
-        OSError,                   # 操作系统错误（包含网络相关）
+        ConnectionError,           # Connection error
+        TimeoutError,              # Timeout error (includes asyncio.TimeoutError in 3.11+)
+        OSError,                   # OS error (includes network related)
     )
     
-    # ========== 数据错误类型 ==========
-    # 数据处理相关的错误
+    # ========== Data Error Types ==========
+    # Data processing related errors
     DATA_EXCEPTIONS: Tuple[Type[Exception], ...] = (
-        ValueError,        # 值错误
-        TypeError,         # 类型错误
-        KeyError,          # 键错误
-        IndexError,        # 索引错误
-        AttributeError,    # 属性错误
-        UnicodeError,      # 编码错误
+        ValueError,        # Value error
+        TypeError,         # Type error
+        KeyError,          # Key error
+        IndexError,        # Index error
+        AttributeError,    # Attribute error
+        UnicodeError,      # Encoding error
     )
     
-    # ========== 资源错误类型 ==========
-    # 资源管理相关的错误
+    # ========== Resource Error Types ==========
+    # Resource management related errors
     RESOURCE_EXCEPTIONS: Tuple[Type[Exception], ...] = (
-        FileNotFoundError,      # 文件不存在
-        PermissionError,        # 权限错误
-        IsADirectoryError,      # 是目录而非文件
-        NotADirectoryError,     # 不是目录
-        BlockingIOError,        # IO阻塞错误
+        FileNotFoundError,      # File not found
+        PermissionError,        # Permission error
+        IsADirectoryError,      # Is a directory not a file
+        NotADirectoryError,     # Not a directory
+        BlockingIOError,        # IO blocking error
     )
     
-    # ========== 可重试错误类型 ==========
-    # 可以通过重试机制解决的错误
+    # ========== Retryable Error Types ==========
+    # Errors that can be resolved through retry mechanism
+    # Note: asyncio.TimeoutError is an alias of TimeoutError in Python 3.11+
     RETRYABLE_EXCEPTIONS: Tuple[Type[Exception], ...] = (
         ConnectionError,
-        TimeoutError,
-        asyncio.TimeoutError,
+        TimeoutError,              # Includes asyncio.TimeoutError in 3.11+
         OSError,
     )
     

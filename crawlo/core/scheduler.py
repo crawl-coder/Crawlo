@@ -14,6 +14,13 @@ from crawlo.queue.queue_manager import QueueManager
 from crawlo.queue.config import QueueConfig
 from crawlo.queue.queue_types import QueueType
 
+# Scheduler default configuration constants
+DEFAULT_QUEUE_TYPE = 'memory'
+DEFAULT_FILTER_CLASS = 'crawlo.filters.memory_filter.MemoryFilter'
+DEFAULT_CONCURRENCY = 8
+DEFAULT_DELAY = 1.0
+DEFAULT_DEPTH_PRIORITY = 0
+
 
 class Scheduler:
     def __init__(self, crawler, dupe_filter, stats, priority):
@@ -29,21 +36,21 @@ class Scheduler:
 
     @classmethod
     def create_instance(cls, crawler):
-        # 使用工具模块中的安全获取配置函数
+        # Use utility module's safe config retrieval function
         from crawlo.utils.misc import safe_get_config
         
-        # 安全获取FILTER_CLASS设置 - 简化版本
+        # Safe retrieval of FILTER_CLASS setting - simplified version
         filter_class = safe_get_config(
             getattr(crawler, 'settings', None), 
             'FILTER_CLASS', 
-            'crawlo.filters.memory_filter.MemoryFilter'
+            DEFAULT_FILTER_CLASS
         )
         
-        # 安全获取DEPTH_PRIORITY设置
+        # Safe retrieval of DEPTH_PRIORITY setting
         priority = safe_get_config(
             getattr(crawler, 'settings', None), 
             'DEPTH_PRIORITY', 
-            0
+            DEFAULT_DEPTH_PRIORITY
         )
             
         filter_cls = load_object(filter_class)
@@ -58,33 +65,33 @@ class Scheduler:
 
     async def open(self):
         """Initialize scheduler and queue"""
-        self.logger.debug("开始初始化调度器...")
+        self.logger.debug("Starting scheduler initialization...")
         try:
-            # 如果是Redis队列，设置spider_name
+            # If Redis queue, set spider_name
             if self.crawler.spider:
                 spider_name = getattr(self.crawler.spider, 'name', None)
                 if spider_name:
-                    # 设置SPIDER_NAME到配置中，以便RedisKeyManager能够获取
+                    # Set SPIDER_NAME to config so RedisKeyManager can retrieve it
                     if hasattr(self.crawler.settings, 'set'):
                         try:
                             self.crawler.settings.set('SPIDER_NAME', spider_name)
                         except Exception:
                             pass
             
-            # 创建队列配置
+            # Create queue configuration
             queue_config = QueueConfig.from_settings(self.crawler.settings)
             
-            # 创建队列管理器
+            # Create queue manager
             self.queue_manager = QueueManager(queue_config)
             
-            # 初始化队列
+            # Initialize queue
             needs_config_update = await self.queue_manager.initialize()
             
-            # 初始化默认配置值
-            queue_type_setting = 'memory'  # 默认值
-            current_filter = ''  # 默认值
-            concurrency = 8  # 默认值
-            delay = 1.0  # 默认值
+            # Initialize default configuration values from constants
+            queue_type_setting = DEFAULT_QUEUE_TYPE
+            current_filter = ''
+            concurrency = DEFAULT_CONCURRENCY
+            delay = DEFAULT_DELAY
             
             # 检查是否需要更新过滤器配置
             updated_configs = []
