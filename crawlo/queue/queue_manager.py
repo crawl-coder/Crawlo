@@ -185,11 +185,6 @@ class QueueManager(QueueStatusMixin, QueueBackpressureMixin):
             # 更新统计信息
             self._priority_calculator.update_stats(request)
 
-            # 序列化处理（仅对 Redis 队列）
-            request_for_queue = request
-            if self._queue_type == QueueType.REDIS:
-                request_for_queue = self.request_serializer.prepare_for_serialization(request)
-
             # 获取当前队列大小用于背压控制
             current_queue_size = await self.size() if self._queue else 0
             
@@ -239,8 +234,8 @@ class QueueManager(QueueStatusMixin, QueueBackpressureMixin):
             success = False
             # 使用明确的类型检查来确定调用哪个方法
             if isinstance(self._queue, RedisPriorityQueue):
-                # Redis队列需要两个参数（已序列化的 request_for_queue）
-                success = await self._queue.put(request_for_queue, final_priority)
+                # Redis队列需要两个参数（Request 对象，队列内部会序列化）
+                success = await self._queue.put(request, final_priority)
             else:
                 # 对于内存队列，我们需要手动处理优先级
                 # 在SpiderPriorityQueue中，元素应该是(priority, item)的元组
