@@ -1,19 +1,20 @@
 #!/usr/bin/python
 # -*- coding:UTF-8 -*-
 """
-内存过滤器实现
+Memory Filter Implementation
 ================
-提供基于内存的高效请求去重功能。
+Provides efficient request deduplication based on memory.
 
-支持的过滤器:
-- MemoryFilter: 纯内存去重，性能最佳
-- MemoryFileFilter: 内存+文件持久化，支持重启恢复
+Supported Filters:
+- MemoryFilter: Pure memory deduplication, best performance
+- MemoryFileFilter: Memory + file persistence, supports restart recovery
 """
 import os
+import random
 import asyncio
 import warnings
 from weakref import WeakSet
-from typing import Set, TextIO, Optional
+from typing import Set, TextIO, Optional, Dict, Any
 
 from crawlo.filters import BaseFilter
 from crawlo.logging import get_logger
@@ -23,25 +24,25 @@ from crawlo.utils.async_lock import AsyncRLock
 
 class MemoryFilter(BaseFilter):
     """
-    基于内存的高效请求去重过滤器
+    Efficient memory-based request deduplication filter
     
-    特点:
-    - 高性能: 基于 Python set() 的 O(1) 查找效率
-    - 内存优化: 支持弱引用临时存储
-    - 统计信息: 提供详细的性能统计
-    - 线程安全: 支持多线程并发访问
+    Features:
+    - High Performance: O(1) lookup with Python set()
+    - Memory Optimized: Supports weak reference temporary storage
+    - Statistics: Provides detailed performance stats
+    - Thread Safe: Supports multi-threaded concurrent access
     
-    适用场景:
-    - 单机爬虫
-    - 中小规模数据集
-    - 对性能要求较高的场景
+    Use Cases:
+    - Single-machine crawler
+    - Small to medium datasets
+    - High performance requirements
     """
 
     def __init__(self, crawler):
         """
-        初始化内存过滤器
+        Initialize memory filter
 
-        :param crawler: 爬虫实例，用于获取配置
+        :param crawler: Crawler instance for configuration
         """
         self.fingerprints: Set[str] = set()  # 主指纹存储
         self._temp_weak_refs = WeakSet()     # 弱引用临时存储
@@ -57,11 +58,11 @@ class MemoryFilter(BaseFilter):
         logger = get_logger(self.__class__.__name__)
         super().__init__(logger, getattr(crawler, 'stats', None), debug)
 
-        # 性能计数器
+        # Performance counters
         self._dupe_count = 0
         self._unique_count = 0
         
-        # 安全获取内存优化配置
+        # Safely get memory optimization configuration
         max_capacity = safe_get_config(crawler.settings, 'MEMORY_FILTER_MAX_CAPACITY', 1000000, int)
         cleanup_threshold = safe_get_config(crawler.settings, 'MEMORY_FILTER_CLEANUP_THRESHOLD', 0.8, float)
             
@@ -70,11 +71,11 @@ class MemoryFilter(BaseFilter):
 
     def add_fingerprint(self, fp: str) -> None:
         """
-        添加请求指纹（同步方法，仅用于向后兼容）
+        Add request fingerprint (sync method, for backward compatibility only)
 
-        :param fp: 请求指纹字符串
-        :raises TypeError: 如果指纹不是字符串类型
-        :deprecated: 请使用 add_fingerprint_async
+        :param fp: Request fingerprint string
+        :raises TypeError: If fingerprint is not string type
+        :deprecated: Use add_fingerprint_async
         """
         warnings.warn(
             "add_fingerprint() is deprecated, use add_fingerprint_async() instead",
@@ -82,11 +83,11 @@ class MemoryFilter(BaseFilter):
             stacklevel=2
         )
         if not isinstance(fp, str):
-            raise TypeError(f"指纹必须是字符串类型，得到 {type(fp)}")
+            raise TypeError(f"Fingerprint must be string type, got {type(fp)}")
 
-        # 简单的同步添加实现
+        # Simple sync implementation
         if fp not in self.fingerprints:
-            # 检查容量限制
+            # Check capacity limit
             if len(self.fingerprints) >= self._max_capacity:
                 self._cleanup_old_fingerprints()
             
@@ -94,17 +95,17 @@ class MemoryFilter(BaseFilter):
             self._unique_count += 1
             
             if self.debug:
-                self.logger.debug(f"添加指纹: {fp[:20]}...")
+                self.logger.debug(f"Added fingerprint: {fp[:20]}...")
 
     async def add_fingerprint_async(self, fp: str) -> None:
         """
-        异步安全地添加请求指纹
+        Async safely add request fingerprint
 
-        :param fp: 请求指纹字符串
-        :raises TypeError: 如果指纹不是字符串类型
+        :param fp: Request fingerprint string
+        :raises TypeError: If fingerprint is not string type
         """
         if not isinstance(fp, str):
-            raise TypeError(f"指纹必须是字符串类型，得到 {type(fp)}")
+            raise TypeError(f"Fingerprint must be string type, got {type(fp)}")
 
         async with self._lock:
             if fp not in self.fingerprints:
@@ -116,26 +117,26 @@ class MemoryFilter(BaseFilter):
                 self._unique_count += 1
                 
                 if self.debug:
-                    self.logger.debug(f"添加指纹: {fp[:20]}...")
+                    self.logger.debug(f"Added fingerprint: {fp[:20]}...")
     
     def _cleanup_old_fingerprints(self) -> None:
-        """清理老旧指纹释放内存空间"""
+        """Clean old fingerprints to free memory"""
         cleanup_count = int(len(self.fingerprints) * (1 - self._cleanup_threshold))
         if cleanup_count > 0:
-            # 随机清理一部分指纹（简单策略）
+            # Random cleanup some fingerprints (simple strategy)
             fingerprints_list = list(self.fingerprints)
             import random
             to_remove = random.sample(fingerprints_list, cleanup_count)
             self.fingerprints.difference_update(to_remove)
-            self.logger.info(f"清理了 {cleanup_count} 个老旧指纹")
+            self.logger.info(f"Cleaned {cleanup_count} old fingerprints")
 
     def requested(self, request) -> bool:
         """
-        检查请求是否重复（同步方法，仅用于向后兼容）
+        Check if request is duplicate (sync method, for backward compatibility only)
 
-        :param request: 请求对象
-        :return: 是否重复
-        :deprecated: 请使用 requested_async
+        :param request: Request object
+        :return: Whether duplicate
+        :deprecated: Use requested_async
         """
         warnings.warn(
             "MemoryFilter.requested() is deprecated, use requested_async() instead",
@@ -153,10 +154,10 @@ class MemoryFilter(BaseFilter):
 
     async def requested_async(self, request) -> bool:
         """
-        异步安全地检查请求是否重复
+        Async safely check if request is duplicate
 
-        :param request: 请求对象
-        :return: 是否重复
+        :param request: Request object
+        :return: Whether duplicate
         """
         async with self._lock:
             fp = self._get_fingerprint(request)
@@ -193,8 +194,8 @@ class MemoryFilter(BaseFilter):
             return item in self.fingerprints
 
     @property
-    def stats_summary(self) -> dict:
-        """获取过滤器统计信息"""
+    def stats_summary(self) -> Dict[str, Any]:
+        """Get filter statistics"""
         return {
             'filter_type': 'MemoryFilter',
             'capacity': len(self.fingerprints),
@@ -208,7 +209,7 @@ class MemoryFilter(BaseFilter):
         }
 
     def _estimate_memory(self) -> str:
-        """估算内存使用量（近似值）"""
+        """Estimate memory usage (approximate)"""
         if not self.fingerprints:
             return "0 MB"
         
@@ -224,7 +225,7 @@ class MemoryFilter(BaseFilter):
 
     def clear(self) -> None:
         """
-        清空所有指纹数据
+        Clear all fingerprint data
         """
         self.fingerprints.clear()
         self._dupe_count = 0
@@ -234,22 +235,22 @@ class MemoryFilter(BaseFilter):
 
     async def clear_async(self) -> None:
         """
-        异步安全地清空所有指纹数据
+        Async safely clear all fingerprint data
         """
         async with self._lock:
             self.fingerprints.clear()
             self._dupe_count = 0
             self._unique_count = 0
             if self.debug:
-                self.logger.debug("已清空所有指纹")
+                self.logger.debug("Cleared all fingerprints")
 
     def close(self) -> None:
-        """关闭过滤器（清理资源）"""
+        """Close filter (clean resources)"""
         self.clear()
 
-    # 兼容旧版异步接口
+    # Compatible with old async interface
     async def closed(self):
-        """兼容异步接口"""
+        """Compatible async interface"""
         self.close()
 
 
