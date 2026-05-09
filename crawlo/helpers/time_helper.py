@@ -7,8 +7,9 @@
 """
 import pytz
 import dateparser
-from typing import Optional, Union, Literal
-from datetime import datetime, timedelta, timezone
+from typing import Optional, Union, Literal, List
+from datetime import datetime, timedelta
+from datetime import timezone as dt_timezone
 from dateutil.relativedelta import relativedelta
 from pytz import timezone as pytz_timezone
 
@@ -16,8 +17,8 @@ from pytz import timezone as pytz_timezone
 TimeUnit = Literal["seconds", "minutes", "hours", "days"]
 # 时间输入类型
 TimeType = Union[str, datetime]
-# 时区类型
-TimezoneType = Union[str, timezone, pytz_timezone]
+# Timezone type
+TimezoneType = Union[str, dt_timezone, pytz_timezone]
 
 # 常见时间格式列表
 COMMON_FORMATS = [
@@ -230,7 +231,7 @@ class TimeUtils:
             return None
 
     @classmethod
-    def date_range(cls, start: TimeType, end: TimeType, fmt: str = "%Y-%m-%d") -> list:
+    def date_range(cls, start: TimeType, end: TimeType, fmt: str = "%Y-%m-%d") -> List[str]:
         """
         生成日期范围内的所有日期。
 

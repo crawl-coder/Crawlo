@@ -1,13 +1,13 @@
 #!/usr/bin/python
 # -*- coding: UTF-8 -*-
 """
-MySQL 数据存在性检查工具
-========================
+MySQL Data Existence Checker
+============================
 
-用于在爬虫列表页采集时，提前判断数据是否已存在于数据库中。
-复用 crawlo.utils.db.mysql_connection_pool 的单例连接池。
+Used to check if data already exists in the database during crawler list page scraping.
+Reuses the singleton connection pool from crawlo.utils.db.mysql_connection_pool.
 
-使用示例：
+Usage Example:
 ```python
 from crawlo.helpers.mysql_exists_checker import MySQLExistsChecker
 
@@ -32,7 +32,7 @@ Version: 0.2.0
 """
 
 import asyncio
-from typing import Any
+from typing import Any, Optional, List, Tuple
 
 from crawlo.logging import get_logger
 from crawlo.utils.db.mysql_connection_pool import get_mysql_pool, close_all_mysql_pools
@@ -40,9 +40,9 @@ from crawlo.utils.db.mysql_connection_pool import get_mysql_pool, close_all_mysq
 
 class MySQLExistsChecker:
     """
-    MySQL 数据存在性检查器
+    MySQL Data Existence Checker
     
-    复用 mysql_connection_pool 的单例连接池。
+    Reuses the singleton connection pool from mysql_connection_pool.
     """
     
     def __init__(self, config: dict):
@@ -51,8 +51,8 @@ class MySQLExistsChecker:
         self.logger = get_logger('MySQLExistsChecker')
     
     @classmethod
-    def from_settings(cls, settings: Any) -> 'MySQLExistsChecker':
-        """从 Crawlo settings 创建检查器"""
+    def from_settings(cls, settings: Optional[Any] = None) -> 'MySQLExistsChecker':
+        """Create checker from Crawlo settings"""
         if settings is None:
             config = {
                 'host': 'localhost',
@@ -87,15 +87,15 @@ class MySQLExistsChecker:
         return cls(config)
     
     async def _get_pool(self):
-        """获取连接池"""
+        """Get connection pool"""
         if self._closed:
-            raise RuntimeError("MySQLExistsChecker 已关闭")
+            raise RuntimeError("MySQLExistsChecker has been closed")
         return await get_mysql_pool(**self._config)
     
-    async def exists(self, sql: str, params: tuple = None) -> bool:
-        """检查数据是否存在"""
+    async def exists(self, sql: str, params: Optional[Tuple] = None) -> bool:
+        """Check if data exists"""
         if self._closed:
-            raise RuntimeError("MySQLExistsChecker 已关闭")
+            raise RuntimeError("MySQLExistsChecker has been closed")
         
         pool = await self._get_pool()
         async with pool.acquire() as conn:
@@ -104,24 +104,30 @@ class MySQLExistsChecker:
                 result = await cursor.fetchone()
                 return result is not None
     
-    async def batch_exists(self, sql: str, params_list: list) -> list:
-        """批量检查数据是否存在"""
+    async def batch_exists(self, sql: str, params_list: List[Tuple]) -> List[bool]:
+        """
+        Batch check if data exists
+        
+        Note: Executes queries individually for each parameter set.
+        For better performance, consider using a single query with IN clause.
+        """
         if self._closed:
-            raise RuntimeError("MySQLExistsChecker 已关闭")
+            raise RuntimeError("MySQLExistsChecker has been closed")
         
         pool = await self._get_pool()
+        results = []
         async with pool.acquire() as conn:
             async with conn.cursor() as cursor:
-                all_params = [p for params in params_list for p in params]
-                await cursor.execute(sql, all_params)
-                results = await cursor.fetchall()
-                existing = {r[0] for r in results}
-                return [params[0] in existing for params in params_list]
+                for params in params_list:
+                    await cursor.execute(sql, params)
+                    result = await cursor.fetchone()
+                    results.append(result is not None)
+        return results
     
-    async def count(self, sql: str, params: tuple = None) -> int:
-        """统计记录数"""
+    async def count(self, sql: str, params: Optional[Tuple] = None) -> int:
+        """Count records"""
         if self._closed:
-            raise RuntimeError("MySQLExistsChecker 已关闭")
+            raise RuntimeError("MySQLExistsChecker has been closed")
         
         pool = await self._get_pool()
         async with pool.acquire() as conn:
@@ -131,21 +137,21 @@ class MySQLExistsChecker:
                 return result[0] if result else 0
     
     async def close(self):
-        """关闭检查器（不关闭连接池，由框架统一管理）"""
+        """Close checker (does not close connection pool, managed by framework)"""
         self._closed = True
     
     @classmethod
     async def close_all(cls):
-        """关闭所有连接池（类方法，爬虫结束时调用）"""
+        """Close all connection pools (class method, called when spider ends)"""
         await close_all_mysql_pools()
     
     def is_closed(self) -> bool:
-        """检查是否已关闭"""
+        """Check if closed"""
         return self._closed
 
 
-async def check_exists(sql: str, params: tuple = None, settings: Any = None) -> bool:
-    """快速检查数据是否存在（一次性使用）"""
+async def check_exists(sql: str, params: Optional[Tuple] = None, settings: Optional[Any] = None) -> bool:
+    """Quick check if data exists (one-time use)"""
     checker = MySQLExistsChecker.from_settings(settings)
     try:
         return await checker.exists(sql, params)

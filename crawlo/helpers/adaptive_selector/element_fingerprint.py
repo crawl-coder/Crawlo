@@ -3,28 +3,28 @@
 """
 # @Time    : 2026-04-07
 # @Author  : crawl-coder
-# @Desc    : 元素指纹生成器
+# @Desc    : Element Fingerprint Generator
 
-提取 lxml 元素的结构特征，
-生成可用于相似度比较的元素指纹。
+Extracts structural features from lxml elements
+to generate element fingerprints for similarity comparison.
 
-指纹包含：
-- tag: 标签名
-- text: 文本内容
-- attributes: 属性字典
-- path: DOM 路径（标签名元组）
-- parent_name: 父节点标签名
-- parent_attribs: 父节点属性
-- parent_text: 父节点文本
-- siblings: 兄弟节点标签列表
-- children: 子节点标签列表
+Fingerprint includes:
+- tag: Tag name
+- text: Text content
+- attributes: Attributes dictionary
+- path: DOM path (tuple of tag names)
+- parent_name: Parent tag name
+- parent_attribs: Parent attributes
+- parent_text: Parent text
+- siblings: Sibling tag list
+- children: Children tag list
 """
-from typing import Dict, Optional, Tuple, List
+from typing import Dict, Optional, Tuple, List, Any
 
 from lxml.html import HtmlElement, HtmlComment
 
 
-# 不计入指纹的属性（动态生成的，会导致误判）
+# Excluded attributes (dynamically generated, may cause false positives)
 _FORBIDDEN_ATTRS = ('data-reactid', 'data-react-checksum', 'ng-reflect-name')
 
 
@@ -61,23 +61,23 @@ class ElementFingerprint:
 
     @classmethod
     def from_element(cls, element: HtmlElement) -> 'ElementFingerprint':
-        """从 lxml HtmlElement 生成指纹
+        """Generate fingerprint from lxml HtmlElement
 
         Args:
-            element: lxml 的 HtmlElement 对象
+            element: lxml HtmlElement object
 
         Returns:
-            ElementFingerprint: 元素指纹
+            ElementFingerprint: Element fingerprint
         """
         parent = element.getparent()
 
-        # 清理属性：移除空值和禁用属性
+        # Clean attributes: remove empty and forbidden attributes
         attributes = _clean_attributes(element, _FORBIDDEN_ATTRS)
 
-        # 获取 DOM 路径
+        # Get DOM path
         path = _get_element_path(element)
 
-        # 构建指纹
+        # Build fingerprint
         fingerprint = cls(
             tag=str(element.tag),
             text=element.text.strip() if element.text else None,
@@ -85,17 +85,17 @@ class ElementFingerprint:
             path=path,
         )
 
-        # 父节点信息
+        # Parent node information
         if parent is not None:
             fingerprint.parent_name = parent.tag
             fingerprint.parent_attribs = _clean_attributes(parent, _FORBIDDEN_ATTRS)
             fingerprint.parent_text = parent.text.strip() if parent.text else None
 
-            # 兄弟节点（排除自身）
+            # Sibling nodes (exclude self)
             siblings = [child.tag for child in parent.iterchildren() if child is not element]
             fingerprint.siblings = tuple(siblings) if siblings else None
 
-        # 子节点信息
+        # Children node information
         children = [
             child.tag for child in element.iterchildren()
             if not isinstance(child, HtmlComment)
@@ -104,13 +104,13 @@ class ElementFingerprint:
 
         return fingerprint
 
-    def to_dict(self) -> Dict:
-        """序列化为字典（用于存储）"""
+    def to_dict(self) -> Dict[str, Any]:
+        """Serialize to dictionary (for storage)"""
         result = {
             'tag': self.tag,
             'text': self.text,
             'attributes': self.attributes,
-            'path': list(self.path),  # tuple → list 方便 JSON 序列化
+            'path': list(self.path),  # tuple → list for JSON serialization
         }
         if self.parent_name is not None:
             result['parent_name'] = self.parent_name
@@ -124,13 +124,13 @@ class ElementFingerprint:
 
     @classmethod
     def from_dict(cls, data: Dict) -> 'ElementFingerprint':
-        """从字典反序列化
+        """Deserialize from dictionary
 
         Args:
-            data: 序列化的指纹字典
+            data: Serialized fingerprint dictionary
 
         Returns:
-            ElementFingerprint: 元素指纹
+            ElementFingerprint: Element fingerprint
         """
         return cls(
             tag=data['tag'],
@@ -155,14 +155,14 @@ class ElementFingerprint:
 
 
 def _clean_attributes(element: HtmlElement, forbidden: Tuple[str, ...] = ()) -> Dict[str, str]:
-    """清理元素属性，移除空值和禁用属性
+    """Clean element attributes, remove empty and forbidden attributes
 
     Args:
-        element: lxml 元素
-        forbidden: 需要排除的属性名
+        element: lxml element
+        forbidden: Attribute names to exclude
 
     Returns:
-        Dict[str, str]: 清理后的属性字典
+        Dict[str, str]: Cleaned attributes dictionary
     """
     if not element.attrib:
         return {}
@@ -174,15 +174,15 @@ def _clean_attributes(element: HtmlElement, forbidden: Tuple[str, ...] = ()) -> 
 
 
 def _get_element_path(element: HtmlElement) -> Tuple[str, ...]:
-    """获取元素到根节点的标签路径
+    """Get tag path from element to root
 
-    示例: ('html', 'body', 'div', 'article', 'p')
+    Example: ('html', 'body', 'div', 'article', 'p')
 
     Args:
-        element: lxml 元素
+        element: lxml element
 
     Returns:
-        Tuple[str, ...]: 标签路径
+        Tuple[str, ...]: Tag path
     """
     parent = element.getparent()
     if parent is None:
@@ -191,13 +191,13 @@ def _get_element_path(element: HtmlElement) -> Tuple[str, ...]:
 
 
 def extract_domain_from_url(url: str) -> str:
-    """从 URL 中提取域名，用作指纹存储的分区键
+    """Extract domain from URL for fingerprint storage partitioning
 
     Args:
-        url: 完整 URL
+        url: Full URL
 
     Returns:
-        str: 域名，如 'example.com'
+        str: Domain name, e.g., 'example.com'
     """
     if not url:
         return 'default'

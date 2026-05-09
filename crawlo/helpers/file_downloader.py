@@ -1,22 +1,30 @@
 #!/usr/bin/python
 # -*- coding: UTF-8 -*-
 """
-附件下载工具
-============
+Attachment Download Utility
+===========================
 
-提供灵活的附件下载功能，可在爬虫中直接使用。
+Provides flexible file download capabilities for use in crawlers.
 """
 
 import aiohttp
 import aiofiles
 import asyncio
 import os
-from urllib.parse import urlparse
-from typing import Optional, Dict, Any, List
+import re
+import hashlib
 import mimetypes
 from pathlib import Path
+from urllib.parse import urlparse
+from typing import Optional, Dict, Any, List, Callable
 
 from crawlo.logging import get_logger
+
+
+# Constants
+DEFAULT_MAX_FILE_SIZE = 50 * 1024 * 1024  # 50MB
+DEFAULT_TIMEOUT = 30  # seconds
+CHUNK_SIZE = 8192  # 8KB
 
 
 class FileDownloader:
@@ -38,7 +46,7 @@ class FileDownloader:
                  verify_ssl: bool = True,
                  max_retries: int = 3,
                  retry_delay: float = 1.0,
-                 progress_callback: Optional[callable] = None):
+                 progress_callback: Optional[Callable] = None):
         """
         初始化文件下载器
         
@@ -56,13 +64,13 @@ class FileDownloader:
             retry_delay: 重试延迟（秒）
             progress_callback: 进度回调函数，签名为 callback(downloaded_bytes, total_bytes, filename)
         """
-        # 默认扩展名
+        # Default extensions
         DEFAULT_EXTENSIONS = [
             '.pdf', '.doc', '.docx', '.xls', '.xlsx', 
             '.zip', '.rar', '.txt', '.jpg', '.jpeg', 
             '.png', '.gif', '.mp3', '.mp4', '.avi'
         ]
-        # 用户传递的扩展名与默认扩展名拼接
+        # Merge user-provided extensions with defaults
         if allowed_extensions:
             self.allowed_extensions = list(set(DEFAULT_EXTENSIONS + allowed_extensions))
         else:
@@ -80,7 +88,7 @@ class FileDownloader:
         self.progress_callback = progress_callback
         self.logger = get_logger(self.__class__.__name__)
         
-        # 确保下载目录存在
+        # Ensure download directory exists
         if self.create_dirs:
             self.download_dir.mkdir(parents=True, exist_ok=True)
     
@@ -95,24 +103,24 @@ class FileDownloader:
                      verify_ssl: Optional[bool] = None,
                      max_retries: Optional[int] = None) -> Dict[str, Any]:
         """
-        下载附件的主要方法
+        Main method for downloading attachments
         
         Args:
-            url: 要下载的URL
-            filename: 自定义文件名
-            headers: 请求头
-            custom_dir: 自定义下载目录
-            allowed_extensions: 自定义允许的扩展名列表
-            max_file_size: 自定义最大文件大小
-            proxy: 覆盖实例级别的代理设置
-            verify_ssl: 覆盖实例级别的 SSL 验证设置
-            max_retries: 覆盖实例级别的重试次数
+            url: URL to download
+            filename: Custom filename
+            headers: Request headers
+            custom_dir: Custom download directory
+            allowed_extensions: Custom allowed extensions list
+            max_file_size: Custom max file size
+            proxy: Override instance-level proxy settings
+            verify_ssl: Override instance-level SSL verification settings
+            max_retries: Override instance-level retry count
             
         Returns:
-            Dict: 包含下载结果的字典
+            Dict: Download result dictionary
         """
         download_dir = Path(custom_dir) if custom_dir else self.download_dir
-        # 用户传递的扩展名与默认扩展名拼接
+        # Merge user-provided extensions with defaults
         if allowed_extensions:
             allowed_exts = list(set(self.allowed_extensions + allowed_extensions))
         else:
@@ -124,16 +132,16 @@ class FileDownloader:
         effective_verify_ssl = verify_ssl if verify_ssl is not None else self.verify_ssl
         effective_max_retries = max_retries if max_retries is not None else self.max_retries
         
-        # 获取文件大小用于进度回调
+        # Get file size for progress callback
         total_size = 0
         downloaded_size = 0
         
         for attempt in range(effective_max_retries):
             try:
-                # 构建请求参数
+                # Build request parameters
                 request_headers = headers or {}
                 
-                # 创建 TCPConnector 用于控制 SSL 验证
+                # Create TCPConnector for SSL verification control
                 connector = aiohttp.TCPConnector(ssl=effective_verify_ssl)
                 
                 async with aiohttp.ClientSession(timeout=self.timeout, connector=connector) as session:
@@ -149,13 +157,13 @@ class FileDownloader:
                                 'url': url
                             }
                         
-                        # 获取总大小
+                        # Get total size
                         total_size = int(response.headers.get('Content-Length', 0))
                         
-                        # 生成文件名
+                        # Generate filename
                         actual_filename = await self._generate_filename(url, response, filename)
                         
-                        # 验证文件扩展名
+                        # Validate file extension
                         _, ext = os.path.splitext(actual_filename.lower())
                         if ext not in allowed_exts:
                             return {
@@ -164,7 +172,7 @@ class FileDownloader:
                                 'url': url
                             }
                         
-                        # 验证内容类型（可选）
+                        # Validate content type (optional)
                         if self.verify_content_type:
                             content_type = response.headers.get('Content-Type', '').lower()
                             if content_type and not self._is_allowed_content_type(content_type, ext):
@@ -174,34 +182,34 @@ class FileDownloader:
                                     'url': url
                                 }
                         
-                        # 生成完整文件路径
+                        # Generate full file path
                         filepath = download_dir / actual_filename
                         
-                        # 处理重复文件名
+                        # Handle duplicate filenames
                         if self.rename_duplicates:
                             filepath = self._handle_duplicate_filename(filepath)
                         
-                        # 创建目录
+                        # Create directory
                         if self.create_dirs:
                             filepath.parent.mkdir(parents=True, exist_ok=True)
                         
-                        # 流式下载，支持进度回调
+                        # Stream download with progress callback
                         async with aiofiles.open(filepath, 'wb') as f:
                             async for chunk in response.content.iter_chunked(8192):
                                 await f.write(chunk)
                                 downloaded_size += len(chunk)
-                                # 调用进度回调
+                                # Invoke progress callback
                                 if self.progress_callback:
                                     try:
                                         self.progress_callback(downloaded_size, total_size, actual_filename)
                                     except Exception as e:
-                                        self.logger.warning(f"进度回调执行失败: {e}")
+                                        self.logger.warning(f"Progress callback failed: {e}")
                         
                         actual_size = downloaded_size
                         
-                        # 验证文件大小
+                        # Validate file size
                         if max_size > 0 and actual_size > max_size:
-                            # 删除过大的文件
+                            # Delete oversized file
                             if filepath.exists():
                                 filepath.unlink()
                             return {
@@ -247,15 +255,15 @@ class FileDownloader:
                            headers: Optional[Dict] = None,
                            concurrency: int = 5) -> List[Dict[str, Any]]:
         """
-        批量下载附件
+        Batch download attachments
         
         Args:
-            urls: 要下载的URL列表
-            headers: 请求头
-            concurrency: 并发数
+            urls: List of URLs to download
+            headers: Request headers
+            concurrency: Concurrency level
             
         Returns:
-            List: 下载结果列表
+            List: List of download results
         """
         semaphore = asyncio.Semaphore(concurrency)
         
@@ -266,7 +274,7 @@ class FileDownloader:
         tasks = [download_with_semaphore(url) for url in urls]
         results = await asyncio.gather(*tasks, return_exceptions=True)
         
-        # 处理可能的异常
+        # Handle potential exceptions
         processed_results = []
         for i, result in enumerate(results):
             if isinstance(result, Exception):
@@ -280,23 +288,23 @@ class FileDownloader:
         
         return processed_results
     
-    async def _generate_filename(self, url: str, response, custom_filename: Optional[str] = None) -> str:
+    async def _generate_filename(self, url: str, response: aiohttp.ClientResponse, custom_filename: Optional[str] = None) -> str:
         """
-        生成文件名
+        Generate filename
         
         Args:
-            url: 文件URL
-            response: 响应对象
-            custom_filename: 自定义文件名
+            url: File URL
+            response: Response object
+            custom_filename: Custom filename
             
         Returns:
-            str: 生成的文件名
+            str: Generated filename
         """
-        # 优先使用自定义文件名
+        # Prefer custom filename
         if custom_filename:
             return self._sanitize_filename(custom_filename)
         
-        # 尝试从Content-Disposition获取文件名
+        # Try to get filename from Content-Disposition
         content_disposition = response.headers.get('Content-Disposition', '')
         if 'filename=' in content_disposition:
             import re
@@ -305,45 +313,45 @@ class FileDownloader:
                 filename = match.group(1).strip('\'"')
                 return self._sanitize_filename(filename)
         
-        # 从URL获取文件名
+        # Get filename from URL
         parsed_url = urlparse(url)
         url_filename = os.path.basename(parsed_url.path)
         if url_filename and '.' in url_filename:
             return self._sanitize_filename(url_filename)
         
-        # 使用URL哈希生成文件名
+        # Generate filename from URL hash
         import hashlib
         url_hash = hashlib.md5(url.encode()).hexdigest()[:8]
         
-        # 尝试从Content-Type推测扩展名
+        # Try to infer extension from Content-Type
         content_type = response.headers.get('Content-Type', '')
         if content_type:
             ext = mimetypes.guess_extension(content_type.split(';')[0])
             if ext:
                 return f"attachment_{url_hash}{ext}"
         
-        # 默认扩展名
+        # Default extension
         return f"attachment_{url_hash}.bin"
     
     def _sanitize_filename(self, filename: str) -> str:
         """
-        清理文件名，移除非法字符
+        Sanitize filename by removing illegal characters
         
         Args:
-            filename: 原始文件名
+            filename: Original filename
             
         Returns:
-            str: 清理后的文件名
+            str: Sanitized filename
         """
-        # 移除路径分隔符，防止路径遍历攻击
+        # Remove path separators to prevent path traversal attacks
         filename = filename.replace('/', '_').replace('\\', '_')
         
-        # 移除其他可能的危险字符
+        # Remove other potentially dangerous characters
         dangerous_chars = '<>:"|?*'
         for char in dangerous_chars:
             filename = filename.replace(char, '_')
         
-        # 限制文件名长度
+        # Limit filename length
         if len(filename) > 200:
             name, ext = os.path.splitext(filename)
             filename = name[:190] + ext
@@ -352,13 +360,13 @@ class FileDownloader:
     
     def _handle_duplicate_filename(self, filepath: Path) -> Path:
         """
-        处理重复文件名
+        Handle duplicate filenames
         
         Args:
-            filepath: 原始文件路径
+            filepath: Original file path
             
         Returns:
-            Path: 解决冲突后的文件路径
+            Path: Resolved file path
         """
         if not filepath.exists():
             return filepath
@@ -376,14 +384,14 @@ class FileDownloader:
     
     def _is_allowed_content_type(self, content_type: str, extension: str) -> bool:
         """
-        验证内容类型是否与扩展名匹配
+        Validate content type matches extension
         
         Args:
-            content_type: 内容类型
-            extension: 文件扩展名
+            content_type: Content type
+            extension: File extension
             
         Returns:
-            bool: 是否匹配
+            bool: Whether it matches
         """
         content_type_map = {
             '.pdf': ['application/pdf'],
