@@ -55,8 +55,8 @@ def main():
         try:
             module = __import__(commands['help'], fromlist=['main'])
             module.main([])
-        except:
-            pass
+        except Exception:
+            pass  # Help command failed, silently ignore
         sys.exit(1)
 
     # 动态导入并执行命令

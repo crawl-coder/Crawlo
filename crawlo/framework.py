@@ -9,6 +9,7 @@ Crawlo框架统一入口
 
 import os
 import sys
+import threading
 from typing import Type, Optional, List, Union
 
 from .crawler import Crawler, CrawlerProcess
@@ -106,7 +107,7 @@ class CrawloFramework:
             return project_config
             
         except Exception as e:
-            print(f"加载项目配置时出错: {e}")
+            self._logger.error(f"Error loading project configuration: {e}")
             return {}
 
     def _find_project_root(self):
@@ -245,11 +246,12 @@ class CrawloFramework:
 
 # 全局框架实例
 _global_framework: Optional[CrawloFramework] = None
+_framework_lock = threading.Lock()
 
 
 def get_framework(settings=None, **kwargs) -> CrawloFramework:
     """
-    获取全局框架实例（单例模式）
+    获取全局框架实例（线程安全单例模式）
     
     Args:
         settings: 配置对象
@@ -261,7 +263,10 @@ def get_framework(settings=None, **kwargs) -> CrawloFramework:
     global _global_framework
 
     if _global_framework is None:
-        _global_framework = CrawloFramework(settings, **kwargs)
+        with _framework_lock:
+            # 双重检查锁定
+            if _global_framework is None:
+                _global_framework = CrawloFramework(settings, **kwargs)
 
     return _global_framework
 
