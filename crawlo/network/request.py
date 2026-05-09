@@ -136,6 +136,10 @@ class Request:
             encoding: 字符编码，默认 utf-8
             use_dynamic_loader: 是否使用动态加载器
         """
+        # Basic URL validation
+        if not url or not isinstance(url, str) or url.strip() == '':
+            raise ValueError("URL cannot be empty")
+        
         self.callback = callback
         self.errback = errback
         self.method = str(method).upper()
@@ -414,8 +418,12 @@ class Request:
             >>> data = {'url': 'http://example.com', 'method': 'GET', ...}
             >>> request = Request.from_dict(data)
         """
+        url = data.get('url')
+        if not url or not isinstance(url, str):
+            raise ValueError(f"Invalid URL in request data: {repr(url)}")
+        
         return cls(
-            url=data.get('url'),
+            url=url,
             method=data.get('method', 'GET'),
             headers=data.get('headers'),
             body=data.get('body'),

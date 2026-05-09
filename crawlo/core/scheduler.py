@@ -342,12 +342,19 @@ class Scheduler:
             
             # 恢复 callback（从 Redis 队列取出时）
             if request:
-                spider = getattr(self.crawler, 'spider', None)
-                request = self.request_serializer.restore_after_deserialization(request, spider)
-                self.logger.debug(
-                    f"[队列] 请求出队成功: {request.url} | "
-                    f"队列大小: {queue_size_before} -> {queue_size_after}"
-                )
+                try:
+                    spider = getattr(self.crawler, 'spider', None)
+                    request = self.request_serializer.restore_after_deserialization(request, spider)
+                    self.logger.debug(
+                        f"[队列] 请求出队成功: {request.url} | "
+                        f"队列大小: {queue_size_before} -> {queue_size_after}"
+                    )
+                except Exception as deser_error:
+                    self.logger.error(
+                        f"[队列] 请求反序列化失败: {deser_error} | "
+                        f"请求数据: {repr(request)}"
+                    )
+                    return None
             elif queue_size_before > 0:
                 self.logger.debug(
                     f"[队列] 请求出队: 队列为空 | "
