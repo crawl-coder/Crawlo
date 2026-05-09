@@ -23,14 +23,13 @@ class HealthCheckExtension:
         self.enabled = self.settings.get_bool('HEALTH_CHECK_ENABLED', True)
         self.check_interval = self.settings.get_int('HEALTH_CHECK_INTERVAL', 60)  # 默认60秒
         
-        # 健康状态统计
+        # Health status statistics
         self.stats: Dict[str, Any] = {
             'start_time': None,
             'total_requests': 0,
             'total_responses': 0,
             'error_responses': 0,
             'last_check_time': None,
-            'response_times': [],  # 存储最近的响应时间
         }
         
         self.task: Optional[asyncio.Task] = None

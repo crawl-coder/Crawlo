@@ -1,10 +1,12 @@
 """
-监控管理器
-用于管理监控扩展的生命周期，避免实例重复创建
+Monitor Manager
+Manages the lifecycle of monitoring extensions to avoid duplicate instance creation
 """
 import asyncio
 import threading
 from typing import Dict, Optional, Any
+
+from crawlo.logging import get_logger
 
 
 class MonitorManager:
@@ -71,22 +73,23 @@ class MonitorManager:
         return self.monitors.get(monitor_type)
     
     def stop_all_monitors(self):
-        """停止所有监控实例"""
+        """Stop all monitor instances"""
+        logger = get_logger(__name__)
         for monitor in self.monitors.values():
             if hasattr(monitor, 'stop'):
                 try:
                     monitor.stop()
                 except Exception as e:
-                    print(f"Error stopping monitor: {e}")
+                    logger.error(f"Error stopping monitor: {e}")
         self.monitors.clear()
     
     def cleanup(self):
-        """清理所有监控实例，用于程序退出时"""
+        """Clean up all monitor instances, used when program exits"""
         for monitor_type, monitor in list(self.monitors.items()):
             if hasattr(monitor, 'task') and monitor.task:
-                # 取消监控任务
+                # Cancel monitor task
                 monitor.task.cancel()
-            # 从监控管理器中移除
+            # Remove from monitor manager
             self.unregister_monitor(monitor_type)
 
 

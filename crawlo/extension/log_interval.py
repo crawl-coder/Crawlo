@@ -75,7 +75,7 @@ class LogIntervalExtension:
             self.logger.warning(f"Interval logging task already running, skipping (instance: {id(self)})")
 
     async def spider_closed(self, **kwargs) -> None:
-        # 只有主要监控实例才处理关闭
+        # Only primary monitor instance handles closing
         if monitor_manager.get_monitor('log_interval_monitor') == self:
             self.logger.debug("Spider closed, stopping interval logging task")
             if self.task:
@@ -85,11 +85,11 @@ class LogIntervalExtension:
                 except asyncio.CancelledError:
                     pass
                 self.task = None
-            # 从监控管理器中注销
+            # Unregister from monitor manager
             monitor_manager.unregister_monitor('log_interval_monitor')
 
     async def _get_queue_size(self) -> int:
-        """获取队列大小（待处理请求数）"""
+        """Get queue size (pending requests)"""
         try:
             # 尝试从 crawler 获取 scheduler 的队列大小
             # scheduler 在 crawler.engine 中
@@ -274,22 +274,22 @@ class LogIntervalExtension:
                 item_rate = last_item_count - self.item_count
                 response_rate = last_response_count - self.response_count
                 
-                # 智能检测：如果爬虫已停止（无新数据且队列为空），跳过日志输出
+                # Smart detection: if crawler has stopped (no new data and queue empty), skip log output
                 queue_size = await self._get_queue_size()
                 if item_rate == 0 and response_rate == 0 and queue_size == 0:
-                    # 爬虫可能已停止，静默跳过，不打印日志
+                    # Crawler may have stopped, silently skip without printing logs
                     await asyncio.sleep(self.seconds)
                     continue
                 
-                # 获取队列大小和背压信息
+                # Get queue size and backpressure info
                 bp_active, bp_delay, bp_util, bp_score, bp_level = await self._get_backpressure_info()
                 
-                # 更新计数器
+                # Update counters
                 self.item_count, self.response_count = last_item_count, last_response_count
                 
-                # 构建背压信息字符串
+                # Build backpressure info string
                 if bp_active:
-                    # 智能背压：显示评分和级别
+                    # Smart backpressure: show score and level
                     if bp_score > 0:
                         bp_info = f"BP: ON ({bp_delay:.2f}s, {bp_util:.0%}, score:{bp_score:.0f}, {bp_level})"
                     else:
@@ -297,9 +297,9 @@ class LogIntervalExtension:
                 else:
                     bp_info = f"BP: off ({bp_util:.0%})"
                 
-                # 计算速率并输出日志
+                # Calculate rate and output log
                 if self.unit == 'min' and self.seconds > 0:
-                    # 转换为每分钟速率
+                    # Convert to per-minute rate
                     pages_per_min = response_rate * 60 / self.seconds if self.seconds > 0 else 0
                     items_per_min = item_rate * 60 / self.seconds if self.seconds > 0 else 0
                     self.logger.info(
@@ -308,14 +308,14 @@ class LogIntervalExtension:
                         f' Queue: {queue_size} pending, {bp_info}'
                     )
                 else:
-                    # 使用原始单位
+                    # Use original unit
                     self.logger.info(
                         f'Crawled {last_response_count} pages (at {response_rate} pages/{self.interval_display}{self.unit}),'
                         f' Got {last_item_count} items (at {item_rate} items/{self.interval_display}{self.unit}),'
                         f' Queue: {queue_size} pending, {bp_info}'
                     )
                 
-                # 调试日志（合并为一条）
+                # Debug log (merged into one line)
                 debug_info = (
                     f"Interval log [{iteration}]: "
                     f"items={item_rate} (total={last_item_count}), "
@@ -324,7 +324,7 @@ class LogIntervalExtension:
                     f"backpressure={bp_active}, delay={bp_delay:.3f}s, util={bp_util:.1%}"
                 )
                 
-                # 智能背压额外信息
+                # Smart backpressure additional info
                 if bp_score > 0:
                     debug_info += f", score={bp_score:.1f}, level={bp_level}"
                 

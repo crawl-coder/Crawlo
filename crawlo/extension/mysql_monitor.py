@@ -1,11 +1,11 @@
 #!/usr/bin/python
 # -*- coding:UTF-8 -*-
 """
-MySQL监控扩展
-监控MySQL连接池和执行性能
+MySQL Monitor Extension
+Monitor MySQL connection pool and execution performance
 """
 import asyncio
-from typing import Any, Optional, Dict
+from typing import Any, Optional, Dict, Tuple
 
 from crawlo.logging import get_logger
 from crawlo.event import CrawlerEvent
@@ -17,8 +17,8 @@ from crawlo.utils.db.mysql_connection_pool import (
 
 class MySQLMonitorExtension:
     """
-    MySQL监控扩展
-    监控MySQL连接池状态和SQL执行性能
+    MySQL Monitor Extension
+    Monitor MySQL connection pool status and SQL execution performance
     """
 
     def __init__(self, crawler: Any):
@@ -106,10 +106,10 @@ class MySQLMonitorExtension:
                 # 是调度任务，暂停监控（保持实例）
                 self.logger.info("MySQL monitor paused (will resume with next spider).")
 
-    def _calculate_pool_trend(self) -> tuple:
-        """计算连接池使用趋势
+    def _calculate_pool_trend(self) -> Tuple[float, bool]:
+        """Calculate connection pool usage trend
         Returns:
-            tuple: (trend_slope, is_increasing) 趋势斜率和是否在增长
+            Tuple[float, bool]: (trend_slope, is_increasing) trend slope and whether it's increasing
         """
         if len(self.pool_usage_history) < 3:
             return 0.0, False
@@ -136,7 +136,7 @@ class MySQLMonitorExtension:
         return slope, is_increasing
 
     async def _monitor_loop(self) -> None:
-        """MySQL监控循环 - 监控连接池资源泄露和性能指标"""
+        """MySQL monitoring loop - monitor connection pool resource leaks and performance metrics"""
         while True:
             try:
                 # 获取MySQL连接池使用率
@@ -160,58 +160,58 @@ class MySQLMonitorExtension:
                             f"当前使用率: {pool_usage:.2f}%"
                         )
                 
-                # 获取其他性能指标（用于趋势分析，不输出日志）
+                # Get other performance metrics (for trend analysis, no log output)
                 self._collect_performance_metrics()
                 
                 await asyncio.sleep(self.interval)
             except asyncio.CancelledError:
                 break
             except Exception as e:
-                self.logger.error(f"MySQL监控错误: {e}")
+                self.logger.error(f"MySQL monitoring error: {e}")
                 await asyncio.sleep(self.interval)
 
     def _collect_performance_metrics(self) -> Dict[str, Any]:
-        """收集MySQL性能指标（用于资源泄露分析）"""
+        """Collect MySQL performance metrics (for resource leak analysis)"""
         stats = self.crawler.stats
         
-        # 连接池相关指标
+        # Connection pool related metrics
         metrics = {
             'pool_usage': stats.get_value('mysql/pool_usage_percent', 0),
             'connection_acquire_time': stats.get_value('mysql/connection_acquire_time', 0),
             
-            # 执行性能指标
+            # Execution performance metrics
             'sql_execution_time': stats.get_value('mysql/sql_execution_time', 0),
             'batch_execution_time': stats.get_value('mysql/batch_execution_time', 0),
             
-            # 操作计数
+            # Operation counts
             'insert_success': stats.get_value('mysql/insert_success', 0),
             'insert_failed': stats.get_value('mysql/insert_failed', 0),
             'rows_requested': stats.get_value('mysql/rows_requested', 0),
             'rows_affected': stats.get_value('mysql/rows_affected', 0),
             'rows_ignored': stats.get_value('mysql/rows_ignored_by_duplicate', 0),
             
-            # 重试和失败计数
+            # Retry and failure counts
             'retry_count': stats.get_value('mysql/retry_count', 0),
             'batch_retry_count': stats.get_value('mysql/batch_retry_count', 0),
             'batch_failure_count': stats.get_value('mysql/batch_failure_count', 0),
             'batch_insert_success': stats.get_value('mysql/batch_insert_success', 0),
         }
         
-        # 计算失败率（如果有操作）
+        # Calculate failure rate (if there are operations)
         total_operations = metrics['insert_success'] + metrics['insert_failed']
         if total_operations > 0:
             metrics['failure_rate'] = (metrics['insert_failed'] / total_operations) * 100
         else:
             metrics['failure_rate'] = 0
         
-        # 计算重试率
+        # Calculate retry rate
         total_batches = metrics['batch_insert_success'] + metrics['batch_failure_count']
         if total_batches > 0:
             metrics['retry_rate'] = (metrics['batch_retry_count'] / total_batches) * 100
         else:
             metrics['retry_rate'] = 0
         
-        # 检查异常指标（高失败率或高重试率）
+        # Check abnormal metrics (high failure rate or high retry rate)
         if metrics['failure_rate'] > 10:  # 失败率超过10%
             self.logger.warning(
                 f"MySQL高失败率警告 - 失败率: {metrics['failure_rate']:.1f}%, "
@@ -224,24 +224,24 @@ class MySQLMonitorExtension:
                 f"重试次数: {metrics['batch_retry_count']}"
             )
         
-        # 检查连接获取延迟（可能表示连接池紧张）
+        # Check connection acquisition delay (may indicate connection pool tension)
         if metrics['connection_acquire_time'] > 5:  # 超过5秒
             self.logger.warning(
                 f"MySQL连接获取延迟过高 - 等待时间: {metrics['connection_acquire_time']:.2f}s, "
                 f"连接池使用率: {metrics['pool_usage']:.1f}%"
             )
         
-        # 获取详细的连接池状态
+        # Get detailed connection pool status
         self._check_detailed_pool_status()
         
         return metrics
     
     def _check_detailed_pool_status(self) -> None:
-        """检查详细的连接池状态"""
-        # 获取 MySQL 连接池统计
+        """Check detailed connection pool status"""
+        # Get MySQL connection pool stats
         mysql_stats = MySQLConnectionPoolManager.get_pool_stats()
         
-        # 获取连接池信息
+        # Get connection pool info
         all_pools = mysql_stats.get('pools', {})
         
         if not all_pools:
@@ -255,7 +255,7 @@ class MySQLMonitorExtension:
             minsize = pool_info.get('minsize', 0)
             usage_percent = pool_info.get('usage_percent', 0)
             
-            # 连接池使用率过高警告（超过90%）
+            # Connection pool usage too high warning (over 90%)
             if usage_percent > 90:
                 self.logger.warning(
                     f"MySQL连接池 [{pool_key}] 使用率过高 - "
@@ -263,14 +263,14 @@ class MySQLMonitorExtension:
                     f"空闲: {freesize}, 最小: {minsize}"
                 )
             
-            # 连接池耗尽警告（空闲为0且使用率达到100%）
+            # Connection pool exhaustion warning (free is 0 and usage reaches 100%)
             if freesize == 0 and usage_percent >= 100:
                 self.logger.warning(
                     f"MySQL连接池 [{pool_key}] 已耗尽 - "
                     f"所有 {maxsize} 个连接都在使用中，无空闲连接可用"
                 )
             
-            # 连接数低于最小值（可能连接泄露）
+            # Connection count below minimum (may indicate connection leak)
             if size < minsize:
                 self.logger.warning(
                     f"MySQL连接池 [{pool_key}] 连接数低于最小值 - "

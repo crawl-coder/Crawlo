@@ -1,11 +1,11 @@
 #!/usr/bin/python
 # -*- coding:UTF-8 -*-
 """
-Redis监控扩展
-监控Redis连接池和性能
+Redis Monitor Extension
+Monitor Redis connection pool and performance
 """
 import asyncio
-from typing import Any, Optional
+from typing import Any, Optional, Tuple
 
 from crawlo.logging import get_logger
 from crawlo.event import CrawlerEvent
@@ -14,8 +14,8 @@ from crawlo.extension.monitor.monitor_manager import monitor_manager
 
 class RedisMonitorExtension:
     """
-    Redis监控扩展
-    监控Redis连接池状态和性能
+    Redis Monitor Extension
+    Monitor Redis connection pool status and performance
     """
 
     def __init__(self, crawler: Any):
@@ -96,21 +96,21 @@ class RedisMonitorExtension:
             is_scheduler_mode = self.settings.get_bool('_INTERNAL_SCHEDULER_TASK', False)
             
             if not is_scheduler_mode:
-                # 不是调度任务，注销监控实例
+                # Not a scheduler task, unregister monitor instance
                 monitor_manager.unregister_monitor('redis_monitor')
-                # 清空连接池使用历史数据以防止内存泄漏
+                # Clear connection pool usage history to prevent memory leak
                 self.pool_usage_history.clear()
                 self.logger.info("Redis monitor stopped.")
             else:
-                # 是调度任务，暂停监控（保持实例）
-                # 清空连接池使用历史数据以防止内存泄漏
+                # Is a scheduler task, pause monitoring (keep instance)
+                # Clear connection pool usage history to prevent memory leak
                 self.pool_usage_history.clear()
                 self.logger.info("Redis monitor paused (will resume with next spider).")
 
-    def _calculate_pool_trend(self) -> tuple:
-        """计算连接池使用趋势
+    def _calculate_pool_trend(self) -> Tuple[float, bool]:
+        """Calculate connection pool usage trend
         Returns:
-            tuple: (trend_slope, is_increasing) 趋势斜率和是否在增长
+            Tuple[float, bool]: (trend_slope, is_increasing) trend slope and whether it's increasing
         """
         if len(self.pool_usage_history) < 3:
             return 0.0, False
@@ -137,7 +137,7 @@ class RedisMonitorExtension:
         return slope, is_increasing
 
     async def _monitor_loop(self) -> None:
-        """Redis监控循环 - 监控连接池资源泄露"""
+        """Redis monitoring loop - monitor connection pool resource leaks"""
         while True:
             try:
                 # 获取Redis连接池使用率
@@ -159,15 +159,15 @@ class RedisMonitorExtension:
                     # 只有发现资源泄露趋势才告警
                     if is_increasing and len(self.pool_usage_history) >= 5:
                         self.logger.warning(
-                            f"Redis连接池泄露警告 - 使用率持续增长: {trend_slope:+.2f}%/检查, "
-                            f"当前使用率: {pool_usage:.2f}%"
+                            f"Redis connection pool leak warning - usage rate continuously increasing: {trend_slope:+.2f}%/check, "
+                            f"current usage: {pool_usage:.2f}%"
                         )
                 
                 await asyncio.sleep(self.interval)
             except asyncio.CancelledError:
                 break
             except Exception as e:
-                self.logger.error(f"Redis监控错误: {e}")
+                self.logger.error(f"Redis monitoring error: {e}")
                 await asyncio.sleep(self.interval)
 
 

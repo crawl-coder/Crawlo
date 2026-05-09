@@ -40,21 +40,24 @@ class PerformanceMonitor:
             包含各种性能指标的字典
         """
         try:
-            # CPU使用率
+            # CPU usage rate
             cpu_percent = psutil.cpu_percent(interval=1)
             
-            # 内存使用情况
+            # Memory usage
             memory = psutil.virtual_memory()
             
-            # 网络IO
+            # Network IO
             net_io = psutil.net_io_counters()
             
-            # 磁盘IO
+            # Disk IO
             disk_io = psutil.disk_io_counters()
             
-            # 进程特定信息
+            # Process specific info
             process_memory = self.process.memory_info()
             process_cpu = self.process.cpu_percent()
+            
+            # Cache cpu_freq result to avoid calling twice
+            cpu_freq = psutil.cpu_freq()
             
             return {
                 'timestamp': time.time(),
@@ -62,7 +65,7 @@ class PerformanceMonitor:
                 'cpu': {
                     'percent': cpu_percent,
                     'count': psutil.cpu_count(),
-                    'freq': psutil.cpu_freq()._asdict() if psutil.cpu_freq() else {}
+                    'freq': cpu_freq._asdict() if cpu_freq else {}
                 },
                 'memory': {
                     'total': memory.total,
