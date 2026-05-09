@@ -15,8 +15,8 @@ except ImportError:
 
 from crawlo.filters import BaseFilter
 from crawlo.logging import get_logger
-from crawlo.utils.redis import RedisConfig, get_redis_pool, RedisConnectionPool, RedisKeyManager
 from crawlo.utils.misc import safe_get_config
+from crawlo.utils.redis import RedisConfig, get_redis_pool, RedisConnectionPool, RedisKeyManager
 
 
 

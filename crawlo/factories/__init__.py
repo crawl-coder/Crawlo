@@ -1,10 +1,10 @@
 #!/usr/bin/python
 # -*- coding: UTF-8 -*-
 """
-Crawlo组件工厂系统
-==================
+Crawlo Component Factory System
+================================
 
-提供统一的组件创建和依赖注入机制
+Provides unified component creation and dependency injection mechanism.
 """
 
 from .registry import ComponentRegistry, get_component_registry

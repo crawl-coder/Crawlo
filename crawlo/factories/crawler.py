@@ -1,7 +1,7 @@
 #!/usr/bin/python
 # -*- coding: UTF-8 -*-
 """
-Crawler组件工厂 - 专门用于创建Crawler相关组件
+Crawler Component Factory - Specialized for creating Crawler-related components
 """
 
 from typing import Any, Type
@@ -11,60 +11,74 @@ from .registry import get_component_registry
 
 
 class CrawlerComponentFactory(ComponentFactory):
-    """Crawler组件工厂"""
+    """Crawler Component Factory"""
     
     def create(self, spec: ComponentSpec, **kwargs) -> Any:
-        """创建Crawler相关组件"""
-        # 检查是否需要crawler依赖
+        """Create Crawler-related components"""
+        # Check if crawler dependency is required
         if 'crawler' in spec.dependencies and 'crawler' not in kwargs:
             raise ValueError(f"Crawler instance required for component {spec.name}")
         
         return spec.factory_func(**kwargs)
     
     def supports(self, component_type: Type) -> bool:
-        """检查是否支持指定类型"""
-        # 这里可以根据需要定义支持的组件类型
-        supported_types = [
-            'Engine', 'Scheduler', 'StatsCollector', 
-            'Subscriber', 'ExtensionManager'
-        ]
-        return component_type.__name__ in supported_types
+        """Check if the specified type is supported"""
+        # Import actual types for type-safe checking
+        try:
+            from crawlo.core.engine import Engine
+            from crawlo.core.scheduler import Scheduler
+            from crawlo.stats_collector import StatsCollector
+            from crawlo.event import Subscriber
+            from crawlo.extension import ExtensionManager
+            
+            supported_types = (
+                Engine, Scheduler, StatsCollector, 
+                Subscriber, ExtensionManager
+            )
+            return issubclass(component_type, supported_types)
+        except (ImportError, TypeError):
+            # Fallback to name-based checking if imports fail
+            supported_names = {
+                'Engine', 'Scheduler', 'StatsCollector', 
+                'Subscriber', 'ExtensionManager'
+            }
+            return component_type.__name__ in supported_names
 
 
-# Engine组件
+# Engine component
 def create_engine(crawler, **kwargs):
     from crawlo.core.engine import Engine
     return Engine(crawler)
 
-# Scheduler组件
+# Scheduler component
 def create_scheduler(crawler, **kwargs):
     from crawlo.core.scheduler import Scheduler
     return Scheduler.create_instance(crawler)
 
-# StatsCollector组件
+# StatsCollector component
 def create_stats(crawler, **kwargs):
-    from crawlo.stats import StatsCollector
+    from crawlo.stats_collector import StatsCollector
     return StatsCollector(crawler)
 
-# Subscriber组件
+# Subscriber component
 def create_subscriber(**kwargs):
     from crawlo.event import Subscriber
     return Subscriber()
 
-# ExtensionManager组件
+# ExtensionManager component
 def create_extension_manager(crawler, **kwargs):
     from crawlo.extension import ExtensionManager
     return ExtensionManager.create_instance(crawler)
 
 def register_crawler_components():
-    """注册Crawler相关组件"""
+    """Register Crawler-related components"""
     from .utils import register_components
     
-    # 注册工厂
+    # Register factory
     registry = get_component_registry()
     registry.register_factory(CrawlerComponentFactory())
     
-    # 批量注册组件
+    # Batch register components
     component_list = [
         {
             'name': 'engine',

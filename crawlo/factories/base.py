@@ -1,24 +1,24 @@
 #!/usr/bin/python
 # -*- coding: UTF-8 -*-
 """
-组件工厂基类和规范
+Component Factory Base Classes and Specifications
 """
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import Type, Any, Dict, Callable
+from typing import Type, Any, Dict, Callable, List, Optional
 
 
 @dataclass
 class ComponentSpec:
-    """组件规范 - 定义如何创建组件"""
+    """Component Specification - Defines how to create a component"""
     
     name: str
     component_type: Type
     factory_func: Callable[..., Any]
-    dependencies: list = None
+    dependencies: Optional[List[str]] = None
     singleton: bool = False
-    config_key: str = None
+    config_key: Optional[str] = None
     
     def __post_init__(self):
         if self.dependencies is None:
@@ -26,44 +26,44 @@ class ComponentSpec:
 
 
 class ComponentFactory(ABC):
-    """组件工厂基类"""
+    """Component Factory Base Class"""
     
     @abstractmethod
     def create(self, spec: ComponentSpec, **kwargs) -> Any:
-        """创建组件实例"""
+        """Create component instance"""
         pass
     
     @abstractmethod
     def supports(self, component_type: Type) -> bool:
-        """检查是否支持指定类型的组件"""
+        """Check if the factory supports the specified component type"""
         pass
 
 
 class DefaultComponentFactory(ComponentFactory):
-    """默认组件工厂实现"""
+    """Default Component Factory Implementation"""
     
     def __init__(self):
         self._instances: Dict[str, Any] = {}
     
     def create(self, spec: ComponentSpec, **kwargs) -> Any:
-        """创建组件实例"""
-        # 单例模式检查
+        """Create component instance"""
+        # Singleton pattern check
         if spec.singleton and spec.name in self._instances:
             return self._instances[spec.name]
         
-        # 调用工厂函数创建实例
+        # Call factory function to create instance
         instance = spec.factory_func(**kwargs)
         
-        # 保存单例实例
+        # Save singleton instance
         if spec.singleton:
             self._instances[spec.name] = instance
         
         return instance
     
     def supports(self, component_type: Type) -> bool:
-        """支持所有类型"""
+        """Supports all types"""
         return True
     
     def clear_singletons(self):
-        """清除单例实例（测试用）"""
+        """Clear singleton instances (for testing)"""
         self._instances.clear()

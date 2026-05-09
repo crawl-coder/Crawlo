@@ -1,7 +1,7 @@
 #!/usr/bin/python
 # -*- coding: UTF-8 -*-
 """
-工厂工具模块 - 提供通用的组件注册和创建工具
+Factory Utilities - Generic component registration and creation tools
 """
 
 from typing import Any, Callable, List, Optional, Type, Union
@@ -18,21 +18,22 @@ def register_component(
     config_key: Optional[str] = None
 ) -> None:
     """
-    注册组件的便捷函数
+    Convenience function for registering components
     
     Args:
-        name: 组件名称
-        component_type: 组件类型
-        factory_func: 工厂函数
-        dependencies: 依赖列表
-        singleton: 是否单例
-        config_key: 配置键名
+        name: Component name
+        component_type: Component type
+        factory_func: Factory function
+        dependencies: Dependency list
+        singleton: Whether to use singleton pattern
+        config_key: Configuration key name
     """
     registry = get_component_registry()
     
-    # 如果component_type是字符串，创建一个动态类型
+    # If component_type is a string, use it as identifier (not creating empty class)
     if isinstance(component_type, str):
-        component_type = type(component_type, (), {})
+        # Store as string type identifier, factories will use name-based matching
+        component_type = type(component_type, (), {'__type_identifier__': component_type})
     
     spec_kwargs = {
         'name': name,
@@ -42,7 +43,7 @@ def register_component(
         'singleton': singleton
     }
     
-    # 只有当config_key不为None时才添加
+    # Only add config_key if it's not None
     if config_key is not None:
         spec_kwargs['config_key'] = config_key
     
@@ -53,10 +54,10 @@ def register_component(
 
 def register_components(component_list: List[dict]) -> None:
     """
-    批量注册组件
+    Batch register components
     
     Args:
-        component_list: 组件定义列表，每个元素是一个包含组件信息的字典
+        component_list: Component definition list, each element is a dictionary containing component info
     """
     for component_info in component_list:
         register_component(**component_info)
@@ -70,25 +71,25 @@ def create_component_factory(
     singleton: bool = False
 ) -> Callable[..., Any]:
     """
-    创建组件工厂函数的便捷函数
+    Convenience function for creating component factory functions
     
     Args:
-        component_name: 组件名称（用于错误信息）
-        module_path: 模块路径
-        class_name: 类名
-        dependencies: 依赖列表
-        singleton: 是否单例
+        component_name: Component name (for error messages)
+        module_path: Module path
+        class_name: Class name
+        dependencies: Dependency list
+        singleton: Whether to use singleton pattern
         
     Returns:
-        工厂函数
+        Factory function
     """
     def factory_func(*args, **kwargs):
         try:
-            # 动态导入模块
+            # Dynamic module import
             module = __import__(module_path, fromlist=[class_name])
             component_class = getattr(module, class_name)
             
-            # 检查是否需要调用create_instance方法
+            # Check if create_instance method should be called
             if hasattr(component_class, 'create_instance'):
                 return component_class.create_instance(*args, **kwargs)
             else:
@@ -105,26 +106,26 @@ def create_crawler_component_factory(
     class_name: str
 ) -> Callable[..., Any]:
     """
-    创建需要crawler依赖的组件工厂函数
+    Create component factory function that requires crawler dependency
     
     Args:
-        component_name: 组件名称
-        module_path: 模块路径
-        class_name: 类名
+        component_name: Component name
+        module_path: Module path
+        class_name: Class name
         
     Returns:
-        工厂函数
+        Factory function
     """
     def factory_func(crawler=None, **kwargs):
         if crawler is None:
             raise ValueError(f"Crawler instance required for component {component_name}")
         
         try:
-            # 动态导入模块
+            # Dynamic module import
             module = __import__(module_path, fromlist=[class_name])
             component_class = getattr(module, class_name)
             
-            # 检查是否需要调用create_instance方法
+            # Check if create_instance method should be called
             if hasattr(component_class, 'create_instance'):
                 return component_class.create_instance(crawler, **kwargs)
             else:
