@@ -61,25 +61,30 @@ class RequestSerializer:
     
     def restore_after_deserialization(
         self, 
-        data: Dict[str, Any], 
+        data: Any, 
         spider: Optional['Spider'] = None
     ) -> 'Request':
         """
-        Deserialize Request from dict.
+        Restore Request from serialized data.
         
         Args:
-            data: Serialized request dictionary
+            data: Serialized dict OR already-deserialized Request object
             spider: Spider instance (for callback restoration)
             
         Returns:
-            Request: Deserialized request object
+            Request: Restored request object
         """
         from crawlo.network.request import Request
         
-        request = Request.from_dict(data)
+        # If data is already a Request object, just restore callback
+        if isinstance(data, Request):
+            request = data
+        else:
+            # Deserialize from dict
+            request = Request.from_dict(data)
         
         # Restore callback if spider provided
-        if spider and '_callback_info' in request._meta:
+        if spider and hasattr(request, '_meta') and '_callback_info' in request._meta:
             callback_info = request._meta.pop('_callback_info')
             method_name = callback_info.get('method_name')
             

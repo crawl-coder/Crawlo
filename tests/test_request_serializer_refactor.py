@@ -229,3 +229,31 @@ class TestRequestSerializerEdgeCases:
             restored = serializer.restore_after_deserialization(data)
             
             assert restored.priority == request.priority, f"Failed for {priority}"
+    
+    def test_restore_with_request_object(self):
+        """Test restoring when input is already a Request object"""
+        from crawlo.network import Request
+        from crawlo.utils.request.request_serializer import RequestSerializer
+        
+        # Create mock spider
+        class MockSpider:
+            def parse_detail(self, response):
+                pass
+        
+        spider = MockSpider()
+        
+        # Create request with callback
+        original = Request(
+            url="http://example.com",
+            callback=spider.parse_detail
+        )
+        
+        serializer = RequestSerializer()
+        
+        # Simulate Redis queue scenario: request already deserialized
+        # (e.g., by RedisPriorityQueue internally)
+        restored = serializer.restore_after_deserialization(original, spider=spider)
+        
+        # Should return same object with callback restored
+        assert restored is original
+        assert restored.callback is not None
