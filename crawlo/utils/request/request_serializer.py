@@ -337,7 +337,9 @@ class RequestSerializer:
             """检查对象是否不可序列化"""
             if obj is None:
                 return False
-            if isinstance(obj, (logging.Logger, threading.RLock)):
+            if isinstance(obj, logging.Logger):
+                return True
+            if isinstance(obj, type(threading.RLock())):
                 return True
             # 检查类名（仅匹配 RLock/Logger 精确后缀，避免误伤）
             class_name = getattr(obj, '__class__', None)
