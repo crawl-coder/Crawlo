@@ -252,7 +252,7 @@ class Scheduler:
                 'queue_type': QueueType.REDIS,
                 'filter_class': 'crawlo.filters.aioredis_filter.AioRedisFilter',
                 'dedup_pipeline': 'crawlo.pipelines.redis_dedup_pipeline.RedisDedupPipeline',
-                'log_level': 'info',
+                'log_level': 'debug',  # Changed from 'info' to avoid noisy logs
                 'source_filter_patterns': ['memory_filter'],
                 'source_dedup_pattern': 'memory_dedup_pipeline'
             },
