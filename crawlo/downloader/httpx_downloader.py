@@ -54,10 +54,10 @@ class HttpXDownloader(DownloaderBase):
         self.max_download_size = max_download_size
         self._timeout_total = timeout_total  # 保存为实例变量
         
-        # 初始化并发控制
+        # Initialize concurrency control
         self._concurrency = safe_get_config(self.crawler.settings, "CONCURRENCY", 12, int)
         self._semaphore = asyncio.Semaphore(self._concurrency)
-        self.logger.debug(f"并发控制初始化: CONCURRENCY={self._concurrency}")
+        self.logger.debug(f"Concurrency control initialized: CONCURRENCY={self._concurrency}")
 
         # 基于 DOWNLOAD_TIMEOUT 配置动态计算分层超时
         # 采用分层超时策略，平衡性能与兼容性
@@ -120,15 +120,15 @@ class HttpXDownloader(DownloaderBase):
             f"Download request (retry={retry_times}, proxy={has_proxy}): {request.url}"
         )
         
-        # 并发控制：等待信号量
+        # Concurrency control: wait for semaphore
         if self._semaphore:
             self.logger.debug(
-                f"等待并发槽位: {request.url} (active={self._active_requests}/{self._concurrency})"
+                f"Waiting for concurrency slot: {request.url} (active={self._active_requests}/{self._concurrency})"
             )
             await self._semaphore.acquire()
             self._active_requests += 1
             self.logger.debug(
-                f"获取并发槽位成功: {request.url} (active={self._active_requests}/{self._concurrency})"
+                f"Acquired concurrency slot: {request.url} (active={self._active_requests}/{self._concurrency})"
             )
         
         if not self._client:

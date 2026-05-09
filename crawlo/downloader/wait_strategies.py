@@ -17,6 +17,12 @@ from crawlo.constants import BROWSER_ELEMENT_WAIT_TIMEOUT_MS, BROWSER_NETWORK_ID
 
 # ==================== 智能等待策略常量 ====================
 
+# SPA content detection selectors
+SPA_CONTENT_SELECTORS = [
+    '[data-testid]', '[role="main"]', 'main', 'article',
+    '.content', '.main-content', '#content', '#main'
+]
+
 class WaitStrategy:
     """等待策略枚举"""
     AUTO = "auto"  # 自动检测最佳等待策略
@@ -105,14 +111,9 @@ class SmartWaitMixin:
         is_spa = await self._detect_spa(page)
 
         if is_spa:
-            # SPA 页面：等待特定元素或网络空闲
-            # 尝试检测主要内容区域
-            content_selectors = [
-                '[data-testid]', '[role="main"]', 'main', 'article',
-                '.content', '.main-content', '#content', '#main'
-            ]
-
-            for selector in content_selectors:
+            # SPA page: wait for specific element or network idle
+            # Try to detect main content area
+            for selector in SPA_CONTENT_SELECTORS:
                 try:
                     element = page.locator(selector).first
                     if await element.count() > 0:

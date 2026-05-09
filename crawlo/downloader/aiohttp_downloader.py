@@ -21,21 +21,22 @@ from crawlo.downloader import DownloaderBase
 from crawlo.utils.misc import safe_get_config
 from crawlo.constants import ABSOLUTE_TIMEOUT_MULTIPLIER_NORMAL, ABSOLUTE_TIMEOUT_MULTIPLIER_EXTENDED
 
-# 检查 aiohttp 版本是否支持 happy_eyeballs_delay 参数
-# 该参数在 aiohttp 3.9.0+ 中引入，但某些 3.9.x 版本可能不包含
-def _supports_happy_eyeballs():
+if TYPE_CHECKING:
+    from crawlo.network.request import Request
+    from crawlo.crawler import Crawler
+
+
+def _supports_happy_eyeballs() -> bool:
+    """Check if aiohttp version supports happy_eyeballs_delay parameter"""
     try:
         sig = inspect.signature(TCPConnector.__init__)
         return 'happy_eyeballs_delay' in sig.parameters
     except Exception:
         return False
 
+
 _HAPPY_EYEBALLS_SUPPORTED = _supports_happy_eyeballs()
 from crawlo.exceptions import DownloadError
-
-if TYPE_CHECKING:
-    from crawlo.network.request import Request
-    from crawlo.crawler import Crawler
 
 
 class AioHttpDownloader(DownloaderBase):
@@ -88,10 +89,10 @@ class AioHttpDownloader(DownloaderBase):
         # 保存为实例变量
         self._timeout_secs = timeout_secs
         
-        # 初始化并发控制
+        # Initialize concurrency control
         self._concurrency = safe_get_config(self.crawler.settings, "CONCURRENCY", 12, int)
         self._semaphore = asyncio.Semaphore(self._concurrency)
-        self.logger.debug(f"并发控制初始化: CONCURRENCY={self._concurrency}")
+        self.logger.debug(f"Concurrency control initialized: CONCURRENCY={self._concurrency}")
 
         # 创建连接器（优化配置，防止连接泄漏和死锁）
         # 关键优化说明：

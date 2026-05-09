@@ -101,8 +101,8 @@ class DrissionPageDownloader(DownloaderBase):
                         except (ProcessLookupError, ValueError):
                             pass
         except Exception as e:
-            # 静默失败，不影响主流程
-            pass
+            # Log at debug level to avoid noise, but still record for troubleshooting
+            self.logger.debug(f"Cleanup orphan processes failed (silently ignored): {e}")
 
     def open(self):
         """初始化浏览器"""

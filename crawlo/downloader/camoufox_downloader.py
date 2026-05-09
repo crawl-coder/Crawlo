@@ -24,6 +24,7 @@ CAMOUFOX_SOLVE_CLOUDFLARE = True
 """
 
 import time
+import platform
 from typing import Optional, Dict, List, Set
 from urllib.parse import urlparse
 
@@ -109,11 +110,11 @@ class CamoufoxDownloader(DownloaderBase):
                     "Camoufox is not installed. Please install it with: pip install camoufox"
                 )
             
-            # 配置浏览器启动参数
+            # Configure browser startup parameters
             config = {
                 "headless": self.headless,
                 "humanize": self.humanize,
-                "os": "windows",  # 模拟 Windows 系统
+                "os": platform.system().lower() or "windows",  # Detect actual OS, fallback to windows
             }
             
             # 代理配置

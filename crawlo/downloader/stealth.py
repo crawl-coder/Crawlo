@@ -1,35 +1,39 @@
 #!/usr/bin/python
 # -*- coding: UTF-8 -*-
 """
-Playwright 反检测 Mixin
+Playwright Anti-Detection Mixin
 
-提取自 PlaywrightDownloader，包含反检测脚本注入逻辑。
+Extracted from PlaywrightDownloader, contains anti-detection script injection logic.
 """
+from typing import TYPE_CHECKING
 from crawlo.downloader.stealth_scripts import get_stealth_scripts
+
+if TYPE_CHECKING:
+    from playwright.async_api import Page
 
 
 class StealthMixin:
-    """反检测脚本注入 Mixin"""
+    """Anti-detection script injection Mixin"""
 
-    async def _inject_stealth_scripts(self, page):
+    async def _inject_stealth_scripts(self, page: 'Page'):
         """
-        注入反检测脚本
+        Inject anti-detection scripts
         
-        根据 stealth_level 注入不同级别的反检测脚本：
-        - none: 不注入任何脚本
-        - basic: 仅隐藏 webdriver 标识
-        - advanced: 全链路指纹伪造（Canvas、WebGL、AudioContext 等）
+        Inject different levels of anti-detection scripts based on stealth_level:
+        - none: No scripts injected
+        - basic: Only hide webdriver identifier
+        - advanced: Full-chain fingerprint forgery (Canvas, WebGL, AudioContext, etc.)
         """
         try:
-            # 如果 stealth_level 为 none，则不注入脚本
+            # If stealth_level is none, do not inject scripts
             if self.stealth_level == 'none':
                 self.logger.debug("Stealth level is 'none', skipping anti-detection scripts")
                 return
             
-            # 获取请求级别的 stealth_level（优先级高于全局配置）
+            # Get request-level stealth_level (higher priority than global config)
             request_stealth_level = page.request.meta.get('playwright_stealth_level', self.stealth_level) if hasattr(page, 'request') and page.request else self.stealth_level
             
-            # 从 stealth_scripts 模块获取脚本
+            # Get scripts from stealth_scripts module
             stealth_script = get_stealth_scripts(request_stealth_level)
             
             if stealth_script:
