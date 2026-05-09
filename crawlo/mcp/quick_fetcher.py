@@ -12,10 +12,12 @@ MCP 场景下的轻量级抓取器：
 """
 
 import asyncio
+import atexit
 import re
 import time
 from typing import Optional, Dict, Any, List
 from dataclasses import dataclass, field
+from urllib.parse import urlparse
 
 import aiohttp
 from aiohttp import ClientSession, TCPConnector, ClientTimeout
@@ -95,6 +97,26 @@ class QuickFetcher:
         start = time.time()
         result = FetchResult(url=url)
         
+        # URL 验证
+        if not url or not isinstance(url, str):
+            result.error = "URL cannot be empty"
+            result.error_code = "INVALID_URL"
+            result.duration = time.time() - start
+            return result
+        
+        parsed = urlparse(url)
+        if parsed.scheme not in ('http', 'https'):
+            result.error = f"URL must use HTTP or HTTPS scheme, got: {parsed.scheme or 'empty'}"
+            result.error_code = "INVALID_SCHEME"
+            result.duration = time.time() - start
+            return result
+        
+        if not parsed.netloc:
+            result.error = "URL must contain a valid domain"
+            result.error_code = "INVALID_URL"
+            result.duration = time.time() - start
+            return result
+        
         # 合并 Cookie
         current_cookies = self._cookies.copy() if persist_session else {}
         if cookies:
@@ -150,6 +172,7 @@ class QuickFetcher:
     async def _fetch_basic(self, url: str, timeout: float, cookies: Dict[str, str], headers: Optional[Dict[str, str]]):
         """basic 模式：直接使用 aiohttp"""
         from crawlo.network.response import Response
+        from yarl import URL
 
         session = await self._get_session()
         async with session.get(url, cookies=cookies, headers=headers) as resp:
@@ -160,8 +183,13 @@ class QuickFetcher:
                 body=body,
                 status=resp.status,
             )
-            # 提取 Cookie
-            response.cookies = {c.key: c.value for c in session.cookie_jar}
+            # 提取与当前 URL 相关的 Cookie（避免获取所有域名的 Cookie）
+            url_obj = URL(url)
+            response.cookies = {
+                c.key: c.value 
+                for c in session.cookie_jar 
+                if c.domain == url_obj.host or url_obj.host.endswith(c.domain.lstrip('.'))
+            }
             return response
 
     async def _fetch_stealth(self, url: str, timeout: float, cookies: Dict[str, str], headers: Optional[Dict[str, str]]):
@@ -303,7 +331,22 @@ class QuickFetcher:
                 return await self.fetch(url, mode, format)
 
         tasks = [_limited_fetch(url) for url in urls]
-        return await asyncio.gather(*tasks)
+        # 使用 return_exceptions=True 确保所有任务都完成，即使个别失败
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+        
+        # 将异常转换为 FetchResult
+        final_results = []
+        for i, result in enumerate(results):
+            if isinstance(result, Exception):
+                final_results.append(FetchResult(
+                    url=urls[i],
+                    error=str(result),
+                    error_code=type(result).__name__.upper()
+                ))
+            else:
+                final_results.append(result)
+        
+        return final_results
 
     def _html_to_text(self, html: str) -> str:
         """将 HTML 转换为纯文本"""
@@ -316,11 +359,12 @@ class QuickFetcher:
         return text.strip()
 
     def _html_to_markdown(self, html: str) -> str:
-        """将 HTML 转换为 Markdown"""
+        """Convert HTML to Markdown"""
         try:
             from markdownify import markdownify as md
             return md(html)
         except ImportError:
+            # Fallback to plain text if markdownify is not available
             return self._html_to_text(html)
 
     async def close(self):
@@ -328,6 +372,26 @@ class QuickFetcher:
         if self._session and not self._session.closed:
             await self._session.close()
             self._session = None
+        self._cookies.clear()
+
+
+def _cleanup_fetcher():
+    """清理全局 Fetcher 实例（程序退出时调用）"""
+    global _fetcher_instance
+    if _fetcher_instance is not None:
+        try:
+            loop = asyncio.get_event_loop()
+            if loop.is_running():
+                loop.create_task(_fetcher_instance.close())
+            else:
+                loop.run_until_complete(_fetcher_instance.close())
+        except Exception:
+            pass  # 清理失败不影响退出
+        _fetcher_instance = None
+
+
+# 注册退出清理
+atexit.register(_cleanup_fetcher)
 
 
 # 模块级别的单例实例
