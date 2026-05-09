@@ -232,19 +232,19 @@ class RedisPriorityQueue:
             score = priority
             key = self._get_request_key(request)
 
-            # 🔥 使用专用的序列化工具清理 Request
-            clean_request = self.request_serializer.prepare_for_serialization(request)
+            # 🔥 使用 Request.to_dict() 序列化
+            request_data = self.request_serializer.prepare_for_serialization(request)
 
             # 根据配置的序列化格式进行序列化
             try:
                 if self.serialization_format == 'msgpack' and MSGPACK_AVAILABLE:
                     # 使用msgpack序列化
-                    serialized = msgpack.packb(clean_request, default=str)
+                    serialized = msgpack.packb(request_data, default=str)
                     # 验证序列化数据可以被反序列化
                     msgpack.unpackb(serialized, raw=False)
                 else:
                     # 使用pickle序列化
-                    serialized = pickle.dumps(clean_request)
+                    serialized = pickle.dumps(request_data)
                     # 验证序列化数据可以被反序列化
                     pickle.loads(serialized)
             except Exception as serialize_error:

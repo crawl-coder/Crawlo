@@ -200,12 +200,13 @@ class CheckpointManager:
             serializer = getattr(scheduler, 'request_serializer', None)
             for request in extracted:
                 try:
-                    # 清理请求以便序列化
+                    # 使用 RequestSerializer 序列化
                     if serializer:
-                        serializer.prepare_for_serialization(request)
-
-                    # 序列化为字典
-                    req_dict = self._serialize_request(request)
+                        req_dict = serializer.prepare_for_serialization(request)
+                    else:
+                        # 回退到旧版方法
+                        req_dict = self._serialize_request(request)
+                    
                     if req_dict:
                         requests_data.append(req_dict)
                 except Exception as e:

@@ -148,6 +148,15 @@ class Request:
         # 安全处理 meta，移除 logger 后再 deepcopy
         self._meta = self._safe_deepcopy_meta(meta) if meta is not None else {}
         
+        # Save callback info to meta for serialization
+        if callback is not None and hasattr(callback, '__self__') and hasattr(callback, '__name__'):
+            spider_instance = getattr(callback, '__self__', None)
+            if spider_instance is not None:
+                self._meta['_callback_info'] = {
+                    'spider_class': spider_instance.__class__.__name__,
+                    'method_name': callback.__name__
+                }
+        
         self.timeout = self._meta.get('download_timeout', timeout)
         self.proxy = proxy
         self.allow_redirects = allow_redirects
@@ -189,7 +198,7 @@ class Request:
                 if 'Content-Type' not in self.headers:
                     self.headers['Content-Type'] = 'application/x-www-form-urlencoded'
                 query_str = urlencode(form_data)
-                self.body = query_str.encode(encoding)  # 显式编码为 bytes
+                self.body = query_str.encode(encoding or 'utf-8')  # 显式编码为 bytes
 
 
         else:
