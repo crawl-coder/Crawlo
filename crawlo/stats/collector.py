@@ -9,6 +9,7 @@
 - StatsCollector: 统计收集器
 """
 import re
+from datetime import datetime
 from typing import Any, Dict
 from pprint import pformat
 
@@ -90,27 +91,7 @@ class StatsCollector:
         self.backend.set_value('end_time', end_time.strftime('%Y-%m-%d %H:%M:%S'))
         
         # 计算并记录性能指标
-        start_time_str = self.backend.get_value('start_time')
-        if start_time_str:
-            try:
-                start_time = datetime.strptime(start_time_str, '%Y-%m-%d %H:%M:%S')
-                elapsed_seconds = (end_time - start_time).total_seconds()
-                
-                # 记录消耗时间
-                self.backend.set_value('elapsed_time', f'{elapsed_seconds:.2f}s')
-                
-                # 计算每分钟速率
-                if elapsed_seconds > 0:
-                    item_count = self.backend.get_value('item_successful_count', 0)
-                    response_count = self.backend.get_value('response_received_count', 0)
-                    
-                    items_per_min = (item_count / elapsed_seconds) * 60
-                    pages_per_min = (response_count / elapsed_seconds) * 60
-                    
-                    self.backend.set_value('items_per_minute', round(items_per_min, 2))
-                    self.backend.set_value('pages_per_minute', round(pages_per_min, 2))
-            except (ValueError, TypeError):
-                pass
+        self._calculate_rate_metrics(end_time)
         
         # 集成并发监控指标
         self._collect_task_manager_stats()
@@ -174,49 +155,83 @@ class StatsCollector:
             
             # 计算并添加性能指标
             self._calculate_performance_metrics(stats)
-            
-            # 格式化浮点数
-            formatted_stats = {}
-            for key, value in stats.items():
-                formatted_stats[key] = round(value, 2) if isinstance(value, float) else value
-            
-            # 聚合相似统计项
-            optimized_stats = self._aggregate_similar_stats(formatted_stats)
-            self.logger.info(f'{spider_name} stats: \n{pformat(optimized_stats)}')
+        
+        # 格式化浮点数
+        formatted_stats = {}
+        for key, value in stats.items():
+            formatted_stats[key] = round(value, 2) if isinstance(value, float) else value
+        
+        # 聚合相似统计项
+        optimized_stats = self._aggregate_similar_stats(formatted_stats)
+        self.logger.info(f'{spider_name} stats: \n{pformat(optimized_stats)}')
         
         self.backend.close()
     
+    def _calculate_rate_metrics(self, end_time: datetime) -> None:
+        """
+        计算并记录速率指标（items/pages per minute）
+        
+        Args:
+            end_time: 结束时间
+        """
+        start_time_str = self.backend.get_value('start_time')
+        if not start_time_str:
+            return
+        
+        try:
+            start_time = datetime.strptime(start_time_str, '%Y-%m-%d %H:%M:%S')
+            elapsed_seconds = (end_time - start_time).total_seconds()
+            
+            if elapsed_seconds <= 0:
+                return
+            
+            # 记录消耗时间
+            self.backend.set_value('elapsed_time', f'{elapsed_seconds:.2f}s')
+            
+            # 计算每分钟速率
+            item_count = self.backend.get_value('item_successful_count', 0)
+            response_count = self.backend.get_value('response_received_count', 0)
+            
+            items_per_min = (item_count / elapsed_seconds) * 60
+            pages_per_min = (response_count / elapsed_seconds) * 60
+            
+            self.backend.set_value('items_per_minute', round(items_per_min, 2))
+            self.backend.set_value('pages_per_minute', round(pages_per_min, 2))
+        except (ValueError, TypeError):
+            pass
+    
     def _calculate_performance_metrics(self, stats: Dict[str, Any]) -> None:
         """
-        计算并添加性能指标
+        计算并添加性能指标（close 时调用）
         
         Args:
             stats: 当前统计信息
         """
-        from datetime import datetime
-        
-        # 计算总耗时（秒）
         start_time_str = stats.get('start_time')
         end_time_str = stats.get('end_time')
         
-        if start_time_str and end_time_str:
-            try:
-                start_time = datetime.strptime(start_time_str, '%Y-%m-%d %H:%M:%S')
-                end_time = datetime.strptime(end_time_str, '%Y-%m-%d %H:%M:%S')
-                elapsed_seconds = (end_time - start_time).total_seconds()
-                
-                if elapsed_seconds > 0:
-                    # 计算每分钟速率
-                    item_count = stats.get('item_successful_count', 0)
-                    response_count = stats.get('response_received_count', 0)
-                    
-                    items_per_min = (item_count / elapsed_seconds) * 60
-                    pages_per_min = (response_count / elapsed_seconds) * 60
-                    
-                    self.backend.set_value('items_per_minute', round(items_per_min, 2))
-                    self.backend.set_value('pages_per_minute', round(pages_per_min, 2))
-            except (ValueError, TypeError):
-                pass
+        if not (start_time_str and end_time_str):
+            return
+        
+        try:
+            start_time = datetime.strptime(start_time_str, '%Y-%m-%d %H:%M:%S')
+            end_time = datetime.strptime(end_time_str, '%Y-%m-%d %H:%M:%S')
+            elapsed_seconds = (end_time - start_time).total_seconds()
+            
+            if elapsed_seconds <= 0:
+                return
+            
+            # 计算每分钟速率
+            item_count = stats.get('item_successful_count', 0)
+            response_count = stats.get('response_received_count', 0)
+            
+            items_per_min = (item_count / elapsed_seconds) * 60
+            pages_per_min = (response_count / elapsed_seconds) * 60
+            
+            self.backend.set_value('items_per_minute', round(items_per_min, 2))
+            self.backend.set_value('pages_per_minute', round(pages_per_min, 2))
+        except (ValueError, TypeError):
+            pass
 
     def _aggregate_similar_stats(self, stats: Dict[str, Any]) -> Dict[str, Any]:
         """
