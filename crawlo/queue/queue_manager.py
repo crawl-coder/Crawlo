@@ -114,11 +114,12 @@ class QueueManager(QueueStatusMixin, QueueBackpressureMixin):
             self._queue = await self._create_queue(queue_type)
             self._queue_type = queue_type
 
-            # 测试队列健康状态
+            # Test queue health status
             health_check_result = await self._health_check()
 
-            self.logger.info(f"Queue initialized successfully Type: {queue_type.value}")
-            # Only output detailed config in debug mode
+            # Only output queue init log in debug mode to avoid noise
+            self.logger.debug(f"Queue initialized successfully Type: {queue_type.value}")
+            # Output detailed config in debug mode
             self.logger.debug(f"Queue configuration: {self._get_queue_info()}")
             
             # Backpressure initialization log is already output in _recreate_backpressure_controller()
