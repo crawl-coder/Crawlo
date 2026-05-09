@@ -30,58 +30,7 @@ from .mongo_connection_pool import (
 
 
 # 保留向后兼容性的便捷函数
-async def get_mysql_pool(
-    pool_type: str = 'asyncmy',
-    host: str = 'localhost',
-    port: int = 3306,
-    user: str = 'root',
-    password: str = '',
-    db: str = 'crawlo',
-    minsize: int = 3,
-    maxsize: int = 10,
-    **kwargs
-):
-    """
-    获取 MySQL 连接池实例（便捷函数）
-    
-    Args:
-        pool_type: 连接池类型 ('asyncmy' 或 'aiomysql')
-        host: 数据库主机
-        port: 数据库端口
-        user: 数据库用户名
-        password: 数据库密码
-        db: 数据库名
-        minsize: 最小连接数
-        maxsize: 最大连接数
-        **kwargs: 其他连接参数
-        
-    Returns:
-        连接池实例
-    """
-    if pool_type == 'asyncmy':
-        return await get_asyncmy_pool(
-            host=host,
-            port=port,
-            user=user,
-            password=password,
-            db=db,
-            minsize=minsize,
-            maxsize=maxsize,
-            **kwargs
-        )
-    elif pool_type == 'aiomysql':
-        return await get_aiomysql_pool(
-            host=host,
-            port=port,
-            user=user,
-            password=password,
-            db=db,
-            minsize=minsize,
-            maxsize=maxsize,
-            **kwargs
-        )
-    else:
-        raise ValueError(f"不支持的MySQL连接池类型: {pool_type}")
+# 注意：get_mysql_pool 已从 mysql_connection_pool 模块导入，此处不再重复定义
 
 
 async def close_all_database_pools():

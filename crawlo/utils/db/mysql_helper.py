@@ -33,8 +33,6 @@ class MySQLHelper:
     与 Crawlo 框架深度集成，连接池由 MySQLConnectionPoolManager 统一管理复用。
     """
     
-    _lock = asyncio.Lock()
-    
     def __init__(self, settings: Optional[Dict] = None):
         """
         初始化
@@ -46,6 +44,7 @@ class MySQLHelper:
         self.logger = get_logger(self.__class__.__name__)
         self._pool = None
         self._sql_builder = SQLBuilder()
+        self._lock = None  # 实例级别的锁
     
     @classmethod
     async def get_instance(cls, settings=None) -> 'MySQLHelper':
@@ -55,6 +54,10 @@ class MySQLHelper:
     async def _get_pool(self):
         """懒加载连接池"""
         if self._pool is None:
+            # 初始化实例级别的锁
+            if self._lock is None:
+                self._lock = asyncio.Lock()
+            
             # 使用 MySQLConnectionPoolManager.get_pool() 获取连接池
             self._pool = await MySQLConnectionPoolManager.get_pool(
                 host=self.settings.get('MYSQL_HOST', 'localhost') if self.settings else 'localhost',
