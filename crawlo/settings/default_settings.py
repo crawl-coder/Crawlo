@@ -66,7 +66,7 @@ MEMORY_SCHEDULER_MAX_QUEUE_SIZE = 50000  # 内存队列最大大小
 # 1. 背压触发时机合理（不要太早或太晚）
 # 2. Redis 内存占用可控（约100-200MB）
 # 3. 网络延迟不会累积
-REDIS_SCHEDULER_MAX_QUEUE_SIZE = 50000  # Redis队列最大大小
+REDIS_SCHEDULER_MAX_QUEUE_SIZE = 100000  # Redis队列最大大小
 
 # ----- 2.2 背压控制配置 -----
 # 背压策略：当队列使用率超过阈值时，自动增加入队延迟，防止队列溢出

@@ -246,16 +246,10 @@ def _get_mode_settings(settings: SettingManager, run_mode: str) -> dict:
     
     mode_settings = config.to_dict()
     
-    # 特殊处理：如果用户在settings.py中明确设置了QUEUE_TYPE，
-    # 应该尊重用户的设置，除非是standalone模式下的redis设置
-    user_queue_type = settings.get('QUEUE_TYPE')
-    if user_queue_type and run_mode == 'standalone' and user_queue_type != 'memory':
-        # 在单机模式下，如果用户明确设置了QUEUE_TYPE（且不是memory），应该保留用户的设置
-        # 但需要确保配置的一致性
-        mode_settings['QUEUE_TYPE'] = user_queue_type
-        
-        # 根据QUEUE_TYPE更新其他相关配置
-        _update_queue_related_settings(mode_settings, user_queue_type, settings)
+    # 注意：不再保留用户的 QUEUE_TYPE 设置
+    # 原因：无法区分 default_settings.py 的默认值和用户显式设置
+    # 用户应通过修改 RUN_MODE 来切换模式，而不是单独设置 QUEUE_TYPE
+    # 这确保了模式配置的完整性和一致性
     
     return mode_settings
 

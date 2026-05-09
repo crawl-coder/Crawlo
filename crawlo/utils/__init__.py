@@ -12,6 +12,7 @@ from .request.response_helper import (
     parse_cookies,
     regex_search,
     regex_findall,
+    regex_findone,
     get_header_value
 )
 
@@ -47,6 +48,7 @@ __all__ = [
     "parse_cookies",
     "regex_search",
     "regex_findall",
+    "regex_findone",
     "get_header_value",
     # fingerprint
     "FingerprintGenerator",
