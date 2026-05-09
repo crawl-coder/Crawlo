@@ -66,12 +66,21 @@ class TestDedupPipelinePriority:
 class TestGetDefaultValue:
     """测试 get() 默认值语义改进"""
     
-    def test_get_without_default_raises_keyerror(self):
-        """测试不提供 default 时抛出 KeyError"""
+    def test_get_without_default_returns_builtin_default(self):
+        """测试不提供 default 时返回内置默认值"""
         settings = SettingManager()
         
-        with pytest.raises(KeyError, match="Configuration key 'NONEXISTENT' not found"):
-            settings.get('NONEXISTENT')
+        # 字符串类型配置返回空字符串
+        assert settings.get('REDIS_USER') == ''
+        assert settings.get('REDIS_PASSWORD') == ''
+        assert settings.get('PROXY_API_URL') == ''
+        
+        # 列表类型配置返回空列表
+        assert settings.get('PROXY_LIST') == []
+        assert settings.get('ALLOWED_DOMAINS') == []
+        
+        # 未知键返回 None
+        assert settings.get('UNKNOWN_KEY') is None
     
     def test_get_with_default_returns_default(self):
         """测试提供 default 时返回默认值"""
@@ -86,6 +95,29 @@ class TestGetDefaultValue:
         
         result = settings.get('KEY', 'default')
         assert result is None
+    
+    def test_builtin_defaults_for_common_configs(self):
+        """测试常见配置项的内置默认值"""
+        # 使用空的 SettingManager 避免默认配置干扰
+        settings = SettingManager({})
+        # 禁用默认配置加载
+        settings.attributes.clear()
+        
+        # 测试不在默认配置中的键，应该返回内置默认值
+        # 字符串类型
+        assert settings.get('REDIS_USER') == ''
+        assert settings.get('FEISHU_WEBHOOK') == ''
+        assert settings.get('FEISHU_SECRET') == ''
+        
+        # 列表类型
+        assert settings.get('PROXY_LIST') == []
+        assert settings.get('ALLOWED_DOMAINS') == []
+        
+        # 字典类型
+        assert settings.get('DEFAULT_REQUEST_HEADERS') == {}
+        
+        # 未知键返回 None
+        assert settings.get('COMPLETELY_UNKNOWN_KEY') is None
     
     def test_get_existing_key_returns_value(self):
         """测试键存在时返回值"""

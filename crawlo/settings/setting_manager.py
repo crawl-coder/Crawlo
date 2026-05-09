@@ -273,30 +273,84 @@ class SettingManager(MutableMapping):
         Args:
             key: 配置键名
             default: 默认值
-                - 未提供：键不存在时抛出 KeyError
+                - 未提供：键不存在时尝试返回内置默认值
                 - 提供：键不存在时返回该值
                 - 注意：如果键存在但值为 None，返回 None（不返回 default）
                 
         Returns:
             配置值。如果键存在则返回对应值（包括 None），不存在时根据 default 参数决定。
                 
-        Raises:
-            KeyError: 键不存在且未提供 default 时
-                
         Examples:
-            >>> settings.get('KEY')  # 不存在时抛出 KeyError
-            >>> settings.get('KEY', 'default')  # 不存在时返回 'default'
-            >>> settings.get('KEY', None)  # 不存在时返回 None
+            >>> settings.get('REDIS_USER')  # 返回 '' (内置默认值)
+            >>> settings.get('REDIS_USER', 'admin')  # 返回 'admin'
+            >>> settings.get('KEY', None)  # 返回 None
         """
         if key in self.attributes:
             return self.attributes[key]
             
-        # 未提供 default 参数，抛出 KeyError
-        if default is self._SENTINEL:
-            raise KeyError(f"Configuration key '{key}' not found")
-            
         # 提供了 default 参数，返回默认值
-        return default
+        if default is not self._SENTINEL:
+            return default
+            
+        # 未提供 default 参数，返回内置默认值
+        return self._get_builtin_default(key)
+    
+    def _get_builtin_default(self, key: str) -> Any:
+        """
+        获取配置项的内置默认值
+        
+        对于常见的可选配置项，提供合理的默认值，避免 KeyError。
+        
+        Args:
+            key: 配置键名
+            
+        Returns:
+            内置默认值，未知键返回 None
+        """
+        # 字符串类型配置，默认空字符串
+        STRING_DEFAULTS = {
+            'REDIS_USER',           # Redis 用户名（可选）
+            'REDIS_PASSWORD',       # Redis 密码
+            'PROXY_API_URL',        # 代理 API URL
+            'MYSQL_PASSWORD',       # MySQL 密码
+            'FEISHU_WEBHOOK',       # 飞书 Webhook
+            'FEISHU_SECRET',        # 飞书密钥
+            'DINGTALK_WEBHOOK',     # 钉钉 Webhook
+            'DINGTALK_SECRET',      # 钉钉密钥
+            'WECOM_WEBHOOK',        # 企业微信 Webhook
+            'WECOM_SECRET',         # 企业微信密钥
+        }
+        
+        if key in STRING_DEFAULTS:
+            return ''
+        
+        # 列表类型配置，默认空列表
+        LIST_DEFAULTS = {
+            'PROXY_LIST',
+            'ALLOWED_DOMAINS',
+            'SPIDER_MODULES',
+            'NOTIFICATION_CHANNELS',
+            'DINGTALK_AT_MOBILES',
+            'DINGTALK_AT_USERIDS',
+            'FEISHU_AT_USERS',
+            'FEISHU_AT_MOBILE',
+            'WECOM_AT_USERS',
+            'WECOM_AT_MOBILE',
+        }
+        
+        if key in LIST_DEFAULTS:
+            return []
+        
+        # 字典类型配置，默认空字典
+        DICT_DEFAULTS = {
+            'DEFAULT_REQUEST_HEADERS',
+        }
+        
+        if key in DICT_DEFAULTS:
+            return {}
+        
+        # 未知键，返回 None
+        return None
     
     def get_int(self, key: str, default: int = 0) -> int:
         """获取整数配置值"""
@@ -594,7 +648,7 @@ class EnvConfigManager:
         """
         获取框架版本号
         
-        使用模块级缓存避免重复读取文件。
+        直接从 crawlo.__version__ 模块导入，避免重复读取文件。
 
         Returns:
             框架版本号字符串
@@ -603,19 +657,16 @@ class EnvConfigManager:
         if EnvConfigManager._version_cache is not None:
             return EnvConfigManager._version_cache
         
-        version_file = os.path.join(os.path.dirname(__file__), '..', '__version__.py')
-        default_version = '1.0.0'
-
-        if os.path.exists(version_file):
+        try:
+            from crawlo.__version__ import __version__
+            EnvConfigManager._version_cache = __version__
+            return __version__
+        except ImportError:
+            # 开发模式下可能未安装，回退到元数据或默认值
             try:
-                with open(version_file, 'r', encoding='utf-8') as f:
-                    content = f.read()
-                    version_match = re.search(r"__version__\s*=\s*['\"]([^'\"]*)['\"]", content)
-                    if version_match:
-                        EnvConfigManager._version_cache = version_match.group(1)
-                        return EnvConfigManager._version_cache
+                from importlib.metadata import version
+                EnvConfigManager._version_cache = version("crawlo")
+                return EnvConfigManager._version_cache
             except Exception:
-                pass
-
-        EnvConfigManager._version_cache = default_version
-        return EnvConfigManager._version_cache
+                EnvConfigManager._version_cache = '1.0.0'
+                return EnvConfigManager._version_cache

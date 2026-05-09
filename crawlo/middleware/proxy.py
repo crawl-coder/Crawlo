@@ -27,7 +27,7 @@ class ProxyMiddleware:
 
         # Get proxy list and API URL
         self.proxies: List[str] = settings.get("PROXY_LIST", [])
-        self.api_url = settings.get("PROXY_API_URL")
+        self.api_url = settings.get("PROXY_API_URL")  # 代理 API URL（可选）
         # Get proxy extraction configuration
         self.proxy_extractor = settings.get("PROXY_EXTRACTOR", "proxy")  # Default extract from "proxy" field
         
