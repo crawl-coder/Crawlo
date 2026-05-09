@@ -218,7 +218,7 @@ class RequestSerializer:
                         elif isinstance(attr_value, dict):
                             self._clean_dict_rlock(attr_value)
                         # 递归清理对象属性中的RLock
-                        elif hasattr(attr_value, '__dict__'):
+                        elif hasattr(attr_value, '__dict__') or hasattr(attr_value, '__slots__'):
                             self._clean_object_rlock(attr_value)
             except Exception:
                 # 忽略访问属性时的异常
@@ -243,7 +243,7 @@ class RequestSerializer:
                 keys_to_clean.append(key)
             elif isinstance(value, dict):
                 self._clean_dict_rlock(value)
-            elif hasattr(value, '__dict__'):
+            elif hasattr(value, '__dict__') or hasattr(value, '__slots__'):
                 self._clean_object_rlock(value)
                 
         for key in keys_to_clean:
@@ -255,24 +255,40 @@ class RequestSerializer:
 
     def _clean_object_rlock(self, obj: Any) -> None:
         """
-        清理对象属性中的RLock对象
+        清理对象属性中的RLock对象，同时支持 __dict__ 和 __slots__
         
         Args:
             obj: 对象实例
         """
         import threading
         
-        if not hasattr(obj, '__dict__'):
+        # 收集所有需要检查的属性名
+        attr_names = set()
+        if hasattr(obj, '__dict__'):
+            attr_names.update(obj.__dict__.keys())
+        if hasattr(obj, '__slots__'):
+            for slot in obj.__slots__:
+                try:
+                    if hasattr(obj, slot):
+                        attr_names.add(slot)
+                except AttributeError:
+                    pass
+        
+        if not attr_names:
             return
             
         attrs_to_clean = []
-        for attr_name, attr_value in obj.__dict__.items():
+        for attr_name in attr_names:
+            try:
+                attr_value = getattr(obj, attr_name)
+            except AttributeError:
+                continue
             if isinstance(attr_value, threading.RLock) or \
                (hasattr(attr_value, '__class__') and attr_value.__class__.__name__ and 'RLock' in attr_value.__class__.__name__):
                 attrs_to_clean.append(attr_name)
             elif isinstance(attr_value, dict):
                 self._clean_dict_rlock(attr_value)
-            elif hasattr(attr_value, '__dict__'):
+            elif hasattr(attr_value, '__dict__') or hasattr(attr_value, '__slots__'):
                 self._clean_object_rlock(attr_value)
                 
         for attr_name in attrs_to_clean:
@@ -323,16 +339,16 @@ class RequestSerializer:
                 return False
             if isinstance(obj, (logging.Logger, threading.RLock)):
                 return True
-            # 检查类名
+            # 检查类名（仅匹配 RLock/Logger 精确后缀，避免误伤）
             class_name = getattr(obj, '__class__', None)
-            if class_name and 'Lock' in (class_name.__name__ or ''):
-                return True
-            if class_name and 'Logger' in (class_name.__name__ or ''):
-                return True
+            if class_name:
+                name = class_name.__name__ or ''
+                if 'RLock' in name or 'Logger' in name:
+                    return True
             return False
         
         def recursive_clean(target: Any, visited: Optional[set] = None, depth: int = 0) -> None:
-            """递归清理对象"""
+            """递归清理对象中的不可序列化对象"""
             if depth > 5 or not target:
                 return
             if visited is None:
@@ -343,42 +359,39 @@ class RequestSerializer:
                 return
             visited.add(obj_id)
             
-            # 处理对象属性（包括 __slots__）
-            attrs_to_check = []
-            if hasattr(target, '__dict__'):
-                attrs_to_check.append(target.__dict__)
-            
-            # 处理 __slots__
-            if hasattr(target, '__slots__'):
-                for slot in target.__slots__:
+            # 收集对象的所有属性名（同时覆盖 __dict__ 和 __slots__）
+            if hasattr(target, '__dict__') or hasattr(target, '__slots__'):
+                attr_names = set()
+                if hasattr(target, '__dict__'):
+                    attr_names.update(target.__dict__.keys())
+                if hasattr(target, '__slots__'):
+                    for slot in target.__slots__:
+                        try:
+                            if hasattr(target, slot):
+                                attr_names.add(slot)
+                        except AttributeError:
+                            pass
+                
+                for attr_name in attr_names:
                     try:
-                        if hasattr(target, slot):
-                            attrs_to_check.append({slot: getattr(target, slot)})
+                        attr_value = getattr(target, attr_name)
                     except AttributeError:
-                        pass
-            
-            for attr_dict in attrs_to_check:
-                attrs_to_clean = []
-                for attr_name, attr_value in list(attr_dict.items()):
-                    # 清理不可序列化对象
+                        continue
+                    
                     if is_unserializable(attr_value):
-                        attrs_to_clean.append((attr_dict, attr_name))
+                        try:
+                            setattr(target, attr_name, None)
+                        except (AttributeError, TypeError):
+                            pass
                     elif hasattr(attr_value, '__dict__') or hasattr(attr_value, '__slots__'):
                         recursive_clean(attr_value, visited, depth + 1)
                     elif isinstance(attr_value, dict):
                         recursive_clean(attr_value, visited, depth + 1)
-                
-                for attr_dict_item, attr_name in attrs_to_clean:
-                    try:
-                        attr_dict_item[attr_name] = None
-                    except (AttributeError, TypeError):
-                        pass
             
-            # 处理字典
+            # 处理字典类型
             if isinstance(target, dict):
                 keys_to_clean = []
                 for key, value in list(target.items()):
-                    # 清理不可序列化对象
                     if is_unserializable(value):
                         keys_to_clean.append(key)
                     elif hasattr(value, '__dict__') or hasattr(value, '__slots__'):
