@@ -350,15 +350,19 @@ class RedisPriorityQueue:
                     try:
                         if self.serialization_format == 'msgpack' and MSGPACK_AVAILABLE:
                             # 使用msgpack反序列化
-                            request = msgpack.unpackb(serialized, raw=False)
+                            data = msgpack.unpackb(serialized, raw=False)
                         else:
                             # 使用pickle反序列化
                             try:
                                 # 首先尝试标准的 pickle 反序列化
-                                request = pickle.loads(serialized)
+                                data = pickle.loads(serialized)
                             except UnicodeDecodeError:
                                 # 如果出现编码错误，尝试使用 latin1 解码
-                                request = pickle.loads(serialized, encoding='latin1')
+                                data = pickle.loads(serialized, encoding='latin1')
+                        
+                        # 将 dict 转换为 Request 对象
+                        from crawlo.network.request import Request
+                        request = Request.from_dict(data)
                         return request
                     except Exception as deserialize_error:
                         # 如果反序列化失败，记录错误并跳过这个任务
