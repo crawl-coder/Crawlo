@@ -8,6 +8,7 @@
 """
 
 from typing import Dict, List, Optional, Type, Callable
+import threading
 
 from crawlo.logging import get_logger
 from crawlo.bot.core.models import NotificationMessage, NotificationResponse, ChannelType
@@ -110,34 +111,37 @@ class NotificationDispatcher:
 
 # 全局通知器实例
 _notifier = None
+_notifier_lock = threading.Lock()
 
 
 def get_notifier() -> NotificationDispatcher:
     """
     获取全局通知器实例
     
-    使用单例模式，首次调用时自动初始化并注册所有渠道。
+    使用双重检查锁定（DCL）模式确保线程安全。
     """
     global _notifier
     
     if _notifier is None:
-        # 创建通知器
-        _notifier = NotificationDispatcher()
-        
-        # 自动注册所有渠道（使用单例函数获取实例）
-        from crawlo.bot.channels import (
-            get_dingtalk_channel,
-            get_feishu_channel,
-            get_wecom_channel,
-            get_email_channel,
-            get_sms_channel,
-        )
-        
-        _notifier.register_channel(get_dingtalk_channel())
-        _notifier.register_channel(get_feishu_channel())
-        _notifier.register_channel(get_wecom_channel())
-        _notifier.register_channel(get_email_channel())
-        _notifier.register_channel(get_sms_channel())
+        with _notifier_lock:
+            if _notifier is None:
+                # 创建通知器
+                _notifier = NotificationDispatcher()
+                
+                # 自动注册所有渠道（使用单例函数获取实例）
+                from crawlo.bot.channels import (
+                    get_dingtalk_channel,
+                    get_feishu_channel,
+                    get_wecom_channel,
+                    get_email_channel,
+                    get_sms_channel,
+                )
+                
+                _notifier.register_channel(get_dingtalk_channel())
+                _notifier.register_channel(get_feishu_channel())
+                _notifier.register_channel(get_wecom_channel())
+                _notifier.register_channel(get_email_channel())
+                _notifier.register_channel(get_sms_channel())
     
     return _notifier
 

@@ -36,13 +36,12 @@ class EmailChannel(NotificationChannel):
     """
     
     def __init__(self):
-        # 从配置中获取邮件相关信息
-        # 在实际应用中，这里应该从框架配置中读取
-        self.smtp_host = getattr(self, '_smtp_host', None)
-        self.smtp_port = getattr(self, '_smtp_port', 587)
-        self.smtp_user = getattr(self, '_smtp_user', None)
-        self.smtp_password = getattr(self, '_smtp_password', None)
-        self.sender_email = getattr(self, '_sender_email', None)
+        # 初始化配置为 None，通过 set_config() 或配置加载器设置
+        self.smtp_host = None
+        self.smtp_port = 587
+        self.smtp_user = None
+        self.smtp_password = None
+        self.sender_email = None
     
     @property
     def channel_type(self) -> ChannelType:
@@ -96,14 +95,13 @@ class EmailChannel(NotificationChannel):
             # 添加邮件正文
             msg.attach(MIMEText(content, 'plain', 'utf-8'))
             
-            # 连接到SMTP服务器并发送邮件
-            server = smtplib.SMTP(self.smtp_host, self.smtp_port)
-            server.starttls()  # 启用TLS加密
-            server.login(self.smtp_user, self.smtp_password)
-            
-            text = msg.as_string()
-            server.sendmail(self.sender_email, recipients, text)
-            server.quit()
+            # 使用上下文管理器确保连接正确关闭
+            with smtplib.SMTP(self.smtp_host, self.smtp_port) as server:
+                server.starttls()  # 启用TLS加密
+                server.login(self.smtp_user, self.smtp_password)
+                
+                text = msg.as_string()
+                server.sendmail(self.sender_email, recipients, text)
             
             logger.info(f"[Email] 邮件发送成功: {subject}, 收件人: {recipients}")
             return NotificationResponse.success_response(

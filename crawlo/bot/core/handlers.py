@@ -7,7 +7,8 @@
 处理各种爬虫事件的通知需求。
 """
 
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
+import threading
 
 from crawlo.logging import get_logger
 from crawlo.bot.core.models import NotificationMessage, NotificationResponse, NotificationType, ChannelType
@@ -51,12 +52,12 @@ class CrawlerNotificationHandler:
             if enabled:
                 logger.info(f"[Notification] 通知系统已启用 | 渠道: {', '.join(channels)}")
             else:
-                logger.info("[Notification] 通知系统已禁用")
+                logger.debug("[Notification] 通知系统已禁用")
             
             return enabled, channels
         except Exception as e:
             logger.debug(f"[Notification] 配置加载异常: {e}")
-            logger.info("[Notification] 通知系统已禁用")
+            logger.debug("[Notification] 通知系统已禁用")
             return False, []
     
     def _should_skip_duplicate(self, title: str, content: str, channel: str) -> bool:
@@ -97,7 +98,7 @@ class CrawlerNotificationHandler:
         content: str, 
         channel: ChannelType = ChannelType.DINGTALK,
         priority: str = "medium",
-        recipients: Optional[list] = None
+        recipients: Optional[List[str]] = None
     ) -> NotificationResponse:
         """
         发送状态通知
@@ -129,7 +130,7 @@ class CrawlerNotificationHandler:
         content: str, 
         channel: ChannelType = ChannelType.DINGTALK,
         priority: str = "high",
-        recipients: Optional[list] = None
+        recipients: Optional[List[str]] = None
     ) -> NotificationResponse:
         """
         发送告警通知
@@ -161,7 +162,7 @@ class CrawlerNotificationHandler:
         content: str, 
         channel: ChannelType = ChannelType.DINGTALK,
         priority: str = "medium",
-        recipients: Optional[list] = None
+        recipients: Optional[List[str]] = None
     ) -> NotificationResponse:
         """
         发送进度通知
@@ -193,7 +194,7 @@ class CrawlerNotificationHandler:
         content: str, 
         channel: ChannelType = ChannelType.DINGTALK,
         priority: str = "medium",
-        recipients: Optional[list] = None
+        recipients: Optional[List[str]] = None
     ) -> NotificationResponse:
         """
         发送数据推送通知
@@ -269,16 +270,21 @@ class CrawlerNotificationHandler:
 
 # 全局通知处理器实例
 _notification_handler = None
+_notification_handler_lock = threading.Lock()
 
 
 def get_notification_handler() -> CrawlerNotificationHandler:
     """
     获取全局通知处理器实例
+    
+    使用双重检查锁定（DCL）模式确保线程安全。
     """
     global _notification_handler
     
     if _notification_handler is None:
-        _notification_handler = CrawlerNotificationHandler()
+        with _notification_handler_lock:
+            if _notification_handler is None:
+                _notification_handler = CrawlerNotificationHandler()
     
     return _notification_handler
 

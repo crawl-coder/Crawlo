@@ -138,45 +138,57 @@ def apply_settings_config():
     这是一个便捷函数，用于直接从 settings 模块加载配置
     
     加载顺序：
-    1. 首先尝试从 crawlo.cfg 读取 settings 路径
-    2. 如果失败，尝试常见的 settings 模块路径
+    1. 首先尝试从 crawlo.project.get_settings() 获取配置
+    2. 如果失败，尝试从 crawlo.cfg 读取 settings 路径
+    3. 最后尝试常见的 settings 模块路径
     """
     try:
-        # 尝试导入项目 settings
         import importlib
-        import os
-        
-        # 获取当前工作目录
-        current_dir = os.getcwd()
-        
-        # 首先尝试从 crawlo.cfg 读取 settings 路径
-        settings_paths = []
-        cfg_settings = _get_settings_module_from_cfg()
-        if cfg_settings:
-            settings_paths.append(cfg_settings)
-        
-        # 如果没有找到配置，尝试通用的 'settings' 作为备选
-        if not settings_paths:
-            settings_paths.append('settings')
-        
         settings_dict = {}
         
-        for settings_path in settings_paths:
-            try:
-                settings_module = importlib.import_module(settings_path)
+        # 优先使用框架统一的配置获取方式
+        try:
+            from crawlo.project import get_settings
+            settings = get_settings()
+            if settings:
                 # 获取所有大写的配置项
-                for attr in dir(settings_module):
-                    if attr.isupper():
-                        settings_dict[attr] = getattr(settings_module, attr)
-                logger.debug(f"[ConfigLoader] 成功从 {settings_path} 加载配置")
-                break
-            except ImportError:
-                continue
+                settings_dict = {
+                    attr: getattr(settings, attr)
+                    for attr in dir(settings)
+                    if attr.isupper()
+                }
+                logger.debug("[ConfigLoader] 成功从 crawlo.project.get_settings() 加载配置")
+        except (ImportError, Exception) as e:
+            logger.debug(f"[ConfigLoader] 无法从 crawlo.project 获取配置: {e}")
+        
+        # 如果未获取到配置，尝试其他方式
+        if not settings_dict:
+            # 尝试从 crawlo.cfg 读取 settings 路径
+            settings_paths = []
+            cfg_settings = _get_settings_module_from_cfg()
+            if cfg_settings:
+                settings_paths.append(cfg_settings)
+            
+            # 如果没有找到配置，尝试通用的 'settings' 作为备选
+            if not settings_paths:
+                settings_paths.append('settings')
+            
+            for settings_path in settings_paths:
+                try:
+                    settings_module = importlib.import_module(settings_path)
+                    # 获取所有大写的配置项
+                    for attr in dir(settings_module):
+                        if attr.isupper():
+                            settings_dict[attr] = getattr(settings_module, attr)
+                    logger.debug(f"[ConfigLoader] 成功从 {settings_path} 加载配置")
+                    break
+                except ImportError:
+                    continue
         
         if settings_dict:
             load_notification_config(settings_dict)
         else:
-            logger.warning("[ConfigLoader] 未找到有效的 settings 模块")
+            logger.warning("[ConfigLoader] 未找到有效的 settings 模块，通知系统将使用默认配置")
             
     except Exception as e:
         logger.error(f"[ConfigLoader] 应用 settings 配置失败: {e}")

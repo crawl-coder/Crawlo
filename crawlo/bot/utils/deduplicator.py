@@ -11,6 +11,7 @@ import hashlib
 import time
 from typing import Dict, Set, Optional
 from threading import Lock
+
 from crawlo.logging import get_logger
 
 
@@ -22,15 +23,17 @@ class MessageDeduplicator:
     并提供时间窗口来控制重复消息的过滤。
     """
     
-    def __init__(self, time_window: int = 300):  # 默认5分钟时间窗口
+    def __init__(self, time_window: int = 300, max_size: int = 10000):  # 默认5分钟时间窗口，最大10000条记录
         """
         初始化去重管理器
         
         Args:
             time_window: 时间窗口（秒），在此时间内相同的
                         消息将被视为重复
+            max_size: 最大记录数，防止内存无限增长
         """
         self.time_window = time_window
+        self.max_size = max_size
         self._seen_messages: Dict[str, float] = {}  # 存储消息哈希和时间戳
         self._lock = Lock()  # 线程锁
         self.logger = get_logger(__name__)
@@ -80,7 +83,12 @@ class MessageDeduplicator:
                     self._seen_messages[message_hash] = current_time
                     return False
             else:
-                # 新消息，记录时间戳
+                # 新消息，检查容量限制
+                if len(self._seen_messages) >= self.max_size:
+                    # 达到容量限制，执行紧急清理（只保留最近的 80%）
+                    self._emergency_cleanup()
+                
+                # 记录时间戳
                 self._seen_messages[message_hash] = current_time
                 return False
     
@@ -98,6 +106,27 @@ class MessageDeduplicator:
         
         for message_hash in expired_hashes:
             del self._seen_messages[message_hash]
+    
+    def _emergency_cleanup(self) -> None:
+        """
+        紧急清理：当达到容量限制时，保留最近的 80% 记录
+        按时间戳排序，删除最旧的 20%
+        """
+        if not self._seen_messages:
+            return
+        
+        # 按时间戳排序
+        sorted_items = sorted(self._seen_messages.items(), key=lambda x: x[1])
+        
+        # 删除最旧的 20%
+        remove_count = int(len(sorted_items) * 0.2)
+        for i in range(remove_count):
+            del self._seen_messages[sorted_items[i][0]]
+        
+        self.logger.debug(
+            f"[Deduplicator] 紧急清理：删除 {remove_count} 条最旧记录，"
+            f"剩余 {len(self._seen_messages)} 条"
+        )
     
     def add_message(self, title: str, content: str, channel: str) -> None:
         """
@@ -122,11 +151,14 @@ class MessageDeduplicator:
 
 # 全局去重器实例
 _deduplicator: Optional[MessageDeduplicator] = None
+_deduplicator_lock = Lock()
 
 
 def get_deduplicator(time_window: int = 300) -> MessageDeduplicator:
     """
     获取全局去重器实例
+    
+    使用双重检查锁定（DCL）模式确保线程安全。
     
     Args:
         time_window: 时间窗口（秒）
@@ -137,7 +169,9 @@ def get_deduplicator(time_window: int = 300) -> MessageDeduplicator:
     global _deduplicator
     
     if _deduplicator is None:
-        _deduplicator = MessageDeduplicator(time_window)
+        with _deduplicator_lock:
+            if _deduplicator is None:
+                _deduplicator = MessageDeduplicator(time_window)
     
     return _deduplicator
 

@@ -13,11 +13,15 @@
 """
 import json
 import time
-from typing import Any, Dict, List, Optional, Set
+from typing import Any, Dict, List, Optional, Set, TYPE_CHECKING
 
 from crawlo.logging import get_logger
 from crawlo.utils.misc import safe_get_config
 from crawlo.checkpoint.storage import BaseStorage, JsonStorage, SqliteStorage
+
+if TYPE_CHECKING:
+    from crawlo.scheduling.scheduler import Scheduler
+    from crawlo.stats import StatsCollector
 
 
 class CheckpointManager:
@@ -75,7 +79,7 @@ class CheckpointManager:
         """检查点是否启用"""
         return safe_get_config(self.settings, 'CHECKPOINT_ENABLED', False, bool)
 
-    async def save(self, scheduler: Any = None, stats: Any = None) -> bool:
+    async def save(self, scheduler: Optional['Scheduler'] = None, stats: Optional['StatsCollector'] = None) -> bool:
         """保存检查点：队列请求 + 去重指纹 + 统计信息
 
         Args:
@@ -111,7 +115,7 @@ class CheckpointManager:
             success = self.storage.save(data)
 
             if success:
-                self.logger.info(
+                self.logger.debug(
                     f"Checkpoint saved: {len(requests_data)} pending requests, "
                     f"{len(fingerprints)} fingerprints"
                 )
@@ -135,6 +139,8 @@ class CheckpointManager:
                     f"{len(data.get('fingerprints', set()))} fingerprints, "
                     f"saved at {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(data.get('saved_at', 0)))}"
                 )
+            else:
+                self.logger.debug("No checkpoint found")
             return data
         except Exception as e:
             self.logger.error(f"Failed to load checkpoint: {e}")
@@ -161,8 +167,12 @@ class CheckpointManager:
 
     # ==================== 内部方法 ====================
 
-    async def _extract_pending_requests(self, scheduler: Any) -> List[Dict[str, Any]]:
+    async def _extract_pending_requests(self, scheduler: Optional['Scheduler']) -> List[Dict[str, Any]]:
         """从调度器中提取所有待处理请求
+
+        注意：此方法会临时从队列中取出请求，序列化后再放回。
+        如果调度器同时也在消费队列，可能存在竞态条件。
+        建议在保存检查点时暂停调度器。
 
         Args:
             scheduler: 调度器实例
@@ -185,6 +195,8 @@ class CheckpointManager:
             if queue_size == 0:
                 return []
 
+            self.logger.debug(f"Extracting {queue_size} pending requests from queue")
+
             # 从队列中逐个取出请求并序列化
             extracted = []
             for _ in range(queue_size):
@@ -195,6 +207,14 @@ class CheckpointManager:
                     extracted.append(request)
                 except Exception:
                     break
+
+            # 记录实际取出的数量（可能少于 queue_size，如果有其他消费者）
+            actual_count = len(extracted)
+            if actual_count < queue_size:
+                self.logger.warning(
+                    f"Queue size changed during extraction: expected {queue_size}, "
+                    f"got {actual_count}. Another consumer may be active."
+                )
 
             # 序列化请求
             serializer = getattr(scheduler, 'request_serializer', None)
@@ -218,11 +238,20 @@ class CheckpointManager:
                         pass
 
             # 将取出的请求放回队列
+            returned_count = 0
             for request in extracted:
                 try:
                     await queue_manager.put(request, priority=getattr(request, 'priority', 0))
+                    returned_count += 1
                 except Exception:
                     pass
+
+            # 验证是否全部放回
+            if returned_count < actual_count:
+                self.logger.error(
+                    f"Failed to return all requests to queue: {actual_count} extracted, "
+                    f"{returned_count} returned. {actual_count - returned_count} requests may be lost!"
+                )
 
         except Exception as e:
             self.logger.error(f"Failed to extract pending requests: {e}")
@@ -279,7 +308,7 @@ class CheckpointManager:
             self.logger.debug(f"Manual serialization failed: {e}")
             return None
 
-    def _extract_fingerprints(self, scheduler: Any) -> Set[str]:
+    def _extract_fingerprints(self, scheduler: Optional['Scheduler']) -> Set[str]:
         """从去重过滤器中提取指纹集合
 
         Args:
@@ -302,15 +331,21 @@ class CheckpointManager:
                 if isinstance(fps, set):
                     return fps.copy()
 
-            # Redis 过滤器：无法直接提取（数据在 Redis 中），返回空集
-            # Redis 过滤器天然持久化，不需要检查点保存指纹
+            # Redis 过滤器：无法直接提取（数据在 Redis 中）
+            # 检查是否是 Redis 过滤器
+            if hasattr(dupe_filter, 'redis_client') or 'redis' in type(dupe_filter).__name__.lower():
+                self.logger.warning(
+                    "Redis dedup filter detected: fingerprints not saved in checkpoint. "
+                    "Ensure Redis persistence is enabled (AOF/RDB) to prevent data loss."
+                )
+            
             return set()
 
         except Exception as e:
             self.logger.debug(f"Failed to extract fingerprints: {e}")
             return set()
 
-    def _extract_stats(self, stats: Any) -> Dict[str, Any]:
+    def _extract_stats(self, stats: Optional['StatsCollector']) -> Dict[str, Any]:
         """提取统计信息
 
         Args:
@@ -405,7 +440,7 @@ class CheckpointManager:
             except Exception:
                 return None
 
-    def restore_fingerprints(self, fingerprints: Set[str], scheduler: Any) -> bool:
+    def restore_fingerprints(self, fingerprints: Set[str], scheduler: Optional['Scheduler']) -> bool:
         """恢复去重指纹到过滤器
 
         Args:
