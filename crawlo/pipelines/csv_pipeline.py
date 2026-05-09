@@ -7,6 +7,13 @@ from datetime import datetime
 from crawlo.logging import get_logger
 from crawlo.exceptions import ItemDiscard
 
+# 尝试导入 aiofiles 以支持异步文件操作
+try:
+    import aiofiles
+    AIOFILES_AVAILABLE = True
+except ImportError:
+    AIOFILES_AVAILABLE = False
+
 
 class CsvPipeline:
     """CSV文件输出管道"""
@@ -50,7 +57,16 @@ class CsvPipeline:
     async def _ensure_file_open(self):
         """确保文件已打开"""
         if self.file_handle is None:
-            self.file_handle = open(self.file_path, 'w', newline='', encoding='utf-8')
+            # 如果安装了aiofiles，使用异步文件操作
+            if AIOFILES_AVAILABLE:
+                self.file_handle = await aiofiles.open(
+                    self.file_path, 'w', newline='', encoding='utf-8'
+                )
+            else:
+                self.file_handle = open(
+                    self.file_path, 'w', newline='', encoding='utf-8'
+                )
+            
             self.csv_writer = csv.writer(
                 self.file_handle,
                 delimiter=self.delimiter,
@@ -146,12 +162,19 @@ class CsvDictPipeline:
         # 优先使用配置的字段名
         configured_fields = self.settings.get('CSV_FIELDNAMES')
         if configured_fields:
-            return configured_fields if isinstance(configured_fields, list) else configured_fields.split(',')
+            if isinstance(configured_fields, list):
+                return configured_fields
+            elif isinstance(configured_fields, str):
+                # 使用更安全的分割方式，处理空白字符
+                return [f.strip() for f in configured_fields.split(',') if f.strip()]
         
         # 使用爬虫定义的字段名
         spider_fields = getattr(self.crawler.spider, 'csv_fieldnames', None)
         if spider_fields:
-            return spider_fields if isinstance(spider_fields, list) else spider_fields.split(',')
+            if isinstance(spider_fields, list):
+                return spider_fields
+            elif isinstance(spider_fields, str):
+                return [f.strip() for f in spider_fields.split(',') if f.strip()]
         
         # 使用item的字段名
         return list(item_dict.keys())
@@ -161,7 +184,16 @@ class CsvDictPipeline:
         if self.file_handle is None:
             self.fieldnames = self._get_fieldnames(item_dict)
             
-            self.file_handle = open(self.file_path, 'w', newline='', encoding='utf-8')
+            # 如果安装了aiofiles，使用异步文件操作
+            if AIOFILES_AVAILABLE:
+                self.file_handle = await aiofiles.open(
+                    self.file_path, 'w', newline='', encoding='utf-8'
+                )
+            else:
+                self.file_handle = open(
+                    self.file_path, 'w', newline='', encoding='utf-8'
+                )
+            
             self.csv_writer = csv.DictWriter(
                 self.file_handle,
                 fieldnames=self.fieldnames,
@@ -248,7 +280,16 @@ class CsvBatchPipeline:
     async def _ensure_file_open(self):
         """确保文件已打开"""
         if self.file_handle is None:
-            self.file_handle = open(self.file_path, 'w', newline='', encoding='utf-8')
+            # 如果安装了aiofiles，使用异步文件操作
+            if AIOFILES_AVAILABLE:
+                self.file_handle = await aiofiles.open(
+                    self.file_path, 'w', newline='', encoding='utf-8'
+                )
+            else:
+                self.file_handle = open(
+                    self.file_path, 'w', newline='', encoding='utf-8'
+                )
+            
             self.csv_writer = csv.writer(
                 self.file_handle,
                 delimiter=self.delimiter,
@@ -257,6 +298,15 @@ class CsvBatchPipeline:
             )
             self.logger.info(f"CSV批量文件已创建: {self.file_path}")
     
+    async def _write_headers(self, headers):
+        """写入表头（立即刷新到文件）"""
+        if not self.headers_written and self.include_headers:
+            await self._ensure_file_open()
+            self.csv_writer.writerow(headers)
+            self.file_handle.flush()
+            self.headers_written = True
+            self.logger.debug(f"CSV表头已写入: {headers}")
+
     async def _flush_batch(self):
         """刷新批量缓存到文件"""
         if not self.batch_buffer:
@@ -281,11 +331,10 @@ class CsvBatchPipeline:
             async with self.lock:
                 item_dict = dict(item)
                 
-                # 写入表头（仅第一次）
+                # 写入表头（仅第一次，立即刷新）
                 if not self.headers_written and self.include_headers:
                     headers = list(item_dict.keys())
-                    self.batch_buffer.append(headers)
-                    self.headers_written = True
+                    await self._write_headers(headers)
                 
                 # 添加数据到缓存
                 values = [str(v) if v is not None else '' for v in item_dict.values()]

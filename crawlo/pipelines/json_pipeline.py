@@ -7,6 +7,13 @@ from datetime import datetime
 from crawlo.logging import get_logger
 from crawlo.exceptions import ItemDiscard
 
+# 尝试导入 aiofiles 以支持异步文件操作
+try:
+    import aiofiles
+    AIOFILES_AVAILABLE = True
+except ImportError:
+    AIOFILES_AVAILABLE = False
+
 
 class JsonPipeline:
     """JSON文件输出管道"""
@@ -44,7 +51,15 @@ class JsonPipeline:
     async def _ensure_file_open(self):
         """确保文件已打开"""
         if self.file_handle is None:
-            self.file_handle = open(self.file_path, 'w', encoding='utf-8')
+            # 如果安装了aiofiles，使用异步文件操作
+            if AIOFILES_AVAILABLE:
+                self.file_handle = await aiofiles.open(
+                    self.file_path, 'w', encoding='utf-8'
+                )
+            else:
+                self.file_handle = open(
+                    self.file_path, 'w', encoding='utf-8'
+                )
             self.logger.info(f"JSON文件已创建: {self.file_path}")
     
     async def process_item(self, item, spider) -> Optional[dict]:
@@ -113,7 +128,15 @@ class JsonLinesPipeline:
     async def _ensure_file_open(self):
         """确保文件已打开"""
         if self.file_handle is None:
-            self.file_handle = open(self.file_path, 'w', encoding='utf-8')
+            # 如果安装了aiofiles，使用异步文件操作
+            if AIOFILES_AVAILABLE:
+                self.file_handle = await aiofiles.open(
+                    self.file_path, 'w', encoding='utf-8'
+                )
+            else:
+                self.file_handle = open(
+                    self.file_path, 'w', encoding='utf-8'
+                )
             self.logger.info(f"JSONL文件已创建: {self.file_path}")
     
     async def process_item(self, item, spider) -> Optional[dict]:
@@ -168,6 +191,11 @@ class JsonArrayPipeline:
         self.items = []  # 内存中暂存所有items
         self.lock = asyncio.Lock()
         
+        # 内存限制配置
+        self.max_items = self.settings.get_int('JSON_ARRAY_MAX_ITEMS', 100000)
+        self.temp_files = []  # 临时文件列表
+        self.temp_counter = 0
+        
         crawler.subscriber.subscribe(self.spider_closed, event='spider_closed')
         
     @classmethod
@@ -186,6 +214,25 @@ class JsonArrayPipeline:
         path.parent.mkdir(parents=True, exist_ok=True)
         return path
     
+    async def _flush_to_temp_file(self):
+        """将内存中的数据刷新到临时文件"""
+        if not self.items:
+            return
+        
+        temp_path = self.file_path.with_name(
+            f"{self.file_path.stem}_temp_{self.temp_counter}{self.file_path.suffix}"
+        )
+        
+        with open(temp_path, 'w', encoding='utf-8') as f:
+            json.dump(self.items, f, ensure_ascii=False, indent=2)
+        
+        self.temp_files.append(temp_path)
+        self.temp_counter += 1
+        items_count = len(self.items)
+        self.items.clear()
+        
+        self.logger.info(f"刷新 {items_count} 个items到临时文件: {temp_path}")
+    
     async def process_item(self, item, spider) -> Optional[dict]:
         """处理item方法"""
         try:
@@ -195,6 +242,10 @@ class JsonArrayPipeline:
                 
                 self.crawler.stats.inc_value('json_array_pipeline/items_collected')
                 self.logger.debug(f"收集item，当前总数: {len(self.items)}")
+                
+                # 超过内存限制时刷新到临时文件
+                if len(self.items) >= self.max_items:
+                    await self._flush_to_temp_file()
                 
             return item
             
@@ -206,7 +257,27 @@ class JsonArrayPipeline:
     async def spider_closed(self):
         """关闭时写入所有items到JSON数组文件"""
         try:
-            if self.items:
+            # 刷新剩余的items
+            async with self.lock:
+                if self.items:
+                    await self._flush_to_temp_file()
+            
+            # 合并所有临时文件
+            if self.temp_files:
+                all_items = []
+                for temp_path in self.temp_files:
+                    with open(temp_path, 'r', encoding='utf-8') as f:
+                        all_items.extend(json.load(f))
+                    temp_path.unlink()  # 删除临时文件
+                
+                # 写入最终文件
+                with open(self.file_path, 'w', encoding='utf-8') as f:
+                    json.dump(all_items, f, ensure_ascii=False, indent=2)
+                
+                self.logger.info(f"JSON数组文件已保存，包含 {len(all_items)} 个项目: {self.file_path}")
+                self.crawler.stats.set_value('json_array_pipeline/total_items', len(all_items))
+            elif self.items:
+                # 没有临时文件，直接写入
                 with open(self.file_path, 'w', encoding='utf-8') as f:
                     json.dump(self.items, f, ensure_ascii=False, indent=2)
                 
