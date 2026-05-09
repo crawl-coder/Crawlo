@@ -8,6 +8,7 @@
 """
 
 import os
+import re
 import aiofiles
 from urllib.parse import urljoin, urlparse
 from typing import Optional, Dict, Any, List
@@ -199,26 +200,41 @@ class FileMiddleware(BaseMiddleware):
     
     def _sanitize_filename(self, filename: str) -> str:
         """
-        清理文件名，移除非法字符
+        Clean filename, remove illegal characters
         
         Args:
-            filename: 原始文件名
+            filename: Original filename
             
         Returns:
-            str: 清理后的文件名
+            str: Cleaned filename
         """
-        # 移除路径分隔符，防止路径遍历攻击
+        # Remove path separators to prevent path traversal attacks
         filename = filename.replace('/', '_').replace('\\', '_')
         
-        # 移除其他可能的危险字符
+        # Remove control characters (0x00-0x1f)
+        filename = re.sub(r'[\x00-\x1f]', '', filename)
+        
+        # Remove other potentially dangerous characters
         dangerous_chars = '<>:"|?*'
         for char in dangerous_chars:
             filename = filename.replace(char, '_')
         
-        # 限制文件名长度
+        # Handle Windows reserved names
+        reserved_names = {'CON', 'PRN', 'AUX', 'NUL', 'COM1', 'COM2', 'COM3', 'COM4', 
+                         'COM5', 'COM6', 'COM7', 'COM8', 'COM9', 'LPT1', 'LPT2', 'LPT3', 
+                         'LPT4', 'LPT5', 'LPT6', 'LPT7', 'LPT8', 'LPT9'}
+        name_without_ext = os.path.splitext(filename)[0].upper()
+        if name_without_ext in reserved_names:
+            filename = f"_{filename}"
+        
+        # Limit filename length
         if len(filename) > 200:
             name, ext = os.path.splitext(filename)
             filename = name[:190] + ext
+        
+        # Ensure filename is not empty
+        if not filename or filename.strip() == '':
+            filename = 'unnamed_file'
         
         return filename
     

@@ -11,6 +11,7 @@ Features:
 4. Immediate downgrade to direct connection when proxy fails
 5. Failed proxy recovery on successful requests
 """
+import json
 import random
 import aiohttp
 from typing import Optional, List
@@ -73,7 +74,6 @@ class ProxyMiddleware:
                         else:
                             # If not JSON, try to parse as text
                             text = await resp.text()
-                            import json
                             data = json.loads(text)
                         
                         # Support multiple proxy extraction methods
@@ -84,6 +84,10 @@ class ProxyMiddleware:
                         self.logger.warning(f"Proxy API returned status {resp.status}")
         except ImportError as e:
             self.logger.error(f"aiohttp not installed: {repr(e)}")
+        except json.JSONDecodeError as e:
+            self.logger.warning(f"Proxy API response JSON parse error: {e}")
+        except UnicodeDecodeError as e:
+            self.logger.warning(f"Proxy API response encoding error: {e}")
         except Exception as e:
             self.logger.warning(f"Failed to fetch proxy from API: {repr(e)}")
         return None

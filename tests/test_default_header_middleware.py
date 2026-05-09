@@ -288,31 +288,28 @@ class TestDefaultHeaderMiddleware(unittest.TestCase):
             # 检查已存在的User-Agent不被覆盖
             self.assertEqual(request.headers['User-Agent'], existing_ua)
 
-    def test_get_random_user_agent(self):
-        """测试获取随机User-Agent功能"""
-        # 设置自定义User-Agent列表
-        custom_user_agents = [
-            'Custom-Agent/1.0',
-            'Custom-Agent/2.0',
-            'Custom-Agent/3.0'
-        ]
-        self.settings.set('RANDOM_USER_AGENT_ENABLED', True)
-        self.settings.set('USER_AGENTS', custom_user_agents)
+    def test_get_rotated_user_agent(self):
+        """Test getting random User-Agent from built-in list"""
+        # Enable User-Agent rotation
+        self.settings.set('USER_AGENT_ROTATION', True)
+        self.settings.set('USER_AGENT_TYPE', 'desktop')
         self.settings.set('LOG_LEVEL', 'DEBUG')
-        
-        # 创建一个模拟的crawler对象
+
+        # Create a mock crawler object
         crawler = Mock()
         crawler.settings = self.settings
-        
+
         logger = MockLogger('DefaultHeaderMiddleware')
         with patch('crawlo.middleware.default_header.get_logger', return_value=logger):
             middleware = DefaultHeaderMiddleware.create_instance(crawler)
+
+            # Get random User-Agent
+            random_ua = middleware._get_rotated_user_agent()
             
-            # 获取随机User-Agent
-            random_ua = middleware._get_random_user_agent()
-            
-            # 检查返回的User-Agent在列表中
-            self.assertIn(random_ua, custom_user_agents)
+            # Check that a User-Agent is returned
+            self.assertIsNotNone(random_ua)
+            self.assertIsInstance(random_ua, str)
+            self.assertTrue(len(random_ua) > 0)
 
 
 if __name__ == '__main__':

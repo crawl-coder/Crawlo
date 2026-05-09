@@ -120,5 +120,5 @@ class OffsiteMiddleware:
         # If this is IgnoreRequestError that we raised, handle it
         if isinstance(exception, IgnoreRequestError) and "Offsite request filtered" in str(exception):
             self.logger.debug(f"Filtered offsite request: {request.url}")
-            return True  # Exception has been handled
+            return None  # Exception has been handled
         return None

@@ -139,42 +139,46 @@ class DynamicRenderMiddleware(BaseMiddleware):
 
     def _check_needs_dynamic(self, request) -> bool:
         """
-        检查请求是否需要动态渲染
+        Check if request needs dynamic rendering
 
-        检测策略（按优先级）：
-        1. URL 模式匹配（用户配置）
-        2. 域名配置（用户配置）
-        3. 缓存查询
-        4. 默认值（默认为 False，使用协议下载器）
+        Detection strategy (by priority):
+        1. URL pattern matching (user configured)
+        2. Domain configuration (user configured)
+        3. Cache query
+        4. Default value (defaults to False, using protocol downloader)
         """
         url = request.url
         parsed_url = urlparse(url)
         domain = parsed_url.netloc.lower()
 
-        # 1. 检查 URL 模式（用户配置）
+        # 1. Check URL pattern (user configured)
         for pattern in self._dynamic_pattern_regex:
             if pattern.search(url):
                 self.logger.debug(f"URL pattern matched, using dynamic: {url}")
+                self._cache_domain(url, True)  # Cache result
                 return True
 
         for pattern in self._static_pattern_regex:
             if pattern.search(url):
                 self.logger.debug(f"Static URL pattern matched, using protocol: {url}")
+                self._cache_domain(url, False)  # Cache result
                 return False
 
-        # 2. 检查域名配置（用户配置）
+        # 2. Check domain configuration (user configured)
         if domain in self.dynamic_domains:
             self.logger.debug(f"Domain in dynamic list: {domain}")
+            self._cache_domain(url, True)  # Cache result
             return True
         if domain in self.static_domains:
             self.logger.debug(f"Domain in static list: {domain}")
+            self._cache_domain(url, False)  # Cache result
             return False
 
-        # 3. 检查缓存
+        # 3. Check cache
         if self.cache_enabled and domain in self._domain_cache:
             return self._domain_cache[domain]
 
-        # 4. 返回默认值（默认使用协议下载器）
+        # 4. Return default value (default to protocol downloader)
         return self.default_dynamic
 
     def _cache_domain(self, url: str, needs_dynamic: bool):

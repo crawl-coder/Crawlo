@@ -85,7 +85,7 @@ class DefaultHeaderMiddleware(object):
             return random.choice(self.user_agents)
         return None
 
-    async def process_request(self, request, _spider):
+    def process_request(self, request, _spider):
         """
         Process request, add headers following priority:
         1. Fixed USER_AGENT (if configured)

@@ -71,16 +71,16 @@ class RequestIgnoreMiddleware(object):
     @staticmethod
     def process_exception(_request, exc, _spider):
         """
-        处理异常，识别IgnoreRequestError
+        Handle exception, identify IgnoreRequestError
         
         Args:
-            _request: 请求对象
-            exc: 异常对象
-            _spider: 爬虫实例
+            _request: Request object
+            exc: Exception object
+            _spider: Spider instance
             
         Returns:
-            bool: 如果是IgnoreRequestError则返回True，否则返回None
+            None: Always returns None to indicate exception is handled
         """
         if isinstance(exc, IgnoreRequestError):
-            return True
+            return None  # Exception handled, stop propagation
         return None

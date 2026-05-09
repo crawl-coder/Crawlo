@@ -93,16 +93,20 @@ class MiddlewarePriorityGroup:
 # 与 default_settings.py 中的配置保持一致
 
 BUILTIN_MIDDLEWARE_PRIORITIES = {
-    # 请求预处理阶段（数值小→请求先执行）
+    # Request processing phase (smaller values execute first)
     'crawlo.middleware.request_ignore.RequestIgnoreMiddleware': 100,
     'crawlo.middleware.download_delay.DownloadDelayMiddleware': 200,
     'crawlo.middleware.default_header.DefaultHeaderMiddleware': 300,
     'crawlo.middleware.offsite.OffsiteMiddleware': 400,
+    'crawlo.middleware.dynamic_render_middleware.DynamicRenderMiddleware': 350,
+    'crawlo.middleware.cloudflare_bypass.CloudflareBypassMiddleware': 355,
+    'crawlo.middleware.proxy.ProxyMiddleware': 250,
     
-    # 响应处理阶段（数值大→响应先执行）
+    # Response processing phase (larger values execute first)
     'crawlo.middleware.response_filter.ResponseFilterMiddleware': 700,
     'crawlo.middleware.response_code.ResponseCodeMiddleware': 650,
     'crawlo.middleware.retry.RetryMiddleware': 600,
+    'crawlo.middleware.file_middleware.FileMiddleware': 550,
 }
 
 

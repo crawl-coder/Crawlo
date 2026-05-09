@@ -162,26 +162,26 @@ class RetryMiddleware(object):
                 is_http_error = reason.isdigit() or reason.startswith('HTTP')
                 
                 if is_http_error and retry_times <= self.proxy_switch_threshold:
-                    # HTTP 错误，继续使用当前代理
-                    self.logger.info(f"[Retry {retry_times}/3] ({reason}), using proxy: {request_copy.proxy}, URL: {request.url}")
+                    # HTTP error, continue using current proxy
+                    self.logger.info(f"[Retry {retry_times}/{self.max_retry_times}] ({reason}), using proxy: {request_copy.proxy}, URL: {request.url}")
                 else:
-                    # 网络错误（非 HTTP 错误）或超过阈值，清除代理
+                    # Network error (non-HTTP) or exceeded threshold, clear proxy
                     old_proxy = request_copy.proxy
                     if is_http_error:
-                        # HTTP 错误但超过阈值，切换直连
-                        self.logger.info(f"[Retry {retry_times}/3] ({reason}), removing proxy: {old_proxy}, switching to direct connection, URL: {request.url}")
+                        # HTTP error but exceeded threshold, switch to direct connection
+                        self.logger.info(f"[Retry {retry_times}/{self.max_retry_times}] ({reason}), removing proxy: {old_proxy}, switching to direct connection, URL: {request.url}")
                     else:
-                        # 网络错误，清除代理获取新代理
-                        self.logger.info(f"[Retry {retry_times}/3] ({reason}), clearing proxy: {old_proxy}, will get new proxy, URL: {request.url}")
-                    request_copy.proxy = None  # 清除代理，让代理中间件重新分配
+                        # Network error, clear proxy to get new one
+                        self.logger.info(f"[Retry {retry_times}/{self.max_retry_times}] ({reason}), clearing proxy: {old_proxy}, will get new proxy, URL: {request.url}")
+                    request_copy.proxy = None  # Clear proxy, let proxy middleware reassign
             else:
-                self.logger.info(f"[Retry {retry_times}/3] ({reason}), direct connection, URL: {request.url}")
+                self.logger.info(f"[Retry {retry_times}/{self.max_retry_times}] ({reason}), direct connection, URL: {request.url}")
             
-            # 指数退避重试：避免快速连续重试导致资源浪费
-            # 第1次重试：等待 1秒
-            # 第2次重试：等待 2秒
-            # 第3次重试：等待 4秒
-            backoff_time = min(2 ** (retry_times - 1), 4)  # 最多等待4秒
+            # Exponential backoff retry: avoid rapid consecutive retries wasting resources
+            # 1st retry: wait 1s
+            # 2nd retry: wait 2s
+            # 3rd retry: wait 4s
+            backoff_time = min(2 ** (retry_times - 1), 2 ** (self.max_retry_times - 1))  # Max wait based on max_retry_times
             request_copy.meta['retry_backoff'] = backoff_time
                 
             request_copy.priority = request.priority + self.retry_priority

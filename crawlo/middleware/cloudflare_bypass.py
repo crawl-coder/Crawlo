@@ -53,25 +53,25 @@ class CloudflareBypassMiddleware:
         "interactive",
     )
     
-    # Cloudflare response signatures
-    CLOUDFLARE_SIGNATURES = [
-        rb'cloudflare',
-        rb'cf-ray',
-        rb'cf-browser-verify',
-        rb'cf_chl_opt',
-        rb'challenge-platform',
-        rb'ray id:',
-        rb'Checking your browser',
-        rb'Just a moment',
-        rb'DDoS protection by Cloudflare',
-        rb'Please Wait\.\.\. \| Cloudflare',
-        rb'<title>Access denied</title>',
-        rb'<title>Attention Required!</title>',
-        rb'enable JavaScript',
-        rb'cf_clearance',
-        rb'__cf_bm',
-        rb'cf-mitigated',
-        rb'cType:',  # Turnstile challenge type identifier
+    # Cloudflare response signatures (will be compiled in __init__)
+    CLOUDFLARE_SIGNATURE_PATTERNS = [
+        r'cloudflare',
+        r'cf-ray',
+        r'cf-browser-verify',
+        r'cf_chl_opt',
+        r'challenge-platform',
+        r'ray id:',
+        r'Checking your browser',
+        r'Just a moment',
+        r'DDoS protection by Cloudflare',
+        r'Please Wait\.\.\. \| Cloudflare',
+        r'<title>Access denied</title>',
+        r'<title>Attention Required!</title>',
+        r'enable JavaScript',
+        r'cf_clearance',
+        r'__cf_bm',
+        r'cf-mitigated',
+        r'cType:',  # Turnstile challenge type identifier
     ]
     
     # Cloudflare challenge platform URL pattern
@@ -90,6 +90,12 @@ class CloudflareBypassMiddleware:
         
         # Downloader instance cache (lazy initialization)
         self._bypass_downloader = None
+        
+        # Pre-compile regex patterns for performance
+        self._compiled_signatures = [
+            re.compile(pattern, re.IGNORECASE) 
+            for pattern in self.CLOUDFLARE_SIGNATURE_PATTERNS
+        ]
         
         self.logger.debug(f"CloudflareBypassMiddleware initialized (downloader={self.default_downloader})")
 
@@ -174,9 +180,9 @@ class CloudflareBypassMiddleware:
         if not body:
             return False
         
-        # Check Cloudflare signatures
-        for signature in self.CLOUDFLARE_SIGNATURES:
-            if re.search(signature, body, re.IGNORECASE):
+        # Check Cloudflare signatures using pre-compiled patterns
+        for pattern in self._compiled_signatures:
+            if pattern.search(body):
                 return True
         
         return False
