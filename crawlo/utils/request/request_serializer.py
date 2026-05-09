@@ -317,6 +317,20 @@ class RequestSerializer:
         import logging
         import threading
         
+        def is_unserializable(obj: Any) -> bool:
+            """检查对象是否不可序列化"""
+            if obj is None:
+                return False
+            if isinstance(obj, (logging.Logger, threading.RLock)):
+                return True
+            # 检查类名
+            class_name = getattr(obj, '__class__', None)
+            if class_name and 'Lock' in (class_name.__name__ or ''):
+                return True
+            if class_name and 'Logger' in (class_name.__name__ or ''):
+                return True
+            return False
+        
         def recursive_clean(target: Any, visited: Optional[set] = None, depth: int = 0) -> None:
             """递归清理对象"""
             if depth > 5 or not target:
@@ -329,44 +343,45 @@ class RequestSerializer:
                 return
             visited.add(obj_id)
             
-            # 处理对象属性
+            # 处理对象属性（包括 __slots__）
+            attrs_to_check = []
             if hasattr(target, '__dict__'):
+                attrs_to_check.append(target.__dict__)
+            
+            # 处理 __slots__
+            if hasattr(target, '__slots__'):
+                for slot in target.__slots__:
+                    try:
+                        if hasattr(target, slot):
+                            attrs_to_check.append({slot: getattr(target, slot)})
+                    except AttributeError:
+                        pass
+            
+            for attr_dict in attrs_to_check:
                 attrs_to_clean = []
-                for attr_name, attr_value in list(target.__dict__.items()):
-                    # 清理Logger对象
-                    if isinstance(attr_value, logging.Logger):
-                        attrs_to_clean.append(attr_name)
-                    # 清理RLock对象
-                    elif isinstance(attr_value, threading.RLock) or \
-                         (hasattr(attr_value, '__class__') and 'RLock' in (attr_value.__class__.__name__ or '')):
-                        attrs_to_clean.append(attr_name)
-                    elif isinstance(attr_name, str) and 'logger' in attr_name.lower():
-                        attrs_to_clean.append(attr_name)
-                    elif hasattr(attr_value, '__dict__'):
+                for attr_name, attr_value in list(attr_dict.items()):
+                    # 清理不可序列化对象
+                    if is_unserializable(attr_value):
+                        attrs_to_clean.append((attr_dict, attr_name))
+                    elif hasattr(attr_value, '__dict__') or hasattr(attr_value, '__slots__'):
                         recursive_clean(attr_value, visited, depth + 1)
                     elif isinstance(attr_value, dict):
                         recursive_clean(attr_value, visited, depth + 1)
                 
-                for attr_name in attrs_to_clean:
+                for attr_dict_item, attr_name in attrs_to_clean:
                     try:
-                        setattr(target, attr_name, None)
+                        attr_dict_item[attr_name] = None
                     except (AttributeError, TypeError):
                         pass
             
             # 处理字典
-            elif isinstance(target, dict):
+            if isinstance(target, dict):
                 keys_to_clean = []
                 for key, value in list(target.items()):
-                    # 清理Logger对象
-                    if isinstance(value, logging.Logger):
+                    # 清理不可序列化对象
+                    if is_unserializable(value):
                         keys_to_clean.append(key)
-                    # 清理RLock对象
-                    elif isinstance(value, threading.RLock) or \
-                         (hasattr(value, '__class__') and 'RLock' in (value.__class__.__name__ or '')):
-                        keys_to_clean.append(key)
-                    elif isinstance(key, str) and 'logger' in key.lower():
-                        keys_to_clean.append(key)
-                    elif hasattr(value, '__dict__'):
+                    elif hasattr(value, '__dict__') or hasattr(value, '__slots__'):
                         recursive_clean(value, visited, depth + 1)
                     elif isinstance(value, dict):
                         recursive_clean(value, visited, depth + 1)
