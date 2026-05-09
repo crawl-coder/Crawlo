@@ -27,7 +27,7 @@ class CrawlerComponentFactory(ComponentFactory):
         try:
             from crawlo.core.engine import Engine
             from crawlo.core.scheduler import Scheduler
-            from crawlo.stats_collector import StatsCollector
+            from crawlo.stats.collector import StatsCollector
             from crawlo.event import Subscriber
             from crawlo.extension import ExtensionManager
             
@@ -57,7 +57,7 @@ def create_scheduler(crawler, **kwargs):
 
 # StatsCollector component
 def create_stats(crawler, **kwargs):
-    from crawlo.stats_collector import StatsCollector
+    from crawlo.stats.collector import StatsCollector
     return StatsCollector(crawler)
 
 # Subscriber component
