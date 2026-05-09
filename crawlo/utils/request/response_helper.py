@@ -126,5 +126,6 @@ __all__ = [
     "parse_cookies",
     "regex_search",
     "regex_findall",
+    "regex_findone",
     "get_header_value"
 ]

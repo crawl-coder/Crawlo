@@ -105,15 +105,16 @@ class RedisKeyManager:
     @staticmethod
     def from_settings(settings: Any) -> 'RedisKeyManager':
         """从配置创建 Redis Key 管理器实例"""
-        project_name = getattr(settings, 'get', lambda k, d: getattr(settings, k, d))(
-            'PROJECT_NAME', 'default'
-        )
-
-        spider_name = getattr(settings, 'get', lambda k, d: getattr(settings, k, d))(
-            'SPIDER_NAME', None
-        )
-
+        project_name = RedisKeyManager._get_setting(settings, 'PROJECT_NAME', 'default')
+        spider_name = RedisKeyManager._get_setting(settings, 'SPIDER_NAME', None)
         return RedisKeyManager(project_name, spider_name)
+
+    @staticmethod
+    def _get_setting(settings: Any, key: str, default: Any) -> Any:
+        """统一获取配置值，兼容多种 settings 对象"""
+        if hasattr(settings, 'get'):
+            return settings.get(key, default)
+        return getattr(settings, key, default)
 
     @staticmethod
     def extract_project_name_from_key(key: str) -> Optional[str]:

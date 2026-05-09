@@ -7,7 +7,7 @@ Request 序列化工具类
 设计参考：Scrapy 的 request_to_dict / request_from_dict 机制
 """
 import gc
-import logging
+import logging  # 仅用于 UNSERIALIZABLE_TYPES 类型检查
 import pickle
 import threading
 from typing import Any, Dict, Optional, Set, TYPE_CHECKING, Literal
@@ -175,11 +175,12 @@ class RequestSerializer:
         """
         try:
             if self.serialization_format == 'msgpack' and MSGPACK_AVAILABLE:
-                pickle.dumps(request)
+                msgpack.packb(request, default=str)
             else:
                 pickle.dumps(request)
             return True
-        except Exception:
+        except Exception as e:
+            self.logger.warning(f"序列化失败: {type(e).__name__}: {e}")
             return False
     
     def _clean_dict(self, data: Dict[str, Any], depth: int = 0, visited: Optional[Set[int]] = None) -> None:
@@ -288,6 +289,17 @@ class RequestSerializer:
         Returns:
             Request: 清理后的请求对象
         """
+        # 记录深度清理前的属性状态
+        self.logger.debug("开始深度清理，检查所有属性:")
+        if hasattr(request, '__slots__'):
+            for slot in request.__slots__:
+                try:
+                    value = getattr(request, slot)
+                    if value is not None:
+                        self.logger.debug(f"  {slot}: {type(value).__name__}")
+                except AttributeError:
+                    pass
+        
         self._clean_object(request)
         gc.collect()
         return request
@@ -356,9 +368,11 @@ class RequestSerializer:
             
             # 验证新 Request 可以序列化
             if self._can_serialize(clean_request):
+                self.logger.info(f"成功重建 Request: {clean_request.url}")
                 return clean_request
             
             # 如果仍然无法序列化，创建最简化的请求
+            self.logger.warning("重建 Request 仍失败，创建最简版本")
             return Request(url=str(original_request.url))
             
         except Exception as e:

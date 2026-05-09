@@ -5,6 +5,7 @@ Redis 配置管理器
 ================
 统一管理 Redis 连接配置、URL 生成和解析功能
 """
+import threading
 from typing import Dict, Any, Optional
 from urllib.parse import urlparse, parse_qs
 
@@ -14,6 +15,7 @@ class RedisConfig:
     
     _instances: Dict[str, 'RedisConfig'] = {}
     _default_instance: Optional['RedisConfig'] = None
+    _instances_lock = threading.Lock()
     
     def __init__(
         self,
@@ -71,14 +73,15 @@ class RedisConfig:
         temp_config = cls(host, port, password, username, db, ssl, **kwargs)
         key = temp_config._instance_key
         
-        # 检查是否已存在实例
-        if key not in cls._instances:
-            cls._instances[key] = temp_config
-            # 如果是第一个实例，设为默认实例
-            if cls._default_instance is None:
-                cls._default_instance = temp_config
-                
-        return cls._instances[key]
+        # 线程安全检查和创建
+        with cls._instances_lock:
+            if key not in cls._instances:
+                cls._instances[key] = temp_config
+                # 如果是第一个实例，设为默认实例
+                if cls._default_instance is None:
+                    cls._default_instance = temp_config
+                    
+            return cls._instances[key]
     
     @classmethod
     def get_default(cls) -> Optional['RedisConfig']:
@@ -124,17 +127,8 @@ class RedisConfig:
         ssl = parsed.scheme == 'rediss'
         
         # 认证信息解析
-        username = None
-        password = None
-        if parsed.username:
-            username = parsed.username
-        if parsed.password:
-            password = parsed.password
-        elif parsed.username and ':' in parsed.username:
-            # 处理 user:pass@ 格式
-            parts = parsed.username.split(':', 1)
-            if len(parts) == 2:
-                username, password = parts
+        username = parsed.username
+        password = parsed.password
         
         # 主机和端口
         host = parsed.hostname or 'localhost'

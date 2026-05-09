@@ -5,12 +5,10 @@
 # @Author  :   crawl-coder
 # @Desc    :   None
 """
-import importlib
 import json
-import hashlib
 import base64
+import importlib
 from typing import Any, Optional, Iterable, Union, Dict
-from w3lib.url import canonicalize_url
 
 # 延迟导入 Request，避免循环依赖
 Request = None
@@ -164,15 +162,6 @@ def set_request(request: Request, priority: int) -> None:
     # 根据深度调整优先级，深度越深优先级越低
     if priority:
         request.priority -= request.meta['depth'] * priority
-
-
-def _get_request_class():
-    """延迟获取 Request 类"""
-    global Request
-    if Request is None:
-        from crawlo import Request as ReqClass
-        Request = ReqClass
-    return Request
 
 
 def request_to_dict(request: Request, spider=None) -> Dict[str, Any]:
