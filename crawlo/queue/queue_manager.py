@@ -118,29 +118,11 @@ class QueueManager(QueueStatusMixin, QueueBackpressureMixin):
             health_check_result = await self._health_check()
 
             self.logger.info(f"Queue initialized successfully Type: {queue_type.value}")
-            # 只在调试模式下输出详细配置信息
+            # Only output detailed config in debug mode
             self.logger.debug(f"Queue configuration: {self._get_queue_info()}")
             
-            # 输出背压策略初始化信息（仅在未重新创建时输出，避免与 recreated 日志重复）
-            if hasattr(self, '_backpressure_controller') and self._backpressure_controller:
-                # 检查是否是重新创建过的（通过比较 config 和 controller 的配置是否一致）
-                config_ratio = self.config.backpressure_ratio
-                controller_ratio = self._backpressure_controller._strategy._config.threshold
-                
-                if abs(config_ratio - controller_ratio) < 0.001:  # 配置一致，说明可能被 recreated 过
-                    # 配置一致，但仍需输出关键信息（INFO 级别）
-                    self.logger.info(
-                        f"Backpressure initialized with strategy: {self._backpressure_strategy_type} "
-                        f"(threshold: {self._backpressure_controller._strategy._config.threshold:.0%}, "
-                        f"base_delay: {self._backpressure_controller._strategy._config.base_delay}s, "
-                        f"max_delay: {self._backpressure_controller._strategy._config.max_delay}s)"
-                    )
-                else:
-                    # 配置不一致，说明已经被 recreated 过，详细日志已在 recreated 中输出
-                    self.logger.debug(
-                        f"Backpressure initialized with strategy: {self._backpressure_strategy_type} "
-                        f"(threshold: {self._backpressure_controller._strategy._config.threshold:.0%})"
-                    )
+            # Backpressure initialization log is already output in _recreate_backpressure_controller()
+            # Skip duplicate log here to avoid redundancy
 
             # 如果健康检查返回True，表示队列类型发生了切换，需要更新配置
             if health_check_result:
