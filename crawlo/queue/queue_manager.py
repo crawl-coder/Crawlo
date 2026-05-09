@@ -24,7 +24,6 @@ from crawlo.queue.config import QueueConfig
 from crawlo.queue.priority_calculator import PriorityCalculator
 from crawlo.utils.error_handler import ErrorHandler
 from crawlo.logging import get_logger
-from crawlo.utils.request.request_serializer import RequestSerializer
 from crawlo.utils.misc import safe_get_config
 
 try:
@@ -49,8 +48,6 @@ class QueueManager(QueueStatusMixin, QueueBackpressureMixin):
         # 延迟初始化logger和error_handler避免循环依赖
         self._logger = None
         self._error_handler = None
-        # 使用配置的序列化格式初始化RequestSerializer
-        self.request_serializer = RequestSerializer(serialization_format=config.serialization_format)
         self._queue = None
         self._queue_semaphore = None
         self._queue_type = None
