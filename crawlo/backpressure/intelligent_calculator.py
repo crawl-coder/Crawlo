@@ -17,13 +17,13 @@ from .metrics_collector import BackpressureMetricsCollector, BackpressureMetrics
 
 class IntelligentBackpressureCalculator:
     """
-    智能背压延迟计算器
+    Intelligent backpressure delay calculator
     
-    根据多维度指标计算最优延迟：
-    - 基础延迟：根据综合评分级别
-    - 调整因子：根据细分指标（队列使用率、速率差、超时率、成功率）
-    - 预测补偿：根据队列增长趋势
-    - 平滑处理：避免延迟剧烈波动
+    Calculates optimal delay based on multi-dimensional metrics:
+    - Base delay: Based on comprehensive score level
+    - Adjustment factors: Based on detailed metrics (queue utilization, rate difference, timeout rate, success rate)
+    - Predictive compensation: Based on queue growth trend
+    - Smoothing: Avoids drastic delay fluctuations
     """
     
     def __init__(
@@ -67,7 +67,7 @@ class IntelligentBackpressureCalculator:
         self._cache_timestamp: float = 0.0
     
     def _default_levels_config(self) -> Dict[str, Any]:
-        """默认分级配置"""
+        """Default level configuration"""
         return {
             'normal': {
                 'score_range': (0, 50),
@@ -93,17 +93,17 @@ class IntelligentBackpressureCalculator:
     
     async def calculate_delay(self) -> float:
         """
-        计算背压延迟（带缓存优化）
+        Calculate backpressure delay (with cache optimization)
         
         Returns:
-            float: 延迟时间（秒）
+            float: Delay time in seconds
         """
-        # 如果没有指标采集器，返回0
+        # Return 0 if no metrics collector
         if not self.metrics_collector:
             return 0.0
         
-        # 检查缓存是否有效（优化：避免频繁计算）
-        # time 已在顶部导入
+        # Check if cache is still valid (optimization: avoid frequent calculations)
+        # time already imported at top
         current_time = time.time()
         if current_time - self._cache_timestamp < self._cache_ttl:
             return self._cached_delay
@@ -113,26 +113,26 @@ class IntelligentBackpressureCalculator:
         if not metrics:
             return 0.0
         
-        # 1. 基础延迟：根据级别
+        # 1. Base delay: Based on level
         base_delay = self._calculate_base_delay(metrics.level)
         
-        # 2. 调整因子：根据细分指标
+        # 2. Adjustment factor: Based on detailed metrics
         adjustment = self._calculate_adjustment(metrics)
         
-        # 3. 预测补偿：根据增长趋势
+        # 3. Predictive compensation: Based on growth trend
         prediction = await self._calculate_prediction() if self.enable_prediction else 0.0
         
-        # 综合计算
+        # Combined calculation
         delay = base_delay * adjustment + prediction
         
-        # 限制范围
+        # Limit range
         delay = max(0.0, min(delay, self.max_delay))
         
-        # 平滑处理
+        # Smoothing
         if self.enable_smoothing:
             delay = self._smooth_delay(delay)
         
-        # 更新缓存
+        # Update cache
         self._cached_delay = delay
         self._cache_timestamp = current_time
         
@@ -140,57 +140,57 @@ class IntelligentBackpressureCalculator:
     
     def _calculate_base_delay(self, level: str) -> float:
         """
-        根据级别计算基础延迟
+        Calculate base delay based on level
         
         Args:
-            level: 级别（normal/warning/danger/critical）
+            level: Level (normal/warning/danger/critical)
             
         Returns:
-            float: 基础延迟
+            float: Base delay
         """
         level_config = self.levels_config.get(level, self.levels_config['normal'])
         delay_range = level_config['delay_range']
         
-        # 取范围中间值作为基础延迟
+        # Use middle value of range as base delay
         return (delay_range[0] + delay_range[1]) / 2
     
     def _calculate_adjustment(self, metrics: BackpressureMetrics) -> float:
         """
-        根据细分指标计算调整因子
+        Calculate adjustment factor based on detailed metrics
         
-        调整因子范围：0.5-2.0
-        - 队列使用率 > 90%：1.5倍
-        - 速率差 > 50/s：1.5倍
-        - 超时率 > 30%：1.3倍
-        - 成功率 < 70%：1.4倍
+        Adjustment factor range: 0.5-2.0
+        - Queue utilization > 90%: 1.5x
+        - Rate difference > 50/s: 1.5x
+        - Timeout rate > 30%: 1.3x
+        - Success rate < 70%: 1.4x
         
         Args:
-            metrics: 当前指标
+            metrics: Current metrics
             
         Returns:
-            float: 调整因子
+            float: Adjustment factor
         """
         adjustment = 1.0
         
-        # 队列使用率调整
+        # Queue utilization adjustment
         if metrics.queue_usage_ratio > 0.9:
             adjustment *= 1.5
         elif metrics.queue_usage_ratio > 0.8:
             adjustment *= 1.2
         
-        # 速率差调整
+        # Rate difference adjustment
         if metrics.rate_difference > 50:
             adjustment *= 1.5
         elif metrics.rate_difference > 20:
             adjustment *= 1.2
         
-        # 超时率调整
+        # Timeout rate adjustment
         if metrics.timeout_rate > 0.3:
             adjustment *= 1.3
         elif metrics.timeout_rate > 0.2:
             adjustment *= 1.1
         
-        # 成功率调整（成功率低时增加延迟）
+        # Success rate adjustment (increase delay when success rate is low)
         if metrics.success_rate < 0.7:
             adjustment *= 1.4
         elif metrics.success_rate < 0.85:
@@ -200,49 +200,47 @@ class IntelligentBackpressureCalculator:
     
     async def _calculate_prediction(self) -> float:
         """
-        根据增长趋势预测额外延迟
+        Calculate predictive compensation delay based on growth trend
         
-        如果队列增长很快，增加额外延迟来抑制
+        Increases additional delay when queue is growing rapidly
         
         Returns:
-            float: 预测补偿延迟
+            float: Predictive compensation delay
         """
         metrics = self.metrics_collector.get_current_metrics()
         
         if not metrics or metrics.queue_growth_rate <= 0:
             return 0.0
         
-        # 增长速率分级补偿
-        if metrics.queue_growth_rate > 100:  # 每秒增长>100
+        # Growth rate tiered compensation
+        if metrics.queue_growth_rate > 100:  # Growth > 100 per second
             return 0.5
-        elif metrics.queue_growth_rate > 50:  # 每秒增长>50
+        elif metrics.queue_growth_rate > 50:  # Growth > 50 per second
             return 0.3
-        elif metrics.queue_growth_rate > 20:  # 每秒增长>20
+        elif metrics.queue_growth_rate > 20:  # Growth > 20 per second
             return 0.1
         
         return 0.0
     
     def _smooth_delay(self, delay: float) -> float:
         """
-        平滑延迟变化
+        Smooth delay changes
         
-        避免延迟剧烈波动，限制单次变化幅度
+        Avoids drastic delay fluctuations by limiting single change amplitude
         
         Args:
-            delay: 原始延迟
+            delay: Raw delay
             
         Returns:
-            float: 平滑后的延迟
+            float: Smoothed delay
         """
         self._delay_history.append(delay)
+        # Note: deque(maxlen=N) automatically manages length, no need to manually pop
         
-        if len(self._delay_history) > self._max_history_len:
-            self._delay_history.pop(0)
-        
-        # 如果有历史记录，限制变化幅度
+        # If there's history, limit change amplitude
         if len(self._delay_history) >= 2:
             prev_delay = self._delay_history[-2]
-            max_change = 0.5  # 最大变化0.5秒
+            max_change = 0.5  # Maximum change 0.5 seconds
             
             if abs(delay - prev_delay) > max_change:
                 direction = 1 if delay > prev_delay else -1
@@ -251,9 +249,9 @@ class IntelligentBackpressureCalculator:
         return delay
     
     def get_delay_history(self) -> list:
-        """获取延迟历史"""
+        """Get delay history"""
         return self._delay_history.copy()
     
-    def reset_history(self):
-        """重置历史记录"""
-        self._delay_history = []
+    def reset_history(self) -> None:
+        """Reset history"""
+        self._delay_history.clear()
