@@ -2,6 +2,7 @@
 # -*- coding:UTF-8 -*-
 import httpx
 import asyncio
+import time
 from typing import Optional
 
 from httpx import HTTPStatusError
@@ -140,7 +141,7 @@ class HttpXDownloader(DownloaderBase):
 
         start_time = None
         if self.crawler.settings.get_bool("DOWNLOAD_STATS", True):
-            import time
+            # time 已在顶部导入
             start_time = time.time()
 
         # 初始化客户端变量
@@ -348,7 +349,7 @@ class HttpXDownloader(DownloaderBase):
 
             # 记录下载统计
             if start_time:
-                import time
+                # time 已在顶部导入
                 download_time = time.time() - start_time
                 self.logger.debug(f"Downloaded {request.url} in {download_time:.3f}s, size: {len(body)} bytes")
 

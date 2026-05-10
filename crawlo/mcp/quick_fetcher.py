@@ -18,6 +18,7 @@ import time
 from typing import Optional, Dict, Any, List
 from dataclasses import dataclass, field
 from urllib.parse import urlparse
+from crawlo.network.response import Response
 
 import aiohttp
 from aiohttp import ClientSession, TCPConnector, ClientTimeout
@@ -171,7 +172,7 @@ class QuickFetcher:
 
     async def _fetch_basic(self, url: str, timeout: float, cookies: Dict[str, str], headers: Optional[Dict[str, str]]):
         """basic 模式：直接使用 aiohttp"""
-        from crawlo.network.response import Response
+        # Response 已在顶部导入
         from yarl import URL
 
         session = await self._get_session()
@@ -194,7 +195,7 @@ class QuickFetcher:
 
     async def _fetch_stealth(self, url: str, timeout: float, cookies: Dict[str, str], headers: Optional[Dict[str, str]]):
         """stealth 模式：使用 DrissionPage"""
-        from crawlo.network.response import Response
+        # Response 已在顶部导入
 
         try:
             from DrissionPage import ChromiumPage, ChromiumOptions
@@ -253,7 +254,7 @@ class QuickFetcher:
 
     async def _fetch_max_stealth(self, url: str, timeout: float, cookies: Dict[str, str], headers: Optional[Dict[str, str]]):
         """max-stealth 模式：使用 Camoufox（最强反检测）"""
-        from crawlo.network.response import Response
+        # Response 已在顶部导入
 
         try:
             from camoufox.async_api import AsyncCamoufox

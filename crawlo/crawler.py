@@ -28,6 +28,7 @@ from dataclasses import dataclass
 from enum import Enum
 from crawlo.logging import get_logger
 from crawlo.utils.resource_manager import ResourceManager, ResourceType
+from crawlo.settings.setting_manager import SettingManager
 
 
 class CrawlerState(Enum):
@@ -73,7 +74,6 @@ class CrawlerMetrics:
 
 if TYPE_CHECKING:
     from crawlo.spider import Spider
-    from crawlo.settings.setting_manager import SettingManager
 
 
 
@@ -130,12 +130,12 @@ class Crawler:
             except Exception as e:
                 # Use fallback strategy
                 if not self._settings:
-                    from crawlo.settings.setting_manager import SettingManager
+                    # SettingManager 已在顶部导入
                     self._settings = SettingManager()
             
         # Ensure it is a SettingManager instance
         if isinstance(self._settings, dict):
-            from crawlo.settings.setting_manager import SettingManager
+            # SettingManager 已在顶部导入
             settings_manager = SettingManager()
             settings_manager.update_attributes(self._settings)
             self._settings = settings_manager

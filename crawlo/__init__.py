@@ -7,15 +7,6 @@ Crawlo - 一个异步爬虫框架
 # 为了向后兼容，从helpers中导入cleaners相关的功能
 import crawlo.helpers as cleaners
 from crawlo import helpers
-from crawlo.crawler import Crawler
-from crawlo.crawler_process import CrawlerProcess
-from crawlo.downloader import DownloaderBase
-from crawlo.items import Item, Field
-from crawlo.middleware import BaseMiddleware
-from crawlo.network.request import Request
-from crawlo.network.response import Response
-from crawlo.spider import Spider
-from crawlo.core.failure import Failure
 from crawlo.helpers.time_helper import (
     TimeUtils,
     parse_time,
@@ -32,6 +23,38 @@ from crawlo.helpers.time_helper import (
 
 
 # 延迟导入的辅助函数
+def _lazy_import(module_name, attr_name):
+    """延迟导入以避免循环依赖"""
+    import importlib
+    module = importlib.import_module(module_name)
+    return getattr(module, attr_name)
+
+def __getattr__(name):
+    """实现模块级别的延迟导入（PEP 562）"""
+    # 核心类延迟导入
+    if name == 'Crawler':
+        return _lazy_import('crawlo.crawler', 'Crawler')
+    elif name == 'CrawlerProcess':
+        return _lazy_import('crawlo.crawler_process', 'CrawlerProcess')
+    elif name == 'DownloaderBase':
+        return _lazy_import('crawlo.downloader', 'DownloaderBase')
+    elif name == 'Item':
+        return _lazy_import('crawlo.items', 'Item')
+    elif name == 'Field':
+        return _lazy_import('crawlo.items', 'Field')
+    elif name == 'BaseMiddleware':
+        return _lazy_import('crawlo.middleware', 'BaseMiddleware')
+    elif name == 'Request':
+        return _lazy_import('crawlo.network.request', 'Request')
+    elif name == 'Response':
+        return _lazy_import('crawlo.network.response', 'Response')
+    elif name == 'Spider':
+        return _lazy_import('crawlo.spider', 'Spider')
+    elif name == 'Failure':
+        return _lazy_import('crawlo.core.failure', 'Failure')
+    raise AttributeError(f"module 'crawlo' has no attribute '{name}'")
+
+
 def get_framework_initializer():
     """延迟导入CoreInitializer以避免循环依赖"""
     from crawlo.initialization import CoreInitializer

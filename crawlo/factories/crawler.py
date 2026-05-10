@@ -8,6 +8,11 @@ from typing import Any, Type
 
 from .base import ComponentFactory, ComponentSpec
 from .registry import get_component_registry
+from crawlo.core.engine import Engine
+from crawlo.core.scheduler import Scheduler
+from crawlo.stats.collector import StatsCollector
+from crawlo.event import Subscriber
+from crawlo.extension import ExtensionManager
 
 
 class CrawlerComponentFactory(ComponentFactory):
@@ -23,51 +28,37 @@ class CrawlerComponentFactory(ComponentFactory):
     
     def supports(self, component_type: Type) -> bool:
         """Check if the specified type is supported"""
-        # Import actual types for type-safe checking
-        try:
-            from crawlo.core.engine import Engine
-            from crawlo.core.scheduler import Scheduler
-            from crawlo.stats.collector import StatsCollector
-            from crawlo.event import Subscriber
-            from crawlo.extension import ExtensionManager
-            
-            supported_types = (
-                Engine, Scheduler, StatsCollector, 
-                Subscriber, ExtensionManager
-            )
-            return issubclass(component_type, supported_types)
-        except (ImportError, TypeError):
-            # Fallback to name-based checking if imports fail
-            supported_names = {
-                'Engine', 'Scheduler', 'StatsCollector', 
-                'Subscriber', 'ExtensionManager'
-            }
-            return component_type.__name__ in supported_names
+        # 实际类型已在顶部导入
+        supported_types = (
+            Engine, Scheduler, StatsCollector, 
+            Subscriber, ExtensionManager
+        )
+        return issubclass(component_type, supported_types)
 
 
 # Engine component
 def create_engine(crawler, **kwargs):
-    from crawlo.core.engine import Engine
+    # Engine 已在顶部导入
     return Engine(crawler)
 
 # Scheduler component
 def create_scheduler(crawler, **kwargs):
-    from crawlo.core.scheduler import Scheduler
+    # Scheduler 已在顶部导入
     return Scheduler.create_instance(crawler)
 
 # StatsCollector component
 def create_stats(crawler, **kwargs):
-    from crawlo.stats.collector import StatsCollector
+    # StatsCollector 已在顶部导入
     return StatsCollector(crawler)
 
 # Subscriber component
 def create_subscriber(**kwargs):
-    from crawlo.event import Subscriber
+    # Subscriber 已在顶部导入
     return Subscriber()
 
 # ExtensionManager component
 def create_extension_manager(crawler, **kwargs):
-    from crawlo.extension import ExtensionManager
+    # ExtensionManager 已在顶部导入
     return ExtensionManager.create_instance(crawler)
 
 def register_crawler_components():

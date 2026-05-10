@@ -160,7 +160,7 @@ class RedisKeyValidator:
     @property
     def _logger(self):
         if self.logger is None:
-            from crawlo.logging import get_logger
+            # get_logger 已在顶部导入
             self.logger = get_logger(self.__class__.__name__)
         return self.logger
 

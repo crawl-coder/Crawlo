@@ -7,6 +7,7 @@
 
 import asyncio
 import signal
+import sys
 from typing import TYPE_CHECKING, List
 
 if TYPE_CHECKING:
@@ -31,7 +32,7 @@ class ProcessSignalHandler:
     
     def setup_signal_handlers(self):
         """设置信号处理器以优雅地处理关闭信号"""
-        import sys
+        # sys 已在顶部导入
         
         def signal_handler(signum, frame):
             self.logger.info(f"Received signal {signum}, initiating graceful shutdown...")
@@ -165,7 +166,7 @@ class SpiderDiscoveryUtils:
             from crawlo.spider import get_global_spider_registry
             import importlib
             from pathlib import Path
-            import sys
+            # sys 已在顶部导入
             
             from crawlo.spider import SpiderDiscoveryState
             

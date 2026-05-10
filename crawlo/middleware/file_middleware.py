@@ -172,8 +172,8 @@ class FileMiddleware(BaseMiddleware):
         # 使用 Content-Disposition header 中的文件名
         content_disposition = response.headers.get('Content-Disposition', b'').decode('utf-8')
         if 'filename=' in content_disposition:
-            import re
-            match = re.search(r'filename[^;=\n]*=(([\'"]).*?\2|[^;\n]*)', content_disposition)
+            # re 已在顶部导入
+            match = re.search(r'filename[^;=\n]*=(([\'\"]).*?\2|[^;\n]*)', content_disposition)
             if match:
                 filename = match.group(1).strip('\'"')
                 return self._sanitize_filename(filename)

@@ -5,6 +5,7 @@
 整合所有批处理相关功能
 """
 import asyncio
+import concurrent.futures
 from functools import wraps
 from typing import List, Callable, Any, Optional, Dict
 
@@ -117,7 +118,7 @@ class BatchProcessor:
                     loop = asyncio.get_event_loop()
                     if loop.is_running():
                         # 如果已有事件循环，创建新任务
-                        import concurrent.futures
+                        # concurrent.futures 已在顶部导入
                         with concurrent.futures.ThreadPoolExecutor() as executor:
                             future = executor.submit(asyncio.run, async_wrapper(items, *args, **kwargs))
                             return future.result()
@@ -316,7 +317,7 @@ def batch_process(batch_size: int = 100, max_concurrent_batches: int = 5):
                 loop = asyncio.get_event_loop()
                 if loop.is_running():
                     # 如果已有事件循环，使用线程池
-                    import concurrent.futures
+                    # concurrent.futures 已在顶部导入
                     with concurrent.futures.ThreadPoolExecutor() as executor:
                         future = executor.submit(
                             asyncio.run,

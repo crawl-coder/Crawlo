@@ -23,7 +23,9 @@ except ImportError:
     REDIS_CLUSTER_AVAILABLE = False
 
 if TYPE_CHECKING:
-    from crawlo.utils.error_handler import ErrorHandler
+    pass
+
+from crawlo.utils.error_handler import ErrorHandler, ErrorContext
 
 
 class RedisConnectionPool:
@@ -78,7 +80,7 @@ class RedisConnectionPool:
     def error_handler(self):
         """延迟初始化error_handler"""
         if self._error_handler is None:
-            from crawlo.utils.error_handler import ErrorHandler
+            # ErrorHandler 已在顶部导入
             self._error_handler = ErrorHandler(self.__class__.__name__)
         return self._error_handler
 
@@ -182,7 +184,7 @@ class RedisConnectionPool:
                 self.logger.debug(f"Connection pool configuration: {self.config}")
 
         except Exception as e:
-            from crawlo.utils.error_handler import ErrorContext
+            # ErrorContext 已在顶部导入
             error_context = ErrorContext(context="Redis连接池初始化失败")
             self.error_handler.handle_error(
                 e,
@@ -237,7 +239,7 @@ class RedisConnectionPool:
 
             self.logger.debug("Redis连接池已关闭")
         except Exception as e:
-            from crawlo.utils.error_handler import ErrorContext
+            # ErrorContext 已在顶部导入
             error_context = ErrorContext(context="关闭Redis连接池失败")
             self.error_handler.handle_error(
                 e,

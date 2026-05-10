@@ -13,6 +13,7 @@ import webbrowser
 import atexit
 import concurrent.futures
 import threading
+import aiohttp
 from typing import Optional, Any, Dict
 
 from crawlo.logging import get_logger
@@ -500,7 +501,7 @@ class _DownloaderAdapter:
         
         if hasattr(dl, 'session') and dl.session is None:
             try:
-                import aiohttp
+                # aiohttp 已在顶部导入
                 from aiohttp import TCPConnector
                 
                 # 从 settings 读取配置
@@ -545,7 +546,7 @@ class _SimpleFetcher:
     async def fetch(self, request: Request) -> Optional[Response]:
         """使用 aiohttp 直接抓取，支持所有 HTTP 方法"""
         try:
-            import aiohttp
+            # aiohttp 已在顶部导入
             
             # 获取请求方法和参数
             method = getattr(request, 'method', 'GET').upper()

@@ -16,6 +16,8 @@ from typing import Optional, Type, Dict, Any, List, Union, TYPE_CHECKING, cast
 from crawlo.crawler import Crawler
 from crawlo.initialization import initialize_framework
 from crawlo.logging import get_logger
+from crawlo.utils.process_utils import ProcessSignalHandler, SpiderDiscoveryUtils, SettingsUtils
+from crawlo.spider import get_global_spider_registry, SpiderResolver
 
 if TYPE_CHECKING:
     from crawlo.spider import Spider
@@ -46,7 +48,7 @@ class CrawlerProcess:
         self._logger = get_logger('crawler.process')
 
         # 信号处理相关
-        from crawlo.utils.process_utils import ProcessSignalHandler
+        # ProcessSignalHandler 已在顶部导入
         self._signal_handler = ProcessSignalHandler(self._logger, self._crawlers)
         self._shutdown_event: asyncio.Event = self._signal_handler.shutdown_event
         self._shutdown_requested: bool = self._signal_handler.shutdown_requested
@@ -96,7 +98,7 @@ class CrawlerProcess:
         Args:
             spider_modules: 爬虫模块列表
         """
-        from crawlo.utils.process_utils import SpiderDiscoveryUtils
+        # SpiderDiscoveryUtils 已在顶部导入
         SpiderDiscoveryUtils.register_spider_modules(spider_modules, self._logger)
 
     def _auto_discover_spider_modules(self, spider_modules: List[str]) -> None:
@@ -107,7 +109,7 @@ class CrawlerProcess:
         Args:
             spider_modules: 爬虫模块列表
         """
-        from crawlo.utils.process_utils import SpiderDiscoveryUtils
+        # SpiderDiscoveryUtils 已在顶部导入
         SpiderDiscoveryUtils.auto_discover_spider_modules(spider_modules, self._logger)
 
     def is_spider_registered(self, name: str) -> bool:
@@ -120,7 +122,7 @@ class CrawlerProcess:
         Returns:
             bool: 是否已注册
         """
-        from crawlo.spider import get_global_spider_registry
+        # get_global_spider_registry 已在顶部导入
         registry = get_global_spider_registry()
         return name in registry
 
@@ -134,7 +136,7 @@ class CrawlerProcess:
         Returns:
             Optional[Type[Spider]]: 爬虫类
         """
-        from crawlo.spider import get_global_spider_registry
+        # get_global_spider_registry 已在顶部导入
         registry = get_global_spider_registry()
         return registry.get(name)
 
@@ -145,7 +147,7 @@ class CrawlerProcess:
         Returns:
             List[str]: 爬虫名称列表
         """
-        from crawlo.spider import get_global_spider_registry
+        # get_global_spider_registry 已在顶部导入
         registry = get_global_spider_registry()
         return list(registry.keys())
 
@@ -377,7 +379,7 @@ class CrawlerProcess:
         Raises:
             ValueError: 无法解析爬虫类
         """
-        from crawlo.spider import SpiderResolver
+        # SpiderResolver 已在顶部导入
         return SpiderResolver.resolve_spider_class(spider_cls_or_name, getattr(self, '_spider_modules', None))
 
     def _merge_settings(self, additional_settings: Optional[Dict[str, Any]]) -> Optional['SettingManager']:
@@ -390,7 +392,7 @@ class CrawlerProcess:
         Returns:
             Optional[SettingManager]: 合并后的配置管理器
         """
-        from crawlo.utils.process_utils import SettingsUtils
+        # SettingsUtils 已在顶部导入
         return SettingsUtils.merge_settings(self._settings, additional_settings)
 
     def get_metrics(self) -> Dict[str, Any]:

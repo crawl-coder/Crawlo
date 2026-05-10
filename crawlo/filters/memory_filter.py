@@ -125,7 +125,7 @@ class MemoryFilter(BaseFilter):
         if cleanup_count > 0:
             # Random cleanup some fingerprints (simple strategy)
             fingerprints_list = list(self.fingerprints)
-            import random
+            # random 已在顶部导入
             to_remove = random.sample(fingerprints_list, cleanup_count)
             self.fingerprints.difference_update(to_remove)
             self.logger.info(f"Cleaned {cleanup_count} old fingerprints")

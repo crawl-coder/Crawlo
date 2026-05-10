@@ -8,7 +8,7 @@ from crawlo.logging import get_logger
 from crawlo.project import common_call
 from crawlo.utils.misc import load_object
 from crawlo.utils.request import set_request
-from crawlo.utils.error_handler import ErrorHandler
+from crawlo.utils.error_handler import ErrorHandler, ErrorContext
 from crawlo.utils.request.request_serializer import RequestSerializer
 from crawlo.queue.queue_manager import QueueManager
 from crawlo.queue.config import QueueConfig
@@ -370,7 +370,7 @@ class Scheduler:
             
             return request
         except Exception as e:
-            from crawlo.utils.error_handler import ErrorContext
+            # ErrorContext 已在顶部导入
             self.error_handler.handle_error(
                 e, 
                 context=ErrorContext(context="Failed to get next request"), 
@@ -458,7 +458,7 @@ class Scheduler:
             
             return success
         except Exception as e:
-            from crawlo.utils.error_handler import ErrorContext
+            # ErrorContext 已在顶部导入
             self.error_handler.handle_error(
                 e, 
                 context=ErrorContext(context="Failed to enqueue request"), 
@@ -499,7 +499,7 @@ class Scheduler:
             if self.queue_manager:
                 await self.queue_manager.close()
         except Exception as e:
-            from crawlo.utils.error_handler import ErrorContext
+            # ErrorContext 已在顶部导入
             self.error_handler.handle_error(
                 e, 
                 context=ErrorContext(context="Failed to close scheduler"), 

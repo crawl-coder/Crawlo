@@ -12,9 +12,8 @@ from typing import TYPE_CHECKING, Optional
 from .registry import BaseInitializer, register_initializer
 from .phases import InitializationPhase, PhaseResult
 from .context import InitializationContext
-
-if TYPE_CHECKING:
-    from crawlo.logging import LogConfig
+from crawlo.logging import configure_logging, get_logger, LogConfig, LoggerFactory
+from crawlo.utils.misc import ConfigUtils, load_object
 
 
 class LoggingInitializer(BaseInitializer):
@@ -28,15 +27,14 @@ class LoggingInitializer(BaseInitializer):
         start_time = time.time()
         
         try:
-            # 导入日志模块
-            from crawlo.logging import configure_logging, LogConfig
+            # 导入日志模块（已在顶部导入）
             
-            # 获取日志配置
+            # 获取日志配置（已在顶部导入）
             log_config = self._get_log_config(context)
             
             # 确保日志目录存在
             if log_config and log_config.file_path and log_config.file_enabled:
-                import os
+                # os 已在顶部导入
                 log_dir = os.path.dirname(log_config.file_path)
                 if log_dir and not os.path.exists(log_dir):
                     os.makedirs(log_dir, exist_ok=True)
@@ -47,8 +45,7 @@ class LoggingInitializer(BaseInitializer):
             # 存储到共享数据
             context.add_shared_data('log_config', log_config)
             
-            # 创建框架logger
-            from crawlo.logging import get_logger
+            # 创建框架logger（get_logger 已在顶部导入）
             framework_logger = get_logger('crawlo.framework')
             context.add_shared_data('framework_logger', framework_logger)
             
@@ -65,18 +62,17 @@ class LoggingInitializer(BaseInitializer):
                 error=e
             )
     
-    def _get_log_config(self, context: InitializationContext) -> Optional['LogConfig']:
+    def _get_log_config(self, context: InitializationContext) -> LogConfig:
         """
-        Get log configuration
+        从配置上下文中提取LogConfig
         
         Args:
-            context: Initialization context
+            context: 初始化上下文
             
         Returns:
             LogConfig: Log configuration object
         """
-        from crawlo.logging import LogConfig
-        from crawlo.utils.misc import ConfigUtils
+        # LogConfig 和 ConfigUtils 已在顶部导入
         
         # 按优先级获取配置：自定义配置 > 上下文配置 > 项目配置 > 默认配置
         config_sources = [
@@ -259,6 +255,27 @@ class CoreComponentsInitializer(BaseInitializer):
                 duration=time.time() - start_time,
                 error=e
             )
+    
+    def _get_spider_module_initializer_config(self, context: InitializationContext) -> dict:
+        """获取爬虫模块初始化器配置"""
+        # ConfigUtils 已在顶部导入
+        return ConfigUtils.get_config_value(
+            [context.settings, context.custom_settings],
+            'SPIDER_MODULE_INITIALIZER',
+            {}
+        )
+    
+    def _get_custom_downloader_path(self, context: InitializationContext) -> Optional[str]:
+        """获取自定义下载器路径"""
+        # load_object 和 ConfigUtils 已在顶部导入
+        custom_downloader_path = ConfigUtils.get_config_value(
+            [context.settings, context.custom_settings],
+            'CUSTOM_DOWNLOADER',
+            None
+        )
+        if custom_downloader_path:
+            return load_object(custom_downloader_path)
+        return None
 
 
 class ExtensionsInitializer(BaseInitializer):
@@ -328,21 +345,20 @@ class FrameworkStartupLogger(BaseInitializer):
         super().__init__(InitializationPhase.FRAMEWORK_STARTUP_LOG)
     
     def initialize(self, context: InitializationContext) -> PhaseResult:
-        """记录框架启动日志"""
+        """记录框架启动信息"""
         start_time = time.time()
         
         try:
             # 关键步骤：在记录框架启动日志前，重新配置日志系统
             # 这样确保 LOG_FILE 被正确地应用到所有logger（包括框架logger）
             if context.settings:
-                from crawlo.logging import configure_logging, LoggerFactory
+                # configure_logging 和 LoggerFactory 已在顶部导入
                 # 重新配置日志，这次会正确读取settings中的LOG_FILE
                 configure_logging(context.settings)
                 # 清除缓存以强制重新创建logger（使其包含新的文件处理器）
                 LoggerFactory.clear_cache()
             
-            # 获取框架logger
-            from crawlo.logging import get_logger
+            # 获取框架logger（get_logger 已在顶部导入）
             logger = get_logger('crawlo.framework')
             
             # 获取框架版本

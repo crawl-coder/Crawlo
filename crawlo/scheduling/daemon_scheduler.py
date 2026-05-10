@@ -15,6 +15,8 @@ def start_scheduler(project_root: str = None):
     # 先配置日志系统
     from crawlo.project import get_settings
     from crawlo.logging import configure_logging, get_logger
+    from crawlo.scheduling.daemon import SchedulerDaemon
+    from crawlo.utils.time_format import format_datetime, format_duration
     
     try:
         temp_settings = get_settings()
@@ -34,11 +36,8 @@ def start_scheduler(project_root: str = None):
         else:
             raise RuntimeError(f"项目目录不存在: {project_root}")
     
-    from crawlo.project import get_settings
-    from crawlo.scheduling.daemon import SchedulerDaemon
-    from crawlo.utils.time_format import format_datetime, format_duration
-    
-    settings = temp_settings
+    # get_settings 已在上面导入
+    settings = get_settings()
     
     if not settings.get_bool('SCHEDULER_ENABLED', False):
         logger.info("定时任务未启用，如需启用请在配置中设置 SCHEDULER_ENABLED = True")

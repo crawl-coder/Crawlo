@@ -307,8 +307,8 @@ class FileDownloader:
         # Try to get filename from Content-Disposition
         content_disposition = response.headers.get('Content-Disposition', '')
         if 'filename=' in content_disposition:
-            import re
-            match = re.search(r'filename[^;=\n]*=(([\'"]).*?\2|[^;\n]*)', content_disposition)
+            # re 已在顶部导入
+            match = re.search(r'filename[^;=\n]*=(([\'\"]).*?\2|[^;\n]*)', content_disposition)
             if match:
                 filename = match.group(1).strip('\'"')
                 return self._sanitize_filename(filename)
@@ -320,7 +320,7 @@ class FileDownloader:
             return self._sanitize_filename(url_filename)
         
         # Generate filename from URL hash
-        import hashlib
+        # hashlib 已在顶部导入
         url_hash = hashlib.md5(url.encode()).hexdigest()[:8]
         
         # Try to infer extension from Content-Type

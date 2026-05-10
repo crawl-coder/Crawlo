@@ -92,7 +92,7 @@ class JobExecutor:
         
         # 重新配置日志系统
         from crawlo.logging import configure_logging, LoggerFactory
-        import logging
+        # logging 已在顶部导入
         
         for handler in logging.root.handlers[:]:
             logging.root.removeHandler(handler)

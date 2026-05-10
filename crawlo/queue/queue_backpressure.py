@@ -6,13 +6,15 @@
 提供 QueueManager 的背压控制相关方法。
 """
 
+from crawlo.utils.misc import safe_get_config
+
 
 class QueueBackpressureMixin:
     """队列背压配置混入类"""
 
     def _apply_redis_backpressure_config(self):
         """应用Redis队列的背压配置（用于AUTO模式）"""
-        from crawlo.utils.misc import safe_get_config
+        # safe_get_config 已在顶部导入
 
         settings = self.config.settings if hasattr(self.config, 'settings') and self.config.settings else {}  # type: ignore
 
@@ -58,7 +60,7 @@ class QueueBackpressureMixin:
 
     def _apply_memory_backpressure_config(self):
         """应用内存队列的背压配置（用于AUTO模式或降级场景）"""
-        from crawlo.utils.misc import safe_get_config
+        # safe_get_config 已在顶部导入
 
         settings = self.config.settings if hasattr(self.config, 'settings') and self.config.settings else {}  # type: ignore
 

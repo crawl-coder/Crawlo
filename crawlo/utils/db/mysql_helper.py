@@ -22,6 +22,7 @@ from contextlib import asynccontextmanager
 from crawlo.utils.db.mysql_connection_pool import MySQLConnectionPoolManager
 from crawlo.utils.db.sql_builder import SQLBuilder
 from crawlo.logging import get_logger
+from crawlo.settings.setting_manager import SettingManager
 import asyncio
 import warnings
 
@@ -520,7 +521,7 @@ def get_mysql_helper(settings=None, spider=None) -> MySQLHelper:
             # 如果 spider 有 crawler.settings 或 custom_settings，合并配置
             if crawler_settings and hasattr(crawler_settings, 'settings'):
                 if settings is None:
-                    from crawlo.settings.setting_manager import SettingManager
+                    # SettingManager 已在顶部导入
                     settings = SettingManager()
                 
                 # 复制 crawler settings 作为基础配置
@@ -532,7 +533,7 @@ def get_mysql_helper(settings=None, spider=None) -> MySQLHelper:
             # 如果有 custom_settings，覆盖配置
             if custom_settings:
                 if settings is None:
-                    from crawlo.settings.setting_manager import SettingManager
+                    # SettingManager 已在顶部导入
                     settings = SettingManager()
                 for key, value in custom_settings.items():
                     settings.set(key, value)

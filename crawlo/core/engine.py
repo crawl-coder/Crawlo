@@ -17,6 +17,7 @@ from crawlo.core.task_manager import TaskManager
 from crawlo.downloader import DownloaderBase
 from crawlo.core.processor import Processor
 from crawlo.core.scheduler import Scheduler
+from crawlo.checkpoint import CheckpointManager
 from crawlo.core.engine_helpers import GenerationStats, BackpressureController
 from crawlo.core.engine_generation import RequestGenerationMixin
 from crawlo.core.engine_generation import resolve_start_requests, process_callback_output
@@ -630,8 +631,7 @@ class Engine(RequestGenerationMixin):
             bool: 是否成功从检查点恢复
         """
         try:
-            from crawlo.checkpoint import CheckpointManager
-            
+            # CheckpointManager 已在顶部导入
             checkpoint_mgr = CheckpointManager(spider.name, self.settings)
             if not checkpoint_mgr.enabled or not await checkpoint_mgr.has_checkpoint():
                 return False
@@ -675,8 +675,7 @@ class Engine(RequestGenerationMixin):
     async def _save_checkpoint(self):
         """保存检查点"""
         try:
-            from crawlo.checkpoint import CheckpointManager
-            
+            # CheckpointManager 已在顶部导入
             spider_name = self.spider.name if self.spider else 'unknown'
             checkpoint_mgr = CheckpointManager(spider_name, self.settings)
             
@@ -696,8 +695,7 @@ class Engine(RequestGenerationMixin):
     async def _clear_checkpoint(self):
         """清除检查点"""
         try:
-            from crawlo.checkpoint import CheckpointManager
-            
+            # CheckpointManager 已在顶部导入
             spider_name = self.spider.name if self.spider else 'unknown'
             checkpoint_mgr = CheckpointManager(spider_name, self.settings)
             

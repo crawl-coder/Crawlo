@@ -40,7 +40,7 @@ def merge_settings(spider, settings):
         _logger.warning(f"merge_settings received non-SettingManager instance: {type(settings)}")
         # If dict, create new SettingManager instance
         if isinstance(settings, dict):
-            from crawlo.settings.setting_manager import SettingManager
+            # SettingManager 已在顶部导入
             new_settings = SettingManager()
             new_settings.update_attributes(settings)
             settings = new_settings

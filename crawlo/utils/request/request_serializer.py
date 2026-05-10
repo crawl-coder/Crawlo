@@ -15,9 +15,9 @@ except ImportError:
     MSGPACK_AVAILABLE = False
 
 if TYPE_CHECKING:
-    from crawlo.network.request import Request
     from crawlo.spider import Spider
 
+from crawlo.network.request import Request
 from crawlo.logging import get_logger
 
 
@@ -74,7 +74,7 @@ class RequestSerializer:
         Returns:
             Request: Restored request object
         """
-        from crawlo.network.request import Request
+        # Request 已在顶部导入
         
         # If data is already a Request object, just restore callback
         if isinstance(data, Request):
