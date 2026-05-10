@@ -80,7 +80,7 @@ class StatsCollector:
             spider: Spider 实例
             reason: 关闭原因
         """
-        from datetime import datetime
+        # datetime 已在顶部导入
         
         self.backend.set_value('reason', reason)
         spider_name = getattr(spider, 'name', None) or spider.__class__.__name__ or '<Unknown>'

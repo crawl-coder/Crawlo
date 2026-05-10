@@ -15,13 +15,18 @@ Crawlo Spider 核心类
 from __future__ import annotations
 
 from typing import Type, Any, Optional, List, Dict, Iterator, TYPE_CHECKING, Union, cast
+from urllib.parse import urlparse
 import time
 
+# 延迟导入 Request 和 Response 用于类型注解
 if TYPE_CHECKING:
     from crawlo.network.request import Request
     from crawlo.network.response import Response
     from crawlo.crawler import Crawler
     from crawlo.settings.setting_manager import SettingManager
+
+# 运行时导入 Request（避免循环依赖）
+from crawlo.network.request import Request as RequestClass
 
 # 全局爬虫注册表
 _DEFAULT_SPIDER_REGISTRY: Dict[str, Type['Spider']] = {}
@@ -233,8 +238,7 @@ class Spider(metaclass=SpiderMeta):
             generated_count = 0
             for url in self.start_urls:
                 if self._is_allowed_domain(url):
-                    from crawlo.network.request import Request
-                    yield Request(
+                    yield RequestClass(
                         url=url, 
                         callback=self.parse,
                         dont_filter=False,  # 始终经过过滤器，由过滤器决定是否去重
@@ -250,10 +254,9 @@ class Spider(metaclass=SpiderMeta):
         
         # 兼容单个 start_url 属性
         elif hasattr(self, 'start_url') and isinstance(getattr(self, 'start_url'), str):
-            from crawlo.network.request import Request
             url = getattr(self, 'start_url')
             if self._is_allowed_domain(url):
-                yield Request(
+                yield RequestClass(
                     url=url, 
                     callback=self.parse,
                     dont_filter=False,  # 始终经过过滤器，由过滤器决定是否去重
@@ -339,7 +342,7 @@ class Spider(metaclass=SpiderMeta):
         if not self.allowed_domains:
             return True
             
-        from urllib.parse import urlparse
+        # urlparse 已在顶部导入
         try:
             domain = urlparse(url).netloc.lower()
             return any(
@@ -528,7 +531,7 @@ class SpiderStatsTracker:
             url: 请求URL
         """
         self.request_count += 1
-        from urllib.parse import urlparse
+        # urlparse 已在顶部导入
         domain = urlparse(url).netloc
         self.domain_stats[domain] = self.domain_stats.get(domain, 0) + 1
         

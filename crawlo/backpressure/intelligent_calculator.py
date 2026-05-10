@@ -103,7 +103,7 @@ class IntelligentBackpressureCalculator:
             return 0.0
         
         # 检查缓存是否有效（优化：避免频繁计算）
-        import time
+        # time 已在顶部导入
         current_time = time.time()
         if current_time - self._cache_timestamp < self._cache_ttl:
             return self._cached_delay

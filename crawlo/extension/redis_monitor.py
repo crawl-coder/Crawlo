@@ -43,7 +43,7 @@ class RedisMonitorExtension:
         # 只有当配置启用时才创建实例
         if not crawler.settings.get_bool('REDIS_MONITOR_ENABLED', False):
             from crawlo.exceptions import NotConfigured
-            from crawlo.logging import get_logger
+            # get_logger 已在顶部导入
             logger = get_logger(cls.__name__)
             # 使用debug级别日志，避免在正常情况下产生错误日志
             logger.debug("RedisMonitorExtension: REDIS_MONITOR_ENABLED is False, skipping initialization")

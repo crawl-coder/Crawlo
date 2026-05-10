@@ -47,7 +47,7 @@ class MySQLMonitorExtension:
         # 只有当配置启用时才创建实例
         if not crawler.settings.get_bool('MYSQL_MONITOR_ENABLED', False):
             from crawlo.exceptions import NotConfigured
-            from crawlo.logging import get_logger
+            # get_logger 已在顶部导入
             logger = get_logger(cls.__name__)
             logger.debug("MySQLMonitorExtension: MYSQL_MONITOR_ENABLED is False, skipping initialization")
             raise NotConfigured("MySQLMonitorExtension: MYSQL_MONITOR_ENABLED is False")

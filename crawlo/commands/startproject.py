@@ -73,7 +73,7 @@ def _render_template(tmpl_path, context):
         content = f.read()
     
     # 处理简单的过滤器语法 {{key|filter}}
-    import re
+    # 注意：re 已在文件顶部导入，无需重复导入
     
     def apply_filter(value, filter_name):
         if filter_name == 'title':
@@ -435,6 +435,6 @@ def main(args):
         return 1
 
 if __name__ == "__main__":
-    import sys
+    # sys 已在顶部导入
     exit_code = main(sys.argv[1:])
     sys.exit(exit_code)

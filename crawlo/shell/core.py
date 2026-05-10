@@ -18,6 +18,7 @@ from typing import Optional, Any, Dict
 from crawlo.logging import get_logger
 from crawlo.network.request import Request
 from crawlo.network.response import Response
+from crawlo.settings.setting_manager import SettingManager
 
 
 class _MockCrawler:
@@ -30,7 +31,7 @@ class _MockCrawler:
         if settings is None:
             # 使用默认 SettingManager
             try:
-                from crawlo.settings.setting_manager import SettingManager
+                # SettingManager 已在顶部导入
                 self.settings = SettingManager()
             except Exception as e:
                 get_logger(__name__).warning(
@@ -40,7 +41,7 @@ class _MockCrawler:
         elif isinstance(settings, dict):
             # 合并 dict 到 SettingManager
             try:
-                from crawlo.settings.setting_manager import SettingManager
+                # SettingManager 已在顶部导入
                 sm = SettingManager()
                 for k, v in settings.items():
                     sm.attributes[k] = v

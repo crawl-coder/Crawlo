@@ -7,8 +7,8 @@
 
 from typing import Union, TYPE_CHECKING, Type, cast, List
 
-if TYPE_CHECKING:
-    from crawlo.spider import Spider
+# 导入 Spider 相关（避免重复导入）
+from crawlo.spider import Spider, get_global_spider_registry, SpiderDiscoveryState
 
 
 class SpiderResolver:
@@ -49,11 +49,8 @@ class SpiderResolver:
         if not isinstance(spider_cls_or_name, str):
             return cast(Type['Spider'], spider_cls_or_name)
         
-        # 导入必要的模块
-        try:
-            from crawlo.spider import get_global_spider_registry, Spider
-        except ImportError:
-            raise ValueError(f"Cannot resolve spider name '{spider_cls_or_name}'")
+        # 导入必要的模块（已在顶部导入）
+        # from crawlo.spider import get_global_spider_registry, Spider
         
         registry = get_global_spider_registry()
         spider_name = spider_cls_or_name
@@ -94,7 +91,7 @@ class SpiderResolver:
     @staticmethod
     def _auto_discover_spiders(modules: List[str], registry: dict) -> None:
         """自动发现爬虫"""
-        from crawlo.spider import SpiderDiscoveryState
+        # SpiderDiscoveryState 已在顶部导入
         from crawlo.utils.process_utils import SpiderDiscoveryUtils
         from crawlo.logging import get_logger
         
@@ -112,7 +109,7 @@ class SpiderResolver:
     @staticmethod
     def _try_direct_import(spider_name: str, registry: dict, add_failure) -> None:
         """尝试直接导入模块"""
-        from crawlo.spider import Spider
+        # Spider 已在顶部导入
         
         try:
             # 格式：module.ClassName

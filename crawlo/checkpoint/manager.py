@@ -22,6 +22,7 @@ from crawlo.checkpoint.storage import BaseStorage, JsonStorage, SqliteStorage
 if TYPE_CHECKING:
     from crawlo.scheduling.scheduler import Scheduler
     from crawlo.stats import StatsCollector
+    from crawlo.network.request import Request  # 用于类型注解
 
 
 class CheckpointManager:
@@ -399,46 +400,37 @@ class CheckpointManager:
             self.logger.debug(f"request_from_dict failed: {e}, falling back to manual restore")
 
         # 手动恢复
-        try:
-            from crawlo.network.request import Request
+        # Request 已在 TYPE_CHECKING 中导入，但运行时需要实际类
+        from crawlo.network.request import Request as RequestClass
 
-            url = request_data.get('url', '')
-            if not url:
-                raise ValueError("No URL in request data")
+        url = request_data.get('url', '')
+        if not url:
+            raise ValueError("No URL in request data")
 
-            # 构建参数，过滤掉非 Request 构造参数
-            request_kwargs = {
-                'method': request_data.get('method', 'GET'),
-                'headers': request_data.get('headers'),
-                'meta': request_data.get('meta'),
-                'priority': request_data.get('priority', 0),
-                'dont_filter': request_data.get('dont_filter', False),
-                'encoding': request_data.get('encoding', 'utf-8'),
-            }
+        # 构建参数，过滤掉非 Request 构造参数
+        request_kwargs = {
+            'method': request_data.get('method', 'GET'),
+            'headers': request_data.get('headers'),
+            'meta': request_data.get('meta'),
+            'priority': request_data.get('priority', 0),
+            'dont_filter': request_data.get('dont_filter', False),
+            'encoding': request_data.get('encoding', 'utf-8'),
+        }
 
-            # 可选字段
-            if 'body' in request_data:
-                request_kwargs['body'] = request_data['body']
-            if 'cookies' in request_data:
-                request_kwargs['cookies'] = request_data['cookies']
-            if 'timeout' in request_data:
-                request_kwargs['timeout'] = request_data['timeout']
-            if 'proxy' in request_data:
-                request_kwargs['proxy'] = request_data['proxy']
+        # 可选字段
+        if 'body' in request_data:
+            request_kwargs['body'] = request_data['body']
+        if 'cookies' in request_data:
+            request_kwargs['cookies'] = request_data['cookies']
+        if 'timeout' in request_data:
+            request_kwargs['timeout'] = request_data['timeout']
+        if 'proxy' in request_data:
+            request_kwargs['proxy'] = request_data['proxy']
 
-            # 移除 None 值
-            request_kwargs = {k: v for k, v in request_kwargs.items() if v is not None}
+        # 移除 None 值
+        request_kwargs = {k: v for k, v in request_kwargs.items() if v is not None}
 
-            return Request(url=url, **request_kwargs)
-
-        except Exception as e:
-            self.logger.error(f"Failed to restore request: {e}")
-            # 最后降级：只带 URL
-            try:
-                from crawlo.network.request import Request
-                return Request(url=request_data.get('url', ''))
-            except Exception:
-                return None
+        return RequestClass(url=url, **request_kwargs)
 
     def restore_fingerprints(self, fingerprints: Set[str], scheduler: Optional['Scheduler']) -> bool:
         """恢复去重指纹到过滤器
