@@ -12,17 +12,14 @@ except ImportError:
     RedisCluster = None
     REDIS_CLUSTER_AVAILABLE = False
 
-# 使用 TYPE_CHECKING 避免运行时循环导入
-if TYPE_CHECKING:
-    from crawlo import Request
-
-from crawlo.logging import get_logger
-from crawlo.utils.request.request_serializer import RequestSerializer
 try:
     import msgpack
     MSGPACK_AVAILABLE = True
 except ImportError:
     MSGPACK_AVAILABLE = False
+
+from crawlo.logging import get_logger
+from crawlo.utils.request.request_serializer import RequestSerializer
 from crawlo.utils.error_handler import ErrorHandler, ErrorContext
 from crawlo.utils.redis import get_redis_pool, RedisConnectionPool, RedisKeyManager
 from crawlo.network.request import Request
