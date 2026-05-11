@@ -313,9 +313,9 @@ class QueueManager(QueueStatusMixin, QueueBackpressureMixin):
         上层应通过 async_empty() 获取精确结果。
         """
         try:
-            # 对于内存队列，可以同步检查
+            # 对于内存队列，同步检查（asyncio.PriorityQueue.qsize() 是同步的）
             if self._queue and self._queue_type == QueueType.MEMORY:
-                # 确保正确检查队列大小
+                # SpiderPriorityQueue 继承自 asyncio.PriorityQueue，有 qsize() 方法
                 if hasattr(self._queue, 'qsize'):
                     return self._queue.qsize() == 0
                 else:
@@ -333,18 +333,14 @@ class QueueManager(QueueStatusMixin, QueueBackpressureMixin):
             # 对于内存队列
             if self._queue and self._queue_type == QueueType.MEMORY:
                 # 确保正确检查队列大小
-                if hasattr(self._queue, 'qsize'):
-                    if asyncio.iscoroutinefunction(self._queue.qsize):
-                        size = await self._queue.qsize()  # type: ignore
-                    else:
-                        size = self._queue.qsize()
+                if hasattr(self._queue, 'size'):
+                    size = await self._queue.size()
                     return size == 0
                 else:
-                    # 如果没有qsize方法，假设队列为空
+                    # 如果没有size方法，假设队列为空
                     return True
             # 对于 Redis 队列，使用异步检查
             elif self._queue and self._queue_type == QueueType.REDIS:
-                # 对于 Redis 队列，使用异步检查
                 # 直接使用Redis队列的qsize方法，它会同时检查主队列和处理中队列
                 if isinstance(self._queue, RedisPriorityQueue):
                     try:

@@ -51,15 +51,9 @@ class QueueStatusMixin:
         # 获取队列大小
         try:
             if self._queue:  # type: ignore
-                if hasattr(self._queue, 'qsize'):  # type: ignore
-                    if asyncio.iscoroutinefunction(self._queue.qsize):  # type: ignore
-                        # 异步获取队列大小
-                        async def get_size():
-                            return await self._queue.qsize()  # type: ignore
-                        # 注意：这里不能直接调用异步函数，需要在适当上下文中使用
-                        stats['current_queue_size'] = 'async_required'  # 需要在异步上下文中获取
-                    else:
-                        stats['current_queue_size'] = self._queue.qsize()  # type: ignore
+                if hasattr(self._queue, 'size'):  # type: ignore
+                    # 使用异步 API（但这里同步上下文，只能标记）
+                    stats['current_queue_size'] = 'async_required'  # 需要在异步上下文中获取
                 elif hasattr(self._queue, '__len__'):  # type: ignore
                     stats['current_queue_size'] = len(self._queue)  # type: ignore
         except Exception:

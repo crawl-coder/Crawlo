@@ -702,18 +702,6 @@ class SpiderPriorityQueue(asyncio.PriorityQueue):
         """
         return super().qsize()
 
-    def qsize(self) -> int:
-        """
-        同步获取队列大小（asyncio.PriorityQueue 原生方法）
-        
-        注意：此方法是同步的，因为 asyncio.PriorityQueue.qsize() 不涉及 I/O。
-        推荐使用异步的 size() 方法以保持 API 一致性。
-        
-        Returns:
-            int: 队列中的元素数量
-        """
-        return super().qsize()
-
     async def close(self) -> None:
         """关闭队列（空实现，用于与Redis队列接口保持一致）"""
         pass
