@@ -341,10 +341,10 @@ class QueueManager(QueueStatusMixin, QueueBackpressureMixin):
                     return True
             # 对于 Redis 队列，使用异步检查
             elif self._queue and self._queue_type == QueueType.REDIS:
-                # 直接使用Redis队列的qsize方法，它会同时检查主队列和处理中队列
+                # 使用统一的 size() API
                 if isinstance(self._queue, RedisPriorityQueue):
                     try:
-                        size = await self._queue.qsize()
+                        size = await self._queue.size()
                         is_empty = size == 0
                         return is_empty
                     except Exception:

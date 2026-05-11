@@ -640,9 +640,20 @@ class RedisPriorityQueue:
         # 使用key_manager的namespace来确保一致性
         return f"{self.key_manager.namespace}:url:{hash(request.url) & 0x7FFFFFFF}"  # 确保正数
 
+    async def size(self) -> int:
+        """
+        异步获取队列大小（与 MemoryQueue API 保持一致）
+        
+        Returns:
+            int: 队列中的元素数量
+        """
+        return await self.qsize()
+
     async def qsize(self) -> int:
         """
         Get queue size (只检查主队列)
+        
+        注意：保留此方法以兼容旧代码，推荐使用 size() 方法。
 
         Returns:
             int: 队列大小（只检查主队列）
