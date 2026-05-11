@@ -22,7 +22,7 @@ from crawlo.logging import get_logger
 from crawlo.utils.request.request_serializer import RequestSerializer
 from crawlo.utils.error_handler import ErrorHandler, ErrorContext
 from crawlo.utils.redis import get_redis_pool, RedisConnectionPool, RedisKeyManager
-from crawlo.network.request import Request
+from crawlo import Request
 
 # 创建logger实例
 logger = get_logger(__name__)
