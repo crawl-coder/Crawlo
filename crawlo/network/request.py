@@ -420,7 +420,10 @@ class Request:
         """
         url = data.get('url')
         if not url or not isinstance(url, str):
-            raise ValueError(f"Invalid URL in request data: {repr(url)}")
+            raise ValueError(
+                f"Invalid URL in request data: {repr(url)}. "
+                f"Full data keys: {list(data.keys()) if isinstance(data, dict) else 'N/A'}"
+            )
         
         return cls(
             url=url,
