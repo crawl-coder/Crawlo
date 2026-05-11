@@ -25,6 +25,7 @@ except ImportError:
     MSGPACK_AVAILABLE = False
 from crawlo.utils.error_handler import ErrorHandler, ErrorContext
 from crawlo.utils.redis import get_redis_pool, RedisConnectionPool, RedisKeyManager
+from crawlo.network.request import Request
 
 # 创建logger实例
 logger = get_logger(__name__)
@@ -189,8 +190,6 @@ class RedisPriorityQueue:
             RuntimeError: 如果序列化验证失败
         """
         try:
-            from crawlo.network.request import Request
-            
             # 创建测试请求
             test_request = Request('http://test.example.com/validate')
             
@@ -498,7 +497,6 @@ class RedisPriorityQueue:
                                 data = pickle.loads(serialized, encoding='latin1')
                         
                         # 将数据转换为 Request 对象
-                        from crawlo.network.request import Request
                         
                         # 如果已经是 Request 对象，直接返回
                         if isinstance(data, Request):
