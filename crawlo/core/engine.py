@@ -617,7 +617,7 @@ class Engine(RequestGenerationMixin):
             deleted = log_manager.cleanup_old_logs(days=self.days)
             
             if deleted > 0:
-                self.logger.info(f"Cleaned up {deleted} expired log files (>{days} days)")
+                self.logger.info(f"Cleaned up {deleted} expired log files (>{self.days} days)")
         except Exception as e:
             self.logger.error(f"Failed to clean up expired log files: {e}")
     
