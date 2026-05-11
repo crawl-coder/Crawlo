@@ -9,14 +9,18 @@ from typing import Any, Iterator, Dict
 from collections.abc import MutableMapping
 
 from .base import ItemMeta
+from .fields import Field
 from crawlo.exceptions import ItemInitError, ItemAttributeError
 
 
 class Item(MutableMapping, metaclass=ItemMeta):
     """
     Base data item class for defining structured data
+    
+    支持动态字段：未声明的字段会自动创建（allow_dynamic=True 时）
     """
     FIELDS: Dict[str, Any] = {}
+    allow_dynamic: bool = True  # 是否允许动态字段
 
     def __init__(self, *args, **kwargs):
         if args:
@@ -40,8 +44,13 @@ class Item(MutableMapping, metaclass=ItemMeta):
         return self._values[item]
 
     def __setitem__(self, key: str, value: Any) -> None:
+        # 支持动态字段：如果字段不存在且允许动态创建，则自动创建
         if key not in self.FIELDS:
-            raise KeyError(f"{self.__class__.__name__} does not contain field: {key}")
+            if getattr(self.__class__, 'allow_dynamic', True):
+                # 自动创建字段定义
+                self.__class__.FIELDS[key] = Field()
+            else:
+                raise KeyError(f"{self.__class__.__name__} does not contain field: {key}")
 
         field = self.FIELDS[key]
         try:

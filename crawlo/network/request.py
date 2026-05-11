@@ -210,9 +210,9 @@ class Request:
             if isinstance(self.body, dict):
                 if 'Content-Type' not in self.headers:
                     self.headers['Content-Type'] = 'application/json'
-                self.body = json.dumps(self.body, ensure_ascii=False).encode(encoding)
+                self.body = json.dumps(self.body, ensure_ascii=False).encode(encoding or 'utf-8')
             elif isinstance(self.body, str):
-                self.body = self.body.encode(encoding)
+                self.body = self.body.encode(encoding or 'utf-8')
 
         self.dont_filter = dont_filter
         self._set_url(self._url)

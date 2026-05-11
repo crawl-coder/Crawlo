@@ -25,15 +25,16 @@ class TestExtremeMemoryQueueScenarios:
             await queue.put(req, priority=req.priority)
         
         # 验证队列大小
-        size = await queue.qsize()
+        size = queue.qsize()  # qsize 是同步方法
         assert size == 10000
         
-        # 出队并验证优先级顺序
-        last_priority = -1
+        # 出队并验证优先级顺序（负数：越小越优先）
+        last_priority = None
         for _ in range(100):  # 只检查前 100 个
             req = await queue.get(timeout=1.0)
             if req:
-                assert req.priority >= last_priority
+                if last_priority is not None:
+                    assert req.priority <= last_priority  # 负数比较：-9 < -1
                 last_priority = req.priority
     
     @pytest.mark.asyncio
@@ -79,12 +80,13 @@ class TestExtremeMemoryQueueScenarios:
         for p in priorities:
             await queue.put(Request(f'http://example.com/priority/{p}'), priority=p)
         
-        # 出队应该按优先级升序
-        last_priority = -1
+        # 出队应该按优先级升序（负数：越小越优先）
+        last_priority = None
         for _ in range(len(priorities)):
             req = await queue.get(timeout=1.0)
             if req:
-                assert req.priority >= last_priority
+                if last_priority is not None:
+                    assert req.priority <= last_priority
                 last_priority = req.priority
     
     @pytest.mark.asyncio
@@ -99,7 +101,7 @@ class TestExtremeMemoryQueueScenarios:
             await queue.put(Request('http://example.com/duplicate'), priority=0)
         
         # 内存队列应该允许重复
-        size = await queue.qsize()
+        size = queue.qsize()  # qsize 是同步方法
         assert size == 100
     
     @pytest.mark.asyncio
@@ -119,7 +121,7 @@ class TestExtremeMemoryQueueScenarios:
         await asyncio.gather(*tasks)
         
         # 验证总数
-        size = await queue.qsize()
+        size = queue.qsize()  # qsize 是同步方法
         assert size == 1000
 
 

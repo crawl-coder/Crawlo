@@ -665,6 +665,17 @@ class SpiderPriorityQueue(asyncio.PriorityQueue):
         """初始化队列，maxsize为0表示无大小限制"""
         super().__init__(maxsize)
 
+    async def put(self, item: Any, priority: int = 0) -> None:
+        """
+        放入元素到队列
+        
+        Args:
+            item: 要入队的元素
+            priority: 优先级（数值越小越优先）
+        """
+        # 包装为 (priority, item) 元组，利用 asyncio.PriorityQueue 的排序特性
+        await super().put((priority, item))
+
     async def get(self, timeout: float = 0.01) -> Optional[Any]:
         """
         异步获取队列元素，带超时功能
@@ -673,11 +684,11 @@ class SpiderPriorityQueue(asyncio.PriorityQueue):
             timeout: 超时时间（秒），默认0.01秒
 
         Returns:
-            队列元素(优先级, 值)或None(超时)
+            队列元素或None(超时)
         """
         try:
             async with asyncio.timeout(timeout if timeout > 0 else None):
-                item = await super().get()
+                _, item = await super().get()
                 return item
         except asyncio.TimeoutError:
             return None
