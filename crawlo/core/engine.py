@@ -44,6 +44,8 @@ class Engine(RequestGenerationMixin):
         self._start_requests_is_async = False  # Whether it's an async generator
         self._close_reason: str = 'finished'  # Close reason: finished / shutdown
         self._spider_closed: bool = False  # Prevent duplicate close_spider calls
+        self._background_tasks: set = set()  # Track fire-and-forget tasks to prevent leaks
+        self._request_available = asyncio.Event()  # 事件驱动：新请求可用时唤醒主循环
         
         # Initialize configurations
         self._init_configs()
@@ -56,6 +58,13 @@ class Engine(RequestGenerationMixin):
         )
 
         self.logger = get_logger(name=self.__class__.__name__)
+    
+    def _create_background_task(self, coro):
+        """创建带引用追踪的后台任务，防止 fire-and-forget 任务泄漏"""
+        task = asyncio.create_task(coro)
+        self._background_tasks.add(task)
+        task.add_done_callback(self._background_tasks.discard)
+        return task
     
     def _init_configs(self) -> None:
         """
@@ -230,6 +239,7 @@ class Engine(RequestGenerationMixin):
                 # 批量处理请求
                 if requests:
                     idle_count = 0  # 重置空闲计数
+                    self._request_available.clear()  # 清除事件，等待新请求
                     # 并发处理批量请求
                     tasks = [self._crawl(req) for req in requests]
                     await asyncio.gather(*tasks, return_exceptions=True)
@@ -262,16 +272,21 @@ class Engine(RequestGenerationMixin):
                         break
                     last_exit_check = loop_count
                 
-                # 动态调整 sleep 时间，根据负载情况
+                # 动态调整等待时间，根据负载情况
                 if requests:
-                    # 有请求处理，极短休息
+                    # 有请求处理，极短休息（让出事件循环）
                     await asyncio.sleep(0.000001)
-                elif idle_count > 10:
-                    # 连续空闲，增加休息时间
-                    await asyncio.sleep(0.01)
                 else:
-                    # 短暂休息
-                    await asyncio.sleep(0.001)
+                    # 空闲时：使用事件等待，超时后检查退出条件
+                    try:
+                        timeout = 0.5 if idle_count > 10 else 0.1
+                        await asyncio.wait_for(
+                            self._request_available.wait(),
+                            timeout=timeout
+                        )
+                        self._request_available.clear()
+                    except asyncio.TimeoutError:
+                        pass
             
             self.logger.debug(f"主爬取循环结束，总共执行了 {loop_count} 次")
         
@@ -290,7 +305,7 @@ class Engine(RequestGenerationMixin):
                 self.logger.debug("close_spider cancelled")
 
     async def _open_spider(self):
-        asyncio.create_task(self.crawler.subscriber.notify(CrawlerEvent.SPIDER_OPENED))
+        self._create_background_task(self.crawler.subscriber.notify(CrawlerEvent.SPIDER_OPENED))
         # 直接调用crawl方法而不是创建任务，确保等待完成
         await self.crawl()
 
@@ -394,8 +409,9 @@ class Engine(RequestGenerationMixin):
 
     async def _schedule_request(self, request):
         if self.scheduler is not None and await self.scheduler.enqueue_request(request):
+            self._request_available.set()  # 唤醒主循环
             if self.crawler is not None and self.crawler.spider is not None:
-                asyncio.create_task(self.crawler.subscriber.notify(CrawlerEvent.REQUEST_SCHEDULED, request, self.crawler.spider))
+                self._create_background_task(self.crawler.subscriber.notify(CrawlerEvent.REQUEST_SCHEDULED, request, self.crawler.spider))
 
     async def _get_next_request(self):
         if self.scheduler is not None:
@@ -410,7 +426,7 @@ class Engine(RequestGenerationMixin):
                 await self.processor.enqueue(spider_output)
             elif isinstance(spider_output, Exception):
                 if self.crawler is not None and self.spider is not None:
-                    asyncio.create_task(
+                    self._create_background_task(
                         self.crawler.subscriber.notify(CrawlerEvent.SPIDER_ERROR, spider_output, self.spider)
                     )
                 raise spider_output
@@ -542,38 +558,58 @@ class Engine(RequestGenerationMixin):
         self._spider_closed = True
         self._close_reason = reason
 
-        # 仅在非正常退出时等待活跃任务完成
-        if reason != 'finished' and self.task_manager is not None and self.task_manager.current_task:
-            self.logger.debug(f"Waiting for {len(self.task_manager.current_task)} active tasks to complete...")
-            try:
-                await asyncio.gather(*self.task_manager.current_task, return_exceptions=True)
-            except asyncio.CancelledError:
-                self.logger.debug("Task manager gather cancelled")
-            except Exception as e:
-                self.logger.debug(f"Task manager gather completed with errors: {e}")
-        
-        # 检查点保存：Ctrl+C 触发的关闭时保存状态
-        if reason == 'shutdown':
-            await self._save_checkpoint()
-        
-        # 正常完成时清除检查点
-        if reason == 'finished':
-            await self._clear_checkpoint()
-        
-        # 关闭 pipeline（刷新批量数据、清理资源）
-        if self.processor is not None and hasattr(self.processor, 'pipelines'):
-            await self.processor.pipelines.close()
-        
-        # 清理过期日志文件（默认 3 天）
-        await self._cleanup_old_logs()
-        
-        # 关闭下载器（带超时保护，超时后取消内部协程防止资源泄漏）
-        if self.downloader is not None and hasattr(self.downloader, 'close'):
-            try:
-                close_result = self.downloader.close()
-                # 如果是协程，使用超时等待
-                if asyncio.iscoroutine(close_result):
-                    close_task = asyncio.ensure_future(close_result)
+        try:
+            # 仅在非正常退出时等待活跃任务完成
+            if reason != 'finished' and self.task_manager is not None and self.task_manager.current_task:
+                self.logger.debug(f"Waiting for {len(self.task_manager.current_task)} active tasks to complete...")
+                try:
+                    await asyncio.gather(*self.task_manager.current_task, return_exceptions=True)
+                except asyncio.CancelledError:
+                    self.logger.debug("Task manager gather cancelled")
+                except Exception as e:
+                    self.logger.debug(f"Task manager gather completed with errors: {e}")
+            
+            # 检查点保存：Ctrl+C 触发的关闭时保存状态
+            if reason == 'shutdown':
+                await self._save_checkpoint()
+            
+            # 正常完成时清除检查点
+            if reason == 'finished':
+                await self._clear_checkpoint()
+            
+            # 关闭 pipeline（刷新批量数据、清理资源）
+            if self.processor is not None and hasattr(self.processor, 'pipelines'):
+                await self.processor.pipelines.close()
+            
+            # 清理过期日志文件（默认 3 天）
+            await self._cleanup_old_logs()
+            
+            # 关闭下载器（带超时保护，超时后取消内部协程防止资源泄漏）
+            if self.downloader is not None and hasattr(self.downloader, 'close'):
+                try:
+                    close_result = self.downloader.close()
+                    # 如果是协程，使用超时等待
+                    if asyncio.iscoroutine(close_result):
+                        close_task = asyncio.ensure_future(close_result)
+                        try:
+                            async with asyncio.timeout(5.0):
+                                await close_task
+                        except asyncio.TimeoutError:
+                            close_task.cancel()
+                            try:
+                                await close_task
+                            except asyncio.CancelledError:
+                                pass
+                            raise  # 重新抛给外层 except 处理
+                except asyncio.TimeoutError:
+                    self.logger.warning("下载器关闭超时，强制清理资源")
+                except Exception as e:
+                    self.logger.debug(f"下载器关闭时发生错误: {e}")
+            
+            # 关闭调度器（带超时保护，超时后取消内部协程防止资源泄漏）
+            if self.scheduler is not None:
+                try:
+                    close_task = asyncio.ensure_future(self.scheduler.close())
                     try:
                         async with asyncio.timeout(5.0):
                             await close_task
@@ -584,29 +620,14 @@ class Engine(RequestGenerationMixin):
                         except asyncio.CancelledError:
                             pass
                         raise  # 重新抛给外层 except 处理
-            except asyncio.TimeoutError:
-                self.logger.warning("下载器关闭超时，强制清理资源")
-            except Exception as e:
-                self.logger.debug(f"下载器关闭时发生错误: {e}")
-        
-        # 关闭调度器（带超时保护，超时后取消内部协程防止资源泄漏）
-        if self.scheduler is not None:
-            try:
-                close_task = asyncio.ensure_future(self.scheduler.close())
-                try:
-                    async with asyncio.timeout(5.0):
-                        await close_task
                 except asyncio.TimeoutError:
-                    close_task.cancel()
-                    try:
-                        await close_task
-                    except asyncio.CancelledError:
-                        pass
-                    raise  # 重新抛给外层 except 处理
-            except asyncio.TimeoutError:
-                self.logger.warning("调度器关闭超时")
-            except Exception as e:
-                self.logger.debug(f"调度器关闭时发生错误: {e}")
+                    self.logger.warning("调度器关闭超时")
+                except Exception as e:
+                    self.logger.debug(f"调度器关闭时发生错误: {e}")
+        except Exception:
+            # 清理失败，重置标志允许重试
+            self._spider_closed = False
+            raise
     
     async def _cleanup_old_logs(self):
         """清理过期日志文件"""

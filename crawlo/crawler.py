@@ -17,7 +17,6 @@ Design Principles:
 """
 
 import asyncio
-import sys
 import time
 from contextlib import asynccontextmanager
 from typing import Optional, Type, Dict, Any, List, Union, TYPE_CHECKING, cast
@@ -267,19 +266,19 @@ class Crawler:
     async def _lifecycle_manager(self):
         """Lifecycle management"""
         self._metrics.start_time = time.time()
-        
+        cleaned_up = False
         try:
             yield
         except asyncio.CancelledError:
             self._logger.info("Crawler task cancelled, starting resource cleanup...")
+            cleaned_up = True
             await self._cleanup(reason='shutdown')
             raise
         except Exception as e:
             await self._handle_error(e)
             raise
         finally:
-            # Only cleanup if not CancelledError (already handled in except block)
-            if not isinstance(sys.exc_info()[1], asyncio.CancelledError):
+            if not cleaned_up:
                 await self._cleanup()
             self._metrics.end_time = time.time()
     

@@ -276,9 +276,11 @@ class AioRedisFilter(BaseFilter):
             return False
 
         except Exception as e:
-            self.logger.error(f"Request check failed: {getattr(request, 'url', 'Unknown URL')} - {e}")
-            # Return False on network error to avoid losing requests
-            return False
+            self.logger.warning(
+                f"Redis unavailable, allowing request without dedup: {getattr(request, 'url', 'Unknown URL')}. "
+                f"Duplicates possible but no data will be lost."
+            )
+            return False  # 宁可重复，不可丢失
 
     def add_fingerprint(self, fp: str) -> None:
         """
@@ -422,9 +424,11 @@ class AioRedisFilter(BaseFilter):
             
             return bool(exists)
         except Exception as e:
-            self.logger.error(f"Failed to check fingerprint existence: {fp[:20]}... - {e}")
-            # Return False on network error to avoid losing requests
-            return False
+            self.logger.warning(
+                f"Redis unavailable, skipping dedup check for fingerprint: {fp[:20]}... "
+                f"Duplicates possible but no data will be lost."
+            )
+            return False  # 宁可重复，不可丢失
 
     def close(self) -> None:
         """

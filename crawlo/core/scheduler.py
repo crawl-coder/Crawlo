@@ -33,6 +33,24 @@ class Scheduler:
         self.stats = stats
         self.dupe_filter = dupe_filter
         self.priority = priority
+        self._queue_not_full = asyncio.Condition()  # 用于替代轮询等待
+
+    def _get_setting(self, key, default=None):
+        """安全获取配置值，替代重复的 if/try/except 模式"""
+        if self.crawler and self.crawler.settings is not None:
+            try:
+                return self.crawler.settings.get(key, default)
+            except Exception:
+                return default
+        return default
+    
+    def _set_setting(self, key, value):
+        """安全设置配置值，替代重复的 if/try/except 模式"""
+        if self.crawler and self.crawler.settings is not None:
+            try:
+                self.crawler.settings.set(key, value)
+            except Exception:
+                pass
 
     @classmethod
     def create_instance(cls, crawler):
@@ -108,15 +126,10 @@ class Scheduler:
                 # 当 QUEUE_TYPE 明确设置为 redis 时，也应该检查配置一致性
                 
                 # 安全获取配置
-                if self.crawler and self.crawler.settings is not None:
-                    try:
-                        queue_type_setting = self.crawler.settings.get('QUEUE_TYPE', 'memory')
-                        current_filter = self.crawler.settings.get('FILTER_CLASS', '')
-                        concurrency = self.crawler.settings.get('CONCURRENCY', 8)
-                        delay = self.crawler.settings.get('DOWNLOAD_DELAY', 1.0)
-                    except Exception:
-                        # 使用默认值
-                        pass
+                queue_type_setting = self._get_setting('QUEUE_TYPE', 'memory')
+                current_filter = self._get_setting('FILTER_CLASS', '')
+                concurrency = self._get_setting('CONCURRENCY', 8)
+                delay = self._get_setting('DOWNLOAD_DELAY', 1.0)
                 
                 if queue_type_setting == 'redis' or needs_config_update:
                     updated_configs = self._check_filter_config()
@@ -130,12 +143,7 @@ class Scheduler:
             status = self.queue_manager.get_status() if self.queue_manager else {'type': 'unknown', 'health': 'unknown'}
             
             # 获取更新后的过滤器配置
-            updated_filter = current_filter
-            if self.crawler and self.crawler.settings is not None:
-                try:
-                    updated_filter = self.crawler.settings.get('FILTER_CLASS', current_filter)
-                except Exception:
-                    pass
+            updated_filter = self._get_setting('FILTER_CLASS', current_filter)
             self.logger.info(f"enabled filters: {updated_filter}")
             
             # 优化日志输出，将多条日志合并为1条关键信息
@@ -157,12 +165,7 @@ class Scheduler:
             return updated_configs
             
         # 安全获取FILTER_CLASS配置
-        current_filter_class = ''
-        if self.crawler and self.crawler.settings is not None:
-            try:
-                current_filter_class = self.crawler.settings.get('FILTER_CLASS', '')
-            except Exception:
-                current_filter_class = ''
+        current_filter_class = self._get_setting('FILTER_CLASS', '')
             
         if self.queue_manager._queue_type == QueueType.REDIS:
             # 检查当前过滤器是否为内存过滤器
@@ -184,12 +187,7 @@ class Scheduler:
             return
             
         # 安全获取FILTER_CLASS配置
-        current_filter_class = ''
-        if self.crawler and self.crawler.settings is not None:
-            try:
-                current_filter_class = self.crawler.settings.get('FILTER_CLASS', '')
-            except Exception:
-                current_filter_class = ''
+        current_filter_class = self._get_setting('FILTER_CLASS', '')
         
         filter_matches_queue_type = self._is_filter_matching_queue_type(current_filter_class)
         
@@ -198,12 +196,7 @@ class Scheduler:
             # 如果需要更新配置，则执行更新
             if needs_config_update:
                 # 安全获取FILTER_CLASS配置
-                filter_class = 'crawlo.filters.memory_filter.MemoryFilter'
-                if self.crawler and self.crawler.settings is not None:
-                    try:
-                        filter_class = self.crawler.settings.get('FILTER_CLASS', filter_class)
-                    except Exception:
-                        pass
+                filter_class = self._get_setting('FILTER_CLASS', 'crawlo.filters.memory_filter.MemoryFilter')
                 
                 # 重新创建过滤器实例，确保使用更新后的配置
                 filter_cls = load_object(filter_class)
@@ -222,12 +215,7 @@ class Scheduler:
                     self._switch_to_memory_config()
                 
                 # 安全获取FILTER_CLASS配置
-                filter_class = 'crawlo.filters.memory_filter.MemoryFilter'
-                if self.crawler and self.crawler.settings is not None:
-                    try:
-                        filter_class = self.crawler.settings.get('FILTER_CLASS', filter_class)
-                    except Exception:
-                        pass
+                filter_class = self._get_setting('FILTER_CLASS', 'crawlo.filters.memory_filter.MemoryFilter')
                 
                 # 重新创建过滤器实例
                 filter_cls = load_object(filter_class)
@@ -283,42 +271,37 @@ class Scheduler:
             return
             
         # 安全获取当前配置
-        current_filter_class = ''
-        default_dedup_pipeline = ''
-        pipelines = []
-        
-        if self.crawler and self.crawler.settings is not None:
-            try:
-                current_filter_class = self.crawler.settings.get('FILTER_CLASS', '')
-                default_dedup_pipeline = self.crawler.settings.get('DEFAULT_DEDUP_PIPELINE', '')
-                pipelines = self.crawler.settings.get('PIPELINES', [])
-            except Exception:
-                pass
+        current_filter_class = self._get_setting('FILTER_CLASS', '')
+        default_dedup_pipeline = self._get_setting('DEFAULT_DEDUP_PIPELINE', '')
+        pipelines = self._get_setting('PIPELINES', [])
             
         updated_configs = []
         
         # 检查并更新过滤器
         if any(pattern in current_filter_class for pattern in config['source_filter_patterns']):
-            if self.crawler and self.crawler.settings is not None:
-                try:
-                    self.crawler.settings.set('FILTER_CLASS', config['filter_class'])
-                    updated_configs.append("filter")
-                except Exception:
-                    pass
+            self._set_setting('FILTER_CLASS', config['filter_class'])
+            updated_configs.append("filter")
         
         # 检查并更新去重管道
         if config['source_dedup_pattern'] in default_dedup_pipeline:
-            if self.crawler and self.crawler.settings is not None:
-                try:
-                    self.crawler.settings.set('DEFAULT_DEDUP_PIPELINE', config['dedup_pipeline'])
-                    # 同时更新PIPELINES列表中的去重管道
-                    if default_dedup_pipeline in pipelines:
-                        index = pipelines.index(default_dedup_pipeline)
-                        pipelines[index] = config['dedup_pipeline']
-                        self.crawler.settings.set('PIPELINES', pipelines)
-                    updated_configs.append("dedup pipeline")
-                except Exception:
-                    pass
+            self._set_setting('DEFAULT_DEDUP_PIPELINE', config['dedup_pipeline'])
+            # 同时更新PIPELINES中的去重管道
+            # 注意：pipelines 可能是列表或字典,需要分别处理
+            if isinstance(pipelines, list):
+                # 列表格式: ['pipeline1', 'pipeline2', ...]
+                if default_dedup_pipeline in pipelines:
+                    index = pipelines.index(default_dedup_pipeline)
+                    pipelines[index] = config['dedup_pipeline']
+                    self._set_setting('PIPELINES', pipelines)
+            elif isinstance(pipelines, dict):
+                # 字典格式: {'pipeline1': 100, 'pipeline2': 200, ...}
+                if default_dedup_pipeline in pipelines:
+                    # 保留原有优先级
+                    priority = pipelines[default_dedup_pipeline]
+                    del pipelines[default_dedup_pipeline]
+                    pipelines[config['dedup_pipeline']] = priority
+                    self._set_setting('PIPELINES', pipelines)
+            updated_configs.append("dedup pipeline")
         
         # 合并日志输出
         if updated_configs:
@@ -343,6 +326,10 @@ class Scheduler:
             queue_size_before = await self.queue_manager.size()
             
             request = await self.queue_manager.get()
+            
+            # 通知等待入队的协程：队列有空间了
+            async with self._queue_not_full:
+                self._queue_not_full.notify_all()
             
             # 获取出队后的队列大小
             queue_size_after = await self.queue_manager.size()
@@ -408,10 +395,9 @@ class Scheduler:
             max_size = self.queue_manager.max_size
             
             # ===== 队列满时阻塞等待，防止请求丢失 =====
-            # 当队列达到最大容量时，等待队列有空间后再入队
-            # 这样可以确保爬虫生成的所有请求都被处理，不会丢失
+            # 使用 Condition 变量替代轮询，减少 CPU 开销
             retry_count = 0
-            max_retries = 100  # 最多等待 100 次 * 0.5s = 50s
+            max_retries = 100  # 最多等待 100 次，每次由 Condition 超时控制
             
             while queue_size_before >= max_size:
                 retry_count += 1
@@ -429,8 +415,19 @@ class Scheduler:
                         f"pausing spider generation until space available..."
                     )
                 
-                # 等待队列消费（每次 0.5s）
-                await asyncio.sleep(0.5)
+                # 使用 Condition 等待队列有空间（超时 0.5s 防止死锁）
+                async with self._queue_not_full:
+                    try:
+                        # 重新检查条件，避免虚假唤醒
+                        current_size = await self.queue_manager.size()
+                        if current_size >= max_size:
+                            await asyncio.wait_for(
+                                self._queue_not_full.wait(),
+                                timeout=0.5
+                            )
+                    except asyncio.TimeoutError:
+                        pass
+                
                 queue_size_before = await self.queue_manager.size()
             
             # 队列有空间，执行入队

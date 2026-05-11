@@ -219,7 +219,7 @@ class Processor:
     
     async def _drain_queue(self) -> None:
         """排空队列中的剩余项"""
-        while not self.queue.empty():
+        while True:
             try:
                 result = self.queue.get_nowait()
                 await self._handle_result(result)
@@ -274,7 +274,7 @@ class Processor:
         
         处理完当前队列中的所有数据后返回。
         """
-        while not self.queue.empty():
+        while True:
             try:
                 result = self.queue.get_nowait()
                 await self._handle_result(result)

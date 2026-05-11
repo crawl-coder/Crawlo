@@ -1,6 +1,6 @@
 import importlib
 import pkgutil
-from typing import Iterator, Any, List, Type, Union, Dict
+from typing import Iterator, Any, List, Type, Union, Dict, TypeVar, overload
 
 from crawlo.spider import Spider
 
@@ -81,6 +81,27 @@ def load_object(path: str):
     except (ImportError, AttributeError) as e:
         raise ImportError(f"Could not load object from path '{path}': {e}")
 
+
+T = TypeVar('T')
+
+
+@overload
+def safe_get_config(settings, key: str, default: None = None, value_type: type[bool] = ...) -> bool: ...
+
+@overload
+def safe_get_config(settings, key: str, default: None = None, value_type: type[int] = ...) -> int: ...
+
+@overload
+def safe_get_config(settings, key: str, default: None = None, value_type: type[float] = ...) -> float: ...
+
+@overload
+def safe_get_config(settings, key: str, default: None = None, value_type: type[str] = ...) -> str: ...
+
+@overload
+def safe_get_config(settings, key: str, default: T, value_type: type = ...) -> T: ...
+
+@overload
+def safe_get_config(settings, key: str, default: None = None, value_type: None = None) -> Any: ...
 
 def safe_get_config(settings, key, default=None, value_type=None):
     """
