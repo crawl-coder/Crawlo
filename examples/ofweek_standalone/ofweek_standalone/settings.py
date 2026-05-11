@@ -11,7 +11,7 @@ ofweek_standalone 项目配置文件
 from crawlo.config import CrawloConfig
 
 # 使用自动检测模式配置工厂创建配置
-config = CrawloConfig.standalone(
+config = CrawloConfig.auto(
     project_name='ofweek_standalone',
     concurrency=12,  # 降低并发以便测试中断
     download_delay=1.0,  # 增加延时，方便测试检查点
