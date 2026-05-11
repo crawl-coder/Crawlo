@@ -693,8 +693,25 @@ class SpiderPriorityQueue(asyncio.PriorityQueue):
         except asyncio.TimeoutError:
             return None
 
+    async def size(self) -> int:
+        """
+        异步获取队列大小（与 MemoryQueue API 保持一致）
+        
+        Returns:
+            int: 队列中的元素数量
+        """
+        return super().qsize()
+
     def qsize(self) -> int:
-        """获取队列大小"""
+        """
+        同步获取队列大小（asyncio.PriorityQueue 原生方法）
+        
+        注意：此方法是同步的，因为 asyncio.PriorityQueue.qsize() 不涉及 I/O。
+        推荐使用异步的 size() 方法以保持 API 一致性。
+        
+        Returns:
+            int: 队列中的元素数量
+        """
         return super().qsize()
 
     async def close(self) -> None:

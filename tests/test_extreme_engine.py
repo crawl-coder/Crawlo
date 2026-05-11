@@ -160,7 +160,7 @@ class TestExtremeConcurrencyScenarios:
         await asyncio.gather(*producers)
         
         # 验证总数
-        size = queue.qsize()  # qsize 是同步方法
+        size = await queue.size()  # 使用异步 API
         assert size == 1000
 
 
