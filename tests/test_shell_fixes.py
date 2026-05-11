@@ -172,7 +172,7 @@ class TestMockCrawlerSettings:
         """测试无 settings 时创建 SettingManager"""
         from crawlo.shell.core import _MockCrawler
         
-        with patch('crawlo.settings.setting_manager.SettingManager') as mock_sm:
+        with patch('crawlo.shell.core.SettingManager') as mock_sm:
             mock_instance = Mock()
             mock_sm.return_value = mock_instance
             
@@ -186,7 +186,7 @@ class TestMockCrawlerSettings:
         """测试 dict settings 合并到 SettingManager"""
         from crawlo.shell.core import _MockCrawler
         
-        with patch('crawlo.settings.setting_manager.SettingManager') as mock_sm:
+        with patch('crawlo.shell.core.SettingManager') as mock_sm:
             mock_instance = Mock()
             mock_instance.attributes = {}
             mock_sm.return_value = mock_instance
@@ -212,7 +212,7 @@ class TestMockCrawlerSettings:
         """测试 SettingManager 创建失败时回退到 dict"""
         from crawlo.shell.core import _MockCrawler
         
-        with patch('crawlo.settings.setting_manager.SettingManager', side_effect=ImportError):
+        with patch('crawlo.shell.core.SettingManager', side_effect=ImportError):
             crawler = _MockCrawler()
             
             # 验证回退到空 dict
