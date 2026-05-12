@@ -12,7 +12,7 @@ import time
 import asyncio
 from typing import Optional, Dict, Any
 from collections import deque
-from .metrics_collector import BackpressureMetricsCollector, BackpressureMetrics
+from .metrics_collector import BackpressureMetricsCollector, QueueMetrics
 
 
 class IntelligentBackpressureCalculator:
@@ -154,7 +154,7 @@ class IntelligentBackpressureCalculator:
         # Use middle value of range as base delay
         return (delay_range[0] + delay_range[1]) / 2
     
-    def _calculate_adjustment(self, metrics: BackpressureMetrics) -> float:
+    def _calculate_adjustment(self, metrics: QueueMetrics) -> float:
         """
         Calculate adjustment factor based on detailed metrics
         

@@ -21,7 +21,7 @@ from crawlo.backpressure.strategies import (
 )
 from crawlo.backpressure.metrics_collector import (
     BackpressureMetricsCollector,
-    BackpressureMetrics,
+    QueueMetrics,
 )
 from crawlo.backpressure.intelligent_calculator import (
     IntelligentBackpressureCalculator,
@@ -51,6 +51,7 @@ class BackpressureController:
         self,
         strategy: Optional[IBackpressureStrategy] = None,
         enabled: bool = True,
+        intelligent_calculator: Optional['IntelligentBackpressureCalculator'] = None,
     ):
         """
         Initialize controller
@@ -58,10 +59,12 @@ class BackpressureController:
         Args:
             strategy: Backpressure strategy
             enabled: Whether to enable backpressure
+            intelligent_calculator: Optional smart delay calculator for enhanced precision
         """
         self._strategy = strategy or QueueSizeStrategy()
         self._enabled = enabled
         self._active = False
+        self._intelligent_calc = intelligent_calculator
         
         # Statistics
         self._apply_count = 0
@@ -131,6 +134,12 @@ class BackpressureController:
             return 0.0
         
         delay = await self._strategy.calculate_delay(queue)
+
+        # 如果有智能计算器，用它增强精度
+        if self._intelligent_calc and delay > 0:
+            enhanced = self._intelligent_calc.calculate_delay(queue)
+            if enhanced is not None:
+                delay = max(delay, enhanced)  # 取最保守值
         
         if delay > 0:
             self._total_delay += delay
@@ -212,6 +221,7 @@ __all__ = [
     'CompositeStrategy',
     # 智能背压组件
     'BackpressureMetricsCollector',
+    'QueueMetrics',
     'IntelligentBackpressureCalculator',
     'BackpressureMonitor',
 ]

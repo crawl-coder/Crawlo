@@ -136,7 +136,6 @@ class BackpressureStrategyConfig:
         critical_threshold: float = 0.9,
         base_delay: float = 0.1,
         max_delay: float = 5.0,
-        check_interval: float = 0.1,
     ):
         """
         Initialize configuration
@@ -147,14 +146,12 @@ class BackpressureStrategyConfig:
             critical_threshold: Critical level threshold
             base_delay: Base delay in seconds
             max_delay: Maximum delay in seconds
-            check_interval: Check interval in seconds
         """
         self.threshold = threshold
         self.warning_threshold = warning_threshold
         self.critical_threshold = critical_threshold
         self.base_delay = base_delay
         self.max_delay = max_delay
-        self.check_interval = check_interval
     
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary"""
@@ -164,7 +161,6 @@ class BackpressureStrategyConfig:
             'critical_threshold': self.critical_threshold,
             'base_delay': self.base_delay,
             'max_delay': self.max_delay,
-            'check_interval': self.check_interval,
         }
 
 

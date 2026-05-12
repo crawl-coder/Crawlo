@@ -57,6 +57,24 @@ async def _get_fetcher() -> QuickFetcher:
     return _fetcher
 
 
+# 错误分类映射（帮助 AI 理解错误类型并决策下一步操作）
+_ERROR_HINTS = {
+    "TIMEOUT":         "Suggest: retry or switch to stealth mode.",
+    "CONNECTION_ERROR": "Suggest: check URL or retry later.",
+    "STEALTH_UNAVAILABLE":   "Suggest: pip install DrissionPage.",
+    "MAX_STEALTH_UNAVAILABLE": "Suggest: pip install camoufox.",
+    "INVALID_URL":     "Check the URL format and try again.",
+    "INVALID_SCHEME":  "URL must use http:// or https://.",
+    "EMPTY_RESPONSE":  "Server returned no content.",
+    "INVALID_MODE":    "Use basic, stealth, or max-stealth.",
+}
+
+
+def _error_hint(code: str) -> str:
+    """根据错误码返回建议操作"""
+    return _ERROR_HINTS.get(code, "")
+
+
 def _format_result(result: FetchResult, max_length: int = 0) -> str:
     """格式化输出结果"""
     lines = [
@@ -65,17 +83,20 @@ def _format_result(result: FetchResult, max_length: int = 0) -> str:
         f"Size: {result.size:,} bytes ({result.size/1024:.1f} KB)",
         f"Duration: {result.duration:.2f}s",
     ]
-    
+
+    if result.error:
+        lines.append("")
+        lines.append(f"ERROR [{result.error_code}]: {result.error}")
+        hint = _error_hint(result.error_code)
+        if hint:
+            lines.append(f"HINT: {hint}")
+        return "\n".join(lines)
+
     if result.cookies:
-        # 只显示前 3 个 Cookie，避免输出过长
         cookie_names = list(result.cookies.keys())[:3]
         lines.append(f"Cookies: {', '.join(cookie_names)}{'...' if len(result.cookies) > 3 else ''}")
 
     lines.append("=" * 60)
-
-    if result.error:
-        lines.append(f"Error [{result.error_code}]: {result.error}")
-        return "\n".join(lines)
 
     content = result.content
     if max_length > 0 and len(content) > max_length:
@@ -208,6 +229,7 @@ async def spider(
     mode: str = "basic",
     format: str = "markdown",
     concurrency: int = 2,
+    delay: float = 0.0,
     cookies: Optional[Dict[str, str]] = None,
 ) -> str:
     """Crawl multiple pages concurrently using Crawlo's spider engine.
@@ -219,7 +241,8 @@ async def spider(
         urls: List of URLs to crawl
         mode: Fetch mode - basic, stealth, or max-stealth
         format: Output format per page - html, markdown, or text
-        concurrency: Number of concurrent requests
+        concurrency: Number of concurrent requests (max 5)
+        delay: Delay between request batches in seconds (use 1.0+ for target site protection)
         cookies: Optional cookies to send with each request
 
     Returns:
@@ -232,7 +255,7 @@ async def spider(
             mode=mode,
             format=format,
             concurrency=concurrency,
-            # Note: cookies support for multiple urls could be extended in Fetcher
+            delay=delay,
         )
 
         # 统计

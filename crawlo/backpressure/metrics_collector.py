@@ -20,8 +20,8 @@ logger = get_logger(__name__)
 
 
 @dataclass
-class BackpressureMetrics:
-    """背压指标数据类"""
+class QueueMetrics:
+    """队列多维指标数据类（区别于 interfaces.QueueMetrics 的策略指标）"""
     
     # 队列指标
     queue_size: int = 0
@@ -89,7 +89,7 @@ class BackpressureMetricsCollector:
         self._queue_max_size_func = queue_max_size_func
         
         # 指标历史记录（可配置大小）
-        self._history: Deque[BackpressureMetrics] = deque(maxlen=max_history)
+        self._history: Deque[QueueMetrics] = deque(maxlen=max_history)
         
         # 实时计数器
         self._enqueue_count = 0
@@ -105,7 +105,7 @@ class BackpressureMetricsCollector:
         self._lock = asyncio.Lock()
         
         # 上次采集的数据
-        self._last_metrics: Optional[BackpressureMetrics] = None
+        self._last_metrics: Optional[QueueMetrics] = None
         self._last_collect_time: float = time.time()
     
     async def start(self):
@@ -205,7 +205,7 @@ class BackpressureMetricsCollector:
                     level = 'normal'
                 
                 # 创建指标对象
-                metrics = BackpressureMetrics(
+                metrics = QueueMetrics(
                     queue_size=queue_size,
                     queue_max_size=queue_max_size,
                     queue_usage_ratio=queue_usage_ratio,
@@ -292,7 +292,7 @@ class BackpressureMetricsCollector:
         if is_success:
             self._success_count += 1
     
-    def get_current_metrics(self) -> Optional[BackpressureMetrics]:
+    def get_current_metrics(self) -> Optional[QueueMetrics]:
         """获取当前指标"""
         return self._last_metrics
     

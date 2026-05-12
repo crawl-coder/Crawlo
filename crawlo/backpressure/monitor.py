@@ -16,7 +16,7 @@ from datetime import datetime
 from collections import deque
 
 from crawlo.logging import get_logger
-from .metrics_collector import BackpressureMetricsCollector, BackpressureMetrics
+from .metrics_collector import BackpressureMetricsCollector, QueueMetrics
 
 logger = get_logger(__name__)
 
@@ -145,7 +145,7 @@ class BackpressureMonitor:
             
             self._last_alert_level = metrics.level
     
-    def _create_alert(self, metrics: BackpressureMetrics) -> BackpressureAlert:
+    def _create_alert(self, metrics: QueueMetrics) -> BackpressureAlert:
         """
         创建告警对象
         
@@ -181,7 +181,7 @@ class BackpressureMonitor:
             actions=level_actions.get(metrics.level, [])
         )
     
-    def _generate_message(self, metrics: BackpressureMetrics) -> str:
+    def _generate_message(self, metrics: QueueMetrics) -> str:
         """
         生成告警消息
         

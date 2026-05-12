@@ -84,7 +84,7 @@ class NotificationDispatcher:
     
     def send_notification(self, message: NotificationMessage) -> NotificationResponse:
         """
-        发送通知到指定渠道
+        发送通知到指定渠道（同步）
         
         Args:
             message: 通知消息对象
@@ -92,7 +92,6 @@ class NotificationDispatcher:
         Returns:
             通知响应对象
         """
-        # 获取渠道处理器
         channel = self.get_channel(message.channel)
         
         if channel is None:
@@ -100,13 +99,28 @@ class NotificationDispatcher:
             logger.error(error_msg)
             return NotificationResponse.error_response(error_msg)
         
-        # 发送通知
         try:
             response = channel.send(message)
             return response
         except Exception as e:
             error_msg = f"通知发送失败: {str(e)[:100]}"
             return NotificationResponse.error_response(error_msg)
+
+    async def async_send_notification(self, message: NotificationMessage) -> NotificationResponse:
+        """
+        发送通知到指定渠道（异步，在 executor 中运行同步 send）
+        
+        避免在 asyncio 事件循环中阻塞。适用于爬虫框架的异步上下文。
+        
+        Args:
+            message: 通知消息对象
+            
+        Returns:
+            通知响应对象
+        """
+        import asyncio
+        loop = asyncio.get_running_loop()
+        return await loop.run_in_executor(None, self.send_notification, message)
 
 
 # 全局通知器实例

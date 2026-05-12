@@ -356,7 +356,7 @@ class CompositeStrategy(IBackpressureStrategy):
             metrics_list.append(await strategy.get_metrics(queue))
         
         # 合并指标 - 使用最严格的
-        max_queue_size = max(m.metrics.queue_size for m in metrics_list) if metrics_list else 0
+        max_queue_size = max(m.queue_size for m in metrics_list) if metrics_list else 0
         max_utilization = max(m.utilization for m in metrics_list) if metrics_list else 0.0
         active = any(m.active for m in metrics_list) if metrics_list else False
         max_delay = max(m.delay for m in metrics_list) if metrics_list else 0.0

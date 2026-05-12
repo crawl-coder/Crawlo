@@ -74,14 +74,20 @@ class FeishuChannel(NotificationChannel):
             timestamp: 时间戳
             
         Returns:
-            生成的签名
+            生成的签名（HMAC-SHA256 Base64）
         """
         if not self.secret:
             return ""
         
+        import hmac
+        import base64
         string_to_sign = f'{timestamp}\n{self.secret}'
-        hmac_code = hashlib.new('sha256', string_to_sign.encode('utf-8')).digest()
-        return hmac_code.hex()
+        hmac_code = hmac.new(
+            self.secret.encode('utf-8'),
+            string_to_sign.encode('utf-8'),
+            hashlib.sha256
+        ).digest()
+        return base64.b64encode(hmac_code).decode('utf-8')
 
     def send(self, message: NotificationMessage) -> NotificationResponse:
         """

@@ -87,10 +87,19 @@ class QueueManager(QueueStatusMixin, QueueBackpressureMixin):
         else:  # 默认使用queue_size策略
             strategy = QueueSizeStrategy(config=bp_config)
         
-        # 创建背压控制器
+        # 创建背压控制器（可选集成智能计算器增强精度）
+        intelligent_calc = None
+        if safe_get_config(self.config.settings, 'MEMORY_MONITOR_ENABLED', False, bool):
+            try:
+                from crawlo.backpressure import IntelligentBackpressureCalculator
+                intelligent_calc = IntelligentBackpressureCalculator(base_delay=0.5)
+            except ImportError:
+                pass
+
         self._backpressure_controller = BackpressureController(
             strategy=strategy,
-            enabled=True
+            enabled=True,
+            intelligent_calculator=intelligent_calc,
         )
         
         self._backpressure_strategy_type = strategy_type
@@ -202,6 +211,10 @@ class QueueManager(QueueStatusMixin, QueueBackpressureMixin):
                             f"(queue={current_queue_size}/{max_size})"
                         )
                         await asyncio.sleep(delay)
+
+                        # 喂入实际延迟供自适应策略学习
+                        if hasattr(self._backpressure_controller.strategy, 'record_delay'):
+                            self._backpressure_controller.strategy.record_delay(delay)
 
             # 背压控制（仅对内存队列）
             if self._queue_semaphore:
@@ -515,6 +528,9 @@ class QueueManager(QueueStatusMixin, QueueBackpressureMixin):
             queue = SpiderPriorityQueue()
             # 为内存队列设置背压控制
             self._queue_semaphore = asyncio.Semaphore(self.config.max_queue_size)
+            # 注入统一背压控制器，避免 Mixin 内部重复计算
+            if hasattr(queue, '_bp_delegate') and self._backpressure_controller is not None:
+                queue._bp_delegate = self._backpressure_controller
             return queue
 
         else:

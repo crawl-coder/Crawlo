@@ -5,6 +5,10 @@ import time
 from dataclasses import dataclass, field
 from typing import Any, Optional, Dict
 
+from crawlo.backpressure.interfaces import BackpressureStrategyConfig
+from crawlo.backpressure.strategies import QueueSizeStrategy
+from crawlo.backpressure import BackpressureController as _UnifiedController
+
 
 @dataclass
 class GenerationStats:
@@ -91,7 +95,9 @@ class BackpressureController:
     """
     Backpressure controller to prevent system overload
     
-    Controls request generation speed to prevent system overload.
+    Controls request generation speed by checking both queue capacity
+    and task concurrency. Internally delegates to backpressure module
+    for unified strategy management.
     
     Example:
         controller = BackpressureController(
@@ -127,6 +133,14 @@ class BackpressureController:
         # Statistics
         self._pause_count = 0
         self._total_wait_time = 0.0
+
+        # Internal: delegate to unified backpressure module for queue strategy
+        config = BackpressureStrategyConfig(
+            threshold=backpressure_ratio,
+            base_delay=initial_wait,
+            max_delay=max_wait,
+        )
+        self._unified = _UnifiedController(strategy=QueueSizeStrategy(config=config))
     
     @property
     def pause_count(self) -> int:
@@ -140,19 +154,20 @@ class BackpressureController:
     
     def is_queue_full(self, scheduler) -> bool:
         """
-        Check if queue is full
+        Check if queue is full (delegates to unified backpressure strategy)
         
         Args:
             scheduler: Scheduler instance
             
         Returns:
-            bool: True if queue is full
+            bool: True if queue utilization >= strategy threshold
         """
         if not scheduler:
             return False
         
         queue_size = len(scheduler)
-        threshold = self.max_queue_size * self.backpressure_ratio
+        # Use unified controller's strategy threshold for consistency with QueueManager
+        threshold = self.max_queue_size * self._unified.strategy._config.threshold
         return queue_size >= threshold
     
     def is_overloaded(self, task_manager) -> bool:

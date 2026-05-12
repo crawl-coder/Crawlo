@@ -13,6 +13,8 @@ from crawlo.bot.core.notifier import get_notifier
 from crawlo.bot.channels.dingtalk import get_dingtalk_channel
 from crawlo.bot.channels.feishu import get_feishu_channel
 from crawlo.bot.channels.wecom import get_wecom_channel
+from crawlo.bot.channels.email import get_email_channel
+from crawlo.bot.channels.sms import get_sms_channel
 
 logger = get_logger(__name__)
 
@@ -106,7 +108,34 @@ def load_notification_config(settings: Optional[dict] = None):
                 at_mobile=settings.get('WECOM_AT_MOBILE', []),
                 is_at_all=settings.get('WECOM_IS_AT_ALL', False)
             )
-        
+
+        # 加载邮件配置
+        if settings.get('EMAIL_HOST') and settings.get('EMAIL_USERNAME'):
+            email_channel = get_email_channel()
+            email_channel.set_config(
+                smtp_host=settings.get('EMAIL_HOST'),
+                smtp_port=settings.get('EMAIL_PORT', 587),
+                smtp_user=settings.get('EMAIL_USERNAME'),
+                smtp_password=settings.get('EMAIL_PASSWORD', ''),
+                sender_email=settings.get('EMAIL_FROM', settings.get('EMAIL_USERNAME')),
+            )
+            # 扩展属性：接收人列表
+            email_channel._to_addrs = settings.get('EMAIL_TO', [])
+            email_channel._use_tls = settings.get('EMAIL_USE_TLS', True)
+
+        # 加载短信配置
+        if settings.get('SMS_PROVIDER') and settings.get('SMS_ACCESS_KEY_ID'):
+            sms_channel = get_sms_channel()
+            sms_channel.set_config(
+                provider=settings.get('SMS_PROVIDER'),
+                access_key_id=settings.get('SMS_ACCESS_KEY_ID'),
+                access_key_secret=settings.get('SMS_ACCESS_KEY_SECRET', ''),
+                sign_name=settings.get('SMS_SIGN_NAME', ''),
+            )
+            # 扩展属性
+            sms_channel._template_code = settings.get('SMS_TEMPLATE_CODE', '')
+            sms_channel._phone_numbers = settings.get('SMS_PHONE_NUMBERS', [])
+
     except Exception as e:
         logger.error(f"[ConfigLoader] 配置加载失败: {e}")
         logger.exception(e)
