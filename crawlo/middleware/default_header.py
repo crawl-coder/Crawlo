@@ -101,7 +101,7 @@ class DefaultHeaderMiddleware(object):
                     added.append(key)
             
             if added:
-                self.logger.debug(f"Added headers to {request.url}: {added}")
+                pass  # headers applied silently
         
         # Apply rotating User-Agent if enabled and no fixed UA
         if self.rotation_enabled and not self.user_agent and 'User-Agent' not in request.headers:

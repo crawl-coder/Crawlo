@@ -339,10 +339,6 @@ class Scheduler:
                 try:
                     spider = getattr(self.crawler, 'spider', None)
                     request = self.request_serializer.restore_after_deserialization(request, spider)
-                    self.logger.debug(
-                        f"[队列] 请求出队成功: {request.url} | "
-                        f"队列大小: {queue_size_before} -> {queue_size_after}"
-                    )
                 except Exception as deser_error:
                     self.logger.error(
                         f"[队列] 请求反序列化失败: {deser_error} | "
@@ -350,10 +346,7 @@ class Scheduler:
                     )
                     return None
             elif queue_size_before > 0:
-                self.logger.debug(
-                    f"[队列] 请求出队: 队列为空 | "
-                    f"队列大小: {queue_size_before} -> {queue_size_after}"
-                )
+                pass
             
             return request
         except Exception as e:
@@ -447,11 +440,6 @@ class Scheduler:
                         f"Queue space available, resumed spider generation "
                         f"(waited {retry_count * 0.5:.1f}s, queue: {queue_size_after}/{max_size})"
                     )
-                
-                self.logger.debug(
-                    f"[队列] 请求入队成功: {request.url} | "
-                    f"队列大小: {queue_size_before} -> {queue_size_after}"
-                )
             
             return success
         except Exception as e:
@@ -507,7 +495,7 @@ class Scheduler:
         """确认请求处理完成"""
         # 由于我们不再使用处理队列，ack_request方法现在是一个空操作
         # 任务在从主队列取出时就已经被认为是完成的
-        self.logger.debug(f"任务确认完成: {getattr(request, 'url', 'Unknown URL')}")
+        pass
 
     async def async_size(self):
         """异步获取队列实际大小（推荐用于背压检查等需要精确值的场景）"""

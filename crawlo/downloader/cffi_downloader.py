@@ -256,8 +256,6 @@ class CurlCffiDownloader(DownloaderBase):
         if actual_size > self.max_download_size:
             raise OverflowError(f"响应体过大: {actual_size} > {self.max_download_size}")
 
-        # 记录下载大小
-        self.logger.debug(f"Downloaded {request.url}, size: {actual_size} bytes")
 
         return self._structure_response(request, response, body)
 

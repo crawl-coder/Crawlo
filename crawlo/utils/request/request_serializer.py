@@ -90,6 +90,5 @@ class RequestSerializer:
             
             if method_name and hasattr(spider, method_name):
                 request.callback = getattr(spider, method_name)
-                self.logger.debug(f"Restored callback: {method_name}")
         
         return request

@@ -161,10 +161,6 @@ def set_request(request: Request, priority: int) -> None:
     :param request: Request 对象
     :param priority: 优先级值（DEPTH_PRIORITY 配置）
     """
-    # DEBUG: 追踪 set_request 调用
-    _had_depth = 'depth' in request.meta
-    _old_priority = request.priority
-    
     # depth 由框架层面自动传播，此处仅确保 depth 存在（向后兼容）
     if 'depth' not in request.meta:
         request.meta['depth'] = 1
@@ -175,15 +171,6 @@ def set_request(request: Request, priority: int) -> None:
     # DEPTH_PRIORITY = 0: 不按深度调整优先级
     if priority:
         request.priority -= request.meta['depth'] * priority
-    
-    # DEBUG: 输出 set_request 结果
-    from crawlo.logging import get_logger
-    get_logger('set_request').debug(
-        f"[set_request] url={request.url[:60]} "
-        f"had_depth={_had_depth} → depth={request.meta['depth']} "
-        f"DEPTH_PRIORITY={priority} "
-        f"priority: {_old_priority} → {request.priority}"
-    )
 
 
 def request_to_dict(request: Request, spider=None) -> Dict[str, Any]:

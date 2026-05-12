@@ -158,7 +158,6 @@ class DownloadDelayMiddleware(BaseMiddleware):
         wait_time = self._calculate_wait_time(domain)
         
         if wait_time > 0:
-            self.logger.debug(f"Delaying request to {domain}: {wait_time:.2f}s")
             await asyncio.sleep(wait_time)
         
         # Record request time

@@ -153,23 +153,10 @@ class AioHttpDownloader(DownloaderBase):
             self.logger.error("AioHttpDownloader session is not open.")
             return None
 
-        # 添加入口日志，用于诊断请求是否到达下载器
-        retry_times = request.meta.get('retry_times', 0)
-        has_proxy = bool(request.proxy)
-        self.logger.debug(
-            f"Download request (retry={retry_times}, proxy={has_proxy}): {request.url}"
-        )
-        
         # 并发控制：等待信号量
         if self._semaphore:
-            self.logger.debug(
-                f"等待并发槽位: {request.url} (active={self._active_requests}/{self._concurrency})"
-            )
             await self._semaphore.acquire()
             self._active_requests += 1
-            self.logger.debug(
-                f"获取并发槽位成功: {request.url} (active={self._active_requests}/{self._concurrency})"
-            )
 
         start_time = None
         if self.crawler.settings.get_bool("DOWNLOAD_STATS", True):
@@ -237,11 +224,6 @@ class AioHttpDownloader(DownloaderBase):
                         url=request.url
                     )
 
-            # 记录下载统计
-            if start_time:
-                download_time = time.time() - start_time
-                self.logger.debug(f"Downloaded {request.url} in {download_time:.3f}s")
-
             return response
 
         except Exception as e:
@@ -254,9 +236,6 @@ class AioHttpDownloader(DownloaderBase):
             if self._semaphore:
                 self._active_requests -= 1
                 self._semaphore.release()
-                self.logger.debug(
-                    f"释放并发槽位: {request.url} (active={self._active_requests}/{self._concurrency})"
-                )
 
     async def _download_with_timeout(self, request: 'Request', timeout: Optional[ClientTimeout] = None) -> Response:
         """
@@ -269,12 +248,8 @@ class AioHttpDownloader(DownloaderBase):
         Returns:
             Response: 响应对象
         """
-        # 记录请求详情（用于诊断）
         client_type = "临时session(重试)" if timeout is not None else "主session(正常)"
         timeout_value = timeout.total if timeout and timeout.total else (self._timeout_secs * ABSOLUTE_TIMEOUT_MULTIPLIER_EXTENDED if request.meta.get('retry_times', 0) > 0 else self._timeout_secs * ABSOLUTE_TIMEOUT_MULTIPLIER_NORMAL)
-        self.logger.debug(
-            f"Sending request via {client_type} (absolute_timeout={timeout_value:.0f}s): {request.url}"
-        )
         
         # 如果有自定义超时，需要创建临时 session
         if timeout is not None:
@@ -326,8 +301,10 @@ class AioHttpDownloader(DownloaderBase):
         body = await resp.read()
         response = self._structure_response(request, resp, body)
 
-        # 记录下载大小
-        self.logger.debug(f"Downloaded {request.url}, size: {len(body)} bytes")
+        # HTTP 级别下载结果（状态码 + 大小）
+        self.logger.debug(
+            f"[HTTP] {request.url} {resp.status} ({len(body)}B)"
+        )
 
         return response
 

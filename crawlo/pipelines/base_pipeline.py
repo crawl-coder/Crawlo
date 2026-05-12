@@ -333,13 +333,13 @@ class DedupPipeline(ResourceManagedPipeline):
             if exists:
                 # 如果已存在，丢弃这个数据项
                 self.dropped_count += 1
-                self.logger.debug(f"Dropping duplicate item: {fingerprint[:20]}...")
+                self.logger.debug(f"Dropping duplicate item: {fingerprint}")
                 self.crawler.stats.inc_value('dedup/dropped_count')
                 raise ItemDiscard(f"Duplicate item: {fingerprint}")
             else:
                 # 记录新数据项的指纹
                 await self._record_fingerprint(fingerprint)
-                self.logger.debug(f"Processing new item: {fingerprint[:20]}...")
+                self.logger.debug(f"Processing new item: {fingerprint}")
                 self.crawler.stats.inc_value('dedup/new_count')
                 return item
                 

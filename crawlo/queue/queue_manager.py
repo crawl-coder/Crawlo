@@ -222,9 +222,6 @@ class QueueManager(QueueStatusMixin, QueueBackpressureMixin):
                 await self._queue.put((final_priority, request))
                 success = True
 
-            if success:
-                self.logger.debug(f"Request enqueued successfully: {request.url} with priority {final_priority}")
-
             return success
 
         except Exception as e:

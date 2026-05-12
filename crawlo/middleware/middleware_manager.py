@@ -162,33 +162,13 @@ class MiddlewareManager:
         self.logger.info("MiddlewareManager closed")
 
     async def _process_request(self, request: 'Request'):
-        # 添加诊断日志：追踪请求进入中间件链
-        retry_times = request.meta.get('retry_times', 0)
-        if self.logger.isEnabledFor(10):  # DEBUG = 10
-            self.logger.debug(
-                f"_process_request 开始: {request.url} (retry_times={retry_times}, "
-                f"middlewares={len(self.methods['process_request'])})"
-            )
-        
         for idx, method in enumerate(self.methods['process_request']):
             try:
-                middleware_name = self._get_method_class_name(method)
-                
-                if self.logger.isEnabledFor(10):
-                    self.logger.debug(
-                        f"执行中间件 [{idx+1}/{len(self.methods['process_request'])}]: "
-                        f"{middleware_name}.process_request for {request.url}"
-                    )
-                
                 result = await common_call(method, request, self.crawler.spider)
                 
                 if result is None:
                     continue
                 if isinstance(result, (Request, Response)):
-                    if self.logger.isEnabledFor(10):
-                        self.logger.debug(
-                            f"中间件 {middleware_name} 返回 {type(result).__name__}: {request.url}"
-                        )
                     return result
                 raise InvalidOutputError(
                     f"{self._get_method_class_name(method)}. must return None or Request or Response, got {type(result).__name__}"
@@ -203,28 +183,10 @@ class MiddlewareManager:
                 self.logger.error(f"Error processing request: {e}")
                 raise
         
-        # 所有中间件处理完成，调用下载器
-        if self.logger.isEnabledFor(10):
-            self.logger.debug(f"所有中间件处理完成，调用下载器: {request.url}")
-        
         # 使用属性获取下载方法，支持延迟绑定
         download_fn = self.download_method
         
-        # 包装下载方法，添加诊断日志
-        async def wrapped_download(req):
-            if self.logger.isEnabledFor(10):
-                self.logger.debug(f"MiddlewareManager 调用下载器: {req.url}")
-            try:
-                result = await download_fn(req)
-                if self.logger.isEnabledFor(10):
-                    self.logger.debug(f"下载器返回结果: {req.url} (result={type(result).__name__ if result else 'None'})")
-                return result
-            except Exception as e:
-                if self.logger.isEnabledFor(10):
-                    self.logger.debug(f"下载器抛出异常: {req.url} ({type(e).__name__}: {e})")
-                raise
-        
-        return await wrapped_download(request)
+        return await download_fn(request)
 
     async def _process_response(self, request: 'Request', response: 'Response'):
         for method in reversed(self.methods['process_response']):
@@ -242,15 +204,8 @@ class MiddlewareManager:
         return response
 
     async def _process_exception(self, request: 'Request', exp: Exception):
-        if self.logger.isEnabledFor(10):
-            self.logger.debug(f"Processing exception {type(exp).__name__} for {request.url}")
-            self.logger.debug(f"Available exception handlers: {[self._get_method_class_name(m) for m in self.methods['process_exception']]}")
         for method in self.methods['process_exception']:
-            if self.logger.isEnabledFor(10):
-                self.logger.debug(f"Calling {self._get_method_class_name(method)}.process_exception")
             response = await common_call(method, request, exp, self.crawler.spider)
-            if self.logger.isEnabledFor(10):
-                self.logger.debug(f"{self._get_method_class_name(method)}.process_exception returned: {type(response).__name__ if response else 'None'}")
             if response is None:
                 continue
             if isinstance(response, (Request, Response)):
@@ -261,8 +216,6 @@ class MiddlewareManager:
                 f"{self._get_method_class_name(method)}. must return None or Request or Response, got {type(response).__name__}"
             )
         else:
-            if self.logger.isEnabledFor(10):
-                self.logger.debug(f"All exception handlers returned None, re-raising exception")
             raise exp
 
     async def download(self, request) -> 'Optional[Response]':

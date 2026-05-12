@@ -574,7 +574,7 @@ class RedisPriorityQueue:
         """
         # 由于我们不再使用处理队列，ack方法现在是一个空操作
         # 任务在从主队列取出时就已经被认为是完成的
-        logger.debug(f"任务确认完成 (Project: {self.key_manager.project_name}, Spider: {self.key_manager.spider_name}): {request.url}")
+        pass
 
     async def fail(self, request: 'Request', reason: str = "") -> None:
         """

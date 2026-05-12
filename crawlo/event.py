@@ -220,9 +220,7 @@ class Subscriber:
         logger = get_logger(self.__class__.__name__)
 
         sorted_subscribers = self._get_sorted_subscribers(event)
-        logger.debug(f"[{event}] 订阅者数量：{len(sorted_subscribers)}")
         if not sorted_subscribers:
-            logger.debug(f"[{event}] 没有订阅者")
             self._last_notify_result = NotifyResult(event=event)
             return []
 
@@ -279,9 +277,7 @@ class Subscriber:
                     else:
                         logger.error(f"任务 {receiver_name} 异常：{result}")
                 else:
-                    receiver_name = getattr(receiver, '__name__', str(receiver))
-                    logger.debug(f"任务 {receiver_name} 完成")
-                results.append(result)
+                    results.append(result)
             except asyncio.TimeoutError:
                 receiver_name = getattr(receiver, '__name__', str(receiver))
                 errors.append((receiver_name, asyncio.TimeoutError(

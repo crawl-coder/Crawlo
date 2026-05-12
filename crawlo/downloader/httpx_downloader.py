@@ -114,23 +114,10 @@ class HttpXDownloader(DownloaderBase):
         2. 发送请求，网络异常时降级为直连
         3. 安全检查、读取响应、返回结果
         """
-        # 添加入口日志，用于诊断请求是否到达下载器
-        retry_times = request.meta.get('retry_times', 0)
-        has_proxy = bool(request.proxy)
-        self.logger.debug(
-            f"Download request (retry={retry_times}, proxy={has_proxy}): {request.url}"
-        )
-        
         # Concurrency control: wait for semaphore
         if self._semaphore:
-            self.logger.debug(
-                f"Waiting for concurrency slot: {request.url} (active={self._active_requests}/{self._concurrency})"
-            )
             await self._semaphore.acquire()
             self._active_requests += 1
-            self.logger.debug(
-                f"Acquired concurrency slot: {request.url} (active={self._active_requests}/{self._concurrency})"
-            )
         
         if not self._client:
             self.logger.error("HttpXDownloader client is not available.")
@@ -283,9 +270,6 @@ class HttpXDownloader(DownloaderBase):
             
             # 记录请求详情（用于诊断）
             client_type = "代理客户端" if is_proxy_request else "主客户端(直连)"
-            self.logger.debug(
-                f"Sending request via {client_type} (absolute_timeout={absolute_timeout:.0f}s): {request.url}"
-            )
             
             # 基于 httpx 源码分析优化：
             # httpx 的 Timeout 在 httpcore 层应用，但代理连接可能在更底层阻塞
@@ -347,11 +331,10 @@ class HttpXDownloader(DownloaderBase):
             # 读取响应体
             body = await httpx_response.aread()
 
-            # 记录下载统计
-            if start_time:
-                # time 已在顶部导入
-                download_time = time.time() - start_time
-                self.logger.debug(f"Downloaded {request.url} in {download_time:.3f}s, size: {len(body)} bytes")
+            # HTTP 级别下载结果（状态码 + 大小）
+            self.logger.debug(
+                f"[HTTP] {request.url} {httpx_response.status_code} ({len(body)}B)"
+            )
 
             # 构造并返回 Response
             return self.structure_response(request=request, response=httpx_response, body=body)
@@ -382,9 +365,6 @@ class HttpXDownloader(DownloaderBase):
             if self._semaphore:
                 self._active_requests -= 1
                 self._semaphore.release()
-                self.logger.debug(
-                    f"释放并发槽位: {request.url} (active={self._active_requests}/{self._concurrency})"
-                )
 
     @staticmethod
     def structure_response(request, response: httpx.Response, body: bytes) -> Response:

@@ -139,11 +139,4 @@ class ResponseCodeMiddleware(object):
         if hasattr(response, 'content_length') and response.content_length:
             self.stats.inc_value('response_total_bytes', response.content_length)
         
-        # 详细日志记录
-        category = self._get_status_category(status)
-        self.logger.debug(
-            f'收到响应: {status} {response.url} '
-            f'(分类: {category}, 大小: {getattr(response, "content_length", "unknown")} bytes)'
-        )
-        
         return response

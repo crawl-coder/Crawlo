@@ -184,8 +184,7 @@ class PipelineManager:
 
     async def process_item(self, item):
         try:
-            for i, method in enumerate(self.methods):
-                self.logger.debug(f"Processing item with pipeline method {i}: {method.__qualname__}")
+            for method in self.methods:
                 try:
                     item = await common_call(method, item, self.crawler.spider)
                     if item is None:
