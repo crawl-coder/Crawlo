@@ -26,6 +26,7 @@ from crawlo.project import get_settings, _find_project_root
 from crawlo.initialization import initialize_framework
 from crawlo.core import get_framework_initializer
 from crawlo.logging import get_logger
+from crawlo.utils.asyncio_utils import run_with_cleanup
 
 # 延迟获取logger，确保在日志系统配置之后获取
 _logger = None
@@ -273,7 +274,7 @@ def main(args):
                     transient=True,
             ) as progress:
                 task = progress.add_task("正在运行所有爬虫...", total=None)
-                asyncio.run(process.crawl_multiple(spider_names))
+                run_with_cleanup(process.crawl_multiple(spider_names))
 
             if show_json:
                 console.print_json(data={"success": True, "spiders": spider_names})
@@ -341,14 +342,14 @@ def main(args):
         #     for crawler in process.crawlers:
         #         crawler.signals.connect(record_stats, signal="spider_closed")
 
-        # 运行爬虫
+        # 运行爬虫 (使用增强版的 run_with_cleanup)
         with Progress(
                 SpinnerColumn(),
                 TextColumn("[progress.description]{task.description}"),
                 transient=True,
         ) as progress:
             task = progress.add_task(f"正在运行 {spider_name}...", total=None)
-            asyncio.run(process.crawl(spider_name))
+            run_with_cleanup(process.crawl(spider_name))
 
         if show_json:
             console.print_json(data={"success": True, "spider": spider_name})

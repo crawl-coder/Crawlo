@@ -4,6 +4,13 @@
 Crawlo - 一个异步爬虫框架
 """
 
+# Windows 平台：自动修补 asyncio ProactorEventLoop 的析构警告
+# 必须在所有其他导入之前执行，确保补丁在任何 asyncio transport 创建之前生效
+import sys
+if sys.platform == 'win32':
+    from crawlo.utils.asyncio_utils import apply_windows_patches
+    apply_windows_patches()
+
 # 为了向后兼容，从helpers中导入cleaners相关的功能
 import crawlo.helpers as cleaners
 from crawlo import helpers

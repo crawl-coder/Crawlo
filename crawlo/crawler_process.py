@@ -46,6 +46,10 @@ class CrawlerProcess:
         self._crawlers: List[Crawler] = []
         self._semaphore: asyncio.Semaphore = asyncio.Semaphore(max_concurrency)
         self._logger = get_logger('crawler.process')
+        
+        # Windows 平台: 在框架层面自动应用猴子补丁修复
+        # 必须在 _logger 初始化之后调用
+        self._apply_windows_asyncio_fix()
 
         # 信号处理相关
         # ProcessSignalHandler 已在顶部导入
@@ -78,6 +82,55 @@ class CrawlerProcess:
         """
         self._signal_handler.set_crawlers(self._crawlers)
         # 延迟信号处理器设置到事件循环启动后
+
+    def _apply_windows_asyncio_fix(self) -> None:
+        """
+        在 Windows 平台自动应用 asyncio 传输关闭警告的修复。
+        
+        这个方法在 CrawlerProcess 初始化时调用，确保所有使用 CrawlerProcess
+        的项目都能自动获得修复，无需用户手动导入和调用。
+        """
+        import sys
+        if sys.platform != 'win32':
+            return
+        
+        try:
+            import asyncio.proactor_events
+            import warnings
+            
+            # 1. 猴子补丁 _ProactorBasePipeTransport.__del__
+            _original_del = asyncio.proactor_events._ProactorBasePipeTransport.__del__
+
+            def _patched_del(self):
+                try:
+                    _original_del(self)
+                except (ValueError, OSError):
+                    pass
+
+            asyncio.proactor_events._ProactorBasePipeTransport.__del__ = _patched_del
+
+            # 2. 同样修补 BaseSubprocessTransport
+            try:
+                import asyncio.base_subprocess
+                _original_sub_del = asyncio.base_subprocess.BaseSubprocessTransport.__del__
+
+                def _patched_sub_del(self):
+                    try:
+                        _original_sub_del(self)
+                    except (ValueError, OSError):
+                        pass
+
+                asyncio.base_subprocess.BaseSubprocessTransport.__del__ = _patched_sub_del
+            except Exception:
+                pass
+
+            # 3. 抑制 warnings 模块的 ResourceWarning
+            warnings.filterwarnings('ignore', message='unclosed transport', category=ResourceWarning)
+            
+            self._logger.debug("已自动应用 Windows asyncio 传输关闭警告修复")
+        except Exception as e:
+            # 修复失败不应该影响正常运行
+            self._logger.debug(f"应用 Windows asyncio 修复失败(可忽略): {e}")
         try:
             loop = asyncio.get_running_loop()
             # 如果事件循环已经在运行，直接设置
@@ -194,6 +247,10 @@ class CrawlerProcess:
             self._logger.error(f"Error during crawl: {e}")
             await self._graceful_shutdown()
             raise
+        finally:
+            # 在事件循环关闭前，主动关闭所有残留的 transport
+            # 这是解决 Windows ProactorEventLoop "unclosed transport" 警告的根本方案
+            await self._shutdown_loop_transports()
 
     async def _crawl_single(self, spider_cls_or_name: Union[Type['Spider'], str], settings: Optional[Dict[str, Any]] = None) -> Crawler:
         """
@@ -351,6 +408,47 @@ class CrawlerProcess:
                 await crawler._resource_manager.cleanup_all()
         except Exception as e:
             self._logger.warning(f"Failed to cleanup crawler: {e}")
+
+    async def _shutdown_loop_transports(self) -> None:
+        """
+        在事件循环关闭前主动关闭残留的 transport。
+
+        作为猴子补丁之外的额外防御，在循环还活着时尽量关闭已知 transport，
+        减少 GC 时 __del__ 被调用的机会。猴子补丁（在 crawlo 包导入时自动应用）
+        负责兜底拦截任何遗漏 transport 的析构错误。
+        """
+        import sys
+        if sys.platform != 'win32':
+            return
+
+        try:
+            loop = asyncio.get_running_loop()
+
+            # 关闭所有异步生成器
+            await loop.shutdown_asyncgens()
+
+            # 主动关闭 ProactorEventLoop 上注册的 transport
+            transports = []
+            if hasattr(loop, '_transports'):
+                transports = list(loop._transports.values())
+            if hasattr(loop, '_subprocesses'):
+                transports.extend(list(loop._subprocesses.values()))
+
+            closed_count = 0
+            for transport in transports:
+                try:
+                    if hasattr(transport, 'is_closing') and not transport.is_closing():
+                        transport.close()
+                        closed_count += 1
+                except Exception:
+                    pass
+
+            if closed_count:
+                self._logger.debug(f"Proactively closed {closed_count} transport(s)")
+                await asyncio.sleep(0.05)
+
+        except Exception as e:
+            self._logger.debug(f"Loop transport cleanup error (ignorable): {e}")
 
     async def _run_with_semaphore(self, crawler: Crawler) -> Crawler:
         """
