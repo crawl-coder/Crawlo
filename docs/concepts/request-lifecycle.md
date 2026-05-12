@@ -68,6 +68,43 @@ async def parse(self, response):
     )
 ```
 
+### 1.4 Depth 自动传播
+
+框架自动为子请求传播 `depth`，无需手动设置：
+
+```
+start_requests 产生的请求  →  depth = 1（默认）
+       ↓ Spider 回调产出
+子请求  →  depth = 父请求.depth + 1（框架自动注入）
+       ↓ Spider 回调产出
+孙请求  →  depth = 父请求.depth + 1（框架自动注入）
+```
+
+- **自动传播**：Engine 在处理 Spider 回调输出时，自动将 `depth` 注入到子 Request 的 `meta` 中
+- **手动覆盖**：如果用户在 `meta` 中手动设置了 `depth`，框架不会覆盖
+- **Errback 支持**：errback 产生的请求同样自动传播 `depth`
+
+```python
+async def parse(self, response):
+    # 无需手动设置 depth，框架自动传播
+    # response.meta['depth'] = 1（来自 start_requests）
+    
+    yield Request(url="http://example.com/detail")
+    # 此请求的 depth 自动设为 2
+    
+    # 如果需要手动指定 depth（框架不会覆盖）
+    yield Request(url="http://example.com/custom", meta={'depth': 10})
+    # 此请求的 depth 保持为 10
+```
+
+配合 `DEPTH_PRIORITY` 配置，depth 会影响请求的出队优先级：
+
+| `DEPTH_PRIORITY` | 策略 | 效果 |
+|------------------|------|------|
+| `1`（默认） | 深度优先 | depth 越大越先出队（详情页优先） |
+| `-1` | 广度优先 | depth 越小越先出队（列表页优先） |
+| `0` | 不调整 | depth 不影响出队顺序 |
+
 ---
 
 ## 2️⃣ 中间件处理阶段

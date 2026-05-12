@@ -293,6 +293,85 @@ class TaskManager(Generic[T]):
 
         task.add_done_callback(done_callback)
         return task
+
+    async def create_task_nowait(
+        self,
+        coroutine,
+        timeout: Optional[float] = None
+    ) -> None:
+        """
+        创建受控的异步任务（不等待任务完成，fire-and-forget 模式）
+
+        与 create_task 不同，此方法在获取信号量并创建后台任务后立即返回，
+        不等待任务执行完成。适用于 Engine 主循环中需要同时派发多个
+        浏览器下载请求、实现真正并发的场景。
+
+        Args:
+            coroutine: 协程对象
+            timeout: 任务超时时间（秒），None 表示不超时
+
+        Raises:
+            RuntimeError: 如果 TaskManager 已关闭
+        """
+        if self._closed:
+            raise RuntimeError("TaskManager is closed")
+
+        # 等待信号量，控制并发数
+        await self.semaphore.acquire()
+
+        # 如果设置了超时，包装协程
+        if timeout is not None:
+            coroutine = self._wrap_with_timeout(coroutine, timeout)
+
+        task = asyncio.create_task(coroutine)
+        # 首次添加任务时清除完成事件
+        if not self.current_task:
+            self._all_done_event.clear()
+        self.current_task.add(task)
+        self._stats.active_tasks = len(self.current_task)
+        self._stats.total_tasks += 1
+
+        # 更新峰值并发数
+        self._max_concurrent_seen = max(self._max_concurrent_seen, self._stats.active_tasks)
+
+        def done_callback(_future: Future[T]) -> None:
+            try:
+                self.current_task.discard(task)
+                self._stats.active_tasks = len(self.current_task)
+
+                # 所有任务完成时通知等待者
+                if not self.current_task:
+                    self._all_done_event.set()
+
+                # 获取任务结果或异常
+                try:
+                    _result = _future.result()
+                except asyncio.TimeoutError:
+                    self._stats.timeout_count += 1
+                    self.logger.warning(f"Task timed out after {timeout}s")
+                except asyncio.CancelledError:
+                    self._stats.cancelled_count += 1
+                    if not getattr(self, '_cancel_logged', False):
+                        self.logger.info("Task was cancelled")
+                        self._cancel_logged = True
+                except Exception as exception:
+                    self._stats.exception_count += 1
+                    task_info = get_task_info(task)
+                    self.logger.error(
+                        f"Task completed with exception: {type(exception).__name__}: {exception} | "
+                        f"Task: {task_info['name']}, active: {task_info.get('coroutine', 'N/A')}"
+                    )
+                    self.logger.debug("Task exception details:", exc_info=exception)
+
+            except Exception as e:
+                self.logger.error(f"Error in task done callback: {e}")
+            finally:
+                self.semaphore.release()
+                if self._stats.total_tasks % 2 == 0:
+                    asyncio.create_task(self.semaphore.adjust_concurrency())
+
+        task.add_done_callback(done_callback)
+        # 不返回 Task，fire-and-forget
     
     async def _wrap_with_timeout(self, coroutine, timeout: float):
         """包装协程添加超时控制，超时后取消内部协程防止资源泄漏"""

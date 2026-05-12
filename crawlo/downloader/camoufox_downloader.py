@@ -24,6 +24,7 @@ CAMOUFOX_SOLVE_CLOUDFLARE = True
 """
 
 import time
+import asyncio
 import platform
 from typing import Optional, Dict, List, Set
 from urllib.parse import urlparse
@@ -42,15 +43,18 @@ from crawlo.constants import (
 class CamoufoxDownloader(DownloaderBase):
     """
     基于 Camoufox 的隐身浏览器下载器
-    
+
     Camoufox 是一个专门为反爬虫设计的 Firefox 变体，
     内置了全链路指纹伪造和 Cloudflare 绕过能力。
-    
+
     相比 Playwright:
     - 更强的反检测能力（无需额外注入脚本）
     - 内置 Cloudflare Turnstile 自动解决
     - 更真实的浏览器指纹
-    
+
+    代理切换策略：
+    Camoufox 不支持 Context 级代理，代理变化时需要重启整个浏览器实例。
+
     使用场景:
     - 高强度反爬网站（Cloudflare、PerimeterX 等）
     - 需要真实浏览器指纹的场景
@@ -60,12 +64,16 @@ class CamoufoxDownloader(DownloaderBase):
     def __init__(self, crawler):
         super().__init__(crawler)
         self.logger = get_logger(self.__class__.__name__)
-        
+
         # Camoufox 实例
         self._browser = None
         self._context = None
         self._page_pool: List = []
         self._used_pages: set = set()
+        self._init_lock = asyncio.Lock()  # 浏览器初始化锁，防止并发重复初始化
+
+        # 当前浏览器使用的代理（用于检测代理变化，触发浏览器重启）
+        self._current_proxy = None
         
         # 配置参数
         self.headless = crawler.settings.get_bool("CAMOUFOX_HEADLESS", True)
@@ -81,8 +89,8 @@ class CamoufoxDownloader(DownloaderBase):
         self.load_timeout = crawler.settings.get_int("CAMOUFOX_LOAD_TIMEOUT", 10000)
         
         # 视口配置
-        self.viewport_width = crawler.settings.get_int("CAMOUFOX_VIEWPORT_WIDTH", 1920)
-        self.viewport_height = crawler.settings.get_int("CAMOUFOX_VIEWPORT_HEIGHT", 1080)
+        self.viewport_width = crawler.settings.get_int("CAMOUFOX_VIEWPORT_WIDTH", 1280)
+        self.viewport_height = crawler.settings.get_int("CAMOUFOX_VIEWPORT_HEIGHT", 720)
         
         # 标签页池配置
         self.max_pages = crawler.settings.get_int("CAMOUFOX_MAX_PAGES", 10)
@@ -97,55 +105,110 @@ class CamoufoxDownloader(DownloaderBase):
         self.wait_for_element = crawler.settings.get("CAMOUFOX_WAIT_FOR_ELEMENT", None)
 
     def open(self):
-        """初始化 Camoufox 浏览器"""
+        """初始化 Camoufox 下载器（懒加载，首次 download 时才启动浏览器）"""
         super().open()
-        self.logger.info("Opening CamoufoxDownloader")
-        
+        self.logger.info("Opening CamoufoxDownloader (lazy initialization)")
+
+    async def _initialize_browser(self, proxy=None):
+        """初始化 Camoufox 浏览器
+
+        Args:
+            proxy: 代理配置，None 表示直连
+        """
         try:
-            # 尝试导入 camoufox
-            try:
-                from camoufox import Camoufox
-            except ImportError:
-                raise ImportError(
-                    "Camoufox is not installed. Please install it with: pip install camoufox"
-                )
-            
-            # Configure browser startup parameters
-            config = {
-                "headless": self.headless,
-                "humanize": self.humanize,
-                "os": platform.system().lower() or "windows",  # Detect actual OS, fallback to windows
-            }
-            
-            # 代理配置
-            if self.proxy:
-                if isinstance(self.proxy, str):
-                    config["proxy"] = {"server": self.proxy}
-                elif isinstance(self.proxy, dict):
-                    config["proxy"] = self.proxy
-            
-            # Cloudflare 绕过配置
-            if self.solve_cloudflare:
-                config["solve_cloudflare"] = True
-            
-            # 启动浏览器
-            self._browser = Camoufox(**config)
-            self._context = self._browser
-            
-            self.logger.info("CamoufoxDownloader initialized successfully")
-            
-        except ImportError as e:
-            self.logger.error(f"Failed to import Camoufox: {e}")
-            raise
-        except Exception as e:
-            self.logger.error(f"Failed to initialize CamoufoxDownloader: {e}")
-            raise
+            from camoufox import Camoufox
+        except ImportError:
+            raise ImportError(
+                "Camoufox is not installed. Please install it with: pip install camoufox"
+            )
+
+        # Configure browser startup parameters
+        config = {
+            "headless": self.headless,
+            "humanize": self.humanize,
+            "os": platform.system().lower() or "windows",
+        }
+
+        # 代理配置
+        effective_proxy = proxy or self.proxy
+        if effective_proxy:
+            if isinstance(effective_proxy, str):
+                config["proxy"] = {"server": effective_proxy}
+            elif isinstance(effective_proxy, dict):
+                config["proxy"] = effective_proxy
+
+        # Cloudflare 绕过配置
+        if self.solve_cloudflare:
+            config["solve_cloudflare"] = True
+
+        # 启动浏览器
+        self._browser = Camoufox(**config)
+        self._context = self._browser
+        self._current_proxy = effective_proxy
+
+        self.logger.info(
+            f"CamoufoxDownloader initialized "
+            f"(headless={self.headless}, proxy={effective_proxy or 'direct'})"
+        )
+
+    async def _check_proxy_change(self, request):
+        """检测代理变化，必要时重启浏览器
+
+        Camoufox 不支持 Context 级代理，代理变化时需要重启整个浏览器实例。
+
+        代理切换触发条件：
+        - request.proxy 有值且与当前浏览器代理不同 → 切换到新代理
+        - request.meta['proxy_downgraded'] 为 True → 降级为直连
+
+        注意：request.proxy 为 None 且无 proxy_downgraded 标记时，
+        视为"未指定代理"，保持当前浏览器不变（兼容无 ProxyMiddleware 的场景）。
+        """
+        request_proxy = getattr(request, 'proxy', None)
+        proxy_downgraded = request.meta.get('proxy_downgraded', False)
+
+        # 确定目标代理
+        if proxy_downgraded:
+            target_proxy = None
+        elif request_proxy:
+            target_proxy = request_proxy
+        else:
+            return
+
+        if target_proxy != self._current_proxy:
+            old_proxy = self._current_proxy
+            self.logger.info(
+                f"Proxy changed: {old_proxy or 'direct'} → {target_proxy or 'direct'}, "
+                f"restarting Camoufox browser..."
+            )
+            await self._restart_browser(target_proxy)
+
+    async def _restart_browser(self, new_proxy=None):
+        """重启 Camoufox 浏览器
+
+        Args:
+            new_proxy: 新代理配置，None 表示直连
+        """
+        # 1. 关闭旧浏览器
+        await self.close()
+
+        # 2. 用新代理启动浏览器
+        await self._initialize_browser(proxy=new_proxy)
 
     async def download(self, request) -> Optional[Response]:
         """下载动态内容"""
+        # 懒加载初始化（加锁防止并发重复初始化）
         if not self._browser or not self._context:
-            self.logger.error("CamoufoxDownloader browser is not available")
-            return None
+            async with self._init_lock:
+                # double-check：获取锁后再次确认
+                if not self._browser or not self._context:
+                    try:
+                        await self._initialize_browser()
+                    except Exception as e:
+                        self.logger.error(f"Failed to initialize Camoufox for {request.url}: {e}")
+                        return None
+
+        # 检测代理变化：如果 request.proxy 与当前浏览器的代理不同，重启浏览器
+        await self._check_proxy_change(request)
 
         start_time = None
         if self.crawler.settings.get_bool("DOWNLOAD_STATS", True):
@@ -526,5 +589,7 @@ class CamoufoxDownloader(DownloaderBase):
                 self.logger.debug(f"Error closing browser: {e}")
             finally:
                 self._browser = None
-        
+                self._context = None
+                self._current_proxy = None
+
         self.logger.info("CamoufoxDownloader closed successfully")

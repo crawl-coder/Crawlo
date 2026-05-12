@@ -146,16 +146,43 @@ class RequestGenerationMixin:
     """请求生成 Mixin，提供传统/受控两种流式生成模式"""
 
     async def _traditional_request_generation(self):
-        """流式请求生成方法（支持 sync/async 生成器，不物化）"""
-        self.logger.debug("开始流式请求生成")
+        """流式请求生成方法（支持 sync/async 生成器，带背压控制）
+        
+        背压策略：当调度器队列积压超过阈值时暂停生成，
+        让下载器先消费已有请求（包括列表页产出的详情页），
+        避免大量列表页全部入队后才处理详情页的"先列后详"问题。
+        """
+        self.logger.debug("开始流式请求生成（带背压控制）")
         processed_count = 0
+        
+        # 背压阈值：队列中未处理请求数超过此值时暂停生成
+        # 取并发数的 2~3 倍，确保下载器始终有活干，同时不会过度积压
+        concurrency = self.task_manager._concurrency_limit if self.task_manager else 8
+        backpressure_high = max(concurrency * 3, 50)
+        backpressure_low = max(concurrency * 1, 20)
+        
         try:
             while self.running and self._start_requests_source is not None:
                 try:
+                    # 背压检查：队列积压过多时暂停生成，让下载器消费
+                    if self.scheduler is not None:
+                        queue_size = await self.scheduler.async_size()
+                        if queue_size >= backpressure_high:
+                            self.logger.debug(
+                                f"背压暂停生成: 队列 {queue_size} >= {backpressure_high}，"
+                                f"等待下载器消费"
+                            )
+                            # 等待队列降到低水位
+                            while self.running and await self.scheduler.async_size() > backpressure_low:
+                                await asyncio.sleep(0.1)
+                            queue_size = await self.scheduler.async_size()
+                            self.logger.debug(f"背压恢复生成: 队列降至 {queue_size}")
+                    
                     if self._start_requests_is_async:
                         start_request = await self._start_requests_source.__anext__()
                     else:
                         start_request = next(self._start_requests_source)
+                    
                     # 请求入队
                     await self.enqueue_request(start_request)
                     processed_count += 1
@@ -243,7 +270,7 @@ class RequestGenerationMixin:
         generated = 0
         
         # 优化：如果队列有足够空间，批量并发入队
-        queue_size = len(self.scheduler) if self.scheduler else 0
+        queue_size = await self.scheduler.async_size() if self.scheduler else 0
         available_space = self.max_queue_size - queue_size
         
         if available_space >= len(batch):

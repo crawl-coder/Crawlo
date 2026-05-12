@@ -217,7 +217,7 @@ class Engine(RequestGenerationMixin):
             loop_count = 0
             last_exit_check = 0  # 记录上次检查退出条件的循环次数
             last_component_states = None  # 记录上次的组件状态，用于减少冗余日志
-            batch_size = 5  # 批量获取请求的数量
+            batch_size = max(self.task_manager._concurrency_limit, 10)  # 批量获取请求数量，至少与并发数对齐
             idle_count = 0  # 连续空闲计数
             
             # 动态退出检查间隔
@@ -240,9 +240,10 @@ class Engine(RequestGenerationMixin):
                 if requests:
                     idle_count = 0  # 重置空闲计数
                     self._request_available.clear()  # 清除事件，等待新请求
-                    # 并发处理批量请求
-                    tasks = [self._crawl(req) for req in requests]
-                    await asyncio.gather(*tasks, return_exceptions=True)
+                    # 并发派发请求（fire-and-forget：_crawl 创建后台任务后立即返回，
+                    # 不等待下载完成，让多个浏览器标签页真正并发工作）
+                    for req in requests:
+                        self._create_background_task(self._crawl(req))
                     
                     # 有请求处理时，增加检查间隔（减少开销）
                     exit_check_interval = min(exit_check_interval + 1, max_check_interval)
@@ -325,7 +326,7 @@ class Engine(RequestGenerationMixin):
                     self.task_manager.record_response_time(response_time)
                 
                 if outputs:
-                    await self._handle_spider_output(outputs)
+                    await self._handle_spider_output(outputs, request)
                 
                 # 由于我们不再使用处理队列，不再需要确认任务完成
                 # 任务在从主队列取出时就已经被认为是完成的
@@ -353,7 +354,7 @@ class Engine(RequestGenerationMixin):
                     try:
                         errback_result = await common_call(errback, Failure(e, request=request))
                         if errback_result is not None:
-                            await self._handle_errback_output(errback_result)
+                            await self._handle_errback_output(errback_result, request)
                     except Exception as errback_error:
                         self.logger.error(
                             f"errback 执行失败 [{getattr(request, 'url', 'Unknown URL')}]: "
@@ -373,7 +374,11 @@ class Engine(RequestGenerationMixin):
         if self.task_manager:
             coro = crawl_task()
             try:
-                await self.task_manager.create_task(coro)
+                # 创建后台任务但不等待完成（fire-and-forget），
+                # 让多个浏览器请求真正并发执行。
+                # task_manager 的信号量控制并发上限，
+                # done_callback 负责释放信号量。
+                await self.task_manager.create_task_nowait(coro)
             except asyncio.CancelledError:
                 # 只在第一次取消时打印日志，避免重复
                 if not getattr(self, '_cancel_logged', False):
@@ -406,6 +411,8 @@ class Engine(RequestGenerationMixin):
     async def enqueue_request(self, start_request):
         if self.scheduler is not None:
             await self._schedule_request(start_request)
+        else:
+            self.logger.warning("⚠️ Scheduler 未初始化，无法入队请求")
 
     async def _schedule_request(self, request):
         if self.scheduler is not None and await self.scheduler.enqueue_request(request):
@@ -418,11 +425,33 @@ class Engine(RequestGenerationMixin):
             return await self.scheduler.next_request()
         return None
 
-    async def _handle_spider_output(self, outputs):
+    async def _handle_spider_output(self, outputs, parent_request=None):
+        """处理 spider 回调输出，自动为子 Request 传播 depth
+        
+        框架级 depth 传播机制：
+        - 从 parent_request 获取当前 depth（默认 0）
+        - 子 Request 的 depth 自动设为 parent_depth + 1
+        - 配合 DEPTH_PRIORITY 配置，实现广度优先或深度优先策略
+        
+        Args:
+            outputs: spider 回调的输出（异步生成器）
+            parent_request: 产生此输出的原始请求（用于获取 depth）
+        """
+        # 获取父请求的 depth
+        parent_depth = 0
+        if parent_request is not None and hasattr(parent_request, 'meta'):
+            parent_depth = parent_request.meta.get('depth', 0)
+        
         if self.processor is None:
             return
         async for spider_output in outputs:
-            if isinstance(spider_output, (Request, Item)):
+            if isinstance(spider_output, Request):
+                # 框架级 depth 传播：子请求 depth = 父请求 depth + 1
+                # 仅在子请求未手动设置 depth 时自动注入
+                if 'depth' not in spider_output.meta:
+                    spider_output.meta['depth'] = parent_depth + 1
+                await self.processor.enqueue(spider_output)
+            elif isinstance(spider_output, Item):
                 await self.processor.enqueue(spider_output)
             elif isinstance(spider_output, Exception):
                 if self.crawler is not None and self.spider is not None:
@@ -433,7 +462,7 @@ class Engine(RequestGenerationMixin):
             else:
                 raise OutputError(f'{type(self.spider)} must return `Request` or `Item`.')
 
-    async def _handle_errback_output(self, result):
+    async def _handle_errback_output(self, result, parent_request=None):
         """
         处理 errback 的返回值，包装后委托给 _handle_spider_output。
 
@@ -447,25 +476,25 @@ class Engine(RequestGenerationMixin):
         if isinstance(result, (Request, Item)):
             async def _gen():
                 yield result
-            await self._handle_spider_output(_gen())
+            await self._handle_spider_output(_gen(), parent_request)
         elif isinstance(result, (list, tuple)):
             async def _gen():
                 for item in result:
                     if isinstance(item, (Request, Item)):
                         yield item
-            await self._handle_spider_output(_gen())
+            await self._handle_spider_output(_gen(), parent_request)
         elif isasyncgen(result):
-            await self._handle_spider_output(result)
+            await self._handle_spider_output(result, parent_request)
         elif isgenerator(result):
             async def _wrap_sync_gen():
                 for item in result:
                     if isinstance(item, (Request, Item)):
                         yield item
-            await self._handle_spider_output(_wrap_sync_gen())
+            await self._handle_spider_output(_wrap_sync_gen(), parent_request)
         elif iscoroutine(result):
             awaited = await result
             if awaited is not None:
-                await self._handle_errback_output(awaited)
+                await self._handle_errback_output(awaited, parent_request)
         else:
             self.logger.warning(
                 f"errback returned unexpected type {type(result).__name__}, ignored"
@@ -517,6 +546,7 @@ class Engine(RequestGenerationMixin):
             downloader_idle = False
             task_manager_done = False
             processor_idle = False
+            background_tasks_done = False
             
             if self.scheduler is not None:
                 scheduler_idle = await self.scheduler.async_idle() if hasattr(self.scheduler, 'async_idle') else self.scheduler.idle()
@@ -526,8 +556,10 @@ class Engine(RequestGenerationMixin):
                 task_manager_done = self.task_manager.all_done()
             if self.processor is not None:
                 processor_idle = await self.processor.idle_async()
+            # 检查引擎后台任务（_crawl 等 fire-and-forget 任务）是否都已完成
+            background_tasks_done = len(self._background_tasks) == 0
             
-            current_states = (scheduler_idle, downloader_idle, task_manager_done, processor_idle)
+            current_states = (scheduler_idle, downloader_idle, task_manager_done, processor_idle, background_tasks_done)
             
             # 只在组件状态发生变化时输出日志
             if current_states != last_component_states:
@@ -535,13 +567,15 @@ class Engine(RequestGenerationMixin):
                     f"组件状态变化 - Scheduler: {scheduler_idle}, "
                     f"Downloader: {downloader_idle}, "
                     f"TaskManager: {task_manager_done}, "
-                    f"Processor: {processor_idle}"
+                    f"Processor: {processor_idle}, "
+                    f"BackgroundTasks: {background_tasks_done}"
                 )
             
             if (scheduler_idle and 
                 downloader_idle and 
                 task_manager_done and 
-                processor_idle):
+                processor_idle and
+                background_tasks_done):
                 self.logger.info("All components are idle, preparing to exit")
                 return True, current_states
         else:

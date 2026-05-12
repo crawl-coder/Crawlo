@@ -2,12 +2,12 @@
 """
 InfoQ 动态下载器测试项目配置文件
 ====================================
-测试 DynamicRenderMiddleware 和 PlaywrightDownloader 的使用
+测试 CloakBrowserDownloader 的使用
 
 测试场景：
-1. protocol - 默认使用协议下载器
-2. dynamic_domain - 通过域名配置启用动态下载器
-3. dynamic_meta - 通过请求标记启用动态下载器
+1. 使用 CloakBrowser 下载器 + 代理API
+2. humanize 类人行为模拟
+3. GeoIP 自动时区匹配
 """
 import os
 from datetime import datetime
@@ -16,8 +16,8 @@ from crawlo.config import CrawloConfig
 # 使用单机模式配置
 config = CrawloConfig.standalone(
     project_name='infoq_dynamic_test',
-    concurrency=1,
-    download_delay=2.0,
+    concurrency=2,  # 降低并发：5 → 2（避免触发百度百科反爬）
+    download_delay=2.0,  # 增加延迟：0.5 → 2.0（防止被限流）
 )
 
 # 将配置转换为当前模块的全局变量
@@ -30,72 +30,40 @@ SPIDER_MODULES = ['infoq_dynamic_test.spiders']
 # =================================== DynamicRenderMiddleware 配置 ===================================
 
 # DynamicRenderMiddleware 配置
-# 默认不使用动态下载器，需要用户显式配置
-DYNAMIC_RENDER_DEFAULT_DYNAMIC = False
-DYNAMIC_RENDER_DOMAINS = ['www.infoq.cn']  # 为 infoq.cn 启用动态下载器
+DYNAMIC_RENDER_DEFAULT_DYNAMIC = True  # 默认使用动态下载器
+DYNAMIC_RENDER_DOMAINS = ['www.infoq.cn']
 DYNAMIC_RENDER_URL_PATTERNS = []
 
+# =================================== CloakBrowser 配置 ===================================
 
-# =================================== DrissionPage 配置 ===================================
+CLOAKBROWSER_HEADLESS = True  # 无头模式，提升性能
+CLOAKBROWSER_HUMANIZE = False  # 禁用类人行为，提升并发速度
+CLOAKBROWSER_GEOIP = True  # 启用 GeoIP 自动时区匹配
+CLOAKBROWSER_TIMEOUT = 60000  # 60秒总超时（30 → 60，适应慢页面）
+CLOAKBROWSER_LOAD_TIMEOUT = 45000  # 45秒页面加载超时（25 → 45，减少超时失败）
 
-DRISSIONPAGE_HEADLESS = False  # 设置为 False 显示浏览器窗口（有头模式），True 为无头模式
-DRISSIONPAGE_TIMEOUT = 30  # 超时时间（秒）
-DRISSIONPAGE_BROWSER_PATH = None  # 浏览器路径（None 表示自动检测）
-DRISSIONPAGE_USER_DATA_PATH = None  # 用户数据目录
-DRISSIONPAGE_PROXY = None  # 代理设置
-DRISSIONPAGE_LOAD_IMAGES = True  # 是否加载图片
-DRISSIONPAGE_AUTO_SCROLL = False  # 是否自动滚动加载懒加载内容
-DRISSIONPAGE_SCROLL_DELAY = 1  # 滚动延迟（秒）
-DRISSIONPAGE_MAX_PAGES = 10  # 最大页面数（标签页复用池大小）
+# 视口大小
+CLOAKBROWSER_VIEWPORT_WIDTH = 1920
+CLOAKBROWSER_VIEWPORT_HEIGHT = 1080
 
-# =================================== Playwright 配置 ===================================
-
-PLAYWRIGHT_BROWSER_TYPE = "chromium"
-PLAYWRIGHT_HEADLESS = False  # 设置为 False 显示浏览器窗口（有头模式），True 为无头模式
-PLAYWRIGHT_TIMEOUT = 30000
-
-# 浏览器窗口大小
-PLAYWRIGHT_VIEWPORT_WIDTH = 1280   # 窗口宽度（像素）
-PLAYWRIGHT_VIEWPORT_HEIGHT = 720   # 窗口高度（像素）
-
-# 智能等待配置
-PLAYWRIGHT_WAIT_STRATEGY = "auto"
-PLAYWRIGHT_WAIT_TIMEOUT = 10000
+# 智能等待
+CLOAKBROWSER_WAIT_STRATEGY = "auto"
+CLOAKBROWSER_WAIT_TIMEOUT = 10000
 
 # 资源屏蔽（提升性能）
-PLAYWRIGHT_BLOCK_RESOURCES = ["image", "font", "media"]
-PLAYWRIGHT_BLOCK_ADS = True
+CLOAKBROWSER_BLOCK_RESOURCES = ["image", "font", "media", "stylesheet"]
 
-# 反检测
-PLAYWRIGHT_STEALTH_MODE = True
+# 自动滚动（按需开启）
+CLOAKBROWSER_AUTO_SCROLL = False  # 百度百科不需要滚动加载
+CLOAKBROWSER_SCROLL_DELAY = 500
 
-# 自动滚动
-PLAYWRIGHT_AUTO_SCROLL = True
-PLAYWRIGHT_SCROLL_DELAY = 500
-PLAYWRIGHT_MAX_NO_CONTENT = 2  # 连续2次无新内容认为到底部
-
-# 动态交互示例（在spider中使用）：
-# 方式1：滚动加载（已自动启用）
-#   yield Request(url, meta={'playwright_auto_scroll': True})
-#
-# 方式2：点击翻页
-#   yield Request(url, meta={
-#       'playwright_actions': [
-#           {
-#               'type': 'click_and_wait',
-#               'params': {
-#                   'selector': '.next-page-button',  # 下一页按钮选择器
-#                   'wait_timeout': 2000,  # 等待超时
-#                   'wait_for': 'networkidle'  # 等待策略
-#               }
-#           }
-#       ]
-#   })
+# 最大标签页数
+CLOAKBROWSER_MAX_PAGES = 5
 
 # =================================== HybridDownloader 配置 ===================================
 
 HYBRID_DEFAULT_PROTOCOL_DOWNLOADER = "aiohttp"
-HYBRID_DEFAULT_DYNAMIC_DOWNLOADER = "drissionpage"  # 使用 DrissionPage 下载器
+HYBRID_DEFAULT_DYNAMIC_DOWNLOADER = "cloakbrowser"  # 使用 CloakBrowser 下载器
 HYBRID_VERBOSE_LOGGING = True  # 启用详细日志，方便调试
 
 # =================================== 日志配置 ===================================
@@ -112,15 +80,20 @@ LOG_ENCODING = 'utf-8'
 
 # =================================== 数据库配置（禁用）===================================
 
-# 不使用数据库存储
 MYSQL_HOST = None
 REDIS_HOST = None
 
 # =================================== 代理配置 ===================================
 
-# 不使用代理
-PROXY_LIST = []
-PROXY_API_URL = ""
+# 使用代理 API（CloakBrowser 启动时自动获取）
+PROXY_API_URL = 'http://123.56.42.142:5000/proxy/getitem/'
+
+# =================================== 重试配置 ===================================
+
+# 启用重试机制（超时请求自动重试）
+RETRY_ENABLED = True
+RETRY_TIMES = 2  # 最多重试 2 次
+RETRY_HTTP_CODES = [500, 502, 503, 504, 408, 429]  # 需要重试的 HTTP 状态码
 
 # =================================== 定时任务（禁用）===================================
 

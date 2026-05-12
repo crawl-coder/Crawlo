@@ -509,6 +509,12 @@ class Scheduler:
         # 任务在从主队列取出时就已经被认为是完成的
         self.logger.debug(f"任务确认完成: {getattr(request, 'url', 'Unknown URL')}")
 
+    async def async_size(self):
+        """异步获取队列实际大小（推荐用于背压检查等需要精确值的场景）"""
+        if not self.queue_manager:
+            return 0
+        return await self.queue_manager.size()
+
     def __len__(self):
         """Get queue size - 同步方法，仅作为近似值"""
         if not self.queue_manager:

@@ -157,6 +157,7 @@ engine = Engine(crawler)
 | 配置项 | 类型 | 默认值 | 说明 |
 |--------|------|--------|------|
 | `CONCURRENCY` | int | 8 | 并发数 |
+| `DEPTH_PRIORITY` | int | 1 | 深度优先级调整系数。正数=深度优先（详情页优先），负数=广度优先（列表页优先），0=不调整 |
 | `SCHEDULER_MAX_QUEUE_SIZE` | int | 200 | 调度器队列最大大小 |
 | `REQUEST_GENERATION_BATCH_SIZE` | int | 10 | 请求生成批处理大小 |
 | `REQUEST_GENERATION_INTERVAL` | float | 0.01 | 请求生成间隔（秒） |

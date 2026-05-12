@@ -58,7 +58,6 @@ PIPELINES = [
 
 # 日志配置
 LOG_LEVEL = 'INFO'
-
 # 日志文件路径（带时间戳，每次运行创建新文件）
 from datetime import datetime
 LOG_FILE = f'logs/ofweek_standalone_{datetime.now().strftime("%Y%m%d_%H%M%S")}.log'
@@ -120,6 +119,7 @@ MYSQL_UPDATE_COLUMNS = ()  # 冲突时需更新的列名；指定后 MYSQL_AUTO_
 # 动态代理（ProxyMiddleware）
 # 配置代理API URL后中间件自动启用
 # PROXY_API_URL = "http://your-proxy-api.com/get-proxy"
+PROXY_API_URL = 'http://123.56.42.142:5000/proxy/getitem/'
 
 # =================================== 定时任务配置 ===================================
 

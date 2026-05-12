@@ -58,13 +58,17 @@ class PlaywrightDownloader(DownloaderBase, SmartWaitMixin, StealthMixin):
         self.browser: Optional[Browser] = None
         self.context: Optional[BrowserContext] = None
         self.logger = get_logger(self.__class__.__name__)
+
+        # 当前上下文使用的代理（用于检测代理变化，触发 Context 重建）
+        self._current_proxy = None
+
         self.default_timeout = crawler.settings.get_int("PLAYWRIGHT_TIMEOUT", 30000)  # 毫秒
         self.load_timeout = crawler.settings.get_int("PLAYWRIGHT_LOAD_TIMEOUT", 10000)  # 毫秒
         self.browser_type = crawler.settings.get("PLAYWRIGHT_BROWSER_TYPE", "chromium").lower()
         self.headless = crawler.settings.get_bool("PLAYWRIGHT_HEADLESS", True)
         self.wait_for_element = crawler.settings.get("PLAYWRIGHT_WAIT_FOR_ELEMENT", None)
-        self.viewport_width = crawler.settings.get_int("PLAYWRIGHT_VIEWPORT_WIDTH", 1920)
-        self.viewport_height = crawler.settings.get_int("PLAYWRIGHT_VIEWPORT_HEIGHT", 1080)
+        self.viewport_width = crawler.settings.get_int("PLAYWRIGHT_VIEWPORT_WIDTH", 1280)
+        self.viewport_height = crawler.settings.get_int("PLAYWRIGHT_VIEWPORT_HEIGHT", 720)
 
         # 单浏览器多标签页模式
         # 策略：启动一个浏览器，创建多个tab复用，控制最大并发数
@@ -74,6 +78,7 @@ class PlaywrightDownloader(DownloaderBase, SmartWaitMixin, StealthMixin):
         self._used_pages: set = set()  # 正在使用的页面ID
         self._page_semaphore: Optional[asyncio.Semaphore] = None  # 页面池信号量，控制最大并发数
         self._page_semaphore_lock = asyncio.Lock()  # 信号量操作锁，防止竞态条件
+        self._init_lock = asyncio.Lock()  # 浏览器初始化锁，防止并发重复初始化
 
         # ===== 智能等待配置 =====
         self.wait_strategy = crawler.settings.get("PLAYWRIGHT_WAIT_STRATEGY", WaitStrategy.AUTO)
@@ -109,11 +114,18 @@ class PlaywrightDownloader(DownloaderBase, SmartWaitMixin, StealthMixin):
     async def download(self, request) -> Optional[Response]:
         """下载动态内容"""
         if not self.playwright or not self.browser or not self.context:
-            try:
-                await self._initialize_playwright()
-            except Exception as e:
-                self.logger.error(f"Failed to initialize Playwright for {request.url}: {e}")
-                return None
+            # 加锁防止并发重复初始化
+            async with self._init_lock:
+                # double-check：获取锁后再次确认
+                if not self.playwright or not self.browser or not self.context:
+                    try:
+                        await self._initialize_playwright()
+                    except Exception as e:
+                        self.logger.error(f"Failed to initialize Playwright for {request.url}: {e}")
+                        return None
+
+        # 检测代理变化：如果 request.proxy 与当前 Context 的代理不同，重建 Context
+        await self._check_proxy_change(request)
 
         start_time = None
         if self.crawler.settings.get_bool("DOWNLOAD_STATS", True):
@@ -207,51 +219,40 @@ class PlaywrightDownloader(DownloaderBase, SmartWaitMixin, StealthMixin):
                 await self._release_page(page)
 
     async def _initialize_playwright(self):
-        """初始化 Playwright"""
+        """初始化 Playwright（代理不再在 launch 级设置，移至 Context 级）"""
         try:
             self.playwright = await async_playwright().start()
-            
+
             # 获取代理配置
             proxy_config = self.crawler.settings.get("PLAYWRIGHT_PROXY")
-            
-            # 构建启动参数
+
+            # 构建启动参数（不设置代理，代理在 Context 级设置）
             launch_kwargs = {
                 "headless": self.headless,
                 "args": list(DEFAULT_ARGS),  # 默认性能优化参数
             }
-            
+
             # 如果启用隐身模式，添加隐身参数
             if self.stealth_level != 'none':
                 launch_kwargs["args"].extend(STEALTH_ARGS)
                 launch_kwargs["ignore_default_args"] = list(HARMFUL_ARGS)
-                
+
                 # WebRTC 保护
                 if self.block_webrtc:
                     launch_kwargs["args"].extend(WEBRTC_PROTECTION_ARGS)
-                
+
                 # WebGL 控制
                 if not self.allow_webgl:
                     launch_kwargs["args"].extend(WEBGL_DISABLE_ARGS)
-                
+
                 # Canvas 指纹保护
                 if self.hide_canvas:
                     launch_kwargs["args"].append(CANVAS_NOISE_ARG)
-            
+
             # 使用真实 Chrome 浏览器
             if self.real_chrome:
                 launch_kwargs["channel"] = "chrome"
-            
-            # 如果配置了代理，则添加代理参数
-            if proxy_config:
-                if isinstance(proxy_config, str):
-                    # 简单的代理URL
-                    launch_kwargs["proxy"] = {
-                        "server": proxy_config
-                    }
-                elif isinstance(proxy_config, dict):
-                    # 完整的代理配置
-                    launch_kwargs["proxy"] = proxy_config
-            
+
             # 根据配置选择浏览器类型
             if self.browser_type == "chromium":
                 self.browser = await self.playwright.chromium.launch(**launch_kwargs)
@@ -261,37 +262,131 @@ class PlaywrightDownloader(DownloaderBase, SmartWaitMixin, StealthMixin):
                 self.browser = await self.playwright.webkit.launch(**launch_kwargs)
             else:
                 raise ValueError(f"Unsupported browser type: {self.browser_type}")
-            
-            # 创建浏览器上下文
-            context_options = {
-                "viewport": {"width": self.viewport_width, "height": self.viewport_height},
-                "screen": {"width": self.viewport_width, "height": self.viewport_height},
-                "is_mobile": False,
-                "has_touch": False,
-                # 暗色主题绕过 creepjs 的 prefersLightColor 检测
-                "color_scheme": "dark",
-                "device_scale_factor": 2,
-                "permissions": ["geolocation", "notifications"],
-            }
-            
-            # 忽略 HTTPS 错误
-            if self.ignore_https_errors:
-                context_options["ignore_https_errors"] = True
-            
-            self.context = await self.browser.new_context(**context_options)
-            
+
+            # 创建浏览器上下文（代理在 Context 级设置）
+            self.context = await self._create_context(proxy_config)
+
             # 初始化页面池信号量
             if self.single_browser_mode:
                 self._page_semaphore = asyncio.Semaphore(self.max_pages_per_browser)
-            
+
             # 应用全局设置
             await self._apply_global_settings()
-            
+
             self.logger.debug(f"PlaywrightDownloader initialized with {self.browser_type} (stealth_level={self.stealth_level})")
-            
+
         except Exception as e:
             self.logger.error(f"Failed to initialize Playwright: {e}")
             raise
+
+    async def _create_context(self, proxy=None):
+        """创建带代理的浏览器上下文
+
+        Args:
+            proxy: 代理配置，支持 str 或 dict 格式，None 表示直连
+
+        Returns:
+            BrowserContext 实例
+        """
+        context_options = {
+            "viewport": {"width": self.viewport_width, "height": self.viewport_height},
+            "screen": {"width": self.viewport_width, "height": self.viewport_height},
+            "is_mobile": False,
+            "has_touch": False,
+            "color_scheme": "dark",
+            "device_scale_factor": 2,
+            "permissions": ["geolocation", "notifications"],
+        }
+
+        # 忽略 HTTPS 错误
+        if self.ignore_https_errors:
+            context_options["ignore_https_errors"] = True
+
+        # Context 级代理设置（Playwright 原生支持）
+        if proxy:
+            if isinstance(proxy, str):
+                context_options["proxy"] = {"server": proxy}
+            elif isinstance(proxy, dict):
+                context_options["proxy"] = proxy
+
+        context = await self.browser.new_context(**context_options)
+        self._current_proxy = proxy
+        self.logger.info(f"Created browser context (proxy={proxy or 'direct'})")
+        return context
+
+    async def _check_proxy_change(self, request):
+        """检测代理变化，必要时重建 Context
+
+        代理来源优先级：
+        1. request.proxy（由 ProxyMiddleware 设置，支持中途切换）
+        2. request.meta['proxy_downgraded']（代理降级为直连）
+        3. PLAYWRIGHT_PROXY 配置（静态代理，仅在初始化时使用）
+        4. 无代理（直连）
+
+        代理切换触发条件：
+        - request.proxy 有值且与当前 Context 代理不同 → 切换到新代理
+        - request.meta['proxy_downgraded'] 为 True → 降级为直连
+
+        注意：request.proxy 为 None 且无 proxy_downgraded 标记时，
+        视为"未指定代理"，保持当前 Context 不变（兼容无 ProxyMiddleware 的场景）。
+        """
+        request_proxy = getattr(request, 'proxy', None)
+        proxy_downgraded = request.meta.get('proxy_downgraded', False)
+
+        if not self.browser:
+            return
+
+        # 确定目标代理
+        if proxy_downgraded:
+            target_proxy = None
+        elif request_proxy:
+            target_proxy = request_proxy
+        else:
+            return
+
+        if target_proxy != self._current_proxy:
+            old_proxy = self._current_proxy
+            self.logger.info(
+                f"Proxy changed: {old_proxy or 'direct'} → {target_proxy or 'direct'}, "
+                f"rebuilding context..."
+            )
+            await self._rebuild_context(target_proxy)
+
+    async def _rebuild_context(self, new_proxy=None):
+        """重建浏览器上下文
+
+        Args:
+            new_proxy: 新代理配置，None 表示直连
+        """
+        # 1. 关闭所有页面
+        if self._page_pool:
+            for page in self._page_pool:
+                try:
+                    await page.close()
+                except Exception:
+                    pass
+            self._page_pool.clear()
+            self._used_pages.clear()
+
+        # 2. 关闭旧 Context
+        if self.context:
+            try:
+                await self.context.close()
+            except Exception:
+                pass
+            self.context = None
+
+        # 3. 创建新 Context
+        self.context = await self._create_context(new_proxy)
+
+        # 4. 重置信号量
+        if self.single_browser_mode:
+            self._page_semaphore = asyncio.Semaphore(self.max_pages_per_browser)
+
+        # 5. 应用全局设置
+        await self._apply_global_settings()
+
+        self.logger.info(f"Context rebuilt with proxy: {new_proxy or 'direct'}")
 
     async def _apply_global_settings(self):
         """应用全局浏览器设置"""
@@ -306,12 +401,6 @@ class PlaywrightDownloader(DownloaderBase, SmartWaitMixin, StealthMixin):
         # 添加 Google Referer
         if self.google_referer:
             # 在请求级别设置，这里只做标记
-            pass
-            
-        # 设置代理
-        proxy = self.crawler.settings.get("PLAYWRIGHT_PROXY")
-        if proxy:
-            # Playwright 的代理设置在启动浏览器时配置
             pass
 
     async def _apply_request_settings(self, page: Page, request):
@@ -617,11 +706,12 @@ class PlaywrightDownloader(DownloaderBase, SmartWaitMixin, StealthMixin):
         
         策略：
         1. 如果是池中的页面，标记为未使用并释放信号量
-        2. 导航到 about:blank 清空内容以防泄露
+        2. 导航到 about:blank 清空内容以防泄露（在锁外执行，减少锁持有时间）
         3. 如果是临时页面（非单浏览器模式），直接关闭
         4. 使用锁保护关键区域，防止竞态条件
         """
         page_id = id(page)
+        should_navigate_to_blank = False
         
         async with self._page_semaphore_lock:
             # 检查是否是池中的页面
@@ -633,11 +723,8 @@ class PlaywrightDownloader(DownloaderBase, SmartWaitMixin, StealthMixin):
                     self._page_semaphore.release()
                     self.logger.debug(f"Released semaphore, pool size: {len(self._page_pool)}, used: {len(self._used_pages)}")
                 
-                # 清空页面内容，准备下次使用
-                try:
-                    await page.goto("about:blank", timeout=BROWSER_PAGE_GOTO_BLANK_TIMEOUT_MS)
-                except Exception as e:
-                    self.logger.debug(f"Failed to navigate to blank page: {e}")
+                # 标记需要在锁外导航到空白页
+                should_navigate_to_blank = True
             else:
                 # 非池中页面，直接关闭
                 self.logger.debug("Closing non-pooled page")
@@ -645,3 +732,10 @@ class PlaywrightDownloader(DownloaderBase, SmartWaitMixin, StealthMixin):
                     await page.close()
                 except Exception as e:
                     self.logger.debug(f"Failed to close page: {e}")
+
+        # 在锁外导航到空白页，减少锁持有时间，提高并发性能
+        if should_navigate_to_blank:
+            try:
+                await page.goto("about:blank", timeout=BROWSER_PAGE_GOTO_BLANK_TIMEOUT_MS)
+            except Exception as e:
+                self.logger.debug(f"Failed to navigate to blank page: {e}")

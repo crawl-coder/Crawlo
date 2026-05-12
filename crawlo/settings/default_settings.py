@@ -48,7 +48,11 @@ RANDOMNESS = True  # 是否启用随机延迟
 RANDOM_RANGE = [0.5, 1.5]  # 随机延迟范围因子
 
 # 调度器配置
-DEPTH_PRIORITY = 1  # 深度优先级（负数表示深度优先，正数表示广度优先）
+DEPTH_PRIORITY = 1  # 深度优先级调整系数（框架自动传播 depth，此值控制优先级如何随深度变化）
+                     # 正数: 深度越深内部 priority 越小 → 深度优先（先详后列，详情页优先出队）
+                     # 负数: 深度越深内部 priority 越大 → 广度优先（先列后详，列表页优先出队）
+                     # 0:   不按深度调整优先级
+                     # 注意: 用户设置 priority 时数值越大越优先，框架内部取反存储（min-heap）
 
 # ----- 2.1 队列大小配置 -----
 # 通用配置（向后兼容）
@@ -160,7 +164,7 @@ CURL_BROWSER_VERSION_MAP = {
 # HybridDownloader - 智能选择协议/动态下载器
 # 检测优先级：请求标记 > URL模式 > 域名配置 > 文件扩展名 > 默认
 HYBRID_DEFAULT_PROTOCOL_DOWNLOADER = "httpx"  # 默认协议下载器
-HYBRID_DEFAULT_DYNAMIC_DOWNLOADER = "drissionpage"  # 默认动态下载器
+HYBRID_DEFAULT_DYNAMIC_DOWNLOADER = "cloakbrowser"  # 默认动态下载器
 HYBRID_VERBOSE_LOGGING = False  # 是否启用详细日志
 HYBRID_DYNAMIC_URL_PATTERNS = []  # 需要动态加载的 URL 模式
 HYBRID_PROTOCOL_URL_PATTERNS = []  # 需要协议请求的 URL 模式
@@ -174,8 +178,8 @@ PLAYWRIGHT_BROWSER_TYPE = "chromium"  # 浏览器类型: chromium, firefox, webk
 PLAYWRIGHT_HEADLESS = True  # 是否无头模式
 PLAYWRIGHT_TIMEOUT = 30000  # 超时时间（毫秒）
 PLAYWRIGHT_LOAD_TIMEOUT = 10000  # 页面加载超时时间（毫秒）
-PLAYWRIGHT_VIEWPORT_WIDTH = 1920  # 视口宽度
-PLAYWRIGHT_VIEWPORT_HEIGHT = 1080  # 视口高度
+PLAYWRIGHT_VIEWPORT_WIDTH = 1280  # 视口宽度
+PLAYWRIGHT_VIEWPORT_HEIGHT = 720  # 视口高度
 PLAYWRIGHT_WAIT_FOR_ELEMENT = None  # 等待特定元素选择器
 PLAYWRIGHT_PROXY = None  # 代理设置
 PLAYWRIGHT_SINGLE_BROWSER_MODE = True  # 单浏览器多标签页模式
@@ -235,14 +239,58 @@ CAMOUFOX_SOLVE_CLOUDFLARE = True  # 是否自动解决 Cloudflare Turnstile
 CAMOUFOX_BLOCK_RESOURCES = ["image", "font", "media"]  # 屏蔽的资源类型
 CAMOUFOX_TIMEOUT = 30000  # 超时时间（毫秒）
 CAMOUFOX_LOAD_TIMEOUT = 10000  # 页面加载超时时间（毫秒）
-CAMOUFOX_VIEWPORT_WIDTH = 1920  # 视口宽度
-CAMOUFOX_VIEWPORT_HEIGHT = 1080  # 视口高度
+CAMOUFOX_VIEWPORT_WIDTH = 1280  # 视口宽度
+CAMOUFOX_VIEWPORT_HEIGHT = 720  # 视口高度
 CAMOUFOX_MAX_PAGES = 10  # 单浏览器最大页面数量
 CAMOUFOX_AUTO_SCROLL = False  # 是否自动滚动
 CAMOUFOX_SCROLL_DELAY = 500  # 滚动延迟（毫秒）
 CAMOUFOX_WAIT_STRATEGY = "auto"  # 等待策略
 CAMOUFOX_WAIT_TIMEOUT = 10000  # 等待超时时间（毫秒）
 CAMOUFOX_WAIT_FOR_ELEMENT = None  # 等待特定元素选择器
+
+# ----- 3.8 CloakBrowser 隐身浏览器配置 -----
+
+# CloakBrowser 是源码级修补的 Chromium，内置 57 项 C++ 补丁
+# 无需 JS 注入即可绕过主流反机器人检测（Cloudflare、DataDome、PerimeterX 等）
+# 安装：pip install cloakbrowser[geoip]
+
+# 基础配置
+CLOAKBROWSER_HEADLESS = True  # 是否无头模式
+CLOAKBROWSER_PROXY = None  # 代理设置（浏览器级，启动时生效，所有标签页共用）
+CLOAKBROWSER_TIMEOUT = 30000  # 超时时间（毫秒）
+CLOAKBROWSER_LOAD_TIMEOUT = 10000  # 页面加载超时时间（毫秒）
+CLOAKBROWSER_VIEWPORT_WIDTH = 1280  # 视口宽度
+CLOAKBROWSER_VIEWPORT_HEIGHT = 720  # 视口高度
+CLOAKBROWSER_MAX_PAGES = 10  # 单浏览器最大页面数量
+
+# CloakBrowser 特有配置
+CLOAKBROWSER_HUMANIZE = False  # 是否启用类人行为模拟（humanize）
+CLOAKBROWSER_HUMAN_PRESET = "default"  # humanize 预设: default, fast, slow
+CLOAKBROWSER_HUMAN_CONFIG = None  # humanize 自定义配置（dict，覆盖 preset）
+CLOAKBROWSER_GEOIP = False  # 是否启用 GeoIP 自动时区匹配
+CLOAKBROWSER_TIMEZONE = None  # 手动设置时区（如 "Asia/Shanghai"），GeoIP 开启时忽略
+CLOAKBROWSER_LOCALE = None  # 手动设置语言环境（如 "zh-CN"），GeoIP 开启时忽略
+CLOAKBROWSER_BACKEND = "playwright"  # 后端引擎: playwright
+CLOAKBROWSER_STEALTH_ARGS = True  # 是否启用隐身启动参数
+CLOAKBROWSER_FINGERPRINT = None  # 指纹种子（整数，相同种子生成相同指纹）
+CLOAKBROWSER_FINGERPRINT_PLATFORM = None  # 指纹平台: windows, mac, linux
+CLOAKBROWSER_ARGS = []  # 额外浏览器启动参数
+
+# 持久化配置
+CLOAKBROWSER_PERSISTENT_CONTEXT = False  # 是否使用持久化上下文模式
+CLOAKBROWSER_USER_DATA_DIR = None  # 持久化上下文的用户数据目录
+
+# 智能等待配置
+CLOAKBROWSER_WAIT_STRATEGY = "auto"  # 等待策略: auto, networkidle, domcontentloaded, element
+CLOAKBROWSER_WAIT_TIMEOUT = 10000  # 智能等待超时时间（毫秒）
+CLOAKBROWSER_WAIT_FOR_ELEMENT = None  # 等待特定元素选择器
+
+# 资源屏蔽配置
+CLOAKBROWSER_BLOCK_RESOURCES = ["image", "font", "media"]  # 屏蔽的资源类型
+
+# 自动滚动配置
+CLOAKBROWSER_AUTO_SCROLL = False  # 是否自动滚动加载更多内容
+CLOAKBROWSER_SCROLL_DELAY = 500  # 滚动延迟（毫秒）
 
 # ==============================================================================
 # 4. 中间件配置

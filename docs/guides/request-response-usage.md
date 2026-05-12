@@ -342,6 +342,64 @@ def test_parse_html_page():
 
 ---
 
+## 优先级与调度策略
+
+### RequestPriority 枚举
+
+Crawlo 提供了语义化的优先级常量，用户设置时数值越大越优先：
+
+| 枚举值 | 用户传入值 | 内部存储值 | 出队顺序 |
+|--------|-----------|-----------|---------|
+| `RequestPriority.URGENT` | 200 | -200 | 最先出队 |
+| `RequestPriority.HIGH` | 100 | -100 | 第二出队 |
+| `RequestPriority.NORMAL` | 0 | 0 | 正常出队 |
+| `RequestPriority.LOW` | -100 | 100 | 较后出队 |
+| `RequestPriority.BACKGROUND` | -200 | 200 | 最后出队 |
+
+```python
+from crawlo.network import Request, RequestPriority
+
+# 紧急请求（最先处理）
+request = Request(url="http://example.com/urgent", priority=RequestPriority.URGENT)
+
+# 后台请求（最后处理）
+request = Request(url="http://example.com/background", priority=RequestPriority.BACKGROUND)
+```
+
+### Priority 与 Depth 的关系
+
+框架使用 min-heap 优先级队列，内部 priority 值越小越先出队。最终出队优先级由**用户设置的 priority** 和**请求深度 depth** 共同决定：
+
+```
+内部 priority = -用户priority - depth × DEPTH_PRIORITY
+```
+
+- **用户 priority**：构造 `Request` 时传入的值，自动取反存储
+- **depth**：框架自动传播，`start_requests` 默认 depth=1，子请求 depth=parent+1
+- **DEPTH_PRIORITY**：配置项，控制深度对优先级的影响方向
+
+**示例（DEPTH_PRIORITY = 1，用户 priority = 0）**：
+
+```python
+# 列表页：depth=1，内部 priority = 0 - 1×1 = -1
+list_req = Request(url="http://example.com/list")
+
+# 详情页：depth=2，内部 priority = 0 - 2×1 = -2
+# -2 < -1 → 详情页先出队（深度优先）
+detail_req = Request(url="http://example.com/detail")
+```
+
+**切换为广度优先**：
+
+```python
+# settings.py
+DEPTH_PRIORITY = -1  # 列表页先出队
+```
+
+详见 [调度策略配置](../guides/configuration/index.md#9-调度策略配置)。
+
+---
+
 ## 最佳实践
 
 ### 1. 使用工厂方法简化代码

@@ -180,6 +180,13 @@ class CloudflareBypassMiddleware:
         if not body:
             return False
         
+        # Ensure body is string for regex matching (response.body may be bytes)
+        if isinstance(body, bytes):
+            try:
+                body = body.decode('utf-8', errors='ignore')
+            except Exception:
+                return False
+        
         # Check Cloudflare signatures using pre-compiled patterns
         for pattern in self._compiled_signatures:
             if pattern.search(body):

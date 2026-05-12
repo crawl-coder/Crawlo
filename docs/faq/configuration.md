@@ -269,6 +269,51 @@ class MySpider(Spider):
     }
 ```
 
+## 如何实现深度优先/广度优先？
+
+通过 `DEPTH_PRIORITY` 配置项控制。框架自动传播请求深度（`depth`），配合此配置实现不同调度策略：
+
+### 深度优先（详情页优先出队）
+
+```python
+# settings.py
+DEPTH_PRIORITY = 1  # 默认值
+```
+
+**效果**：列表页解析后，详情页立即被消费，不会等所有列表页处理完。
+
+**原理**：
+```
+列表页 (depth=1) → 内部 priority = -1
+详情页 (depth=2) → 内部 priority = -2
+-2 < -1 → 详情页先出队
+```
+
+### 广度优先（列表页优先出队）
+
+```python
+# settings.py
+DEPTH_PRIORITY = -1
+```
+
+**效果**：同层级的请求先处理完，再处理下一层级。
+
+**原理**：
+```
+列表页 (depth=1) → 内部 priority = 1
+详情页 (depth=2) → 内部 priority = 2
+1 < 2 → 列表页先出队
+```
+
+### 不按深度调整
+
+```python
+# settings.py
+DEPTH_PRIORITY = 0  # 仅按用户设置的 priority 排序
+```
+
+> **注意**：`depth` 由框架自动传播（Engine 层面），无需在 Spider 中手动设置。`start_requests` 的 depth 默认为 1，Spider 回调产生的子请求 depth 自动为 `parent.depth + 1`。
+
 ---
 
 **还有其他配置问题？** 查看 [配置指南](../guides/configuration/) 或提交 [GitHub Issue](https://github.com/crawl-coder/Crawlo/issues)。

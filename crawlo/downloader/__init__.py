@@ -264,6 +264,11 @@ except ImportError:
     HybridDownloader = None
 
 try:
+    from .cloakbrowser_downloader import CloakBrowserDownloader
+except ImportError:
+    CloakBrowserDownloader = None
+
+try:
     from .page_action_handler import PageActionHandler, SelectorConverter
 except ImportError:
     PageActionHandler = None
@@ -289,6 +294,8 @@ if PlaywrightDownloader:
     __all__.append('PlaywrightDownloader')
 if HybridDownloader:
     __all__.append('HybridDownloader')
+if CloakBrowserDownloader:
+    __all__.append('CloakBrowserDownloader')
 if PageActionHandler:
     __all__.append('PageActionHandler')
 if SelectorConverter:
@@ -303,6 +310,7 @@ DOWNLOADER_MAP = {
     'drissionpage': DrissionPageDownloader,
     'playwright': PlaywrightDownloader,
     'hybrid': HybridDownloader,
+    'cloakbrowser': CloakBrowserDownloader,
 }
 
 # 过滤掉不可用的下载器

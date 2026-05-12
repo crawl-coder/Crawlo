@@ -115,6 +115,7 @@ class HybridDownloader(DownloaderBase):
             "drissionpage": (".drissionpage_downloader", "DrissionPageDownloader"),
             "playwright": (".playwright_downloader", "PlaywrightDownloader"),
             "camoufox": (".camoufox_downloader", "CamoufoxDownloader"),
+            "cloakbrowser": (".cloakbrowser_downloader", "CloakBrowserDownloader"),
         }
         
         target = downloader_type.lower()
