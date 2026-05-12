@@ -13,7 +13,7 @@ class {{class_name}}(Spider):
     name = '{{spider_name}}'
     allowed_domains = ['{{domain}}']
     start_urls = ['https://{{domain}}/']
-    
+
     # 自定义设置（可选）
     custom_settings = {}
 
@@ -25,83 +25,34 @@ class {{class_name}}(Spider):
     def parse(self, response: Response):
         """解析响应"""
         self.logger.info(f'正在解析页面: {response.url}')
-        
-        # ========== Response 选择器用法示例 ==========
-        
-        # 1. get() / getall() - 文本提取（推荐）
-        title = response.get('title')                    # 获取第一个匹配文本
-        titles = response.getall('.item')                # 获取所有匹配文本列表
-        title = response.get('title', '')                # 带默认值
-        titles = response.getall('//title')              # XPath 也支持
-        
-        # 2. attr() / attrs() - 属性提取
-        href = response.attr('a', 'href')                # 获取第一个链接的 href
-        hrefs = response.attrs('a', 'href')              # 获取所有链接的 href 列表
-        src = response.attr('img', 'src', '')            # 带默认值
-        
-        # 3. get_outer() / getall_outer() - HTML 提取（保留标签）
-        content_html = response.get_outer('.content')     # 获取第一个匹配元素的完整 HTML
-        items_html = response.getall_outer('.item')      # 获取所有匹配元素的 HTML 列表
-        
-        # 4. css() / xpath() - parsel 原生 API
-        title = response.css('title').get()              # CSS 选择器
-        title = response.xpath('//title').get()          # XPath 选择器
-        items = response.css('.item').getall()           # 获取多个
-        
-        # 5. re_findone() / re_findall() - 正则提取
+
+        # ===== Response 选择器用法示例 =====
+
+        # 1. get() / getall() — 文本提取（推荐）
+        title = response.get('title')                   # 获取第一个匹配文本
+        titles = response.getall('.item')               # 获取所有匹配文本列表
+        title = response.get('title', '')               # 带默认值
+        titles = response.getall('//title')             # XPath 也支持
+
+        # 2. attr() / attrs() — 属性提取
+        href = response.attr('a', 'href')               # 获取第一个链接的 href
+        hrefs = response.attrs('a', 'href')             # 获取所有链接的 href 列表
+        src = response.attr('img', 'src', '')           # 带默认值
+
+        # 3. css() / xpath() — parsel 原生 API
+        title = response.css('title').get()             # CSS 选择器
+        title = response.xpath('//title').get()         # XPath 选择器
+        items = response.css('.item').getall()          # 获取多个
+
+        # 4. re_findone() / re_findall() — 正则提取
         price = response.re_findone(r'\d+\.\d+')       # 第一个匹配
         prices = response.re_findall(r'\d+')            # 所有匹配
-        prices = response.re_css('.price', r'\d+')     # 选择器 + 正则组合
-        
-        # 6. XPath 常用表达式
-        # //title/text()                    获取 title 元素的文本
-        # //div[@class='x']                 获取 class 为 x 的 div
-        # //a/@href                         获取链接的 href 属性
-        # //div[contains(@class, 'item')]   class 包含 item 的 div
-        
-        # ===========================================
-        
-        # ========== MySQLExistsChecker 数据库去重示例（可选） ==========
-        # 用于在请求详情页前检查数据是否已存在，避免重复采集
-        # 
-        # 1. 导入（文件顶部）：
-        #    from crawlo.helpers.mysql_exists_checker import MySQLExistsChecker
-        #
-        # 2. 初始化（__init__ 或延迟初始化）：
-        #    def __init__(self, *args, **kwargs):
-        #        super().__init__(*args, **kwargs)
-        #        self.db_checker = None
-        #        self._checker_initialized = False
-        #
-        # 3. 延迟初始化（在 parse 中首次使用时）：
-        #    if not self._checker_initialized:
-        #        self.db_checker = MySQLExistsChecker.from_settings(self.crawler.settings)
-        #        self._checker_initialized = True
-        #        self.logger.info("MySQLExistsChecker 已创建，连接池已初始化")
-        #
-        # 4. 检查数据是否存在：
-        #    sql = "SELECT 1 FROM your_table WHERE url = %s LIMIT 1"
-        #    exists = await self.db_checker.exists(sql, (url,))
-        #    if exists:
-        #        self.logger.info(f"数据已存在，跳过: {title}")
-        #        continue
-        #
-        # 5. 资源清理（框架自动处理，无需手动写 closed 方法）：
-        #    Crawlo 框架会自动调用 ResourceManager 清理所有注册的资源
-        #    包括 MySQLExistsChecker 的连接池
-        #
-        #    如果确实需要自定义清理逻辑，可以实现 spider_closed 钩子：
-        #    async def spider_closed(self):
-        #        if self.db_checker:
-        #            await self.db_checker.close()
-        #            self.logger.info("🔒 MySQL 连接池已关闭")
-        #
-        # 注意：
-        # - MySQLExistsChecker 复用单例连接池，性能开销极小（~1-3ms/次）
-        # - 确保数据库表有唯一索引，查询速度更快
-        # - 适用于大批量采集场景的去重检查
-        # ================================================================
-        
+
+        # 5. get_outer() / getall_outer() — HTML 提取（保留标签）
+        content_html = response.get_outer('.content')   # 获取第一个匹配元素的完整 HTML
+
+        # ==============================
+
         yield {
             'title': response.xpath('//title/text()').get(default=''),
             'url': response.url,

@@ -43,7 +43,7 @@ class CurlCffiDownloader(DownloaderBase):
         # 读取配置
         timeout_secs = safe_get_config(self.crawler.settings, "DOWNLOAD_TIMEOUT", 15, int)
         verify_ssl = safe_get_config(self.crawler.settings, "VERIFY_SSL", True, bool)
-        pool_size = safe_get_config(self.crawler.settings, "CONNECTION_POOL_LIMIT", 20, int)
+        pool_size = safe_get_config(self.crawler.settings, "CONNECTION_POOL_LIMIT", 100, int)
         self.max_download_size = safe_get_config(self.crawler.settings, "DOWNLOAD_MAXSIZE", 10 * 1024 * 1024, int)
 
         # 保存为实例变量
@@ -206,7 +206,7 @@ class CurlCffiDownloader(DownloaderBase):
         # 如果有自定义超时，需要创建临时 session
         if timeout is not None:
             verify_ssl = safe_get_config(self.crawler.settings, "VERIFY_SSL", True, bool)
-            pool_size = safe_get_config(self.crawler.settings, "CONNECTION_POOL_LIMIT", 20, int)
+            pool_size = safe_get_config(self.crawler.settings, "CONNECTION_POOL_LIMIT", 100, int)
             
             # 基于 curl_cffi 源码：AsyncSession(max_clients, timeout, verify, impersonate)
             async with AsyncSession(

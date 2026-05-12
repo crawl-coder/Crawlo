@@ -115,8 +115,8 @@ class DownloaderBase(metaclass=DownloaderMeta):
         self.logger = get_logger(self.__class__.__name__)
         self._closed = False
         
-        # 安全获取DOWNLOADER_STATS配置
-        self._stats_enabled = safe_get_config(crawler.settings, "DOWNLOADER_STATS", True, bool)
+        # 安全获取下载统计配置
+        self._stats_enabled = safe_get_config(crawler.settings, "DOWNLOAD_STATS", True, bool)
 
     @classmethod
     def create_instance(cls, *args, **kwargs):

@@ -38,6 +38,12 @@ from crawlo.constants import (
     BROWSER_ELEMENT_WAIT_TIMEOUT_MS,
     BROWSER_NETWORK_IDLE_TIMEOUT_MS,
 )
+from crawlo.utils.misc import (
+    get_browser_config,
+    get_browser_config_int,
+    get_browser_config_bool,
+    get_browser_config_list,
+)
 
 
 class CamoufoxDownloader(DownloaderBase):
@@ -75,34 +81,27 @@ class CamoufoxDownloader(DownloaderBase):
         # 当前浏览器使用的代理（用于检测代理变化，触发浏览器重启）
         self._current_proxy = None
         
-        # 配置参数
-        self.headless = crawler.settings.get_bool("CAMOUFOX_HEADLESS", True)
-        self.proxy = crawler.settings.get("CAMOUFOX_PROXY", None)
-        self.humanize = crawler.settings.get_bool("CAMOUFOX_HUMANIZE", True)
-        self.solve_cloudflare = crawler.settings.get_bool("CAMOUFOX_SOLVE_CLOUDFLARE", True)
+        s = crawler.settings
+        # === 浏览器通用配置（三级回退：CAMOUFOX_* → BROWSER_* → 默认值）===
+        self.headless = get_browser_config_bool(s, "CAMOUFOX", "HEADLESS", True)
+        self.proxy = get_browser_config(s, "CAMOUFOX", "PROXY", None)
+        self.humanize = get_browser_config_bool(s, "CAMOUFOX", "HUMANIZE", True)
         self.block_resources: Set[str] = set(
-            crawler.settings.get_list("CAMOUFOX_BLOCK_RESOURCES", ["image", "font", "media"])
+            get_browser_config_list(s, "CAMOUFOX", "BLOCK_RESOURCES", ["image", "font", "media"])
         )
-        
-        # 超时配置
-        self.timeout = crawler.settings.get_int("CAMOUFOX_TIMEOUT", 30000)  # 毫秒
-        self.load_timeout = crawler.settings.get_int("CAMOUFOX_LOAD_TIMEOUT", 10000)
-        
-        # 视口配置
-        self.viewport_width = crawler.settings.get_int("CAMOUFOX_VIEWPORT_WIDTH", 1280)
-        self.viewport_height = crawler.settings.get_int("CAMOUFOX_VIEWPORT_HEIGHT", 720)
-        
-        # 标签页池配置
-        self.max_pages = crawler.settings.get_int("CAMOUFOX_MAX_PAGES", 10)
-        
-        # 自动滚动配置
-        self.auto_scroll = crawler.settings.get_bool("CAMOUFOX_AUTO_SCROLL", False)
-        self.scroll_delay = crawler.settings.get_int("CAMOUFOX_SCROLL_DELAY", 500)
-        
-        # 等待策略
-        self.wait_strategy = crawler.settings.get("CAMOUFOX_WAIT_STRATEGY", "auto")
-        self.wait_timeout = crawler.settings.get_int("CAMOUFOX_WAIT_TIMEOUT", 10000)
-        self.wait_for_element = crawler.settings.get("CAMOUFOX_WAIT_FOR_ELEMENT", None)
+        self.timeout = get_browser_config_int(s, "CAMOUFOX", "TIMEOUT", 30000)
+        self.load_timeout = get_browser_config_int(s, "CAMOUFOX", "LOAD_TIMEOUT", 10000)
+        self.viewport_width = get_browser_config_int(s, "CAMOUFOX", "VIEWPORT_WIDTH", 1280)
+        self.viewport_height = get_browser_config_int(s, "CAMOUFOX", "VIEWPORT_HEIGHT", 720)
+        self.max_pages = get_browser_config_int(s, "CAMOUFOX", "MAX_PAGES", 10)
+        self.auto_scroll = get_browser_config_bool(s, "CAMOUFOX", "AUTO_SCROLL", False)
+        self.scroll_delay = get_browser_config_int(s, "CAMOUFOX", "SCROLL_DELAY", 500)
+        self.wait_strategy = get_browser_config(s, "CAMOUFOX", "WAIT_STRATEGY", "auto")
+        self.wait_timeout = get_browser_config_int(s, "CAMOUFOX", "WAIT_TIMEOUT", 10000)
+        self.wait_for_element = get_browser_config(s, "CAMOUFOX", "WAIT_FOR_ELEMENT", None)
+
+        # === Camoufox 特有配置 ===
+        self.solve_cloudflare = s.get_bool("CAMOUFOX_SOLVE_CLOUDFLARE", True)
 
     def open(self):
         """初始化 Camoufox 下载器（懒加载，首次 download 时才启动浏览器）"""

@@ -1,143 +1,65 @@
 # -*- coding: UTF-8 -*-
 """
 {{project_name}} 项目配置文件（高性能版）
-=============================
-基于 Crawlo 框架的高性能爬虫项目配置。
 适合大规模高并发场景。
 """
 
 from datetime import datetime
 
-# =================================== 基础配置 ===================================
 
-# 项目基本信息
+# #############################################################################
+# 1. 基础配置
+# #############################################################################
+
 PROJECT_NAME = '{{project_name}}'
-
-# 运行模式：standalone/distributed/auto
 RUN_MODE = 'standalone'
-
-# 并发配置
 CONCURRENCY = 32
 MAX_RUNNING_SPIDERS = 10
 DOWNLOAD_DELAY = 0.1
-RANDOMNESS = False  # 禁用随机延迟以保证性能
+RANDOMNESS = False              # 禁用随机延迟以保证性能
 
-# =================================== 核心组件配置 ===================================
 
-# 下载器：AioHttpDownloader/HttpXDownloader/CurlCffiDownloader
+# #############################################################################
+# 2. 核心组件
+# #############################################################################
+
 DOWNLOADER = 'crawlo.downloader.aiohttp_downloader.AioHttpDownloader'
-
-# 队列类型：memory/redis/auto
-QUEUE_TYPE = 'auto'
-
-# 去重过滤器：MemoryFilter/AioRedisFilter
-# 高性能模式下，如果Redis可用则使用Redis去重，否则使用内存去重
+QUEUE_TYPE = 'auto'             # 自动：Redis 可用 → 分布式，否则 → 内存
 FILTER_CLASS = 'crawlo.filters.aioredis_filter.AioRedisFilter'
+DEFAULT_DEDUP_PIPELINE = 'crawlo.pipelines.redis_dedup_pipeline.RedisDedupPipeline'
 
-# 默认去重管道：MemoryDedupPipeline/RedisDedupPipeline
-# 高性能模式下，如果Redis可用则使用Redis去重，否则使用内存去重
-DEFAULT_DEDUP_PIPELINE = 'crawlo.pipelines.RedisDedupPipeline'
 
-# =================================== 爬虫配置 ===================================
+# #############################################################################
+# 3. 爬虫配置
+# #############################################################################
 
-# 爬虫模块配置
 SPIDER_MODULES = ['{{project_name}}.spiders']
 
-# 默认请求头
-# DEFAULT_REQUEST_HEADERS = {}
-
-# 允许的域名
-# ALLOWED_DOMAINS = []
-
-# 数据管道
-# 如需添加自定义管道，请取消注释并添加
 # PIPELINES = {
-#     'crawlo.pipelines.MySQLPipeline': 500,  # MySQL 存储（使用asyncmy异步库）
-#     '{{project_name}}.pipelines.CustomPipeline': 600,  # 用户自定义管道示例
+#     '{{project_name}}.pipelines.CustomPipeline': 600,
 # }
 
-# =================================== 系统配置 ===================================
 
-# 扩展组件
-# 如需添加自定义扩展，请取消注释并添加
-# EXTENSIONS = [
-#     # '{{project_name}}.extensions.CustomExtension',  # 用户自定义扩展示例
-# ]
+# #############################################################################
+# 4. 日志配置
+# #############################################################################
 
-# 中间件
-# 如需添加自定义中间件，请取消注释并添加
-# 优先级规则：数值越小，请求阶段越先执行；数值越大，响应阶段越先执行
-# MIDDLEWARES = {
-#     '{{project_name}}.middlewares.CustomMiddleware': 500,  # 自定义中间件（默认优先级）
-# }
-
-# 日志配置
 LOG_LEVEL = 'INFO'
-LOG_FILE = f'logs/{{project_name}}_{datetime.now().strftime("%Y%m%d_%H%M%S")}.log'
-LOG_ENCODING = 'utf-8'  # 明确指定日志文件编码
-# =================================== 定时任务配置 ===================================
+LOG_FILE = f'logs/{{project_name}}_{datetime.now():%Y%m%d_%H%M%S}.log'
+LOG_ENCODING = 'utf-8'
 
-# 启用定时任务 - 默认关闭
-SCHEDULER_ENABLED = False
 
-# 定时任务配置
-SCHEDULER_JOBS = [
-    {
-        'spider': '{{project_name}}.spiders.{{spider_name}}',  # 爬虫名称（对应spider的name属性）
-        'cron': '*/2 * * * *',       # 每2分钟执行一次
-        'enabled': True,              # 任务启用状态
-        'priority': 10,               # 任务优先级
-        'max_retries': 3,             # 最大重试次数
-        'retry_delay': 60,            # 重试延迟（秒）
-        'args': {},                  # 传递给爬虫的参数
-        'kwargs': {}                  # 传递给爬虫的额外参数
-    },
-    {
-        'spider': '{{project_name}}.spiders.{{spider_name}}',  # 爬虫名称
-        'cron': '0 2 * * *',         # 每天凌晨2点执行
-        'enabled': True,              # 任务启用状态
-        'priority': 20,               # 任务优先级
-        'max_retries': 2,             # 最大重试次数
-        'retry_delay': 120,           # 重试延迟（秒）
-        'args': {'daily': True},      # 传递给爬虫的参数
-        'kwargs': {}                  # 传递给爬虫的额外参数
-    }
-]
+# #############################################################################
+# 5. 数据库配置
+# #############################################################################
 
-# 调度器高级参数（使用默认值，按需取消注释调整）
-# SCHEDULER_CHECK_INTERVAL = 1           # 调度器检查间隔（秒）
-# SCHEDULER_MAX_CONCURRENT = 3           # 最大并发任务数
-# SCHEDULER_JOB_TIMEOUT = 3600           # 单个任务超时时间（秒）
-# SCHEDULER_RESOURCE_MONITOR_ENABLED = True  # 是否启用资源监控
-# SCHEDULER_RESOURCE_CHECK_INTERVAL = 300    # 资源检查间隔（秒）
-# SCHEDULER_RESOURCE_LEAK_THRESHOLD = 3600   # 资源泄露检测阈值（秒）
-
-# =================================== 数据库配置 ===================================
-
-# Redis配置
+# Redis（高性能模式推荐分布式）
 REDIS_HOST = '127.0.0.1'
 REDIS_PORT = 6379
 REDIS_PASSWORD = ''
 REDIS_DB = 0
 
-# 根据是否有密码生成 URL
-if REDIS_PASSWORD:
-    REDIS_URL = f'redis://:{REDIS_PASSWORD}@{REDIS_HOST}:{REDIS_PORT}/{REDIS_DB}'
-else:
-    REDIS_URL = f'redis://{REDIS_HOST}:{REDIS_PORT}/{REDIS_DB}'
-
-# Redis连接池配置（高性能模式）
-# REDIS_POOL_SHARED_MODE = True  # Redis连接池管理模式，高性能模式推荐使用共享模式
-# REDIS_MAX_CONNECTIONS = 50  # Redis连接池最大连接数（高性能模式使用更多连接）
-# REDIS_SOCKET_CONNECT_TIMEOUT = 3  # Redis连接超时时间（秒，高性能模式使用较短超时）
-# REDIS_SOCKET_TIMEOUT = 15  # Redis socket超时时间（秒，高性能模式使用较短超时）
-# REDIS_HEALTH_CHECK_INTERVAL = 15  # Redis健康检查间隔（秒，高性能模式使用较短间隔）
-# REDIS_RETRY_ON_TIMEOUT = True  # Redis超时是否重试
-# REDIS_DECODE_RESPONSES = True  # Redis返回是否解码为字符串
-# REDIS_TTL = 0  # Redis键过期时间（0表示永不过期）
-# FILTER_DEBUG = False  # 是否开启去重调试日志（高性能模式默认关闭以减少日志开销）
-
-# MySQL配置
+# MySQL
 MYSQL_HOST = '127.0.0.1'
 MYSQL_PORT = 3306
 MYSQL_USER = 'root'
@@ -145,53 +67,15 @@ MYSQL_PASSWORD = '123456'
 MYSQL_DB = '{{project_name}}'
 MYSQL_TABLE = '{{project_name}}_data'
 MYSQL_BATCH_SIZE = 100
-MYSQL_USE_BATCH = True  # 是否启用批量插入
+MYSQL_USE_BATCH = True
 
 
-# MySQL连接池配置
-# MYSQL_POOL_SHARED_MODE = False  # MySQL连接池管理模式，True为共享模式（单例），False为独立模式（每个爬虫实例独立连接池）
-# MYSQL_POOL_MIN = 2  # 最小连接数
-# MYSQL_POOL_MAX = 30  # 最大连接数
-# MYSQL_POOL_REPAIR_ATTEMPTS = 3  # 连接池修复尝试次数，默认3次
-# MYSQL_HEALTH_CHECK_INTERVAL = 300.0  # 连接池健康检查间隔（秒），默认5分钟
+# #############################################################################
+# 6. 下载器与网络配置
+# #############################################################################
 
-# MySQL 冲突处理策略（三者互斥，按优先级生效）
-MYSQL_UPDATE_COLUMNS = ()      # 优先级最高：主键冲突时更新指定列，使用 ON DUPLICATE KEY UPDATE
-MYSQL_AUTO_UPDATE = False      # 优先级中等：是否使用 REPLACE INTO（完全覆盖已存在记录）
-MYSQL_INSERT_IGNORE = False    # 优先级最低：是否使用 INSERT IGNORE（忽略重复数据）
-MYSQL_PREFER_ALIAS_SYNTAX = True      # 是否优先使用 AS `alias` 语法，False 则使用 VALUES() 语法
-
-# MongoDB配置
-# MONGO_URI = 'mongodb://localhost:27017'
-# MONGO_DATABASE = '{{project_name}}_db'
-# MONGO_COLLECTION = '{{project_name}}_items'
-# MONGO_MAX_POOL_SIZE = 200
-# MONGO_MIN_POOL_SIZE = 20
-# MONGO_BATCH_SIZE = 100  # 批量插入条数
-# MONGO_USE_BATCH = False  # 是否启用批量插入
-
-# =================================== 网络配置 ===================================
-
-# 代理配置
-PROXY_ENABLED = False  # 是否启用代理
-
-# 简单代理（SimpleProxyMiddleware）
-PROXY_LIST = []  # 代理列表
-
-# 动态代理（ProxyMiddleware）
-PROXY_API_URL = ""  # 代理API地址
-
-# 代理提取方式："proxy" 或 "data.proxy"
-PROXY_EXTRACTOR = "proxy"
-
-# 代理刷新控制
-PROXY_REFRESH_INTERVAL = 60  # 代理刷新间隔（秒）
-PROXY_API_TIMEOUT = 10  # API超时时间
-
-# 浏览器指纹模拟（仅CurlCffiDownloader有效）
-CURL_BROWSER_TYPE = "chrome"  # 可选：chrome/edge/safari/firefox
-
-# 自定义浏览器版本映射
+# Curl-Cffi 指纹模拟
+CURL_BROWSER_TYPE = "chrome"
 CURL_BROWSER_VERSION_MAP = {
     "chrome": "chrome136",
     "edge": "edge101",
@@ -199,28 +83,40 @@ CURL_BROWSER_VERSION_MAP = {
     "firefox": "firefox135",
 }
 
-# 下载器优化配置
-# 下载器健康检查
-DOWNLOADER_HEALTH_CHECK = True  # 是否启用下载器健康检查
-HEALTH_CHECK_INTERVAL = 30  # 健康检查间隔（秒）
+# 健康检查（更频繁以快速恢复）
+HEALTH_CHECK_INTERVAL = 30
 
-# 请求统计配置
-REQUEST_STATS_ENABLED = True  # 是否启用请求统计
-STATS_RESET_ON_START = False  # 启动时是否重置统计
+# 代理
+PROXY_ENABLED = False
+PROXY_LIST = []
+PROXY_API_URL = ""
 
-# HttpX专用配置
-HTTPX_HTTP2 = True  # 是否启用HTTP/2支持
-HTTPX_FOLLOW_REDIRECTS = True  # 是否自动跟随重定向
 
-# AioHttp专用配置
-AIOHTTP_AUTO_DECOMPRESS = True  # 是否自动解压响应
-AIOHTTP_FORCE_CLOSE = False  # 是否强制关闭连接
+# #############################################################################
+# 7. 定时任务配置
+# #############################################################################
 
-# 通用优化配置
-CONNECTION_TTL_DNS_CACHE = 300  # DNS缓存TTL（秒）
-CONNECTION_KEEPALIVE_TIMEOUT = 15  # Keep-Alive超时（秒）
+SCHEDULER_ENABLED = False
 
-# CONNECTION_POOL_LIMIT = 100  # 连接池大小限制
-# CONNECTION_POOL_LIMIT_PER_HOST = 20  # 每个主机的连接池大小限制
-# CONNECTION_TTL_DNS_CACHE = 300  # DNS缓存TTL（秒）
-
+SCHEDULER_JOBS = [
+    {
+        'spider': 'spider_name_1',
+        'cron': '*/5 * * * *',          # 每 5 分钟执行一次
+        'enabled': True,
+        'priority': 10,
+        'max_retries': 3,
+        'retry_delay': 60,
+        'args': {},
+        'kwargs': {},
+    },
+    {
+        'spider': 'spider_name_2',
+        'cron': '0 2 * * *',            # 每天凌晨 2 点
+        'enabled': True,
+        'priority': 20,
+        'max_retries': 2,
+        'retry_delay': 120,
+        'args': {'daily': True},
+        'kwargs': {},
+    },
+]

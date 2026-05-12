@@ -37,6 +37,12 @@ from crawlo.downloader.constants import (
 )
 from crawlo.network.response import Response
 from crawlo.logging import get_logger
+from crawlo.utils.misc import (
+    get_browser_config,
+    get_browser_config_int,
+    get_browser_config_bool,
+    get_browser_config_list,
+)
 
 
 
@@ -62,50 +68,42 @@ class PlaywrightDownloader(DownloaderBase, SmartWaitMixin, StealthMixin):
         # 当前上下文使用的代理（用于检测代理变化，触发 Context 重建）
         self._current_proxy = None
 
-        self.default_timeout = crawler.settings.get_int("PLAYWRIGHT_TIMEOUT", 30000)  # 毫秒
-        self.load_timeout = crawler.settings.get_int("PLAYWRIGHT_LOAD_TIMEOUT", 10000)  # 毫秒
-        self.browser_type = crawler.settings.get("PLAYWRIGHT_BROWSER_TYPE", "chromium").lower()
-        self.headless = crawler.settings.get_bool("PLAYWRIGHT_HEADLESS", True)
-        self.wait_for_element = crawler.settings.get("PLAYWRIGHT_WAIT_FOR_ELEMENT", None)
-        self.viewport_width = crawler.settings.get_int("PLAYWRIGHT_VIEWPORT_WIDTH", 1280)
-        self.viewport_height = crawler.settings.get_int("PLAYWRIGHT_VIEWPORT_HEIGHT", 720)
+        s = crawler.settings
+        # === 浏览器通用配置（三级回退：PLAYWRIGHT_* → BROWSER_* → 默认值）===
+        self.default_timeout = get_browser_config_int(s, "PLAYWRIGHT", "TIMEOUT", 30000)  # 毫秒
+        self.load_timeout = get_browser_config_int(s, "PLAYWRIGHT", "LOAD_TIMEOUT", 10000)  # 毫秒
+        self.headless = get_browser_config_bool(s, "PLAYWRIGHT", "HEADLESS", True)
+        self.wait_for_element = get_browser_config(s, "PLAYWRIGHT", "WAIT_FOR_ELEMENT", None)
+        self.viewport_width = get_browser_config_int(s, "PLAYWRIGHT", "VIEWPORT_WIDTH", 1280)
+        self.viewport_height = get_browser_config_int(s, "PLAYWRIGHT", "VIEWPORT_HEIGHT", 720)
+        self.wait_strategy = get_browser_config(s, "PLAYWRIGHT", "WAIT_STRATEGY", WaitStrategy.AUTO)
+        self.wait_timeout = get_browser_config_int(s, "PLAYWRIGHT", "WAIT_TIMEOUT", 10000)
+        self.block_resources: Set[str] = set(
+            get_browser_config_list(s, "PLAYWRIGHT", "BLOCK_RESOURCES", ["image", "font", "media"])
+        )
+        self.stealth_level = get_browser_config(s, "PLAYWRIGHT", "STEALTH_LEVEL", "basic")
+        self.auto_scroll = get_browser_config_bool(s, "PLAYWRIGHT", "AUTO_SCROLL", False)
+        self.scroll_delay = get_browser_config_int(s, "PLAYWRIGHT", "SCROLL_DELAY", 500)
 
-        # 单浏览器多标签页模式
-        # 策略：启动一个浏览器，创建多个tab复用，控制最大并发数
-        self.single_browser_mode = crawler.settings.get_bool("PLAYWRIGHT_SINGLE_BROWSER_MODE", True)
-        self.max_pages_per_browser = crawler.settings.get_int("PLAYWRIGHT_MAX_PAGES_PER_BROWSER", 10)
+        # === Playwright 特有配置 ===
+        self.browser_type = s.get("PLAYWRIGHT_BROWSER_TYPE", "chromium").lower()
+        self.single_browser_mode = s.get_bool("PLAYWRIGHT_SINGLE_BROWSER_MODE", True)
+        self.max_pages_per_browser = get_browser_config_int(s, "PLAYWRIGHT", "MAX_PAGES", 10)
+        self.block_ads = s.get_bool("PLAYWRIGHT_BLOCK_ADS", True)
+        self.block_webrtc = s.get_bool("PLAYWRIGHT_BLOCK_WEBRTC", False)
+        self.hide_canvas = s.get_bool("PLAYWRIGHT_HIDE_CANVAS", False)
+        self.allow_webgl = s.get_bool("PLAYWRIGHT_ALLOW_WEBGL", True)
+        self.real_chrome = s.get_bool("PLAYWRIGHT_REAL_CHROME", False)
+        self.google_referer = s.get_bool("PLAYWRIGHT_GOOGLE_REFERER", True)
+        self.ignore_https_errors = s.get_bool("PLAYWRIGHT_IGNORE_HTTPS_ERRORS", True)
+        self.scroll_count = s.get_int("PLAYWRIGHT_SCROLL_COUNT", 3)
+
+        # === 页面池管理 ===
         self._page_pool: List[Page] = []  # 页面池（复用的tab）
         self._used_pages: set = set()  # 正在使用的页面ID
         self._page_semaphore: Optional[asyncio.Semaphore] = None  # 页面池信号量，控制最大并发数
         self._page_semaphore_lock = asyncio.Lock()  # 信号量操作锁，防止竞态条件
         self._init_lock = asyncio.Lock()  # 浏览器初始化锁，防止并发重复初始化
-
-        # ===== 智能等待配置 =====
-        self.wait_strategy = crawler.settings.get("PLAYWRIGHT_WAIT_STRATEGY", WaitStrategy.AUTO)
-        self.wait_timeout = crawler.settings.get_int("PLAYWRIGHT_WAIT_TIMEOUT", 10000)
-
-        # ===== 资源屏蔽配置 =====
-        self.block_resources: Set[str] = set(
-            crawler.settings.get_list("PLAYWRIGHT_BLOCK_RESOURCES", ["image", "font", "media"])
-        )
-        self.block_ads = crawler.settings.get_bool("PLAYWRIGHT_BLOCK_ADS", True)
-        # 使用常量中的广告域名黑名单
-
-        # ===== 反检测配置 =====
-        self.stealth_level = crawler.settings.get("PLAYWRIGHT_STEALTH_LEVEL", "basic")
-        
-        # ===== 高级反检测配置 =====
-        self.block_webrtc = crawler.settings.get_bool("PLAYWRIGHT_BLOCK_WEBRTC", False)
-        self.hide_canvas = crawler.settings.get_bool("PLAYWRIGHT_HIDE_CANVAS", False)
-        self.allow_webgl = crawler.settings.get_bool("PLAYWRIGHT_ALLOW_WEBGL", True)
-        self.real_chrome = crawler.settings.get_bool("PLAYWRIGHT_REAL_CHROME", False)
-        self.google_referer = crawler.settings.get_bool("PLAYWRIGHT_GOOGLE_REFERER", True)
-        self.ignore_https_errors = crawler.settings.get_bool("PLAYWRIGHT_IGNORE_HTTPS_ERRORS", True)
-
-        # ===== 自动滚动配置 =====
-        self.auto_scroll = crawler.settings.get_bool("PLAYWRIGHT_AUTO_SCROLL", False)
-        self.scroll_count = crawler.settings.get_int("PLAYWRIGHT_SCROLL_COUNT", 3)
-        self.scroll_delay = crawler.settings.get_int("PLAYWRIGHT_SCROLL_DELAY", 500)
 
     def open(self):
         super().open()

@@ -1,8 +1,6 @@
 # -*- coding: UTF-8 -*-
 """
-{{project_name}}.middlewares
-============================
-自定义中间件示例
+{{project_name}}.middlewares — 自定义中间件
 """
 
 from crawlo.network import Request, Response
@@ -13,25 +11,25 @@ from crawlo.logging import get_logger
 class {{project_name|title}}Middleware(BaseMiddleware):
     """
     {{project_name}} 项目的中间件
-    
+
     继承 BaseMiddleware 获得：
     - create_instance() 方法（框架要求）
     - 标准的异步接口
     - 类型提示支持
     """
-    
+
     @classmethod
     def create_instance(cls, crawler):
         """创建中间件实例（框架要求）"""
         return cls()
-    
+
     def __init__(self):
         self.logger = get_logger(self.__class__.__name__)
 
     async def process_request(self, request: Request, spider) -> None:
         """
         在请求被下载器执行前调用
-        
+
         Returns:
             None: 继续处理
             Request: 替换原请求
@@ -43,7 +41,7 @@ class {{project_name|title}}Middleware(BaseMiddleware):
     async def process_response(self, request: Request, response: Response, spider) -> Response:
         """
         在响应被 Spider 处理前调用
-        
+
         Returns:
             Response: 返回响应（可能是修改后的）
             Request: 重新发起请求
@@ -54,7 +52,7 @@ class {{project_name|title}}Middleware(BaseMiddleware):
     async def process_exception(self, request: Request, exception: Exception, spider) -> None:
         """
         在下载或处理过程中发生异常时调用
-        
+
         Returns:
             None: 继续传递异常
             Request: 重新发起请求

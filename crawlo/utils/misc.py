@@ -150,6 +150,78 @@ def safe_get_config(settings, key, default=None, value_type=None):
         return default
 
 
+# ----- 浏览器下载器通用配置读取（三级优先级回退） -----
+
+_SENTINEL = object()
+
+def get_browser_config(settings, prefix: str, key: str, default: Any = None) -> Any:
+    """
+    浏览器配置三级优先级回退读取。
+    
+    优先级：
+    1. {PREFIX}_{KEY}   — 下载器特有覆盖（如 CLOAKBROWSER_HEADLESS）
+    2. BROWSER_{KEY}    — 浏览器通用配置（如 BROWSER_HEADLESS）
+    3. default          — 硬编码默认值
+    
+    Args:
+        settings: 配置对象（SettingManager）
+        prefix: 下载器前缀（如 "PLAYWRIGHT", "CLOAKBROWSER"）
+        key: 参数名（如 "HEADLESS", "TIMEOUT"）
+        default: 默认值
+        
+    Returns:
+        按优先级解析后的配置值
+    """
+    # 1. 下载器特有配置（用户显式覆盖）
+    specific_key = f"{prefix}_{key}"
+    value = settings.get(specific_key, None)
+    if value is not None:
+        return value
+
+    # 2. 浏览器通用配置
+    common_key = f"BROWSER_{key}"
+    value = settings.get(common_key, None)
+    if value is not None:
+        return value
+
+    # 3. 硬编码默认值
+    return default
+
+
+def get_browser_config_int(settings, prefix: str, key: str, default: int = 0) -> int:
+    """get_browser_config 的 int 类型安全变体"""
+    value = get_browser_config(settings, prefix, key, default)
+    try:
+        return int(value)
+    except (ValueError, TypeError):
+        return default
+
+
+def get_browser_config_bool(settings, prefix: str, key: str, default: bool = False) -> bool:
+    """get_browser_config 的 bool 类型安全变体（兼容 '0'/'1'/'true'/'false' 字符串）"""
+    value = get_browser_config(settings, prefix, key, default)
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float)):
+        return bool(value)
+    if isinstance(value, str):
+        return value.lower().strip() in ('1', 'true')
+    return bool(value)
+
+
+def get_browser_config_list(settings, prefix: str, key: str, default: list = None) -> list:
+    """get_browser_config 的 list 类型安全变体（兼容逗号分隔字符串）"""
+    value = get_browser_config(settings, prefix, key, default)
+    if value is None:
+        return default or []
+    if isinstance(value, str):
+        return [v.strip() for v in value.split(',') if v.strip()]
+    try:
+        return list(value)
+    except TypeError:
+        return [value]
+
+
 class ConfigUtils:
     """通用配置工具类"""
 

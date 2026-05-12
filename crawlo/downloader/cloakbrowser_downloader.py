@@ -36,6 +36,12 @@ from crawlo.downloader import DownloaderBase
 from crawlo.downloader.wait_strategies import SmartWaitMixin, WaitStrategy
 from crawlo.utils.page_utils import PageActionHandler, SelectorConverter
 from crawlo.constants import BROWSER_PAGE_GOTO_BLANK_TIMEOUT_MS
+from crawlo.utils.misc import (
+    get_browser_config,
+    get_browser_config_int,
+    get_browser_config_bool,
+    get_browser_config_list,
+)
 
 
 class CloakBrowserDownloader(DownloaderBase, SmartWaitMixin):
@@ -77,48 +83,41 @@ class CloakBrowserDownloader(DownloaderBase, SmartWaitMixin):
         # 当前上下文使用的代理（用于检测代理变化，触发 Context 重建）
         self._current_proxy: Optional[str] = None
 
-        # ===== 基础配置 =====
-        self.headless = crawler.settings.get_bool("CLOAKBROWSER_HEADLESS", True)
+        s = crawler.settings
+        # === 浏览器通用配置（三级回退：CLOAKBROWSER_* → BROWSER_* → 默认值）===
+        self.headless = get_browser_config_bool(s, "CLOAKBROWSER", "HEADLESS", True)
         # 代理配置：优先使用 CLOAKBROWSER_PROXY（直接代理地址），
         # 未配置时自动从 PROXY_API_URL 获取（浏览器启动时解析）
-        self.proxy = crawler.settings.get("CLOAKBROWSER_PROXY", None)
-        self.proxy_api_url = crawler.settings.get("PROXY_API_URL", None)
-        self.timeout = crawler.settings.get_int("CLOAKBROWSER_TIMEOUT", 30000)
-        self.load_timeout = crawler.settings.get_int("CLOAKBROWSER_LOAD_TIMEOUT", 10000)
-        self.viewport_width = crawler.settings.get_int("CLOAKBROWSER_VIEWPORT_WIDTH", 1280)
-        self.viewport_height = crawler.settings.get_int("CLOAKBROWSER_VIEWPORT_HEIGHT", 720)
-        self.max_pages = crawler.settings.get_int("CLOAKBROWSER_MAX_PAGES", 10)
-
-        # ===== CloakBrowser 特有配置 =====
-        self.humanize = crawler.settings.get_bool("CLOAKBROWSER_HUMANIZE", False)
-        self.human_preset = crawler.settings.get("CLOAKBROWSER_HUMAN_PRESET", "default")
-        self.human_config = crawler.settings.get("CLOAKBROWSER_HUMAN_CONFIG", None)
-        self.geoip = crawler.settings.get_bool("CLOAKBROWSER_GEOIP", False)
-        self.timezone = crawler.settings.get("CLOAKBROWSER_TIMEZONE", None)
-        self.locale = crawler.settings.get("CLOAKBROWSER_LOCALE", None)
-        self.backend = crawler.settings.get("CLOAKBROWSER_BACKEND", "playwright")
-        self.stealth_args = crawler.settings.get_bool("CLOAKBROWSER_STEALTH_ARGS", True)
-        self.fingerprint = crawler.settings.get("CLOAKBROWSER_FINGERPRINT", None)
-        self.fingerprint_platform = crawler.settings.get("CLOAKBROWSER_FINGERPRINT_PLATFORM", None)
-        self.extra_args = crawler.settings.get_list("CLOAKBROWSER_ARGS", [])
-
-        # ===== 持久化配置 =====
-        self.persistent_context = crawler.settings.get_bool("CLOAKBROWSER_PERSISTENT_CONTEXT", False)
-        self.user_data_dir = crawler.settings.get("CLOAKBROWSER_USER_DATA_DIR", None)
-
-        # ===== 等待策略 =====
-        self.wait_strategy = crawler.settings.get("CLOAKBROWSER_WAIT_STRATEGY", WaitStrategy.AUTO)
-        self.wait_timeout = crawler.settings.get_int("CLOAKBROWSER_WAIT_TIMEOUT", 10000)
-        self.wait_for_element = crawler.settings.get("CLOAKBROWSER_WAIT_FOR_ELEMENT", None)
-
-        # ===== 资源屏蔽 =====
+        self.proxy = get_browser_config(s, "CLOAKBROWSER", "PROXY", None)
+        self.proxy_api_url = s.get("PROXY_API_URL", None)
+        self.timeout = get_browser_config_int(s, "CLOAKBROWSER", "TIMEOUT", 30000)
+        self.load_timeout = get_browser_config_int(s, "CLOAKBROWSER", "LOAD_TIMEOUT", 10000)
+        self.viewport_width = get_browser_config_int(s, "CLOAKBROWSER", "VIEWPORT_WIDTH", 1280)
+        self.viewport_height = get_browser_config_int(s, "CLOAKBROWSER", "VIEWPORT_HEIGHT", 720)
+        self.max_pages = get_browser_config_int(s, "CLOAKBROWSER", "MAX_PAGES", 10)
+        self.humanize = get_browser_config_bool(s, "CLOAKBROWSER", "HUMANIZE", False)
+        self.wait_strategy = get_browser_config(s, "CLOAKBROWSER", "WAIT_STRATEGY", WaitStrategy.AUTO)
+        self.wait_timeout = get_browser_config_int(s, "CLOAKBROWSER", "WAIT_TIMEOUT", 10000)
+        self.wait_for_element = get_browser_config(s, "CLOAKBROWSER", "WAIT_FOR_ELEMENT", None)
         self.block_resources: Set[str] = set(
-            crawler.settings.get_list("CLOAKBROWSER_BLOCK_RESOURCES", ["image", "font", "media"])
+            get_browser_config_list(s, "CLOAKBROWSER", "BLOCK_RESOURCES", ["image", "font", "media"])
         )
+        self.auto_scroll = get_browser_config_bool(s, "CLOAKBROWSER", "AUTO_SCROLL", False)
+        self.scroll_delay = get_browser_config_int(s, "CLOAKBROWSER", "SCROLL_DELAY", 500)
 
-        # ===== 自动滚动 =====
-        self.auto_scroll = crawler.settings.get_bool("CLOAKBROWSER_AUTO_SCROLL", False)
-        self.scroll_delay = crawler.settings.get_int("CLOAKBROWSER_SCROLL_DELAY", 500)
+        # === CloakBrowser 特有配置 ===
+        self.human_preset = s.get("CLOAKBROWSER_HUMAN_PRESET", "default")
+        self.human_config = s.get("CLOAKBROWSER_HUMAN_CONFIG", None)
+        self.geoip = s.get_bool("CLOAKBROWSER_GEOIP", False)
+        self.timezone = s.get("CLOAKBROWSER_TIMEZONE", None)
+        self.locale = s.get("CLOAKBROWSER_LOCALE", None)
+        self.backend = s.get("CLOAKBROWSER_BACKEND", "playwright")
+        self.stealth_args = s.get_bool("CLOAKBROWSER_STEALTH_ARGS", True)
+        self.fingerprint = s.get("CLOAKBROWSER_FINGERPRINT", None)
+        self.fingerprint_platform = s.get("CLOAKBROWSER_FINGERPRINT_PLATFORM", None)
+        self.extra_args = s.get_list("CLOAKBROWSER_ARGS", [])
+        self.persistent_context = s.get_bool("CLOAKBROWSER_PERSISTENT_CONTEXT", False)
+        self.user_data_dir = s.get("CLOAKBROWSER_USER_DATA_DIR", None)
 
     def open(self):
         super().open()

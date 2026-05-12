@@ -17,13 +17,13 @@ class Field:
         default: Any = None,
         field_type: Optional[Type] = None,
         max_length: Optional[int] = None,
-        description: str = ""
+        desc: str = ""
     ):
         self.nullable = nullable
         self.default = default
         self.field_type = field_type
         self.max_length = max_length
-        self.description = description
+        self.desc = desc
 
     def validate(self, value: Any, field_name: str = "") -> Any:
         """

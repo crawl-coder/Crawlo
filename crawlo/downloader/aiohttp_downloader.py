@@ -79,10 +79,10 @@ class AioHttpDownloader(DownloaderBase):
         super().open()
 
         # 读取配置
-        timeout_secs = safe_get_config(self.crawler.settings, "DOWNLOAD_TIMEOUT", 30, int)
+        timeout_secs = safe_get_config(self.crawler.settings, "DOWNLOAD_TIMEOUT", 15, int)
         verify_ssl = safe_get_config(self.crawler.settings, "VERIFY_SSL", True, bool)
         pool_limit = safe_get_config(self.crawler.settings, "CONNECTION_POOL_LIMIT", 100, int)
-        pool_per_host = safe_get_config(self.crawler.settings, "CONNECTION_POOL_LIMIT_PER_HOST", 0, int)  # 0=不限制
+        pool_per_host = safe_get_config(self.crawler.settings, "CONNECTION_POOL_LIMIT_PER_HOST", 20, int)
         self.max_download_size = safe_get_config(self.crawler.settings, "DOWNLOAD_MAXSIZE", 10 * 1024 * 1024, int)
         auto_decompress = safe_get_config(self.crawler.settings, "AIOHTTP_AUTO_DECOMPRESS", True, bool)
 

@@ -1,14 +1,17 @@
 # -*- coding: UTF-8 -*-
 """
-数据项定义
+{{project_name}} 数据项定义
 """
 
 from crawlo.items import Item, Field
 
 
 class {{project_name|title}}Item(Item):
-    """数据项"""
-    id = Field()
-    # price = Field()
-    # description = Field()
-    pass
+    """数据项 — 对应爬虫采集的每一条结构化数据"""
+
+    title = Field()                          # 无参（全部默认）
+    url = Field(desc="页面地址")              # desc: 简短描述
+    price = Field(field_type=float)          # field_type: 自动校验类型
+    content = Field(default="")              # default: 空值时填充默认值
+    author = Field(nullable=False)           # nullable: 不允许为空
+    summary = Field(max_length=500)          # max_length: 字符串最大长度
