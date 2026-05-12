@@ -10,7 +10,7 @@
 |------|------|------|
 | CRITICAL | 3 | 异步环境混用线程锁、全局状态污染、重复清理 |
 | HIGH | 4 | 事件异常静默、非原子状态检查、信号量非线程安全、协程结果丢失 |
-| MEDIUM | 7 | 信号处理时机、注册表同步/异步混用、配置语义丢失、信号量竞争、Redis 队列误判、无界内存增长、去重逻辑反转 |
+| MEDIUM | 8 | 信号处理时机、注册表同步/异步混用、配置语义丢失、信号量竞争、Redis 队列误判、无界内存增长、去重逻辑反转、depth 传播冲突 |
 | LOW | 2 | dataclass ID 不可靠、根 logger handlers 误关 |
 
 ---
@@ -670,6 +670,77 @@ dont_filter=not is_distributed
 
 ---
 
+### MEDIUM-8: transform() 中 _set_meta 提前注入 depth 导致深度优先调度失效
+
+**位置**: `crawlo/utils/func_tools.py` L31（已修复）
+
+**问题分析**:
+
+`transform()` 函数内部的 `_set_meta` 在 Spider 回调产出子请求时，提前将 `depth` 注入到子 Request 的 `meta` 中：
+
+```python
+# 修复前（有 bug）
+def _set_meta(obj: T) -> T:
+    """统一设置请求的depth元数据"""
+    if isinstance(obj, Request):
+        obj.meta.setdefault('depth', response.meta.get('depth', 0))  # ← 问题所在
+    return obj
+```
+
+这行代码的问题在于：`response.meta.get('depth', 0)` 获取的是**父请求的 depth**，然后通过 `setdefault` 将子请求的 `depth` 设为**与父请求相同的值**（如 depth=1），而不是正确的 `parent_depth + 1`（应为 depth=2）。
+
+随后在 `engine._handle_spider_output` 中：
+
+```python
+# engine.py L480
+if 'depth' not in spider_output.meta:    # ← 已有 depth，条件为 False
+    spider_output.meta['depth'] = parent_depth + 1  # ← 被跳过！
+```
+
+由于 `_set_meta` 已经提前注入了错误的 `depth` 值，`_handle_spider_output` 检测到 `depth` 已存在就跳过了正确的 depth 传播。
+
+**影响范围**:
+- 所有子请求的 depth 与父请求相同（depth=1），而非递增（depth=2, 3, ...）
+- `DEPTH_PRIORITY` 配置完全失效：列表页和详情页的 priority 相同，深度优先/广度优先策略无法区分
+- 首个 Item 产出时间严重延迟：详情页不再优先出队，需等待所有列表页处理完才能处理详情页
+
+**日志证据**（修复前）:
+
+```
+[depth传播] parent_request depth=1           ✅ 父请求 depth 正确
+[产出] 子请求 depth=1, meta_keys=['depth']   ❌ 应为 depth=2
+[set_request] had_depth=True → depth=1       ❌ depth 已存在但值错误
+```
+
+**修复方案**:
+
+删除 `_set_meta` 中的 depth 设置逻辑，让 `engine._handle_spider_output` 统一负责 depth 传播。修复后 `transform()` 简化为纯透传：
+
+```python
+# 修复后
+try:
+    if isgenerator(func):
+        for item in func:
+            yield item
+    else:
+        async for item in func:
+            yield item
+except Exception as e:
+    yield e
+```
+
+**修复后日志证据**:
+
+```
+[产出] 子请求 depth=2                        ✅ 正确递增
+[set_request] had_depth=True → depth=2, priority: 0 → -2  ✅ 深度优先生效
+[调度] 详情页(depth=2) priority=-2           ✅ 详情页优先出队
+```
+
+**设计原则**: `depth` 传播应由 Engine 层统一管理，中间件/工具函数不应提前注入 `depth`，避免与 Engine 的传播机制冲突。
+
+---
+
 ## LOW 级缺陷
 
 ### LOW-1: ApplicationContext.id 使用 id(self) 在 dataclass 中不可靠
@@ -766,4 +837,5 @@ def _close_logger_handlers(self) -> None:
 | P2 | MEDIUM-7 (去重逻辑) | 低 | 0.5天 |
 | P3 | MEDIUM-5 (Redis 空检查) | 低 | 0.5天 |
 | P3 | MEDIUM-6 (无界内存) | 中 | 1天 |
+| P3 | MEDIUM-8 (depth 传播冲突) ✅已修复 | 低 | 已完成 |
 | P3 | 其余 MEDIUM/LOW | 低-中 | 分批处理 |

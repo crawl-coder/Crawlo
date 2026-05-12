@@ -55,6 +55,8 @@
 2. Spider 回调产生的子请求：`depth` 自动设为 `parent_request.depth + 1`
 3. Errback 产生的请求：同样自动传播 `depth`
 
+> **设计原则**：`depth` 传播由 Engine 的 `_handle_spider_output` 方法统一管理。中间件或工具函数不应提前向 `request.meta` 注入 `depth`，否则会导致 Engine 的 `if 'depth' not in spider_output.meta` 检查被跳过，造成子请求 depth 值错误（如子请求 depth=1 而非 parent_depth+1=2），使 `DEPTH_PRIORITY` 调度策略完全失效。
+
 ### 优先级与调度策略
 
 | 配置值 | 策略 | 效果 | 适用场景 |

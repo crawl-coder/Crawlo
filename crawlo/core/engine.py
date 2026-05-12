@@ -220,6 +220,13 @@ class Engine(RequestGenerationMixin):
             batch_size = max(self.task_manager._concurrency_limit, 10)  # 批量获取请求数量，至少与并发数对齐
             idle_count = 0  # 连续空闲计数
             
+            # ===== 在途任务数控制 =====
+            # 限制已派发但未完成的任务数量，避免所有列表页请求一次性涌入信号量等待队列，
+            # 导致详情页请求排在队尾无法获得下载槽位。
+            # max_inflight = 并发数 + 小缓冲，确保下载器始终有活干，
+            # 同时让详情页请求能快速获得执行机会。
+            max_inflight = self.task_manager._concurrency_limit + 3
+            
             # 动态退出检查间隔
             exit_check_interval = 10
             min_check_interval = 5  # 最小检查间隔
@@ -240,9 +247,19 @@ class Engine(RequestGenerationMixin):
                 if requests:
                     idle_count = 0  # 重置空闲计数
                     self._request_available.clear()  # 清除事件，等待新请求
-                    # 并发派发请求（fire-and-forget：_crawl 创建后台任务后立即返回，
-                    # 不等待下载完成，让多个浏览器标签页真正并发工作）
+                    # 并发派发请求，但控制总在途任务数不超过 max_inflight
+                    # 这样详情页请求产出后能快速获得下载槽位，避免被大量列表页请求阻塞
                     for req in requests:
+                        # 等待在途任务数降至安全水位
+                        waited = False
+                        while len(self._background_tasks) >= max_inflight:
+                            if not waited:
+                                self.logger.debug(
+                                    f"在途任务数 {len(self._background_tasks)} >= {max_inflight}，"
+                                    f"等待任务完成后再派发"
+                                )
+                                waited = True
+                            await asyncio.sleep(0.01)
                         self._create_background_task(self._crawl(req))
                     
                     # 有请求处理时，增加检查间隔（减少开销）
@@ -313,11 +330,16 @@ class Engine(RequestGenerationMixin):
     async def _crawl(self, request):
         async def crawl_task():
             start_time = time.time()
-            # 记录请求标记（flags）用于调试追踪
-            if getattr(request, 'flags', None):
-                self.logger.debug(
-                    f"Processing request with flags: {request.flags} -> {request.url}"
-                )
+            # 调试日志：追踪请求类型和在途任务数
+            depth = getattr(request, 'meta', {}).get('depth', '?')
+            req_type = '详情页' if depth != '?' and int(depth) > 1 else '列表页'
+            self.logger.debug(
+                f"[调度] 开始处理 {req_type}(depth={depth}) "
+                f"priority={getattr(request, 'priority', '?')} "
+                f"meta_keys={list(request.meta.keys())[:5]} "
+                f"{request.url[:80]} | "
+                f"在途={len(self._background_tasks)}"
+            )
             try:
                 outputs = await self._fetch(request)
                 # 记录响应时间
@@ -441,6 +463,13 @@ class Engine(RequestGenerationMixin):
         parent_depth = 0
         if parent_request is not None and hasattr(parent_request, 'meta'):
             parent_depth = parent_request.meta.get('depth', 0)
+            # DEBUG: 追踪 parent_depth 来源
+            self.logger.debug(
+                f"[depth传播] parent_request depth={parent_depth}, "
+                f"meta keys={list(parent_request.meta.keys())[:10]}, "
+                f"priority={getattr(parent_request, 'priority', '?')}, "
+                f"url={parent_request.url[:60]}"
+            )
         
         if self.processor is None:
             return
@@ -450,6 +479,13 @@ class Engine(RequestGenerationMixin):
                 # 仅在子请求未手动设置 depth 时自动注入
                 if 'depth' not in spider_output.meta:
                     spider_output.meta['depth'] = parent_depth + 1
+                # 调试日志：追踪详情页请求产出
+                self.logger.debug(
+                    f"[产出] 子请求 depth={spider_output.meta['depth']} "
+                    f"priority={spider_output.priority} "
+                    f"meta_keys={list(spider_output.meta.keys())[:5]} "
+                    f"{spider_output.url[:80]}"
+                )
                 await self.processor.enqueue(spider_output)
             elif isinstance(spider_output, Item):
                 await self.processor.enqueue(spider_output)

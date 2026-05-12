@@ -371,6 +371,56 @@ STATS_INTERVAL = 10
 | **死锁** | 卡住不动 | 降低并发、增加超时 |
 | **等待响应** | 日志停止更新 | 检查网络、增加超时 |
 
+## 深度优先调度不生效
+
+### 问题：设置了 DEPTH_PRIORITY=1 但详情页没有优先处理
+
+**现象**：
+- 列表页和详情页的 priority 值相同
+- 首个 Item 产出时间极慢（需要等所有列表页处理完才处理详情页）
+- 调试日志显示子请求 `depth` 与父请求相同（如都是 depth=1）
+
+**原因分析**：
+
+`depth` 传播由 Engine 的 `_handle_spider_output` 统一管理。如果中间件或工具函数提前向 `request.meta` 注入了 `depth`，Engine 的 `if 'depth' not in spider_output.meta` 检查会被跳过，导致子请求 depth 值错误。
+
+**诊断步骤**：
+
+1. 开启 DEBUG 日志，检查 depth 传播：
+```python
+# settings.py
+LOG_LEVEL = 'DEBUG'
+```
+
+2. 在日志中搜索关键信息：
+```
+[产出] 子请求 depth=1    ← 如果子请求 depth 与父请求相同，说明 depth 传播失效
+[set_request] had_depth=True → depth=1    ← depth 已存在但值错误
+```
+
+3. 正确的日志应显示：
+```
+[产出] 子请求 depth=2    ← 子请求 depth = parent_depth + 1
+[set_request] had_depth=True → depth=2, priority: 0 → -2    ← 深度优先生效
+```
+
+**解决方案**：
+
+检查是否有中间件或工具函数提前设置了 `request.meta['depth']`，确保 `depth` 仅由 Engine 传播：
+
+```python
+# ❌ 错误：中间件或工具函数不应提前注入 depth
+def some_middleware(request, spider):
+    request.meta.setdefault('depth', response.meta.get('depth', 0))  # 会导致 depth 传播失效
+
+# ✅ 正确：让 Engine 自动传播 depth
+def some_middleware(request, spider):
+    # 不要设置 depth，Engine 会自动处理
+    pass
+```
+
+详见 [设计缺陷修复记录](../migration/design-defects-fix.md#medium-8-transform中-_set_meta-提前注入-depth-导致深度优先调度失效)。
+
 ## Ctrl+C 无法停止爬虫
 
 ### 问题：按 Ctrl+C 后爬虫继续运行
