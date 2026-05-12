@@ -519,7 +519,17 @@ WECOM_IS_AT_ALL = False                                 # 是否 @ 所有人
 # ---------------------------------------------------------------------------#
 
 SCHEDULER_ENABLED = False                               # 是否启用定时任务
-SCHEDULER_JOBS = []                                     # 定时任务配置列表
+SCHEDULER_JOBS = [
+    {
+        'spider': 'spider_name',      # 爬虫名称（对应spider的name属性）
+        'cron': '*/2 * * * *',        # 每2分钟执行一次
+        'enabled': True,              # 任务启用状态
+        'priority': 10,               # 任务优先级
+        'max_retries': 3,             # 最大重试次数
+        'retry_delay': 60,            # 重试延迟（秒）
+        'args': {}                   # 传递给爬虫的参数
+    }
+]                                     # 定时任务配置列表
 SCHEDULER_CHECK_INTERVAL = 1                            # 调度器检查间隔（秒）
 SCHEDULER_MAX_CONCURRENT = 3                            # 最大并发任务数
 SCHEDULER_JOB_TIMEOUT = 3600                            # 单个任务超时时间（秒）
