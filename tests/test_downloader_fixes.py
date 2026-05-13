@@ -38,25 +38,21 @@ def test_p0_1_activate_request_manager_type_annotation():
 
 
 def test_p0_2_downloader_meta_subclasscheck():
-    """P0-2: Test DownloaderMeta only checks required methods"""
-    from crawlo.downloader import DownloaderMeta, DownloaderBase
+    """P0-2: Test DownloaderBase uses ABC properly (DownloaderMeta removed)"""
+    from crawlo.downloader import DownloaderBase
+    from abc import ABC
     
-    # Test that DownloaderBase passes the check
-    assert isinstance(DownloaderBase, DownloaderMeta)
+    # DownloaderBase is now a standard ABC (no custom metaclass)
+    assert issubclass(DownloaderBase, ABC), "DownloaderBase should be an ABC"
     
-    # Create a minimal subclass with only required methods
-    class MinimalDownloader:
-        async def download(self, request):
-            pass
-        
-        async def close(self):
-            pass
+    # Subclass must implement abstract method download()
+    class IncompleteDownloader(DownloaderBase):
+        pass
     
-    # Should pass because it has download and close methods
-    assert issubclass(MinimalDownloader, DownloaderBase), \
-        "MinimalDownloader should be recognized as subclass"
+    import inspect
+    assert inspect.isabstract(IncompleteDownloader), "Should be abstract without download()"
     
-    print("✅ P0-2: DownloaderMeta.__subclasscheck__ simplified - PASSED")
+    print("✅ P0-2: DownloaderBase uses standard ABC - PASSED")
 
 
 def test_p0_3_concurrency_config_simplified():

@@ -30,8 +30,6 @@ class MySpider(Spider):
 Author: Crawlo Team
 Version: 0.2.0
 """
-
-import asyncio
 from typing import Any, Optional, List, Tuple
 
 from crawlo.logging import get_logger
@@ -50,40 +48,34 @@ class MySQLExistsChecker:
         self._closed = False
         self.logger = get_logger('MySQLExistsChecker')
     
+    # 默认配置（单一定义，消除三处重复）
+    _DEFAULTS = {
+        'host': 'localhost', 'port': 3306, 'user': 'root',
+        'password': '', 'db': 'crawlo', 'minsize': 2, 'maxsize': 5,
+    }
+    # config key → settings key mapping
+    _KEY_MAP = {
+        'host': 'MYSQL_HOST', 'port': 'MYSQL_PORT', 'user': 'MYSQL_USER',
+        'password': 'MYSQL_PASSWORD', 'db': 'MYSQL_DB',
+        'minsize': 'MYSQL_POOL_MIN', 'maxsize': 'MYSQL_POOL_MAX',
+    }
+
+    # 数值类型 key（Settings 对象需用 get_int）
+    _INT_KEYS = {'port', 'minsize', 'maxsize'}
+
     @classmethod
     def from_settings(cls, settings: Optional[Any] = None) -> 'MySQLExistsChecker':
         """Create checker from Crawlo settings"""
         if settings is None:
-            config = {
-                'host': 'localhost',
-                'port': 3306,
-                'user': 'root',
-                'password': '',
-                'db': 'crawlo',
-                'minsize': 2,
-                'maxsize': 5,
-            }
-        elif isinstance(settings, dict):
-            config = {
-                'host': settings.get('MYSQL_HOST', 'localhost'),
-                'port': settings.get('MYSQL_PORT', 3306),
-                'user': settings.get('MYSQL_USER', 'root'),
-                'password': settings.get('MYSQL_PASSWORD', ''),
-                'db': settings.get('MYSQL_DB', 'crawlo'),
-                'minsize': settings.get('MYSQL_POOL_MIN', 2),
-                'maxsize': settings.get('MYSQL_POOL_MAX', 5),
-            }
-        else:
-            config = {
-                'host': settings.get('MYSQL_HOST', 'localhost'),
-                'port': settings.get_int('MYSQL_PORT', 3306),
-                'user': settings.get('MYSQL_USER', 'root'),
-                'password': settings.get('MYSQL_PASSWORD', ''),
-                'db': settings.get('MYSQL_DB', 'crawlo'),
-                'minsize': settings.get_int('MYSQL_POOL_MIN', 2),
-                'maxsize': settings.get_int('MYSQL_POOL_MAX', 5),
-            }
-        
+            return cls(dict(cls._DEFAULTS))
+
+        config = {}
+        for k, v in cls._DEFAULTS.items():
+            settings_key = cls._KEY_MAP[k]
+            if k in cls._INT_KEYS and hasattr(settings, 'get_int'):
+                config[k] = settings.get_int(settings_key, v)
+            else:
+                config[k] = settings.get(settings_key, v) if hasattr(settings, 'get') else v
         return cls(config)
     
     async def _get_pool(self):

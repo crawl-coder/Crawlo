@@ -47,6 +47,8 @@ class TimeUtils:
     支持智能解析多语言、多格式时间字符串，以及时区转换等常用操作。
     """
 
+    _UNIT_DIVISOR = {"seconds": 1, "minutes": 60, "hours": 3600, "days": 86400}
+
     @staticmethod
     def _try_strptime(time_str: str) -> Optional[datetime]:
         """尝试使用预定义格式解析，作为 dateparser 的后备"""
@@ -144,14 +146,7 @@ class TimeUtils:
             return None
 
         delta = abs((end_dt - start_dt).total_seconds())
-
-        unit_map = {
-            "seconds": 1,
-            "minutes": 60,
-            "hours": 3600,
-            "days": 86400,
-        }
-        return int(delta // unit_map.get(unit, 1))
+        return int(delta // cls._UNIT_DIVISOR.get(unit, 1))
 
     @classmethod
     def add(cls, dt: TimeType, days: int = 0, months: int = 0) -> Optional[datetime]:
@@ -338,7 +333,7 @@ def from_timestamp_with_tz(ts: float, tz: TimezoneType = None) -> Optional[datet
     return TimeUtils.from_timestamp_with_tz(ts, tz)
 
 
-def date_range(start: TimeType, end: TimeType, fmt: str = "%Y-%m-%d") -> list:
+def date_range(start: TimeType, end: TimeType, fmt: str = "%Y-%m-%d") -> List[str]:
     """生成日期范围内的所有日期"""
     return TimeUtils.date_range(start, end, fmt)
 
