@@ -8,11 +8,6 @@ from typing import Any, Type
 
 from .base import ComponentFactory, ComponentSpec
 from .registry import get_component_registry
-from crawlo.core.engine import Engine
-from crawlo.core.scheduler import Scheduler
-from crawlo.stats.collector import StatsCollector
-from crawlo.event import Subscriber
-from crawlo.extension import ExtensionManager
 
 
 class CrawlerComponentFactory(ComponentFactory):
@@ -28,7 +23,13 @@ class CrawlerComponentFactory(ComponentFactory):
     
     def supports(self, component_type: Type) -> bool:
         """Check if the specified type is supported"""
-        # 实际类型已在顶部导入
+        # 延迟导入以避免启动时的性能开销
+        from crawlo.core.engine import Engine
+        from crawlo.core.scheduler import Scheduler
+        from crawlo.stats.collector import StatsCollector
+        from crawlo.event import Subscriber
+        from crawlo.extension import ExtensionManager
+        
         supported_types = (
             Engine, Scheduler, StatsCollector, 
             Subscriber, ExtensionManager
@@ -38,31 +39,31 @@ class CrawlerComponentFactory(ComponentFactory):
 
 # Engine component
 def create_engine(crawler, **kwargs):
-    # Engine 已在顶部导入
+    from crawlo.core.engine import Engine
     return Engine(crawler)
 
 # Scheduler component
 def create_scheduler(crawler, **kwargs):
-    # Scheduler 已在顶部导入
+    from crawlo.core.scheduler import Scheduler
     return Scheduler.create_instance(crawler)
 
 # StatsCollector component
 def create_stats(crawler, **kwargs):
-    # StatsCollector 已在顶部导入
+    from crawlo.stats.collector import StatsCollector
     return StatsCollector(crawler)
 
 # Subscriber component
 def create_subscriber(**kwargs):
-    # Subscriber 已在顶部导入
+    from crawlo.event import Subscriber
     return Subscriber()
 
 # ExtensionManager component
 def create_extension_manager(crawler, **kwargs):
-    # ExtensionManager 已在顶部导入
+    from crawlo.extension import ExtensionManager
     return ExtensionManager.create_instance(crawler)
 
 def register_crawler_components():
-    """Register Crawler-related components"""
+    """Register Crawler-related components (延迟调用，首次使用时由 factories/__init__.py 触发)"""
     from .utils import register_components
     
     # Register factory
@@ -106,5 +107,5 @@ def register_crawler_components():
     register_components(component_list)
 
 
-# 自动注册
-register_crawler_components()
+# 注意：不再在模块级别自动调用 register_crawler_components()
+# 注册改为延迟触发：由 crawlo.factories.__init__.py 的 _ensure_components_registered() 在首次 get_component_registry() 时触发

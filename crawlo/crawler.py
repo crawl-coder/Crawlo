@@ -21,13 +21,9 @@ import time
 from contextlib import asynccontextmanager
 from typing import Optional, Type, Dict, Any, List, Union, TYPE_CHECKING, cast
 
-from crawlo.factories import get_component_registry
-from crawlo.initialization import initialize_framework, is_framework_ready
+from crawlo.factories import get_component_registry  # 已优化为延迟注册，import 轻量
 from dataclasses import dataclass
 from enum import Enum
-from crawlo.logging import get_logger
-from crawlo.utils.resource_manager import ResourceManager, ResourceType
-from crawlo.settings.setting_manager import SettingManager
 
 
 class CrawlerState(Enum):
@@ -109,7 +105,8 @@ class Crawler:
         # Metrics
         self._metrics: CrawlerMetrics = CrawlerMetrics()
         
-        # Resource manager
+        # Resource manager (延迟导入)
+        from crawlo.utils.resource_manager import ResourceManager, ResourceType
         self._resource_manager: ResourceManager = ResourceManager(name=f"crawler.{spider_cls.__name__ if spider_cls else 'unknown'}")
         
         # Ensure framework is initialized
@@ -118,10 +115,14 @@ class Crawler:
         # Logging: Use global logger, do not create spider-specific log files
         # Reason: Separate log files cause log confusion and duplicate configuration in multi-spider scenarios
         # All spider logs are written to the global log file, distinguished by logger name
-        self._logger = get_logger(f'crawler.{spider_cls.__name__ if spider_cls else "unknown"}')
+        from crawlo.logging import get_logger as _get_logger
+        self._logger = _get_logger(f'crawler.{spider_cls.__name__ if spider_cls else "unknown"}')
     
     def _ensure_framework_ready(self) -> None:
         """Ensure framework is ready"""
+        from crawlo.initialization import initialize_framework, is_framework_ready
+        from crawlo.settings.setting_manager import SettingManager
+        
         if not is_framework_ready():
             try:
                 self._settings = initialize_framework(self._settings)
@@ -129,12 +130,10 @@ class Crawler:
             except Exception as e:
                 # Use fallback strategy
                 if not self._settings:
-                    # SettingManager 已在顶部导入
                     self._settings = SettingManager()
             
         # Ensure it is a SettingManager instance
         if isinstance(self._settings, dict):
-            # SettingManager 已在顶部导入
             settings_manager = SettingManager()
             settings_manager.update_attributes(self._settings)
             self._settings = settings_manager
@@ -306,6 +305,7 @@ class Crawler:
             self._engine = registry.create('engine', crawler=self)
             # Register Engine to resource manager
             if self._engine and hasattr(self._engine, 'close'):
+                from crawlo.utils.resource_manager import ResourceType
                 self._resource_manager.register(
                     self._engine,
                     lambda e: e.close() if hasattr(e, 'close') else None,
@@ -499,5 +499,12 @@ class Crawler:
             pass
 
 
-# Backward compatibility: CrawlerProcess moved to a separate module
-from crawlo.crawler_process import CrawlerProcess  # noqa: F401, E402
+
+
+def __getattr__(name):
+    """模块级延迟导入（PEP 562），避免 import 时加载 crawler_process 的重量级依赖"""
+    if name == 'CrawlerProcess':
+        from crawlo.crawler_process import CrawlerProcess
+        return CrawlerProcess
+    raise AttributeError(f"module 'crawlo.crawler' has no attribute '{name}'")
+

@@ -159,7 +159,7 @@ class JobExecutor:
         """初始化并发控制"""
         max_concurrent = self.settings.get_int('SCHEDULER_MAX_CONCURRENT', 3)
         self._semaphore = asyncio.Semaphore(max_concurrent)
-        self.logger.info(f"最大并发任务数: {max_concurrent}")
+        self.logger.info(f"最大并发爬虫数: {max_concurrent}")
     
     async def execute_with_semaphore(self, job: ScheduledJob):
         """使用信号量控制的任务执行"""
