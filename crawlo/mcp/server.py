@@ -22,6 +22,7 @@ Claude Desktop 配置:
 }
 """
 import asyncio
+from typing import Optional, Dict, List
 
 from mcp.server.fastmcp import FastMCP
 
@@ -56,6 +57,24 @@ async def _get_fetcher() -> QuickFetcher:
     return _fetcher
 
 
+# 错误分类映射（帮助 AI 理解错误类型并决策下一步操作）
+_ERROR_HINTS = {
+    "TIMEOUT":         "Suggest: retry or switch to stealth mode.",
+    "CONNECTION_ERROR": "Suggest: check URL or retry later.",
+    "STEALTH_UNAVAILABLE":   "Suggest: pip install DrissionPage.",
+    "MAX_STEALTH_UNAVAILABLE": "Suggest: pip install camoufox.",
+    "INVALID_URL":     "Check the URL format and try again.",
+    "INVALID_SCHEME":  "URL must use http:// or https://.",
+    "EMPTY_RESPONSE":  "Server returned no content.",
+    "INVALID_MODE":    "Use basic, stealth, or max-stealth.",
+}
+
+
+def _error_hint(code: str) -> str:
+    """根据错误码返回建议操作"""
+    return _ERROR_HINTS.get(code, "")
+
+
 def _format_result(result: FetchResult, max_length: int = 0) -> str:
     """格式化输出结果"""
     lines = [
@@ -64,17 +83,20 @@ def _format_result(result: FetchResult, max_length: int = 0) -> str:
         f"Size: {result.size:,} bytes ({result.size/1024:.1f} KB)",
         f"Duration: {result.duration:.2f}s",
     ]
-    
+
+    if result.error:
+        lines.append("")
+        lines.append(f"ERROR [{result.error_code}]: {result.error}")
+        hint = _error_hint(result.error_code)
+        if hint:
+            lines.append(f"HINT: {hint}")
+        return "\n".join(lines)
+
     if result.cookies:
-        # 只显示前 3 个 Cookie，避免输出过长
         cookie_names = list(result.cookies.keys())[:3]
         lines.append(f"Cookies: {', '.join(cookie_names)}{'...' if len(result.cookies) > 3 else ''}")
 
     lines.append("=" * 60)
-
-    if result.error:
-        lines.append(f"Error [{result.error_code}]: {result.error}")
-        return "\n".join(lines)
 
     content = result.content
     if max_length > 0 and len(content) > max_length:
@@ -94,7 +116,7 @@ async def fetch(
     mode: str = "basic",
     format: str = "markdown",
     max_length: int = 0,
-    cookies: dict[str, str] = None,
+    cookies: Optional[Dict[str, str]] = None,
     persist_session: bool = True,
 ) -> str:
     """Fetch a web page using Crawlo's downloader.
@@ -117,15 +139,18 @@ async def fetch(
     Returns:
         Page content with metadata header
     """
-    fetcher = await _get_fetcher()
-    result = await fetcher.fetch(
-        url, 
-        mode=mode, 
-        format=format, 
-        cookies=cookies,
-        persist_session=persist_session
-    )
-    return _format_result(result, max_length)
+    try:
+        fetcher = await _get_fetcher()
+        result = await fetcher.fetch(
+            url, 
+            mode=mode, 
+            format=format, 
+            cookies=cookies,
+            persist_session=persist_session
+        )
+        return _format_result(result, max_length)
+    except Exception as e:
+        return f"Error: Failed to fetch {url} - {type(e).__name__}: {e}"
 
 
 @mcp.tool()
@@ -134,7 +159,7 @@ async def extract(
     pattern: str,
     mode: str = "basic",
     context_chars: int = 150,
-    cookies: dict[str, str] = None,
+    cookies: Optional[Dict[str, str]] = None,
 ) -> str:
     """Extract specific content from a web page using regex pattern.
 
@@ -153,19 +178,19 @@ async def extract(
     """
     import re
 
-    fetcher = await _get_fetcher()
-    result = await fetcher.fetch(url, mode=mode, format='text', cookies=cookies)
-
-    if result.error:
-        return f"Error [{result.error_code}]: {result.error}"
-
-    lines = [
-        f"URL: {result.url}",
-        f"Pattern: {pattern}",
-        "=" * 60,
-    ]
-
     try:
+        fetcher = await _get_fetcher()
+        result = await fetcher.fetch(url, mode=mode, format='text', cookies=cookies)
+
+        if result.error:
+            return f"Error [{result.error_code}]: {result.error}"
+
+        lines = [
+            f"URL: {result.url}",
+            f"Pattern: {pattern}",
+            "=" * 60,
+        ]
+
         regex = re.compile(pattern, re.DOTALL | re.IGNORECASE)
         matches = list(regex.finditer(result.content))
 
@@ -190,19 +215,22 @@ async def extract(
             lines.append(f"  Context: {context}")
             lines.append("")
 
-    except re.error as e:
-        lines.append(f"Regex error: {e}")
+        return "\n".join(lines)
 
-    return "\n".join(lines)
+    except re.error as e:
+        return f"Regex error: {e}"
+    except Exception as e:
+        return f"Error: Failed to extract from {url} - {type(e).__name__}: {e}"
 
 
 @mcp.tool()
 async def spider(
-    urls: list[str],
+    urls: List[str],
     mode: str = "basic",
     format: str = "markdown",
     concurrency: int = 2,
-    cookies: dict[str, str] = None,
+    delay: float = 0.0,
+    cookies: Optional[Dict[str, str]] = None,
 ) -> str:
     """Crawl multiple pages concurrently using Crawlo's spider engine.
 
@@ -213,52 +241,57 @@ async def spider(
         urls: List of URLs to crawl
         mode: Fetch mode - basic, stealth, or max-stealth
         format: Output format per page - html, markdown, or text
-        concurrency: Number of concurrent requests
+        concurrency: Number of concurrent requests (max 5)
+        delay: Delay between request batches in seconds (use 1.0+ for target site protection)
         cookies: Optional cookies to send with each request
 
     Returns:
         Summary of all crawled pages
     """
-    fetcher = await _get_fetcher()
-    results = await fetcher.fetch_multiple(
-        urls,
-        mode=mode,
-        format=format,
-        concurrency=concurrency,
-        # Note: cookies support for multiple urls could be extended in Fetcher
-    )
+    try:
+        fetcher = await _get_fetcher()
+        results = await fetcher.fetch_multiple(
+            urls,
+            mode=mode,
+            format=format,
+            concurrency=concurrency,
+            delay=delay,
+        )
 
-    # 统计
-    success = sum(1 for r in results if not r.error)
-    failed = len(results) - success
-    total_size = sum(r.size for r in results)
+        # 统计
+        success = sum(1 for r in results if not r.error)
+        failed = len(results) - success
+        total_size = sum(r.size for r in results)
 
-    lines = [
-        "Crawlo Spider Results",
-        "=" * 60,
-        f"URLs requested: {len(urls)}",
-        f"Successful: {success}",
-        f"Failed: {failed}",
-        f"Total content: {total_size:,} bytes ({total_size/1024:.1f} KB)",
-        f"Mode: {mode}",
-        f"Concurrency: {concurrency}",
-        "=" * 60,
-    ]
+        lines = [
+            "Crawlo Spider Results",
+            "=" * 60,
+            f"URLs requested: {len(urls)}",
+            f"Successful: {success}",
+            f"Failed: {failed}",
+            f"Total content: {total_size:,} bytes ({total_size/1024:.1f} KB)",
+            f"Mode: {mode}",
+            f"Concurrency: {concurrency}",
+            "=" * 60,
+        ]
 
-    # 输出每个结果（截断以节省 token）
-    for i, result in enumerate(results, 1):
-        lines.append(f"\n--- Page {i}: {result.url} ({result.size:,} bytes) ---")
+        # 输出每个结果（截断以节省 token）
+        for i, result in enumerate(results, 1):
+            lines.append(f"\n--- Page {i}: {result.url} ({result.size:,} bytes) ---")
 
-        if result.error:
-            lines.append(f"Error: {result.error}")
-        else:
-            # 截断内容
-            content = result.content[:2000]
-            if len(result.content) > 2000:
-                content += f"\n\n... (truncated, {len(result.content):,} total chars)"
-            lines.append(content)
+            if result.error:
+                lines.append(f"Error: {result.error}")
+            else:
+                # 截断内容
+                content = result.content[:2000]
+                if len(result.content) > 2000:
+                    content += f"\n\n... (truncated, {len(result.content):,} total chars)"
+                lines.append(content)
 
-    return "\n".join(lines)
+        return "\n".join(lines)
+
+    except Exception as e:
+        return f"Error: Failed to crawl {len(urls)} URLs - {type(e).__name__}: {e}"
 
 
 @mcp.tool()

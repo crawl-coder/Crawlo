@@ -10,6 +10,7 @@ from crawlo.downloader import DownloaderBase
 from crawlo.logging import get_logger
 from crawlo.utils.misc import safe_get_config
 from crawlo.exceptions import DownloadError
+from crawlo.constants import ABSOLUTE_TIMEOUT_MULTIPLIER_NORMAL, ABSOLUTE_TIMEOUT_MULTIPLIER_EXTENDED
 
 
 class CurlCffiDownloader(DownloaderBase):
@@ -42,7 +43,7 @@ class CurlCffiDownloader(DownloaderBase):
         # 读取配置
         timeout_secs = safe_get_config(self.crawler.settings, "DOWNLOAD_TIMEOUT", 15, int)
         verify_ssl = safe_get_config(self.crawler.settings, "VERIFY_SSL", True, bool)
-        pool_size = safe_get_config(self.crawler.settings, "CONNECTION_POOL_LIMIT", 20, int)
+        pool_size = safe_get_config(self.crawler.settings, "CONNECTION_POOL_LIMIT", 100, int)
         self.max_download_size = safe_get_config(self.crawler.settings, "DOWNLOAD_MAXSIZE", 10 * 1024 * 1024, int)
 
         # 保存为实例变量
@@ -120,20 +121,28 @@ class CurlCffiDownloader(DownloaderBase):
             # 1. curl_cffi timeout（HTTP 层超时）
             # 2. asyncio.wait_for（外层绝对超时）
             
-            # 所有请求都使用绝对超时保护
-            # 代理请求：40秒绝对超时
-            # 正常/重试请求：35秒绝对超时
-            absolute_timeout = 40.0 if is_proxy_request else 35.0
+            # 所有请求都使用绝对超时保护，从 DOWNLOAD_TIMEOUT 配置派生
+            # 代理请求使用 EXTENDED 系数，正常/重试请求使用 NORMAL 系数
+            absolute_timeout = (
+                self._timeout_secs * ABSOLUTE_TIMEOUT_MULTIPLIER_EXTENDED if is_proxy_request
+                else self._timeout_secs * ABSOLUTE_TIMEOUT_MULTIPLIER_NORMAL
+            )
 
             # 重试请求使用更严格的超时
             if is_retry:
                 strict_timeout = min(10.1, self._timeout_secs * 0.67)
                 try:
-                    response = await asyncio.wait_for(
-                        self._download_with_timeout(request, strict_timeout),
-                        timeout=absolute_timeout
+                    download_task = asyncio.ensure_future(
+                        self._download_with_timeout(request, strict_timeout)
                     )
+                    async with asyncio.timeout(absolute_timeout):
+                        response = await download_task
                 except asyncio.TimeoutError:
+                    download_task.cancel()
+                    try:
+                        await download_task
+                    except asyncio.CancelledError:
+                        pass
                     self.logger.error(
                         f"重试请求绝对超时（{absolute_timeout:.0f}s），代理连接可能死锁: {request.url} "
                         f"(retry_times={request.meta.get('retry_times', 0)})"
@@ -145,11 +154,17 @@ class CurlCffiDownloader(DownloaderBase):
             else:
                 # 正常请求也添加绝对超时保护
                 try:
-                    response = await asyncio.wait_for(
-                        self._download_with_timeout(request),
-                        timeout=absolute_timeout
+                    download_task = asyncio.ensure_future(
+                        self._download_with_timeout(request)
                     )
+                    async with asyncio.timeout(absolute_timeout):
+                        response = await download_task
                 except asyncio.TimeoutError:
+                    download_task.cancel()
+                    try:
+                        await download_task
+                    except asyncio.CancelledError:
+                        pass
                     self.logger.error(
                         f"请求绝对超时（{absolute_timeout:.0f}s），代理连接可能死锁: {request.url}"
                     )
@@ -191,7 +206,7 @@ class CurlCffiDownloader(DownloaderBase):
         # 如果有自定义超时，需要创建临时 session
         if timeout is not None:
             verify_ssl = safe_get_config(self.crawler.settings, "VERIFY_SSL", True, bool)
-            pool_size = safe_get_config(self.crawler.settings, "CONNECTION_POOL_LIMIT", 20, int)
+            pool_size = safe_get_config(self.crawler.settings, "CONNECTION_POOL_LIMIT", 100, int)
             
             # 基于 curl_cffi 源码：AsyncSession(max_clients, timeout, verify, impersonate)
             async with AsyncSession(
@@ -241,8 +256,6 @@ class CurlCffiDownloader(DownloaderBase):
         if actual_size > self.max_download_size:
             raise OverflowError(f"响应体过大: {actual_size} > {self.max_download_size}")
 
-        # 记录下载大小
-        self.logger.debug(f"Downloaded {request.url}, size: {actual_size} bytes")
 
         return self._structure_response(request, response, body)
 

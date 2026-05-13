@@ -55,6 +55,9 @@ class MySpider(Spider):
 ### [🛠️ 核心组件](concepts/core-components.md)
 详解下载器、调度器、管道和爬虫基类。学习如何配置代理、处理重试以及对接 MySQL/MongoDB。
 
+### [📡 下载器指南](guides/downloader-guide.md)
+选择合适的下载器（AioHttp / Playwright / CloakBrowser），配置混合下载器自动路由。
+
 ### [⚙️ 配置指南](guides/configuration/index.md)
 三种运行模式（Standalone/Auto/Distributed）详解，配置优先级与合并策略。
 
@@ -66,6 +69,7 @@ class MySpider(Spider):
 - **AI 适配层 (MCP)**：让 Claude/Cursor 直接驱动爬虫。
 - **自适应选择器**：网页改版后的自动修复技术。
 - **混合下载器**：协议与浏览器的智能切换。
+- **CloakBrowser**：57 项 C++ 补丁的隐身 Chromium，绕过 Cloudflare/reCAPTCHA。
 - **Cloudflare 绕过**：自动识别并处理验证码挑战。
 
 ### [💻 命令行参考](reference/cli-reference.md)
@@ -87,10 +91,11 @@ Ctrl+C 优雅关闭后从断点续爬，支持 JSON/SQLite 双存储后端。
 1. **入门** - 阅读[快速入门指南](getting-started/index.md)，运行第一个示例。
 2. **架构** - 了解[核心架构](concepts/architecture.md)设计及运行模式。
 3. **深入** - 掌握[核心组件](concepts/core-components.md)的使用。
-4. **调试** - 使用 [Shell 交互式终端](shell-guide.md)实时调试选择器。
+4. **下载器** - 学习[下载器选择指南](guides/downloader-guide.md)，选择合适的下载器。
+5. **调试** - 使用 [Shell 交互式终端](shell-guide.md)实时调试选择器。
    - 尝试 [curl 命令转换](migration/curl-conversion.md)：从浏览器复制 curl 直接执行
-5. **持久化** - 了解[检查点持久化](concepts/checkpoint-guide.md)：Ctrl+C 后断点续爬
-6. **高阶** - 探索[高级特性](reference/index.md)如 AI 适配、自适应选择器。
+6. **持久化** - 了解[检查点持久化](concepts/checkpoint-guide.md)：Ctrl+C 后断点续爬
+7. **高阶** - 探索[高级特性](reference/index.md)如 AI 适配、自适应选择器、CloakBrowser。
 
 ## 贡献
 

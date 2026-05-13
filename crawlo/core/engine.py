@@ -9,22 +9,24 @@ from crawlo import Request, Item
 from crawlo.spider import Spider
 from crawlo.event import CrawlerEvent
 from crawlo.project import common_call
-from crawlo.failure import Failure
+from crawlo.core.failure import Failure
 from crawlo.logging import get_logger
 from crawlo.exceptions import OutputError
-from crawlo.error_types import ErrorClassifier
-from crawlo.task_manager import TaskManager
+from crawlo.core.error_types import ErrorClassifier
+from crawlo.core.task_manager import TaskManager
 from crawlo.downloader import DownloaderBase
 from crawlo.core.processor import Processor
 from crawlo.core.scheduler import Scheduler
+from crawlo.checkpoint import CheckpointManager
 from crawlo.core.engine_helpers import GenerationStats, BackpressureController
+from crawlo.core.engine_generation import RequestGenerationMixin
+from crawlo.core.engine_generation import resolve_start_requests, process_callback_output
 from crawlo.utils.misc import load_object
 from crawlo.utils.misc import safe_get_config
-from crawlo.utils.func_tools import transform
 from crawlo.__version__ import __version__
 
 
-class Engine(object):
+class Engine(RequestGenerationMixin):
     
     # 关键错误类型配置，从 error_types 模块导入
     CRITICAL_EXCEPTIONS = ErrorClassifier.CRITICAL_EXCEPTIONS
@@ -38,39 +40,17 @@ class Engine(object):
         self.downloader: Optional[DownloaderBase] = None
         self.scheduler: Optional[Scheduler] = None
         self.processor: Optional[Processor] = None
-        self._start_requests_source = None  # 原始生成器（sync gen / async gen / iter）
-        self._start_requests_is_async = False  # 是否为异步生成器
-        self._close_reason: str = 'finished'  # 关闭原因：finished / shutdown
-        self._spider_closed: bool = False  # 防止 close_spider 重复调用
+        self._start_requests_source = None  # Original generator (sync gen / async gen / iter)
+        self._start_requests_is_async = False  # Whether it's an async generator
+        self._close_reason: str = 'finished'  # Close reason: finished / shutdown
+        self._spider_closed: bool = False  # Prevent duplicate close_spider calls
+        self._background_tasks: set = set()  # Track fire-and-forget tasks to prevent leaks
+        self._request_available = asyncio.Event()  # 事件驱动：新请求可用时唤醒主循环
         
-        # ========== 统一配置获取（集中在初始化阶段） ==========
+        # Initialize configurations
+        self._init_configs()
         
-        # 并发控制配置
-        concurrency = safe_get_config(self.settings, 'CONCURRENCY', 8, int)
-        self.task_manager: Optional[TaskManager] = TaskManager(concurrency)
-        
-        # 请求生成配置
-        self.max_queue_size = safe_get_config(self.settings, 'SCHEDULER_MAX_QUEUE_SIZE', 200, int)
-        self.generation_batch_size = safe_get_config(self.settings, 'REQUEST_GENERATION_BATCH_SIZE', 10, int)
-        self.generation_interval = safe_get_config(self.settings, 'REQUEST_GENERATION_INTERVAL', 0.01, float)
-        self.backpressure_ratio = safe_get_config(self.settings, 'BACKPRESSURE_RATIO', 0.9, float)
-        self.enable_controlled_generation = safe_get_config(
-            self.settings, 'ENABLE_CONTROLLED_REQUEST_GENERATION', False, bool
-        )
-        
-        # 版本配置（直接从 __version__.py 导入，不从配置文件获取）
-        self.version = __version__
-        
-        # 检查点配置
-        self.checkpoint_save_on_signal = safe_get_config(
-            self.settings, 'CHECKPOINT_SAVE_ON_SIGNAL', True, bool
-        )
-        
-        # 下载器配置
-        self.downloader_type = safe_get_config(self.settings, 'DOWNLOADER_TYPE')
-        self.downloader_path = safe_get_config(self.settings, 'DOWNLOADER')
-        
-        # 初始化辅助工具类
+        # Initialize helper utilities
         self._generation_stats = GenerationStats()
         self._backpressure_ctrl = BackpressureController(
             max_queue_size=self.max_queue_size,
@@ -78,6 +58,45 @@ class Engine(object):
         )
 
         self.logger = get_logger(name=self.__class__.__name__)
+    
+    def _create_background_task(self, coro):
+        """创建带引用追踪的后台任务，防止 fire-and-forget 任务泄漏"""
+        task = asyncio.create_task(coro)
+        self._background_tasks.add(task)
+        task.add_done_callback(self._background_tasks.discard)
+        return task
+    
+    def _init_configs(self) -> None:
+        """
+        Initialize all configurations from settings
+        
+        Centralized configuration extraction for better maintainability
+        """
+        # Concurrency control configuration
+        concurrency = safe_get_config(self.settings, 'CONCURRENCY', 8, int)
+        self.task_manager: Optional[TaskManager] = TaskManager(concurrency)
+        
+        # Request generation configuration
+        self.days = safe_get_config(self.settings, 'LOG_RETENTION_DAYS', 1, int)
+        self.max_queue_size = safe_get_config(self.settings, 'SCHEDULER_MAX_QUEUE_SIZE', 10000, int)
+        self.generation_batch_size = safe_get_config(self.settings, 'REQUEST_GENERATION_BATCH_SIZE', 10, int)
+        self.generation_interval = safe_get_config(self.settings, 'REQUEST_GENERATION_INTERVAL', 0.01, float)
+        self.backpressure_ratio = safe_get_config(self.settings, 'BACKPRESSURE_RATIO', 0.9, float)
+        self.enable_controlled_generation = safe_get_config(
+            self.settings, 'ENABLE_CONTROLLED_REQUEST_GENERATION', False, bool
+        )
+        
+        # Version configuration (directly from __version__.py, not from config file)
+        self.version = __version__
+        
+        # Checkpoint configuration
+        self.checkpoint_save_on_signal = safe_get_config(
+            self.settings, 'CHECKPOINT_SAVE_ON_SIGNAL', True, bool
+        )
+        
+        # Downloader configuration
+        self.downloader_type = safe_get_config(self.settings, 'DOWNLOADER_TYPE')
+        self.downloader_path = safe_get_config(self.settings, 'DOWNLOADER')
 
     def _get_downloader_cls(self):
         """
@@ -160,80 +179,10 @@ class Engine(object):
 
         if not checkpoint_resumed:
             # 正常流程：从 start_requests 开始（流式，不物化）
-            # 支持三种 start_requests 签名：
-            #   1. def start_requests(self)          -> 同步生成器
-            #   2. async def start_requests(self)     -> 异步生成器
-            #   3. async def start_requests(self)     -> 协程（返回列表/值）
-            self.logger.debug("开始解析 start_requests")
             try:
-                result = spider.start_requests()
-
-                if isasyncgen(result):
-                    # async def + yield -> 异步生成器，直接流式消费
-                    self._start_requests_source = result
-                    self._start_requests_is_async = True
-                    self.logger.debug("start_requests 类型: 异步生成器（流式）")
-                elif iscoroutine(result):
-                    # async def + return -> 协程，await 后按返回值类型处理
-                    awaited = await result
-                    if isasyncgen(awaited):
-                        self._start_requests_source = awaited
-                        self._start_requests_is_async = True
-                        self.logger.debug("start_requests 类型: 协程→异步生成器（流式）")
-                    elif isgenerator(awaited):
-                        self._start_requests_source = awaited
-                        self._start_requests_is_async = False
-                        self.logger.debug("start_requests 类型: 协程→同步生成器（流式）")
-                    elif awaited is None:
-                        self._start_requests_source = None
-                        self._start_requests_is_async = False
-                    elif isinstance(awaited, (Request, Item)):
-                        # 单个值包装为迭代器
-                        self._start_requests_source = iter([awaited])
-                        self._start_requests_is_async = False
-                        self.logger.debug("start_requests 类型: 协程→单个值")
-                    elif isinstance(awaited, (list, tuple)):
-                        # 列表/元组包装为迭代器（小数据量，不会 OOM）
-                        self._start_requests_source = iter(awaited)
-                        self._start_requests_is_async = False
-                        self.logger.debug(f"start_requests 类型: 协程→列表({len(awaited)}个)")
-                    else:
-                        self.logger.warning(
-                            f"start_requests 协程返回了未知类型 {type(awaited).__name__}，"
-                            "已作为单元素包装"
-                        )
-                        self._start_requests_source = iter([awaited])
-                        self._start_requests_is_async = False
-                else:
-                    # 同步返回值：按类型分发
-                    if isgenerator(result):
-                        self._start_requests_source = result
-                        self._start_requests_is_async = False
-                        self.logger.debug("start_requests 类型: 同步生成器（流式）")
-                    elif isinstance(result, (list, tuple)):
-                        self._start_requests_source = iter(result)
-                        self._start_requests_is_async = False
-                        self.logger.debug(f"start_requests 类型: 同步列表({len(result)}个)")
-                    elif isinstance(result, (Request, Item)):
-                        self._start_requests_source = iter([result])
-                        self._start_requests_is_async = False
-                        self.logger.debug("start_requests 类型: 同步单值")
-                    elif result is None:
-                        self._start_requests_source = None
-                        self._start_requests_is_async = False
-                    else:
-                        # 未知可迭代类型，尝试 iter() 包装
-                        try:
-                            self._start_requests_source = iter(result)
-                            self._start_requests_is_async = False
-                            self.logger.debug("start_requests 类型: 同步可迭代对象（流式）")
-                        except TypeError:
-                            self.logger.warning(
-                                f"start_requests 返回了不可迭代的类型 {type(result).__name__}"
-                            )
-                            self._start_requests_source = None
-                            self._start_requests_is_async = False
-
+                source, is_async = await resolve_start_requests(spider, self.logger)
+                self._start_requests_source = source
+                self._start_requests_is_async = is_async
                 self.logger.debug("start_requests 解析成功")
             except Exception as e:
                 self.logger.error(f"解析 start_requests 失败: {e}")
@@ -268,8 +217,13 @@ class Engine(object):
             loop_count = 0
             last_exit_check = 0  # 记录上次检查退出条件的循环次数
             last_component_states = None  # 记录上次的组件状态，用于减少冗余日志
-            batch_size = 5  # 批量获取请求的数量
+            batch_size = max(self.task_manager._concurrency_limit, 10)  # 批量获取请求数量，至少与并发数对齐
             idle_count = 0  # 连续空闲计数
+            
+            # ===== 并发流控：限制在途任务数 =====
+            # 防止大量列表页请求一次性涌入导致详情页被阻塞在队尾。
+            # max_inflight = CONCURRENCY + 3 缓冲，确保下载器始终有活干。
+            max_inflight = self.task_manager._concurrency_limit + 3
             
             # 动态退出检查间隔
             exit_check_interval = 10
@@ -290,9 +244,20 @@ class Engine(object):
                 # 批量处理请求
                 if requests:
                     idle_count = 0  # 重置空闲计数
-                    # 并发处理批量请求
-                    tasks = [self._crawl(req) for req in requests]
-                    await asyncio.gather(*tasks, return_exceptions=True)
+                    self._request_available.clear()  # 清除事件，等待新请求
+                    # 并发派发请求，但控制总在途任务数不超过 max_inflight
+                    # 这样详情页请求产出后能快速获得下载槽位，避免被大量列表页请求阻塞
+                    for req in requests:
+                        # 等待在途任务数降至安全水位
+                        if len(self._background_tasks) >= max_inflight:
+                            if not getattr(self, '_fc_logged', False):
+                                self.logger.debug(
+                                    f"[流控] 在途={len(self._background_tasks)}/{max_inflight}，等待释放后派发"
+                                )
+                                self._fc_logged = True
+                            while len(self._background_tasks) >= max_inflight:
+                                await asyncio.sleep(0.01)
+                        self._create_background_task(self._crawl(req))
                     
                     # 有请求处理时，增加检查间隔（减少开销）
                     exit_check_interval = min(exit_check_interval + 1, max_check_interval)
@@ -322,16 +287,21 @@ class Engine(object):
                         break
                     last_exit_check = loop_count
                 
-                # 动态调整 sleep 时间，根据负载情况
+                # 动态调整等待时间，根据负载情况
                 if requests:
-                    # 有请求处理，极短休息
+                    # 有请求处理，极短休息（让出事件循环）
                     await asyncio.sleep(0.000001)
-                elif idle_count > 10:
-                    # 连续空闲，增加休息时间
-                    await asyncio.sleep(0.01)
                 else:
-                    # 短暂休息
-                    await asyncio.sleep(0.001)
+                    # 空闲时：使用事件等待，超时后检查退出条件
+                    try:
+                        timeout = 0.5 if idle_count > 10 else 0.1
+                        await asyncio.wait_for(
+                            self._request_available.wait(),
+                            timeout=timeout
+                        )
+                        self._request_available.clear()
+                    except asyncio.TimeoutError:
+                        pass
             
             self.logger.debug(f"主爬取循环结束，总共执行了 {loop_count} 次")
         
@@ -349,211 +319,28 @@ class Engine(object):
             except asyncio.CancelledError:
                 self.logger.debug("close_spider cancelled")
 
-    async def _traditional_request_generation(self):
-        """流式请求生成方法（支持 sync/async 生成器，不物化）"""
-        self.logger.debug("开始流式请求生成")
-        processed_count = 0
-        try:
-            while self.running and self._start_requests_source is not None:
-                try:
-                    if self._start_requests_is_async:
-                        start_request = await self._start_requests_source.__anext__()
-                    else:
-                        start_request = next(self._start_requests_source)
-                    # 请求入队
-                    await self.enqueue_request(start_request)
-                    processed_count += 1
-                except (StopIteration, StopAsyncIteration):
-                    self.logger.debug(f"所有起始请求处理完成，共 {processed_count} 个")
-                    break
-                except Exception as exp:
-                    self.logger.error(f"处理请求时发生异常: {exp}")
-                    import traceback
-                    self.logger.error(traceback.format_exc())
-                    if not await self._exit():
-                        continue
-                    self.running = False
-                    if self._start_requests_source is not None:
-                        self.logger.error(f"Error occurred while starting request: {str(exp)}")
-                # 短暂让出控制权
-                await asyncio.sleep(0.00001)
-        finally:
-            # 确保异步生成器被正确关闭，避免资源泄露
-            if self._start_requests_is_async and self._start_requests_source is not None:
-                try:
-                    await self._start_requests_source.aclose()
-                except Exception:
-                    pass
-            self._start_requests_source = None
-        self.logger.debug(f"流式请求生成完成，总共处理了 {processed_count} 个请求")
-
-    async def _controlled_request_generation(self):
-        """受控流式请求生成（支持 sync/async 生成器，背压控制生效）"""
-        self.logger.debug("开始受控流式请求生成")
-
-        if self._start_requests_source is None:
-            return
-
-        batch = []
-        total_generated = 0
-
-        try:
-            if self._start_requests_is_async:
-                async for request in self._start_requests_source:
-                    batch.append(request)
-                    if len(batch) >= self.generation_batch_size:
-                        generated = await self._process_generation_batch(batch)
-                        total_generated += generated
-                        batch = []
-                    if await self._should_pause_generation():
-                        await self._wait_for_capacity()
-            else:
-                for request in self._start_requests_source:
-                    batch.append(request)
-                    if len(batch) >= self.generation_batch_size:
-                        generated = await self._process_generation_batch(batch)
-                        total_generated += generated
-                        batch = []
-                    if await self._should_pause_generation():
-                        await self._wait_for_capacity()
-
-            # 处理剩余请求
-            if batch:
-                generated = await self._process_generation_batch(batch)
-                total_generated += generated
-
-        except Exception as e:
-            self.logger.error(f"受控请求生成失败: {e}")
-
-        finally:
-            # 确保异步生成器被正确关闭，避免资源泄露
-            if self._start_requests_is_async and self._start_requests_source is not None:
-                try:
-                    await self._start_requests_source.aclose()
-                except Exception:
-                    pass
-            self._start_requests_source = None
-            self.logger.debug(f"受控请求生成完成，总计: {total_generated}")
-
-    async def _process_generation_batch(self, batch) -> int:
-        """
-        处理一批请求
-               
-        优化点：
-        - 使用 asyncio.gather 并发入队，减少串行等待
-        - 动态调整生成间隔，避免过度限流
-        - 添加批量统计信息
-        """
-        generated = 0
-        
-        # 优化：如果队列有足够空间，批量并发入队
-        queue_size = len(self.scheduler) if self.scheduler else 0
-        available_space = self.max_queue_size - queue_size
-        
-        if available_space >= len(batch):
-            # 队列有足够空间，并发入队
-            tasks = []
-            for request in batch:
-                if not self.running:
-                    break
-                tasks.append(self._enqueue_single_request(request))
-            
-            if tasks:
-                results = await asyncio.gather(*tasks, return_exceptions=True)
-                for result in results:
-                    if isinstance(result, bool) and result:
-                        generated += 1
-                        self._generation_stats.increment_generated()
-        else:
-            # 队列空间不足，逐个入队并等待
-            for request in batch:
-                if not self.running:
-                    break
-                
-                # 等待队列有空间
-                wait_count = 0
-                while await self._is_queue_full() and self.running:
-                    await asyncio.sleep(0.005)  # 减少等待间隔
-                    wait_count += 1
-                    if wait_count > 200:  # 最多等待1秒
-                        self.logger.warning("Queue full timeout, skipping remaining requests")
-                        break
-                
-                if self.running:
-                    success = await self._enqueue_single_request(request)
-                    if success:
-                        generated += 1
-                        self._generation_stats.increment_generated()
-                
-                # 动态调整生成间隔：根据队列使用率调整
-                if self.generation_interval > 0:
-                    queue_usage = queue_size / max(1, self.max_queue_size)
-                    # 队列使用率高时增加间隔，低时减少间隔
-                    adaptive_interval = self.generation_interval * (0.5 + queue_usage)
-                    await asyncio.sleep(adaptive_interval)
-        
-        return generated
-    
-    async def _enqueue_single_request(self, request) -> bool:
-        """
-        单个请求入队
-        
-        Returns:
-            bool: 是否成功入队
-        """
-        try:
-            await self.enqueue_request(request)
-            return True
-        except Exception as e:
-            self.logger.debug(f"Failed to enqueue request {request.url}: {e}")
-            return False
-
-    async def _should_pause_generation(self) -> bool:
-        """Determine whether generation should be paused"""
-        # 使用背压控制器检查
-        return self._backpressure_ctrl.should_pause(
-            self.scheduler, 
-            self.task_manager
-        )
-
-    async def _is_queue_full(self) -> bool:
-        """Check if queue is full"""
-        return self._backpressure_ctrl.is_queue_full(self.scheduler)
-
-    async def _wait_for_capacity(self):
-        """Wait for system to have sufficient capacity"""
-        self._generation_stats.increment_backpressure()
-        self.logger.debug("Backpressure triggered, pausing request generation")
-        
-        wait_time = 0.01  # 减少初始等待时间
-        max_wait = 1.0  # 减少最大等待时间
-        
-        while await self._should_pause_generation() and self.running:
-            await asyncio.sleep(wait_time)
-            wait_time = min(wait_time * 1.1, max_wait)
-
     async def _open_spider(self):
-        asyncio.create_task(self.crawler.subscriber.notify(CrawlerEvent.SPIDER_OPENED))
+        self._create_background_task(self.crawler.subscriber.notify(CrawlerEvent.SPIDER_OPENED))
         # 直接调用crawl方法而不是创建任务，确保等待完成
         await self.crawl()
 
     async def _crawl(self, request):
         async def crawl_task():
             start_time = time.time()
-            # 记录请求标记（flags）用于调试追踪
-            if getattr(request, 'flags', None):
-                self.logger.debug(
-                    f"Processing request with flags: {request.flags} -> {request.url}"
-                )
             try:
                 outputs = await self._fetch(request)
-                # 记录响应时间
                 response_time = time.time() - start_time
                 if self.task_manager:
                     self.task_manager.record_response_time(response_time)
+                # 精简每请求日志：仅 URL + 页面类型 + 耗时
+                depth = getattr(request, 'meta', {}).get('depth', 0)
+                page_type = '详情' if isinstance(depth, int) and depth > 1 else '列表'
+                self.logger.debug(
+                    f"[{page_type}] {request.url} ({response_time:.2f}s)"
+                )
                 
                 if outputs:
-                    await self._handle_spider_output(outputs)
+                    await self._handle_spider_output(outputs, request)
                 
                 # 由于我们不再使用处理队列，不再需要确认任务完成
                 # 任务在从主队列取出时就已经被认为是完成的
@@ -581,7 +368,7 @@ class Engine(object):
                     try:
                         errback_result = await common_call(errback, Failure(e, request=request))
                         if errback_result is not None:
-                            await self._handle_errback_output(errback_result)
+                            await self._handle_errback_output(errback_result, request)
                     except Exception as errback_error:
                         self.logger.error(
                             f"errback 执行失败 [{getattr(request, 'url', 'Unknown URL')}]: "
@@ -601,7 +388,11 @@ class Engine(object):
         if self.task_manager:
             coro = crawl_task()
             try:
-                await self.task_manager.create_task(coro)
+                # 创建后台任务但不等待完成（fire-and-forget），
+                # 让多个浏览器请求真正并发执行。
+                # task_manager 的信号量控制并发上限，
+                # done_callback 负责释放信号量。
+                await self.task_manager.create_task_nowait(coro)
             except asyncio.CancelledError:
                 # 只在第一次取消时打印日志，避免重复
                 if not getattr(self, '_cancel_logged', False):
@@ -617,113 +408,75 @@ class Engine(object):
                 coro.close()
 
     async def _fetch(self, request):
-        async def _successful(_response):
-            if self.spider is None:
-                return None
-            callback: Callable = request.callback or self.spider.parse
-            _outputs = callback(_response, **request.cb_kwargs)
-            
-            if _outputs is None:
-                return None
-            
-            # 异步生成器（async def + yield） - 最常见且正确的用法
-            if isasyncgen(_outputs):
-                return transform(_outputs, _response)
-            
-            # 同步生成器（def + yield）
-            if isgenerator(_outputs):
-                return transform(_outputs, _response)
-            
-            # 协程（async def 不使用 yield） - await 获取结果后再判断
-            if iscoroutine(_outputs):
-                result = await _outputs
-                if result is None:
-                    return None
-                # await 后的结果可能是生成器或单个值
-                if isasyncgen(result):
-                    return transform(result, _response)
-                if isgenerator(result):
-                    return transform(result, _response)
-                # 单个 Request/Item 返回值，包装为异步生成器
-                if isinstance(result, (Request, Item)):
-                    async def _single_output():
-                        yield result
-                    return transform(_single_output(), _response)
-                # 列表/元组返回值
-                if isinstance(result, (list, tuple)):
-                    async def _list_output():
-                        for item in result:
-                            if isinstance(item, (Request, Item)):
-                                yield item
-                    return transform(_list_output(), _response)
-                # 其他类型结果，记录警告
-                self.logger.warning(
-                    f"Callback {callback.__name__} returned unexpected type "
-                    f"{type(result).__name__} from coroutine. "
-                    f"Use 'yield' instead of 'return' for producing output."
-                )
-                return None
-            
-            # 同步函数返回单个 Request/Item（非生成器）
-            if isinstance(_outputs, (Request, Item)):
-                async def _sync_single_output():
-                    yield _outputs
-                return transform(_sync_single_output(), _response)
-            
-            # 同步函数返回列表/元组
-            if isinstance(_outputs, (list, tuple)):
-                async def _sync_list_output():
-                    for item in _outputs:
-                        if isinstance(item, (Request, Item)):
-                            yield item
-                return transform(_sync_list_output(), _response)
-            
-            # 其他未知类型，记录警告
-            self.logger.warning(
-                f"Callback {callback.__name__} returned unexpected type "
-                f"{type(_outputs).__name__}. Expected generator, async generator, "
-                f"Request, Item, or list/tuple of them."
-            )
-            return None
-
         if self.downloader is None:
             return None
         _response = await self.downloader.fetch(request)
         if _response is None:
             return None
-        output = await _successful(_response)
+        output = await process_callback_output(
+            self.spider,
+            request.callback or self.spider.parse,
+            request.cb_kwargs,
+            _response,
+            self.logger
+        )
         return output
 
     async def enqueue_request(self, start_request):
         if self.scheduler is not None:
             await self._schedule_request(start_request)
+        else:
+            self.logger.warning("⚠️ Scheduler 未初始化，无法入队请求")
 
     async def _schedule_request(self, request):
         if self.scheduler is not None and await self.scheduler.enqueue_request(request):
+            self._request_available.set()  # 唤醒主循环
             if self.crawler is not None and self.crawler.spider is not None:
-                asyncio.create_task(self.crawler.subscriber.notify(CrawlerEvent.REQUEST_SCHEDULED, request, self.crawler.spider))
+                self._create_background_task(self.crawler.subscriber.notify(CrawlerEvent.REQUEST_SCHEDULED, request, self.crawler.spider))
 
     async def _get_next_request(self):
         if self.scheduler is not None:
             return await self.scheduler.next_request()
         return None
 
-    async def _handle_spider_output(self, outputs):
+    async def _handle_spider_output(self, outputs, parent_request=None):
+        """处理 spider 回调输出，自动为子 Request 传播 depth
+        
+        框架级 depth 传播机制：
+        - 从 parent_request 获取当前 depth（默认 0）
+        - 子 Request 的 depth 自动设为 parent_depth + 1
+        - 配合 DEPTH_PRIORITY 配置，实现广度优先或深度优先策略
+        
+        Args:
+            outputs: spider 回调的输出（异步生成器）
+            parent_request: 产生此输出的原始请求（用于获取 depth）
+        """
+        # 获取父请求的 depth
+        parent_depth = 0
+        if parent_request is not None and hasattr(parent_request, 'meta'):
+            parent_depth = parent_request.meta.get('depth', 0)
+        
         if self.processor is None:
             return
         async for spider_output in outputs:
-            if isinstance(spider_output, (Request, Item)):
+            if isinstance(spider_output, Request):
+                # 框架级 depth 传播：子请求 depth = 父请求 depth + 1
+                # 仅在子请求未手动设置 depth 时自动注入
+                if 'depth' not in spider_output.meta:
+                    spider_output.meta['depth'] = parent_depth + 1
+                await self.processor.enqueue(spider_output)
+            elif isinstance(spider_output, Item):
                 await self.processor.enqueue(spider_output)
             elif isinstance(spider_output, Exception):
                 if self.crawler is not None and self.spider is not None:
-                    asyncio.create_task(
+                    self._create_background_task(
                         self.crawler.subscriber.notify(CrawlerEvent.SPIDER_ERROR, spider_output, self.spider)
                     )
                 raise spider_output
             else:
                 raise OutputError(f'{type(self.spider)} must return `Request` or `Item`.')
 
-    async def _handle_errback_output(self, result):
+    async def _handle_errback_output(self, result, parent_request=None):
         """
         处理 errback 的返回值，包装后委托给 _handle_spider_output。
 
@@ -737,36 +490,41 @@ class Engine(object):
         if isinstance(result, (Request, Item)):
             async def _gen():
                 yield result
-            await self._handle_spider_output(_gen())
+            await self._handle_spider_output(_gen(), parent_request)
         elif isinstance(result, (list, tuple)):
             async def _gen():
                 for item in result:
                     if isinstance(item, (Request, Item)):
                         yield item
-            await self._handle_spider_output(_gen())
+            await self._handle_spider_output(_gen(), parent_request)
         elif isasyncgen(result):
-            await self._handle_spider_output(result)
+            await self._handle_spider_output(result, parent_request)
         elif isgenerator(result):
             async def _wrap_sync_gen():
                 for item in result:
                     if isinstance(item, (Request, Item)):
                         yield item
-            await self._handle_spider_output(_wrap_sync_gen())
+            await self._handle_spider_output(_wrap_sync_gen(), parent_request)
         elif iscoroutine(result):
             awaited = await result
             if awaited is not None:
-                await self._handle_errback_output(awaited)
+                await self._handle_errback_output(awaited, parent_request)
         else:
             self.logger.warning(
                 f"errback returned unexpected type {type(result).__name__}, ignored"
             )
 
-    async def _exit(self):
-        # 使用异步 idle 检查，避免非原子状态检查的竞态条件
+    async def _check_components_idle(self, include_background: bool = False) -> tuple[bool, bool, bool, bool, bool]:
+        """统一检查各组件是否空闲（消除 _exit / _should_exit 代码重复）
+        
+        Returns:
+            (scheduler_idle, downloader_idle, task_manager_done, processor_idle, background_tasks_done)
+        """
         scheduler_idle = False
         downloader_idle = False
         task_manager_done = False
         processor_idle = False
+        background_tasks_done = False
         
         if self.scheduler is not None:
             scheduler_idle = await self.scheduler.async_idle() if hasattr(self.scheduler, 'async_idle') else self.scheduler.idle()
@@ -776,23 +534,22 @@ class Engine(object):
             task_manager_done = self.task_manager.all_done()
         if self.processor is not None:
             processor_idle = await self.processor.idle_async()
+        if include_background:
+            background_tasks_done = len(self._background_tasks) == 0
         
-        if (scheduler_idle and downloader_idle and task_manager_done and processor_idle):
-            return True
-        return False
-    
+        return scheduler_idle, downloader_idle, task_manager_done, processor_idle, background_tasks_done
+
+    async def _exit(self):
+        """快速退出检查（4 组件，不含 background_tasks）"""
+        s, d, t, p, _ = await self._check_components_idle(include_background=False)
+        return s and d and t and p
+
     async def _check_all_idle(self) -> bool:
-        """二次确认所有组件是否仍然空闲
-        
-        用于在退出前添加短暂等待后再次确认，避免瞬时空闲误判。
-        
-        Returns:
-            bool: 所有组件是否都空闲
-        """
+        """二次确认所有组件是否仍然空闲（用于瞬时空闲误判）"""
         return await self._exit()
 
     async def _should_exit(self, last_component_states=None) -> tuple[bool, tuple]:
-        """检查是否应该退出
+        """检查是否应该退出（5 组件 + start_requests 判断）
         
         Args:
             last_component_states: 上次的组件状态元组，用于减少冗余日志
@@ -800,38 +557,18 @@ class Engine(object):
         Returns:
             tuple: (should_exit, current_states)
         """
-        # 没有启动请求，且所有队列都空闲
         if self._start_requests_source is None:
-            # 使用异步的idle检查方法以获得更精确的结果
-            scheduler_idle = False
-            downloader_idle = False
-            task_manager_done = False
-            processor_idle = False
+            s, d, t, p, bg = await self._check_components_idle(include_background=True)
+            current_states = (s, d, t, p, bg)
             
-            if self.scheduler is not None:
-                scheduler_idle = await self.scheduler.async_idle() if hasattr(self.scheduler, 'async_idle') else self.scheduler.idle()
-            if self.downloader is not None:
-                downloader_idle = self.downloader.idle()
-            if self.task_manager is not None:
-                task_manager_done = self.task_manager.all_done()
-            if self.processor is not None:
-                processor_idle = await self.processor.idle_async()
-            
-            current_states = (scheduler_idle, downloader_idle, task_manager_done, processor_idle)
-            
-            # 只在组件状态发生变化时输出日志
             if current_states != last_component_states:
                 self.logger.debug(
-                    f"组件状态变化 - Scheduler: {scheduler_idle}, "
-                    f"Downloader: {downloader_idle}, "
-                    f"TaskManager: {task_manager_done}, "
-                    f"Processor: {processor_idle}"
+                    f"组件状态变化 - Scheduler: {s}, "
+                    f"Downloader: {d}, TaskManager: {t}, "
+                    f"Processor: {p}, BackgroundTasks: {bg}"
                 )
             
-            if (scheduler_idle and 
-                downloader_idle and 
-                task_manager_done and 
-                processor_idle):
+            if s and d and t and p and bg:
                 self.logger.info("All components are idle, preparing to exit")
                 return True, current_states
         else:
@@ -848,48 +585,89 @@ class Engine(object):
         self._spider_closed = True
         self._close_reason = reason
 
-        # 仅在非正常退出时等待活跃任务完成
-        if reason != 'finished' and self.task_manager is not None and self.task_manager.current_task:
-            self.logger.debug(f"Waiting for {len(self.task_manager.current_task)} active tasks to complete...")
-            try:
-                await asyncio.gather(*self.task_manager.current_task, return_exceptions=True)
-            except asyncio.CancelledError:
-                self.logger.debug("Task manager gather cancelled")
-            except Exception as e:
-                self.logger.debug(f"Task manager gather completed with errors: {e}")
-        
-        # 检查点保存：Ctrl+C 触发的关闭时保存状态
-        if reason == 'shutdown':
-            await self._save_checkpoint()
-        
-        # 正常完成时清除检查点
-        if reason == 'finished':
-            await self._clear_checkpoint()
-        
-        # 关闭 pipeline（刷新批量数据、清理资源）
-        if self.processor is not None and hasattr(self.processor, 'pipelines'):
-            await self.processor.pipelines.close()
-        
-        # 关闭下载器（带超时保护）
-        if self.downloader is not None and hasattr(self.downloader, 'close'):
-            try:
-                close_result = self.downloader.close()
-                # 如果是协程，使用超时等待
-                if asyncio.iscoroutine(close_result):
-                    await asyncio.wait_for(close_result, timeout=5.0)
-            except asyncio.TimeoutError:
-                self.logger.warning("下载器关闭超时，强制清理资源")
-            except Exception as e:
-                self.logger.debug(f"下载器关闭时发生错误: {e}")
-        
-        # 关闭调度器
-        if self.scheduler is not None:
-            try:
-                await asyncio.wait_for(self.scheduler.close(), timeout=5.0)
-            except asyncio.TimeoutError:
-                self.logger.warning("调度器关闭超时")
-            except Exception as e:
-                self.logger.debug(f"调度器关闭时发生错误: {e}")
+        try:
+            # 仅在非正常退出时等待活跃任务完成
+            if reason != 'finished' and self.task_manager is not None and self.task_manager.current_task:
+                self.logger.debug(f"Waiting for {len(self.task_manager.current_task)} active tasks to complete...")
+                try:
+                    await asyncio.gather(*self.task_manager.current_task, return_exceptions=True)
+                except asyncio.CancelledError:
+                    self.logger.debug("Task manager gather cancelled")
+                except Exception as e:
+                    self.logger.debug(f"Task manager gather completed with errors: {e}")
+            
+            # 检查点保存：Ctrl+C 触发的关闭时保存状态
+            if reason == 'shutdown':
+                await self._save_checkpoint()
+            
+            # 正常完成时清除检查点
+            if reason == 'finished':
+                await self._clear_checkpoint()
+            
+            # 关闭 pipeline（刷新批量数据、清理资源）
+            if self.processor is not None and hasattr(self.processor, 'pipelines'):
+                await self.processor.pipelines.close()
+            
+            # 清理过期日志文件（默认 3 天）
+            await self._cleanup_old_logs()
+            
+            # 关闭下载器（带超时保护，超时后取消内部协程防止资源泄漏）
+            if self.downloader is not None and hasattr(self.downloader, 'close'):
+                try:
+                    close_result = self.downloader.close()
+                    # 如果是协程，使用超时等待
+                    if asyncio.iscoroutine(close_result):
+                        close_task = asyncio.ensure_future(close_result)
+                        try:
+                            async with asyncio.timeout(5.0):
+                                await close_task
+                        except asyncio.TimeoutError:
+                            close_task.cancel()
+                            try:
+                                await close_task
+                            except asyncio.CancelledError:
+                                pass
+                            raise  # 重新抛给外层 except 处理
+                except asyncio.TimeoutError:
+                    self.logger.warning("下载器关闭超时，强制清理资源")
+                except Exception as e:
+                    self.logger.debug(f"下载器关闭时发生错误: {e}")
+            
+            # 关闭调度器（带超时保护，超时后取消内部协程防止资源泄漏）
+            if self.scheduler is not None:
+                try:
+                    close_task = asyncio.ensure_future(self.scheduler.close())
+                    try:
+                        async with asyncio.timeout(5.0):
+                            await close_task
+                    except asyncio.TimeoutError:
+                        close_task.cancel()
+                        try:
+                            await close_task
+                        except asyncio.CancelledError:
+                            pass
+                        raise  # 重新抛给外层 except 处理
+                except asyncio.TimeoutError:
+                    self.logger.warning("调度器关闭超时")
+                except Exception as e:
+                    self.logger.debug(f"调度器关闭时发生错误: {e}")
+        except Exception:
+            # 清理失败，重置标志允许重试
+            self._spider_closed = False
+            raise
+    
+    async def _cleanup_old_logs(self):
+        """清理过期日志文件"""
+        try:
+            from crawlo.logging import LogManager
+            
+            log_manager = LogManager()
+            deleted = log_manager.cleanup_old_logs(days=self.days)
+            
+            if deleted > 0:
+                self.logger.info(f"Cleaned up {deleted} expired log files (>{self.days} days)")
+        except Exception as e:
+            self.logger.error(f"Failed to clean up expired log files: {e}")
     
     async def _try_resume_from_checkpoint(self, spider) -> bool:
         """尝试从检查点恢复爬取状态
@@ -901,8 +679,7 @@ class Engine(object):
             bool: 是否成功从检查点恢复
         """
         try:
-            from crawlo.checkpoint import CheckpointManager
-            
+            # CheckpointManager 已在顶部导入
             checkpoint_mgr = CheckpointManager(spider.name, self.settings)
             if not checkpoint_mgr.enabled or not await checkpoint_mgr.has_checkpoint():
                 return False
@@ -946,8 +723,7 @@ class Engine(object):
     async def _save_checkpoint(self):
         """保存检查点"""
         try:
-            from crawlo.checkpoint import CheckpointManager
-            
+            # CheckpointManager 已在顶部导入
             spider_name = self.spider.name if self.spider else 'unknown'
             checkpoint_mgr = CheckpointManager(spider_name, self.settings)
             
@@ -967,8 +743,7 @@ class Engine(object):
     async def _clear_checkpoint(self):
         """清除检查点"""
         try:
-            from crawlo.checkpoint import CheckpointManager
-            
+            # CheckpointManager 已在顶部导入
             spider_name = self.spider.name if self.spider else 'unknown'
             checkpoint_mgr = CheckpointManager(spider_name, self.settings)
             

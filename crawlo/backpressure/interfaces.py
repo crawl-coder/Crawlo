@@ -1,13 +1,12 @@
 #!/usr/bin/python
 # -*- coding: UTF-8 -*-
-"""
-背压策略接口定义
+"""Backpressure strategy interface definitions
 
-提供统一的背压策略接口和抽象基类。
+Provides unified backpressure strategy interfaces and abstract base classes.
 """
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import Optional, TYPE_CHECKING
+from typing import Optional, TYPE_CHECKING, Dict, Any
 from enum import Enum
 
 if TYPE_CHECKING:
@@ -16,118 +15,118 @@ if TYPE_CHECKING:
 
 class PressureLevel(Enum):
     """
-    背压级别枚举
+    Backpressure level enumeration
     
-    表示系统负载的严重程度。
+    Represents the severity of system load.
     """
-    NORMAL = "normal"       # 正常负载
-    WARNING = "warning"     # 警告级别
-    CRITICAL = "critical"  # 危险级别
-    FULL = "full"          # 队列已满
+    NORMAL = "normal"       # Normal load
+    WARNING = "warning"     # Warning level
+    CRITICAL = "critical"  # Critical level
+    FULL = "full"          # Queue is full
 
 
 @dataclass
 class BackpressureMetrics:
     """
-    背压指标数据类
+    Backpressure metrics data class
     
-    用于收集和传递背压相关的指标数据。
+    Used to collect and pass backpressure-related metric data.
     """
-    queue_size: int = 0              # 当前队列大小
-    max_queue_size: int = 0          # 最大队列大小
-    utilization: float = 0.0          # 使用率 (0-1)
-    active: bool = False             # 是否正在应用背压
-    level: PressureLevel = PressureLevel.NORMAL  # 当前级别
-    delay: float = 0.0               # 计算的延迟（秒）
-    timestamp: float = 0.0           # 时间戳
+    queue_size: int = 0              # Current queue size
+    max_queue_size: int = 0          # Maximum queue size
+    utilization: float = 0.0          # Utilization ratio (0-1)
+    active: bool = False             # Whether backpressure is currently applied
+    level: PressureLevel = PressureLevel.NORMAL  # Current level
+    delay: float = 0.0               # Calculated delay in seconds
+    timestamp: float = 0.0           # Timestamp
     
     @property
     def utilization_percent(self) -> float:
-        """获取使用率百分比"""
+        """Get utilization percentage"""
         return self.utilization * 100
     
     @property
     def is_critical(self) -> bool:
-        """是否处于危险级别"""
+        """Whether at critical level"""
         return self.level in (PressureLevel.CRITICAL, PressureLevel.FULL)
 
 
 class IBackpressureStrategy(ABC):
     """
-    背压策略接口
+    Backpressure strategy interface
     
-    所有背压策略必须实现此接口。
+    All backpressure strategies must implement this interface.
     """
     
     @property
     @abstractmethod
     def name(self) -> str:
-        """获取策略名称"""
+        """Get strategy name"""
         pass
     
     @abstractmethod
     async def should_apply(self, queue: 'IQueue') -> bool:
         """
-        判断是否应该应用背压
+        Determine whether backpressure should be applied
         
         Args:
-            queue: 队列实例
+            queue: Queue instance
             
         Returns:
-            bool: 是否应该应用背压
+            bool: Whether backpressure should be applied
         """
         pass
     
     @abstractmethod
     async def calculate_delay(self, queue: 'IQueue') -> float:
         """
-        计算背压延迟
+        Calculate backpressure delay
         
         Args:
-            queue: 队列实例
+            queue: Queue instance
             
         Returns:
-            float: 延迟时间（秒）
+            float: Delay time in seconds
         """
         pass
     
     @abstractmethod
     async def get_level(self, queue: 'IQueue') -> PressureLevel:
         """
-        获取当前背压级别
+        Get current backpressure level
         
         Args:
-            queue: 队列实例
+            queue: Queue instance
             
         Returns:
-            PressureLevel: 当前级别
+            PressureLevel: Current level
         """
         pass
     
     @abstractmethod
     async def get_metrics(self, queue: 'IQueue') -> BackpressureMetrics:
         """
-        获取背压指标
+        Get backpressure metrics
         
         Args:
-            queue: 队列实例
+            queue: Queue instance
             
         Returns:
-            BackpressureMetrics: 指标数据
+            BackpressureMetrics: Metric data
         """
         pass
     
     @abstractmethod
     def reset(self) -> None:
-        """重置策略状态"""
+        """Reset strategy state"""
         pass
 
 
 class BackpressureStrategyConfig:
     """
-    背压策略配置
+    Backpressure strategy configuration
     
-    用于配置各种背压策略的参数。
+    Used to configure parameters for various backpressure strategies.
     """
     
     def __init__(
@@ -137,35 +136,31 @@ class BackpressureStrategyConfig:
         critical_threshold: float = 0.9,
         base_delay: float = 0.1,
         max_delay: float = 5.0,
-        check_interval: float = 0.1,
     ):
         """
-        初始化配置
+        Initialize configuration
         
         Args:
-            threshold: 背压触发阈值 (0-1)
-            warning_threshold: 警告级别阈值
-            critical_threshold: 危险级别阈值
-            base_delay: 基础延迟（秒）
-            max_delay: 最大延迟（秒）
-            check_interval: 检查间隔（秒）
+            threshold: Backpressure trigger threshold (0-1)
+            warning_threshold: Warning level threshold
+            critical_threshold: Critical level threshold
+            base_delay: Base delay in seconds
+            max_delay: Maximum delay in seconds
         """
         self.threshold = threshold
         self.warning_threshold = warning_threshold
         self.critical_threshold = critical_threshold
         self.base_delay = base_delay
         self.max_delay = max_delay
-        self.check_interval = check_interval
     
-    def to_dict(self) -> dict:
-        """转换为字典"""
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert to dictionary"""
         return {
             'threshold': self.threshold,
             'warning_threshold': self.warning_threshold,
             'critical_threshold': self.critical_threshold,
             'base_delay': self.base_delay,
             'max_delay': self.max_delay,
-            'check_interval': self.check_interval,
         }
 
 

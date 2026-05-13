@@ -22,6 +22,7 @@ from contextlib import asynccontextmanager
 from crawlo.utils.db.mysql_connection_pool import MySQLConnectionPoolManager
 from crawlo.utils.db.sql_builder import SQLBuilder
 from crawlo.logging import get_logger
+from crawlo.settings.setting_manager import SettingManager
 import asyncio
 import warnings
 
@@ -32,8 +33,6 @@ class MySQLHelper:
     
     与 Crawlo 框架深度集成，连接池由 MySQLConnectionPoolManager 统一管理复用。
     """
-    
-    _lock = asyncio.Lock()
     
     def __init__(self, settings: Optional[Dict] = None):
         """
@@ -46,6 +45,7 @@ class MySQLHelper:
         self.logger = get_logger(self.__class__.__name__)
         self._pool = None
         self._sql_builder = SQLBuilder()
+        self._lock = None  # 实例级别的锁
     
     @classmethod
     async def get_instance(cls, settings=None) -> 'MySQLHelper':
@@ -55,6 +55,10 @@ class MySQLHelper:
     async def _get_pool(self):
         """懒加载连接池"""
         if self._pool is None:
+            # 初始化实例级别的锁
+            if self._lock is None:
+                self._lock = asyncio.Lock()
+            
             # 使用 MySQLConnectionPoolManager.get_pool() 获取连接池
             self._pool = await MySQLConnectionPoolManager.get_pool(
                 host=self.settings.get('MYSQL_HOST', 'localhost') if self.settings else 'localhost',
@@ -517,7 +521,7 @@ def get_mysql_helper(settings=None, spider=None) -> MySQLHelper:
             # 如果 spider 有 crawler.settings 或 custom_settings，合并配置
             if crawler_settings and hasattr(crawler_settings, 'settings'):
                 if settings is None:
-                    from crawlo.settings.setting_manager import SettingManager
+                    # SettingManager 已在顶部导入
                     settings = SettingManager()
                 
                 # 复制 crawler settings 作为基础配置
@@ -529,7 +533,7 @@ def get_mysql_helper(settings=None, spider=None) -> MySQLHelper:
             # 如果有 custom_settings，覆盖配置
             if custom_settings:
                 if settings is None:
-                    from crawlo.settings.setting_manager import SettingManager
+                    # SettingManager 已在顶部导入
                     settings = SettingManager()
                 for key, value in custom_settings.items():
                     settings.set(key, value)

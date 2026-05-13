@@ -1,40 +1,40 @@
 #!/usr/bin/python
 # -*- coding: UTF-8 -*-
 """
-初始化器注册表 - 管理所有初始化器的注册和执行
+Initializer Registry - Manage registration and execution of all initializers
 """
 
 import threading
-from typing import Dict, Optional, Callable, List
+from typing import Dict, Optional, Callable, List, Any
 from .context import InitializationContext
 from .phases import InitializationPhase, PhaseResult
 
 
 class Initializer:
-    """初始化器基类"""
+    """Initializer base class"""
     
     def __init__(self, phase: InitializationPhase):
         self._phase = phase
     
     @property
     def phase(self) -> InitializationPhase:
-        """获取初始化阶段"""
+        """Get initialization phase"""
         return self._phase
     
     def initialize(self, context: InitializationContext) -> PhaseResult:
-        """执行初始化 - 子类必须实现"""
+        """Execute initialization - subclasses must implement"""
         raise NotImplementedError("Subclasses must implement initialize method")
 
 
 class BaseInitializer(Initializer):
-    """基础初始化器类 - 为向后兼容保留"""
+    """Base initializer class - retained for backward compatibility"""
     
     def __init__(self, phase: InitializationPhase):
         super().__init__(phase)
     
     def _create_result(self, success: bool, duration: float = 0.0, 
-                      artifacts: Optional[Dict] = None, error: Optional[Exception] = None) -> PhaseResult:
-        """创建初始化结果"""
+                      artifacts: Optional[Dict[str, Any]] = None, error: Optional[Exception] = None) -> PhaseResult:
+        """Create initialization result"""
         from .utils import create_initialization_result
         return create_initialization_result(
             phase=self.phase,
@@ -47,12 +47,12 @@ class BaseInitializer(Initializer):
 
 class InitializerRegistry:
     """
-    初始化器注册表 - 管理所有初始化器的注册和执行
+    Initializer Registry - Manage registration and execution of all initializers
     
-    特点：
-    1. 线程安全的注册和执行
-    2. 支持函数式和类式初始化器
-    3. 统一的结果处理
+    Features:
+    1. Thread-safe registration and execution
+    2. Support for function-based and class-based initializers
+    3. Unified result handling
     """
     
     def __init__(self):
@@ -60,7 +60,7 @@ class InitializerRegistry:
         self._lock = threading.RLock()
     
     def register(self, initializer: Initializer):
-        """注册初始化器"""
+        """Register initializer"""
         with self._lock:
             phase = initializer.phase
             if phase in self._initializers:
@@ -69,12 +69,11 @@ class InitializerRegistry:
     
     def register_function(self, phase: InitializationPhase, 
                          init_func: Callable[[InitializationContext], PhaseResult]):
-        """注册函数式初始化器"""
+        """Register function-based initializer"""
         
         class FunctionInitializer(Initializer):
             def __init__(self, phase: InitializationPhase, func: Callable):
                 super().__init__(phase)
-                self._phase = phase
                 self._func = func
             
             def initialize(self, context: InitializationContext) -> PhaseResult:
@@ -83,28 +82,28 @@ class InitializerRegistry:
         self.register(FunctionInitializer(phase, init_func))
     
     def get_initializer(self, phase: InitializationPhase) -> Optional[Initializer]:
-        """获取指定阶段的初始化器"""
+        """Get initializer for specified phase"""
         with self._lock:
             return self._initializers.get(phase)
     
     def get_all_phases(self) -> List[InitializationPhase]:
-        """获取所有已注册的阶段"""
+        """Get all registered phases"""
         with self._lock:
             return list(self._initializers.keys())
     
     def has_initializer(self, phase: InitializationPhase) -> bool:
-        """检查是否有指定阶段的初始化器"""
+        """Check if initializer exists for specified phase"""
         with self._lock:
             return phase in self._initializers
     
     def clear(self):
-        """清空注册表"""
+        """Clear registry"""
         with self._lock:
             self._initializers.clear()
     
     def execute_phase(self, phase: InitializationPhase, 
                      context: InitializationContext) -> PhaseResult:
-        """执行指定阶段的初始化"""
+        """Execute initialization for specified phase"""
         initializer = self.get_initializer(phase)
         if not initializer:
             error = ValueError(f"No initializer registered for phase {phase}")

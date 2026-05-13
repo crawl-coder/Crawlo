@@ -1,26 +1,26 @@
 #!/usr/bin/python
 # -*- coding: UTF-8 -*-
 """
-混合下载器
-=========
-智能选择合适的下载器处理不同类型的请求，支持协议请求和动态加载内容。
+Hybrid Downloader
+=================
+Intelligently selects appropriate downloader for different request types, supporting protocol requests and dynamic content.
 
-支持的场景:
-1. 列表页、详情页都要动态加载
-2. 列表页使用协议请求、详情页使用动态加载
-3. 列表页使用动态加载，详情页使用协议请求
+Supported scenarios:
+1. Both list and detail pages require dynamic loading
+2. List page uses protocol requests, detail page uses dynamic loading
+3. List page uses dynamic loading, detail page uses protocol requests
 
-功能特性:
-1. 智能检测内容类型并选择合适的下载器
-2. 支持基于URL模式的下载器选择
-3. 支持基于请求标记的下载器选择
-4. 统一的接口和响应格式
-5. 自动资源管理和优化
-6. 与 DynamicRenderMiddleware 分层协作
+Features:
+1. Intelligent content type detection and downloader selection
+2. URL pattern-based downloader selection
+3. Request marker-based downloader selection
+4. Unified interface and response format
+5. Automatic resource management and optimization
+6. Layered collaboration with DynamicRenderMiddleware
 
-协作模式:
-- DynamicRenderMiddleware（中间件层）：检测页面类型，设置请求标记
-- HybridDownloader（下载器层）：读取标记，选择合适的下载器执行
+Collaboration model:
+- DynamicRenderMiddleware (middleware layer): Detects page type, sets request markers
+- HybridDownloader (downloader layer): Reads markers, selects appropriate downloader
 """
 import importlib
 from typing import Optional, Dict, Type, List
@@ -35,20 +35,20 @@ from crawlo.logging import get_logger
 
 class HybridDownloader(DownloaderBase):
     """
-    混合下载器 - 根据请求特征智能选择合适的下载器
+    Hybrid Downloader - Intelligently selects appropriate downloader based on request characteristics
 
-    与 DynamicRenderMiddleware 分层协作：
-    - 中间件层检测页面类型，设置 use_dynamic_loader / use_protocol_loader 标记
-    - 下载器层读取标记，选择合适的下载器
+    Layered collaboration with DynamicRenderMiddleware:
+    - Middleware layer detects page type, sets use_dynamic_loader / use_protocol_loader markers
+    - Downloader layer reads markers, selects appropriate downloader
 
-    检测优先级：
-    1. 请求标记（中间件设置或用户显式指定）
-    2. URL 模式配置
-    3. 域名配置
-    4. 文件扩展名判断
-    5. 请求方法判断
-    6. URL 动态标识判断
-    7. 默认策略
+    Detection priority:
+    1. Request markers (set by middleware or user-specified)
+    2. URL pattern configuration
+    3. Domain configuration
+    4. File extension detection
+    5. Request method detection
+    6. URL dynamic identifier detection
+    7. Default strategy
     """
 
     def __init__(self, crawler):
@@ -70,11 +70,11 @@ class HybridDownloader(DownloaderBase):
             re.compile(p) for p in crawler.settings.get_list("HYBRID_PROTOCOL_URL_PATTERNS", [])
         ]
 
-        # 域名配置
+        # Domain configuration
         self.dynamic_domains = set(crawler.settings.get_list("HYBRID_DYNAMIC_DOMAINS", []))
         self.protocol_domains = set(crawler.settings.get_list("HYBRID_PROTOCOL_DOMAINS", []))
 
-        # 是否启用智能检测日志
+        # Enable smart detection logging
         self.verbose_logging = crawler.settings.get_bool("HYBRID_VERBOSE_LOGGING", False)
 
     def open(self):
@@ -84,21 +84,21 @@ class HybridDownloader(DownloaderBase):
         self._initialize_default_downloaders()
 
     def _initialize_default_downloaders(self):
-        """初始化默认下载器
+        """Initialize default downloaders
         
-        默认只初始化协议下载器，动态下载器按需懒加载。
-        这样可以避免不必要的 Playwright 初始化开销。
+        By default, only protocol downloader is initialized, dynamic downloader is lazy-loaded.
+        This avoids unnecessary Playwright initialization overhead.
         """
-        # 初始化协议下载器
+        # Initialize protocol downloader
         protocol_downloader_cls = self._get_downloader_class(self.default_protocol_downloader)
         if protocol_downloader_cls:
             self._downloaders["protocol"] = protocol_downloader_cls(self.crawler)
             self._downloaders["protocol"].open()
         
-        # 动态下载器不预先初始化，按需懒加载
-        # 只有当检测到需要动态渲染时，才在 _get_or_create_downloader 中初始化
+        # Dynamic downloader is not pre-initialized, lazy-loaded on demand
+        # Only initialized in _get_or_create_downloader when dynamic rendering is detected
         
-        # 打印汇总日志
+        # Print summary log
         protocol_downloader_name = self._downloaders["protocol"].__class__.__name__ if "protocol" in self._downloaders else "None"
         self.logger.info(
             f"enabled downloader: HybridDownloader (protocol: {protocol_downloader_name}, "
@@ -106,8 +106,8 @@ class HybridDownloader(DownloaderBase):
         )
 
     def _get_downloader_class(self, downloader_type: str) -> Optional[Type[DownloaderBase]]:
-        """根据类型获取下载器类 (延迟加载以避免循环导入和不必要的启动开销)"""
-        # 下载器映射配置：(模块相对路径, 类名)
+        """Get downloader class by type (lazy loading to avoid circular imports and unnecessary startup overhead)"""
+        # Downloader mapping configuration: (module relative path, class name)
         downloader_map = {
             "aiohttp": (".aiohttp_downloader", "AioHttpDownloader"),
             "httpx": (".httpx_downloader", "HttpXDownloader"),
@@ -115,6 +115,7 @@ class HybridDownloader(DownloaderBase):
             "drissionpage": (".drissionpage_downloader", "DrissionPageDownloader"),
             "playwright": (".playwright_downloader", "PlaywrightDownloader"),
             "camoufox": (".camoufox_downloader", "CamoufoxDownloader"),
+            "cloakbrowser": (".cloakbrowser_downloader", "CloakBrowserDownloader"),
         }
         
         target = downloader_type.lower()
@@ -124,7 +125,7 @@ class HybridDownloader(DownloaderBase):
         module_path, class_name = downloader_map[target]
         
         try:
-            # 动态导入模块，package 参数确保相对导入正确工作
+            # Dynamic import module, package parameter ensures relative imports work correctly
             module = importlib.import_module(module_path, package=__package__)
             return getattr(module, class_name)
         except (ImportError, AttributeError) as e:

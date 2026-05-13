@@ -8,8 +8,9 @@
 import os
 import sys
 import asyncio
-import configparser
 from importlib import import_module
+
+from crawlo.project import read_crawlo_cfg
 
 from rich import box
 from rich.console import Console
@@ -25,6 +26,7 @@ from crawlo.project import get_settings, _find_project_root
 from crawlo.initialization import initialize_framework
 from crawlo.core import get_framework_initializer
 from crawlo.logging import get_logger
+from crawlo.utils.asyncio_utils import run_with_cleanup
 
 # 延迟获取logger，确保在日志系统配置之后获取
 _logger = None
@@ -169,20 +171,10 @@ def main(args):
 
         # 2. 读取 crawlo.cfg 获取 settings 模块
         cfg_file = os.path.join(project_root, "crawlo.cfg")
-        if not os.path.exists(cfg_file):
-            msg = f"在 {project_root} 中未找到 crawlo.cfg"
-            if show_json:
-                console.print_json(data={"success": False, "error": msg})
-                return 1
-            else:
-                console.print(Panel(msg, title="缺少配置文件", border_style="red"))
-                return 1
+        settings_module = read_crawlo_cfg(cfg_file)
 
-        config = configparser.ConfigParser()
-        config.read(cfg_file, encoding="utf-8")
-
-        if not config.has_section("settings") or not config.has_option("settings", "default"):
-            msg = "crawlo.cfg 中缺少 [settings] 部分或 'default' 选项"
+        if not settings_module:
+            msg = "crawlo.cfg 无效或不存在"
             if show_json:
                 console.print_json(data={"success": False, "error": msg})
                 return 1
@@ -190,7 +182,6 @@ def main(args):
                 console.print(Panel(msg, title="无效配置", border_style="red"))
                 return 1
 
-        settings_module = config.get("settings", "default")
         project_package = settings_module.split(".")[0]
 
         # 3. 确保项目包可导入
@@ -283,7 +274,7 @@ def main(args):
                     transient=True,
             ) as progress:
                 task = progress.add_task("正在运行所有爬虫...", total=None)
-                asyncio.run(process.crawl_multiple(spider_names))
+                run_with_cleanup(process.crawl_multiple(spider_names))
 
             if show_json:
                 console.print_json(data={"success": True, "spiders": spider_names})
@@ -351,14 +342,14 @@ def main(args):
         #     for crawler in process.crawlers:
         #         crawler.signals.connect(record_stats, signal="spider_closed")
 
-        # 运行爬虫
+        # 运行爬虫 (使用增强版的 run_with_cleanup)
         with Progress(
                 SpinnerColumn(),
                 TextColumn("[progress.description]{task.description}"),
                 transient=True,
         ) as progress:
             task = progress.add_task(f"正在运行 {spider_name}...", total=None)
-            asyncio.run(process.crawl(spider_name))
+            run_with_cleanup(process.crawl(spider_name))
 
         if show_json:
             console.print_json(data={"success": True, "spider": spider_name})

@@ -1,34 +1,34 @@
 #!/usr/bin/python
 # -*- coding: UTF-8 -*-
 """
-Crawlo统一日志系统
-=================
+Crawlo Unified Logging System
+=============================
 
-设计原则：
-1. 简单优先 - 避免过度设计
-2. 性能优先 - 减少锁竞争和复杂逻辑  
-3. 一致性 - 统一的日志接口
-4. 可靠性 - 确保日志始终可用
+Design Principles:
+1. Simple first - avoid over-engineering
+2. Performance first - reduce lock contention and complex logic
+3. Consistency - unified logging interface
+4. Reliability - ensure logs are always available
 """
 
+import logging
 from .manager import LogManager
 from .factory import LoggerFactory
 from .config import LogConfig
 
-
-# 统一的公共接口
-def get_logger(name: str = 'default'):
-    """获取logger实例"""
+# Unified public interface
+def get_logger(name: str = 'default') -> logging.Logger:
+    """Get logger instance"""
     return LoggerFactory.get_logger(name)
 
 
 def configure_logging(settings=None, **kwargs):
-    """配置日志系统"""
+    """Configure logging system"""
     return LogManager().configure(settings, **kwargs)
 
 
 def is_configured() -> bool:
-    """检查日志系统是否已配置"""
+    """Check if logging system is configured"""
     return LogManager().is_configured
 
 

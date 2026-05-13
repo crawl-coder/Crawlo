@@ -1,11 +1,12 @@
 #!/usr/bin/python
 # -*- coding: UTF-8 -*-
-"""
-背压控制模块
+"""Backpressure control module
 
-提供统一的背压控制入口。
+Provides unified backpressure control entry point.
 """
-from typing import Optional
+import asyncio
+import time
+from typing import Optional, Dict, Any
 
 from crawlo.backpressure.interfaces import (
     PressureLevel,
@@ -20,7 +21,7 @@ from crawlo.backpressure.strategies import (
 )
 from crawlo.backpressure.metrics_collector import (
     BackpressureMetricsCollector,
-    BackpressureMetrics,
+    QueueMetrics,
 )
 from crawlo.backpressure.intelligent_calculator import (
     IntelligentBackpressureCalculator,
@@ -32,11 +33,11 @@ from crawlo.backpressure.monitor import (
 
 class BackpressureController:
     """
-    背压控制器
+    Backpressure controller
     
-    统一管理背压策略，提供简洁的背压控制接口。
+    Manages backpressure strategies, provides concise backpressure control interface.
     
-    使用示例：
+    Example:
         controller = BackpressureController(
             strategy=QueueSizeStrategy()
         )
@@ -50,57 +51,60 @@ class BackpressureController:
         self,
         strategy: Optional[IBackpressureStrategy] = None,
         enabled: bool = True,
+        intelligent_calculator: Optional['IntelligentBackpressureCalculator'] = None,
     ):
         """
-        初始化控制器
+        Initialize controller
         
         Args:
-            strategy: 背压策略
-            enabled: 是否启用背压
+            strategy: Backpressure strategy
+            enabled: Whether to enable backpressure
+            intelligent_calculator: Optional smart delay calculator for enhanced precision
         """
         self._strategy = strategy or QueueSizeStrategy()
         self._enabled = enabled
         self._active = False
+        self._intelligent_calc = intelligent_calculator
         
-        # 统计信息
+        # Statistics
         self._apply_count = 0
         self._total_delay = 0.0
         self._last_apply_time = 0.0
     
     @property
     def enabled(self) -> bool:
-        """是否启用"""
+        """Whether enabled"""
         return self._enabled
     
     @enabled.setter
     def enabled(self, value: bool) -> None:
-        """设置启用状态"""
+        """Set enabled status"""
         self._enabled = value
     
     @property
     def active(self) -> bool:
-        """当前是否正在应用背压"""
+        """Whether backpressure is currently being applied"""
         return self._active
     
     @property
     def strategy(self) -> IBackpressureStrategy:
-        """获取当前策略"""
+        """Get current strategy"""
         return self._strategy
     
     @strategy.setter
     def strategy(self, value: IBackpressureStrategy) -> None:
-        """设置策略"""
+        """Set strategy"""
         self._strategy = value
     
     async def should_apply(self, queue) -> bool:
         """
-        判断是否应该应用背压
+        Determine whether backpressure should be applied
         
         Args:
-            queue: 队列实例
+            queue: Queue instance
             
         Returns:
-            bool: 是否应该应用背压
+            bool: Whether backpressure should be applied
         """
         if not self._enabled:
             return False
@@ -118,18 +122,24 @@ class BackpressureController:
     
     async def calculate_delay(self, queue) -> float:
         """
-        计算背压延迟
+        Calculate backpressure delay
         
         Args:
-            queue: 队列实例
+            queue: Queue instance
             
         Returns:
-            float: 延迟时间（秒）
+            float: Delay time in seconds
         """
         if not self._enabled:
             return 0.0
         
         delay = await self._strategy.calculate_delay(queue)
+
+        # 如果有智能计算器，用它增强精度
+        if self._intelligent_calc and delay > 0:
+            enhanced = self._intelligent_calc.calculate_delay(queue)
+            if enhanced is not None:
+                delay = max(delay, enhanced)  # 取最保守值
         
         if delay > 0:
             self._total_delay += delay
@@ -138,18 +148,15 @@ class BackpressureController:
     
     async def wait_for_capacity(self, queue, max_wait: float = 30.0) -> bool:
         """
-        等待系统有足够容量
+        Wait for system to have enough capacity
         
         Args:
-            queue: 队列实例
-            max_wait: 最大等待时间（秒）
+            queue: Queue instance
+            max_wait: Maximum wait time in seconds
             
         Returns:
-            bool: 是否成功等到容量
+            bool: Whether capacity was successfully waited for
         """
-        import asyncio
-        import time
-        
         start_time = time.time()
         wait_time = 0.01
         
@@ -169,22 +176,22 @@ class BackpressureController:
     
     async def get_metrics(self, queue):
         """
-        获取背压指标
+        Get backpressure metrics
         
         Args:
-            queue: 队列实例
+            queue: Queue instance
             
         Returns:
-            BackpressureMetrics: 指标数据
+            BackpressureMetrics: Metric data
         """
         return await self._strategy.get_metrics(queue)
     
-    def get_stats(self) -> dict:
+    def get_stats(self) -> Dict[str, Any]:
         """
-        获取统计信息
+        Get statistics
         
         Returns:
-            dict: 统计信息
+            dict: Statistics
         """
         return {
             'enabled': self._enabled,
@@ -196,7 +203,7 @@ class BackpressureController:
         }
     
     def reset(self) -> None:
-        """重置状态"""
+        """Reset status"""
         self._active = False
         self._strategy.reset()
         self._apply_count = 0
@@ -214,6 +221,7 @@ __all__ = [
     'CompositeStrategy',
     # 智能背压组件
     'BackpressureMetricsCollector',
+    'QueueMetrics',
     'IntelligentBackpressureCalculator',
     'BackpressureMonitor',
 ]

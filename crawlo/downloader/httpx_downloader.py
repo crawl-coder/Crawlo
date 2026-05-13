@@ -2,6 +2,7 @@
 # -*- coding:UTF-8 -*-
 import httpx
 import asyncio
+import time
 from typing import Optional
 
 from httpx import HTTPStatusError
@@ -12,6 +13,7 @@ from crawlo.downloader import DownloaderBase
 from crawlo.logging import get_logger
 from crawlo.utils.misc import safe_get_config
 from crawlo.exceptions import DownloadError
+from crawlo.constants import ABSOLUTE_TIMEOUT_MULTIPLIER_NORMAL, ABSOLUTE_TIMEOUT_MULTIPLIER_EXTENDED
 
 
 class HttpXDownloader(DownloaderBase):
@@ -53,10 +55,10 @@ class HttpXDownloader(DownloaderBase):
         self.max_download_size = max_download_size
         self._timeout_total = timeout_total  # 保存为实例变量
         
-        # 初始化并发控制
+        # Initialize concurrency control
         self._concurrency = safe_get_config(self.crawler.settings, "CONCURRENCY", 12, int)
         self._semaphore = asyncio.Semaphore(self._concurrency)
-        self.logger.debug(f"并发控制初始化: CONCURRENCY={self._concurrency}")
+        self.logger.debug(f"Concurrency control initialized: CONCURRENCY={self._concurrency}")
 
         # 基于 DOWNLOAD_TIMEOUT 配置动态计算分层超时
         # 采用分层超时策略，平衡性能与兼容性
@@ -112,23 +114,10 @@ class HttpXDownloader(DownloaderBase):
         2. 发送请求，网络异常时降级为直连
         3. 安全检查、读取响应、返回结果
         """
-        # 添加入口日志，用于诊断请求是否到达下载器
-        retry_times = request.meta.get('retry_times', 0)
-        has_proxy = bool(request.proxy)
-        self.logger.debug(
-            f"Download request (retry={retry_times}, proxy={has_proxy}): {request.url}"
-        )
-        
-        # 并发控制：等待信号量
+        # Concurrency control: wait for semaphore
         if self._semaphore:
-            self.logger.debug(
-                f"等待并发槽位: {request.url} (active={self._active_requests}/{self._concurrency})"
-            )
             await self._semaphore.acquire()
             self._active_requests += 1
-            self.logger.debug(
-                f"获取并发槽位成功: {request.url} (active={self._active_requests}/{self._concurrency})"
-            )
         
         if not self._client:
             self.logger.error("HttpXDownloader client is not available.")
@@ -139,7 +128,7 @@ class HttpXDownloader(DownloaderBase):
 
         start_time = None
         if self.crawler.settings.get_bool("DOWNLOAD_STATS", True):
-            import time
+            # time 已在顶部导入
             start_time = time.time()
 
         # 初始化客户端变量
@@ -272,16 +261,15 @@ class HttpXDownloader(DownloaderBase):
             # 判断是否为代理请求（有代理配置即为代理请求）
             is_proxy_request = bool(httpx_proxy_config)
             
-            # 所有请求都使用绝对超时保护
-            # 代理请求：30秒绝对超时（减少等待时间）
-            # 正常/重试请求：25秒绝对超时
-            absolute_timeout = 30.0 if is_proxy_request else 25.0
+            # 所有请求都使用绝对超时保护，从 DOWNLOAD_TIMEOUT 配置派生
+            # 代理请求使用 EXTENDED 系数，正常/重试请求使用 NORMAL 系数
+            absolute_timeout = (
+                self._timeout_total * ABSOLUTE_TIMEOUT_MULTIPLIER_EXTENDED if is_proxy_request
+                else self._timeout_total * ABSOLUTE_TIMEOUT_MULTIPLIER_NORMAL
+            )
             
             # 记录请求详情（用于诊断）
             client_type = "代理客户端" if is_proxy_request else "主客户端(直连)"
-            self.logger.debug(
-                f"Sending request via {client_type} (absolute_timeout={absolute_timeout:.0f}s): {request.url}"
-            )
             
             # 基于 httpx 源码分析优化：
             # httpx 的 Timeout 在 httpcore 层应用，但代理连接可能在更底层阻塞
@@ -343,11 +331,10 @@ class HttpXDownloader(DownloaderBase):
             # 读取响应体
             body = await httpx_response.aread()
 
-            # 记录下载统计
-            if start_time:
-                import time
-                download_time = time.time() - start_time
-                self.logger.debug(f"Downloaded {request.url} in {download_time:.3f}s, size: {len(body)} bytes")
+            # HTTP 级别下载结果（状态码 + 大小）
+            self.logger.debug(
+                f"[HTTP] {request.url} {httpx_response.status_code} ({len(body)}B)"
+            )
 
             # 构造并返回 Response
             return self.structure_response(request=request, response=httpx_response, body=body)
@@ -378,9 +365,6 @@ class HttpXDownloader(DownloaderBase):
             if self._semaphore:
                 self._active_requests -= 1
                 self._semaphore.release()
-                self.logger.debug(
-                    f"释放并发槽位: {request.url} (active={self._active_requests}/{self._concurrency})"
-                )
 
     @staticmethod
     def structure_response(request, response: httpx.Response, body: bytes) -> Response:

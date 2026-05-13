@@ -44,6 +44,51 @@ class TestTimeTrigger:
         """测试带秒位的 cron 表达式"""
         trigger = TimeTrigger(cron='0 0 */2 * * *')
         assert len(trigger._cron_parts) == 6
+    
+    def test_cron_next_time_optimized(self):
+        """测试字段级跳进的 cron 下次时间计算"""
+        now = time.time()
+        
+        # */5 * * * *  — 每 5 分钟，next_time 应在接下来 5 分钟内
+        t1 = TimeTrigger(cron='*/5 * * * *')
+        next1 = t1.get_next_time(now)
+        assert next1 > now
+        assert next1 - now <= 300
+        
+        # 0 2 * * *  — 每天凌晨 2 点
+        t2 = TimeTrigger(cron='0 2 * * *')
+        next2 = t2.get_next_time(now)
+        from datetime import datetime as dt
+        result2 = dt.fromtimestamp(next2)
+        assert result2.hour == 2
+        assert result2.minute == 0
+        
+        # 30 10 * * 1-5  — 工作日 10:30
+        t3 = TimeTrigger(cron='30 10 * * 1-5')
+        next3 = t3.get_next_time(now)
+        result3 = dt.fromtimestamp(next3)
+        assert result3.hour == 10
+        assert result3.minute == 30
+        assert result3.isoweekday() <= 5  # 周一至周五
+        
+        # 秒级 cron: 30 */2 * * * *  — 每 2 分 30 秒
+        t4 = TimeTrigger(cron='30 */2 * * * *')
+        next4 = t4.get_next_time(now)
+        result4 = dt.fromtimestamp(next4)
+        assert result4.second == 30
+    
+    def test_cron_next_time_never_matching(self):
+        """测试永不匹配的 cron（如 2月29日 在非闰年）"""
+        import datetime as dt
+        # 在 2025 年（非闰年）查找 2 月 29 日
+        non_leap = dt.datetime(2025, 3, 1, 0, 0, 0).timestamp()
+        t = TimeTrigger(cron='0 0 29 2 *')
+        result = t.get_next_time(non_leap)
+        # 下一个 2/29 是 2028 年（闰年），但我们在 367 天上限内找不到
+        # 此时返回 float('inf')
+        if result != float('inf'):
+            result_dt = dt.datetime.fromtimestamp(result)
+            assert result_dt.month == 2 and result_dt.day == 29
 
 
 class TestScheduledJob:
@@ -231,6 +276,96 @@ class TestSchedulerDaemon:
         assert job_stats['last_execution'] is None
         assert job_stats['last_success'] is None
         assert job_stats['last_failure'] is None
+    
+    def test_priority_sorting(self):
+        """测试任务按优先级排序（小值高优优先）"""
+        settings = Mock()
+        settings.get_bool.return_value = True
+        settings.get.return_value = [
+            {
+                'spider': 'spider_low',
+                'cron': '0 */2 * * *',
+                'enabled': True,
+                'args': {},
+                'priority': 20,
+                'max_retries': 0,
+                'retry_delay': 60
+            },
+            {
+                'spider': 'spider_high',
+                'cron': '0 */2 * * *',
+                'enabled': True,
+                'args': {},
+                'priority': 5,
+                'max_retries': 0,
+                'retry_delay': 60
+            },
+            {
+                'spider': 'spider_medium',
+                'cron': '0 */2 * * *',
+                'enabled': True,
+                'args': {},
+                'priority': 10,
+                'max_retries': 0,
+                'retry_delay': 60
+            }
+        ]
+        settings.get_int.return_value = 1
+        
+        daemon = SchedulerDaemon(settings)
+        
+        assert len(daemon.jobs) == 3
+        assert daemon.jobs[0].spider_name == 'spider_high'
+        assert daemon.jobs[1].spider_name == 'spider_medium'
+        assert daemon.jobs[2].spider_name == 'spider_low'
+        
+        # 验证优先级值排序
+        priorities = [job.priority for job in daemon.jobs]
+        assert priorities == [5, 10, 20]
+    
+    def test_min_next_execution_time(self):
+        """测试 _get_min_next_execution_time 返回最早的下次执行时间"""
+        settings = Mock()
+        settings.get_bool.return_value = True
+        settings.get.return_value = [
+            {
+                'spider': 'spider_a',
+                'cron': '0 */2 * * *',
+                'enabled': True,
+                'args': {},
+                'priority': 0,
+                'max_retries': 0,
+                'retry_delay': 60
+            },
+            {
+                'spider': 'spider_b',
+                'interval': {'seconds': 1},
+                'enabled': True,
+                'args': {},
+                'priority': 0,
+                'max_retries': 0,
+                'retry_delay': 60
+            }
+        ]
+        settings.get_int.return_value = 1
+        
+        daemon = SchedulerDaemon(settings)
+        
+        min_next = daemon._get_min_next_execution_time()
+        assert min_next != float('inf')
+        # interval=1s 的 job 下次执行时间应在 1 秒内
+        now = time.time()
+        assert min_next <= now + 1
+    
+    def test_min_next_execution_time_empty(self):
+        """测试无任务时返回 inf"""
+        settings = Mock()
+        settings.get_bool.return_value = False
+        settings.get.return_value = []
+        settings.get_int.return_value = 1
+        
+        daemon = SchedulerDaemon(settings)
+        assert daemon._get_min_next_execution_time() == float('inf')
 
 
 class TestSchedulerIntegration:

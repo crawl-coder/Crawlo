@@ -18,7 +18,7 @@ import asyncio
 # 添加项目根目录到 Python 路径
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
-from crawlo.utils.batch import BatchProcessor, RedisBatchProcessor, batch_process
+from crawlo.utils.batch import BatchProcessor, RedisBatchProcessor, batch_process, process_in_batches
 
 
 class TestBatchProcessor(unittest.TestCase):
@@ -171,10 +171,13 @@ class TestBatchProcessFunction(unittest.TestCase):
         """同步处理函数"""
         return item * 2
         
-    def test_batch_process_sync_function(self):
+    def test_process_in_batches_sync_function(self):
         """测试批处理便捷函数处理同步函数"""
         items = [1, 2, 3, 4, 5]
-        results = batch_process(items, self.sync_process_item, batch_size=2, max_concurrent_batches=2)
+        # process_in_batches 是异步函数，需要使用 asyncio.run
+        results = asyncio.run(
+            process_in_batches(items, self.sync_process_item, batch_size=2, max_concurrent_batches=2)
+        )
         expected = [2, 4, 6, 8, 10]
         self.assertEqual(results, expected)
 

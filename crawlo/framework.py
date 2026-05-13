@@ -9,12 +9,14 @@ Crawlo框架统一入口
 
 import os
 import sys
+import threading
 from typing import Type, Optional, List, Union
 
 from .crawler import Crawler, CrawlerProcess
 from .initialization import initialize_framework
 from .logging import get_logger
-from .utils.config_manager import EnvConfigManager
+from .project import read_crawlo_cfg
+from .settings.setting_manager import EnvConfigManager
 
 
 class CrawloFramework:
@@ -83,20 +85,12 @@ class CrawloFramework:
             
             # 读取crawlo.cfg配置文件
             cfg_file = os.path.join(project_root, "crawlo.cfg")
-            if not os.path.exists(cfg_file):
-                print(f"警告: 未找到配置文件 {cfg_file}，使用默认配置")
+            settings_module_path = read_crawlo_cfg(cfg_file)
+            
+            if not settings_module_path:
+                print(f"警告: 配置文件 {cfg_file} 无效或不存在，使用默认配置")
                 return {}
             
-            import configparser
-            config_parser = configparser.ConfigParser()
-            config_parser.read(cfg_file, encoding="utf-8")
-            
-            if not config_parser.has_section("settings") or not config_parser.has_option("settings", "default"):
-                print("警告: 配置文件缺少 [settings] 部分或 'default' 选项，使用默认配置")
-                return {}
-            
-            # 获取settings模块路径
-            settings_module_path = config_parser.get("settings", "default")
             project_package = settings_module_path.split(".")[0]
             
             # 导入项目配置模块
@@ -113,7 +107,7 @@ class CrawloFramework:
             return project_config
             
         except Exception as e:
-            print(f"加载项目配置时出错: {e}")
+            self._logger.error(f"Error loading project configuration: {e}")
             return {}
 
     def _find_project_root(self):
@@ -252,11 +246,12 @@ class CrawloFramework:
 
 # 全局框架实例
 _global_framework: Optional[CrawloFramework] = None
+_framework_lock = threading.Lock()
 
 
 def get_framework(settings=None, **kwargs) -> CrawloFramework:
     """
-    获取全局框架实例（单例模式）
+    获取全局框架实例（线程安全单例模式）
     
     Args:
         settings: 配置对象
@@ -268,7 +263,10 @@ def get_framework(settings=None, **kwargs) -> CrawloFramework:
     global _global_framework
 
     if _global_framework is None:
-        _global_framework = CrawloFramework(settings, **kwargs)
+        with _framework_lock:
+            # 双重检查锁定
+            if _global_framework is None:
+                _global_framework = CrawloFramework(settings, **kwargs)
 
     return _global_framework
 

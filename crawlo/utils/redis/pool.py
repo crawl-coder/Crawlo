@@ -23,7 +23,9 @@ except ImportError:
     REDIS_CLUSTER_AVAILABLE = False
 
 if TYPE_CHECKING:
-    from crawlo.utils.error_handler import ErrorHandler
+    pass
+
+from crawlo.utils.error_handler import ErrorHandler, ErrorContext
 
 
 class RedisConnectionPool:
@@ -63,14 +65,6 @@ class RedisConnectionPool:
         self._redis_client = None
         self._connection_tested = False
 
-        # 连接池统计信息
-        self._stats = {
-            'created_connections': 0,
-            'active_connections': 0,
-            'idle_connections': 0,
-            'errors': 0
-        }
-
         # 初始化连接池
         self._initialize_pool()
 
@@ -86,7 +80,7 @@ class RedisConnectionPool:
     def error_handler(self):
         """延迟初始化error_handler"""
         if self._error_handler is None:
-            from crawlo.utils.error_handler import ErrorHandler
+            # ErrorHandler 已在顶部导入
             self._error_handler = ErrorHandler(self.__class__.__name__)
         return self._error_handler
 
@@ -190,7 +184,7 @@ class RedisConnectionPool:
                 self.logger.debug(f"Connection pool configuration: {self.config}")
 
         except Exception as e:
-            from crawlo.utils.error_handler import ErrorContext
+            # ErrorContext 已在顶部导入
             error_context = ErrorContext(context="Redis连接池初始化失败")
             self.error_handler.handle_error(
                 e,
@@ -219,7 +213,6 @@ class RedisConnectionPool:
 
         await self._test_connection()
 
-        self._stats['active_connections'] += 1
         return self._redis_client
 
     async def ping(self) -> bool:
@@ -246,7 +239,7 @@ class RedisConnectionPool:
 
             self.logger.debug("Redis连接池已关闭")
         except Exception as e:
-            from crawlo.utils.error_handler import ErrorContext
+            # ErrorContext 已在顶部导入
             error_context = ErrorContext(context="关闭Redis连接池失败")
             self.error_handler.handle_error(
                 e,
@@ -257,24 +250,18 @@ class RedisConnectionPool:
     def get_stats(self) -> Dict[str, Any]:
         """获取连接池统计信息"""
         if self._connection_pool and hasattr(self._connection_pool, 'max_connections'):
-            pool_stats = {
+            return {
                 'max_connections': self._connection_pool.max_connections,
                 'available_connections': len(self._connection_pool._available_connections) if hasattr(self._connection_pool, '_available_connections') else 0,
                 'in_use_connections': len(self._connection_pool._in_use_connections) if hasattr(self._connection_pool, '_in_use_connections') else 0,
             }
-            self._stats.update(pool_stats)
-
-        return self._stats.copy()
+        return {}
 
     @asynccontextmanager
     async def connection_context(self):
         """连接上下文管理器"""
         connection = await self.get_connection()
-        try:
-            yield connection
-        finally:
-            self._stats['active_connections'] -= 1
-            self._stats['idle_connections'] += 1
+        yield connection
 
 
 # 全局连接池管理器
@@ -367,18 +354,13 @@ class CrawloRedisManager:
         self._connection_pools.clear()
         self._is_closed = True
 
-    def __del__(self):
-        """析构函数确保资源清理"""
-        if not self._is_closed:
-            import asyncio
-            try:
-                loop = asyncio.get_event_loop()
-                if loop.is_running():
-                    loop.create_task(self.close_all())
-                else:
-                    loop.run_until_complete(self.close_all())
-            except Exception:
-                pass
+    async def __aenter__(self):
+        """异步上下文管理器入口"""
+        return self
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        """异步上下文管理器出口，确保资源清理"""
+        await self.close_all()
 
 
 def get_isolated_redis_pool(crawler_id: str, redis_url: str, **kwargs) -> RedisConnectionPool:
@@ -405,12 +387,34 @@ class GlobalRedisManager:
 
     def __init__(self):
         self._default_pool: Optional[RedisConnectionPool] = None
+        self._is_initialized = False
+
+    async def initialize(self, redis_url: str, **kwargs):
+        """初始化默认连接池"""
+        if self._is_initialized:
+            return
+
+        self._default_pool = get_redis_pool(redis_url, shared=True, **kwargs)
+        self._is_initialized = True
+
+    async def get_pool(self) -> Optional[RedisConnectionPool]:
+        """获取默认连接池"""
+        if not self._is_initialized:
+            raise RuntimeError("Redis管理器未初始化，请先调用 initialize()")
+        return self._default_pool
 
     async def ping(self) -> bool:
         """检查 Redis 连接是否正常"""
         if self._default_pool:
             return await self._default_pool.ping()
         return False
+
+    async def close(self):
+        """关闭默认连接池"""
+        if self._default_pool:
+            await self._default_pool.close()
+            self._default_pool = None
+            self._is_initialized = False
 
 
 def get_redis_manager() -> GlobalRedisManager:

@@ -11,7 +11,7 @@ from rich.table import Table
 from rich.panel import Panel
 from rich.text import Text
 from rich import box
-from crawlo.utils.config_manager import EnvConfigManager
+from crawlo.settings.setting_manager import EnvConfigManager
 from crawlo.commands import get_commands
 
 # 获取框架版本号

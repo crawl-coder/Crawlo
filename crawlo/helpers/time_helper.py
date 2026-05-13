@@ -1,0 +1,371 @@
+#!/usr/bin/python
+# -*- coding: UTF-8 -*-
+"""
+# @Time    : 2025-05-17 10:20
+# @Author  : crawl-coder
+# @Desc    : 智能时间工具库（专为爬虫场景设计）
+"""
+import pytz
+import dateparser
+from typing import Optional, Union, Literal, List
+from datetime import datetime, timedelta
+from datetime import timezone as dt_timezone
+from dateutil.relativedelta import relativedelta
+from pytz import timezone as pytz_timezone
+
+# 支持的单位类型
+TimeUnit = Literal["seconds", "minutes", "hours", "days"]
+# 时间输入类型
+TimeType = Union[str, datetime]
+# Timezone type
+TimezoneType = Union[str, dt_timezone, pytz_timezone]
+
+# 常见时间格式列表
+COMMON_FORMATS = [
+    "%Y-%m-%d %H:%M:%S",
+    "%Y/%m/%d %H:%M:%S",
+    "%d-%m-%Y %H:%M:%S",
+    "%d/%m/%Y %H:%M:%S",
+    "%Y-%m-%d",
+    "%Y/%m/%d",
+    "%d-%m-%Y",
+    "%d/%m/%Y",
+    "%b %d, %Y",
+    "%B %d, %Y",
+    "%Y年%m月%d日",
+    "%Y年%m月%d日 %H时%M分%S秒",
+    "%a %b %d %H:%M:%S %Y",
+    "%a, %d %b %Y %H:%M:%S",
+    "%Y-%m-%dT%H:%M:%S.%f",
+    "%Y-%m-%dT%H:%M:%S",
+]
+
+
+class TimeUtils:
+    """
+    时间处理工具类，专为爬虫场景设计。
+    支持智能解析多语言、多格式时间字符串，以及时区转换等常用操作。
+    """
+
+    @staticmethod
+    def _try_strptime(time_str: str) -> Optional[datetime]:
+        """尝试使用预定义格式解析，作为 dateparser 的后备"""
+        for fmt in COMMON_FORMATS:
+            try:
+                return datetime.strptime(time_str.strip(), fmt)
+            except ValueError:
+                continue
+        return None
+
+    @classmethod
+    def parse(cls, time_input: TimeType, *, default: Optional[datetime] = None) -> Optional[datetime]:
+        """
+        智能解析时间输入（字符串或 datetime）。
+
+        :param time_input: 时间字符串（支持各种语言、格式、相对时间）或 datetime 对象
+        :param default: 解析失败时返回的默认值
+        :return: 解析成功返回 datetime，失败返回 default
+        """
+        if isinstance(time_input, datetime):
+            return time_input
+
+        if not isinstance(time_input, str) or not time_input.strip():
+            return default
+
+        # 1. 优先使用 dateparser（支持多语言和相对时间）
+        try:
+            parsed = dateparser.parse(time_input.strip())
+            if parsed:
+                return parsed
+        except Exception:
+            pass  # 忽略异常，尝试后备方案
+
+        # 2. 尝试使用常见格式解析
+        try:
+            parsed = cls._try_strptime(time_input)
+            if parsed:
+                return parsed
+        except Exception:
+            pass
+
+        return default
+
+    @classmethod
+    def format(cls, dt: TimeType, fmt: str = "%Y-%m-%d %H:%M:%S") -> Optional[str]:
+        """
+        格式化时间。
+
+        :param dt: datetime 对象或可解析的字符串
+        :param fmt: 输出格式
+        :return: 格式化后的字符串，失败返回 None
+        """
+        if isinstance(dt, str):
+            dt = cls.parse(dt)
+            if dt is None:
+                return None
+        try:
+            return dt.strftime(fmt)
+        except Exception:
+            return None
+
+    @classmethod
+    def to_timestamp(cls, dt: TimeType) -> Optional[float]:
+        """转换为时间戳（秒级）"""
+        if isinstance(dt, str):
+            dt = cls.parse(dt)
+            if dt is None:
+                return None
+        try:
+            return dt.timestamp()
+        except Exception:
+            return None
+
+    @classmethod
+    def from_timestamp(cls, ts: float) -> Optional[datetime]:
+        """从时间戳创建 datetime"""
+        try:
+            return datetime.fromtimestamp(ts)
+        except Exception:
+            return None
+
+    @classmethod
+    def time_diff(cls, start: TimeType, end: TimeType, unit: TimeUnit = "seconds") -> Optional[int]:
+        """
+        计算两个时间的差值。
+
+        :param start: 起始时间
+        :param end: 结束时间
+        :param unit: 单位 ('seconds', 'minutes', 'hours', 'days')
+        :return: 差值（绝对值），失败返回 None
+        """
+        start_dt = cls.parse(start)
+        end_dt = cls.parse(end)
+        if not start_dt or not end_dt:
+            return None
+
+        delta = abs((end_dt - start_dt).total_seconds())
+
+        unit_map = {
+            "seconds": 1,
+            "minutes": 60,
+            "hours": 3600,
+            "days": 86400,
+        }
+        return int(delta // unit_map.get(unit, 1))
+
+    @classmethod
+    def add(cls, dt: TimeType, days: int = 0, months: int = 0) -> Optional[datetime]:
+        """
+        日期加减（支持天和月）。
+
+        :param dt: 时间
+        :param days: 加减天数
+        :param months: 加减月数
+        """
+        dt = cls.parse(dt)
+        if dt is None:
+            return None
+        result = dt
+        if days:
+            result += timedelta(days=days)
+        if months:
+            result += relativedelta(months=months)
+        return result
+
+    @classmethod
+    def now(cls, fmt: Optional[str] = None) -> Union[datetime, str]:
+        """
+        获取当前时间。
+
+        :param fmt: 如果提供，则返回格式化字符串；否则返回 datetime 对象。
+        :return: datetime 或 str
+        """
+        dt = datetime.now()
+        if fmt is not None:
+            return dt.strftime(fmt)
+        return dt
+
+    @classmethod
+    def iso_format(cls, dt: TimeType) -> Optional[str]:
+        """返回 ISO 8601 格式字符串"""
+        dt = cls.parse(dt)
+        if dt is None:
+            return None
+        return dt.isoformat()
+
+    @classmethod
+    def to_timezone(cls, dt: TimeType, tz: TimezoneType) -> Optional[datetime]:
+        """将时间转换为指定时区"""
+        dt = cls.parse(dt)
+        if dt is None:
+            return None
+        
+        try:
+            if isinstance(tz, str):
+                tz = pytz_timezone(tz)
+            return dt.astimezone(tz)
+        except Exception:
+            return None
+
+    @classmethod
+    def to_utc(cls, dt: TimeType) -> Optional[datetime]:
+        """将时间转换为 UTC 时区"""
+        return cls.to_timezone(dt, pytz.UTC)
+
+    @classmethod
+    def to_local(cls, dt: TimeType) -> Optional[datetime]:
+        """将时间转换为本地时区"""
+        return cls.to_timezone(dt, pytz.timezone("Asia/Shanghai"))
+
+    @classmethod
+    def from_timestamp_with_tz(cls, ts: float, tz: TimezoneType = None) -> Optional[datetime]:
+        """从时间戳创建 datetime，并可选择指定时区"""
+        try:
+            dt = datetime.fromtimestamp(ts)
+            if tz:
+                if isinstance(tz, str):
+                    tz = pytz_timezone(tz)
+                dt = dt.replace(tzinfo=tz)
+            return dt
+        except Exception:
+            return None
+
+    @classmethod
+    def date_range(cls, start: TimeType, end: TimeType, fmt: str = "%Y-%m-%d") -> List[str]:
+        """
+        生成日期范围内的所有日期。
+
+        :param start: 起始时间
+        :param end: 结束时间
+        :param fmt: 输出格式
+        :return: 日期字符串列表
+        """
+        start_dt = cls.parse(start)
+        end_dt = cls.parse(end)
+        if not start_dt or not end_dt:
+            return []
+
+        dates = []
+        current = start_dt.date()
+        end_date = end_dt.date()
+        while current <= end_date:
+            dates.append(current.strftime(fmt))
+            current += timedelta(days=1)
+        return dates
+
+    @classmethod
+    def is_recent(cls, dt: TimeType, days: int = 7) -> bool:
+        """
+        判断时间是否在N天内（相对于当前时间）。
+
+        :param dt: 时间
+        :param days: 天数阈值
+        :return: True 表示是最近的
+        """
+        parsed_dt = cls.parse(dt)
+        if not parsed_dt:
+            return False
+        delta = datetime.now() - parsed_dt
+        return delta.days < days
+
+    @classmethod
+    def truncate(cls, dt: TimeType, unit: str = "day") -> Optional[datetime]:
+        """
+        时间截断到指定单位（小时、天、月）。
+
+        :param dt: 时间
+        :param unit: 单位 ('hour', 'day', 'month')
+        :return: 截断后的时间
+        """
+        parsed_dt = cls.parse(dt)
+        if not parsed_dt:
+            return None
+
+        if unit == "hour":
+            return parsed_dt.replace(minute=0, second=0, microsecond=0)
+        elif unit == "day":
+            return parsed_dt.replace(hour=0, minute=0, second=0, microsecond=0)
+        elif unit == "month":
+            return parsed_dt.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+        return parsed_dt
+
+
+# =======================对外接口=======================
+
+def parse_time(time_input: TimeType, default: Optional[datetime] = None) -> Optional[datetime]:
+    """解析时间字符串或对象"""
+    return TimeUtils.parse(time_input, default=default)
+
+
+def format_time(dt: TimeType, fmt: str = "%Y-%m-%d %H:%M:%S") -> Optional[str]:
+    """格式化时间"""
+    return TimeUtils.format(dt, fmt)
+
+
+def time_diff(start: TimeType, end: TimeType, unit: TimeUnit = "seconds") -> Optional[int]:
+    """计算两个时间的差值"""
+    return TimeUtils.time_diff(start, end, unit)
+
+
+def to_timestamp(dt: TimeType) -> Optional[float]:
+    """转时间戳"""
+    return TimeUtils.to_timestamp(dt)
+
+
+def to_datetime(ts: float) -> Optional[datetime]:
+    """从时间戳转 datetime"""
+    return TimeUtils.from_timestamp(ts)
+
+
+def now(fmt: Optional[str] = None) -> Union[datetime, str]:
+    """获取当前时间"""
+    return TimeUtils.now(fmt)
+
+def to_timezone(dt: TimeType, tz: TimezoneType) -> Optional[datetime]:
+    """将时间转换为指定时区"""
+    return TimeUtils.to_timezone(dt, tz)
+
+def to_utc(dt: TimeType) -> Optional[datetime]:
+    """将时间转换为 UTC 时区"""
+    return TimeUtils.to_utc(dt)
+
+def to_local(dt: TimeType) -> Optional[datetime]:
+    """将时间转换为本地时区"""
+    return TimeUtils.to_local(dt)
+
+def from_timestamp_with_tz(ts: float, tz: TimezoneType = None) -> Optional[datetime]:
+    """从时间戳创建 datetime，并可选择指定时区"""
+    return TimeUtils.from_timestamp_with_tz(ts, tz)
+
+
+def date_range(start: TimeType, end: TimeType, fmt: str = "%Y-%m-%d") -> list:
+    """生成日期范围内的所有日期"""
+    return TimeUtils.date_range(start, end, fmt)
+
+
+def is_recent(dt: TimeType, days: int = 7) -> bool:
+    """判断时间是否在N天内"""
+    return TimeUtils.is_recent(dt, days)
+
+
+def truncate(dt: TimeType, unit: str = "day") -> Optional[datetime]:
+    """时间截断到指定单位"""
+    return TimeUtils.truncate(dt, unit)
+
+
+__all__ = [
+    'TimeUtils',
+    'parse_time',
+    'format_time',
+    'time_diff',
+    'to_timestamp',
+    'to_datetime',
+    'now',
+    'to_timezone',
+    'to_utc',
+    'to_local',
+    'from_timestamp_with_tz',
+    'date_range',
+    'is_recent',
+    'truncate',
+]

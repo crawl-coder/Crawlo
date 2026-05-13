@@ -5,7 +5,7 @@
 
 from crawlo.spider import Spider
 from crawlo import Request, Response
-from crawlo.tools.mysql_exists_checker import MySQLExistsChecker
+from crawlo.helpers.mysql_exists_checker import MySQLExistsChecker
 from ..items import OfWeekStandaloneItem
 
 

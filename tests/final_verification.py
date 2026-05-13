@@ -14,7 +14,7 @@ from crawlo.settings.setting_manager import SettingManager
 from crawlo.pipelines.mysql_pipeline import MySQLPipeline
 from crawlo.items import Item, Field
 from crawlo.utils.mysql_connection_pool import MySQLConnectionPoolManager
-from crawlo.utils.sql_builder import SQLBuilder
+from crawlo.utils.db.sql_builder import SQLBuilder
 import logging
 
 # 配置日志

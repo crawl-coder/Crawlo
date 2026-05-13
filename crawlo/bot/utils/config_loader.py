@@ -13,6 +13,8 @@ from crawlo.bot.core.notifier import get_notifier
 from crawlo.bot.channels.dingtalk import get_dingtalk_channel
 from crawlo.bot.channels.feishu import get_feishu_channel
 from crawlo.bot.channels.wecom import get_wecom_channel
+from crawlo.bot.channels.email import get_email_channel
+from crawlo.bot.channels.sms import get_sms_channel
 
 logger = get_logger(__name__)
 
@@ -106,7 +108,34 @@ def load_notification_config(settings: Optional[dict] = None):
                 at_mobile=settings.get('WECOM_AT_MOBILE', []),
                 is_at_all=settings.get('WECOM_IS_AT_ALL', False)
             )
-        
+
+        # 加载邮件配置
+        if settings.get('EMAIL_HOST') and settings.get('EMAIL_USERNAME'):
+            email_channel = get_email_channel()
+            email_channel.set_config(
+                smtp_host=settings.get('EMAIL_HOST'),
+                smtp_port=settings.get('EMAIL_PORT', 587),
+                smtp_user=settings.get('EMAIL_USERNAME'),
+                smtp_password=settings.get('EMAIL_PASSWORD', ''),
+                sender_email=settings.get('EMAIL_FROM', settings.get('EMAIL_USERNAME')),
+            )
+            # 扩展属性：接收人列表
+            email_channel._to_addrs = settings.get('EMAIL_TO', [])
+            email_channel._use_tls = settings.get('EMAIL_USE_TLS', True)
+
+        # 加载短信配置
+        if settings.get('SMS_PROVIDER') and settings.get('SMS_ACCESS_KEY_ID'):
+            sms_channel = get_sms_channel()
+            sms_channel.set_config(
+                provider=settings.get('SMS_PROVIDER'),
+                access_key_id=settings.get('SMS_ACCESS_KEY_ID'),
+                access_key_secret=settings.get('SMS_ACCESS_KEY_SECRET', ''),
+                sign_name=settings.get('SMS_SIGN_NAME', ''),
+            )
+            # 扩展属性
+            sms_channel._template_code = settings.get('SMS_TEMPLATE_CODE', '')
+            sms_channel._phone_numbers = settings.get('SMS_PHONE_NUMBERS', [])
+
     except Exception as e:
         logger.error(f"[ConfigLoader] 配置加载失败: {e}")
         logger.exception(e)
@@ -120,28 +149,16 @@ def _get_settings_module_from_cfg():
         settings 模块路径，如果未找到则返回 None
     """
     import os
-    import configparser
+    from crawlo.project import read_crawlo_cfg
     
-    # 获取当前工作目录
     current_dir = os.getcwd()
     cfg_path = os.path.join(current_dir, 'crawlo.cfg')
+    settings_path = read_crawlo_cfg(cfg_path)
     
-    # 检查 crawlo.cfg 是否存在
-    if os.path.exists(cfg_path):
-        try:
-            config = configparser.ConfigParser()
-            config.read(cfg_path, encoding='utf-8')
-            
-            # 读取 [settings] 部分的 default 键
-            if 'settings' in config and 'default' in config['settings']:
-                settings_path = config['settings']['default'].strip()
-                if settings_path:
-                    logger.debug(f"[ConfigLoader] 从 crawlo.cfg 读取到 settings 路径: {settings_path}")
-                    return settings_path
-        except Exception as e:
-            logger.warning(f"[ConfigLoader] 读取 crawlo.cfg 失败: {e}")
+    if settings_path:
+        logger.debug(f"[ConfigLoader] 从 crawlo.cfg 读取到 settings 路径: {settings_path}")
     
-    return None
+    return settings_path
 
 
 def apply_settings_config():
@@ -150,45 +167,57 @@ def apply_settings_config():
     这是一个便捷函数，用于直接从 settings 模块加载配置
     
     加载顺序：
-    1. 首先尝试从 crawlo.cfg 读取 settings 路径
-    2. 如果失败，尝试常见的 settings 模块路径
+    1. 首先尝试从 crawlo.project.get_settings() 获取配置
+    2. 如果失败，尝试从 crawlo.cfg 读取 settings 路径
+    3. 最后尝试常见的 settings 模块路径
     """
     try:
-        # 尝试导入项目 settings
         import importlib
-        import os
-        
-        # 获取当前工作目录
-        current_dir = os.getcwd()
-        
-        # 首先尝试从 crawlo.cfg 读取 settings 路径
-        settings_paths = []
-        cfg_settings = _get_settings_module_from_cfg()
-        if cfg_settings:
-            settings_paths.append(cfg_settings)
-        
-        # 如果没有找到配置，尝试通用的 'settings' 作为备选
-        if not settings_paths:
-            settings_paths.append('settings')
-        
         settings_dict = {}
         
-        for settings_path in settings_paths:
-            try:
-                settings_module = importlib.import_module(settings_path)
+        # 优先使用框架统一的配置获取方式
+        try:
+            from crawlo.project import get_settings
+            settings = get_settings()
+            if settings:
                 # 获取所有大写的配置项
-                for attr in dir(settings_module):
-                    if attr.isupper():
-                        settings_dict[attr] = getattr(settings_module, attr)
-                logger.debug(f"[ConfigLoader] 成功从 {settings_path} 加载配置")
-                break
-            except ImportError:
-                continue
+                settings_dict = {
+                    attr: getattr(settings, attr)
+                    for attr in dir(settings)
+                    if attr.isupper()
+                }
+                logger.debug("[ConfigLoader] 成功从 crawlo.project.get_settings() 加载配置")
+        except (ImportError, Exception) as e:
+            logger.debug(f"[ConfigLoader] 无法从 crawlo.project 获取配置: {e}")
+        
+        # 如果未获取到配置，尝试其他方式
+        if not settings_dict:
+            # 尝试从 crawlo.cfg 读取 settings 路径
+            settings_paths = []
+            cfg_settings = _get_settings_module_from_cfg()
+            if cfg_settings:
+                settings_paths.append(cfg_settings)
+            
+            # 如果没有找到配置，尝试通用的 'settings' 作为备选
+            if not settings_paths:
+                settings_paths.append('settings')
+            
+            for settings_path in settings_paths:
+                try:
+                    settings_module = importlib.import_module(settings_path)
+                    # 获取所有大写的配置项
+                    for attr in dir(settings_module):
+                        if attr.isupper():
+                            settings_dict[attr] = getattr(settings_module, attr)
+                    logger.debug(f"[ConfigLoader] 成功从 {settings_path} 加载配置")
+                    break
+                except ImportError:
+                    continue
         
         if settings_dict:
             load_notification_config(settings_dict)
         else:
-            logger.warning("[ConfigLoader] 未找到有效的 settings 模块")
+            logger.warning("[ConfigLoader] 未找到有效的 settings 模块，通知系统将使用默认配置")
             
     except Exception as e:
         logger.error(f"[ConfigLoader] 应用 settings 配置失败: {e}")

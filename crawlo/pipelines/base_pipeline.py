@@ -290,6 +290,9 @@ class DedupPipeline(ResourceManagedPipeline):
     - 性能监控
     """
     
+    # 指纹版本号，用于算法变更时的兼容性
+    FINGERPRINT_VERSION = 1
+    
     def __init__(self, crawler):
         super().__init__(crawler)
         self.dropped_count = 0
@@ -330,13 +333,13 @@ class DedupPipeline(ResourceManagedPipeline):
             if exists:
                 # 如果已存在，丢弃这个数据项
                 self.dropped_count += 1
-                self.logger.debug(f"Dropping duplicate item: {fingerprint[:20]}...")
+                self.logger.debug(f"Dropping duplicate item: {fingerprint}")
                 self.crawler.stats.inc_value('dedup/dropped_count')
                 raise ItemDiscard(f"Duplicate item: {fingerprint}")
             else:
                 # 记录新数据项的指纹
                 await self._record_fingerprint(fingerprint)
-                self.logger.debug(f"Processing new item: {fingerprint[:20]}...")
+                self.logger.debug(f"Processing new item: {fingerprint}")
                 self.crawler.stats.inc_value('dedup/new_count')
                 return item
                 
@@ -361,9 +364,10 @@ class DedupPipeline(ResourceManagedPipeline):
     
     def _generate_item_fingerprint(self, item: Item) -> str:
         """
-        生成数据项指纹
+        生成数据项指纹（带版本号）
         
         基于数据项的所有字段生成唯一指纹，用于去重判断。
+        指纹格式: v{version}:{hash}
         
         Args:
             item: 数据项
@@ -371,7 +375,8 @@ class DedupPipeline(ResourceManagedPipeline):
         Returns:
             指纹字符串
         """
-        return FingerprintGenerator.item_fingerprint(item)
+        raw_fingerprint = FingerprintGenerator.item_fingerprint(item)
+        return f"v{self.FINGERPRINT_VERSION}:{raw_fingerprint}"
     
     @abstractmethod
     async def _check_fingerprint_exists(self, fingerprint: str) -> bool:

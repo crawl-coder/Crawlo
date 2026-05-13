@@ -1,31 +1,28 @@
 #!/usr/bin/python
 # -*- coding:UTF-8 -*-
-"""
-Engine 辅助工具类
-================
-提供 Engine 使用独立工具类，不改变 Engine 核心结构。
-
-包含：
-- GenerationStats: 请求生成统计数据类
-- BackpressureController: 背压控制器
-"""
+"""Engine helper utilities for statistics and backpressure control"""
+import time
 from dataclasses import dataclass, field
-from typing import Any, Optional
+from typing import Any, Optional, Dict
+
+from crawlo.backpressure.interfaces import BackpressureStrategyConfig
+from crawlo.backpressure.strategies import QueueSizeStrategy
+from crawlo.backpressure import BackpressureController as _UnifiedController
 
 
 @dataclass
 class GenerationStats:
     """
-    请求生成统计数据类
+    Request generation statistics tracker
     
-    用于跟踪请求生成的统计信息。
+    Tracks statistics for request generation.
     
-    属性：
-        total_generated: 已生成的请求总数
-        backpressure_events: 背压触发次数
-        batches_processed: 已处理的批次数
-        start_time: 开始时间
-        end_time: 结束时间
+    Attributes:
+        total_generated: Total number of requests generated
+        backpressure_events: Number of backpressure trigger events
+        batches_processed: Number of batches processed
+        start_time: Start time
+        end_time: End time
     """
     total_generated: int = 0
     backpressure_events: int = 0
@@ -34,44 +31,42 @@ class GenerationStats:
     end_time: Optional[float] = None
     
     def increment_generated(self, count: int = 1) -> None:
-        """增加生成计数"""
+        """Increment generation count"""
         self.total_generated += count
     
     def increment_backpressure(self) -> None:
-        """增加背压事件计数"""
+        """Increment backpressure event count"""
         self.backpressure_events += 1
     
     def increment_batch(self) -> None:
-        """增加批次计数"""
+        """Increment batch count"""
         self.batches_processed += 1
     
     def mark_start(self) -> None:
-        """标记开始时间"""
-        import time
+        """Mark generation start time"""
         self.start_time = time.time()
     
     def mark_end(self) -> None:
-        """标记结束时间"""
-        import time
+        """Mark generation end time"""
         self.end_time = time.time()
     
     @property
     def duration(self) -> float:
-        """计算持续时间（秒）"""
+        """Calculate duration in seconds"""
         if self.start_time and self.end_time:
             return self.end_time - self.start_time
         return 0.0
     
     @property
     def generation_rate(self) -> float:
-        """计算生成速率（请求/秒）"""
+        """Calculate generation rate (requests/second)"""
         duration = self.duration
         if duration > 0:
             return self.total_generated / duration
         return 0.0
     
-    def to_dict(self) -> dict:
-        """转换为字典"""
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert to dictionary for logging"""
         return {
             'total_generated': self.total_generated,
             'backpressure_events': self.backpressure_events,
@@ -81,7 +76,7 @@ class GenerationStats:
         }
     
     def reset(self) -> None:
-        """重置统计"""
+        """Reset statistics"""
         self.total_generated = 0
         self.backpressure_events = 0
         self.batches_processed = 0
@@ -98,11 +93,13 @@ class GenerationStats:
 
 class BackpressureController:
     """
-    背压控制器
+    Backpressure controller to prevent system overload
     
-    控制请求生成速度，防止系统过载。
+    Controls request generation speed by checking both queue capacity
+    and task concurrency. Internally delegates to backpressure module
+    for unified strategy management.
     
-    使用示例：
+    Example:
         controller = BackpressureController(
             max_queue_size=200,
             backpressure_ratio=0.9
@@ -120,59 +117,68 @@ class BackpressureController:
         max_wait: float = 1.0
     ):
         """
-        初始化背压控制器
+        Initialize backpressure controller
         
         Args:
-            max_queue_size: 最大队列大小
-            backpressure_ratio: 背压触发比例
-            initial_wait: 初始等待时间（秒）
-            max_wait: 最大等待时间（秒）
+            max_queue_size: Maximum queue size
+            backpressure_ratio: Backpressure trigger ratio
+            initial_wait: Initial wait time in seconds
+            max_wait: Maximum wait time in seconds
         """
         self.max_queue_size = max_queue_size
         self.backpressure_ratio = backpressure_ratio
         self.initial_wait = initial_wait
         self.max_wait = max_wait
         
-        # 统计
+        # Statistics
         self._pause_count = 0
         self._total_wait_time = 0.0
+
+        # Internal: delegate to unified backpressure module for queue strategy
+        config = BackpressureStrategyConfig(
+            threshold=backpressure_ratio,
+            base_delay=initial_wait,
+            max_delay=max_wait,
+        )
+        self._unified = _UnifiedController(strategy=QueueSizeStrategy(config=config))
     
     @property
     def pause_count(self) -> int:
-        """暂停次数"""
+        """Number of pauses"""
         return self._pause_count
     
     @property
     def total_wait_time(self) -> float:
-        """总等待时间"""
+        """Total wait time"""
         return self._total_wait_time
     
     def is_queue_full(self, scheduler) -> bool:
         """
-        检查队列是否已满
+        Check if queue is full (delegates to unified backpressure strategy)
         
         Args:
-            scheduler: 调度器实例
+            scheduler: Scheduler instance
             
         Returns:
-            bool: 队列是否已满
+            bool: True if queue utilization >= strategy threshold
         """
         if not scheduler:
             return False
         
         queue_size = len(scheduler)
-        threshold = self.max_queue_size * self.backpressure_ratio
+        # Use unified controller's strategy threshold for consistency with QueueManager
+        threshold = self.max_queue_size * self._unified.strategy._config.threshold
         return queue_size >= threshold
     
     def is_overloaded(self, task_manager) -> bool:
         """
-        检查任务管理器是否过载
+        Check if task manager is overloaded
         
         Args:
-            task_manager: 任务管理器实例
+            task_manager: Task manager instance
             
         Returns:
-            bool: 是否过载
+            bool: True if overloaded
         """
         if not task_manager:
             return False
@@ -188,20 +194,20 @@ class BackpressureController:
     
     def should_pause(self, scheduler, task_manager=None) -> bool:
         """
-        检查是否应该暂停
+        Check if should pause
         
         Args:
-            scheduler: 调度器实例
-            task_manager: 任务管理器实例（可选）
+            scheduler: Scheduler instance
+            task_manager: Task manager instance (optional)
             
         Returns:
-            bool: 是否应该暂停
+            bool: True if should pause
         """
-        # 检查队列是否已满
+        # Check if queue is full
         if self.is_queue_full(scheduler):
             return True
         
-        # 检查任务管理器是否过载
+        # Check if task manager is overloaded
         if task_manager and self.is_overloaded(task_manager):
             return True
         
@@ -214,18 +220,17 @@ class BackpressureController:
         running_check: callable = None
     ) -> bool:
         """
-        等待系统有足够容量
+        Wait for system to have enough capacity
         
         Args:
-            scheduler: 调度器实例
-            task_manager: 任务管理器实例
-            running_check: 检查是否仍在运行的回调函数
+            scheduler: Scheduler instance
+            task_manager: Task manager instance
+            running_check: Callback to check if still running
             
         Returns:
-            bool: 是否成功等到容量（False 表示被中断）
+            bool: True if capacity was successfully waited for (False if interrupted)
         """
         import asyncio
-        import time
         
         self._pause_count += 1
         start_wait = time.time()
@@ -233,7 +238,7 @@ class BackpressureController:
         wait_time = self.initial_wait
         
         while self.should_pause(scheduler, task_manager):
-            # 检查是否仍在运行
+            # Check if still running
             if running_check and not running_check():
                 return False
             
@@ -243,8 +248,8 @@ class BackpressureController:
         self._total_wait_time += time.time() - start_wait
         return True
     
-    def get_stats(self) -> dict:
-        """获取统计信息"""
+    def get_stats(self) -> Dict[str, Any]:
+        """Get statistics"""
         return {
             'pause_count': self._pause_count,
             'total_wait_time': round(self._total_wait_time, 3),
@@ -253,7 +258,7 @@ class BackpressureController:
         }
     
     def reset(self) -> None:
-        """重置统计"""
+        """Reset statistics"""
         self._pause_count = 0
         self._total_wait_time = 0.0
     

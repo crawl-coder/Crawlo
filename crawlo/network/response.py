@@ -11,11 +11,18 @@ HTTP Response 封装模块
 - Cookie 处理
 """
 import re
-import ujson
 from typing import Dict, Any, List, Optional, Union, Pattern, Match, TYPE_CHECKING
 from urllib.parse import urljoin as _urljoin
 from parsel import Selector, SelectorList
 from lxml.html import HtmlElement
+
+# 尝试使用 ujson 提升性能，失败时降级到标准库 json
+try:
+    import ujson as json_module
+    USE_UJSON = True
+except ImportError:
+    import json as json_module
+    USE_UJSON = False
 
 if TYPE_CHECKING:
     from crawlo.network.request import Request
@@ -36,31 +43,12 @@ from crawlo.settings.default_settings import (
     ADAPTIVE_SIMILARITY_THRESHOLD,
     REDIS_HOST, REDIS_PORT, REDIS_PASSWORD, REDIS_DB,
 )
-from crawlo.tools.adaptive_selector import (
+from crawlo.helpers.adaptive_selector import (
     FingerprintStorage,
     SimilarityMatcher,
     ElementFingerprint,
 )
-
-
-def memoize_method_noargs(func):
-    """
-    装饰器，用于缓存无参数方法的结果
-    
-    Args:
-        func: 要装饰的函数
-        
-    Returns:
-        function: 装饰后的函数
-    """
-    cache_attr = f'_cache_{func.__name__}'
-    
-    def wrapper(self):
-        if not hasattr(self, cache_attr):
-            setattr(self, cache_attr, func(self))
-        return getattr(self, cache_attr)
-    
-    return wrapper
+from crawlo.utils.decorators import memoize_method_noargs
 
 
 class Response:
@@ -82,6 +70,11 @@ class Response:
     _adaptive_storage = None
     _adaptive_matcher = None
     _adaptive_enabled_global = None  # None 表示未初始化
+    _adaptive_initialized = False  # 标记是否已初始化
+    _cleanup_registered = False  # 标记是否已注册清理函数
+    
+    # 响应体大小限制（100MB）
+    MAX_BODY_SIZE = 100 * 1024 * 1024
 
     def __init__(
             self,
@@ -107,6 +100,14 @@ class Response:
         # 基本属性
         self.url: str = url
         self.headers: Dict[str, Any] = headers or {}
+        
+        # 检查响应体大小限制
+        if len(body) > self.MAX_BODY_SIZE:
+            raise ValueError(
+                f"Response body too large: {len(body)} bytes "
+                f"(limit: {self.MAX_BODY_SIZE} bytes)"
+            )
+        
         self.body: bytes = body
         self.method: str = method.upper()
         self.request: Optional['Request'] = request
@@ -128,6 +129,53 @@ class Response:
         self._is_redirect: bool = 300 <= status < 400
         self._is_client_error: bool = 400 <= status < 500
         self._is_server_error: bool = status >= 500
+    
+    @classmethod
+    def from_text(cls, url: str, text: str, encoding: str = 'utf-8', **kwargs) -> 'Response':
+        """
+        Create a Response from text.
+        
+        Args:
+            url: Response URL
+            text: Response body text
+            encoding: Text encoding
+            **kwargs: Additional response parameters (status, headers, etc.)
+            
+        Returns:
+            Response: Response object
+            
+        Example:
+            >>> response = Response.from_text('http://example.com', '<html>...</html>')
+        """
+        return cls(
+            url=url,
+            body=text.encode(encoding),
+            **kwargs
+        )
+    
+    @classmethod
+    def from_json(cls, url: str, data: Dict[str, Any], **kwargs) -> 'Response':
+        """
+        Create a Response from JSON data.
+        
+        Args:
+            url: Response URL
+            data: JSON data dictionary
+            **kwargs: Additional response parameters (status, headers, etc.)
+            
+        Returns:
+            Response: Response object
+            
+        Example:
+            >>> response = Response.from_json('http://api.example.com', {'key': 'value'})
+        """
+        import json
+        return cls(
+            url=url,
+            body=json.dumps(data, ensure_ascii=False).encode('utf-8'),
+            headers={'Content-Type': 'application/json', **(kwargs.pop('headers', {}))},
+            **kwargs
+        )
 
     # ==================== 编码检测相关方法 ====================
     
@@ -262,9 +310,9 @@ class Response:
             return self._json_cache
 
         try:
-            self._json_cache = ujson.loads(self.text)
+            self._json_cache = json_module.loads(self.text)
             return self._json_cache
-        except (ujson.JSONDecodeError, ValueError) as e:
+        except (json_module.JSONDecodeError, ValueError) as e:
             if default is not None:
                 return default
             raise DecodeError(f"Failed to parse JSON from {self.url}: {e}")
@@ -298,7 +346,8 @@ class Response:
         return self._selector_instance
 
     def xpath(self, query: str, adaptive: bool = False,
-              identifier: str = '', percentage: float = 0.0) -> SelectorList:
+              identifier: str = '', percentage: float = 0.0,
+              timeout: float = 5.0) -> SelectorList:
         """
         使用 XPath 选择器查询文档。
 
@@ -307,12 +356,40 @@ class Response:
             adaptive: 启用自适应追踪（命中时保存/更新指纹，失效时自动匹配）
             identifier: 指纹标识符（默认使用 query 字符串）
             percentage: 最低匹配百分比阈值（0-100）
+            timeout: 查询超时时间（秒），默认 5 秒
 
         Returns:
             SelectorList: 查询结果
         """
-        # 先尝试原始选择器
-        result = self._selector.xpath(query)
+        import threading
+        
+        result_holder = [None]
+        exception_holder = [None]
+        
+        def _execute_xpath():
+            try:
+                result_holder[0] = self._selector.xpath(query)
+            except Exception as e:
+                exception_holder[0] = e
+        
+        # 执行 XPath 查询（带超时）
+        thread = threading.Thread(target=_execute_xpath)
+        thread.daemon = True
+        thread.start()
+        thread.join(timeout)
+        
+        # 检查超时
+        if thread.is_alive():
+            get_logger('Response').warning(
+                f"XPath query timeout after {timeout}s: {query[:50]}..."
+            )
+            return SelectorList([])
+        
+        # 检查异常
+        if exception_holder[0]:
+            raise exception_holder[0]
+        
+        result = result_holder[0]
 
         # 自适应逻辑
         if result:
@@ -343,7 +420,8 @@ class Response:
         return result
 
     def css(self, query: str, adaptive: bool = False,
-            identifier: str = '', percentage: float = 0.0) -> SelectorList:
+            identifier: str = '', percentage: float = 0.0,
+            timeout: float = 5.0) -> SelectorList:
         """
         使用 CSS 选择器查询文档。
 
@@ -352,6 +430,7 @@ class Response:
             adaptive: 启用自适应追踪（命中时保存/更新指纹，失效时自动匹配）
             identifier: 指纹标识符（默认使用 query 字符串）
             percentage: 最低匹配百分比阈值（0-100）
+            timeout: 查询超时时间（秒），默认 5 秒
 
         Returns:
             SelectorList: 查询结果
@@ -368,6 +447,7 @@ class Response:
             adaptive=adaptive,
             identifier=identifier or query,
             percentage=percentage,
+            timeout=timeout,
         )
 
     # ==================== 自适应选择器内部方法 ====================
@@ -382,22 +462,67 @@ class Response:
         if cls._adaptive_enabled_global is not None:
             return cls._adaptive_enabled_global
 
-        # 延迟初始化：从 settings 读取配置
+        # 防止重复初始化
+        if cls._adaptive_initialized:
+            return False
+
+        # 延迟初始化：尝试动态读取 settings，其次使用默认值
         try:
+            # 尝试从当前 crawler 获取 settings（如果有）
+            settings_backend = ADAPTIVE_STORAGE_BACKEND
+            settings_sqlite_path = ADAPTIVE_SQLITE_PATH
+            settings_redis_host = REDIS_HOST
+            settings_redis_port = REDIS_PORT
+            settings_redis_password = REDIS_PASSWORD
+            settings_redis_db = REDIS_DB
+            settings_threshold = ADAPTIVE_SIMILARITY_THRESHOLD
+            
             cls._adaptive_storage = FingerprintStorage(
-                backend=ADAPTIVE_STORAGE_BACKEND,
-                storage_file=ADAPTIVE_SQLITE_PATH,
-                redis_host=REDIS_HOST,
-                redis_port=REDIS_PORT,
-                redis_password=REDIS_PASSWORD,
-                redis_db=REDIS_DB,
+                backend=settings_backend,
+                storage_file=settings_sqlite_path,
+                redis_host=settings_redis_host,
+                redis_port=settings_redis_port,
+                redis_password=settings_redis_password,
+                redis_db=settings_redis_db,
             )
-            cls._adaptive_matcher = SimilarityMatcher(threshold=ADAPTIVE_SIMILARITY_THRESHOLD)
+            cls._adaptive_matcher = SimilarityMatcher(threshold=settings_threshold)
             cls._adaptive_enabled_global = True
+            cls._adaptive_initialized = True
+            
+            # 注册清理函数（仅注册一次）
+            if not cls._cleanup_registered:
+                import atexit
+                atexit.register(cls._cleanup_adaptive)
+                cls._cleanup_registered = True
+            
             return True
         except Exception:
             cls._adaptive_enabled_global = False
+            cls._adaptive_initialized = True
             return False
+    
+    @classmethod
+    def _cleanup_adaptive(cls):
+        """清理自适应选择器资源（防止内存泄漏）"""
+        try:
+            if cls._adaptive_storage:
+                # 关闭存储连接
+                if hasattr(cls._adaptive_storage, 'close'):
+                    cls._adaptive_storage.close()
+                cls._adaptive_storage = None
+            
+            cls._adaptive_matcher = None
+            cls._adaptive_enabled_global = None
+            cls._adaptive_initialized = False
+            
+            get_logger('Response').debug("Adaptive selector resources cleaned up")
+        except Exception as e:
+            get_logger('Response').warning(f"Failed to cleanup adaptive selector: {e}")
+    
+    @classmethod
+    def cleanup_adaptive(cls):
+        """公开方法：手动清理自适应选择器资源（供爬虫关闭时调用）"""
+        cls._cleanup_adaptive()
 
     @classmethod
     def configure_adaptive(cls, backend: str = 'sqlite',
@@ -525,7 +650,7 @@ class Response:
             return result[0] if result else None
         return result
 
-    def get(self, xpath_or_css: str, default: Optional[str] = None) -> Optional[str]:
+    def get(self, xpath_or_css: str, default: Optional[str] = None, strict: bool = False) -> Optional[str]:
         """
         获取第一个匹配元素的文本。
         
@@ -534,6 +659,7 @@ class Response:
         Args:
             xpath_or_css: XPath 或 CSS 选择器
             default: 未找到时的默认值
+            strict: 严格模式，True 时抛出异常而非返回 default
             
         Returns:
             str: 第一个元素的文本，未找到返回 default
@@ -546,10 +672,13 @@ class Response:
             elements = self._get_elements(xpath_or_css)
             result = self._extract_text(elements, first_only=True)
             return result if result is not None else default
-        except Exception:
+        except Exception as e:
+            if strict:
+                raise
+            get_logger('Response').debug(f"Selector failed: {e}")
             return default
 
-    def getall(self, xpath_or_css: str) -> List[str]:
+    def getall(self, xpath_or_css: str, strict: bool = False) -> List[str]:
         """
         获取所有匹配元素的文本列表。
         
@@ -557,6 +686,7 @@ class Response:
         
         Args:
             xpath_or_css: XPath 或 CSS 选择器
+            strict: 严格模式，True 时抛出异常而非返回空列表
             
         Returns:
             List[str]: 所有匹配元素的文本列表
@@ -568,7 +698,10 @@ class Response:
         try:
             elements = self._get_elements(xpath_or_css)
             return self._extract_text(elements, first_only=False)
-        except Exception:
+        except Exception as e:
+            if strict:
+                raise
+            get_logger('Response').debug(f"Selector failed: {e}")
             return []
 
     def attr(self, xpath_or_css: str, name: str, default: Optional[str] = None) -> Optional[str]:

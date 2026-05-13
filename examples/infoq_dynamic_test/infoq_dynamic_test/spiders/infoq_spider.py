@@ -2,7 +2,7 @@
 """
 InfoQ 动态下载器测试爬虫
 ==========================
-测试 DynamicRenderMiddleware 和 PlaywrightDownloader 的使用
+测试 CloakBrowserDownloader 的使用
 
 测试目标：https://www.infoq.cn/zones/harmonyos/latest
 """
@@ -14,7 +14,7 @@ from ..items import InfoqArticle
 
 
 class InfoqSpider(Spider):
-    """InfoQ HarmonyOS 文章爬虫"""
+    """InfoQ HarmonyOS 文章爬虫 - 使用 CloakBrowserDownloader"""
     
     name = 'infoq_spider'
     
@@ -23,28 +23,24 @@ class InfoqSpider(Spider):
     
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.test_mode = os.environ.get('TEST_MODE', 'protocol')
+        self.test_mode = os.environ.get('TEST_MODE', 'dynamic_meta')
         
     def start_requests(self):
         """生成起始请求"""
         
-        # 根据测试模式设置请求标记
-        if self.test_mode == 'dynamic_meta':
-            # 方式3：通过请求标记启用动态下载器
-            self.logger.info(f"[请求标记] 启用动态下载器")
-            yield Request(
-                url=self.START_URL,
-                callback=self.parse,
-                meta={'use_dynamic_loader': True}
-            )
-        else:
-            # 默认情况：由 DynamicRenderMiddleware 自动判断
-            # 如果 DYNAMIC_RENDER_DOMAINS 包含 www.infoq.cn，则使用动态下载器
-            # 否则使用协议下载器
-            yield Request(
-                url=self.START_URL,
-                callback=self.parse
-            )
+        # 使用 CloakBrowser 动态下载器
+        self.logger.info(f"[CloakBrowser] 启用动态下载器")
+        yield Request(
+            url=self.START_URL,
+            callback=self.parse,
+            meta={
+                'use_dynamic_loader': True,
+                # CloakBrowser 特有配置（cloakbrowser_ 前缀）
+                'cloakbrowser_auto_scroll': True,
+                'cloakbrowser_scroll_delay': 500,
+                'cloakbrowser_block_resources': ["image", "font", "media"],
+            }
+        )
     
     def parse(self, response):
         """解析列表页"""
@@ -58,7 +54,6 @@ class InfoqSpider(Spider):
         self.logger.info(f"# 状态码: {response.status}")
         self.logger.info(f"# 内容长度: {len(response.text)} 字符")
         self.logger.info(f"# 使用动态下载器: {response.request.meta.get('use_dynamic_loader', False)}")
-        self.logger.info(f"# 执行了点击操作: {'playwright_actions' in response.request.meta}")
         self.logger.info(f"{'#'*60}\n")
         
         # 提取页面标题
@@ -66,7 +61,6 @@ class InfoqSpider(Spider):
         self.logger.info(f"页面标题: {title}")
         
         # 提取文章列表 - 使用正确的选择器
-        # 文章容器：div[article-item].article-item
         article_items = response.xpath('//div[@article-item]')
         self.logger.info(f"找到文章容器: {len(article_items)} 个")
         
@@ -110,7 +104,10 @@ class InfoqSpider(Spider):
                     yield Request(
                         url=full_url,
                         callback=self.parse_detail,
-                        meta={'article_title': article_title}
+                        meta={
+                            'article_title': article_title,
+                            'use_dynamic_loader': True,
+                        }
                     )
         
         # 输出统计
@@ -125,7 +122,7 @@ class InfoqSpider(Spider):
                 note='No articles found'
             )
         
-        # 尝试点击"更多"按钮加载下一页（不限制翻页数，自然结束）
+        # 尝试点击"更多"按钮加载下一页
         self.logger.info("尝试点击'更多'按钮加载下一页...")
         yield Request(
             url=response.url,
@@ -134,14 +131,17 @@ class InfoqSpider(Spider):
             meta={
                 # 确保使用动态下载器
                 'use_dynamic_loader': True,
-                # 使用通用的 dynamic_actions（Playwright 和 DrissionPage 都支持）
+                # 使用 cloakbrowser_ 前缀的配置
+                'cloakbrowser_auto_scroll': True,
+                'cloakbrowser_block_resources': ["image", "font", "media"],
+                # 使用通用的 dynamic_actions（CloakBrowser 支持）
                 'dynamic_actions': [
-                    # 智能滚动到底部，让"加载更多"按钮可见
+                    # 智能滚动到底部
                     {
                         'type': 'scroll_to_bottom',
                         'params': {
-                            'scroll_delay': 500,  # 每次滚动后等待500ms
-                            'max_no_content': 2   # 连续2次无新内容认为到底部
+                            'scroll_delay': 500,
+                            'max_no_content': 2
                         }
                     },
                     # 等待按钮渲染
@@ -151,14 +151,11 @@ class InfoqSpider(Spider):
                             'timeout': 1000
                         }
                     },
-                    # 点击"加载更多"按钮（支持 XPath 和 CSS 选择器）
+                    # 点击"加载更多"按钮
                     {
                         'type': 'click_and_wait',
                         'params': {
-                            # XPath 选择器（自动识别）
                             'selector': '//div[contains(@class, "more-button") and contains(text(), "加载更多")]',
-                            # 也可以使用 CSS 选择器：
-                            # 'selector': 'div.more-button',
                             'wait_timeout': 3000,
                             'wait_for': 'networkidle'
                         }
@@ -171,7 +168,7 @@ class InfoqSpider(Spider):
         """解析详情页"""
         article_title = response.meta.get('article_title', '')
         
-        # 提取正文内容 - 使用用户指定的选择器
+        # 提取正文内容
         content_html = response.xpath('//div[@class="ProseMirror"]').get()
         content_text = response.xpath('//div[@class="ProseMirror"]//text()').getall()
         content_text = ''.join([t.strip() for t in content_text if t.strip()])

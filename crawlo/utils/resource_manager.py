@@ -323,7 +323,8 @@ class ResourceManager:
         for r in resources:
             for dep in r.depends_on:
                 if dep in in_degree:
-                    in_degree[r.name] += 1
+                    # 增加被依赖资源的入度，而不是依赖者的入度
+                    in_degree[dep] += 1
         
         result = []
         remaining = resources.copy()

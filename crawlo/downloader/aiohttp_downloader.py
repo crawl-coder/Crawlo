@@ -19,22 +19,24 @@ from crawlo.network.response import Response
 from crawlo.logging import get_logger
 from crawlo.downloader import DownloaderBase
 from crawlo.utils.misc import safe_get_config
+from crawlo.constants import ABSOLUTE_TIMEOUT_MULTIPLIER_NORMAL, ABSOLUTE_TIMEOUT_MULTIPLIER_EXTENDED
 
-# 检查 aiohttp 版本是否支持 happy_eyeballs_delay 参数
-# 该参数在 aiohttp 3.9.0+ 中引入，但某些 3.9.x 版本可能不包含
-def _supports_happy_eyeballs():
+if TYPE_CHECKING:
+    from crawlo.network.request import Request
+    from crawlo.crawler import Crawler
+
+
+def _supports_happy_eyeballs() -> bool:
+    """Check if aiohttp version supports happy_eyeballs_delay parameter"""
     try:
         sig = inspect.signature(TCPConnector.__init__)
         return 'happy_eyeballs_delay' in sig.parameters
     except Exception:
         return False
 
+
 _HAPPY_EYEBALLS_SUPPORTED = _supports_happy_eyeballs()
 from crawlo.exceptions import DownloadError
-
-if TYPE_CHECKING:
-    from crawlo.network.request import Request
-    from crawlo.crawler import Crawler
 
 
 class AioHttpDownloader(DownloaderBase):
@@ -77,20 +79,20 @@ class AioHttpDownloader(DownloaderBase):
         super().open()
 
         # 读取配置
-        timeout_secs = safe_get_config(self.crawler.settings, "DOWNLOAD_TIMEOUT", 30, int)
+        timeout_secs = safe_get_config(self.crawler.settings, "DOWNLOAD_TIMEOUT", 15, int)
         verify_ssl = safe_get_config(self.crawler.settings, "VERIFY_SSL", True, bool)
         pool_limit = safe_get_config(self.crawler.settings, "CONNECTION_POOL_LIMIT", 100, int)
-        pool_per_host = safe_get_config(self.crawler.settings, "CONNECTION_POOL_LIMIT_PER_HOST", 0, int)  # 0=不限制
+        pool_per_host = safe_get_config(self.crawler.settings, "CONNECTION_POOL_LIMIT_PER_HOST", 20, int)
         self.max_download_size = safe_get_config(self.crawler.settings, "DOWNLOAD_MAXSIZE", 10 * 1024 * 1024, int)
         auto_decompress = safe_get_config(self.crawler.settings, "AIOHTTP_AUTO_DECOMPRESS", True, bool)
 
         # 保存为实例变量
         self._timeout_secs = timeout_secs
         
-        # 初始化并发控制
+        # Initialize concurrency control
         self._concurrency = safe_get_config(self.crawler.settings, "CONCURRENCY", 12, int)
         self._semaphore = asyncio.Semaphore(self._concurrency)
-        self.logger.debug(f"并发控制初始化: CONCURRENCY={self._concurrency}")
+        self.logger.debug(f"Concurrency control initialized: CONCURRENCY={self._concurrency}")
 
         # 创建连接器（优化配置，防止连接泄漏和死锁）
         # 关键优化说明：
@@ -151,23 +153,10 @@ class AioHttpDownloader(DownloaderBase):
             self.logger.error("AioHttpDownloader session is not open.")
             return None
 
-        # 添加入口日志，用于诊断请求是否到达下载器
-        retry_times = request.meta.get('retry_times', 0)
-        has_proxy = bool(request.proxy)
-        self.logger.debug(
-            f"Download request (retry={retry_times}, proxy={has_proxy}): {request.url}"
-        )
-        
         # 并发控制：等待信号量
         if self._semaphore:
-            self.logger.debug(
-                f"等待并发槽位: {request.url} (active={self._active_requests}/{self._concurrency})"
-            )
             await self._semaphore.acquire()
             self._active_requests += 1
-            self.logger.debug(
-                f"获取并发槽位成功: {request.url} (active={self._active_requests}/{self._concurrency})"
-            )
 
         start_time = None
         if self.crawler.settings.get_bool("DOWNLOAD_STATS", True):
@@ -178,9 +167,11 @@ class AioHttpDownloader(DownloaderBase):
             is_retry = request.meta.get("retry_times", 0) > 0
 
             # 所有请求都使用绝对超时保护（防止代理连接永久阻塞）
-            # 重试请求：40秒绝对超时
-            # 正常请求：35秒绝对超时（比重试短，因为不需要等待）
-            absolute_timeout = 40.0 if is_retry else 35.0
+            # 从 DOWNLOAD_TIMEOUT 配置派生，乘以超时系数作为安全防线
+            absolute_timeout = (
+                self._timeout_secs * ABSOLUTE_TIMEOUT_MULTIPLIER_EXTENDED if is_retry
+                else self._timeout_secs * ABSOLUTE_TIMEOUT_MULTIPLIER_NORMAL
+            )
             
             if is_retry:
                 # 重试时使用正常超时，因为已经切换了代理或等待了一段时间
@@ -190,13 +181,19 @@ class AioHttpDownloader(DownloaderBase):
                     sock_read=self._timeout_secs * 0.50,       # 50%（15秒）
                     sock_connect=min(10.0, self._timeout_secs * 0.33)  # 33%（10秒）
                 )
-                # 使用 asyncio.wait_for 强制超时保护
+                # 使用 asyncio.timeout 强制超时保护，超时后取消下载防止连接泄漏
                 try:
-                    response = await asyncio.wait_for(
-                        self._download_with_timeout(request, retry_timeout),
-                        timeout=absolute_timeout
+                    download_task = asyncio.ensure_future(
+                        self._download_with_timeout(request, retry_timeout)
                     )
+                    async with asyncio.timeout(absolute_timeout):
+                        response = await download_task
                 except asyncio.TimeoutError:
+                    download_task.cancel()
+                    try:
+                        await download_task
+                    except asyncio.CancelledError:
+                        pass
                     self.logger.error(
                         f"重试请求绝对超时（{absolute_timeout:.0f}s），代理连接可能死锁: {request.url} "
                         f"(retry_times={request.meta.get('retry_times', 0)})"
@@ -206,13 +203,19 @@ class AioHttpDownloader(DownloaderBase):
                         url=request.url
                     )
             else:
-                # 正常请求也添加绝对超时保护
+                # 正常请求也添加绝对超时保护，超时后取消下载防止连接泄漏
                 try:
-                    response = await asyncio.wait_for(
-                        self._download_with_timeout(request),
-                        timeout=absolute_timeout
+                    download_task = asyncio.ensure_future(
+                        self._download_with_timeout(request)
                     )
+                    async with asyncio.timeout(absolute_timeout):
+                        response = await download_task
                 except asyncio.TimeoutError:
+                    download_task.cancel()
+                    try:
+                        await download_task
+                    except asyncio.CancelledError:
+                        pass
                     self.logger.error(
                         f"请求绝对超时（{absolute_timeout:.0f}s），代理连接可能死锁: {request.url}"
                     )
@@ -220,11 +223,6 @@ class AioHttpDownloader(DownloaderBase):
                         f"Connection timeout to host {request.url} (absolute timeout {absolute_timeout:.0f}s)",
                         url=request.url
                     )
-
-            # 记录下载统计
-            if start_time:
-                download_time = time.time() - start_time
-                self.logger.debug(f"Downloaded {request.url} in {download_time:.3f}s")
 
             return response
 
@@ -238,9 +236,6 @@ class AioHttpDownloader(DownloaderBase):
             if self._semaphore:
                 self._active_requests -= 1
                 self._semaphore.release()
-                self.logger.debug(
-                    f"释放并发槽位: {request.url} (active={self._active_requests}/{self._concurrency})"
-                )
 
     async def _download_with_timeout(self, request: 'Request', timeout: Optional[ClientTimeout] = None) -> Response:
         """
@@ -253,12 +248,8 @@ class AioHttpDownloader(DownloaderBase):
         Returns:
             Response: 响应对象
         """
-        # 记录请求详情（用于诊断）
         client_type = "临时session(重试)" if timeout is not None else "主session(正常)"
-        timeout_value = timeout.total if timeout and timeout.total else (40.0 if request.meta.get('retry_times', 0) > 0 else 35.0)
-        self.logger.debug(
-            f"Sending request via {client_type} (absolute_timeout={timeout_value:.0f}s): {request.url}"
-        )
+        timeout_value = timeout.total if timeout and timeout.total else (self._timeout_secs * ABSOLUTE_TIMEOUT_MULTIPLIER_EXTENDED if request.meta.get('retry_times', 0) > 0 else self._timeout_secs * ABSOLUTE_TIMEOUT_MULTIPLIER_NORMAL)
         
         # 如果有自定义超时，需要创建临时 session
         if timeout is not None:
@@ -310,8 +301,10 @@ class AioHttpDownloader(DownloaderBase):
         body = await resp.read()
         response = self._structure_response(request, resp, body)
 
-        # 记录下载大小
-        self.logger.debug(f"Downloaded {request.url}, size: {len(body)} bytes")
+        # HTTP 级别下载结果（状态码 + 大小）
+        self.logger.debug(
+            f"[HTTP] {request.url} {resp.status} ({len(body)}B)"
+        )
 
         return response
 

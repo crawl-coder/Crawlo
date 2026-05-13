@@ -5,12 +5,10 @@
 # @Author  :   crawl-coder
 # @Desc    :   None
 """
-import importlib
 import json
-import hashlib
 import base64
+import importlib
 from typing import Any, Optional, Iterable, Union, Dict
-from w3lib.url import canonicalize_url
 
 # 延迟导入 Request，避免循环依赖
 Request = None
@@ -155,24 +153,24 @@ def set_request(request: Request, priority: int) -> None:
     """
     设置请求的深度和优先级
     
-    :param request: Request 对象
-    :param priority: 优先级值
-    """
-    # 增加请求深度
-    request.meta['depth'] = request.meta.setdefault('depth', 0) + 1
+    depth 由框架自动传播（engine._handle_spider_output 中注入），
+    此处不再自增 depth，仅根据 depth 调整优先级。
     
-    # 根据深度调整优先级，深度越深优先级越低
+    向后兼容：若 depth 未设置（如 start_requests 直接入队），默认设为 1。
+    
+    :param request: Request 对象
+    :param priority: 优先级值（DEPTH_PRIORITY 配置）
+    """
+    # depth 由框架层面自动传播，此处仅确保 depth 存在（向后兼容）
+    if 'depth' not in request.meta:
+        request.meta['depth'] = 1
+    
+    # 根据深度调整优先级（用户设置 priority 时数值越大越优先，内部取反存储为 min-heap）：
+    # DEPTH_PRIORITY > 0: 深度越深内部 priority 越小 → 越先出队 → 深度优先（先详后列）
+    # DEPTH_PRIORITY < 0: 深度越深内部 priority 越大 → 越后出队 → 广度优先（先列后详）
+    # DEPTH_PRIORITY = 0: 不按深度调整优先级
     if priority:
         request.priority -= request.meta['depth'] * priority
-
-
-def _get_request_class():
-    """延迟获取 Request 类"""
-    global Request
-    if Request is None:
-        from crawlo import Request as ReqClass
-        Request = ReqClass
-    return Request
 
 
 def request_to_dict(request: Request, spider=None) -> Dict[str, Any]:

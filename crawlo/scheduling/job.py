@@ -16,7 +16,6 @@ class ScheduledJob:
         cron: Optional[str] = None, 
         interval: Optional[Dict[str, int]] = None,
         args: Optional[Dict[str, Any]] = None,
-        kwargs: Optional[Dict[str, Any]] = None,
         priority: int = 0,
         max_retries: int = 0,
         retry_delay: int = 60
@@ -25,7 +24,6 @@ class ScheduledJob:
         self.cron = cron
         self.interval = interval
         self.args = args or {}
-        self.kwargs = kwargs or {}
         self.priority = priority
         self.max_retries = max_retries
         self.retry_delay = retry_delay

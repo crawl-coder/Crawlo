@@ -25,12 +25,6 @@ async def transform(
         TransformTypeError: 当输入类型不符合要求时
     """
 
-    def _set_meta(obj: T) -> T:
-        """统一设置请求的depth元数据"""
-        if isinstance(obj, Request):
-            obj.meta.setdefault('depth', response.meta.get('depth', 0))
-        return obj
-
     # 类型检查前置
     if not (isgenerator(func) or isasyncgen(func)):
         raise TransformTypeError(
@@ -41,11 +35,11 @@ async def transform(
         if isgenerator(func):
             # 同步生成器处理
             for item in func:
-                yield _set_meta(item)
+                yield item
         else:
             # 异步生成器处理
             async for item in func:
-                yield _set_meta(item)
+                yield item
 
     except Exception as e:
         yield e

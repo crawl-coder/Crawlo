@@ -32,6 +32,9 @@ pymdown-extensions>=10.0
 # DrissionPage>=4.1.1.2
 # camoufox>=0.4.11
 
+# 企业级反检测下载器（使用 pip install crawlo[stealth] 安装）
+# cloakbrowser[geoip]>=0.3.14
+
 # MCP依赖（使用 pip install crawlo[mcp] 安装）
 # mcp>=1.0.0
 # markdownify>=0.13.1

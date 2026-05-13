@@ -4,7 +4,7 @@
 import sys
 import argparse
 from crawlo.commands import get_commands
-from crawlo.utils.config_manager import EnvConfigManager
+from crawlo.settings.setting_manager import EnvConfigManager
 
 
 def main():
@@ -55,8 +55,8 @@ def main():
         try:
             module = __import__(commands['help'], fromlist=['main'])
             module.main([])
-        except:
-            pass
+        except Exception:
+            pass  # Help command failed, silently ignore
         sys.exit(1)
 
     # 动态导入并执行命令

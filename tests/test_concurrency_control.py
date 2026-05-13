@@ -13,7 +13,7 @@ import asyncio
 import time
 from unittest.mock import MagicMock
 
-from crawlo.task_manager import TaskManager
+from crawlo.core.task_manager import TaskManager
 
 
 class TestConcurrencyControl:

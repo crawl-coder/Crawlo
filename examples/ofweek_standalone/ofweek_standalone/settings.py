@@ -58,7 +58,6 @@ PIPELINES = [
 
 # 日志配置
 LOG_LEVEL = 'INFO'
-
 # 日志文件路径（带时间戳，每次运行创建新文件）
 from datetime import datetime
 LOG_FILE = f'logs/ofweek_standalone_{datetime.now().strftime("%Y%m%d_%H%M%S")}.log'
@@ -126,20 +125,17 @@ MYSQL_UPDATE_COLUMNS = ()  # 冲突时需更新的列名；指定后 MYSQL_AUTO_
 # 启用定时任务 - 用于测试
 SCHEDULER_ENABLED = True  
 
-# 间隔日志配置（秒）- 用于测试间隔日志功能
-INTERVAL = 10  # 每10秒打印一次监控日志（测试用，生产环境建议60秒）  
 
 # 定时任务配置
 SCHEDULER_JOBS = [
     {
         'spider': 'of_week',           # 爬虫名称（对应spider的name属性）
-        'cron': '*/3 * * * *',       # 每2分钟执行一次
+        'cron': '*/2 * * * *',       # 每2分钟执行一次
         'enabled': True,              # 任务启用状态
         'priority': 10,               # 任务优先级
         'max_retries': 3,             # 最大重试次数
         'retry_delay': 60,            # 重试延迟（秒）
         'args': {},                   # 传递给爬虫的参数
-        'kwargs': {}                  # 传递给爬虫的额外参数
     },
     {
         'spider': 'of_week_adaptive',   # 使用自适应元素追踪的爬虫
@@ -149,7 +145,6 @@ SCHEDULER_JOBS = [
         'max_retries': 3,             # 最大重试次数
         'retry_delay': 120,           # 重试延迟（秒）
         'args': {},                   # 传递给爬虫的参数
-        'kwargs': {}                  # 传递给爬虫的额外参数
     },
     # {
     #     'spider': 'of_week2',           # 爬虫名称
@@ -159,7 +154,6 @@ SCHEDULER_JOBS = [
     #     'max_retries': 3,             # 最大重试次数
     #     'retry_delay': 60,            # 重试延迟（秒）
     #     'args': {},                   # 传递给爬虫的参数
-    #     'kwargs': {}                  # 传递给爬虫的额外参数
     # },
     # {
     #     'spider': 'of_week',           # 爬虫名称
@@ -172,29 +166,6 @@ SCHEDULER_JOBS = [
     # }
 ]
 
-# 关键配置参数（用户可能需要调整）
-SCHEDULER_CHECK_INTERVAL = 1           # 调度器检查间隔（秒）
-SCHEDULER_MAX_CONCURRENT = 3           # 最大并发任务数
-SCHEDULER_JOB_TIMEOUT = 3600           # 单个任务超时时间（秒）
-SCHEDULER_RESOURCE_MONITOR_ENABLED = True  # 是否启用资源监控
-SCHEDULER_RESOURCE_CHECK_INTERVAL = 300    # 资源检查间隔（秒）
-SCHEDULER_RESOURCE_LEAK_THRESHOLD = 3600   # 资源泄露检测阈值（秒）
-
-# =================================== 附加监控配置 ===================================
-
-# 启用MySQL监控（用于测试）
-MYSQL_MONITOR_ENABLED = False
-MYSQL_MONITOR_INTERVAL = 300  # MySQL监控间隔（秒）
-
-# 启用Redis监控（用于测试）
-REDIS_MONITOR_ENABLED = False
-REDIS_MONITOR_INTERVAL = 300  # Redis监控间隔（秒）
-
-# 启用内存监控（用于测试）
-MEMORY_MONITOR_ENABLED = False
-MEMORY_MONITOR_INTERVAL = 300  # 内存监控检查间隔（秒）
-MEMORY_WARNING_THRESHOLD = 80.0  # 内存使用率警告阈值（百分比）
-MEMORY_CRITICAL_THRESHOLD = 90.0  # 内存使用率严重阈值（百分比）
 
 
 

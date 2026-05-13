@@ -22,12 +22,18 @@ import time
 from typing import Optional, Dict, List
 
 from DrissionPage import ChromiumPage, ChromiumOptions
+from crawlo.constants import SUBPROCESS_RUN_TIMEOUT
 
 from crawlo.downloader import DownloaderBase
 from crawlo.utils.page_utils import PageActionHandler, SelectorConverter
 from crawlo.downloader.stealth_scripts import get_drissionpage_stealth_script
 from crawlo.network.response import Response
 from crawlo.logging import get_logger
+from crawlo.utils.misc import (
+    get_browser_config,
+    get_browser_config_int,
+    get_browser_config_bool,
+)
 
 
 class DrissionPageDownloader(DownloaderBase):
@@ -47,27 +53,25 @@ class DrissionPageDownloader(DownloaderBase):
         self.logger = get_logger(self.__class__.__name__)
         self.page: Optional[ChromiumPage] = None
         
-        # 配置参数
-        self.timeout = crawler.settings.get_int("DRISSIONPAGE_TIMEOUT", 30)
-        self.headless = crawler.settings.get_bool("DRISSIONPAGE_HEADLESS", True)
-        self.browser_path = crawler.settings.get("DRISSIONPAGE_BROWSER_PATH", None)
-        self.user_data_path = crawler.settings.get("DRISSIONPAGE_USER_DATA_PATH", None)
-        self.proxy = crawler.settings.get("DRISSIONPAGE_PROXY", None)
-        
-        # 等待策略
-        self.load_images = crawler.settings.get_bool("DRISSIONPAGE_LOAD_IMAGES", True)
-        
-        # 滚动配置
-        self.auto_scroll = crawler.settings.get_bool("DRISSIONPAGE_AUTO_SCROLL", False)
-        self.scroll_delay = crawler.settings.get_int("DRISSIONPAGE_SCROLL_DELAY", 1)
-        
+        s = crawler.settings
+        # === 浏览器通用配置（三级回退：DRISSIONPAGE_* → BROWSER_* → 默认值）===
+        # 注意：BROWSER_* 配置统一为毫秒，DrissionPage 内部使用秒，此处自动转换
+        self.timeout = get_browser_config_int(s, "DRISSIONPAGE", "TIMEOUT", 30000) / 1000  # ms → s
+        self.headless = get_browser_config_bool(s, "DRISSIONPAGE", "HEADLESS", True)
+        self.proxy = get_browser_config(s, "DRISSIONPAGE", "PROXY", None)
+        self.auto_scroll = get_browser_config_bool(s, "DRISSIONPAGE", "AUTO_SCROLL", False)
+        self.scroll_delay = get_browser_config_int(s, "DRISSIONPAGE", "SCROLL_DELAY", 500) / 1000  # ms → s
+        self.max_pages = get_browser_config_int(s, "DRISSIONPAGE", "MAX_PAGES", 10)
+        self.stealth_level = get_browser_config(s, "DRISSIONPAGE", "STEALTH_LEVEL", "basic")
+
+        # === DrissionPage 特有配置 ===
+        self.browser_path = s.get("DRISSIONPAGE_BROWSER_PATH", None)
+        self.user_data_path = s.get("DRISSIONPAGE_USER_DATA_PATH", None)
+        self.load_images = s.get_bool("DRISSIONPAGE_LOAD_IMAGES", True)
+
         # 标签页管理
         self._tabs: List[ChromiumPage] = []
         self._used_pages: set = set()
-        self.max_pages = crawler.settings.get_int("DRISSIONPAGE_MAX_PAGES", 10)
-        
-        # 反检测配置
-        self.stealth_level = crawler.settings.get("DRISSIONPAGE_STEALTH_LEVEL", "basic")
 
     @staticmethod
     def _cleanup_orphan_processes():
@@ -79,7 +83,7 @@ class DrissionPageDownloader(DownloaderBase):
                     ['tasklist', '/FI', 'IMAGENAME eq chrome.exe', '/FO', 'CSV', '/NH'],
                     capture_output=True,
                     text=True,
-                    timeout=5
+                    timeout=SUBPROCESS_RUN_TIMEOUT
                 )
                 if result.returncode == 0 and 'chrome.exe' in result.stdout.lower():
                     # 不强制清理，因为用户可能在使用 Chrome
@@ -90,7 +94,7 @@ class DrissionPageDownloader(DownloaderBase):
                     ['pgrep', '-f', 'drissionpage'],
                     capture_output=True,
                     text=True,
-                    timeout=5
+                    timeout=SUBPROCESS_RUN_TIMEOUT
                 )
                 if result.returncode == 0 and result.stdout.strip():
                     pids = result.stdout.strip().split('\n')
@@ -100,8 +104,8 @@ class DrissionPageDownloader(DownloaderBase):
                         except (ProcessLookupError, ValueError):
                             pass
         except Exception as e:
-            # 静默失败，不影响主流程
-            pass
+            # Log at debug level to avoid noise, but still record for troubleshooting
+            self.logger.debug(f"Cleanup orphan processes failed (silently ignored): {e}")
 
     def open(self):
         """初始化浏览器"""

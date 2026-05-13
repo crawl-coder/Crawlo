@@ -26,12 +26,11 @@ class SmsChannel(NotificationChannel):
     """
     
     def __init__(self):
-        # 从配置中获取短信相关信息
-        # 在实际应用中，这里应该从框架配置中读取
-        self.provider = getattr(self, '_provider', 'aliyun')  # 默认使用阿里云
-        self.access_key_id = getattr(self, '_access_key_id', None)
-        self.access_key_secret = getattr(self, '_access_key_secret', None)
-        self.sign_name = getattr(self, '_sign_name', None)  # 短信签名
+        # 初始化配置为 None，通过 set_config() 或配置加载器设置
+        self.provider = 'aliyun'  # 默认使用阿里云
+        self.access_key_id = None
+        self.access_key_secret = None
+        self.sign_name = None
     
     @property
     def channel_type(self) -> ChannelType:

@@ -78,7 +78,7 @@ class IQueue(ABC):
         
         Args:
             item: 要入队的元素
-            priority: 优先级，数值越大优先级越高
+            priority: 优先级，数值越小越优先（与 asyncio.PriorityQueue 最小堆语义一致）
             
         Returns:
             bool: 入队是否成功
@@ -203,17 +203,19 @@ class BackpressureableQueueMixin(ABC):
     """
     支持背压的队列混入类
     
-    提供背压控制的基础设施，子类需要实现具体的背压逻辑。
+    提供背压控制的回退基础设施。
+    当 QueueManager 已配置了统一的 BackpressureController 时，
+    通过设置 _bp_delegate 委托给它，避免重复计算。
     """
     
     def __init__(self, *args, max_size: int = 0, **kwargs):
         super().__init__(*args, max_size=max_size, **kwargs)
         self._backpressure_enabled = True
-        self._backpressure_threshold = 0.8  # 80% 时触发背压
+        self._backpressure_threshold = 0.8  # 回退阈值
         self._backpressure_active = False
         self._last_backpressure_check = 0
-        self._backpressure_check_interval = 0.1  # 检查间隔（秒）
-        # 确保 _max_size 已初始化
+        self._backpressure_check_interval = 0.1
+        self._bp_delegate = None  # 可由 QueueManager 注入统一的 BackpressureController
         if not hasattr(self, '_max_size'):
             self._max_size = max_size
     
@@ -252,34 +254,37 @@ class BackpressureableQueueMixin(ABC):
         """
         检查是否应该应用背压
         
+        优先委托给 QueueManager 注入的统一 BackpressureController，
+        避免与 QueueSizeStrategy 重复计算。
+        
         Returns:
             bool: 是否应该应用背压
         """
         if not self._backpressure_enabled:
             return False
-        
+
+        # 如果 QueueManager 注入了统一控制器，委托给它
+        if self._bp_delegate is not None:
+            return await self._bp_delegate.should_apply(self)
+
+        # 回退：使用内置简单逻辑
         current_time = time.time()
-        
-        # 节流检查：限制检查频率
-        # 但如果状态发生变化，仍然需要更新
         if current_time - self._last_backpressure_check < self._backpressure_check_interval:
-            # 在检查间隔内，不执行新的检查，但返回当前状态
             return self._backpressure_active
-        
+
         self._last_backpressure_check = current_time
-        
+
         if self._max_size <= 0:
             return False
-        
+
         queue_size = await self.size()
         utilization = queue_size / self._max_size
         should_backpressure = utilization >= self._backpressure_threshold
-        
-        # 状态变更时触发回调
+
         if should_backpressure != self._backpressure_active:
             self._backpressure_active = should_backpressure
             self._on_backpressure_state_change(should_backpressure)
-        
+
         return self._backpressure_active
     
     def _on_backpressure_state_change(self, active: bool) -> None:
@@ -297,22 +302,27 @@ class BackpressureableQueueMixin(ABC):
         """
         计算背压延迟
         
+        优先委托给 QueueManager 注入的统一 BackpressureController。
+        
         Returns:
             float: 延迟时间（秒），0 表示不需要延迟
         """
+        # 如果 QueueManager 注入了统一控制器，委托给它
+        if self._bp_delegate is not None:
+            if await self._bp_delegate.should_apply(self):
+                return await self._bp_delegate.calculate_delay(self)
+            return 0.0
+
+        # 回退：使用内置简单逻辑
         if not await self.should_apply_backpressure():
             return 0.0
-        
+
         if self._max_size <= 0:
             return 0.0
-        
+
         queue_size = await self.size()
         utilization = queue_size / self._max_size
-        
-        # 根据使用率计算延迟
-        # 80%-90%: 0.1-0.5s
-        # 90%-95%: 0.5-1.0s
-        # 95%-100%: 1.0-2.0s
+
         if utilization >= 0.95:
             return 2.0
         elif utilization >= 0.90:

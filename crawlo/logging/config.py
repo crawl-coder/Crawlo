@@ -1,19 +1,19 @@
 #!/usr/bin/python
 # -*- coding: UTF-8 -*-
 """
-日志配置管理
+Log Configuration Management
 """
 
 import os
 from dataclasses import dataclass, field
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, Tuple
 
 
 @dataclass
 class LogConfig:
-    """日志配置数据类 - 简单明确的配置结构"""
+    """Log configuration dataclass - simple and clear config structure"""
     
-    # 预设配置模板
+    # Preset configuration templates
     TEMPLATES = {
         'minimal': {
             'level': 'INFO',
@@ -44,46 +44,47 @@ class LogConfig:
         }
     }
     
-    # 基本配置
+    # Basic configuration
     level: str = "INFO"
     format: str = "%(asctime)s - [%(name)s] - %(levelname)s: %(message)s"
     encoding: str = "utf-8"
     
-    # 文件配置
+    # File configuration
     file_path: Optional[str] = None
     
-    # 控制台配置
+    # Console configuration
     console_enabled: bool = True
     file_enabled: bool = True
     
-    # 分别控制台和文件的日志级别
+    # Separate log levels for console and file
     console_level: Optional[str] = None
     file_level: Optional[str] = None
     
-    # 上下文信息配置
+    # Context information configuration
     include_thread_id: bool = False
     include_process_id: bool = False
     include_module_path: bool = False
     
-    # 模块级别配置
+    # Module level configuration
     module_levels: Dict[str, str] = field(default_factory=dict)
     
     @classmethod
     def from_settings(cls, settings) -> 'LogConfig':
-        """从settings对象创建配置"""
+        """Create configuration from settings object"""
         if not settings:
             return cls()
             
-        # 使用settings的get方法而不是getattr
+        # Use settings' get method instead of getattr
         if hasattr(settings, 'get'):
             get_val = settings.get
         else:
-            get_val = lambda k, d=None: getattr(settings, k, d)
+            def get_val(key: str, default=None):
+                return getattr(settings, key, default)
         
-        # 获取默认值
+        # Get default value
         format_default_value = "%(asctime)s - [%(name)s] - %(levelname)s: %(message)s"
         
-        # 确保类型安全
+        # Ensure type safety
         def safe_get_str(key: str, default: str = '') -> str:
             value = get_val(key, default)
             return str(value) if value is not None else default
@@ -124,8 +125,8 @@ class LogConfig:
     
     @classmethod
     def from_dict(cls, config_dict: Dict[str, Any]) -> 'LogConfig':
-        """从字典创建配置"""
-        # 映射字典键到类属性名
+        """Create configuration from dictionary"""
+        # Map dictionary keys to class attribute names
         key_mapping = {
             'LOG_LEVEL': 'level',
             'LOG_FORMAT': 'format',
@@ -141,7 +142,7 @@ class LogConfig:
             'LOG_LEVELS': 'module_levels'
         }
         
-        # 应用键映射
+        # Apply key mapping
         mapped_dict = {}
         for k, v in config_dict.items():
             mapped_key = key_mapping.get(k, k)
@@ -152,13 +153,13 @@ class LogConfig:
     
     @classmethod
     def from_template(cls, template_name: str) -> 'LogConfig':
-        """从模板创建配置
+        """Create configuration from template
         
         Args:
-            template_name: 模板名称 (minimal, standard, detailed, production)
+            template_name: Template name (minimal, standard, detailed, production)
             
         Returns:
-            LogConfig: 配置对象
+            LogConfig: Configuration object
         """
         if template_name not in cls.TEMPLATES:
             raise ValueError(f"未知的模板名称: {template_name}，可用模板: {', '.join(cls.TEMPLATES.keys())}")
@@ -167,48 +168,48 @@ class LogConfig:
         return cls(**template_config)
     
     def get_module_level(self, module_name: str) -> str:
-        """获取模块的日志级别"""
-        # 先查找精确匹配
+        """Get log level for a specific module"""
+        # First, find exact match
         if module_name in self.module_levels:
             return self.module_levels[module_name]
         
-        # 查找父模块匹配
+        # Find parent module match
         parts = module_name.split('.')
         for i in range(len(parts) - 1, 0, -1):
             parent_module = '.'.join(parts[:i])
             if parent_module in self.module_levels:
                 return self.module_levels[parent_module]
         
-        # 返回默认级别
+        # Return default level
         return self.level
     
     def get_console_level(self) -> str:
-        """获取控制台日志级别"""
+        """Get console log level"""
         return self.console_level or self.level
     
     def get_file_level(self) -> str:
-        """获取文件日志级别"""
+        """Get file log level"""
         return self.file_level or self.level
     
     def get_format(self) -> str:
         """
-        获取日志格式，包含上下文信息
+        Get log format with context information
         
         Returns:
-            日志格式字符串
+            Log format string
         """
         base_format = self.format
         
-        # 添加线程ID
+        # Add thread ID
         if self.include_thread_id:
             if '[%(thread)d]' not in base_format:
-                # 在时间戳后添加线程ID
+                # Add thread ID after timestamp
                 base_format = base_format.replace(
                     '%(asctime)s', 
                     '%(asctime)s [%(thread)d]'
                 )
                 
-        # 添加进程ID
+        # Add process ID
         if self.include_process_id:
             if '[%(process)d]' not in base_format:
                 # 在时间戳后添加进程ID（如果已经有线程ID，则在线程ID后添加）
@@ -223,10 +224,10 @@ class LogConfig:
                         '%(asctime)s [%(process)d]'
                     )
                 
-        # 添加模块路径
+        # Add module path
         if self.include_module_path:
             if '%(pathname)s:%(lineno)d' not in base_format:
-                # 在消息前添加文件路径和行号
+                # Add file path and line number before message
                 base_format = base_format.replace(
                     '%(message)s', 
                     '%(pathname)s:%(lineno)d - %(message)s'
@@ -234,27 +235,27 @@ class LogConfig:
                 
         return base_format
     
-    def validate(self) -> tuple[bool, str]:
-        """验证配置有效性
+    def validate(self) -> Tuple[bool, str]:
+        """Validate configuration effectiveness
         
         Returns:
-            tuple[bool, str]: (是否有效, 错误信息)
+            Tuple[bool, str]: (is_valid, error_message)
         """
         valid_levels = {'DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'}
         
-        # 验证主级别
+        # Validate main level
         if self.level.upper() not in valid_levels:
-            return False, f"无效的日志级别: {self.level}，有效级别为: {', '.join(valid_levels)}"
+            return False, f"Invalid log level: {self.level}, valid levels are: {', '.join(valid_levels)}"
         
-        # 验证控制台级别
+        # Validate console level
         if self.console_level and self.console_level.upper() not in valid_levels:
-            return False, f"无效的控制台日志级别: {self.console_level}，有效级别为: {', '.join(valid_levels)}"
+            return False, f"Invalid console log level: {self.console_level}, valid levels are: {', '.join(valid_levels)}"
         
-        # 验证文件级别
+        # Validate file level
         if self.file_level and self.file_level.upper() not in valid_levels:
-            return False, f"无效的文件日志级别: {self.file_level}，有效级别为: {', '.join(valid_levels)}"
+            return False, f"Invalid file log level: {self.file_level}, valid levels are: {', '.join(valid_levels)}"
         
-        # 确保日志目录存在
+        # Ensure log directory exists
         if self.file_path and self.file_enabled:
             try:
                 log_dir = os.path.dirname(self.file_path)

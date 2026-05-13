@@ -23,6 +23,8 @@
     }
 """
 import json
+import os
+import re
 from copy import deepcopy
 from importlib import import_module
 from collections.abc import MutableMapping
@@ -57,7 +59,17 @@ def normalize_component_config(
         return {}
     
     if isinstance(config, dict):
-        return {k: v for k, v in config.items() if k and not str(k).strip().startswith('#')}
+        result = {}
+        for k, v in config.items():
+            key_str = str(k).strip()
+            # 跳过空键和注释键
+            if not key_str or key_str.startswith('#'):
+                continue
+            # 清理值中的注释（如果是字符串）
+            if isinstance(v, str) and '#' in v:
+                v = v.split('#')[0].strip()
+            result[key_str] = v
+        return result
     
     if isinstance(config, tuple):
         config = [config]
@@ -68,8 +80,10 @@ def normalize_component_config(
             if not item:
                 continue
             if isinstance(item, str):
-                if item.strip() and not item.strip().startswith('#'):
-                    result[item.strip()] = default_priority
+                item_str = item.strip()
+                # 跳过空字符串和注释
+                if item_str and not item_str.startswith('#'):
+                    result[item_str] = default_priority
             elif isinstance(item, (list, tuple)) and len(item) >= 2:
                 path = str(item[0]).strip()
                 if path and not path.startswith('#'):
@@ -90,7 +104,8 @@ def merge_component_configs(
     """
     合并组件配置
     
-    用户配置覆盖默认配置。
+    用户配置覆盖默认配置。支持禁用机制：
+    - 设置为 None 或 0 表示禁用该组件
     
     Args:
         default: 默认配置
@@ -100,7 +115,14 @@ def merge_component_configs(
         Dict[str, int]: 合并后的配置
     """
     result = default.copy()
-    result.update(user)
+    
+    for key, value in user.items():
+        # 如果用户设置为 None 或 0，表示禁用该组件
+        if value is None or value == 0:
+            result.pop(key, None)
+        else:
+            result[key] = value
+    
     return result
 
 
@@ -205,8 +227,10 @@ class SettingManager(MutableMapping):
         # 在开头插入指定的去重管道（优先级最高：数字最小）
         if dedup_pipeline not in pipelines:
             # 找到当前最小的优先级
-            min_priority = min(pipelines.values()) if pipelines else 100
+            min_priority = min(pipelines.values()) if pipelines else 500
             # 去重管道优先级必须比所有其他管道都小，确保最先执行
+            # 使用固定差值 100，保证足够的优先级差距
+            # 例如：如果最小优先级是 300，去重管道优先级为 200
             pipelines[dedup_pipeline] = max(1, min_priority - 100)
         
         self.attributes['PIPELINES'] = pipelines
@@ -234,27 +258,99 @@ class SettingManager(MutableMapping):
         """处理动态配置项"""
         if self.attributes.get('LOG_FILE') is None:
             project_name = self.attributes.get('PROJECT_NAME', 'crawlo')
-            self.attributes['LOG_FILE'] = f'logs/{project_name}.log'
+            log_dir = self.attributes.get('LOG_DIR', 'logs')
+            self.attributes['LOG_FILE'] = f'{log_dir}/{project_name}.log'
     
     # ==================== 配置获取方法 ====================
-    
-    # 哨兵值：用于区分"未设置"和"显式设置为 None"
+        
+    # 哨兵值：用于区分“未设置”和“显式设置为 None”
     _SENTINEL = object()
-    
-    def get(self, key: str, default: Any = None) -> Any:
+        
+    def get(self, key: str, default: Any = _SENTINEL) -> Any:
         """
         获取配置值
-        
+            
         Args:
             key: 配置键名
-            default: 默认值（仅在键不存在时使用，显式设置为 None 的键返回 None）
-            
+            default: 默认值
+                - 未提供：键不存在时尝试返回内置默认值
+                - 提供：键不存在时返回该值
+                - 注意：如果键存在但值为 None，返回 None（不返回 default）
+                
         Returns:
-            配置值。如果键存在则返回对应值（包括 None），不存在时返回 default。
+            配置值。如果键存在则返回对应值（包括 None），不存在时根据 default 参数决定。
+                
+        Examples:
+            >>> settings.get('REDIS_USER')  # 返回 '' (内置默认值)
+            >>> settings.get('REDIS_USER', 'admin')  # 返回 'admin'
+            >>> settings.get('KEY', None)  # 返回 None
         """
         if key in self.attributes:
             return self.attributes[key]
-        return default
+            
+        # 提供了 default 参数，返回默认值
+        if default is not self._SENTINEL:
+            return default
+            
+        # 未提供 default 参数，返回内置默认值
+        return self._get_builtin_default(key)
+    
+    def _get_builtin_default(self, key: str) -> Any:
+        """
+        获取配置项的内置默认值
+        
+        对于常见的可选配置项，提供合理的默认值，避免 KeyError。
+        
+        Args:
+            key: 配置键名
+            
+        Returns:
+            内置默认值，未知键返回 None
+        """
+        # 字符串类型配置，默认空字符串
+        STRING_DEFAULTS = {
+            'REDIS_USER',           # Redis 用户名（可选）
+            'REDIS_PASSWORD',       # Redis 密码
+            'PROXY_API_URL',        # 代理 API URL
+            'MYSQL_PASSWORD',       # MySQL 密码
+            'FEISHU_WEBHOOK',       # 飞书 Webhook
+            'FEISHU_SECRET',        # 飞书密钥
+            'DINGTALK_WEBHOOK',     # 钉钉 Webhook
+            'DINGTALK_SECRET',      # 钉钉密钥
+            'WECOM_WEBHOOK',        # 企业微信 Webhook
+            'WECOM_SECRET',         # 企业微信密钥
+        }
+        
+        if key in STRING_DEFAULTS:
+            return ''
+        
+        # 列表类型配置，默认空列表
+        LIST_DEFAULTS = {
+            'PROXY_LIST',
+            'ALLOWED_DOMAINS',
+            'SPIDER_MODULES',
+            'NOTIFICATION_CHANNELS',
+            'DINGTALK_AT_MOBILES',
+            'DINGTALK_AT_USERIDS',
+            'FEISHU_AT_USERS',
+            'FEISHU_AT_MOBILE',
+            'WECOM_AT_USERS',
+            'WECOM_AT_MOBILE',
+        }
+        
+        if key in LIST_DEFAULTS:
+            return []
+        
+        # 字典类型配置，默认空字典
+        DICT_DEFAULTS = {
+            'DEFAULT_REQUEST_HEADERS',
+        }
+        
+        if key in DICT_DEFAULTS:
+            return {}
+        
+        # 未知键，返回 None
+        return None
     
     def get_int(self, key: str, default: int = 0) -> int:
         """获取整数配置值"""
@@ -283,7 +379,7 @@ class SettingManager(MutableMapping):
     
     def get_list(self, key: str, default: Optional[List] = None) -> List:
         """获取列表配置值"""
-        values = self.get(key, default or [])
+        values = self.get(key, default=default or [])
         if isinstance(values, str):
             return [v.strip() for v in values.split(',') if v.strip()]
         try:
@@ -293,7 +389,7 @@ class SettingManager(MutableMapping):
     
     def get_dict(self, key: str, default: Optional[Dict] = None) -> Dict:
         """获取字典配置值"""
-        value = self.get(key, default or {})
+        value = self.get(key, default=default or {})
         if isinstance(value, str):
             value = json.loads(value)
         try:
@@ -481,3 +577,96 @@ class SettingManager(MutableMapping):
         normalized = normalize_component_config(config)
         normalized[component_path] = priority
         self.attributes[component_key] = normalized
+
+
+class EnvConfigManager:
+    """环境变量配置管理器"""
+    
+    # 版本号缓存
+    _version_cache = None
+
+    @staticmethod
+    def get_env_var(var_name: str, default: Any = None, var_type: type = str) -> Any:
+        """
+        获取环境变量值
+
+        Args:
+            var_name: 环境变量名称
+            default: 默认值
+            var_type: 变量类型 (str, int, float, bool)
+
+        Returns:
+            环境变量值或默认值
+        """
+        value = os.getenv(var_name)
+        if value is None:
+            return default
+
+        try:
+            if var_type == bool:
+                return value.lower() in ('1', 'true', 'yes', 'on')
+            elif var_type == int:
+                return int(value)
+            elif var_type == float:
+                return float(value)
+            else:
+                return value
+        except (ValueError, TypeError):
+            return default
+
+    @staticmethod
+    def get_redis_config() -> dict:
+        """
+        获取 Redis 配置
+
+        Returns:
+            Redis 配置字典
+        """
+        return {
+            'REDIS_HOST': EnvConfigManager.get_env_var('CRAWLO_REDIS_HOST', '127.0.0.1', str),
+            'REDIS_PORT': EnvConfigManager.get_env_var('CRAWLO_REDIS_PORT', 6379, int),
+            'REDIS_PASSWORD': EnvConfigManager.get_env_var('CRAWLO_REDIS_PASSWORD', '', str),
+            'REDIS_DB': EnvConfigManager.get_env_var('CRAWLO_REDIS_DB', 0, int),
+        }
+
+    @staticmethod
+    def get_runtime_config() -> dict:
+        """
+        获取运行时配置
+
+        Returns:
+            运行时配置字典
+        """
+        return {
+            'CRAWLO_MODE': EnvConfigManager.get_env_var('CRAWLO_MODE', 'standalone', str),
+            'PROJECT_NAME': EnvConfigManager.get_env_var('CRAWLO_PROJECT_NAME', 'crawlo', str),
+            'CONCURRENCY': EnvConfigManager.get_env_var('CRAWLO_CONCURRENCY', 8, int),
+        }
+
+    @staticmethod
+    def get_version() -> str:
+        """
+        获取框架版本号
+        
+        直接从 crawlo.__version__ 模块导入，避免重复读取文件。
+
+        Returns:
+            框架版本号字符串
+        """
+        # 返回缓存的版本号
+        if EnvConfigManager._version_cache is not None:
+            return EnvConfigManager._version_cache
+        
+        try:
+            from crawlo.__version__ import __version__
+            EnvConfigManager._version_cache = __version__
+            return __version__
+        except ImportError:
+            # 开发模式下可能未安装，回退到元数据或默认值
+            try:
+                from importlib.metadata import version
+                EnvConfigManager._version_cache = version("crawlo")
+                return EnvConfigManager._version_cache
+            except Exception:
+                EnvConfigManager._version_cache = '1.0.0'
+                return EnvConfigManager._version_cache

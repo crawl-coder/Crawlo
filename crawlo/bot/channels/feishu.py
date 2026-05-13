@@ -36,12 +36,12 @@ class FeishuChannel(NotificationChannel):
     """
     
     def __init__(self):
-        # 从配置中获取飞书相关信息
-        self.webhook_url = getattr(self, '_webhook_url', None)  # 可通过外部设置
-        self.secret = getattr(self, '_secret', None)  # 可通过外部设置
-        self.at_users = getattr(self, '_at_users', [])  # 需要@的用户ID列表
-        self.at_mobile = getattr(self, '_at_mobile', [])  # 需要@的手机号列表
-        self.is_at_all = getattr(self, '_is_at_all', False)  # 是否@所有人
+        # 初始化配置为 None，通过 set_config() 或配置加载器设置
+        self.webhook_url = None
+        self.secret = None
+        self.at_users = []
+        self.at_mobile = []
+        self.is_at_all = False
 
     @property
     def channel_type(self) -> ChannelType:
@@ -74,14 +74,20 @@ class FeishuChannel(NotificationChannel):
             timestamp: 时间戳
             
         Returns:
-            生成的签名
+            生成的签名（HMAC-SHA256 Base64）
         """
         if not self.secret:
             return ""
         
+        import hmac
+        import base64
         string_to_sign = f'{timestamp}\n{self.secret}'
-        hmac_code = hashlib.new('sha256', string_to_sign.encode('utf-8')).digest()
-        return hmac_code.hex()
+        hmac_code = hmac.new(
+            self.secret.encode('utf-8'),
+            string_to_sign.encode('utf-8'),
+            hashlib.sha256
+        ).digest()
+        return base64.b64encode(hmac_code).decode('utf-8')
 
     def send(self, message: NotificationMessage) -> NotificationResponse:
         """

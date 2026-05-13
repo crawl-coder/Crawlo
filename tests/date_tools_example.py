@@ -3,7 +3,7 @@
 """
 Crawlo框架日期工具使用示例
 """
-from crawlo.tools import (
+from crawlo.helpers import (
     TimeUtils,
     parse_time,
     format_time,
@@ -147,7 +147,7 @@ def demo_in_spider():
     print("在爬虫项目中，您可以这样使用日期工具:")
     print("""
 from crawlo import Spider
-from crawlo.tools import parse_time, format_time
+from crawlo.helpers import parse_time, format_time
 
 class NewsSpider(Spider):
     def parse(self, response):

@@ -1,10 +1,9 @@
-"""
-多维度背压指标采集器
+"""Multi-dimensional backpressure metrics collector
 
-采集三大类指标：
-1. 队列指标：大小、使用率、增长速率
-2. 吞吐指标：入队速率、出队速率、速率差
-3. 性能指标：响应时间、超时率、成功率
+Collects three categories of metrics:
+1. Queue metrics: size, utilization, growth rate
+2. Throughput metrics: enqueue rate, dequeue rate, rate difference
+3. Performance metrics: response time, timeout rate, success rate
 
 Author: Crawlo Framework Team
 """
@@ -14,14 +13,15 @@ import asyncio
 from dataclasses import dataclass, field
 from typing import Optional, Deque, Callable, Any
 from collections import deque
-import logging
 
-logger = logging.getLogger(__name__)
+from crawlo.logging import get_logger
+
+logger = get_logger(__name__)
 
 
 @dataclass
-class BackpressureMetrics:
-    """背压指标数据类"""
+class QueueMetrics:
+    """队列多维指标数据类（区别于 interfaces.QueueMetrics 的策略指标）"""
     
     # 队列指标
     queue_size: int = 0
@@ -89,7 +89,7 @@ class BackpressureMetricsCollector:
         self._queue_max_size_func = queue_max_size_func
         
         # 指标历史记录（可配置大小）
-        self._history: Deque[BackpressureMetrics] = deque(maxlen=max_history)
+        self._history: Deque[QueueMetrics] = deque(maxlen=max_history)
         
         # 实时计数器
         self._enqueue_count = 0
@@ -105,7 +105,7 @@ class BackpressureMetricsCollector:
         self._lock = asyncio.Lock()
         
         # 上次采集的数据
-        self._last_metrics: Optional[BackpressureMetrics] = None
+        self._last_metrics: Optional[QueueMetrics] = None
         self._last_collect_time: float = time.time()
     
     async def start(self):
@@ -205,7 +205,7 @@ class BackpressureMetricsCollector:
                     level = 'normal'
                 
                 # 创建指标对象
-                metrics = BackpressureMetrics(
+                metrics = QueueMetrics(
                     queue_size=queue_size,
                     queue_max_size=queue_max_size,
                     queue_usage_ratio=queue_usage_ratio,
@@ -292,7 +292,7 @@ class BackpressureMetricsCollector:
         if is_success:
             self._success_count += 1
     
-    def get_current_metrics(self) -> Optional[BackpressureMetrics]:
+    def get_current_metrics(self) -> Optional[QueueMetrics]:
         """获取当前指标"""
         return self._last_metrics
     

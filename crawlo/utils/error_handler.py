@@ -4,7 +4,11 @@
 错误处理工具
 提供详细、一致的错误处理和日志记录机制
 """
+import asyncio
+import inspect
+import time
 import traceback
+from datetime import datetime
 from functools import wraps
 from typing import Optional, Callable, Any, Dict, List
 
@@ -131,30 +135,16 @@ class ErrorHandler:
                     except exceptions as e:
                         last_exception = e
                         if attempt < max_retries:
-                            # 记录重试信息
-                            retry_context = ErrorContext(
-                                context=f"函数 {func.__name__} 执行失败 (尝试 {attempt + 1}/{max_retries + 1})",
-                                module=context.module if context else "",
-                                function=func.__name__
-                            ) if context else None
-                            
                             self.logger.warning(
-                                f"函数 {func.__name__} 执行失败 (尝试 {attempt + 1}/{max_retries + 1}): {e}"
+                                f"Function {func.__name__} failed (attempt {attempt + 1}/{max_retries + 1}): {e}"
                             )
                             
-                            import asyncio
                             await asyncio.sleep(current_delay)
                             current_delay *= backoff_factor  # 指数退避
                         else:
-                            # 最后一次尝试失败
-                            final_context = ErrorContext(
-                                context=f"函数 {func.__name__} 执行失败，已达到最大重试次数",
-                                module=context.module if context else "",
-                                function=func.__name__
-                            ) if context else None
-                            
+                            # Last attempt failed
                             self.logger.error(
-                                f"函数 {func.__name__} 执行失败，已达到最大重试次数: {e}"
+                                f"Function {func.__name__} failed after {max_retries + 1} attempts: {e}"
                             )
                 raise last_exception
             
@@ -169,35 +159,20 @@ class ErrorHandler:
                     except exceptions as e:
                         last_exception = e
                         if attempt < max_retries:
-                            # 记录重试信息
-                            retry_context = ErrorContext(
-                                context=f"函数 {func.__name__} 执行失败 (尝试 {attempt + 1}/{max_retries + 1})",
-                                module=context.module if context else "",
-                                function=func.__name__
-                            ) if context else None
-            
                             self.logger.warning(
-                                f"函数 {func.__name__} 执行失败 (尝试 {attempt + 1}/{max_retries + 1}): {e}"
+                                f"Function {func.__name__} failed (attempt {attempt + 1}/{max_retries + 1}): {e}"
                             )
                             
-                            import time
                             time.sleep(current_delay)
                             current_delay *= backoff_factor  # 指数退避
                         else:
-                            # 最后一次尝试失败
-                            final_context = ErrorContext(
-                                context=f"函数 {func.__name__} 执行失败，已达到最大重试次数",
-                                module=context.module if context else "",
-                                function=func.__name__
-                            ) if context else None
-                            
+                            # Last attempt failed
                             self.logger.error(
-                                f"函数 {func.__name__} 执行失败，已达到最大重试次数: {e}"
+                                f"Function {func.__name__} failed after {max_retries + 1} attempts: {e}"
                             )
                 raise last_exception
             
-            # 根据函数是否为异步函数返回相应的包装器
-            import inspect
+            # Return appropriate wrapper based on function type
             if inspect.iscoroutinefunction(func):
                 return async_wrapper
             else:
@@ -296,8 +271,7 @@ def handle_exception(context: str = "", module: str = "", function: str = "",
                 if not raise_error:
                     return None
         
-        # 根据函数是否为异步函数返回相应的包装器
-        import inspect
+        # Return appropriate wrapper based on function type
         if inspect.iscoroutinefunction(func):
             return async_wrapper
         else:

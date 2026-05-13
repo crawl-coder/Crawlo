@@ -7,6 +7,7 @@
 import json
 import os
 import sqlite3
+import tempfile
 import time
 from abc import ABC, abstractmethod
 from typing import Any, Dict, List, Optional, Set
@@ -57,7 +58,7 @@ class JsonStorage(BaseStorage):
         os.makedirs(self._dir, exist_ok=True)
 
     def save(self, data: Dict[str, Any]) -> bool:
-        """保存检查点到 JSON 文件"""
+        """保存检查点到 JSON 文件（原子写入）"""
         try:
             # 将 set 转为 list 以便 JSON 序列化
             serializable = {
@@ -71,8 +72,23 @@ class JsonStorage(BaseStorage):
                 'stats': data.get('stats', {}),
             }
 
-            with open(self._path, 'w', encoding='utf-8') as f:
-                json.dump(serializable, f, ensure_ascii=False, indent=2)
+            # 使用临时文件 + 原子重命名，防止写入中断导致文件损坏
+            dir_name = os.path.dirname(self._path)
+            fd, tmp_path = tempfile.mkstemp(dir=dir_name, suffix='.tmp')
+            
+            try:
+                with os.fdopen(fd, 'w', encoding='utf-8') as f:
+                    json.dump(serializable, f, ensure_ascii=False, indent=2)
+                
+                # 原子替换（POSIX 系统保证原子性）
+                os.replace(tmp_path, self._path)
+            except:
+                # 如果失败，清理临时文件
+                try:
+                    os.unlink(tmp_path)
+                except:
+                    pass
+                raise
 
             self.logger.debug(f"Checkpoint saved to {self._path}")
             return True
@@ -143,77 +159,77 @@ class SqliteStorage(BaseStorage):
     def _init_tables(self):
         """初始化数据库表"""
         try:
-            conn = sqlite3.connect(self._path)
-            c = conn.cursor()
+            with sqlite3.connect(self._path) as conn:
+                c = conn.cursor()
 
-            c.execute('''
-                CREATE TABLE IF NOT EXISTS metadata (
-                    key TEXT PRIMARY KEY,
-                    value TEXT
-                )
-            ''')
+                c.execute('''
+                    CREATE TABLE IF NOT EXISTS metadata (
+                        key TEXT PRIMARY KEY,
+                        value TEXT
+                    )
+                ''')
 
-            c.execute('''
-                CREATE TABLE IF NOT EXISTS pending_requests (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    priority INTEGER DEFAULT 0,
-                    data TEXT NOT NULL
-                )
-            ''')
+                c.execute('''
+                    CREATE TABLE IF NOT EXISTS pending_requests (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        priority INTEGER DEFAULT 0,
+                        data TEXT NOT NULL
+                    )
+                ''')
 
-            c.execute('''
-                CREATE TABLE IF NOT EXISTS fingerprints (
-                    fingerprint TEXT PRIMARY KEY
-                )
-            ''')
+                c.execute('''
+                    CREATE TABLE IF NOT EXISTS fingerprints (
+                        fingerprint TEXT PRIMARY KEY
+                    )
+                ''')
 
-            conn.commit()
-            conn.close()
+                conn.commit()
         except Exception as e:
             self.logger.error(f"Failed to init tables: {e}")
 
     def save(self, data: Dict[str, Any]) -> bool:
         """保存检查点到 SQLite"""
         try:
-            conn = sqlite3.connect(self._path)
-            c = conn.cursor()
+            with sqlite3.connect(self._path) as conn:
+                # 开启显式事务
+                conn.execute('BEGIN TRANSACTION')
+                c = conn.cursor()
 
-            # 清空旧数据
-            c.execute('DELETE FROM metadata')
-            c.execute('DELETE FROM pending_requests')
-            c.execute('DELETE FROM fingerprints')
+                # 清空旧数据
+                c.execute('DELETE FROM metadata')
+                c.execute('DELETE FROM pending_requests')
+                c.execute('DELETE FROM fingerprints')
 
-            # 写入元数据
-            metadata = {
-                'version': '1',
-                'saved_at': str(time.time()),
-                'project_name': data.get('project_name', ''),
-                'spider_name': data.get('spider_name', ''),
-                'pending_count': str(data.get('pending_count', 0)),
-            }
-            for k, v in metadata.items():
-                c.execute('INSERT INTO metadata (key, value) VALUES (?, ?)', (k, v))
+                # 写入元数据
+                metadata = {
+                    'version': '1',
+                    'saved_at': str(time.time()),
+                    'project_name': data.get('project_name', ''),
+                    'spider_name': data.get('spider_name', ''),
+                    'pending_count': str(data.get('pending_count', 0)),
+                }
+                for k, v in metadata.items():
+                    c.execute('INSERT INTO metadata (key, value) VALUES (?, ?)', (k, v))
 
-            # 写入统计信息
-            stats = data.get('stats', {})
-            if stats:
-                c.execute('INSERT INTO metadata (key, value) VALUES (?, ?)',
-                          ('stats', json.dumps(stats, ensure_ascii=False)))
+                # 写入统计信息
+                stats = data.get('stats', {})
+                if stats:
+                    c.execute('INSERT INTO metadata (key, value) VALUES (?, ?)',
+                              ('stats', json.dumps(stats, ensure_ascii=False)))
 
-            # 写入待处理请求
-            requests = data.get('requests', [])
-            for req_data in requests:
-                priority = req_data.get('priority', 0) if isinstance(req_data, dict) else 0
-                c.execute('INSERT INTO pending_requests (priority, data) VALUES (?, ?)',
-                          (priority, json.dumps(req_data, ensure_ascii=False) if isinstance(req_data, dict) else str(req_data)))
+                # 写入待处理请求
+                requests = data.get('requests', [])
+                for req_data in requests:
+                    priority = req_data.get('priority', 0) if isinstance(req_data, dict) else 0
+                    c.execute('INSERT INTO pending_requests (priority, data) VALUES (?, ?)',
+                              (priority, json.dumps(req_data, ensure_ascii=False) if isinstance(req_data, dict) else str(req_data)))
 
-            # 写入指纹
-            fingerprints = data.get('fingerprints', set())
-            for fp in fingerprints:
-                c.execute('INSERT OR IGNORE INTO fingerprints (fingerprint) VALUES (?)', (fp,))
+                # 写入指纹
+                fingerprints = data.get('fingerprints', set())
+                for fp in fingerprints:
+                    c.execute('INSERT OR IGNORE INTO fingerprints (fingerprint) VALUES (?)', (fp,))
 
-            conn.commit()
-            conn.close()
+                conn.commit()
 
             self.logger.debug(f"Checkpoint saved to {self._path}")
             return True
@@ -228,35 +244,33 @@ class SqliteStorage(BaseStorage):
             if not os.path.exists(self._path):
                 return None
 
-            conn = sqlite3.connect(self._path)
-            c = conn.cursor()
+            with sqlite3.connect(self._path) as conn:
+                c = conn.cursor()
 
-            # 读取元数据
-            c.execute('SELECT key, value FROM metadata')
-            metadata = dict(c.fetchall())
+                # 读取元数据
+                c.execute('SELECT key, value FROM metadata')
+                metadata = dict(c.fetchall())
 
-            # 读取统计信息
-            stats = {}
-            if 'stats' in metadata:
-                try:
-                    stats = json.loads(metadata['stats'])
-                except (json.JSONDecodeError, TypeError):
-                    pass
+                # 读取统计信息
+                stats = {}
+                if 'stats' in metadata:
+                    try:
+                        stats = json.loads(metadata['stats'])
+                    except (json.JSONDecodeError, TypeError):
+                        pass
 
-            # 读取待处理请求
-            c.execute('SELECT data FROM pending_requests ORDER BY priority ASC')
-            requests = []
-            for row in c.fetchall():
-                try:
-                    requests.append(json.loads(row[0]))
-                except (json.JSONDecodeError, TypeError):
-                    requests.append(row[0])
+                # 读取待处理请求
+                c.execute('SELECT data FROM pending_requests ORDER BY priority ASC')
+                requests = []
+                for row in c.fetchall():
+                    try:
+                        requests.append(json.loads(row[0]))
+                    except (json.JSONDecodeError, TypeError):
+                        requests.append(row[0])
 
-            # 读取指纹
-            c.execute('SELECT fingerprint FROM fingerprints')
-            fingerprints = set(row[0] for row in c.fetchall())
-
-            conn.close()
+                # 读取指纹
+                c.execute('SELECT fingerprint FROM fingerprints')
+                fingerprints = set(row[0] for row in c.fetchall())
 
             return {
                 'version': int(metadata.get('version', '1')),

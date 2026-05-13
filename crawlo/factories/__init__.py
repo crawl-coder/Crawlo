@@ -1,24 +1,65 @@
 #!/usr/bin/python
 # -*- coding: UTF-8 -*-
 """
-Crawlo组件工厂系统
-==================
+Crawlo Component Factory System
+================================
 
-提供统一的组件创建和依赖注入机制
+Provides unified component creation and dependency injection mechanism.
 """
 
-from .registry import ComponentRegistry, get_component_registry
+from .registry import ComponentRegistry, get_component_registry as _get_component_registry
 from .base import ComponentFactory, ComponentSpec
-from .crawler import CrawlerComponentFactory
 
-# 公共接口
-register_component = get_component_registry().register
-get_component = get_component_registry().get
-create_component = get_component_registry().create
+# 延迟导入标志：避免模块导入时触发重量级注册
+_components_registered = False
+
+
+def _ensure_components_registered():
+    """确保 Crawler 相关组件已注册（首次使用时才触发）"""
+    global _components_registered
+    if not _components_registered:
+        from .crawler import register_crawler_components
+        register_crawler_components()
+        _components_registered = True
+
+
+def get_component_registry():
+    """获取全局组件注册表（首次调用时自动完成 Crawler 组件注册）"""
+    _ensure_components_registered()
+    return _get_component_registry()
+
+
+# 公共接口（延迟注册）
+def register_component(spec):
+    """注册组件（首次调用时自动完成 Crawler 组件注册）"""
+    _ensure_components_registered()
+    return _get_component_registry().register(spec)
+
+
+def get_component(name, **kwargs):
+    """获取组件实例（首次调用时自动完成 Crawler 组件注册）"""
+    _ensure_components_registered()
+    return _get_component_registry().get(name, **kwargs)
+
+
+def create_component(name, **kwargs):
+    """创建组件实例（首次调用时自动完成 Crawler 组件注册）"""
+    _ensure_components_registered()
+    return _get_component_registry().create(name, **kwargs)
+
+
+def __getattr__(name):
+    """模块级延迟导入（PEP 562），避免 import 时触发 CrawlerComponentFactory 的注册链"""
+    if name == 'CrawlerComponentFactory':
+        _ensure_components_registered()
+        from .crawler import CrawlerComponentFactory
+        return CrawlerComponentFactory
+    raise AttributeError(f"module 'crawlo.factories' has no attribute '{name}'")
+
 
 __all__ = [
     'ComponentRegistry',
-    'ComponentFactory', 
+    'ComponentFactory',
     'ComponentSpec',
     'CrawlerComponentFactory',
     'get_component_registry',

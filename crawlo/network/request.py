@@ -39,6 +39,10 @@ class RequestPriority(IntEnum):
         NORMAL(0)      → 0      → 正常出队
         LOW(-100)      → 100    → 较后出队
         BACKGROUND(-200) → 200  → 最后出队
+    
+    注意：
+        内部存储使用负值是为了兼容 Python 的 heapq（最小堆）。
+        用户只需关注传入的正值，框架会自动处理取反逻辑。
     """
     URGENT = 200       # 紧急任务（最高优先级）
     HIGH = 100         # 高优先级  
@@ -132,15 +136,30 @@ class Request:
             encoding: 字符编码，默认 utf-8
             use_dynamic_loader: 是否使用动态加载器
         """
+        # Basic URL validation
+        if not url or not isinstance(url, str) or url.strip() == '':
+            raise ValueError("URL cannot be empty")
+        
         self.callback = callback
         self.errback = errback
         self.method = str(method).upper()
         self.headers = headers or {}
         self.cookies = cookies or {}
-        self.priority = -priority  # 用于排序：值越小优先级越高
+        # Internal: negate priority for min-heap queue (smaller values = higher priority)
+        # User passes positive values (URGENT=200), we store as -200 for correct queue ordering
+        self.priority = -priority  # Internal storage: negated for heapq compatibility
         
         # 安全处理 meta，移除 logger 后再 deepcopy
         self._meta = self._safe_deepcopy_meta(meta) if meta is not None else {}
+        
+        # Save callback info to meta for serialization
+        if callback is not None and hasattr(callback, '__self__') and hasattr(callback, '__name__'):
+            spider_instance = getattr(callback, '__self__', None)
+            if spider_instance is not None:
+                self._meta['_callback_info'] = {
+                    'spider_class': spider_instance.__class__.__name__,
+                    'method_name': callback.__name__
+                }
         
         self.timeout = self._meta.get('download_timeout', timeout)
         self.proxy = proxy
@@ -170,7 +189,7 @@ class Request:
         if json_body is not None:
             if 'Content-Type' not in self.headers:
                 self.headers['Content-Type'] = 'application/json'
-            self.body = json.dumps(json_body, ensure_ascii=False).encode(encoding)
+            self.body = json.dumps(json_body, ensure_ascii=False).encode(encoding or 'utf-8')
             if self.method == 'GET':
                 self.method = 'POST'
 
@@ -183,7 +202,7 @@ class Request:
                 if 'Content-Type' not in self.headers:
                     self.headers['Content-Type'] = 'application/x-www-form-urlencoded'
                 query_str = urlencode(form_data)
-                self.body = query_str.encode(encoding)  # 显式编码为 bytes
+                self.body = query_str.encode(encoding or 'utf-8')  # 显式编码为 bytes
 
 
         else:
@@ -191,38 +210,48 @@ class Request:
             if isinstance(self.body, dict):
                 if 'Content-Type' not in self.headers:
                     self.headers['Content-Type'] = 'application/json'
-                self.body = json.dumps(self.body, ensure_ascii=False).encode(encoding)
+                self.body = json.dumps(self.body, ensure_ascii=False).encode(encoding or 'utf-8')
             elif isinstance(self.body, str):
-                self.body = self.body.encode(encoding)
+                self.body = self.body.encode(encoding or 'utf-8')
 
         self.dont_filter = dont_filter
         self._set_url(self._url)
 
     @staticmethod
-    def _add_params_to_url(url: str, params: Dict[str, Any]) -> str:
+    def _add_params_to_url(url: str, params: Dict[str, Any], replace: bool = True) -> str:
         """
-        将参数添加到URL中
-        
-        Args:
-            url: 原始URL
-            params: 参数字典
+        将参数添加到 URL 中
             
+        Args:
+            url: 原始 URL
+            params: 参数字典
+            replace: 是否覆盖已有参数（默认 True）
+                
         Returns:
-            str: 添加参数后的URL
+            str: 添加参数后的 URL
         """
         if not params:
             return url
-            
-        # 解析URL
+                
+        # 解析 URL
         parsed = urlparse(url)
         # 解析现有查询参数
-        query_params = parse_qsl(parsed.query, keep_blank_values=True)
+        query_params = dict(parse_qsl(parsed.query, keep_blank_values=True))
+            
         # 添加新参数
-        for key, value in params.items():
-            query_params.append((str(key), str(value)))
+        if replace:
+            # 覆盖模式：新参数替换旧参数
+            query_params.update({str(k): str(v) for k, v in params.items()})
+        else:
+            # 追加模式：保留旧参数，添加新参数
+            for key, value in params.items():
+                key_str = str(key)
+                if key_str not in query_params:
+                    query_params[key_str] = str(value)
+            
         # 重新构建查询字符串
         new_query = urlencode(query_params)
-        # 构建新的URL
+        # 构建新的 URL
         return urlunparse((
             parsed.scheme,
             parsed.netloc,
@@ -245,32 +274,51 @@ class Request:
         """
         import logging
         
-        def clean_logger_recursive(obj: Any) -> Any:
-            """递归移除 logger 对象"""
+        MAX_DEPTH = 50  # 最大递归深度
+        
+        def clean_logger_recursive(obj: Any, depth: int = 0) -> Any:
+            """递归移除 logger 对象（带深度限制）"""
+            # 深度检查
+            if depth > MAX_DEPTH:
+                raise ValueError(
+                    f"Meta nesting too deep (>{MAX_DEPTH} levels). "
+                    f"Check for circular references or excessive nesting."
+                )
+            
             if isinstance(obj, logging.Logger):
                 return None
             elif isinstance(obj, dict):
                 cleaned = {}
                 for k, v in obj.items():
                     if not (k == 'logger' or isinstance(v, logging.Logger)):
-                        cleaned[k] = clean_logger_recursive(v)
+                        cleaned[k] = clean_logger_recursive(v, depth + 1)
                 return cleaned
             elif isinstance(obj, (list, tuple)):
                 cleaned_list = []
                 for item in obj:
-                    cleaned_item = clean_logger_recursive(item)
+                    cleaned_item = clean_logger_recursive(item, depth + 1)
                     if cleaned_item is not None:
                         cleaned_list.append(cleaned_item)
                 return type(obj)(cleaned_list)
             else:
                 return obj
         
-        # 先清理 logger，再 deepcopy
-        cleaned_meta = clean_logger_recursive(meta)
-        # 确保返回字典类型
-        if not isinstance(cleaned_meta, dict):
-            return {}
-        return deepcopy(cleaned_meta)
+        try:
+            # 先清理 logger，再 deepcopy
+            cleaned_meta = clean_logger_recursive(meta)
+            # 确保返回字典类型
+            if not isinstance(cleaned_meta, dict):
+                return {}
+            return deepcopy(cleaned_meta)
+        except ValueError:
+            # 重新抛出深度异常
+            raise
+        except Exception as e:
+            # 其他异常降级为浅拷贝
+            get_logger('Request').warning(
+                f"Failed to deep copy meta: {e}, falling back to shallow copy"
+            )
+            return dict(meta)
 
     def copy(self: _Request) -> _Request:
         """
@@ -305,6 +353,134 @@ class Request:
             encoding=self.encoding,
             use_dynamic_loader=self.use_dynamic_loader
         )
+    
+    def __copy__(self: _Request) -> _Request:
+        """
+        Shallow copy optimization (for performance-critical scenarios).
+        
+        Note: This is a shallow copy, use copy() for deep copy.
+        
+        Returns:
+            Request: Shallow copy of request
+        """
+        new_request = type(self).__new__(type(self))
+        for slot in self.__slots__:
+            setattr(new_request, slot, getattr(self, slot))
+        return new_request
+
+    def to_dict(self) -> Dict[str, Any]:
+        """
+        Serialize Request to dict (for queue storage, distributed transfer).
+        
+        Returns:
+            Dict[str, Any]: Serialized request dictionary
+            
+        Example:
+            >>> request = Request('http://example.com', params={'page': 1})
+            >>> data = request.to_dict()
+            >>> # {'url': 'http://example.com', 'method': 'GET', ...}
+        """
+        return {
+            'url': self._original_url,
+            'method': self.method,
+            'headers': self.headers.copy(),
+            'body': self.body.decode('utf-8', errors='replace') if isinstance(self.body, bytes) else self.body,
+            'form_data': self._form_data,
+            'json_body': self._json_body,
+            'params': self._params,
+            'cb_kwargs': deepcopy(self.cb_kwargs),
+            'cookies': self.cookies.copy(),
+            'meta': deepcopy(self._meta),
+            'priority': -self.priority,  # Negate to positive value
+            'dont_filter': self.dont_filter,
+            'timeout': self.timeout,
+            'proxy': self.proxy,
+            'allow_redirects': self.allow_redirects,
+            'auth': self.auth,
+            'verify': self.verify,
+            'flags': list(self.flags),
+            'encoding': self.encoding,
+            'use_dynamic_loader': self.use_dynamic_loader,
+        }
+    
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> 'Request':
+        """
+        Deserialize Request from dict.
+        
+        Args:
+            data: Serialized request dictionary
+            
+        Returns:
+            Request: Deserialized request object
+            
+        Example:
+            >>> data = {'url': 'http://example.com', 'method': 'GET', ...}
+            >>> request = Request.from_dict(data)
+        """
+        url = data.get('url')
+        if not url or not isinstance(url, str):
+            raise ValueError(
+                f"Invalid URL in request data: {repr(url)}. "
+                f"Full data keys: {list(data.keys()) if isinstance(data, dict) else 'N/A'}"
+            )
+        
+        return cls(
+            url=url,
+            method=data.get('method', 'GET'),
+            headers=data.get('headers'),
+            body=data.get('body'),
+            form_data=data.get('form_data'),
+            json_body=data.get('json_body'),
+            params=data.get('params'),
+            cb_kwargs=data.get('cb_kwargs'),
+            cookies=data.get('cookies'),
+            meta=data.get('meta'),
+            priority=data.get('priority', 0),
+            dont_filter=data.get('dont_filter', False),
+            timeout=data.get('timeout'),
+            proxy=data.get('proxy'),
+            allow_redirects=data.get('allow_redirects', True),
+            auth=data.get('auth'),
+            verify=data.get('verify', True),
+            flags=data.get('flags'),
+            encoding=data.get('encoding'),
+            use_dynamic_loader=data.get('use_dynamic_loader', False),
+        )
+
+    @classmethod
+    def get(cls, url: str, **kwargs) -> 'Request':
+        """
+        Create a GET request.
+        
+        Args:
+            url: Request URL
+            **kwargs: Additional request parameters
+            
+        Returns:
+            Request: GET request object
+            
+        Example:
+            >>> request = Request.get('http://example.com', params={'page': 1})
+        """
+        return cls(url, method='GET', **kwargs)
+    
+    @classmethod
+    def post(cls, url: str, **kwargs) -> 'Request':
+        """
+        Create a POST request.
+        
+        Args:
+            url: Request URL
+            **kwargs: Additional request parameters (json_body, form_data, etc.)
+            
+        Returns:
+            Request: POST request object
+            
+        Example:
+            >>> request = Request.post('http://example.com/api', json_body={'key': 'value'})
+        """
+        return cls(url, method='POST', **kwargs)
 
     def set_meta(self, key: str, value: Any) -> 'Request':
         """

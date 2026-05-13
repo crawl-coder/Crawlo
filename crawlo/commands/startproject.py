@@ -12,9 +12,6 @@ import os
 from pathlib import Path
 from typing import Optional, List
 
-# 添加项目根目录到路径，以便能够导入utils模块
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
-
 try:
     from rich.console import Console
     from rich.panel import Panel
@@ -56,37 +53,19 @@ TEMPLATE_TYPES = {
     'gentle': '温和模板 - 低负载配置，对目标网站友好'
 }
 
-# 可选的模块组件
+# Optional module components
 OPTIONAL_MODULES = {
-    'mysql': 'MySQL数据库支持',
-    'mongodb': 'MongoDB数据库支持',
-    'redis': 'Redis支持（分布式队列和去重）',
-    'proxy': '代理支持',
-    'monitoring': '监控和性能分析',
-    'dedup': '去重功能',
-    'httpx': 'HttpX下载器',
-    'aiohttp': 'AioHttp下载器',
-    'curl': 'CurlCffi下载器'
+    'mysql': 'MySQL database support',
+    'mongodb': 'MongoDB database support',
+    'redis': 'Redis support (distributed queue and deduplication)',
+    'proxy': 'Proxy support',
+    'monitoring': 'Monitoring and performance analysis',
+    'dedup': 'Deduplication',
+    'httpx': 'HttpX downloader',
+    'aiohttp': 'AioHttp downloader',
+    'curl': 'CurlCffi downloader'
 }
 
-
-def show_error_panel(title, content):
-    """显示错误面板的简单实现"""
-    if RICH_AVAILABLE:
-        from rich.panel import Panel
-        console.print(Panel(content, title=title, border_style="red"))
-    else:
-        print(f"{title}")
-        print(content)
-
-def show_success_panel(title, content):
-    """显示成功面板的简单实现"""
-    if RICH_AVAILABLE:
-        from rich.panel import Panel
-        console.print(Panel(content, title=title, border_style="green"))
-    else:
-        print(f"{title}")
-        print(content)
 
 def _render_template(tmpl_path, context):
     """读取模板文件，替换 {{key}} 为 context 中的值"""
@@ -94,7 +73,7 @@ def _render_template(tmpl_path, context):
         content = f.read()
     
     # 处理简单的过滤器语法 {{key|filter}}
-    import re
+    # 注意：re 已在文件顶部导入，无需重复导入
     
     def apply_filter(value, filter_name):
         if filter_name == 'title':
@@ -456,6 +435,6 @@ def main(args):
         return 1
 
 if __name__ == "__main__":
-    import sys
+    # sys 已在顶部导入
     exit_code = main(sys.argv[1:])
     sys.exit(exit_code)

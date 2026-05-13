@@ -3,7 +3,7 @@
 """
 Crawlo框架高级工具使用示例
 """
-from crawlo.tools import (
+from crawlo.helpers import (
     # 数据处理工具
     clean_text,
     format_currency,
@@ -155,7 +155,7 @@ def demo_in_spider():
     print("""
 import asyncio
 from crawlo import Spider, Request
-from crawlo.tools import (
+from crawlo.helpers import (
     clean_text,
     validate_email,
     AntiCrawler,

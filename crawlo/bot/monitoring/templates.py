@@ -9,7 +9,7 @@
 
 from enum import Enum
 from typing import Dict, List, Optional
-from crawlo.bot.templates.manager import MessageTemplateManager
+from crawlo.bot.templates.manager import MessageTemplateManager, get_template_manager
 from crawlo.bot.core.models import NotificationType
 
 
@@ -88,8 +88,8 @@ class ResourceMonitorTemplateManager:
     }
     
     def __init__(self):
-        self.manager = MessageTemplateManager()
-        # 添加资源监控模板到主模板管理器
+        self.manager = get_template_manager()  # 使用全局模板管理器（与 send_template_notification 共享）
+        # 添加资源监控模板到全局模板管理器
         for name, template in self.RESOURCE_TEMPLATES.items():
             self.manager.add_template(name, template['title'], template['content'])
     

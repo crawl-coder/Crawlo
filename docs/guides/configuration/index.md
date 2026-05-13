@@ -142,7 +142,51 @@ DOWNLOAD_DELAY_OVERRIDES = {
 
 ---
 
-## 5. 数据存储 (Pipeline) 配置
+## 5. CloakBrowser（隐身浏览器）配置
+
+CloakBrowser 是源码级修补的 Chromium，用于高强度反爬站点。安装：`pip install crawlo[stealth]`
+
+### 场景化配置
+
+**基础使用**：
+```python
+DOWNLOADER = 'crawlo.downloader.cloakbrowser_downloader.CloakBrowserDownloader'
+CLOAKBROWSER_HEADLESS = True
+CLOAKBROWSER_BLOCK_RESOURCES = ['image', 'font', 'media']
+```
+
+**高对抗站点**（Cloudflare / reCAPTCHA）：
+```python
+CLOAKBROWSER_HEADLESS = False       # 有头模式
+CLOAKBROWSER_HUMANIZE = True        # 类人行为
+CLOAKBROWSER_GEOIP = True           # 时区自动匹配
+CLOAKBROWSER_PROXY = 'socks5://user:pass@proxy:1080'
+```
+
+### 核心参数
+
+| 参数 | 默认值 | 说明 |
+| :--- | :--- | :--- |
+| `CLOAKBROWSER_HEADLESS` | `True` | 无头模式。高强度站点建议 `False` |
+| `CLOAKBROWSER_HUMANIZE` | `False` | 类人行为模拟（鼠标/键盘/滚动） |
+| `CLOAKBROWSER_HUMAN_PRESET` | `"default"` | 预设：`"default"` 或 `"careful"` |
+| `CLOAKBROWSER_GEOIP` | `False` | 从代理 IP 自动检测时区和语言 |
+| `CLOAKBROWSER_STEALTH_ARGS` | `True` | 启用默认隐身参数 |
+| `CLOAKBROWSER_FINGERPRINT` | `None` | 固定指纹种子（int/str），用于会话持久化 |
+| `CLOAKBROWSER_PROXY` | `None` | 代理地址，支持 HTTP/SOCKS5 |
+| `CLOAKBROWSER_TIMEOUT` | `30000` | 总超时（毫秒） |
+| `CLOAKBROWSER_MAX_PAGES` | `10` | 最大标签页数 |
+| `CLOAKBROWSER_BLOCK_RESOURCES` | `["image","font","media"]` | 屏蔽的资源类型 |
+| `CLOAKBROWSER_AUTO_SCROLL` | `False` | 自动滚动 |
+| `CLOAKBROWSER_WAIT_STRATEGY` | `"auto"` | 等待策略：`auto` / `networkidle` / `domcontentloaded` |
+| `CLOAKBROWSER_PERSISTENT_CONTEXT` | `False` | 使用持久化浏览器上下文 |
+| `CLOAKBROWSER_USER_DATA_DIR` | `None` | 持久化数据目录 |
+
+> 完整配置项和示例详见 [CloakBrowser 使用指南](../cloakbrowser-guide.md)。
+
+---
+
+## 6. 数据存储 (Pipeline) 配置
 
 | 参数 | 默认值 | 说明 |
 | :--- | :--- | :--- |
@@ -153,7 +197,7 @@ DOWNLOAD_DELAY_OVERRIDES = {
 
 ---
 
-## 6. 通知系统配置
+## 7. 通知系统配置
 
 开启后可在抓取完成或出错时发送通知。
 
@@ -164,7 +208,7 @@ DOWNLOAD_DELAY_OVERRIDES = {
 
 ---
 
-## 7. 定时任务配置
+## 8. 定时任务配置
 
 | 参数 | 默认值 | 说明 |
 | :--- | :--- | :--- |
@@ -173,9 +217,57 @@ DOWNLOAD_DELAY_OVERRIDES = {
 
 ---
 
-## 8. 监控与日志配置
+## 9. 调度策略配置
 
-### 8.1 间隔日志监控（LogIntervalExtension）
+调度策略控制请求的出队顺序，影响爬虫是"先详后列"还是"先列后详"。
+
+| 参数 | 默认值 | 说明 |
+| :--- | :--- | :--- |
+| `DEPTH_PRIORITY` | `1` | 深度优先级调整系数，控制优先级如何随请求深度变化。 |
+
+**配置值含义**：
+
+| 配置值 | 策略 | 效果 | 适用场景 |
+|--------|------|------|---------|
+| `1`（默认） | 深度优先 | 深度越深优先级越高 → 详情页先出队 | 列表→详情型爬虫，解决"先列后详"问题 |
+| `-1` | 广度优先 | 深度越深优先级越低 → 列表页先出队 | 逐层抓取，确保层级完整 |
+| `0` | 不调整 | 不按深度调整优先级 | 完全自定义优先级 |
+
+**示例**：
+
+```python
+# settings.py
+
+# 深度优先（详情页优先出队，解决"先列后详"问题）—— 默认值
+DEPTH_PRIORITY = 1
+
+# 广度优先（列表页优先出队，同层级先处理完）
+DEPTH_PRIORITY = -1
+
+# 不按深度调整优先级
+DEPTH_PRIORITY = 0
+```
+
+**原理说明**：
+
+Crawlo 使用优先级队列（min-heap），内部 priority 值越小越先出队。用户设置 `priority` 时数值越大越优先，框架自动取反存储。
+
+```
+优先级计算公式：内部 priority = -用户priority - depth × DEPTH_PRIORITY
+
+示例（DEPTH_PRIORITY = 1，用户 priority = 0）：
+  列表页 (depth=1) → 内部 priority = 0 - 1×1 = -1
+  详情页 (depth=2) → 内部 priority = 0 - 2×1 = -2
+  -2 < -1 → 详情页先出队 ✅ 深度优先
+```
+
+> **注意**：`depth` 由框架自动传播，无需在 Spider 中手动设置。`start_requests` 的 depth 默认为 1，Spider 回调产生的子请求 depth 自动为 `parent.depth + 1`。
+
+---
+
+## 10. 监控与日志配置
+
+### 9.1 间隔日志监控（LogIntervalExtension）
 
 Crawlo 默认启用间隔日志监控，每 60 秒输出一次爬虫运行状态，包括抓取页数、Item 数量、队列大小和背压状态。
 
@@ -205,7 +297,7 @@ INTERVAL = 10  # 每 10 秒输出一次监控日志
 
 ---
 
-## 9. 自适应选择器配置
+## 11. 自适应选择器配置
 
 | 参数 | 默认值 | 说明 |
 | :--- | :--- | :--- |

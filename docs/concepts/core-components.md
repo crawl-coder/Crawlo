@@ -4,27 +4,70 @@
 
 ## 1. 下载器 (Downloader)
 
-下载器负责实际的网络通信。Crawlo 推荐使用 **HybridDownloader**（混合下载器）。
+下载器负责实际的网络通信。Crawlo 推荐使用 **HybridDownloader**（混合下载器），自动在协议和浏览器下载器间智能切换。
+
+### 下载器类型
+
+| 类型 | 下载器 | 适用场景 |
+|------|--------|---------|
+| **协议** | AioHttp / HttpX / CurlCffi | 静态页面、API 接口 |
+| **浏览器** | Playwright | JS 渲染页面 |
+| **浏览器** | Camoufox | 中度反爬站点（Firefox 补丁） |
+| **浏览器** | **CloakBrowser** | 高强度反爬站点（Chromium 补丁） |
 
 ### 混合模式 (Hybrid)
-混合下载器可以在以下引擎间智能切换：
-- **aiohttp / httpx**：用于高性能静态页面抓取。
-- **Playwright / Camoufox**：用于处理 JS 渲染及高难度反爬。
+
+混合下载器根据请求特征自动选择下载器：
+- **协议下载器**（aiohttp / httpx / curl_cffi）：处理静态页面，速度最快
+- **动态下载器**（Playwright / Camoufox / CloakBrowser）：处理 JS 渲染页面
+
+路由规则：
+1. `request.meta['use_dynamic_loader'] = True` → 使用动态下载器
+2. `HYBRID_DYNAMIC_DOMAINS` 中的域名 → 自动走动态下载器
+3. `HYBRID_DYNAMIC_URL_PATTERNS` 匹配的 URL → 自动走动态下载器
+4. 其余 → 走协议下载器
+
+详见 [下载器选择与使用指南](../guides/downloader-guide.md)。
 
 ### 关键配置
 - `DOWNLOAD_TIMEOUT`: 请求超时时间。
 - `CONCURRENCY`: 并发连接数限制。
 - `DOWNLOAD_DELAY`: 请求间隔延迟（用于限速）。
+- `HYBRID_DEFAULT_DYNAMIC_DOWNLOADER`: 默认动态下载器（`playwright` / `camoufox` / `cloakbrowser`）。
 
 ---
 
 ## 2. 调度器 (Scheduler) 与 队列
 
-调度器管理待抓取的 URL。
+调度器管理待抓取的 URL，负责优先级排序和去重。
 
 - **去重 (Filter)**：内置多种指纹算法，确保同一 URL 不会被重复抓取。
-- **优先级 (Priority)**：支持设置请求优先级，紧急数据优先获取。
+- **优先级 (Priority)**：支持设置请求优先级，紧急数据优先获取。用户设置 `priority` 时数值越大越优先，框架内部自动取反存储（min-heap 机制）。
+- **Depth 自动传播**：框架自动为子请求传播 `depth`（`子请求.depth = 父请求.depth + 1`），无需用户手动管理。
+- **调度策略**：通过 `DEPTH_PRIORITY` 配置项控制深度优先/广度优先策略。
 - **存储后端**：支持内存（Memory）和 Redis 后端。
+
+### Depth 自动传播机制
+
+框架在 Engine 层面自动传播请求深度，无需用户在 Spider 中手动设置 `meta['depth']`：
+
+1. `start_requests` 产生的请求：`depth` 默认为 1
+2. Spider 回调产生的子请求：`depth` 自动设为 `parent_request.depth + 1`
+3. Errback 产生的请求：同样自动传播 `depth`
+
+> **设计原则**：`depth` 传播由 Engine 的 `_handle_spider_output` 方法统一管理。中间件或工具函数不应提前向 `request.meta` 注入 `depth`，否则会导致 Engine 的 `if 'depth' not in spider_output.meta` 检查被跳过，造成子请求 depth 值错误（如子请求 depth=1 而非 parent_depth+1=2），使 `DEPTH_PRIORITY` 调度策略完全失效。
+
+### 优先级与调度策略
+
+| 配置值 | 策略 | 效果 | 适用场景 |
+|--------|------|------|---------|
+| `DEPTH_PRIORITY = 1`（默认） | 深度优先 | 详情页优先出队，列表页解析后立即处理详情 | 列表→详情型爬虫，避免"先列后详" |
+| `DEPTH_PRIORITY = -1` | 广度优先 | 列表页优先出队，同层级请求先处理完 | 逐层抓取，确保层级完整 |
+| `DEPTH_PRIORITY = 0` | 不调整 | 不按深度调整优先级，纯按用户设置的 priority 排序 | 自定义优先级策略 |
+
+> **优先级计算公式**：`内部 priority = -用户priority - depth × DEPTH_PRIORITY`
+>
+> 用户传入 `priority=100` → 内部存储 `-100`；再经 depth 调整后，深度越深优先级变化越大。
 
 ---
 

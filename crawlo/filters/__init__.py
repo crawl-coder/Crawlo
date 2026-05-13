@@ -1,18 +1,18 @@
 #!/usr/bin/python
 # -*- coding:UTF-8 -*-
 """
-Crawlo过滤器模块
+Crawlo Filter Module
 ================
-提供多种请求去重过滤器实现。
+Provides multiple request deduplication filter implementations.
 
-过滤器类型:
-- MemoryFilter: 基于内存的高效去重，适合单机模式
-- AioRedisFilter: 基于Redis的分布式去重，适合分布式模式
-- MemoryFileFilter: 内存+文件持久化，适合需要重启恢复的场景
+Filter Types:
+- MemoryFilter: Memory-based deduplication, suitable for standalone mode
+- AioRedisFilter: Redis-based distributed deduplication, suitable for distributed mode
+- MemoryFileFilter: Memory + file persistence, suitable for restart recovery scenarios
 
-核心接口:
-- BaseFilter: 所有过滤器的基类
-- requested(): 检查请求是否重复的主要方法
+Core Interface:
+- BaseFilter: Base class for all filters
+- requested(): Main method for checking request duplication
 """
 from abc import ABC, abstractmethod
 from typing import Optional
@@ -22,19 +22,19 @@ from crawlo.utils.request.fingerprint import FingerprintGenerator
 
 class BaseFilter(ABC):
     """
-    请求去重过滤器基类
+    Request Deduplication Filter Base Class
     
-    提供统一的去重接口和统计功能。
-    所有过滤器实现都应该继承此类。
+    Provides unified deduplication interface and statistics functionality.
+    All filter implementations should inherit from this class.
     """
 
     def __init__(self, logger, stats, debug: bool = False):
         """
-        初始化过滤器
+        Initialize filter
         
-        :param logger: 日志器实例
-        :param stats: 统计信息存储
-        :param debug: 是否启用调试日志
+        :param logger: Logger instance
+        :param stats: Statistics storage
+        :param debug: Enable debug logging
         """
         self.logger = logger
         self.stats = stats
@@ -48,13 +48,13 @@ class BaseFilter(ABC):
 
     def _get_fingerprint(self, request) -> str:
         """
-        获取请求指纹（内部辅助方法）
+        Get request fingerprint (internal helper method)
         
-        使用统一的 FingerprintGenerator 生成请求指纹。
-        子类可以直接调用此方法，避免重复实现。
+        Uses unified FingerprintGenerator to generate request fingerprints.
+        Subclasses can call this method directly to avoid duplicate implementation.
         
-        :param request: 请求对象
-        :return: 请求指纹字符串
+        :param request: Request object
+        :return: Request fingerprint string
         """
         return FingerprintGenerator.request_fingerprint(
             request.method,
@@ -66,10 +66,10 @@ class BaseFilter(ABC):
 
     def requested(self, request) -> bool:
         """
-        检查请求是否重复（主要接口）
+        Check if request is duplicate (main interface)
         
-        :param request: 请求对象
-        :return: True 表示重复，False 表示新请求
+        :param request: Request object
+        :return: True if duplicate, False if new request
         """
         self._request_count += 1
         fp = self._get_fingerprint(request)
@@ -85,37 +85,37 @@ class BaseFilter(ABC):
     @abstractmethod
     def add_fingerprint(self, fp: str) -> None:
         """
-        添加请求指纹（子类必须实现）
+        Add request fingerprint (must be implemented by subclass)
         
-        :param fp: 请求指纹字符串
+        :param fp: Request fingerprint string
         """
         pass
     
     @abstractmethod
     def __contains__(self, item: str) -> bool:
         """
-        检查指纹是否存在（支持 in 操作符）
+        Check if fingerprint exists (supports in operator)
         
-        :param item: 要检查的指纹
-        :return: 是否已存在
+        :param item: Fingerprint to check
+        :return: Whether exists
         """
         pass
 
     def log_stats(self, request) -> None:
         """
-        记录统计信息
+        Log statistics
         
-        :param request: 重复的请求对象
+        :param request: Duplicate request object
         """
         if self.debug:
-            self.logger.debug(f'过滤重复请求: {request}')
+            self.logger.debug(f'Filtered duplicate request: {request}')
         self.stats.inc_value(f'{self}/filtered_count')
     
     def get_stats(self) -> dict:
         """
-        获取过滤器统计信息
+        Get filter statistics
         
-        :return: 统计信息字典
+        :return: Statistics dictionary
         """
         return {
             'total_requests': self._request_count,
@@ -125,22 +125,22 @@ class BaseFilter(ABC):
         }
     
     def reset_stats(self) -> None:
-        """重置统计信息"""
+        """Reset statistics"""
         self._request_count = 0
         self._duplicate_count = 0
     
     def close(self) -> None:
-        """关闭过滤器并清理资源"""
+        """Close filter and clean resources"""
         pass
 
     def __str__(self) -> str:
         return f'{self.__class__.__name__}'
 
 
-# 导出所有可用的过滤器
+# Export all available filters
 __all__ = ['BaseFilter']
 
-# 动态导入具体实现
+# Dynamically import concrete implementations
 try:
     from .memory_filter import MemoryFilter, MemoryFileFilter
     __all__.extend(['MemoryFilter', 'MemoryFileFilter'])
@@ -154,7 +154,7 @@ try:
 except ImportError:
     AioRedisFilter = None
 
-# 提供便捷的过滤器映射
+# Provide convenient filter mapping
 FILTER_MAP = {
     'memory': MemoryFilter,
     'memory_file': MemoryFileFilter,
@@ -162,11 +162,11 @@ FILTER_MAP = {
     'aioredis': AioRedisFilter,  # 别名
 }
 
-# 过滤掉不可用的过滤器
+# Filter out unavailable filters
 FILTER_MAP = {k: v for k, v in FILTER_MAP.items() if v is not None}
 
 def get_filter_class(name: str):
-    """根据名称获取过滤器类"""
+    """Get filter class by name"""
     if name in FILTER_MAP:
         return FILTER_MAP[name]
-    raise ValueError(f"未知的过滤器类型: {name}。可用类型: {list(FILTER_MAP.keys())}")
+    raise ValueError(f"Unknown filter type: {name}. Available types: {list(FILTER_MAP.keys())}")

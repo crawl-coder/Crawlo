@@ -1,11 +1,10 @@
-"""
-背压监控系统
+"""Backpressure monitoring system
 
-提供实时监控、告警和诊断功能：
-1. 实时监控背压状态变化
-2. 分级告警（警告/危险/严重）
-3. 告警历史记录
-4. 告警回调支持
+Provides real-time monitoring, alerting, and diagnostics:
+1. Real-time backpressure state monitoring
+2. Tiered alerting (warning/danger/critical)
+3. Alert history
+4. Alert callback support
 
 Author: Crawlo Framework Team
 """
@@ -15,11 +14,11 @@ from typing import Optional, Callable, List, Dict, Any
 from dataclasses import dataclass
 from datetime import datetime
 from collections import deque
-import logging
 
-from .metrics_collector import BackpressureMetricsCollector, BackpressureMetrics
+from crawlo.logging import get_logger
+from .metrics_collector import BackpressureMetricsCollector, QueueMetrics
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 @dataclass
@@ -146,7 +145,7 @@ class BackpressureMonitor:
             
             self._last_alert_level = metrics.level
     
-    def _create_alert(self, metrics: BackpressureMetrics) -> BackpressureAlert:
+    def _create_alert(self, metrics: QueueMetrics) -> BackpressureAlert:
         """
         创建告警对象
         
@@ -182,7 +181,7 @@ class BackpressureMonitor:
             actions=level_actions.get(metrics.level, [])
         )
     
-    def _generate_message(self, metrics: BackpressureMetrics) -> str:
+    def _generate_message(self, metrics: QueueMetrics) -> str:
         """
         生成告警消息
         

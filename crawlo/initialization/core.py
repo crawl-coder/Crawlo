@@ -1,13 +1,12 @@
 #!/usr/bin/python
 # -*- coding: UTF-8 -*-
 """
-核心初始化器 - 协调整个初始化过程
+Core Initializer - Coordinate the entire initialization process
 """
 
 import threading
 import time
-import signal
-from typing import Optional, Any
+from typing import Optional, Any, List
 
 from .built_in import register_built_in_initializers
 from .context import InitializationContext
@@ -168,9 +167,9 @@ class CoreInitializer(metaclass=SingletonMeta):
         phase_def = get_phase_definition(phase)
         timeout = phase_def.timeout if phase_def else 30.0
         
-        # 使用线程执行，支持超时
-        result_container: list[Optional[PhaseResult]] = [None]
-        exception_container: list[Optional[Exception]] = [None]
+        # Use thread execution to support timeout
+        result_container: List[Optional[PhaseResult]] = [None]
+        exception_container: List[Optional[Exception]] = [None]
         
         def execute_in_thread():
             try:

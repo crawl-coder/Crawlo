@@ -5,12 +5,15 @@
 import asyncio
 import signal
 import time
-from typing import Any, Dict, List, Optional
+from datetime import datetime
+from typing import Any, Dict, Optional
 
 from crawlo.logging import get_logger
 from crawlo.scheduling.job import ScheduledJob
+from crawlo.scheduling.registry import JobRegistry
 from crawlo.scheduling.daemon.executor import JobExecutor
 from crawlo.scheduling.daemon.cleanup import ResourceCleanup
+from crawlo.utils.time_format import format_duration
 
 
 class SchedulerDaemon:
@@ -22,7 +25,8 @@ class SchedulerDaemon:
         
         self.settings = settings
         self.running = False
-        self.jobs: List[ScheduledJob] = []
+        self._registry = JobRegistry()
+        self._sorted_jobs: list = []
         self.loop: Optional[asyncio.AbstractEventLoop] = None
         self.logger = get_logger("SchedulerDaemon")
         
@@ -64,12 +68,11 @@ class SchedulerDaemon:
                         cron=job_config.get('cron'),
                         interval=job_config.get('interval'),
                         args=job_config.get('args', {}),
-                        kwargs=job_config.get('kwargs', {}),
                         priority=job_config.get('priority', 0),
                         max_retries=job_config.get('max_retries', 0),
                         retry_delay=job_config.get('retry_delay', 60)
                     )
-                    self.jobs.append(job)
+                    self._registry.register_job(job)
                     self._stats['job_stats'][job.spider_name] = {
                         'total': 0,
                         'successful': 0,
@@ -78,9 +81,30 @@ class SchedulerDaemon:
                         'last_success': None,
                         'last_failure': None
                     }
-                    self.logger.info(f"已加载定时任务: {job.spider_name} - {job_config.get('cron', job_config.get('interval'))}")
                 except Exception as e:
                     self.logger.error(f"加载定时任务失败: {job_config}, 错误: {e}")
+        
+        # 按优先级预排序，供 _check_and_execute_jobs 和 jobs 属性使用
+        self._sorted_jobs = sorted(self._registry.get_all_jobs(), key=lambda j: j.priority)
+        
+        # 打印任务汇总信息
+        if self._sorted_jobs:
+            self.logger.info(f"共加载 {len(self._sorted_jobs)} 个定时任务:")
+            for job in self._sorted_jobs:
+                cron_expr = job.cron or f"每 {job.interval}s"
+                
+                # 解析下次执行时间
+                try:
+                    next_time_str = datetime.fromtimestamp(job.next_execution_time).strftime('%Y-%m-%d %H:%M:%S')
+                except (OSError, OverflowError, ValueError):
+                    next_time_str = "N/A"
+                
+                time_diff = job.next_execution_time - time.time()
+                if time_diff > 0:
+                    remaining = format_duration(time_diff)
+                    self.logger.info(f"  {job.spider_name} [{cron_expr}] 下次: {next_time_str} (剩余: {remaining})")
+                else:
+                    self.logger.info(f"  {job.spider_name} [{cron_expr}] 下次: {next_time_str} (即将执行)")
     
     async def start(self):
         """启动调度守护进程"""
@@ -89,7 +113,6 @@ class SchedulerDaemon:
             return
             
         self.running = True
-        self.logger.info("定时任务调度器启动")
         
         # 初始化执行器
         self._executor = JobExecutor(self.settings, self._stats, self.logger)
@@ -106,7 +129,7 @@ class SchedulerDaemon:
         # 启动资源监控任务（如果启用）
         if self._resource_monitor_enabled:
             self._resource_monitor_task = asyncio.create_task(self._monitor_resources())
-            self.logger.info(f"资源监控已启用，检查间隔: {self._resource_check_interval} 秒")
+            self.logger.info(f"资源监控已启用 (间隔: {self._resource_check_interval}s)")
         else:
             self.logger.info("资源监控未启用")
         
@@ -114,28 +137,39 @@ class SchedulerDaemon:
         await self._run_scheduler()
     
     async def _run_scheduler(self):
-        """调度主循环"""
+        """调度主循环 — 按最近任务时间智能 sleep，避免忙轮询"""
         check_interval = self.settings.get_int('SCHEDULER_CHECK_INTERVAL', 1)
         
-        self.logger.debug(f"调度器主循环启动，检查间隔: {check_interval} 秒")
+        self.logger.debug(f"调度器主循环启动，最大检查间隔: {check_interval} 秒")
         
         while self.running:
             try:
-                from crawlo.utils.time_utils import format_datetime
-                self.logger.debug(f"检查任务，当前时间: {format_datetime(time.time())}")
+                now = time.time()
+                min_next = self._get_min_next_execution_time()
+                if min_next != float('inf'):
+                    sleep_sec = min_next - now
+                else:
+                    sleep_sec = check_interval
+                sleep_sec = max(0.1, min(sleep_sec, check_interval))
+                await asyncio.sleep(sleep_sec)
                 await self._check_and_execute_jobs()
-                await asyncio.sleep(check_interval)
             except Exception as e:
                 self.logger.error(f"调度器运行错误: {e}")
                 await asyncio.sleep(check_interval)
         
         self.logger.info("调度器主循环停止")
     
+    def _get_min_next_execution_time(self):
+        """获取所有任务中最近的下次执行时间"""
+        if not self._sorted_jobs:
+            return float('inf')
+        return min(job.get_next_execution_time() for job in self._sorted_jobs)
+    
     async def _check_and_execute_jobs(self):
         """检查并执行定时任务"""
         current_time = time.time()
         
-        for job in self.jobs:
+        for job in self._sorted_jobs:
             if job.should_execute(current_time):
                 job.mark_execution_started()
                 self.logger.info(f"调度任务: {job.spider_name}")
@@ -153,8 +187,6 @@ class SchedulerDaemon:
             return
         
         import gc
-        
-        self.logger.info("资源监控任务已启动")
         
         while self.running:
             try:
@@ -217,6 +249,11 @@ class SchedulerDaemon:
         )
         
         self.logger.info("定时任务调度器已停止")
+    
+    @property
+    def jobs(self):
+        """获取所有定时任务（按优先级排序）"""
+        return self._sorted_jobs
     
     @property
     def running_tasks(self):

@@ -54,6 +54,14 @@ class MiddlewareManager:
             self._download_func = None
         
         self._stats = crawler.stats
+        self._background_tasks: set = set()  # Track fire-and-forget tasks
+    
+    def _create_background_task(self, coro):
+        """创建带引用追踪的后台任务，防止 fire-and-forget 任务泄漏"""
+        task = create_task(coro)
+        self._background_tasks.add(task)
+        task.add_done_callback(self._background_tasks.discard)
+        return task
     
     @property
     def download_method(self) -> Callable:
@@ -154,34 +162,13 @@ class MiddlewareManager:
         self.logger.info("MiddlewareManager closed")
 
     async def _process_request(self, request: 'Request'):
-        # 添加诊断日志：追踪请求进入中间件链
-        retry_times = request.meta.get('retry_times', 0)
-        self.logger.debug(
-            f"_process_request 开始: {request.url} (retry_times={retry_times}, "
-            f"middlewares={len(self.methods['process_request'])})"
-        )
-        
         for idx, method in enumerate(self.methods['process_request']):
             try:
-                # 获取中间件类名
-                if hasattr(method, '__self__'):
-                    middleware_name = method.__self__.__class__.__name__
-                else:
-                    middleware_name = str(method)
-                
-                self.logger.debug(
-                    f"执行中间件 [{idx+1}/{len(self.methods['process_request'])}]: "
-                    f"{middleware_name}.process_request for {request.url}"
-                )
-                
                 result = await common_call(method, request, self.crawler.spider)
                 
                 if result is None:
                     continue
                 if isinstance(result, (Request, Response)):
-                    self.logger.debug(
-                        f"中间件 {middleware_name} 返回 {type(result).__name__}: {request.url}"
-                    )
                     return result
                 raise InvalidOutputError(
                     f"{self._get_method_class_name(method)}. must return None or Request or Response, got {type(result).__name__}"
@@ -196,31 +183,17 @@ class MiddlewareManager:
                 self.logger.error(f"Error processing request: {e}")
                 raise
         
-        # 所有中间件处理完成，调用下载器
-        self.logger.debug(f"所有中间件处理完成，调用下载器: {request.url}")
-        
         # 使用属性获取下载方法，支持延迟绑定
         download_fn = self.download_method
         
-        # 包装下载方法，添加诊断日志
-        async def wrapped_download(req):
-            self.logger.debug(f"MiddlewareManager 调用下载器: {req.url}")
-            try:
-                result = await download_fn(req)
-                self.logger.debug(f"下载器返回结果: {req.url} (result={type(result).__name__ if result else 'None'})")
-                return result
-            except Exception as e:
-                self.logger.debug(f"下载器抛出异常: {req.url} ({type(e).__name__}: {e})")
-                raise
-        
-        return await wrapped_download(request)
+        return await download_fn(request)
 
     async def _process_response(self, request: 'Request', response: 'Response'):
         for method in reversed(self.methods['process_response']):
             try:
                 response = await common_call(method, request, response, self.crawler.spider)
             except IgnoreRequestError as exp:
-                create_task(self.crawler.subscriber.notify(CrawlerEvent.IGNORE_REQUEST, exp, request, self.crawler.spider))
+                self._create_background_task(self.crawler.subscriber.notify(CrawlerEvent.IGNORE_REQUEST, exp, request, self.crawler.spider))
             if isinstance(response, Request):
                 return response
             if isinstance(response, Response):
@@ -231,45 +204,18 @@ class MiddlewareManager:
         return response
 
     async def _process_exception(self, request: 'Request', exp: Exception):
-        self.logger.debug(f"Processing exception {type(exp).__name__} for {request.url}")
-        # Safely get available exception handler names
-        handler_names = []
-        for m in self.methods['process_exception']:
-            if hasattr(m, '__self__'):
-                handler_names.append(m.__self__.__class__.__name__)
-            else:
-                handler_names.append(str(m))
-        self.logger.debug(f"Available exception handlers: {handler_names}")
         for method in self.methods['process_exception']:
-            # Safely get method's class name
-            if hasattr(method, '__self__'):
-                class_name = method.__self__.__class__.__name__
-            else:
-                class_name = str(method)
-            self.logger.debug(f"Calling {class_name}.process_exception")
             response = await common_call(method, request, exp, self.crawler.spider)
-            # Safely get return value type
-            if hasattr(method, '__self__'):
-                method_class_name = method.__self__.__class__.__name__
-            else:
-                method_class_name = str(method)
-            self.logger.debug(f"{method_class_name}.process_exception returned: {type(response).__name__ if response else 'None'}")
             if response is None:
                 continue
             if isinstance(response, (Request, Response)):
                 return response
             if response:
                 break
-            # Safely get method's class name
-            if hasattr(method, '__self__'):
-                error_class_name = method.__self__.__class__.__name__
-            else:
-                error_class_name = str(method)
             raise InvalidOutputError(
-                f"{error_class_name}. must return None or Request or Response, got {type(response).__name__}"
+                f"{self._get_method_class_name(method)}. must return None or Request or Response, got {type(response).__name__}"
             )
         else:
-            self.logger.debug(f"All exception handlers returned None, re-raising exception")
             raise exp
 
     async def download(self, request) -> 'Optional[Response]':
@@ -279,13 +225,13 @@ class MiddlewareManager:
         except KeyError:
             raise RequestMethodError(f"{request.method.lower()} is not supported")
         except IgnoreRequestError as exp:
-            create_task(self.crawler.subscriber.notify(CrawlerEvent.IGNORE_REQUEST, exp, request, self.crawler.spider))
+            self._create_background_task(self.crawler.subscriber.notify(CrawlerEvent.IGNORE_REQUEST, exp, request, self.crawler.spider))
             response = await self._process_exception(request, exp)
         except Exception as exp:
             self._stats.inc_value(f'download_error/{exp.__class__.__name__}')
             response = await self._process_exception(request, exp)
         else:
-            create_task(self.crawler.subscriber.notify(CrawlerEvent.RESPONSE_RECEIVED, response, self.crawler.spider))
+            self._create_background_task(self.crawler.subscriber.notify(CrawlerEvent.RESPONSE_RECEIVED, response, self.crawler.spider))
             self._stats.inc_value('response_received_count')
             
             # 实时分类统计响应状态码

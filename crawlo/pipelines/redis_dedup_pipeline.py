@@ -76,7 +76,7 @@ class RedisDedupPipeline(DedupPipeline):
             redis_port=settings.get_int('REDIS_PORT', 6379),
             redis_db=settings.get_int('REDIS_DB', 0),
             redis_password=settings.get('REDIS_PASSWORD') or None,
-            redis_user=settings.get('REDIS_USER') or None,  # 新增：获取Redis用户名
+            redis_user=settings.get('REDIS_USER') or None,  # Redis用户名（可选）
             redis_key=redis_key
         )
 

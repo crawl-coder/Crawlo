@@ -1,9 +1,19 @@
 #!/usr/bin/python
 # -*- coding: UTF-8 -*-
 """
-下载器常量配置
+Downloader Constants Configuration
+===================================
 
-反检测配置，提供浏览器启动参数优化。
+Provides browser startup parameter optimization for anti-detection.
+Includes:
+- Harmful arguments to ignore
+- Default browser parameters for performance optimization
+- Stealth mode parameters
+- WebRTC protection parameters
+- WebGL disable parameters
+- Canvas fingerprint protection
+- Resource type blocking configuration
+- Ad domain blacklist
 """
 
 # 需要忽略的有害参数（这些参数可能暴露自动化特征）

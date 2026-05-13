@@ -36,6 +36,9 @@ from crawlo.bot.core import (
     send_template_notification,
     list_notification_templates,
     add_custom_notification_template,
+    async_send_crawler_status,
+    async_send_crawler_alert,
+    async_send_template_notification,
 )
 
 # 模板系统
@@ -99,6 +102,10 @@ __all__ = [
     'send_template_notification',
     'list_notification_templates',
     'add_custom_notification_template',
+    # 异步
+    'async_send_crawler_status',
+    'async_send_crawler_alert',
+    'async_send_template_notification',
     # 模板管理器
     'MessageTemplateManager',
     'get_template_manager',

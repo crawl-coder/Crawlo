@@ -10,6 +10,12 @@ from typing import List, Callable, Any, Optional, Dict
 
 from crawlo.utils.error_handler import ErrorHandler
 from crawlo.logging import get_logger
+from crawlo.utils.batch.batch_manager import (
+    BatchProcessor as NewBatchProcessor,
+    RedisBatchProcessor as NewRedisBatchProcessor,
+    process_in_batches as new_process_in_batches,
+    batch_process as new_batch_process
+)
 
 
 class BatchProcessor:

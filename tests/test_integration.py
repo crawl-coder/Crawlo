@@ -21,14 +21,9 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
 from crawlo.config import CrawloConfig
 from crawlo.crawler import CrawlerProcess
-from crawlo import Spider, Request, Item
+from crawlo import Spider, Request
 from crawlo.extension.memory_monitor import MemoryMonitorExtension
-
-
-class MockItem(Item):
-    """模拟数据项"""
-    title = ''
-    url = ''
+from tests.fixtures.mock_item import MockDataItem
 
 
 class MockSpider(Spider):
@@ -41,7 +36,7 @@ class MockSpider(Spider):
     
     async def parse(self, response):
         """解析响应"""
-        item = MockItem(
+        item = MockDataItem(
             title='Test Item',
             url=response.url
         )

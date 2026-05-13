@@ -90,9 +90,7 @@ class MemoryStatsBackend(StatsBackend):
     
     def inc_value(self, key: str, count: int = 1) -> None:
         full_key = self._make_key(key)
-        if full_key not in self._stats:
-            self._stats[full_key] = 0
-        self._stats[full_key] += count
+        self._stats[full_key] += count  # defaultdict(int) 自动初始化为 0
     
     def get_value(self, key: str, default: Any = None) -> Any:
         full_key = self._make_key(key)
@@ -125,6 +123,14 @@ class RedisStatsBackend(StatsBackend):
         """统一值解析逻辑"""
         if isinstance(value, bytes):
             value = value.decode()
+        
+        # 先尝试 JSON 解析（处理列表、字典、布尔值、null）
+        try:
+            return json.loads(value)
+        except (json.JSONDecodeError, TypeError):
+            pass
+        
+        # 再尝试数字解析
         try:
             return float(value) if '.' in value else int(value)
         except (ValueError, TypeError):
@@ -180,8 +186,9 @@ class RedisStatsBackend(StatsBackend):
 class FileStatsBackend(StatsBackend):
     """文件存储后端"""
     
-    def __init__(self, file_path: str = "stats.json"):
+    def __init__(self, file_path: str = "stats.json", auto_save: bool = False):
         self._file_path = file_path
+        self._auto_save = auto_save  # 默认关闭自动保存，减少 I/O
         self._stats: Dict[str, Any] = {}
         self._logger = get_logger(self.__class__.__name__)
         self._load()
@@ -206,20 +213,31 @@ class FileStatsBackend(StatsBackend):
     
     def inc_value(self, key: str, count: int = 1) -> None:
         self._stats[key] = self._stats.get(key, 0) + count
-        self._save()
+        if self._auto_save:
+            self._save()
     
     def get_value(self, key: str, default: Any = None) -> Any:
         return self._stats.get(key, default)
     
     def set_value(self, key: str, value: Any) -> None:
         self._stats[key] = value
-        self._save()
+        if self._auto_save:
+            self._save()
     
     def get_stats(self) -> Dict[str, Any]:
         return dict(self._stats)
     
     def clear(self) -> None:
         self._stats.clear()
+        if self._auto_save:
+            self._save()
+    
+    def flush(self) -> None:
+        """强制保存统计信息到文件"""
+        self._save()
+    
+    def close(self) -> None:
+        """关闭后端时确保保存"""
         self._save()
 
 
@@ -252,13 +270,28 @@ class StatsBackendFactory:
         elif backend_type == 'redis':
             redis_url = settings.get('REDIS_URL')
             try:
-                import redis
-                client = redis.from_url(redis_url) if redis_url else redis.Redis(
-                    host=settings.get('REDIS_HOST', 'localhost'),
-                    port=settings.get_int('REDIS_PORT', 6379),
-                    db=settings.get_int('REDIS_DB', 0),
-                    password=settings.get('REDIS_PASSWORD')
-                )
+                # 优先使用异步 Redis 客户端
+                try:
+                    import redis.asyncio as aioredis
+                    client = aioredis.from_url(redis_url) if redis_url else aioredis.Redis(
+                        host=settings.get('REDIS_HOST', 'localhost'),
+                        port=settings.get_int('REDIS_PORT', 6379),
+                        db=settings.get_int('REDIS_DB', 0),
+                        password=settings.get('REDIS_PASSWORD')
+                    )
+                except ImportError:
+                    # 回退到同步客户端
+                    import redis
+                    client = redis.from_url(redis_url) if redis_url else redis.Redis(
+                        host=settings.get('REDIS_HOST', 'localhost'),
+                        port=settings.get_int('REDIS_PORT', 6379),
+                        db=settings.get_int('REDIS_DB', 0),
+                        password=settings.get('REDIS_PASSWORD')
+                    )
+                    get_logger(cls.__name__).warning(
+                        "redis.asyncio not available, using synchronous Redis client"
+                    )
+                
                 return RedisStatsBackend(
                     client, 
                     key=settings.get('STATS_REDIS_KEY', 'crawlo:stats'),

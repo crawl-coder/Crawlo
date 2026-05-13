@@ -1,19 +1,19 @@
 #!/usr/bin/python
 # -*- coding:UTF-8 -*-
 """
-日志统计扩展
-提供详细的爬虫运行统计信息
+Log Statistics Extension
+Provides detailed crawler runtime statistics
 """
 import asyncio
 from typing import Any
 
 from crawlo.logging import get_logger
-from crawlo.tools import now, time_diff
+from crawlo.helpers import now, time_diff
 
 
 class LogStats:
     """
-    日志统计扩展，记录和输出爬虫运行过程中的各种统计信息
+    Log statistics extension, records and outputs various statistics during crawler runtime
     """
 
     def __init__(self, crawler):
@@ -23,12 +23,10 @@ class LogStats:
         self._stats['start_time'] = now(fmt='%Y-%m-%d %H:%M:%S')
 
     @classmethod
-    def from_crawler(cls, crawler):
-        return cls(crawler)
-
-    @classmethod
     def create_instance(cls, crawler):
-        return cls.from_crawler(crawler)
+        """Factory method compatible with ExtensionManager"""
+        instance = cls(crawler)
+        return instance
 
     async def spider_closed(self, reason: str = 'finished') -> None:
         try:
@@ -36,36 +34,34 @@ class LogStats:
             self._stats['cost_time(s)'] = time_diff(start=self._stats['start_time'], end=self._stats['end_time'])
             self._stats['reason'] = reason
         except Exception as e:
-            # 添加日志以便调试
+            # Log for debugging, silently handle to avoid affecting crawler
             self.logger.error(f"Error in spider_closed: {e}")
-            # 静默处理，避免影响爬虫运行
-            pass
 
     async def item_successful(self, _item: Any, _spider: Any) -> None:
         try:
             self._stats.inc_value('item_successful_count')
         except Exception as e:
-            # 静默处理，避免影响爬虫运行
+            # Silently handle to avoid affecting crawler
             pass
 
     async def item_discard(self, _item: Any, exc: Any, _spider: Any) -> None:
         try:
-            # 只增加总的丢弃计数，不记录每个丢弃项目的原因详情
+            # Only increment total discard count, don't record details for each discarded item
             self._stats.inc_value('item_discard_count')
         except Exception as e:
-            # 静默处理，避免影响爬虫运行
+            # Silently handle to avoid affecting crawler
             pass
 
     async def response_received(self, _response: Any, _spider: Any) -> None:
-        # 移除重复统计：response_received_count 已在 middleware_manager.py 中统计
-        # 保留此方法以维持事件订阅兼容性，但不重复计数
+        # Remove duplicate counting: response_received_count already counted in middleware_manager.py
+        # Keep this method for event subscription compatibility, but don't double count
         pass
 
     async def request_scheduled(self, _request: Any, _spider: Any) -> None:
         try:
-            # 检查是否为重试请求，如果是则不计入统计
+            # Check if it's a retry request, if so don't count it
             if not _request.meta.get('is_retry', False):
                 self._stats.inc_value('request_scheduler_count')
         except Exception as e:
-            # 静默处理，避免影响爬虫运行
+            # Silently handle to avoid affecting crawler
             pass

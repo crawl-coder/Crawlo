@@ -10,7 +10,7 @@ from typing import Any, Dict, Optional, Set
 
 from crawlo.scheduling.job import ScheduledJob
 from crawlo.logging import get_logger
-from crawlo.utils.time_utils import format_datetime, format_duration
+from crawlo.utils.time_format import format_datetime, format_duration
 
 
 class JobExecutor:
@@ -29,12 +29,6 @@ class JobExecutor:
         Args:
             job: 定时任务对象
         """
-        # 保存原始参数，以便参考
-        original_args = dict(job.args) if job.args else {}
-        
-        # 添加调度器内部标识
-        job.args['_INTERNAL_SCHEDULER_TASK'] = True
-        
         try:
             # 更新统计信息
             self._stats['total_executions'] += 1
@@ -45,8 +39,20 @@ class JobExecutor:
             timeout = self.settings.get_int('SCHEDULER_JOB_TIMEOUT', 3600)
             
             try:
-                # 使用 asyncio.wait_for 实现超时控制
-                await asyncio.wait_for(self._run_spider_job(job), timeout=timeout)
+                # 使用 asyncio.timeout 实现超时控制
+                # 将 spider 协程包装为 Task，超时后显式 cancel 防止后台并发运行
+                job_task = asyncio.ensure_future(self._run_spider_job(job))
+                try:
+                    async with asyncio.timeout(timeout):
+                        await job_task
+                except asyncio.TimeoutError:
+                    # 超时后必须显式取消任务，避免后续调度周期并发执行 spider
+                    job_task.cancel()
+                    try:
+                        await job_task
+                    except asyncio.CancelledError:
+                        pass
+                    raise  # 重新抛给外层 except 处理
                 
                 # 更新成功统计
                 self._stats['successful_executions'] += 1
@@ -74,6 +80,9 @@ class JobExecutor:
         """运行爬虫任务"""
         job_args = dict(job.args)
         
+        # 添加调度器内部标识，用于区分定时任务触发的爬虫执行
+        job_args['_INTERNAL_SCHEDULER_TASK'] = True
+        
         # 确保使用爬虫的特定日志配置
         project_log_file = self.settings.get('LOG_FILE', None)
         if project_log_file:
@@ -83,7 +92,7 @@ class JobExecutor:
         
         # 重新配置日志系统
         from crawlo.logging import configure_logging, LoggerFactory
-        import logging
+        # logging 已在顶部导入
         
         for handler in logging.root.handlers[:]:
             logging.root.removeHandler(handler)
@@ -150,7 +159,7 @@ class JobExecutor:
         """初始化并发控制"""
         max_concurrent = self.settings.get_int('SCHEDULER_MAX_CONCURRENT', 3)
         self._semaphore = asyncio.Semaphore(max_concurrent)
-        self.logger.info(f"最大并发任务数: {max_concurrent}")
+        self.logger.info(f"最大并发爬虫数: {max_concurrent}")
     
     async def execute_with_semaphore(self, job: ScheduledJob):
         """使用信号量控制的任务执行"""

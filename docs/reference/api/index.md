@@ -96,7 +96,7 @@ raise DropItem("Duplicate item")
 错误分类器，用于判断错误类型和重试策略。
 
 ```python
-from crawlo.error_types import ErrorClassifier
+from crawlo.core.error_types import ErrorClassifier
 ```
 
 **方法**:
@@ -157,6 +157,7 @@ engine = Engine(crawler)
 | 配置项 | 类型 | 默认值 | 说明 |
 |--------|------|--------|------|
 | `CONCURRENCY` | int | 8 | 并发数 |
+| `DEPTH_PRIORITY` | int | 1 | 深度优先级调整系数。正数=深度优先（详情页优先），负数=广度优先（列表页优先），0=不调整 |
 | `SCHEDULER_MAX_QUEUE_SIZE` | int | 200 | 调度器队列最大大小 |
 | `REQUEST_GENERATION_BATCH_SIZE` | int | 10 | 请求生成批处理大小 |
 | `REQUEST_GENERATION_INTERVAL` | float | 0.01 | 请求生成间隔（秒） |
@@ -218,7 +219,7 @@ TaskManager 统一管理异步任务的创建、执行和监控。
 ### 初始化
 
 ```python
-from crawlo.task_manager import TaskManager
+from crawlo.core.task_manager import TaskManager
 
 task_manager = TaskManager(total_concurrency=8)
 ```
@@ -452,7 +453,7 @@ crawler.crawl()
 ### 错误处理示例
 
 ```python
-from crawlo.error_types import ErrorClassifier
+from crawlo.core.error_types import ErrorClassifier
 
 async def process_request(request):
     try:

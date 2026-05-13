@@ -4,6 +4,7 @@
 队列类型枚举定义
 """
 from enum import Enum
+import time
 
 
 class QueueType(Enum):
@@ -113,19 +114,19 @@ class QueueStats:
     
     def mark_start(self) -> None:
         """标记开始时间"""
-        import time
+        # time 已在顶部导入
         if self.start_time is None:
             self.start_time = time.time()
     
     def mark_end(self) -> None:
         """标记结束时间"""
-        import time
+        # time 已在顶部导入
         self.end_time = time.time()
     
     @property
     def duration(self) -> float:
         """获取运行时长"""
-        import time
+        # time 已在顶部导入
         end = self.end_time or time.time()
         start = self.start_time or end
         return end - start

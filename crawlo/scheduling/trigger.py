@@ -24,13 +24,32 @@ class TimeTrigger:
         # 支持扩展的6位cron表达式：秒 分钟 小时 日 月 星期（前向兼容5位标准表达式）
         parts = cron.strip().split()
         if len(parts) != 5 and len(parts) != 6:
-            raise ValueError(f"无效的cron表达式: {cron}，应为5位或6位表达式")
+            raise ValueError(f"Invalid cron expression: {cron}, expected 5 or 6 fields")
         
         # 如果是5位表达式，添加秒位（默认为0）
         if len(parts) == 5:
             parts = ['0'] + parts  # 在前面添加秒位
         
+        # 校验每个字段的格式
+        field_names = ['second', 'minute', 'hour', 'day', 'month', 'weekday']
+        for i, part in enumerate(parts):
+            self._validate_cron_field(part, field_names[i])
+        
         self._cron_parts = parts  # 现在是 [秒, 分钟, 小时, 日, 月, 星期]
+
+    CRON_FIELD_RE = re.compile(r'^(\d+(-\d+)?(/\d+)?|\*(/\d+)?)$')
+
+    @classmethod
+    def _validate_cron_field(cls, field: str, name: str):
+        """校验单个 cron 字段的格式是否合法"""
+        # 允许 comma-separated 的复合格式
+        for sub_field in field.split(','):
+            if not cls.CRON_FIELD_RE.match(sub_field):
+                raise ValueError(
+                    f"Invalid cron field '{name}': '{field}' - "
+                    f"sub-field '{sub_field}' is not a valid pattern. "
+                    f"Expected formats: *, */N, N, N-M, N-M/N, or comma-separated combinations"
+                )
     
     def _match_cron(self, dt: datetime) -> bool:
         """检查时间是否匹配cron表达式"""
@@ -131,28 +150,56 @@ class TimeTrigger:
         return current_time + total_seconds
     
     def _calculate_next_cron_time(self, current_time: float) -> float:
-        """计算基于cron表达式的下次执行时间"""
+        """计算基于cron表达式的下次执行时间 — 字段级跳进，避免逐秒扫描"""
         if not self._cron_parts:
             return float('inf')
         
-        # 从当前时间开始，逐秒检查直到找到匹配的时间
-        current_dt = datetime.fromtimestamp(current_time)
-        # 重置到秒的开始
-        current_dt = current_dt.replace(microsecond=0)
+        parts = self._cron_parts  # [second, minute, hour, day, month, weekday]
+        dt = datetime.fromtimestamp(current_time)
+        dt = dt.replace(microsecond=0)
+        dt += timedelta(seconds=1)
         
-        # 最多检查一周，避免无限循环
-        max_check_time = current_dt + timedelta(days=7)
+        import calendar
         
-        while current_dt < max_check_time:
-            if self._match_cron(current_dt):
-                # 如果匹配的时间是当前时间之后，则返回
-                if current_dt.timestamp() > current_time:
-                    return current_dt.timestamp()
+        for day_offset in range(367):  # 最多扫描 367 天
+            target_date = dt.replace(hour=0, minute=0, second=0) + timedelta(days=day_offset)
             
-            # 增加一秒
-            current_dt += timedelta(seconds=1)
+            # 检查月份
+            if not self._match_cron_field(parts[4], target_date.month, 1, 12):
+                continue
+            # 检查日期
+            if not self._match_cron_field(parts[3], target_date.day, 1, 31):
+                continue
+            # 检查星期 (0=周日, 1=周一, ..., 6=周六)
+            weekday = (target_date.weekday() + 1) % 7
+            if not self._match_cron_field(parts[5], weekday, 0, 6):
+                continue
+            
+            # 找到匹配的日期，在当天内查找匹配的时分秒
+            start_hour = dt.hour if day_offset == 0 else 0
+            h = start_hour
+            while h < 24:
+                if not self._match_cron_field(parts[2], h, 0, 23):
+                    h += 1
+                    continue
+                
+                start_min = dt.minute if day_offset == 0 and h == dt.hour else 0
+                m = start_min
+                while m < 60:
+                    if not self._match_cron_field(parts[1], m, 0, 59):
+                        m += 1
+                        continue
+                    
+                    start_sec = dt.second if day_offset == 0 and h == dt.hour and m == dt.minute else 0
+                    s = start_sec
+                    while s < 60:
+                        if self._match_cron_field(parts[0], s, 0, 59):
+                            result = target_date.replace(hour=h, minute=m, second=s)
+                            return result.timestamp()
+                        s += 1
+                    m += 1
+                h += 1
         
-        # 如果一周内都没找到匹配时间，返回无穷大
         return float('inf')
     
     def get_next_time(self, current_time: float) -> float:

@@ -121,7 +121,7 @@ class TestLow1ApplicationContextId:
 
     def test_id_is_uuid_format(self):
         """ApplicationContext.id 是 UUID 格式"""
-        from crawlo.application import ApplicationContext
+        from crawlo.core.application import ApplicationContext
         
         ctx = ApplicationContext()
         # UUID 格式: 8-4-4-4-12
@@ -130,7 +130,7 @@ class TestLow1ApplicationContextId:
 
     def test_id_is_unique(self):
         """每个实例的 ID 唯一"""
-        from crawlo.application import ApplicationContext
+        from crawlo.core.application import ApplicationContext
         
         ctx1 = ApplicationContext()
         ctx2 = ApplicationContext()

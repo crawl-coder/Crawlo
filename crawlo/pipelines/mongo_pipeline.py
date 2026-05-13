@@ -1,5 +1,8 @@
 # -*- coding: utf-8 -*-
 import asyncio
+import json
+from datetime import datetime
+from pathlib import Path
 from typing import Optional, List, Dict
 
 from pymongo.errors import PyMongoError, BulkWriteError
@@ -26,14 +29,14 @@ class MongoPipeline:
         self.collection_name = self.settings.get('MONGO_COLLECTION', crawler.spider.name)
         
         # 连接池配置
-        self.max_pool_size = self.settings.getint('MONGO_MAX_POOL_SIZE', 100)
-        self.min_pool_size = self.settings.getint('MONGO_MIN_POOL_SIZE', 10)
-        self.connect_timeout_ms = self.settings.getint('MONGO_CONNECT_TIMEOUT_MS', 5000)
-        self.socket_timeout_ms = self.settings.getint('MONGO_SOCKET_TIMEOUT_MS', 30000)
+        self.max_pool_size = self.settings.get_int('MONGO_MAX_POOL_SIZE', 100)
+        self.min_pool_size = self.settings.get_int('MONGO_MIN_POOL_SIZE', 10)
+        self.connect_timeout_ms = self.settings.get_int('MONGO_CONNECT_TIMEOUT_MS', 5000)
+        self.socket_timeout_ms = self.settings.get_int('MONGO_SOCKET_TIMEOUT_MS', 30000)
 
         # 批量插入配置
-        self.batch_size = self.settings.getint('MONGO_BATCH_SIZE', 100)
-        self.use_batch = self.settings.getbool('MONGO_USE_BATCH', False)
+        self.batch_size = self.settings.get_int('MONGO_BATCH_SIZE', 100)
+        self.use_batch = self.settings.get_bool('MONGO_USE_BATCH', False)
         self.batch_buffer: List[Dict] = []  # 批量缓冲区
 
         # 注册关闭事件
@@ -123,9 +126,7 @@ class MongoPipeline:
             if not self.batch_buffer:  # 双重检查
                 return
             
-            # 【关键修改】立即切出数据，清空缓冲区
-            # 这样即使插入失败，缓冲区也被清空了，不会阻塞后续数据
-            # 如果需要保留失败数据，应在 except 中处理，而不是默认保留
+            # 切出数据，清空缓冲区
             current_batch = self.batch_buffer[:]
             self.batch_buffer.clear()
 
@@ -166,11 +167,41 @@ class MongoPipeline:
             # 这里的异常是 3 次重试后的最终失败
             failed_count = len(current_batch)
             self.crawler.stats.inc_value('mongodb/insert_failed', failed_count)
-            self.logger.error(f"MongoDB批量插入最终失败: {e}")
             
-            # 【策略选择】是否要丢弃数据？
-            # 当前逻辑是丢弃并报错。如果数据极其重要，可以考虑写到错误文件。
+            # 记录失败数据摘要（前5条）
+            failed_data_summary = current_batch[:5]
+            self.logger.error(
+                f"MongoDB批量插入最终失败，丢失 {failed_count} 条数据: {e}\n"
+                f"失败数据摘要: {failed_data_summary}"
+            )
+            
+            # 保存到错误文件以便恢复
+            await self._save_failed_batch(current_batch, e)
+            
             raise ItemDiscard(f"批量插入失败，丢失 {failed_count} 条数据: {e}")
+    
+    async def _save_failed_batch(self, batch: list, error: Exception):
+        """保存失败的批量数据到文件"""
+        try:
+            error_dir = Path("output/errors")
+            error_dir.mkdir(parents=True, exist_ok=True)
+            
+            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+            error_file = error_dir / f"mongo_failed_batch_{timestamp}.json"
+            
+            error_data = {
+                'error': str(error),
+                'timestamp': timestamp,
+                'count': len(batch),
+                'data': batch
+            }
+            
+            with open(error_file, 'w', encoding='utf-8') as f:
+                json.dump(error_data, f, ensure_ascii=False, indent=2)
+            
+            self.logger.info(f"失败数据已保存到: {error_file}")
+        except Exception as save_error:
+            self.logger.error(f"保存失败数据时出错: {save_error}")
 
     async def spider_closed(self):
         """关闭爬虫时清理资源"""

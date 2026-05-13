@@ -8,6 +8,8 @@
 """
 
 from typing import Dict, Any, Optional, List
+import re
+
 from crawlo.logging import get_logger
 
 logger = get_logger(__name__)
@@ -159,7 +161,7 @@ class MessageTemplateManager:
         Returns:
             渲染后的字符串
         """
-        import re
+        # re 已在顶部导入
         
         # 支持 {变量名} 和 {{变量名}} 两种格式
         pattern = r'\{(\w+)\}|\{\{(\w+)\}\}'
@@ -243,7 +245,7 @@ class MessageTemplateManager:
             return None
         
         # 从标题和内容中提取变量
-        import re
+        # re 已在顶部导入
         title_params = re.findall(r'\{([^}]+)\}', template['title'])
         content_params = re.findall(r'\{([^}]+)\}', template['content'])
         

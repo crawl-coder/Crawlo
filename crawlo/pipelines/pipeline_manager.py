@@ -55,6 +55,9 @@ def normalize_pipelines_config(
         return []
     
     if isinstance(config, dict):
+        # 验证字典格式配置
+        _validate_pipeline_priorities(config)
+        
         # 字典格式：按优先级排序（数字越小越先执行）
         items = [(path, priority) for path, priority in config.items()]
         items.sort(key=lambda x: x[1])  # 升序，数字小的先执行
@@ -62,6 +65,43 @@ def normalize_pipelines_config(
     else:
         # 列表格式：保持顺序，默认优先级 500
         return [(path, 500 + i) for i, path in enumerate(config) if isinstance(path, str)]
+
+
+def _validate_pipeline_priorities(config: dict):
+    """
+    验证管道优先级配置
+    
+    Args:
+        config: 字典格式的管道配置
+        
+    Raises:
+        ValueError: 优先级配置无效
+    """
+    logger = get_logger('PipelineManager')
+    priorities = {}
+    
+    for path, priority in config.items():
+        # 验证优先级类型
+        if not isinstance(priority, (int, float)):
+            raise ValueError(
+                f"Pipeline priority must be numeric, got {type(priority).__name__} "
+                f"for {path}: {priority}"
+            )
+        
+        # 验证优先级范围
+        if priority < 0:
+            raise ValueError(
+                f"Pipeline priority must be non-negative, got {priority} for {path}"
+            )
+        
+        # 检查重复优先级
+        if priority in priorities:
+            logger.warning(
+                f"Duplicate pipeline priority {priority}: "
+                f"{priorities[priority]} and {path}"
+            )
+        else:
+            priorities[priority] = path
 
 
 class PipelineManager:
@@ -144,8 +184,7 @@ class PipelineManager:
 
     async def process_item(self, item):
         try:
-            for i, method in enumerate(self.methods):
-                self.logger.debug(f"Processing item with pipeline method {i}: {method.__qualname__}")
+            for method in self.methods:
                 try:
                     item = await common_call(method, item, self.crawler.spider)
                     if item is None:

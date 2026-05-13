@@ -5,6 +5,7 @@
 整合所有批处理相关功能
 """
 import asyncio
+import concurrent.futures
 from functools import wraps
 from typing import List, Callable, Any, Optional, Dict
 
@@ -13,8 +14,11 @@ from crawlo.logging import get_logger
 
 # 尝试导入Redis支持
 try:
+    import aioredis
     REDIS_AVAILABLE = True
-except ImportError:
+except (ImportError, TypeError) as e:
+    # ImportError: 模块未安装
+    # TypeError: aioredis 与 Python 3.12+ 不兼容（duplicate base class TimeoutError）
     aioredis = None
     REDIS_AVAILABLE = False
 
@@ -110,7 +114,19 @@ class BatchProcessor:
             @wraps(func)
             def sync_wrapper(items: List[Any], *args, **kwargs):
                 # 同步版本使用事件循环运行异步函数
-                return asyncio.run(async_wrapper(items, *args, **kwargs))
+                try:
+                    loop = asyncio.get_event_loop()
+                    if loop.is_running():
+                        # 如果已有事件循环，创建新任务
+                        # concurrent.futures 已在顶部导入
+                        with concurrent.futures.ThreadPoolExecutor() as executor:
+                            future = executor.submit(asyncio.run, async_wrapper(items, *args, **kwargs))
+                            return future.result()
+                    else:
+                        return loop.run_until_complete(async_wrapper(items, *args, **kwargs))
+                except RuntimeError:
+                    # 无法获取事件循环，使用 asyncio.run
+                    return asyncio.run(async_wrapper(items, *args, **kwargs))
             
             # 根据原函数是否为异步函数返回相应的包装器
             import inspect
@@ -295,7 +311,28 @@ def batch_process(batch_size: int = 100, max_concurrent_batches: int = 5):
             actual_max_concurrent = kwargs.pop('max_concurrent_batches', max_concurrent_batches)
             
             processor = BatchProcessor(actual_batch_size, actual_max_concurrent)
-            return asyncio.run(processor.process_in_batches(items, func, *args, **kwargs))
+            
+            # 安全地运行异步函数
+            try:
+                loop = asyncio.get_event_loop()
+                if loop.is_running():
+                    # 如果已有事件循环，使用线程池
+                    # concurrent.futures 已在顶部导入
+                    with concurrent.futures.ThreadPoolExecutor() as executor:
+                        future = executor.submit(
+                            asyncio.run,
+                            processor.process_in_batches(items, func, *args, **kwargs)
+                        )
+                        return future.result()
+                else:
+                    return loop.run_until_complete(
+                        processor.process_in_batches(items, func, *args, **kwargs)
+                    )
+            except RuntimeError:
+                # 无法获取事件循环，使用 asyncio.run
+                return asyncio.run(
+                    processor.process_in_batches(items, func, *args, **kwargs)
+                )
         
         return wrapper
     

@@ -38,14 +38,13 @@ class DingTalkChannel(NotificationChannel):
     """
     
     def __init__(self):
-        # 从配置中获取钉钉相关信息
-        # 在实际应用中，这里应该从框架配置中读取
-        self.webhook_url = getattr(self, '_webhook_url', None)  # 可通过外部设置
-        self.secret = getattr(self, '_secret', None)  # 可通过外部设置
-        self.keywords = getattr(self, '_keywords', [])  # 关键词列表
-        self.at_mobiles = getattr(self, '_at_mobiles', [])  # 需要@的手机号列表
-        self.at_userids = getattr(self, '_at_userids', [])  # 需要@的用户ID列表
-        self.is_at_all = getattr(self, '_is_at_all', False)  # 是否@所有人
+        # 初始化配置为 None，通过 set_config() 或配置加载器设置
+        self.webhook_url = None
+        self.secret = None
+        self.keywords = []
+        self.at_mobiles = []
+        self.at_userids = []
+        self.is_at_all = False
 
     @property
     def channel_type(self) -> ChannelType:
@@ -84,7 +83,7 @@ class DingTalkChannel(NotificationChannel):
         
         timestamp = str(round(time.time() * 1000))
         secret_enc = self.secret.encode('utf-8')
-        string_to_sign = '{}\n{}'.format(timestamp, self.secret)
+        string_to_sign = f"{timestamp}\n{self.secret}"
         string_to_sign_enc = string_to_sign.encode('utf-8')
         hmac_code = hmac.new(secret_enc, string_to_sign_enc, digestmod=hashlib.sha256).digest()
         sign = base64.b64encode(hmac_code).decode('utf-8')

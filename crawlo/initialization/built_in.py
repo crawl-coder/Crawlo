@@ -1,18 +1,19 @@
 #!/usr/bin/python
 # -*- coding: UTF-8 -*-
 """
-内置初始化器 - 提供框架核心组件的初始化实现
+Built-in Initializers - Provide initialization implementations for framework core components
 """
 
+import os
 import time
-from typing import TYPE_CHECKING
+import importlib
+from typing import TYPE_CHECKING, Optional
 
 from .registry import BaseInitializer, register_initializer
 from .phases import InitializationPhase, PhaseResult
 from .context import InitializationContext
-
-if TYPE_CHECKING:
-    from crawlo.logging import LogConfig
+from crawlo.logging import configure_logging, get_logger, LogConfig, LoggerFactory
+from crawlo.utils.misc import ConfigUtils, load_object
 
 
 class LoggingInitializer(BaseInitializer):
@@ -26,15 +27,14 @@ class LoggingInitializer(BaseInitializer):
         start_time = time.time()
         
         try:
-            # 导入日志模块
-            from crawlo.logging import configure_logging, LogConfig
+            # 导入日志模块（已在顶部导入）
             
-            # 获取日志配置
+            # 获取日志配置（已在顶部导入）
             log_config = self._get_log_config(context)
             
             # 确保日志目录存在
             if log_config and log_config.file_path and log_config.file_enabled:
-                import os
+                # os 已在顶部导入
                 log_dir = os.path.dirname(log_config.file_path)
                 if log_dir and not os.path.exists(log_dir):
                     os.makedirs(log_dir, exist_ok=True)
@@ -45,8 +45,7 @@ class LoggingInitializer(BaseInitializer):
             # 存储到共享数据
             context.add_shared_data('log_config', log_config)
             
-            # 创建框架logger
-            from crawlo.logging import get_logger
+            # 创建框架logger（get_logger 已在顶部导入）
             framework_logger = get_logger('crawlo.framework')
             context.add_shared_data('framework_logger', framework_logger)
             
@@ -63,19 +62,17 @@ class LoggingInitializer(BaseInitializer):
                 error=e
             )
     
-    def _get_log_config(self, context: InitializationContext) -> 'LogConfig | None':
+    def _get_log_config(self, context: InitializationContext) -> LogConfig:
         """
-        获取日志配置
+        从配置上下文中提取LogConfig
         
         Args:
             context: 初始化上下文
             
         Returns:
-            LogConfig: 日志配置对象
+            LogConfig: Log configuration object
         """
-        # 导入日志配置类
-        from crawlo.logging import LogConfig
-        from crawlo.utils.config_manager import ConfigUtils
+        # LogConfig 和 ConfigUtils 已在顶部导入
         
         # 按优先级获取配置：自定义配置 > 上下文配置 > 项目配置 > 默认配置
         config_sources = [
@@ -94,19 +91,18 @@ class LoggingInitializer(BaseInitializer):
         # 使用默认配置
         return LogConfig()
     
-    def _create_log_config_from_source(self, config_source) -> 'LogConfig | None':
+    def _create_log_config_from_source(self, config_source) -> Optional['LogConfig']:
         """
-        从配置源创建日志配置
+        Create log configuration from config source
         
         Args:
-            config_source: 配置源
+            config_source: Configuration source
             
         Returns:
-            LogConfig: 日志配置对象，如果配置源无效则返回None
+            LogConfig: Log configuration object, None if source is invalid
         """
-        # 导入日志配置类
         from crawlo.logging import LogConfig
-        from crawlo.utils.config_manager import ConfigUtils
+        from crawlo.utils.misc import ConfigUtils
         
         # 检查配置源是否有效
         if not config_source:
@@ -136,13 +132,11 @@ class LoggingInitializer(BaseInitializer):
     
     def _load_project_config(self):
         """
-        自动加载项目配置以获取日志设置
+        Automatically load project configuration to retrieve log settings
         """
         try:
-            # 查找项目根目录
-            import os
-            import sys
-            import configparser
+            from crawlo.project import read_crawlo_cfg
+            from crawlo.utils.misc import ConfigUtils
             
             current_path = os.getcwd()
             
@@ -155,29 +149,21 @@ class LoggingInitializer(BaseInitializer):
                 
                 # 检查crawlo.cfg
                 cfg_file = os.path.join(path, "crawlo.cfg")
-                if os.path.exists(cfg_file):
-                    # 读取配置文件
-                    config_parser = configparser.ConfigParser()
-                    config_parser.read(cfg_file, encoding="utf-8")
+                settings_module_path = read_crawlo_cfg(cfg_file)
+                
+                if settings_module_path:
+                    # Add project root directory to Python path
+                    if path not in sys.path:
+                        sys.path.insert(0, path)
                     
-                    if config_parser.has_section("settings") and config_parser.has_option("settings", "default"):
-                        # 获取settings模块路径
-                        settings_module_path = config_parser.get("settings", "default")
-                        
-                        # 添加项目根目录到Python路径
-                        if path not in sys.path:
-                            sys.path.insert(0, path)
-                        
-                        # 导入项目配置模块
-                        import importlib
-                        settings_module = importlib.import_module(settings_module_path)
-                        
-                        # 创建配置字典
-                        from crawlo.utils.config_manager import ConfigUtils
-                        project_config = ConfigUtils.merge_config_sources([settings_module])
-                        
-                        return project_config
+                    # Import project settings module
+                    settings_module = importlib.import_module(settings_module_path)
                     
+                    # Create configuration dictionary
+                    project_config = ConfigUtils.merge_config_sources([settings_module])
+                    
+                    return project_config
+                
                 # 向上一级目录
                 parent = os.path.dirname(path)
                 if parent == path:
@@ -236,24 +222,31 @@ class SettingsInitializer(BaseInitializer):
 
 
 class CoreComponentsInitializer(BaseInitializer):
-    """核心组件初始化器"""
+    """Core components initializer"""
     
     def __init__(self):
         super().__init__(InitializationPhase.CORE_COMPONENTS)
     
     def initialize(self, context: InitializationContext) -> PhaseResult:
-        """初始化核心组件"""
+        """
+        Initialize core components
+        
+        Note: Most core components require crawler parameter, so they cannot be
+        initialized in this phase. Actual initialization will occur when
+        the crawler is created. This phase serves as a placeholder.
+        """
         start_time = time.time()
         
         try:
-            # 在核心组件初始化阶段，大多数组件需要crawler参数
-            # 因此我们只初始化那些完全独立的组件
-            # 或者只记录需要初始化的组件类型，实际初始化在crawler创建时进行
+            # Log that core components will be initialized later
+            logger = context.get_shared_data('framework_logger')
+            if logger:
+                logger.debug("Core components initialization deferred to crawler creation")
             
             return self._create_result(
                 success=True,
                 duration=time.time() - start_time,
-                artifacts={}
+                artifacts={'note': 'Core components initialized during crawler creation'}
             )
             
         except Exception as e:
@@ -263,8 +256,26 @@ class CoreComponentsInitializer(BaseInitializer):
                 error=e
             )
     
-# 注意：核心组件需要crawler参数，不能在此阶段初始化
-        # 实际初始化将在crawler创建时进行
+    def _get_spider_module_initializer_config(self, context: InitializationContext) -> dict:
+        """获取爬虫模块初始化器配置"""
+        # ConfigUtils 已在顶部导入
+        return ConfigUtils.get_config_value(
+            [context.settings, context.custom_settings],
+            'SPIDER_MODULE_INITIALIZER',
+            {}
+        )
+    
+    def _get_custom_downloader_path(self, context: InitializationContext) -> Optional[str]:
+        """获取自定义下载器路径"""
+        # load_object 和 ConfigUtils 已在顶部导入
+        custom_downloader_path = ConfigUtils.get_config_value(
+            [context.settings, context.custom_settings],
+            'CUSTOM_DOWNLOADER',
+            None
+        )
+        if custom_downloader_path:
+            return load_object(custom_downloader_path)
+        return None
 
 
 class ExtensionsInitializer(BaseInitializer):
@@ -334,21 +345,20 @@ class FrameworkStartupLogger(BaseInitializer):
         super().__init__(InitializationPhase.FRAMEWORK_STARTUP_LOG)
     
     def initialize(self, context: InitializationContext) -> PhaseResult:
-        """记录框架启动日志"""
+        """记录框架启动信息"""
         start_time = time.time()
         
         try:
             # 关键步骤：在记录框架启动日志前，重新配置日志系统
             # 这样确保 LOG_FILE 被正确地应用到所有logger（包括框架logger）
             if context.settings:
-                from crawlo.logging import configure_logging, LoggerFactory
+                # configure_logging 和 LoggerFactory 已在顶部导入
                 # 重新配置日志，这次会正确读取settings中的LOG_FILE
                 configure_logging(context.settings)
                 # 清除缓存以强制重新创建logger（使其包含新的文件处理器）
                 LoggerFactory.clear_cache()
             
-            # 获取框架logger
-            from crawlo.logging import get_logger
+            # 获取框架logger（get_logger 已在顶部导入）
             logger = get_logger('crawlo.framework')
             
             # 获取框架版本

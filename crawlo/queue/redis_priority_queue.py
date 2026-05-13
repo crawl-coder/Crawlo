@@ -2,7 +2,7 @@ import asyncio
 import pickle
 import time
 import traceback
-from typing import Optional, TYPE_CHECKING, List, Any
+from typing import Optional, TYPE_CHECKING, List, Tuple, Any
 
 # 尝试导入Redis集群支持
 try:
@@ -12,19 +12,18 @@ except ImportError:
     RedisCluster = None
     REDIS_CLUSTER_AVAILABLE = False
 
-# 使用 TYPE_CHECKING 避免运行时循环导入
-if TYPE_CHECKING:
-    from crawlo import Request
-
-from crawlo.logging import get_logger
-from crawlo.utils.request.request_serializer import RequestSerializer
 try:
     import msgpack
     MSGPACK_AVAILABLE = True
 except ImportError:
     MSGPACK_AVAILABLE = False
+
+from crawlo import Request
+from crawlo.logging import get_logger
 from crawlo.utils.error_handler import ErrorHandler, ErrorContext
+from crawlo.utils.request.request_serializer import RequestSerializer
 from crawlo.utils.redis import get_redis_pool, RedisConnectionPool, RedisKeyManager
+
 
 # 创建logger实例
 logger = get_logger(__name__)
@@ -109,6 +108,7 @@ class RedisPriorityQueue:
         self._lock: asyncio.Lock = asyncio.Lock()
         self.request_serializer: RequestSerializer = RequestSerializer(serialization_format=serialization_format)
         self.serialization_format: str = serialization_format  # 新增：存储序列化格式
+        self._serialization_validated: bool = False  # 序列化验证标志
 
     async def connect(self, max_retries: int = 3, delay: int = 1) -> Optional[Any]:
         """
@@ -153,6 +153,11 @@ class RedisPriorityQueue:
                     # 测试连接
                     if self._redis:
                         await self._redis.ping()
+                        
+                        # 验证序列化格式（仅一次）
+                        if not self._serialization_validated:
+                            self._validate_serialization_format()
+                            self._serialization_validated = True
                     return self._redis
                 except Exception as e:
                     error_msg = f"Redis 连接失败 (尝试 {attempt + 1}/{max_retries}, Project: {self.key_manager.project_name}, Spider: {self.key_manager.spider_name}): {e}"
@@ -174,6 +179,34 @@ class RedisPriorityQueue:
             logger.warning(f"Redis 连接失效 (Project: {self.key_manager.project_name}, Spider: {self.key_manager.spider_name})，尝试重连...: {e}")
             self._redis = None
             await self.connect()
+    
+    def _validate_serialization_format(self) -> None:
+        """
+        验证序列化格式是否正常工作（仅在连接时调用一次）
+        
+        Raises:
+            RuntimeError: 如果序列化验证失败
+        """
+        try:
+            # 创建测试请求
+            test_request = Request('http://test.example.com/validate')
+            
+            # 测试序列化
+            request_data = self.request_serializer.prepare_for_serialization(test_request)
+            
+            # 测试序列化格式
+            if self.serialization_format == 'msgpack' and MSGPACK_AVAILABLE:
+                serialized = msgpack.packb(request_data, default=str)
+                deserialized = msgpack.unpackb(serialized, raw=False)
+                assert isinstance(deserialized, dict), "msgpack 反序列化结果不是 dict"
+            else:
+                serialized = pickle.dumps(request_data)
+                deserialized = pickle.loads(serialized)
+                assert isinstance(deserialized, dict), "pickle 反序列化结果不是 dict"
+            
+            logger.debug(f"Serialization format '{self.serialization_format}' validated successfully")
+        except Exception as e:
+            raise RuntimeError(f"Serialization validation failed: {e}")
 
     def _is_cluster_mode(self) -> bool:
         """
@@ -232,24 +265,14 @@ class RedisPriorityQueue:
             score = priority
             key = self._get_request_key(request)
 
-            # 🔥 使用专用的序列化工具清理 Request
-            clean_request = self.request_serializer.prepare_for_serialization(request)
+            # 🔥 使用 Request.to_dict() 序列化
+            request_data = self.request_serializer.prepare_for_serialization(request)
 
-            # 根据配置的序列化格式进行序列化
-            try:
-                if self.serialization_format == 'msgpack' and MSGPACK_AVAILABLE:
-                    # 使用msgpack序列化
-                    serialized = msgpack.packb(clean_request, default=str)
-                    # 验证序列化数据可以被反序列化
-                    msgpack.unpackb(serialized, raw=False)
-                else:
-                    # 使用pickle序列化
-                    serialized = pickle.dumps(clean_request)
-                    # 验证序列化数据可以被反序列化
-                    pickle.loads(serialized)
-            except Exception as serialize_error:
-                logger.error(f"请求序列化验证失败 (Project: {self.key_manager.project_name}, Spider: {self.key_manager.spider_name}): {serialize_error}")
-                return False
+            # 根据配置的序列化格式进行序列化（移除冗余验证，已在连接时验证）
+            if self.serialization_format == 'msgpack' and MSGPACK_AVAILABLE:
+                serialized = msgpack.packb(request_data, default=str)
+            else:
+                serialized = pickle.dumps(request_data)
 
             # 处理集群模式下的操作
             try:
@@ -308,6 +331,117 @@ class RedisPriorityQueue:
             )
             return False
 
+    async def put_batch(self, requests: List[Tuple['Request', int]], batch_size: int = 50) -> int:
+        """
+        批量入队请求（减少网络 RTT）
+
+        使用 pipeline 将多个入队操作合并为一次网络往返，
+        批量入队大量请求时显著提升性能。
+
+        Args:
+            requests: (request, priority) 元组列表
+            batch_size: 每批次最大请求数（默认 50），避免单次 pipeline 过大
+
+        Returns:
+            int: 成功入队的请求数量
+        """
+        if not requests:
+            return 0
+
+        try:
+            await self._ensure_connection()
+            if not self._redis:
+                return 0
+
+            total_success = 0
+
+            # 分批处理，避免单次 pipeline 过大
+            for i in range(0, len(requests), batch_size):
+                batch = requests[i:i + batch_size]
+
+                try:
+                    # 构建 pipeline 操作
+                    if self._is_cluster_mode():
+                        hash_tag = "{queue}"
+                        queue_name_with_tag = f"{self.queue_name}{hash_tag}"
+                        data_key_with_tag = self.key_manager.get_requests_data_key() + hash_tag
+
+                        pipe = self._redis.pipeline()
+                        for request, priority in batch:
+                            key = self._get_request_key(request)
+                            request_data = self.request_serializer.prepare_for_serialization(request)
+
+                            if self.serialization_format == 'msgpack' and MSGPACK_AVAILABLE:
+                                serialized = msgpack.packb(request_data, default=str)
+                            else:
+                                serialized = pickle.dumps(request_data)
+
+                            pipe.zadd(queue_name_with_tag, {key: priority})
+                            pipe.hset(data_key_with_tag, key, serialized)
+
+                        results = await pipe.execute()
+                    else:
+                        pipe = self._redis.pipeline()
+                        for request, priority in batch:
+                            key = self._get_request_key(request)
+                            request_data = self.request_serializer.prepare_for_serialization(request)
+
+                            if self.serialization_format == 'msgpack' and MSGPACK_AVAILABLE:
+                                serialized = msgpack.packb(request_data, default=str)
+                            else:
+                                serialized = pickle.dumps(request_data)
+
+                            pipe.zadd(self.queue_name, {key: priority})
+                            pipe.hset(self.key_manager.get_requests_data_key(), key, serialized)
+
+                        results = await pipe.execute()
+
+                    # 统计成功数（每两个操作一组: zadd + hset）
+                    batch_success = 0
+                    for j in range(0, len(results), 2):
+                        if results[j] is not None and results[j] > 0:
+                            batch_success += 1
+
+                    total_success += batch_success
+
+                    if batch_success < len(batch):
+                        logger.debug(
+                            f"批次部分成功: {batch_success}/{len(batch)} "
+                            f"(Project: {self.key_manager.project_name}, "
+                            f"Spider: {self.key_manager.spider_name})"
+                        )
+
+                except Exception as batch_error:
+                    logger.error(
+                        f"批次入队失败 (Project: {self.key_manager.project_name}, "
+                        f"Spider: {self.key_manager.spider_name}): {batch_error}"
+                    )
+                    logger.debug(f"详细错误信息:\n{traceback.format_exc()}")
+
+            # 更新统计
+            if hasattr(self, '_stats'):
+                self._stats['successful_puts'] = self._stats.get('successful_puts', 0) + total_success
+            else:
+                self._stats = {'successful_puts': total_success}
+
+            logger.info(
+                f"批量入队完成: {total_success}/{len(requests)} "
+                f"(Project: {self.key_manager.project_name}, Spider: {self.key_manager.spider_name})"
+            )
+
+            return total_success
+
+        except Exception as e:
+            error_context = ErrorContext(
+                context=f"批量入队失败 (Project: {self.key_manager.project_name}, Spider: {self.key_manager.spider_name})"
+            )
+            ErrorHandler(__name__).handle_error(
+                e,
+                context=error_context,
+                raise_error=False
+            )
+            return 0
+
     async def get(self, timeout: float = 5.0) -> Optional['Request']:
         """
         获取请求（带超时）
@@ -323,7 +457,7 @@ class RedisPriorityQueue:
             if not self._redis:
                 return None
                 
-            start_time = asyncio.get_event_loop().time()
+            start_time = time.time()
 
             while True:
                 # 尝试获取任务
@@ -350,24 +484,71 @@ class RedisPriorityQueue:
                     try:
                         if self.serialization_format == 'msgpack' and MSGPACK_AVAILABLE:
                             # 使用msgpack反序列化
-                            request = msgpack.unpackb(serialized, raw=False)
+                            data = msgpack.unpackb(serialized, raw=False)
                         else:
                             # 使用pickle反序列化
                             try:
                                 # 首先尝试标准的 pickle 反序列化
-                                request = pickle.loads(serialized)
+                                data = pickle.loads(serialized)
                             except UnicodeDecodeError:
                                 # 如果出现编码错误，尝试使用 latin1 解码
-                                request = pickle.loads(serialized, encoding='latin1')
-                        return request
+                                data = pickle.loads(serialized, encoding='latin1')
+                        
+                        # 将数据转换为 Request 对象
+                        
+                        # 如果已经是 Request 对象，直接返回
+                        if isinstance(data, Request):
+                            return data
+                        
+                        # 否则从 dict 反序列化
+                        if isinstance(data, dict):
+                            request = Request.from_dict(data)
+                            return request
+                        
+                        # 未知数据类型
+                        raise TypeError(f"Unexpected data type after deserialization: {type(data).__name__}")
                     except Exception as deserialize_error:
-                        # 如果反序列化失败，记录错误并跳过这个任务
-                        logger.error(f"无法反序列化请求数据 (Project: {self.key_manager.project_name}, Spider: {self.key_manager.spider_name}): {deserialize_error}")
+                        # 如果反序列化失败，记录详细错误信息并跳过这个任务
+                        error_details = {
+                            'error': str(deserialize_error),
+                            'error_type': type(deserialize_error).__name__,
+                            'key': key,
+                            'data_type': type(data).__name__ if 'data' in locals() else 'N/A',
+                            'serialized_type': type(serialized).__name__,
+                            'serialized_preview': repr(serialized[:100]) if serialized else 'None',
+                        }
+                        logger.error(
+                            f"Failed to deserialize request (Project: {self.key_manager.project_name}, "
+                            f"Spider: {self.key_manager.spider_name}): {error_details}"
+                        )
+                        
+                        # 自动清理脏数据，防止无限重试
+                        try:
+                            # 确定数据 key（考虑集群模式）
+                            if self._is_cluster_mode():
+                                hash_tag = "{queue}"
+                                data_key = self.key_manager.get_requests_data_key() + hash_tag
+                            else:
+                                data_key = self.key_manager.get_requests_data_key()
+                            
+                            # 删除脏数据
+                            await self._redis.hdel(data_key, key)
+                            await self._redis.zrem(self.queue_name, key)
+                            logger.warning(
+                                f"Cleaned up corrupted request data (Project: {self.key_manager.project_name}, "
+                                f"Spider: {self.key_manager.spider_name}): {key}"
+                            )
+                        except Exception as cleanup_error:
+                            logger.error(
+                                f"Failed to cleanup corrupted data (Project: {self.key_manager.project_name}, "
+                                f"Spider: {self.key_manager.spider_name}): {cleanup_error}"
+                            )
+                        
                         # 继续尝试下一个任务
                         continue
 
                 # 检查是否超时
-                if asyncio.get_event_loop().time() - start_time > timeout:
+                if time.time() - start_time > timeout:
                     return None
 
                 # 短暂等待，避免空轮询，但减少等待时间以提高响应速度
@@ -393,7 +574,7 @@ class RedisPriorityQueue:
         """
         # 由于我们不再使用处理队列，ack方法现在是一个空操作
         # 任务在从主队列取出时就已经被认为是完成的
-        logger.debug(f"任务确认完成 (Project: {self.key_manager.project_name}, Spider: {self.key_manager.spider_name}): {request.url}")
+        pass
 
     async def fail(self, request: 'Request', reason: str = "") -> None:
         """
@@ -459,31 +640,25 @@ class RedisPriorityQueue:
         # 使用key_manager的namespace来确保一致性
         return f"{self.key_manager.namespace}:url:{hash(request.url) & 0x7FFFFFFF}"  # 确保正数
 
-    async def qsize(self) -> int:
+    async def size(self) -> int:
         """
-        Get queue size (只检查主队列)
+        异步获取队列大小（只检查主队列）
 
         Returns:
-            int: 队列大小（只检查主队列）
+            int: 队列中的元素数量
         """
         try:
             await self._ensure_connection()
             if not self._redis:
                 return 0
 
-            # 只检查主队列大小，不再检查处理中队列
-            main_queue_size = 0
-
+            # 只检查主队列大小
             if self._is_cluster_mode():
                 hash_tag = "{queue}"
                 queue_name_with_tag = f"{self.queue_name}{hash_tag}"
-                main_queue_size = await self._redis.zcard(queue_name_with_tag)
+                return await self._redis.zcard(queue_name_with_tag)
             else:
-                main_queue_size = await self._redis.zcard(self.queue_name)
-
-            logger.debug(f"队列大小检查 - 主队列: {main_queue_size} (Project: {self.key_manager.project_name}, Spider: {self.key_manager.spider_name})")
-
-            return main_queue_size
+                return await self._redis.zcard(self.queue_name)
         except Exception as e:
             error_context = ErrorContext(
                 context=f"Failed to get queue size (Project: {self.key_manager.project_name}, Spider: {self.key_manager.spider_name})"
