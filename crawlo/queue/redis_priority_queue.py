@@ -28,15 +28,13 @@ from crawlo.utils.redis import get_redis_pool, RedisConnectionPool, RedisKeyMana
 # 创建logger实例
 logger = get_logger(__name__)
 
-# 延迟初始化避免循环依赖
-_error_handler = None
-
-
-def get_module_error_handler():
-    global _error_handler
-    if _error_handler is None:
-        _error_handler = ErrorHandler(__name__)
-    return _error_handler
+def get_module_error_handler() -> ErrorHandler:
+    """获取模块级 ErrorHandler 单例（存储于 ApplicationContext）"""
+    from crawlo.core.application import get_global_context
+    ctx = get_global_context()
+    if ctx.queue_error_handler is None:
+        ctx.queue_error_handler = ErrorHandler(__name__)
+    return ctx.queue_error_handler
 
 
 class RedisPriorityQueue:

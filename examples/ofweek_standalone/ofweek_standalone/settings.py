@@ -11,7 +11,7 @@ ofweek_standalone 项目配置文件
 from crawlo.config import CrawloConfig
 
 # 使用自动检测模式配置工厂创建配置
-config = CrawloConfig.standalone(
+config = CrawloConfig.auto(
     project_name='ofweek_standalone',
     concurrency=12,  # 降低并发以便测试中断
     download_delay=1.0,  # 增加延时，方便测试检查点
@@ -36,9 +36,7 @@ SPIDER_MODULES = ['ofweek_standalone.spiders']
 # 数据管道
 # 如需添加自定义管道，请取消注释并添加
 PIPELINES = [
-    # 'crawlo.pipelines.mysql_pipeline.MySQLPipeline',  # MySQL 存储（使用asyncmy异步库）
-    'crawlo.pipelines.MySQLPipeline',  # MySQL 存储（使用asyncmy异步库）
-    # 'ofweek_standalone.pipelines.CustomPipeline',  # 用户自定义管道示例
+    'crawlo.pipelines.MySQLPipeline',
 ]
 
 # =================================== 系统配置 ===================================

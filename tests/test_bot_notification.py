@@ -355,9 +355,9 @@ class TestMessageTemplateManager(unittest.TestCase):
 
     def setUp(self):
         """测试前重置模板管理器"""
-        global _template_manager
-        from crawlo.bot.templates.manager import _template_manager
-        _template_manager = None
+        from crawlo.core.application import get_global_context
+        from crawlo.bot.templates.manager import get_template_manager
+        get_global_context().template_manager = None
 
     def test_get_default_template(self):
         """测试获取默认模板"""

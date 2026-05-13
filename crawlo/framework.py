@@ -9,7 +9,6 @@ Crawlo框架统一入口
 
 import os
 import sys
-import threading
 from typing import Type, Optional, List, Union
 
 from .crawler import Crawler, CrawlerProcess
@@ -244,37 +243,29 @@ class CrawloFramework:
             self._logger.warning(f"Failed to cleanup global resources: {e}")
 
 
-# 全局框架实例
-_global_framework: Optional[CrawloFramework] = None
-_framework_lock = threading.Lock()
-
-
 def get_framework(settings=None, **kwargs) -> CrawloFramework:
     """
-    获取全局框架实例（线程安全单例模式）
-    
+    获取全局框架实例（存储于 ApplicationContext，DCL 线程安全）
+
     Args:
         settings: 配置对象
         **kwargs: 额外配置参数
-        
+
     Returns:
-        CrawloFramework实例
+        CrawloFramework 实例
     """
-    global _global_framework
-
-    if _global_framework is None:
-        with _framework_lock:
-            # 双重检查锁定
-            if _global_framework is None:
-                _global_framework = CrawloFramework(settings, **kwargs)
-
-    return _global_framework
+    from crawlo.core.application import get_global_context
+    ctx = get_global_context()
+    if ctx.framework is None:
+        ctx.framework = CrawloFramework(settings, **kwargs)
+    return ctx.framework
 
 
 def reset_framework():
     """重置全局框架实例（主要用于测试）"""
-    global _global_framework
-    _global_framework = None
+    from crawlo.core.application import get_global_context
+    ctx = get_global_context()
+    ctx.framework = None
 
 
 # 便捷函数

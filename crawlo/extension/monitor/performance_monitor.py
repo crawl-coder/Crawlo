@@ -264,8 +264,13 @@ def performance_monitor_decorator(name: str = None, log_level: str = "INFO"):
     return decorator
 
 
-# 全局性能监控器实例
-default_performance_monitor = PerformanceMonitor()
+def _get_performance_monitor() -> PerformanceMonitor:
+    """获取全局 PerformanceMonitor 单例（存储于 ApplicationContext）"""
+    from crawlo.core.application import get_global_context
+    ctx = get_global_context()
+    if ctx.performance_monitor is None:
+        ctx.performance_monitor = PerformanceMonitor()
+    return ctx.performance_monitor
 
 
 def monitor_performance(interval: int = 60, detailed: bool = False):
@@ -276,7 +281,7 @@ def monitor_performance(interval: int = 60, detailed: bool = False):
         interval: 监控间隔（秒）
         detailed: 是否记录详细信息
     """
-    default_performance_monitor.start_monitoring(interval, detailed)
+    _get_performance_monitor().start_monitoring(interval, detailed)
 
 
 def get_current_metrics() -> Dict[str, Any]:
@@ -286,4 +291,4 @@ def get_current_metrics() -> Dict[str, Any]:
     Returns:
         性能指标字典
     """
-    return default_performance_monitor.get_system_metrics()
+    return _get_performance_monitor().get_system_metrics()

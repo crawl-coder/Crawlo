@@ -452,13 +452,9 @@ class ResourceManager:
         return False
 
 
-# 全局资源管理器注册表
-_global_managers: Dict[str, ResourceManager] = {}
-
-
 def get_resource_manager(name: str = "default") -> ResourceManager:
     """
-    获取资源管理器实例（单例）
+    获取资源管理器实例（单例，存储于 ApplicationContext）
     
     Args:
         name: 管理器名称
@@ -466,20 +462,24 @@ def get_resource_manager(name: str = "default") -> ResourceManager:
     Returns:
         资源管理器实例
     """
-    if name not in _global_managers:
-        _global_managers[name] = ResourceManager(name)
-    return _global_managers[name]
+    from crawlo.core.application import get_global_context
+    managers = get_global_context().resource_managers
+    if name not in managers:
+        managers[name] = ResourceManager(name)
+    return managers[name]
 
 
 async def cleanup_all_managers():
     """清理所有资源管理器"""
+    from crawlo.core.application import get_global_context
     logger = get_logger("ResourceManager")
+    managers = get_global_context().resource_managers
     
-    for name, manager in _global_managers.items():
+    for name, manager in list(managers.items()):
         try:
             logger.info(f"Cleaning up resource manager: {name}")
             await manager.cleanup_all()
         except Exception as e:
             logger.error(f"Failed to cleanup manager {name}: {e}")
     
-    _global_managers.clear()
+    managers.clear()

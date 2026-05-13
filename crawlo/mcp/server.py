@@ -31,30 +31,16 @@ from crawlo.mcp.quick_fetcher import QuickFetcher, FetchResult
 # 创建 FastMCP 实例
 mcp = FastMCP("Crawlo", json_response=True)
 
-# 全局 Fetcher 实例（线程安全的延迟初始化）
-_fetcher: QuickFetcher = None
-_fetcher_lock: asyncio.Lock = None
-
-
-def _get_lock() -> asyncio.Lock:
-    """获取或创建锁"""
-    global _fetcher_lock
-    if _fetcher_lock is None:
-        _fetcher_lock = asyncio.Lock()
-    return _fetcher_lock
-
-
 async def _get_fetcher() -> QuickFetcher:
-    """获取全局 Fetcher 实例（线程安全）"""
-    global _fetcher
-    if _fetcher is not None:
-        return _fetcher
-    
-    async with _get_lock():
-        # 双重检查
-        if _fetcher is None:
-            _fetcher = QuickFetcher()
-    return _fetcher
+    """获取全局 Fetcher 实例（存储于 ApplicationContext，DCL 线程安全）"""
+    from crawlo.core.application import get_global_context
+    ctx = get_global_context()
+    if ctx.mcp_fetcher is not None:
+        return ctx.mcp_fetcher
+    with ctx.mcp_fetcher_lock:
+        if ctx.mcp_fetcher is None:
+            ctx.mcp_fetcher = QuickFetcher()
+    return ctx.mcp_fetcher
 
 
 # 错误分类映射（帮助 AI 理解错误类型并决策下一步操作）

@@ -123,21 +123,21 @@ class InitializerRegistry:
             )
 
 
-# 全局注册表实例
-_global_registry = InitializerRegistry()
-
-
 def get_global_registry() -> InitializerRegistry:
-    """获取全局注册表"""
-    return _global_registry
+    """获取全局初始化器注册表（存储于 ApplicationContext）"""
+    from crawlo.core.application import get_global_context
+    ctx = get_global_context()
+    if ctx.initializer_registry is None:
+        ctx.initializer_registry = InitializerRegistry()
+    return ctx.initializer_registry
 
 
 def register_initializer(initializer: Initializer):
     """注册初始化器到全局注册表"""
-    _global_registry.register(initializer)
+    get_global_registry().register(initializer)
 
 
-def register_phase_function(phase: InitializationPhase, 
-                           init_func: Callable[[InitializationContext], PhaseResult]):
+def register_phase_function(phase: InitializationPhase,
+                            init_func: Callable[[InitializationContext], PhaseResult]):
     """注册函数式初始化器到全局注册表"""
-    _global_registry.register_function(phase, init_func)
+    get_global_registry().register_function(phase, init_func)

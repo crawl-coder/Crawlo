@@ -216,15 +216,10 @@ class FeishuChannel(NotificationChannel):
             }
 
 
-# 全局实例
-_feishu_channel = None
-
-
 def get_feishu_channel() -> FeishuChannel:
-    """
-    获取飞书通知渠道实例
-    """
-    global _feishu_channel
-    if _feishu_channel is None:
-        _feishu_channel = FeishuChannel()
-    return _feishu_channel
+    """获取飞书通知渠道实例（存储于 ApplicationContext）"""
+    from crawlo.core.application import get_global_context
+    ctx = get_global_context()
+    if ctx.feishu_channel is None:
+        ctx.feishu_channel = FeishuChannel()
+    return ctx.feishu_channel

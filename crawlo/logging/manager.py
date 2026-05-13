@@ -168,26 +168,31 @@ class LogManager(metaclass=SingletonMeta):
         return deleted_count
 
 
-# Global instance
-_log_manager = LogManager()
+def _get_log_manager() -> LogManager:
+    """获取全局 LogManager 单例（存储于 ApplicationContext）"""
+    from crawlo.core.application import get_global_context
+    ctx = get_global_context()
+    if ctx.log_manager is None:
+        ctx.log_manager = LogManager()
+    return ctx.log_manager
 
 
 # Module-level convenience functions
 def configure(settings=None, **kwargs) -> LogConfig:
     """Configure log system"""
-    return _log_manager.configure(settings, **kwargs)
+    return _get_log_manager().configure(settings, **kwargs)
 
 
 def is_configured() -> bool:
     """Check if configured"""
-    return _log_manager.is_configured
+    return _get_log_manager().is_configured
 
 
 def get_config() -> Optional[LogConfig]:
     """Get current configuration"""
-    return _log_manager.config
+    return _get_log_manager().config
 
 
 def reset():
     """Reset configuration"""
-    _log_manager.reset()
+    _get_log_manager().reset()

@@ -260,24 +260,15 @@ class MessageTemplateManager:
         return all_params
 
 
-# 全局模板管理器实例
-_template_manager = None
-
-
 def get_template_manager(custom_templates: Optional[Dict] = None) -> MessageTemplateManager:
     """
-    获取全局模板管理器实例
-    
-    Args:
-        custom_templates: 自定义模板配置
-        
-    Returns:
-        MessageTemplateManager实例
+    获取全局模板管理器实例（存储于 ApplicationContext）
     """
-    global _template_manager
-    if _template_manager is None:
-        _template_manager = MessageTemplateManager(custom_templates)
-    return _template_manager
+    from crawlo.core.application import get_global_context
+    ctx = get_global_context()
+    if ctx.template_manager is None:
+        ctx.template_manager = MessageTemplateManager(custom_templates)
+    return ctx.template_manager
 
 
 def render_message(template_name: str, **kwargs) -> Optional[Dict[str, str]]:

@@ -19,36 +19,29 @@ from crawlo.bot.channels.sms import get_sms_channel
 logger = get_logger(__name__)
 
 
-# 全局配置加载状态
-_config_loaded = False
-
-
 def ensure_config_loaded():
     """
-    确保配置已加载，如果未加载则立即加载
+    确保配置已加载，如果未加载则立即加载（状态存储于 ApplicationContext）
     """
-    global _config_loaded
+    from crawlo.core.application import get_global_context
+    ctx = get_global_context()
     
-    # 如果已经加载过配置，直接返回
-    if _config_loaded:
+    if ctx.bot_config_loaded:
         logger.debug("[ConfigLoader] 配置已加载，跳过")
         return
     
-    # 检查钉钉渠道是否已有配置（双重检查）
     try:
         dingtalk_channel = get_dingtalk_channel()
         if dingtalk_channel.webhook_url:
-            # 渠道已有配置，标记为已加载
             logger.debug("[ConfigLoader] 钉钉渠道已有配置，标记为已加载")
-            _config_loaded = True
+            ctx.bot_config_loaded = True
             return
     except Exception as e:
         logger.debug(f"[ConfigLoader] 检查渠道配置时出错: {e}")
     
-    # 执行配置加载
     logger.debug("[ConfigLoader] 开始加载配置")
     apply_settings_config()
-    _config_loaded = True
+    ctx.bot_config_loaded = True
 
 
 def load_notification_config(settings: Optional[dict] = None):

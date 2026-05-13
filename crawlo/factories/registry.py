@@ -114,10 +114,10 @@ class ComponentRegistry:
         self._default_factory.clear_singletons()
 
 
-# Global component registry
-_global_registry = ComponentRegistry()
-
-
 def get_component_registry() -> ComponentRegistry:
-    """Get the global component registry"""
-    return _global_registry
+    """Get the global component registry (stored in ApplicationContext)"""
+    from crawlo.core.application import get_global_context
+    ctx = get_global_context()
+    if ctx.component_registry is None:
+        ctx.component_registry = ComponentRegistry()
+    return ctx.component_registry

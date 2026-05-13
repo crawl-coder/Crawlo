@@ -198,15 +198,10 @@ class DingTalkChannel(NotificationChannel):
         return msg_dict
 
 
-# 全局实例
-_dingtalk_channel = None
-
-
 def get_dingtalk_channel() -> DingTalkChannel:
-    """
-    获取钉钉通知渠道实例
-    """
-    global _dingtalk_channel
-    if _dingtalk_channel is None:
-        _dingtalk_channel = DingTalkChannel()
-    return _dingtalk_channel
+    """获取钉钉通知渠道实例（存储于 ApplicationContext）"""
+    from crawlo.core.application import get_global_context
+    ctx = get_global_context()
+    if ctx.dingtalk_channel is None:
+        ctx.dingtalk_channel = DingTalkChannel()
+    return ctx.dingtalk_channel
