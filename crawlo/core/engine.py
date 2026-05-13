@@ -514,12 +514,17 @@ class Engine(RequestGenerationMixin):
                 f"errback returned unexpected type {type(result).__name__}, ignored"
             )
 
-    async def _exit(self):
-        # 使用异步 idle 检查，避免非原子状态检查的竞态条件
+    async def _check_components_idle(self, include_background: bool = False) -> tuple[bool, bool, bool, bool, bool]:
+        """统一检查各组件是否空闲（消除 _exit / _should_exit 代码重复）
+        
+        Returns:
+            (scheduler_idle, downloader_idle, task_manager_done, processor_idle, background_tasks_done)
+        """
         scheduler_idle = False
         downloader_idle = False
         task_manager_done = False
         processor_idle = False
+        background_tasks_done = False
         
         if self.scheduler is not None:
             scheduler_idle = await self.scheduler.async_idle() if hasattr(self.scheduler, 'async_idle') else self.scheduler.idle()
@@ -529,23 +534,22 @@ class Engine(RequestGenerationMixin):
             task_manager_done = self.task_manager.all_done()
         if self.processor is not None:
             processor_idle = await self.processor.idle_async()
+        if include_background:
+            background_tasks_done = len(self._background_tasks) == 0
         
-        if (scheduler_idle and downloader_idle and task_manager_done and processor_idle):
-            return True
-        return False
-    
+        return scheduler_idle, downloader_idle, task_manager_done, processor_idle, background_tasks_done
+
+    async def _exit(self):
+        """快速退出检查（4 组件，不含 background_tasks）"""
+        s, d, t, p, _ = await self._check_components_idle(include_background=False)
+        return s and d and t and p
+
     async def _check_all_idle(self) -> bool:
-        """二次确认所有组件是否仍然空闲
-        
-        用于在退出前添加短暂等待后再次确认，避免瞬时空闲误判。
-        
-        Returns:
-            bool: 所有组件是否都空闲
-        """
+        """二次确认所有组件是否仍然空闲（用于瞬时空闲误判）"""
         return await self._exit()
 
     async def _should_exit(self, last_component_states=None) -> tuple[bool, tuple]:
-        """检查是否应该退出
+        """检查是否应该退出（5 组件 + start_requests 判断）
         
         Args:
             last_component_states: 上次的组件状态元组，用于减少冗余日志
@@ -553,43 +557,18 @@ class Engine(RequestGenerationMixin):
         Returns:
             tuple: (should_exit, current_states)
         """
-        # 没有启动请求，且所有队列都空闲
         if self._start_requests_source is None:
-            # 使用异步的idle检查方法以获得更精确的结果
-            scheduler_idle = False
-            downloader_idle = False
-            task_manager_done = False
-            processor_idle = False
-            background_tasks_done = False
+            s, d, t, p, bg = await self._check_components_idle(include_background=True)
+            current_states = (s, d, t, p, bg)
             
-            if self.scheduler is not None:
-                scheduler_idle = await self.scheduler.async_idle() if hasattr(self.scheduler, 'async_idle') else self.scheduler.idle()
-            if self.downloader is not None:
-                downloader_idle = self.downloader.idle()
-            if self.task_manager is not None:
-                task_manager_done = self.task_manager.all_done()
-            if self.processor is not None:
-                processor_idle = await self.processor.idle_async()
-            # 检查引擎后台任务（_crawl 等 fire-and-forget 任务）是否都已完成
-            background_tasks_done = len(self._background_tasks) == 0
-            
-            current_states = (scheduler_idle, downloader_idle, task_manager_done, processor_idle, background_tasks_done)
-            
-            # 只在组件状态发生变化时输出日志
             if current_states != last_component_states:
                 self.logger.debug(
-                    f"组件状态变化 - Scheduler: {scheduler_idle}, "
-                    f"Downloader: {downloader_idle}, "
-                    f"TaskManager: {task_manager_done}, "
-                    f"Processor: {processor_idle}, "
-                    f"BackgroundTasks: {background_tasks_done}"
+                    f"组件状态变化 - Scheduler: {s}, "
+                    f"Downloader: {d}, TaskManager: {t}, "
+                    f"Processor: {p}, BackgroundTasks: {bg}"
                 )
             
-            if (scheduler_idle and 
-                downloader_idle and 
-                task_manager_done and 
-                processor_idle and
-                background_tasks_done):
+            if s and d and t and p and bg:
                 self.logger.info("All components are idle, preparing to exit")
                 return True, current_states
         else:

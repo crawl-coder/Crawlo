@@ -11,10 +11,10 @@
 - 测试隔离困难
 - 内存泄漏风险
 
-解决方案：
-1. 提供 reset 函数用于测试清理
-2. 提供 ApplicationContext 用于新代码的上下文隔离
-3. 保持向后兼容
+当前状态：已设计但尚未接入框架主流程。
+TODO: 将 CrawlerProcess / SchedulerDaemon 中的全局状态迁移至 ApplicationContext，
+      通过 get_global_context() 替代模块级全局变量。
+      迁移后 reset_global_context() 可用于测试间清理。
 """
 import asyncio
 import uuid
