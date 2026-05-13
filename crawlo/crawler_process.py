@@ -47,15 +47,16 @@ class CrawlerProcess:
         self._semaphore: asyncio.Semaphore = asyncio.Semaphore(max_concurrency)
         self._logger = get_logger('crawler.process')
         
-        # Windows 平台: 在框架层面自动应用猴子补丁修复
-        # 必须在 _logger 初始化之后调用
-        self._apply_windows_asyncio_fix()
-
-        # 信号处理相关
+        # 信号处理相关（必须在 _apply_windows_asyncio_fix 之前创建，
+        # 因为 _apply_windows_asyncio_fix 在调度器环境中会访问 _signal_handler）
         # ProcessSignalHandler 已在顶部导入
         self._signal_handler = ProcessSignalHandler(self._logger, self._crawlers)
         self._shutdown_event: asyncio.Event = self._signal_handler.shutdown_event
         self._shutdown_requested: bool = self._signal_handler.shutdown_requested
+
+        # Windows 平台: 在框架层面自动应用猴子补丁修复
+        # 必须在 _logger 和 _signal_handler 初始化之后调用
+        self._apply_windows_asyncio_fix()
 
         # 如果没有显式提供spider_modules，则从settings中获取
         if spider_modules is None and self._settings:
@@ -134,7 +135,8 @@ class CrawlerProcess:
         try:
             loop = asyncio.get_running_loop()
             # 如果事件循环已经在运行，直接设置
-            self._signal_handler.setup_signal_handlers()
+            if hasattr(self, '_signal_handler') and self._signal_handler is not None:
+                self._signal_handler.setup_signal_handlers()
         except RuntimeError:
             # 事件循环尚未启动，将在 crawl() 方法中设置
             self._logger.debug("Event loop not running, signal handlers will be set up later")
