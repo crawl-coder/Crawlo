@@ -7,162 +7,57 @@ Monitor MySQL connection pool and execution performance
 import asyncio
 from typing import Any, Optional, Dict, Tuple
 
-from crawlo.logging import get_logger
-from crawlo.event import CrawlerEvent
-from crawlo.extension.monitor.monitor_manager import monitor_manager
-from crawlo.utils.db.mysql_connection_pool import (
-    MySQLConnectionPoolManager
-)
+from .monitor.base import BaseMonitorExtension
+from crawlo.utils.db.mysql_connection_pool import MySQLConnectionPoolManager
 
 
-class MySQLMonitorExtension:
+class MySQLMonitorExtension(BaseMonitorExtension):
     """
     MySQL Monitor Extension
     Monitor MySQL connection pool status and SQL execution performance
     """
 
+    monitor_id = 'mysql_monitor'
+    config_key = 'MYSQL_MONITOR_ENABLED'
+    default_enabled = False
+
     def __init__(self, crawler: Any):
-        self.task: Optional[asyncio.Task] = None
-        self.crawler = crawler
-        self.settings = crawler.settings
-        self.logger = get_logger(self.__class__.__name__)
-        
-        # 获取配置参数
-        self.interval = self.settings.get_int('MYSQL_MONITOR_INTERVAL', 60)  # 默认60秒检查一次
-        self.enabled = self.settings.get_bool('MYSQL_MONITOR_ENABLED', False)
-        
-        # 监控管理器
-        self.monitor_manager = monitor_manager
-        self.monitor_type = 'mysql_monitor'
-        
+        super().__init__(crawler)
+
+        self.interval = self.settings.get_int('MYSQL_MONITOR_INTERVAL', 60)
         # 连接池使用趋势追踪
-        self.pool_usage_history = []  # 存储连接池使用率历史
-        self.max_history_points = 50  # 最大历史记录点数
-        
+        self.pool_usage_history: list = []
+        self.max_history_points = 50
+
         if self.enabled:
             self.logger.info(f"MySQL monitor initialized. Interval: {self.interval}s")
 
-    @classmethod
-    def create_instance(cls, crawler: Any) -> 'MySQLMonitorExtension':
-        # 只有当配置启用时才创建实例
-        if not crawler.settings.get_bool('MYSQL_MONITOR_ENABLED', False):
-            from crawlo.exceptions import NotConfigured
-            # get_logger 已在顶部导入
-            logger = get_logger(cls.__name__)
-            logger.debug("MySQLMonitorExtension: MYSQL_MONITOR_ENABLED is False, skipping initialization")
-            raise NotConfigured("MySQLMonitorExtension: MYSQL_MONITOR_ENABLED is False")
-        
-        # 检查是否已有MySQL监控实例在运行
-        existing_monitor = monitor_manager.get_monitor('mysql_monitor')
-        if existing_monitor is not None:
-            # 如果已有实例在运行，返回一个不执行任何操作的实例
-            o = cls(crawler)
-            o.enabled = False  # 禁用此实例的实际监控功能
-            return o
-        
-        o = cls(crawler)
-        # 注册监控实例到管理器
-        registered = monitor_manager.register_monitor('mysql_monitor', o)
-        if registered:
-            # 只有在成功注册后才订阅事件
-            crawler.subscriber.subscribe(o.spider_opened, event=CrawlerEvent.SPIDER_OPENED)
-            crawler.subscriber.subscribe(o.spider_closed, event=CrawlerEvent.SPIDER_CLOSED)
-        return o
+    # ---- spider_closed 清理 ----
 
-    async def spider_opened(self) -> None:
-        """爬虫启动时开始监控"""
-        # 检查是否已经有一个监控实例在运行
-        if not self.enabled or monitor_manager.get_monitor('mysql_monitor') != self:
-            # 如果此实例不是主要监控实例，则不启动监控
-            return
-            
-        try:
-            self.task = asyncio.create_task(self._monitor_loop())
-            self.logger.info(f"MySQL monitor started. Interval: {self.interval}s")
-        except Exception as e:
-            self.logger.error(f"Failed to start MySQL monitor: {e}")
+    def _on_spider_closed_cleanup(self) -> None:
+        """清除趋势历史，防止跨周期数据累积"""
+        self.pool_usage_history.clear()
 
-    async def spider_closed(self) -> None:
-        """爬虫关闭时停止监控"""
-        # 只有主要监控实例才处理关闭
-        if monitor_manager.get_monitor('mysql_monitor') == self:
-            if self.task:
-                self.task.cancel()
-                try:
-                    await self.task
-                except asyncio.CancelledError:
-                    pass
-                self.task = None
-            
-            # 检查是否在调度器模式下运行
-            # 使用内部标识来判断是否是调度任务
-            is_scheduler_mode = self.settings.get_bool('_INTERNAL_SCHEDULER_TASK', False)
-            
-            if not is_scheduler_mode:
-                # 不是调度任务，注销监控实例
-                monitor_manager.unregister_monitor('mysql_monitor')
-                self.logger.info("MySQL monitor stopped.")
-            else:
-                # 是调度任务，暂停监控（保持实例）
-                self.logger.info("MySQL monitor paused (will resume with next spider).")
-
-    def _calculate_pool_trend(self) -> Tuple[float, bool]:
-        """Calculate connection pool usage trend
-        Returns:
-            Tuple[float, bool]: (trend_slope, is_increasing) trend slope and whether it's increasing
-        """
-        if len(self.pool_usage_history) < 3:
-            return 0.0, False
-        
-        # 使用最后N个点计算趋势
-        recent_points = min(len(self.pool_usage_history), 10)
-        recent_data = self.pool_usage_history[-recent_points:]
-        
-        # 计算线性回归斜率
-        n = len(recent_data)
-        sum_x = sum(range(n))
-        sum_y = sum(recent_data)
-        sum_xy = sum(i * value for i, value in enumerate(recent_data))
-        sum_x2 = sum(i * i for i in range(n))
-        
-        if n * sum_x2 - sum_x * sum_x == 0:
-            return 0.0, False
-        
-        slope = (n * sum_xy - sum_x * sum_y) / (n * sum_x2 - sum_x * sum_x)
-        
-        # 判断是否在增长（考虑噪音容忍度）
-        is_increasing = slope > 0.5  # 0.5%/检查间隔的增长才认为是显著增长
-        
-        return slope, is_increasing
+    # ---- 监控循环 ----
 
     async def _monitor_loop(self) -> None:
-        """MySQL monitoring loop - monitor connection pool resource leaks and performance metrics"""
+        """MySQL monitoring loop – monitor connection pool resource leaks and performance metrics"""
         while True:
             try:
-                # 获取MySQL连接池使用率
                 pool_usage = self.crawler.stats.get_value('mysql/pool_usage_percent', 0)
-                
-                # 记录到历史数据（始终记录，用于趋势分析）
                 self.pool_usage_history.append(pool_usage)
-                
-                # 限制历史数据大小
                 if len(self.pool_usage_history) > self.max_history_points:
                     self.pool_usage_history.pop(0)
-                
-                # 当有足够数据时，分析连接池趋势
-                if len(self.pool_usage_history) >= 3:
+
+                if len(self.pool_usage_history) >= 5:
                     trend_slope, is_increasing = self._calculate_pool_trend()
-                    
-                    # 只有发现资源泄露趋势才告警
-                    if is_increasing and len(self.pool_usage_history) >= 5:
+                    if is_increasing:
                         self.logger.warning(
-                            f"MySQL连接池泄露警告 - 使用率持续增长: {trend_slope:+.2f}%/检查, "
-                            f"当前使用率: {pool_usage:.2f}%"
+                            f"MySQL connection pool leak warning – usage continuously increasing: "
+                            f"{trend_slope:+.2f}%/check, current: {pool_usage:.2f}%"
                         )
-                
-                # Get other performance metrics (for trend analysis, no log output)
+
                 self._collect_performance_metrics()
-                
                 await asyncio.sleep(self.interval)
             except asyncio.CancelledError:
                 break
@@ -170,124 +65,99 @@ class MySQLMonitorExtension:
                 self.logger.error(f"MySQL monitoring error: {e}")
                 await asyncio.sleep(self.interval)
 
+    def _calculate_pool_trend(self) -> Tuple[float, bool]:
+        """Calculate connection pool usage trend (linear regression)"""
+        recent_points = min(len(self.pool_usage_history), 10)
+        recent_data = self.pool_usage_history[-recent_points:]
+
+        n = len(recent_data)
+        sum_x = sum(range(n))
+        sum_y = sum(recent_data)
+        sum_xy = sum(i * val for i, val in enumerate(recent_data))
+        sum_x2 = sum(i * i for i in range(n))
+
+        if n * sum_x2 - sum_x * sum_x == 0:
+            return 0.0, False
+
+        slope = (n * sum_xy - sum_x * sum_y) / (n * sum_x2 - sum_x * sum_x)
+        return slope, slope > 0.5
+
     def _collect_performance_metrics(self) -> Dict[str, Any]:
         """Collect MySQL performance metrics (for resource leak analysis)"""
         stats = self.crawler.stats
-        
-        # Connection pool related metrics
         metrics = {
             'pool_usage': stats.get_value('mysql/pool_usage_percent', 0),
             'connection_acquire_time': stats.get_value('mysql/connection_acquire_time', 0),
-            
-            # Execution performance metrics
             'sql_execution_time': stats.get_value('mysql/sql_execution_time', 0),
             'batch_execution_time': stats.get_value('mysql/batch_execution_time', 0),
-            
-            # Operation counts
             'insert_success': stats.get_value('mysql/insert_success', 0),
             'insert_failed': stats.get_value('mysql/insert_failed', 0),
             'rows_requested': stats.get_value('mysql/rows_requested', 0),
             'rows_affected': stats.get_value('mysql/rows_affected', 0),
             'rows_ignored': stats.get_value('mysql/rows_ignored_by_duplicate', 0),
-            
-            # Retry and failure counts
             'retry_count': stats.get_value('mysql/retry_count', 0),
             'batch_retry_count': stats.get_value('mysql/batch_retry_count', 0),
             'batch_failure_count': stats.get_value('mysql/batch_failure_count', 0),
             'batch_insert_success': stats.get_value('mysql/batch_insert_success', 0),
         }
-        
-        # Calculate failure rate (if there are operations)
-        total_operations = metrics['insert_success'] + metrics['insert_failed']
-        if total_operations > 0:
-            metrics['failure_rate'] = (metrics['insert_failed'] / total_operations) * 100
-        else:
-            metrics['failure_rate'] = 0
-        
-        # Calculate retry rate
+
+        total_ops = metrics['insert_success'] + metrics['insert_failed']
+        metrics['failure_rate'] = (metrics['insert_failed'] / total_ops * 100) if total_ops > 0 else 0
+
         total_batches = metrics['batch_insert_success'] + metrics['batch_failure_count']
-        if total_batches > 0:
-            metrics['retry_rate'] = (metrics['batch_retry_count'] / total_batches) * 100
-        else:
-            metrics['retry_rate'] = 0
-        
-        # Check abnormal metrics (high failure rate or high retry rate)
-        if metrics['failure_rate'] > 10:  # 失败率超过10%
+        metrics['retry_rate'] = (metrics['batch_retry_count'] / total_batches * 100) if total_batches > 0 else 0
+
+        if metrics['failure_rate'] > 10:
             self.logger.warning(
-                f"MySQL高失败率警告 - 失败率: {metrics['failure_rate']:.1f}%, "
-                f"成功: {metrics['insert_success']}, 失败: {metrics['insert_failed']}"
+                f"MySQL high failure rate – {metrics['failure_rate']:.1f}%, "
+                f"success: {metrics['insert_success']}, failed: {metrics['insert_failed']}"
             )
-        
-        if metrics['retry_rate'] > 20:  # 重试率超过20%
+        if metrics['retry_rate'] > 20:
             self.logger.warning(
-                f"MySQL高重试率警告 - 重试率: {metrics['retry_rate']:.1f}%, "
-                f"重试次数: {metrics['batch_retry_count']}"
+                f"MySQL high retry rate – {metrics['retry_rate']:.1f}%, "
+                f"retries: {metrics['batch_retry_count']}"
             )
-        
-        # Check connection acquisition delay (may indicate connection pool tension)
-        if metrics['connection_acquire_time'] > 5:  # 超过5秒
+        if metrics['connection_acquire_time'] > 5:
             self.logger.warning(
-                f"MySQL连接获取延迟过高 - 等待时间: {metrics['connection_acquire_time']:.2f}s, "
-                f"连接池使用率: {metrics['pool_usage']:.1f}%"
+                f"MySQL connection acquire delay too high – {metrics['connection_acquire_time']:.2f}s, "
+                f"pool usage: {metrics['pool_usage']:.1f}%"
             )
-        
-        # Get detailed connection pool status
+
         self._check_detailed_pool_status()
-        
         return metrics
-    
+
     def _check_detailed_pool_status(self) -> None:
-        """Check detailed connection pool status"""
-        # Get MySQL connection pool stats
+        """Check detailed MySQL connection pool status"""
         mysql_stats = MySQLConnectionPoolManager.get_pool_stats()
-        
-        # Get connection pool info
         all_pools = mysql_stats.get('pools', {})
-        
         if not all_pools:
             return
-        
+
         for pool_key, pool_info in all_pools.items():
-            size = pool_info.get('size', 0)
+            usage_pct = pool_info.get('usage_percent', 0)
             freesize = pool_info.get('freesize', 0)
-            used = pool_info.get('used', 0)
             maxsize = pool_info.get('maxsize', 0)
+            size = pool_info.get('size', 0)
             minsize = pool_info.get('minsize', 0)
-            usage_percent = pool_info.get('usage_percent', 0)
-            
-            # Connection pool usage too high warning (over 90%)
-            if usage_percent > 90:
+
+            if usage_pct > 90:
                 self.logger.warning(
-                    f"MySQL连接池 [{pool_key}] 使用率过高 - "
-                    f"已使用: {used}/{maxsize} ({usage_percent:.1f}%), "
-                    f"空闲: {freesize}, 最小: {minsize}"
+                    f"MySQL pool [{pool_key}] usage too high – "
+                    f"used: {pool_info.get('used',0)}/{maxsize} ({usage_pct:.1f}%), "
+                    f"free: {freesize}, min: {minsize}"
                 )
-            
-            # Connection pool exhaustion warning (free is 0 and usage reaches 100%)
-            if freesize == 0 and usage_percent >= 100:
+            if freesize == 0 and usage_pct >= 100:
                 self.logger.warning(
-                    f"MySQL连接池 [{pool_key}] 已耗尽 - "
-                    f"所有 {maxsize} 个连接都在使用中，无空闲连接可用"
+                    f"MySQL pool [{pool_key}] exhausted – all {maxsize} connections in use"
                 )
-            
-            # Connection count below minimum (may indicate connection leak)
             if size < minsize:
                 self.logger.warning(
-                    f"MySQL连接池 [{pool_key}] 连接数低于最小值 - "
-                    f"当前: {size}, 最小: {minsize}, 可能连接泄露"
+                    f"MySQL pool [{pool_key}] below minimum – current: {size}, min: {minsize}"
                 )
 
 
 def create_mysql_monitor(crawler: Any) -> Optional[MySQLMonitorExtension]:
-    """
-    便捷函数：创建MySQL监控器（如果启用）
-    
-    Args:
-        crawler: 爬虫实例
-        
-    Returns:
-        MySQLMonitorExtension实例或None
-    """
+    """便捷函数：创建 MySQL 监控器（如果启用）"""
     if crawler.settings.get_bool('MYSQL_MONITOR_ENABLED', False):
         return MySQLMonitorExtension(crawler)
     return None
