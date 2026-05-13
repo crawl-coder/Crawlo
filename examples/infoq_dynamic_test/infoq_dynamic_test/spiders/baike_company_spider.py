@@ -28,8 +28,8 @@ class BaikeCompanySpider(Spider):
     # 起始URL模板（批量采集时使用）
     BASE_URL = 'https://baike.baidu.com/item/{}'
     
-    # 代理API配置
-    PROXY_API_URL = 'http://123.56.42.142:5000/proxy/getitem/'
+    # 代理API配置（按需填写）
+    # PROXY_API_URL = ''
     
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
