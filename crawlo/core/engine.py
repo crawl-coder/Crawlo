@@ -257,6 +257,8 @@ class Engine(RequestGenerationMixin):
                                 self._fc_logged = True
                             while len(self._background_tasks) >= max_inflight:
                                 await asyncio.sleep(0.01)
+                        else:
+                            self._fc_logged = False
                         self._create_background_task(self._crawl(req))
                     
                     # 有请求处理时，增加检查间隔（减少开销）
@@ -306,16 +308,38 @@ class Engine(RequestGenerationMixin):
             self.logger.debug(f"主爬取循环结束，总共执行了 {loop_count} 次")
         
         finally:
-            # 确保请求生成任务完成
+            # 1. 通知 generation_task 退出循环（self.running 是主循环和生成循环的条件）
+            self.running = False
+
+            # 2. 取消并等待 generation_task 完成
             if generation_task and not generation_task.done():
+                generation_task.cancel()
                 try:
                     await generation_task
                 except asyncio.CancelledError:
                     self.logger.debug("Generation task cancelled")
-            
-            # 优雅关闭爬虫（reason 已经在 signal handler 中设置）
+                except Exception as e:
+                    self.logger.debug(f"Generation task completed with error: {e}")
+
+            # 3. 确定关闭原因：检查是否收到过 shutdown 信号
+            shutdown_requested = False
             try:
-                await self.close_spider()
+                if (self.crawler is not None
+                        and hasattr(type(self.crawler), '_process')
+                        and hasattr(self.crawler, '_process')):
+                    # 兼容 __getattr__ 延迟导入的 CrawlerProcess
+                    process = getattr(self.crawler, '_process', None)
+                    if process is not None:
+                        shutdown_requested = getattr(
+                            process, '_shutdown_requested', False
+                        )
+            except Exception:
+                pass
+            reason = 'shutdown' if shutdown_requested else self._close_reason
+
+            # 4. 优雅关闭爬虫
+            try:
+                await self.close_spider(reason=reason)
             except asyncio.CancelledError:
                 self.logger.debug("close_spider cancelled")
 
@@ -409,10 +433,17 @@ class Engine(RequestGenerationMixin):
 
     async def _fetch(self, request):
         if self.downloader is None:
-            return None
+            self.logger.error("Downloader is not initialized, cannot fetch request")
+            return Failure(request, RuntimeError("Downloader not available"))
         _response = await self.downloader.fetch(request)
         if _response is None:
-            return None
+            self.logger.warning(
+                f"Downloader returned None for {request.url}, skipping errback"
+            )
+            return Failure(
+                request,
+                RuntimeError(f"Downloader returned empty response for {request.url}")
+            )
         output = await process_callback_output(
             self.spider,
             request.callback or self.spider.parse,
@@ -651,8 +682,9 @@ class Engine(RequestGenerationMixin):
                     self.logger.warning("调度器关闭超时")
                 except Exception as e:
                     self.logger.debug(f"调度器关闭时发生错误: {e}")
-        except Exception:
+        except (Exception, asyncio.CancelledError):
             # 清理失败，重置标志允许重试
+            # 同时捕获 CancelledError（Python 3.9+ 中为 BaseException 子类）
             self._spider_closed = False
             raise
     

@@ -274,7 +274,7 @@ def main(args):
                     transient=True,
             ) as progress:
                 task = progress.add_task("正在运行所有爬虫...", total=None)
-                run_with_cleanup(process.crawl_multiple(spider_names))
+                run_with_cleanup(process.crawl(spider_names))
 
             if show_json:
                 console.print_json(data={"success": True, "spiders": spider_names})

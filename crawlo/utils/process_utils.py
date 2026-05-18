@@ -88,6 +88,14 @@ class ProcessSignalHandler:
         """
         # 取消所有正在运行的任务
         for crawler in self.crawlers:
+            # 状态检查：跳过已关闭或正在关闭的 Crawler
+            current_state = getattr(crawler, '_state', 'unknown')
+            closing_states = ['CLOSING', 'closing', 'CLOSED', 'closed']
+            if hasattr(current_state, 'value'):
+                current_state = current_state.value
+            if str(current_state) in closing_states:
+                continue
+
             try:
                 engine = getattr(crawler, '_engine', None)
                 task_manager = getattr(engine, 'task_manager', None) if engine else None

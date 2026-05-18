@@ -83,6 +83,10 @@ class BackpressureMonitor:
     
     async def start(self):
         """启动监控"""
+        if self._monitor_task is not None and not self._monitor_task.done():
+            logger.warning("背压监控系统已在运行中，跳过重复启动")
+            return
+
         if not self.metrics_collector:
             logger.warning("未提供指标采集器，监控系统无法启动")
             return
