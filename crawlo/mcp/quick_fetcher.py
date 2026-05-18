@@ -437,33 +437,31 @@ class QuickFetcher:
 
 def _cleanup_fetcher():
     """清理全局 Fetcher 实例（程序退出时调用）"""
-    global _fetcher_instance
-    if _fetcher_instance is not None:
+    from crawlo.core.application import get_global_context
+    ctx = get_global_context()
+    if ctx.quick_fetcher is not None:
         try:
             loop = asyncio.get_event_loop()
             if loop.is_running():
-                loop.create_task(_fetcher_instance.close())
+                loop.create_task(ctx.quick_fetcher.close())
             else:
-                loop.run_until_complete(_fetcher_instance.close())
+                loop.run_until_complete(ctx.quick_fetcher.close())
         except Exception:
-            pass  # 清理失败不影响退出
-        _fetcher_instance = None
+            pass
+        ctx.quick_fetcher = None
 
 
 # 注册退出清理
 atexit.register(_cleanup_fetcher)
 
 
-# 模块级别的单例实例
-_fetcher_instance: Optional[QuickFetcher] = None
-
-
 async def get_fetcher(custom_settings: Optional[Dict[str, Any]] = None) -> QuickFetcher:
-    """获取全局 QuickFetcher 实例"""
-    global _fetcher_instance
-    if _fetcher_instance is None:
-        _fetcher_instance = QuickFetcher(custom_settings)
-    return _fetcher_instance
+    """获取全局 QuickFetcher 实例（存储于 ApplicationContext）"""
+    from crawlo.core.application import get_global_context
+    ctx = get_global_context()
+    if ctx.quick_fetcher is None:
+        ctx.quick_fetcher = QuickFetcher(custom_settings)
+    return ctx.quick_fetcher
 
 
 async def quick_fetch(

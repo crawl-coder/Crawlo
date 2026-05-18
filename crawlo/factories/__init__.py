@@ -10,17 +10,14 @@ Provides unified component creation and dependency injection mechanism.
 from .registry import ComponentRegistry, get_component_registry as _get_component_registry
 from .base import ComponentFactory, ComponentSpec
 
-# 延迟导入标志：避免模块导入时触发重量级注册
-_components_registered = False
-
-
 def _ensure_components_registered():
-    """确保 Crawler 相关组件已注册（首次使用时才触发）"""
-    global _components_registered
-    if not _components_registered:
+    """确保 Crawler 相关组件已注册（首次使用时才触发，状态存储于 ApplicationContext）"""
+    from crawlo.core.application import get_global_context
+    ctx = get_global_context()
+    if not ctx.components_registered:
         from .crawler import register_crawler_components
         register_crawler_components()
-        _components_registered = True
+        ctx.components_registered = True
 
 
 def get_component_registry():

@@ -1,72 +1,52 @@
 #!/usr/bin/python
 # -*- coding:UTF-8 -*-
 import asyncio
-from typing import List
-
-# Import exception classes with graceful fallback
-try:
-    from anyio import EndOfStream
-except ImportError:
-    EndOfStream = type('EndOfStream', (Exception,), {})
-
-try:
-    from httpcore import ReadError
-except ImportError:
-    ReadError = type('ReadError', (Exception,), {})
-
-try:
-    from httpx import (
-        RemoteProtocolError,
-        ConnectError,
-        ReadTimeout,
-        ProxyError,
-        TimeoutException,
-        NetworkError,
-    )
-except ImportError:
-    RemoteProtocolError = type('RemoteProtocolError', (Exception,), {})
-    ConnectError = type('ConnectError', (Exception,), {})
-    ReadTimeout = type('ReadTimeout', (Exception,), {})
-    ProxyError = type('ProxyError', (Exception,), {})
-    TimeoutException = type('TimeoutException', (Exception,), {})
-    NetworkError = type('NetworkError', (Exception,), {})
-
-try:
-    from aiohttp.client_exceptions import ClientConnectionError, ClientPayloadError
-    from aiohttp import ClientConnectorError, ClientTimeout, ClientConnectorSSLError, ClientResponseError
-except ImportError:
-    ClientConnectionError = type('ClientConnectionError', (Exception,), {})
-    ClientPayloadError = type('ClientPayloadError', (Exception,), {})
-    ClientConnectorError = type('ClientConnectorError', (Exception,), {})
-    ClientTimeout = type('ClientTimeout', (Exception,), {})
-    ClientConnectorSSLError = type('ClientConnectorSSLError', (Exception,), {})
-    ClientResponseError = type('ClientResponseError', (Exception,), {})
+from typing import List, Type
 
 from crawlo.logging import get_logger
 from crawlo.stats import StatsCollector
 from crawlo.exceptions import DownloadError
 
-_retry_exceptions = [
-    EndOfStream,
-    ReadError,
-    asyncio.TimeoutError,
-    ConnectError,
-    ReadTimeout,
-    ClientConnectorError,
-    ClientResponseError,
-    RemoteProtocolError,
-    ClientTimeout,
-    ClientConnectorSSLError,
-    ClientPayloadError,
-    ClientConnectionError,
-    ProxyError,
-    TimeoutException,
-    NetworkError,
-    DownloadError,  
-]
+# ---- 收集可用的库异常类型（仅导入成功时才加入重试列表） ----
+
+_retry_exceptions: List[Type[Exception]] = [asyncio.TimeoutError, DownloadError]
+
+try:
+    from anyio import EndOfStream
+    _retry_exceptions.append(EndOfStream)
+except ImportError:
+    pass
+
+try:
+    from httpcore import ReadError
+    _retry_exceptions.append(ReadError)
+except ImportError:
+    pass
+
+try:
+    from httpx import (
+        RemoteProtocolError, ConnectError, ReadTimeout,
+        ProxyError, TimeoutException, NetworkError,
+    )
+    _retry_exceptions.extend([
+        ConnectError, ReadTimeout, RemoteProtocolError,
+        ProxyError, TimeoutException, NetworkError,
+    ])
+except ImportError:
+    pass
+
+try:
+    from aiohttp.client_exceptions import ClientConnectionError, ClientPayloadError
+    from aiohttp import ClientConnectorError, ClientTimeout, ClientConnectorSSLError, ClientResponseError
+    _retry_exceptions.extend([
+        ClientConnectorError, ClientResponseError, ClientTimeout,
+        ClientConnectorSSLError, ClientPayloadError, ClientConnectionError,
+    ])
+except ImportError:
+    pass
 
 
-class RetryMiddleware(object):
+class RetryMiddleware:
 
     def __init__(
             self,

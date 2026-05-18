@@ -219,81 +219,86 @@ class MiddlewareManager:
             raise exp
 
     async def download(self, request) -> 'Optional[Response]':
-        """ called in the download method. """
+        """下载入口：请求处理 → 响应处理 → 重试/入队"""
+        response = await self._try_fetch(request)
+        if response is None:
+            return None
+
+        if isinstance(response, Response):
+            self._record_response(response)
+            response = await self._process_response(request, response)
+
+        if isinstance(response, Request):
+            return await self._handle_request_result(response)
+
+        return response
+
+    async def _try_fetch(self, request):
+        """执行请求处理链，统一异常处理"""
         try:
-            response = await self._process_request(request)
+            return await self._process_request(request)
         except KeyError:
             raise RequestMethodError(f"{request.method.lower()} is not supported")
         except IgnoreRequestError as exp:
-            self._create_background_task(self.crawler.subscriber.notify(CrawlerEvent.IGNORE_REQUEST, exp, request, self.crawler.spider))
-            response = await self._process_exception(request, exp)
+            self._create_background_task(
+                self.crawler.subscriber.notify(
+                    CrawlerEvent.IGNORE_REQUEST, exp, request, self.crawler.spider
+                )
+            )
+            return await self._process_exception(request, exp)
         except Exception as exp:
             self._stats.inc_value(f'download_error/{exp.__class__.__name__}')
-            response = await self._process_exception(request, exp)
-        else:
-            self._create_background_task(self.crawler.subscriber.notify(CrawlerEvent.RESPONSE_RECEIVED, response, self.crawler.spider))
-            self._stats.inc_value('response_received_count')
-            
-            # 实时分类统计响应状态码
-            if isinstance(response, Response):
-                status_code = response.status
-                self._stats.inc_value(f'response_status_code/{status_code}')
-                
-                # 分类统计
-                if 300 <= status_code < 400:
-                    self._stats.inc_value('response_status_code/3xx')
-                elif 400 <= status_code < 500:
-                    self._stats.inc_value('response_status_code/4xx')
-                elif 500 <= status_code < 600:
-                    self._stats.inc_value('response_status_code/5xx')
+            return await self._process_exception(request, exp)
 
-        if isinstance(response, Response):
-            response = await self._process_response(request, response)
-        if isinstance(response, Request):
-            # 检测是否是重试请求
-            retry_times = response.meta.get('retry_times', 0)
-            retry_depth = response.meta.get('_retry_depth', 0)
-            
-            # 检查重试深度限制，防止无限递归
-            if retry_depth >= self.MAX_RETRY_DEPTH:
-                self.logger.error(
-                    f"达到最大重试深度 ({self.MAX_RETRY_DEPTH})，放弃重试: {response.url}"
+    def _record_response(self, response: 'Response') -> None:
+        """记录响应统计（事件通知 + 状态码分类）"""
+        self._create_background_task(
+            self.crawler.subscriber.notify(
+                CrawlerEvent.RESPONSE_RECEIVED, response, self.crawler.spider
+            )
+        )
+        self._stats.inc_value('response_received_count')
+        status_code = response.status
+        self._stats.inc_value(f'response_status_code/{status_code}')
+        if 300 <= status_code < 400:
+            self._stats.inc_value('response_status_code/3xx')
+        elif 400 <= status_code < 500:
+            self._stats.inc_value('response_status_code/4xx')
+        elif 500 <= status_code < 600:
+            self._stats.inc_value('response_status_code/5xx')
+
+    async def _handle_request_result(self, request: 'Request'):
+        """处理中间件链返回的 Request：重试(退避) 或 入队调度"""
+        retry_times = request.meta.get('retry_times', 0)
+        retry_depth = request.meta.get('_retry_depth', 0)
+
+        if retry_depth >= self.MAX_RETRY_DEPTH:
+            self.logger.error(
+                f"达到最大重试深度 ({self.MAX_RETRY_DEPTH})，放弃重试: {request.url}"
+            )
+            raise RuntimeError(
+                f"Maximum retry depth ({self.MAX_RETRY_DEPTH}) exceeded for: {request.url}"
+            )
+
+        if retry_times > 0:
+            # 指数退避重试
+            backoff_time = min(
+                self.RETRY_BACKOFF_BASE * (2 ** (retry_times - 1)),
+                self.RETRY_BACKOFF_MAX
+            )
+            request.meta['retry_backoff'] = backoff_time
+            if backoff_time > 0:
+                self.logger.debug(
+                    f"重试请求（退避 {backoff_time:.1f}s）: {request.url} "
+                    f"(retry_times={retry_times})"
                 )
-                raise RuntimeError(
-                    f"Maximum retry depth ({self.MAX_RETRY_DEPTH}) exceeded for: {response.url}"
-                )
-            
-            if retry_times > 0:
-                # 重试请求，计算指数退避时间
-                backoff_time = min(
-                    self.RETRY_BACKOFF_BASE * (2 ** (retry_times - 1)),
-                    self.RETRY_BACKOFF_MAX
-                )
-                response.meta['retry_backoff'] = backoff_time
-                
-                if backoff_time > 0:
-                    self.logger.debug(
-                        f"重试请求（退避 {backoff_time:.1f}s）: {response.url} "
-                        f"(retry_times={retry_times})"
-                    )
-                    await asyncio.sleep(backoff_time)
-                    self.logger.debug(
-                        f"等待完成，准备重试: {response.url} "
-                        f"(retry_times={retry_times})"
-                    )
-                else:
-                    self.logger.debug(f"立即重试请求: {response.url} (retry_times={retry_times})")
-                
-                # 更新重试深度
-                response.meta['_retry_depth'] = retry_depth + 1
-                
-                self.logger.debug(f"开始执行重试下载: {response.url} (depth={response.meta['_retry_depth']})")
-                return await self.download(response)
-            else:
-                # 普通新请求，入队等待调度
-                await self.crawler.engine.enqueue_request(response)
-                return None
-        return response
+                await asyncio.sleep(backoff_time)
+            request.meta['_retry_depth'] = retry_depth + 1
+            return await self.download(request)
+        else:
+            # 普通新请求，入队调度
+            await self.crawler.engine.enqueue_request(request)
+            return None
 
     @classmethod
     def create_instance(cls, *args, **kwargs):
@@ -376,9 +381,10 @@ class MiddlewareManager:
 
     @staticmethod
     def _validate_middleware_method(method_name, middleware) -> bool:
+        """检查中间件方法是否被子类覆盖（基类默认实现不算）"""
         method = getattr(type(middleware), method_name)
         base_method = getattr(BaseMiddleware, method_name)
-        return False if method == base_method else True
+        return method is not base_method
 
     def _get_method_class_name(self, method):
         """安全地获取方法所属的类名"""

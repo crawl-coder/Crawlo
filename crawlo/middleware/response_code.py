@@ -7,7 +7,7 @@ ResponseCodeMiddleware 中间件
 from crawlo.logging import get_logger
 
 
-class ResponseCodeMiddleware(object):
+class ResponseCodeMiddleware:
     """
     ResponseCodeMiddleware 中间件
     用于处理HTTP响应状态码，记录统计信息并支持特殊状态码处理
@@ -113,30 +113,15 @@ class ResponseCodeMiddleware(object):
         return 500 <= status_code < 600
 
     def process_response(self, request, response, spider):
-        """
-        处理响应，记录状态码统计信息
-        
-        Args:
-            request: 请求对象
-            response: 响应对象
-            spider: 爬虫实例
-            
-        Returns:
-            response: 响应对象
-        """
+        """记录成功/失败统计和响应大小（状态码分类统计由 MiddlewareManager 统一处理）"""
         status = response.status
-        
-        # 状态码分类统计已在 middleware_manager.py 中统一处理，避免重复统计
-        # 这里只保留成功/失败统计和响应大小统计
-        
-        # 记录成功/失败统计
+
         if self._is_success_response(status):
             self.stats.inc_value('response_status_code/success_count')
         elif self._is_client_error(status) or self._is_server_error(status):
             self.stats.inc_value('response_status_code/error_count')
-            
-        # 记录响应大小统计
+
         if hasattr(response, 'content_length') and response.content_length:
             self.stats.inc_value('response_total_bytes', response.content_length)
-        
+
         return response

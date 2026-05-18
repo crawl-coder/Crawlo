@@ -99,15 +99,10 @@ class SmsChannel(NotificationChannel):
             return NotificationResponse.error_response(error_msg)
 
 
-# 全局实例
-_sms_channel = None
-
-
 def get_sms_channel() -> SmsChannel:
-    """
-    获取短信通知渠道实例
-    """
-    global _sms_channel
-    if _sms_channel is None:
-        _sms_channel = SmsChannel()
-    return _sms_channel
+    """获取短信通知渠道实例（存储于 ApplicationContext）"""
+    from crawlo.core.application import get_global_context
+    ctx = get_global_context()
+    if ctx.sms_channel is None:
+        ctx.sms_channel = SmsChannel()
+    return ctx.sms_channel

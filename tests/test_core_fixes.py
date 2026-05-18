@@ -130,27 +130,27 @@ class TestSchedulerConstants:
         """Verify default constants are defined"""
         from crawlo.core import scheduler
         
-        assert hasattr(scheduler, 'DEFAULT_QUEUE_TYPE')
-        assert hasattr(scheduler, 'DEFAULT_FILTER_CLASS')
-        assert hasattr(scheduler, 'DEFAULT_CONCURRENCY')
-        assert hasattr(scheduler, 'DEFAULT_DELAY')
-        assert hasattr(scheduler, 'DEFAULT_DEPTH_PRIORITY')
+        assert hasattr(scheduler, '_DEFAULT_QUEUE_TYPE')
+        assert hasattr(scheduler, '_DEFAULT_FILTER_CLASS')
+        assert hasattr(scheduler, '_DEFAULT_CONCURRENCY')
+        assert hasattr(scheduler, '_DEFAULT_DELAY')
+        assert hasattr(scheduler, '_DEFAULT_DEPTH_PRIORITY')
     
     def test_default_values_correct(self):
         """Verify constant values are correct"""
         from crawlo.core.scheduler import (
-            DEFAULT_QUEUE_TYPE,
-            DEFAULT_FILTER_CLASS,
-            DEFAULT_CONCURRENCY,
-            DEFAULT_DELAY,
-            DEFAULT_DEPTH_PRIORITY
+            _DEFAULT_QUEUE_TYPE,
+            _DEFAULT_FILTER_CLASS,
+            _DEFAULT_CONCURRENCY,
+            _DEFAULT_DELAY,
+            _DEFAULT_DEPTH_PRIORITY
         )
         
-        assert DEFAULT_QUEUE_TYPE == 'memory'
-        assert DEFAULT_FILTER_CLASS == 'crawlo.filters.memory_filter.MemoryFilter'
-        assert DEFAULT_CONCURRENCY == 8
-        assert DEFAULT_DELAY == 1.0
-        assert DEFAULT_DEPTH_PRIORITY == 0
+        assert _DEFAULT_QUEUE_TYPE == 'memory'
+        assert _DEFAULT_FILTER_CLASS == 'crawlo.filters.memory_filter.MemoryFilter'
+        assert _DEFAULT_CONCURRENCY == 8
+        assert _DEFAULT_DELAY == 1.0
+        assert _DEFAULT_DEPTH_PRIORITY == 0
     
     def test_constants_used_in_code(self):
         """Verify constants are used instead of magic numbers"""
@@ -158,10 +158,11 @@ class TestSchedulerConstants:
         import inspect
         
         source = inspect.getsource(Scheduler.create_instance)
-        assert "DEFAULT_FILTER_CLASS" in source, \
-            "Should use DEFAULT_FILTER_CLASS constant"
-        assert "DEFAULT_DEPTH_PRIORITY" in source, \
-            "Should use DEFAULT_DEPTH_PRIORITY constant"
+        # 重构后常量前缀为 _DEFAULT_*
+        assert "_DEFAULT_FILTER_CLASS" in source, \
+            "Should use _DEFAULT_FILTER_CLASS constant"
+        assert "_DEFAULT_DEPTH_PRIORITY" in source, \
+            "Should use _DEFAULT_DEPTH_PRIORITY constant"
 
 
 # Test P1-4: processor.py safe_get_config

@@ -149,34 +149,23 @@ class MessageDeduplicator:
             self._seen_messages.clear()
 
 
-# 全局去重器实例
-_deduplicator: Optional[MessageDeduplicator] = None
-_deduplicator_lock = Lock()
-
-
 def get_deduplicator(time_window: int = 300) -> MessageDeduplicator:
     """
-    获取全局去重器实例
-    
-    使用双重检查锁定（DCL）模式确保线程安全。
-    
-    Args:
-        time_window: 时间窗口（秒）
-        
-    Returns:
-        消息去重器实例
+    获取全局去重器实例（存储于 ApplicationContext，DCL 线程安全）
     """
-    global _deduplicator
+    from crawlo.core.application import get_global_context
+    ctx = get_global_context()
     
-    if _deduplicator is None:
-        with _deduplicator_lock:
-            if _deduplicator is None:
-                _deduplicator = MessageDeduplicator(time_window)
+    if ctx.deduplicator is None:
+        with ctx.deduplicator_lock:
+            if ctx.deduplicator is None:
+                ctx.deduplicator = MessageDeduplicator(time_window)
     
-    return _deduplicator
+    return ctx.deduplicator
 
 
 def reset_deduplicator() -> None:
     """重置全局去重器（主要用于测试）"""
-    global _deduplicator
-    _deduplicator = None
+    from crawlo.core.application import get_global_context
+    ctx = get_global_context()
+    ctx.deduplicator = None

@@ -146,20 +146,13 @@ class ResourceMonitorTemplateManager:
         return {k: v for k, v in self.list_resource_templates().items() if 'leak' in k}
 
 
-# 全局资源监控模板管理器实例
-_resource_monitor_manager = None
-
-
 def get_resource_monitor_manager() -> ResourceMonitorTemplateManager:
-    """
-    获取全局资源监控模板管理器实例
-    """
-    global _resource_monitor_manager
-    
-    if _resource_monitor_manager is None:
-        _resource_monitor_manager = ResourceMonitorTemplateManager()
-    
-    return _resource_monitor_manager
+    """获取全局资源监控模板管理器实例（存储于 ApplicationContext）"""
+    from crawlo.core.application import get_global_context
+    ctx = get_global_context()
+    if ctx.resource_monitor_manager is None:
+        ctx.resource_monitor_manager = ResourceMonitorTemplateManager()
+    return ctx.resource_monitor_manager
 
 
 def render_resource_monitor_template(template_name: str, **kwargs) -> Optional[Dict[str, str]]:

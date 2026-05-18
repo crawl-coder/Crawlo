@@ -123,26 +123,18 @@ class NotificationDispatcher:
         return await loop.run_in_executor(None, self.send_notification, message)
 
 
-# 全局通知器实例
-_notifier = None
-_notifier_lock = threading.Lock()
-
-
 def get_notifier() -> NotificationDispatcher:
     """
-    获取全局通知器实例
-    
-    使用双重检查锁定（DCL）模式确保线程安全。
+    获取全局通知器实例（存储于 ApplicationContext，DCL 线程安全）
     """
-    global _notifier
+    from crawlo.core.application import get_global_context
+    ctx = get_global_context()
     
-    if _notifier is None:
-        with _notifier_lock:
-            if _notifier is None:
-                # 创建通知器
-                _notifier = NotificationDispatcher()
+    if ctx.notifier is None:
+        with ctx.notifier_lock:
+            if ctx.notifier is None:
+                ctx.notifier = NotificationDispatcher()
                 
-                # 自动注册所有渠道（使用单例函数获取实例）
                 from crawlo.bot.channels import (
                     get_dingtalk_channel,
                     get_feishu_channel,
@@ -151,18 +143,19 @@ def get_notifier() -> NotificationDispatcher:
                     get_sms_channel,
                 )
                 
-                _notifier.register_channel(get_dingtalk_channel())
-                _notifier.register_channel(get_feishu_channel())
-                _notifier.register_channel(get_wecom_channel())
-                _notifier.register_channel(get_email_channel())
-                _notifier.register_channel(get_sms_channel())
+                ctx.notifier.register_channel(get_dingtalk_channel())
+                ctx.notifier.register_channel(get_feishu_channel())
+                ctx.notifier.register_channel(get_wecom_channel())
+                ctx.notifier.register_channel(get_email_channel())
+                ctx.notifier.register_channel(get_sms_channel())
     
-    return _notifier
+    return ctx.notifier
 
 
 def reset_notifier() -> None:
     """重置全局通知器（主要用于测试）"""
-    global _notifier
-    _notifier = None
+    from crawlo.core.application import get_global_context
+    ctx = get_global_context()
+    ctx.notifier = None
 
 

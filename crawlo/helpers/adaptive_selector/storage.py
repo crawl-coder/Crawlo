@@ -140,7 +140,10 @@ class SqliteStorage(StorageBackend):
                 self._connection = None
 
     def __del__(self):
-        self.close()
+        try:
+            self.close()
+        except Exception:
+            pass  # 解释器退出时 sqlite3 可能已卸载
 
 
 class RedisStorage(StorageBackend):

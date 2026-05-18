@@ -10,7 +10,7 @@
 """
 
 # 日期工具
-from .time_helper import (
+from .time_utils import (
     TimeUtils,
     parse_time,
     format_time,
@@ -35,11 +35,11 @@ from .text_cleaner import (
     clean_text,
     extract_numbers,
     extract_emails,
-    extract_urls
+    extract_urls,
+    extract_phones,
+    strip_control_chars,
+    truncate,
 )
-
-# 预加载 utils.request 以避免循环导入
-from crawlo.utils.request import fingerprint
 
 # 文件下载工具
 from .file_downloader import (
@@ -86,6 +86,9 @@ __all__ = [
     "extract_numbers",
     "extract_emails",
     "extract_urls",
+    "extract_phones",
+    "strip_control_chars",
+    "truncate",
     
     # 文件下载工具
     "FileDownloader",

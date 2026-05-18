@@ -189,8 +189,14 @@ class ErrorHandler:
         self.error_history.clear()
 
 
-# 全局错误处理器实例
-error_handler = ErrorHandler()
+def _get_global_error_handler() -> ErrorHandler:
+    """获取全局 ErrorHandler 单例（存储于 ApplicationContext）"""
+    from crawlo.core.application import get_global_context
+    ctx = get_global_context()
+    if ctx.error_handler_instance is None:
+        ctx.error_handler_instance = ErrorHandler()
+    return ctx.error_handler_instance
+
 
 def handle_exception(context: str = "", module: str = "", function: str = "",
                      raise_error: bool = True, log_error: bool = True,
@@ -217,22 +223,19 @@ def handle_exception(context: str = "", module: str = "", function: str = "",
                     module=module,
                     function=func.__name__
                 )
-                
-                # 如果是详细异常，保留原有信息
+                _handler = _get_global_error_handler()
                 if isinstance(e, DetailedException):
-                    # 确保上下文信息完整
                     if not e.context:
                         e.context = error_context
-                    error_handler.handle_error(
+                    _handler.handle_error(
                         e, context=e.context,
                         raise_error=raise_error, log_error=log_error
                     )
                 else:
-                    # 包装为详细异常
                     detailed_e = DetailedException(
                         str(e), context=error_context, error_code=error_code
                     )
-                    error_handler.handle_error(
+                    _handler.handle_error(
                         detailed_e, context=error_context,
                         raise_error=raise_error, log_error=log_error
                     )
@@ -249,29 +252,25 @@ def handle_exception(context: str = "", module: str = "", function: str = "",
                     module=module,
                     function=func.__name__
                 )
-                
-                # 如果是详细异常，保留原有信息
+                _handler = _get_global_error_handler()
                 if isinstance(e, DetailedException):
-                    # 确保上下文信息完整
                     if not e.context:
                         e.context = error_context
-                    error_handler.handle_error(
+                    _handler.handle_error(
                         e, context=e.context,
                         raise_error=raise_error, log_error=log_error
                     )
                 else:
-                    # 包装为详细异常
                     detailed_e = DetailedException(
                         str(e), context=error_context, error_code=error_code
                     )
-                    error_handler.handle_error(
+                    _handler.handle_error(
                         detailed_e, context=error_context,
                         raise_error=raise_error, log_error=log_error
                     )
                 if not raise_error:
                     return None
         
-        # Return appropriate wrapper based on function type
         if inspect.iscoroutinefunction(func):
             return async_wrapper
         else:

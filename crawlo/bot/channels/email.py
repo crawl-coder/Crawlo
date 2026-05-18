@@ -116,15 +116,10 @@ class EmailChannel(NotificationChannel):
             return NotificationResponse.error_response(error_msg)
 
 
-# 全局实例
-_email_channel = None
-
-
 def get_email_channel() -> EmailChannel:
-    """
-    获取邮件通知渠道实例
-    """
-    global _email_channel
-    if _email_channel is None:
-        _email_channel = EmailChannel()
-    return _email_channel
+    """获取邮件通知渠道实例（存储于 ApplicationContext）"""
+    from crawlo.core.application import get_global_context
+    ctx = get_global_context()
+    if ctx.email_channel is None:
+        ctx.email_channel = EmailChannel()
+    return ctx.email_channel

@@ -130,19 +130,22 @@ class ResourceManagedPipeline(BasePipeline):
         self.logger.debug(f"{self.__class__.__name__} 已初始化")
     
     async def _ensure_initialized(self):
-        """确保资源已初始化（线程安全）"""
-        if self._initialized:
+        """确保资源已初始化（DCL 模式）"""
+        return await self._ensure_lazy_init('_initialized', '_init_lock', self._initialize_resources)
+
+    async def _ensure_lazy_init(self, flag_attr: str, lock_attr: str, init_coro):
+        """
+        通用的 DCL 懒初始化辅助方法。
+
+        消除 ConnectablePipeline / DatabasePipeline / CacheBasedPipeline 
+        中重复的 _ensure_xxx_initialized 样板代码。
+        """
+        if getattr(self, flag_attr, False):
             return
-        
-        async with self._init_lock:
-            if not self._initialized:
-                try:
-                    await self._initialize_resources()
-                    self._initialized = True
-                    self.logger.debug(f"{self.__class__.__name__} 资源初始化完成")
-                except Exception as e:
-                    self.logger.error(f"资源初始化失败: {e}")
-                    raise
+        async with getattr(self, lock_attr):
+            if not getattr(self, flag_attr, False):
+                await init_coro()
+                setattr(self, flag_attr, True)
     
     @abstractmethod
     async def _initialize_resources(self):
@@ -510,15 +513,11 @@ class FileBasedPipeline(ResourceManagedPipeline):
 
 class ConnectablePipeline(ResourceManagedPipeline):
     """
-    可连接 Pipeline 基类
-    
+    可连接 Pipeline 基类（向后兼容保留，新代码推荐 DatabasePipeline）。
+
     提供连接资源操作的通用功能：
-    - 连接管理
+    - DCL 懒初始化（委托给 _ensure_lazy_init）
     - 自动重连
-    - 批量操作优化
-    
-    注意：这是一个扩展基类，供需要独立连接管理的 Pipeline 使用。
-    大多数数据库 Pipeline 应使用 DatabasePipeline。
     """
     
     def __init__(self, crawler):
@@ -528,80 +527,35 @@ class ConnectablePipeline(ResourceManagedPipeline):
         self._connection_initialized = False
     
     async def _ensure_connection_initialized(self):
-        """确保连接已初始化"""
-        if self._connection_initialized and self.connection:
-            return
-        
-        async with self._connection_lock:
-            if not self._connection_initialized:
-                await self._create_connection()
-                self._connection_initialized = True
-                self.logger.info(f"{self.__class__.__name__} 连接已初始化")
+        """确保连接已初始化（DCL 模式）"""
+        await self._ensure_lazy_init(
+            '_connection_initialized', '_connection_lock', self._create_connection
+        )
     
     @abstractmethod
     async def _create_connection(self):
-        """
-        创建连接（子类实现）
-        
-        示例：
-            self.connection = await create_connection(...)
-            
-            # 注册到资源管理器
-            self.register_resource(
-                resource=self.connection,
-                cleanup_func=self._close_connection,
-                resource_type=ResourceType.NETWORK,
-                name="connection"
-            )
-        """
-        raise NotImplementedError("子类必须实现 _create_connection 方法")
+        """创建连接（子类实现）"""
+        raise NotImplementedError
     
     @abstractmethod
     async def _close_connection(self, connection):
         """关闭连接（子类实现）"""
-        raise NotImplementedError("子类必须实现 _close_connection 方法")
+        raise NotImplementedError
     
     async def _initialize_resources(self):
-        """初始化连接资源"""
         await self._ensure_connection_initialized()
     
     async def _cleanup_resources(self):
-        """清理由ResourceManager管理的资源"""
-        # 连接由ResourceManager自动清理
         pass
+
 
 class DatabasePipeline(ConnectablePipeline):
     """
-    数据库 Pipeline 基类
-    
-    提供数据库操作的通用功能：
-    - 连接池管理
-    - 自动重连
-    - 批量写入优化
-    - 事务支持
-    
-    使用示例：
-        class MyDatabasePipeline(DatabasePipeline):
-            async def _create_pool(self):
-                self.pool = await create_db_pool(...)
-                self.register_resource(
-                    resource=self.pool,
-                    cleanup_func=self._close_pool,
-                    resource_type=ResourceType.PIPELINE,
-                    name="db_pool"
-                )
-            
-            async def _close_pool(self, pool):
-                if pool:
-                    await pool.close()
-            
-            async def process_item(self, item, spider, **kwargs):
-                # 使用 self.pool 执行数据库操作
-                return item
-    
-    注意：内置的 MySQLPipeline 和 MongoPipeline 为了性能优化，
-    直接继承 ResourceManagedPipeline 并自行管理连接池。
-    此基类主要用于用户自定义数据库 Pipeline 的扩展点。
+    数据库 Pipeline 基类（推荐用于自定义数据库 Pipeline）。
+
+    提供连接池管理 + 批量写入优化 + 事务支持。
+    内置 MySQLPipeline / MongoPipeline 直接继承 ResourceManagedPipeline，
+    此基类主要用于用户扩展。
     """
     
     def __init__(self, crawler):
@@ -611,77 +565,33 @@ class DatabasePipeline(ConnectablePipeline):
         self._pool_initialized = False
     
     async def _ensure_pool_initialized(self):
-        """确保连接池已初始化"""
-        if self._pool_initialized and self.pool:
-            return
-        
-        async with self._pool_lock:
-            if not self._pool_initialized:
-                await self._create_pool()
-                self._pool_initialized = True
-                self.logger.info(f"{self.__class__.__name__} 连接池已初始化")
+        """确保连接池已初始化（DCL 模式）"""
+        await self._ensure_lazy_init(
+            '_pool_initialized', '_pool_lock', self._create_pool
+        )
     
     @abstractmethod
     async def _create_pool(self):
-        """
-        创建数据库连接池（子类实现）
-        
-        示例：
-            self.pool = await create_pool(...)
-            
-            # 注册到资源管理器
-            self.register_resource(
-                resource=self.pool,
-                cleanup_func=self._close_pool,
-                resource_type=ResourceType.PIPELINE,
-                name="db_pool"
-            )
-        """
-        raise NotImplementedError("子类必须实现 _create_pool 方法")
+        """创建数据库连接池（子类实现）"""
+        raise NotImplementedError
     
     @abstractmethod
     async def _close_pool(self, pool):
         """关闭连接池（子类实现）"""
-        raise NotImplementedError("子类必须实现 _close_pool 方法")
+        raise NotImplementedError
     
     async def _initialize_resources(self):
-        """初始化数据库资源"""
         await self._ensure_pool_initialized()
     
     async def _cleanup_resources(self):
-        """清理由ResourceManager管理的资源"""
-        # 连接池由ResourceManager自动清理
         pass
 
 
 class CacheBasedPipeline(ConnectablePipeline):
     """
-    缓存型 Pipeline 基类
-    
-    提供缓存操作的通用功能：
-    - Redis/Memcached 连接管理
-    - 自动关闭连接
-    
-    使用示例：
-        class MyCachePipeline(CacheBasedPipeline):
-            async def _create_client(self):
-                self.client = redis.Redis(...)
-                self.register_resource(
-                    resource=self.client,
-                    cleanup_func=self._close_client,
-                    resource_type=ResourceType.NETWORK,
-                    name="cache_client"
-                )
-            
-            async def _close_client(self, client):
-                if client:
-                    await client.close()
-            
-            async def process_item(self, item, spider, **kwargs):
-                # 使用 self.client 执行缓存操作
-                return item
-    
-    注意：这是一个扩展基类，供用户自定义缓存 Pipeline 使用。
+    缓存型 Pipeline 基类。
+
+    提供 Redis/Memcached 客户端生命周期管理。
     """
     
     def __init__(self, crawler):
@@ -691,44 +601,23 @@ class CacheBasedPipeline(ConnectablePipeline):
         self._client_initialized = False
     
     async def _ensure_client_initialized(self):
-        """确保缓存客户端已初始化"""
-        if self._client_initialized and self.client:
-            return
-        
-        async with self._client_lock:
-            if not self._client_initialized:
-                await self._create_client()
-                self._client_initialized = True
-                self.logger.info(f"{self.__class__.__name__} 缓存客户端已初始化")
+        """确保缓存客户端已初始化（DCL 模式）"""
+        await self._ensure_lazy_init(
+            '_client_initialized', '_client_lock', self._create_client
+        )
     
     @abstractmethod
     async def _create_client(self):
-        """
-        创建缓存客户端（子类实现）
-        
-        示例：
-            self.client = redis.Redis(...)
-            
-            # 注册到资源管理器
-            self.register_resource(
-                resource=self.client,
-                cleanup_func=self._close_client,
-                resource_type=ResourceType.NETWORK,
-                name="cache_client"
-            )
-        """
-        raise NotImplementedError("子类必须实现 _create_client 方法")
+        """创建缓存客户端（子类实现）"""
+        raise NotImplementedError
     
     @abstractmethod
     async def _close_client(self, client):
         """关闭缓存客户端（子类实现）"""
-        raise NotImplementedError("子类必须实现 _close_client 方法")
+        raise NotImplementedError
     
     async def _initialize_resources(self):
-        """初始化缓存资源"""
         await self._ensure_client_initialized()
     
     async def _cleanup_resources(self):
-        """清理由ResourceManager管理的资源"""
-        # 客户端由ResourceManager自动清理
         pass

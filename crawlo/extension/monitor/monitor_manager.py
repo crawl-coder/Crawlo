@@ -107,17 +107,13 @@ class MonitorManager:
                     pass
 
 
-# ---- 惰性全局实例（避免模块导入时的副作用） ----
-
-_monitor_manager: Optional[MonitorManager] = None
-
-
 def get_monitor_manager() -> MonitorManager:
-    """获取全局 MonitorManager 单例（惰性初始化，避免模块导入开销）"""
-    global _monitor_manager
-    if _monitor_manager is None:
-        _monitor_manager = MonitorManager()
-    return _monitor_manager
+    """获取全局 MonitorManager 单例（存储于 ApplicationContext）"""
+    from crawlo.core.application import get_global_context
+    ctx = get_global_context()
+    if ctx._monitor_manager is None:
+        ctx._monitor_manager = MonitorManager()
+    return ctx._monitor_manager
 
 
 # 向后兼容：模块级 monitor_manager 别名（惰性初始化）

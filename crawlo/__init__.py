@@ -14,7 +14,7 @@ if sys.platform == 'win32':
 # 为了向后兼容，从helpers中导入cleaners相关的功能
 import crawlo.helpers as cleaners
 from crawlo import helpers
-from crawlo.helpers.time_helper import (
+from crawlo.helpers.time_utils import (
     TimeUtils,
     parse_time,
     format_time,

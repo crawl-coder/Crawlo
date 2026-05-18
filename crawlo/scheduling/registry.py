@@ -34,10 +34,10 @@ class JobRegistry:
         self._jobs.clear()
 
 
-# 全局注册表实例
-_job_registry = JobRegistry()
-
-
 def get_job_registry() -> JobRegistry:
-    """获取全局定时任务注册表"""
-    return _job_registry
+    """获取全局定时任务注册表（存储于 ApplicationContext）"""
+    from crawlo.core.application import get_global_context
+    ctx = get_global_context()
+    if ctx.job_registry is None:
+        ctx.job_registry = JobRegistry()
+    return ctx.job_registry

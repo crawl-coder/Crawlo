@@ -36,10 +36,12 @@ class HttpXDownloader(DownloaderBase):
         self.max_download_size: int = 0
         self.logger = get_logger(self.__class__.__name__)
         
-        # 并发控制
-        self._concurrency = 12  # 默认并发数
+        # 并发控制（下载器级流控，与 TaskManager 全局并发互补）
+        # TaskManager 控制引擎级并发槽位数，此处 Semaphore 为下载器级补充限流，
+        # 防止单个下载器（如 httpx 连接池）被瞬时大量请求冲垮。
+        self._concurrency = 12
         self._semaphore: Optional[asyncio.Semaphore] = None
-        self._active_requests = 0  # 当前活跃请求数
+        self._active_requests = 0
 
     def open(self) -> None:
         """初始化下载器，创建持久化 AsyncClient"""
@@ -55,10 +57,10 @@ class HttpXDownloader(DownloaderBase):
         self.max_download_size = max_download_size
         self._timeout_total = timeout_total  # 保存为实例变量
         
-        # Initialize concurrency control
+        # Initialize downloader-level concurrency control (complements TaskManager)
         self._concurrency = safe_get_config(self.crawler.settings, "CONCURRENCY", 12, int)
         self._semaphore = asyncio.Semaphore(self._concurrency)
-        self.logger.debug(f"Concurrency control initialized: CONCURRENCY={self._concurrency}")
+        self.logger.debug(f"Downloader concurrency: CONCURRENCY={self._concurrency}")
 
         # 基于 DOWNLOAD_TIMEOUT 配置动态计算分层超时
         # 采用分层超时策略，平衡性能与兼容性

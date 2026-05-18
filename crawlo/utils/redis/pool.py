@@ -264,54 +264,27 @@ class RedisConnectionPool:
         yield connection
 
 
-# 全局连接池管理器
-_connection_pools: Dict[str, 'RedisConnectionPool'] = {}
-
-
 def get_redis_pool(redis_url: str, is_cluster: bool = False, cluster_nodes: Optional[List[str]] = None, shared: bool = True, **kwargs) -> RedisConnectionPool:
-    """
-    获取Redis连接池实例（支持单例模式和独立模式）
-
-    Args:
-        redis_url: Redis URL
-        is_cluster: 是否为集群模式
-        cluster_nodes: 集群节点列表
-        shared: 是否使用共享模式（True=单例模式，False=独立模式）
-        **kwargs: 连接池配置参数
-
-    Returns:
-        Redis连接池实例
-    """
+    """获取Redis连接池实例（存储于 ApplicationContext）"""
     if shared:
+        from crawlo.core.application import get_global_context
+        pools = get_global_context().connection_pools
         pool_key = f"{redis_url}:{is_cluster}:{cluster_nodes}" if cluster_nodes else f"{redis_url}:{is_cluster}"
-
-        if pool_key not in _connection_pools:
-            _connection_pools[pool_key] = RedisConnectionPool(
-                redis_url,
-                is_cluster=is_cluster,
-                cluster_nodes=cluster_nodes,
-                **kwargs
-            )
-        return _connection_pools[pool_key]
+        if pool_key not in pools:
+            pools[pool_key] = RedisConnectionPool(redis_url, is_cluster=is_cluster, cluster_nodes=cluster_nodes, **kwargs)
+        return pools[pool_key]
     else:
         import uuid
-        pool_key = f"{redis_url}:{is_cluster}:{uuid.uuid4().hex[:8]}"
-        return RedisConnectionPool(
-            redis_url,
-            is_cluster=is_cluster,
-            cluster_nodes=cluster_nodes,
-            **kwargs
-        )
+        return RedisConnectionPool(redis_url, is_cluster=is_cluster, cluster_nodes=cluster_nodes, **kwargs)
 
 
 async def close_all_pools():
     """关闭所有共享连接池"""
-    global _connection_pools
-
-    for pool in _connection_pools.values():
+    from crawlo.core.application import get_global_context
+    pools = get_global_context().connection_pools
+    for pool in list(pools.values()):
         await pool.close()
-
-    _connection_pools.clear()
+    pools.clear()
 
 
 class CrawloRedisManager:
@@ -378,10 +351,6 @@ def get_isolated_redis_pool(crawler_id: str, redis_url: str, **kwargs) -> RedisC
     return get_redis_pool(redis_url, shared=False, **kwargs)
 
 
-# 全局 Redis 管理器单例
-_redis_manager_instance: Optional['GlobalRedisManager'] = None
-
-
 class GlobalRedisManager:
     """全局 Redis 管理器（单例）"""
 
@@ -418,8 +387,9 @@ class GlobalRedisManager:
 
 
 def get_redis_manager() -> GlobalRedisManager:
-    """获取全局 Redis 管理器单例"""
-    global _redis_manager_instance
-    if _redis_manager_instance is None:
-        _redis_manager_instance = GlobalRedisManager()
-    return _redis_manager_instance
+    """获取全局 Redis 管理器单例（存储于 ApplicationContext）"""
+    from crawlo.core.application import get_global_context
+    ctx = get_global_context()
+    if ctx.redis_manager is None:
+        ctx.redis_manager = GlobalRedisManager()
+    return ctx.redis_manager

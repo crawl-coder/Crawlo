@@ -188,15 +188,10 @@ class WeComChannel(NotificationChannel):
             }
 
 
-# 全局实例
-_wecom_channel = None
-
-
 def get_wecom_channel() -> WeComChannel:
-    """
-    获取企业微信通知渠道实例
-    """
-    global _wecom_channel
-    if _wecom_channel is None:
-        _wecom_channel = WeComChannel()
-    return _wecom_channel
+    """获取企业微信通知渠道实例（存储于 ApplicationContext）"""
+    from crawlo.core.application import get_global_context
+    ctx = get_global_context()
+    if ctx.wecom_channel is None:
+        ctx.wecom_channel = WeComChannel()
+    return ctx.wecom_channel

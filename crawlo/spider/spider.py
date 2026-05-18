@@ -626,12 +626,19 @@ def create_spider_from_template(name: str, start_urls: List[str], **options) -> 
 # === 公共只读接口 ===
 def get_global_spider_registry() -> Dict[str, Type[Spider]]:
     """
-    获取全局爬虫注册表的副本
-    
-    Returns:
-        Dict[str, Type[Spider]]: 爬虫注册表的副本
+    获取全局爬虫注册表。
+
+    首次调用时将模块级 _DEFAULT_SPIDER_REGISTRY 同步到 ApplicationContext，
+    之后 SpiderMeta 元类的自动注册自动反映到 ctx 中。
+    返回副本以保持向后兼容。
     """
-    return _DEFAULT_SPIDER_REGISTRY.copy()
+    from crawlo.core.application import get_global_context
+    ctx = get_global_context()
+    # 检查 ctx 中的 spider_registry 是否已指向模块级 dict
+    # （dataclass field default_factory=dict 会创建空 dict，不是 None）
+    if ctx.spider_registry is not _DEFAULT_SPIDER_REGISTRY:
+        ctx.spider_registry = _DEFAULT_SPIDER_REGISTRY
+    return ctx.spider_registry.copy()
 
 
 def get_spider_by_name(name: str) -> Optional[Type[Spider]]:

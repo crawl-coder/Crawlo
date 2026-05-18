@@ -33,6 +33,13 @@ class FileDownloader:
     
     提供灵活的附件下载功能，支持多种配置选项和错误处理。
     """
+
+    # 默认允许的文件扩展名
+    DEFAULT_EXTENSIONS = [
+        '.pdf', '.doc', '.docx', '.xls', '.xlsx', 
+        '.zip', '.rar', '.txt', '.jpg', '.jpeg', 
+        '.png', '.gif', '.mp3', '.mp4', '.avi'
+    ]
     
     def __init__(self, 
                  download_dir: str = './attachments', 
@@ -64,17 +71,11 @@ class FileDownloader:
             retry_delay: 重试延迟（秒）
             progress_callback: 进度回调函数，签名为 callback(downloaded_bytes, total_bytes, filename)
         """
-        # Default extensions
-        DEFAULT_EXTENSIONS = [
-            '.pdf', '.doc', '.docx', '.xls', '.xlsx', 
-            '.zip', '.rar', '.txt', '.jpg', '.jpeg', 
-            '.png', '.gif', '.mp3', '.mp4', '.avi'
-        ]
         # Merge user-provided extensions with defaults
         if allowed_extensions:
-            self.allowed_extensions = list(set(DEFAULT_EXTENSIONS + allowed_extensions))
+            self.allowed_extensions = list(set(self.DEFAULT_EXTENSIONS + allowed_extensions))
         else:
-            self.allowed_extensions = DEFAULT_EXTENSIONS
+            self.allowed_extensions = list(self.DEFAULT_EXTENSIONS)
         self.download_dir = Path(download_dir)
         self.max_file_size = max_file_size
         self.create_dirs = create_dirs

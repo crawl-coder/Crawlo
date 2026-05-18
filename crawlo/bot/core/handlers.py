@@ -280,25 +280,19 @@ class CrawlerNotificationHandler:
         logger.info(f"[Handler] 添加自定义模板: {name}")
 
 
-# 全局通知处理器实例
-_notification_handler = None
-_notification_handler_lock = threading.Lock()
-
-
 def get_notification_handler() -> CrawlerNotificationHandler:
     """
-    获取全局通知处理器实例
-    
-    使用双重检查锁定（DCL）模式确保线程安全。
+    获取全局通知处理器实例（存储于 ApplicationContext，DCL 线程安全）
     """
-    global _notification_handler
+    from crawlo.core.application import get_global_context
+    ctx = get_global_context()
     
-    if _notification_handler is None:
-        with _notification_handler_lock:
-            if _notification_handler is None:
-                _notification_handler = CrawlerNotificationHandler()
+    if ctx.notification_handler is None:
+        with ctx.notification_handler_lock:
+            if ctx.notification_handler is None:
+                ctx.notification_handler = CrawlerNotificationHandler()
     
-    return _notification_handler
+    return ctx.notification_handler
 
 
 def send_crawler_status(title: str, content: str, channel: ChannelType = ChannelType.DINGTALK) -> NotificationResponse:

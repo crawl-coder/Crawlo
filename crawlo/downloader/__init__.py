@@ -11,10 +11,11 @@ Crawlo Downloader Module
 - HttpXDownloader: 支持HTTP/2的httpx下载器
 
 核心类:
-- DownloaderBase: 下载器基类
+- DownloaderBase: 下载器基类（ABC）
 - ActivateRequestManager: 活跃请求管理器
 """
-from abc import abstractmethod, ABCMeta
+
+from abc import abstractmethod, ABC
 from typing import Final, Set, Optional, TYPE_CHECKING, Dict, Any
 from contextlib import asynccontextmanager
 
@@ -43,7 +44,7 @@ class ActivateRequestManager:
 
     def remove(self, request, success: bool = True):
         """Remove active request and update statistics"""
-        self._active.discard(request)  # Use discard to avoid KeyError
+        self._active.discard(request)
         if success:
             self._completed_requests += 1
         else:
@@ -51,15 +52,12 @@ class ActivateRequestManager:
 
     @asynccontextmanager
     async def __call__(self, request):
-        """Context manager usage"""
+        """Context manager usage — finally 块保证总是记录 success/failure"""
         self.add(request)
         success = False
         try:
             yield request
             success = True
-        except Exception:
-            success = False
-            raise
         finally:
             self.remove(request, success)
 
@@ -82,31 +80,14 @@ class ActivateRequestManager:
         }
     
     def reset_stats(self):
-        """Reset statistics"""
+        """Reset statistics (does not clear _active — ongoing requests preserved)"""
         self._total_requests = 0
         self._completed_requests = 0
         self._failed_requests = 0
-        # Note: Does not clear _active, as there may be ongoing requests
 
 
-class DownloaderMeta(ABCMeta):
-    """Downloader metaclass - validates required methods"""
-    def __subclasscheck__(self, subclass):
-        # Dynamically check required abstract methods from DownloaderBase
-        required_methods = ('download', 'close')
-        is_subclass = all(
-            hasattr(subclass, method) and callable(getattr(subclass, method, None)) 
-            for method in required_methods
-        )
-        return is_subclass
-
-
-class DownloaderBase(metaclass=DownloaderMeta):
-    """
-    下载器基类 - 提供通用的下载器功能和接口
-    
-    所有下载器实现都应该继承此基类。
-    """
+class DownloaderBase(ABC):
+    """下载器基类 — 所有下载器实现应继承此类"""
     
     def __init__(self, crawler):
         self.crawler = crawler
@@ -114,8 +95,6 @@ class DownloaderBase(metaclass=DownloaderMeta):
         self.middleware: Optional[MiddlewareManager] = None
         self.logger = get_logger(self.__class__.__name__)
         self._closed = False
-        
-        # 安全获取下载统计配置
         self._stats_enabled = safe_get_config(crawler.settings, "DOWNLOAD_STATS", True, bool)
 
     @classmethod
@@ -128,30 +107,20 @@ class DownloaderBase(metaclass=DownloaderMeta):
         if self._closed:
             raise RuntimeError(f"{self.__class__.__name__} is closed, cannot be reopened")
             
-        # Get downloader class full path
         downloader_class = f"{type(self).__module__}.{type(self).__name__}"
-            
-        # Sub-downloaders (managed by HybridDownloader) do not print enable logs separately
-        # Judgment logic: Check if DOWNLOADER config is HybridDownloader
-        # Dynamically determine if this is a sub-downloader by checking if it's not the main configured downloader
+        
+        # 判断是否为 HybridDownloader 的子下载器（不重复打印启用日志）
+        is_hybrid = type(self).__name__ == 'HybridDownloader'
         is_sub_downloader = False
-        if self.crawler and self.crawler.settings:
-            if hasattr(self.crawler.settings, 'get'):
-                main_downloader = self.crawler.settings.get('DOWNLOADER', '')
-                # If main downloader is HybridDownloader and this is not HybridDownloader itself, it's a sub-downloader
-                if main_downloader and 'HybridDownloader' in str(main_downloader):
-                    is_sub_downloader = downloader_class != 'crawlo.downloader.hybrid_downloader.HybridDownloader'
-                    
-        # HybridDownloader itself does not print, subclasses handle it themselves
-        is_hybrid = 'HybridDownloader' in downloader_class
-                    
+        if not is_hybrid and self.crawler and self.crawler.settings:
+            main_downloader_cls = self._get_main_downloader_cls()
+            if main_downloader_cls and main_downloader_cls.__name__ == 'HybridDownloader':
+                is_sub_downloader = not isinstance(self, main_downloader_cls)
+
         if not is_sub_downloader and not is_hybrid:
             self.logger.info(f"enabled downloader: {downloader_class}")
     
-        # Get concurrency configuration using safe_get_config
         concurrency = safe_get_config(self.crawler.settings, "CONCURRENCY", 8, int)
-        
-        # Output downloader configuration summary
         self.logger.debug(
             f"{self.crawler.spider} <Downloader class: {downloader_class}> "
             f"<Concurrency: {concurrency}>"
@@ -164,11 +133,27 @@ class DownloaderBase(metaclass=DownloaderMeta):
             self.logger.error(f"Middleware initialization failed: {e}")
             raise
 
+    def _get_main_downloader_cls(self):
+        """解析 settings 中配置的主下载器类（避免字符串匹配，使用 isinstance）"""
+        from . import DOWNLOADER_MAP
+        main_downloader_name = self.crawler.settings.get('DOWNLOADER', '')
+        if not main_downloader_name:
+            return None
+        # 支持完整类路径（如 'crawlo.downloader.hybrid_downloader.HybridDownloader'）
+        # 和短名称（如 'hybrid'）
+        if main_downloader_name in DOWNLOADER_MAP:
+            return DOWNLOADER_MAP[main_downloader_name]
+        # 尝试按完整类路径加载
+        try:
+            from crawlo.utils.misc import load_object
+            return load_object(main_downloader_name)
+        except Exception:
+            return None
+
     async def fetch(self, request) -> 'Optional[Response]':
         """Fetch request response (with middleware processing)"""
         if self._closed:
             raise RuntimeError(f"{self.__class__.__name__} is closed")
-            
         if not self.middleware:
             raise RuntimeError("Middleware not initialized")
             
@@ -177,7 +162,6 @@ class DownloaderBase(metaclass=DownloaderMeta):
                 response = await self.middleware.download(request)
                 return response
             except Exception as e:
-                # Use DEBUG level, no stack trace, exception will propagate to Engine
                 self.logger.debug(f"Download failed for {request.url}: {type(e).__name__}: {e}")
                 raise
 
@@ -193,16 +177,12 @@ class DownloaderBase(metaclass=DownloaderMeta):
             self.logger.debug(f"{self.__class__.__name__} closed")
 
     def idle(self) -> bool:
-        """Check if idle (no active requests)"""
+        """Check if idle (no active requests) — 替代 bool() 判断"""
         return len(self._active) == 0
 
     def __len__(self) -> int:
         """Return active request count"""
         return len(self._active)
-    
-    def __bool__(self) -> bool:
-        """Always return True, avoid being judged as False when active requests are empty"""
-        return True
     
     def get_stats(self) -> Dict[str, Any]:
         """Get downloader statistics"""
@@ -211,10 +191,8 @@ class DownloaderBase(metaclass=DownloaderMeta):
             'is_idle': self.idle(),
             'is_closed': self._closed
         }
-        
         if self._stats_enabled:
             base_stats.update(self._active.get_stats())
-            
         return base_stats
     
     def reset_stats(self):
@@ -232,7 +210,9 @@ class DownloaderBase(metaclass=DownloaderMeta):
         }
 
 
-# 导入具体的下载器实现
+# ============================================================
+# 延迟导入具体的下载器实现（仅在库可用时加载）
+# ============================================================
 try:
     from .aiohttp_downloader import AioHttpDownloader
 except ImportError:
@@ -268,20 +248,13 @@ try:
 except ImportError:
     CloakBrowserDownloader = None
 
-try:
-    from .page_action_handler import PageActionHandler, SelectorConverter
-except ImportError:
-    PageActionHandler = None
-    SelectorConverter = None
 
-# 导出所有可用的类
 __all__ = [
     'DownloaderBase',
-    'DownloaderMeta', 
     'ActivateRequestManager',
 ]
 
-# 添加可用的下载器
+# 添加可用的下载器到 __all__
 if AioHttpDownloader:
     __all__.append('AioHttpDownloader')
 if CurlCffiDownloader:
@@ -296,25 +269,20 @@ if HybridDownloader:
     __all__.append('HybridDownloader')
 if CloakBrowserDownloader:
     __all__.append('CloakBrowserDownloader')
-if PageActionHandler:
-    __all__.append('PageActionHandler')
-if SelectorConverter:
-    __all__.append('SelectorConverter')
 
-# 提供便捷的下载器映射
+# 下载器映射（仅包含可用的）
 DOWNLOADER_MAP = {
     'aiohttp': AioHttpDownloader,
-    'httpx': HttpXDownloader, 
+    'httpx': HttpXDownloader,
     'curl_cffi': CurlCffiDownloader,
-    'cffi': CurlCffiDownloader,  # 别名
+    'cffi': CurlCffiDownloader,
     'drissionpage': DrissionPageDownloader,
     'playwright': PlaywrightDownloader,
     'hybrid': HybridDownloader,
     'cloakbrowser': CloakBrowserDownloader,
 }
-
-# 过滤掉不可用的下载器
 DOWNLOADER_MAP = {k: v for k, v in DOWNLOADER_MAP.items() if v is not None}
+
 
 def get_downloader_class(name: str):
     """根据名称获取下载器类"""

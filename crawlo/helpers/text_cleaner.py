@@ -20,7 +20,7 @@ class TextCleaner:
     @staticmethod
     def remove_html_tags(text: str) -> str:
         """
-        移除HTML标签
+        移除HTML标签（含 script/style 块及注释）
         
         :param text: 包含HTML标签的文本
         :return: 移除HTML标签后的文本
@@ -28,9 +28,12 @@ class TextCleaner:
         if not isinstance(text, str):
             return str(text)
         
-        # 使用正则表达式移除HTML标签
-        clean_text = re.sub(r'<[^>]+>', '', text)
-        return clean_text.strip()
+        # 移除 script/style 块及 HTML 注释
+        text = re.sub(r'<(script|style)[^>]*>.*?</\1>', '', text, flags=re.DOTALL | re.IGNORECASE)
+        text = re.sub(r'<!--.*?-->', '', text, flags=re.DOTALL)
+        # 移除剩余标签
+        text = re.sub(r'<[^>]+>', '', text)
+        return text.strip()
 
     @staticmethod
     def decode_html_entities(text: str) -> str:
@@ -72,8 +75,8 @@ class TextCleaner:
         if not isinstance(text, str):
             return str(text)
         
-        # 移除常见的特殊字符
-        special_chars = r'[^\w\s\u4e00-\u9fff' + chars + r']'
+        # 移除常见的特殊字符（chars 参数经 re.escape 转义防注入）
+        special_chars = r'[^\w\s\u4e00-\u9fff' + re.escape(chars) + r']'
         clean_text = re.sub(special_chars, '', text)
         return clean_text
 
@@ -181,6 +184,55 @@ class TextCleaner:
         return urls
 
 
+    @staticmethod
+    def extract_phones(text: str) -> List[str]:
+        """
+        从文本中提取手机号/座机号（中国）
+
+        :param text: 文本
+        :return: 号码列表
+        """
+        if not isinstance(text, str):
+            return []
+        patterns = [
+            r'\b1[3-9]\d{9}\b',                 # 手机号
+            r'\b0\d{2,3}[-\s]?\d{7,8}\b',       # 座机号(带区号)
+            r'\b400[-\s]?\d{3}[-\s]?\d{4}\b',   # 400热线
+        ]
+        phones = []
+        for p in patterns:
+            phones.extend(re.findall(p, text))
+        return phones
+
+    @staticmethod
+    def strip_control_chars(text: str, keep: str = '\t\n\r') -> str:
+        """
+        移除不可见控制字符（\x00-\x1f），保留指定的换行/制表符
+
+        :param text: 文本
+        :param keep: 保留的控制字符
+        :return: 清理后的文本
+        """
+        if not isinstance(text, str):
+            return str(text)
+        return re.sub(rf'[^\x20-\x7e\u4e00-\u9fff{re.escape(keep)}]', '', text)
+
+    @staticmethod
+    def truncate(text: str, max_len: int = 255, ellipsis: str = '...') -> str:
+        """
+        截断文本到指定长度
+
+        :param text: 文本
+        :param max_len: 最大长度
+        :param ellipsis: 截断标记
+        :return: 截断后的文本
+        """
+        if not isinstance(text, str):
+            text = str(text)
+        if len(text) <= max_len:
+            return text
+        return text[:max_len - len(ellipsis)] + ellipsis
+
 # =======================对外接口=======================
 
 def remove_html_tags(text: str) -> str:
@@ -231,3 +283,18 @@ def extract_emails(text: str) -> List[str]:
 def extract_urls(text: str) -> List[str]:
     """提取URL"""
     return TextCleaner.extract_urls(text)
+
+
+def extract_phones(text: str) -> List[str]:
+    """提取手机号/座机号"""
+    return TextCleaner.extract_phones(text)
+
+
+def strip_control_chars(text: str, keep: str = '\t\n\r') -> str:
+    """移除不可见控制字符"""
+    return TextCleaner.strip_control_chars(text, keep)
+
+
+def truncate(text: str, max_len: int = 255, ellipsis: str = '...') -> str:
+    """截断文本到指定长度"""
+    return TextCleaner.truncate(text, max_len, ellipsis)
