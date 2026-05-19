@@ -55,8 +55,9 @@ class DownloadDelayMiddleware(BaseMiddleware):
         self.random_range = random_range
         self.domain_overrides = domain_overrides or {}
         
-        # Track last request time per domain
+        # Track last request time per domain (LRU, 最多跟踪 1024 个域名)
         self._last_request_time: Dict[str, float] = {}
+        self._max_domains = 1024
         
         self.logger = get_logger(self.__class__.__name__)
     
@@ -160,7 +161,10 @@ class DownloadDelayMiddleware(BaseMiddleware):
         if wait_time > 0:
             await asyncio.sleep(wait_time)
         
-        # Record request time
+        # Record request time (LRU: 超容量时淘汰最早记录的域名)
+        if domain not in self._last_request_time and len(self._last_request_time) >= self._max_domains:
+            # 移除最早记录的下一个域名（pop 首个插入项）
+            self._last_request_time.pop(next(iter(self._last_request_time)))
         self._last_request_time[domain] = time.time()
         
         return None
