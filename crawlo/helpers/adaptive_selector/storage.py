@@ -70,15 +70,20 @@ class SqliteStorage(StorageBackend):
         self.storage_file = storage_file
         self.lock = RLock()
         self.logger = get_logger(self.__class__.__name__)
+        self._connection = None   # 懒初始化，首次读写时才创建文件
 
-        # 确保目录存在
-        db_dir = os.path.dirname(storage_file)
-        if db_dir:
-            os.makedirs(db_dir, exist_ok=True)
-
-        # 初始化数据库
-        self._connection = self._create_connection()
-        self._setup_database()
+    def _ensure_connection(self):
+        """懒初始化 SQLite 连接和表（DCL 线程安全，首次读写时创建）"""
+        if self._connection is not None:
+            return
+        with self.lock:
+            if self._connection is not None:
+                return
+            db_dir = os.path.dirname(self.storage_file)
+            if db_dir:
+                os.makedirs(db_dir, exist_ok=True)
+            self._connection = self._create_connection()
+            self._setup_database()
 
     def _create_connection(self):
         """创建 SQLite 连接"""
@@ -105,6 +110,7 @@ class SqliteStorage(StorageBackend):
 
     def save(self, domain: str, identifier: str, fingerprint: ElementFingerprint) -> None:
         """保存元素指纹"""
+        self._ensure_connection()
         data = fingerprint.to_dict()
         with self.lock:
             cursor = self._connection.cursor()
@@ -120,6 +126,7 @@ class SqliteStorage(StorageBackend):
 
     def retrieve(self, domain: str, identifier: str) -> Optional[Dict]:
         """加载元素指纹数据"""
+        self._ensure_connection()
         with self.lock:
             cursor = self._connection.cursor()
             cursor.execute(

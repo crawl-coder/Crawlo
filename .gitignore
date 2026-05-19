@@ -181,6 +181,7 @@ local_config.py
 .idea
 .qoder/
 .workbuddy/
+.codebuddy/
 .flink-checkpoints
 .flink-checkpoints/
 *.db

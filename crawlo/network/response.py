@@ -37,17 +37,6 @@ from crawlo.utils.request.response_helper import (
     regex_findone,
     get_header_value
 )
-from crawlo.settings.default_settings import (
-    ADAPTIVE_STORAGE_BACKEND,
-    ADAPTIVE_SQLITE_PATH,
-    ADAPTIVE_SIMILARITY_THRESHOLD,
-    REDIS_HOST, REDIS_PORT, REDIS_PASSWORD, REDIS_DB,
-)
-from crawlo.helpers.adaptive_selector import (
-    FingerprintStorage,
-    SimilarityMatcher,
-    ElementFingerprint,
-)
 from crawlo.utils.decorators import memoize_method_noargs
 
 
@@ -66,12 +55,13 @@ class Response:
     # 默认编码
     _DEFAULT_ENCODING = "ascii"
 
-    # 自适应选择器相关缓存（类级别，跨 Response 共享存储）
+    # 自适应选择器相关缓存（类级别，按配置 key 隔离不同 crawler 的存储/匹配器）
     _adaptive_storage = None
     _adaptive_matcher = None
-    _adaptive_enabled_global = None  # None 表示未初始化
-    _adaptive_initialized = False  # 标记是否已初始化
-    _cleanup_registered = False  # 标记是否已注册清理函数
+    _adaptive_config_key = None  # 当前初始化使用的配置标识
+    _adaptive_enabled_global = None
+    _adaptive_initialized = False
+    _cleanup_registered = False
     
     # 响应体大小限制（100MB）
     MAX_BODY_SIZE = 100 * 1024 * 1024
@@ -346,7 +336,7 @@ class Response:
         return self._selector_instance
 
     def xpath(self, query: str, adaptive: bool = False,
-              identifier: str = '', percentage: float = 0.0,
+              identifier: str = '', percentage: float = 50.0,
               timeout: float = 5.0) -> SelectorList:
         """
         使用 XPath 选择器查询文档。
@@ -393,24 +383,38 @@ class Response:
 
         # 自适应逻辑
         if result:
-            # 选择器生效 → 如果 adaptive=True，保存/更新指纹
+            # 选择器生效 → 如果 adaptive=True，保存所有匹配元素的指纹
             if adaptive and self._is_adaptive_enabled():
-                self._save_element_fingerprint(result[0], identifier or query)
+                base_id = identifier or query
+                for i, elem in enumerate(result[:10]):  # 最多保存 10 个
+                    idx_id = f'{base_id}_{i}' if len(result) > 1 else base_id
+                    self._save_element_fingerprint(elem, idx_id)
             return result
         elif adaptive and self._is_adaptive_enabled():
-            # 选择器失效 → 尝试自适应匹配
-            element_data = self._retrieve_element_fingerprint(identifier or query)
-            if element_data:
+            # 选择器失效 → 尝试自适应匹配（逐个恢复已保存的指纹）
+            base_id = identifier or query
+            saved_elements = []
+            # 尝试恢复多个指纹（_0, _1, ...）
+            for i in range(10):
+                idx_id = f'{base_id}_{i}' if i > 0 else base_id
+                element_data = self._retrieve_element_fingerprint(idx_id)
+                if not element_data:
+                    if i == 0:
+                        continue  # 主指纹不存在，尝试索引指纹
+                    else:
+                        break     # 连续不存在，停止搜索
                 matched = self._adaptive_relocate(element_data, percentage)
                 if matched:
-                    get_logger('Response').info(
-                        f"Adaptive matched {len(matched)} element(s) "
-                        f"for selector '{query}'"
-                    )
-                    return SelectorList([
-                        Selector(root=el, type='html')
-                        for el in matched
-                    ])
+                    saved_elements.extend(matched)
+            if saved_elements:
+                get_logger('Response').info(
+                    f"Adaptive matched {len(saved_elements)} element(s) "
+                    f"for selector '{query}'"
+                )
+                return SelectorList([
+                    Selector(root=el, type='html')
+                    for el in saved_elements
+                ])
         elif adaptive:
             get_logger('Response').warning(
                 "Adaptive selector argument ignored because "
@@ -420,7 +424,7 @@ class Response:
         return result
 
     def css(self, query: str, adaptive: bool = False,
-            identifier: str = '', percentage: float = 0.0,
+            identifier: str = '', percentage: float = 50.0,
             timeout: float = 5.0) -> SelectorList:
         """
         使用 CSS 选择器查询文档。
@@ -453,48 +457,56 @@ class Response:
     # ==================== 自适应选择器内部方法 ====================
 
     @classmethod
-    def _is_adaptive_enabled(cls) -> bool:
-        """检查自适应选择器是否可用
+    def _is_adaptive_enabled(cls, settings=None) -> bool:
+        """检查自适应选择器是否可用（延迟初始化，支持按 settings 隔离不同 crawler 配置）
 
-        延迟初始化，第一次调用时从 settings 读取配置并初始化存储/匹配器。
-        只要用户调用 css/xpath 时传了 adaptive=True，此方法就会初始化并返回 True。
+        第一次调用时从 settings 或默认配置读取并初始化存储/匹配器。
+        不同配置的 crawler 会重新初始化各自的存储实例。
+
+        Args:
+            settings: 可选 settings 对象（dict 或 Settings 实例）
         """
-        if cls._adaptive_enabled_global is not None:
-            return cls._adaptive_enabled_global
+        # 读取配置值
+        def _get(key, default):
+            if settings is None:
+                return default
+            if hasattr(settings, 'get'):
+                return settings.get(key, default)
+            return settings.get(key, default) if isinstance(settings, dict) else default
 
-        # 防止重复初始化
-        if cls._adaptive_initialized:
-            return False
+        backend = _get('ADAPTIVE_STORAGE_BACKEND', 'sqlite')
+        sqlite_path = _get('ADAPTIVE_SQLITE_PATH', 'adaptive_fingerprints.db')
+        threshold = float(_get('ADAPTIVE_SIMILARITY_THRESHOLD', 0))
+        redis_host = _get('REDIS_HOST', 'localhost')
+        redis_port = int(_get('REDIS_PORT', 6379))
+        redis_password = _get('REDIS_PASSWORD', '')
+        redis_db = int(_get('REDIS_DB', 0))
 
-        # 延迟初始化：尝试动态读取 settings，其次使用默认值
+        # 按配置 key 判断是否需要重新初始化（支持不同 crawler 不同配置）
+        config_key = (backend, sqlite_path, threshold)
+        if cls._adaptive_config_key == config_key and cls._adaptive_storage is not None:
+            return True
+
         try:
-            # 尝试从当前 crawler 获取 settings（如果有）
-            settings_backend = ADAPTIVE_STORAGE_BACKEND
-            settings_sqlite_path = ADAPTIVE_SQLITE_PATH
-            settings_redis_host = REDIS_HOST
-            settings_redis_port = REDIS_PORT
-            settings_redis_password = REDIS_PASSWORD
-            settings_redis_db = REDIS_DB
-            settings_threshold = ADAPTIVE_SIMILARITY_THRESHOLD
-            
+            from crawlo.helpers.adaptive_selector import FingerprintStorage, SimilarityMatcher
             cls._adaptive_storage = FingerprintStorage(
-                backend=settings_backend,
-                storage_file=settings_sqlite_path,
-                redis_host=settings_redis_host,
-                redis_port=settings_redis_port,
-                redis_password=settings_redis_password,
-                redis_db=settings_redis_db,
+                backend=backend,
+                storage_file=sqlite_path,
+                redis_host=redis_host,
+                redis_port=redis_port,
+                redis_password=redis_password,
+                redis_db=redis_db,
             )
-            cls._adaptive_matcher = SimilarityMatcher(threshold=settings_threshold)
+            cls._adaptive_matcher = SimilarityMatcher(threshold=threshold)
+            cls._adaptive_config_key = config_key
             cls._adaptive_enabled_global = True
             cls._adaptive_initialized = True
-            
-            # 注册清理函数（仅注册一次）
+
             if not cls._cleanup_registered:
                 import atexit
                 atexit.register(cls._cleanup_adaptive)
                 cls._cleanup_registered = True
-            
+
             return True
         except Exception:
             cls._adaptive_enabled_global = False
@@ -512,6 +524,7 @@ class Response:
                 cls._adaptive_storage = None
             
             cls._adaptive_matcher = None
+            cls._adaptive_config_key = None
             cls._adaptive_enabled_global = None
             cls._adaptive_initialized = False
             
@@ -535,6 +548,7 @@ class Response:
             storage_file: SQLite 文件路径
             threshold: 最低相似度阈值
         """
+        from crawlo.helpers.adaptive_selector import FingerprintStorage, SimilarityMatcher
         cls._adaptive_enabled_global = True
         cls._adaptive_storage = FingerprintStorage(
             backend=backend, storage_file=storage_file, **kwargs
@@ -555,6 +569,7 @@ class Response:
             # parsel Selector 的根元素
             root = selector_item.root if hasattr(selector_item, 'root') else selector_item
             if isinstance(root, HtmlElement):
+                from crawlo.helpers.adaptive_selector import ElementFingerprint
                 fp = ElementFingerprint.from_element(root)
                 self.__class__._adaptive_storage.save(self.url, identifier, fp)
         except Exception as e:
@@ -593,6 +608,7 @@ class Response:
             return []
 
         try:
+            from crawlo.helpers.adaptive_selector import ElementFingerprint
             target_fp = ElementFingerprint.from_dict(element_data)
             # 获取页面的 lxml 根元素
             root = self._selector.root

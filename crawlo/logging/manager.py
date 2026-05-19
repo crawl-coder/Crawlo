@@ -168,13 +168,15 @@ class LogManager(metaclass=SingletonMeta):
         return deleted_count
 
 
+_log_manager: Optional[LogManager] = None
+
+
 def _get_log_manager() -> LogManager:
-    """获取全局 LogManager 单例（存储于 ApplicationContext）"""
-    from crawlo.core.application import get_global_context
-    ctx = get_global_context()
-    if ctx.log_manager is None:
-        ctx.log_manager = LogManager()
-    return ctx.log_manager
+    """获取全局 LogManager 单例（模块级，避免循环导入：日志是最底层的系统，不依赖 ApplicationContext）"""
+    global _log_manager
+    if _log_manager is None:
+        _log_manager = LogManager()
+    return _log_manager
 
 
 # Module-level convenience functions

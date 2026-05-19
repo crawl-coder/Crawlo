@@ -31,7 +31,6 @@ class ApplicationContext:
     components_registered: bool = False
 
     # ---- 框架管理器 ----
-    log_manager: Optional['LogManager'] = None
     error_handler_instance: Optional['ErrorHandler'] = None
     performance_monitor: Optional['PerformanceMonitor'] = None
     resource_managers: Dict[str, Any] = field(default_factory=dict)

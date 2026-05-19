@@ -55,11 +55,13 @@ from .adaptive_selector import (
     RedisStorage,
 )
 
-# MySQL 数据存在性检查工具
-from .mysql_exists_checker import (
-    MySQLExistsChecker,
-    check_exists,
-)
+def __getattr__(name):
+    """延迟导入 MySQLExistsChecker 和 check_exists（避免导入时触发 utils.db 全链）"""
+    if name in ('MySQLExistsChecker', 'check_exists'):
+        from .mysql_exists_checker import MySQLExistsChecker, check_exists
+        return globals().get(name) or (MySQLExistsChecker if name == 'MySQLExistsChecker' else check_exists)
+    raise AttributeError(f"module 'crawlo.helpers' has no attribute '{name}'")
+
 
 __all__ = [
     # 日期工具
