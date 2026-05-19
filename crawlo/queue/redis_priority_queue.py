@@ -301,23 +301,27 @@ class RedisPriorityQueue:
                 logger.debug(f"详细错误信息:\n{traceback.format_exc()}")
                 return False
 
-            if result and result[0] > 0:
-                logger.debug(f"成功入队 (Project: {self.key_manager.project_name}, Spider: {self.key_manager.spider_name}): {request.url}")
-                # 记录成功统计
-                if hasattr(self, '_stats'):
-                    self._stats['successful_puts'] = self._stats.get('successful_puts', 0) + 1
+            if result is not None:
+                # zadd 返回: 1=新增, 0=已存在(不重复入队), None=管道错误
+                # hset 返回: 1=新增, 0=已更新
+                is_new = result[0] > 0 if result[0] is not None else False
+                if is_new:
+                    logger.debug(f"成功入队 (Project: {self.key_manager.project_name}, Spider: {self.key_manager.spider_name}): {request.url}")
+                    if hasattr(self, '_stats'):
+                        self._stats['successful_puts'] = self._stats.get('successful_puts', 0) + 1
+                    else:
+                        self._stats = {'successful_puts': 1}
                 else:
-                    self._stats = {'successful_puts': 1}
+                    logger.debug(f"请求已在队列中，跳过 (Project: {self.key_manager.project_name}, Spider: {self.key_manager.spider_name}): {request.url}")
+                # 管道操作成功（即使 member 已存在也算操作成功，只是不入队）
+                return True
             else:
-                logger.warning(f"入队失败 (Project: {self.key_manager.project_name}, Spider: {self.key_manager.spider_name}): {request.url}")
-                # 记录失败统计
+                logger.error(f"Redis管道执行失败 (Project: {self.key_manager.project_name}, Spider: {self.key_manager.spider_name}): {request.url}")
                 if hasattr(self, '_stats'):
                     self._stats['failed_puts'] = self._stats.get('failed_puts', 0) + 1
                 else:
                     self._stats = {'failed_puts': 1}
-            
-            success = result and result[0] > 0 if result else False
-            return success
+                return False
         except Exception as e:
             error_context = ErrorContext(
                 context=f"放入队列失败 (Project: {self.key_manager.project_name}, Spider: {self.key_manager.spider_name})"
@@ -395,9 +399,11 @@ class RedisPriorityQueue:
                         results = await pipe.execute()
 
                     # 统计成功数（每两个操作一组: zadd + hset）
+                    # zadd 返回 1=新增, 0=已存在(skip), None=错误
+                    # 管道无错误即算成功（已存在的请求不重复入队）
                     batch_success = 0
                     for j in range(0, len(results), 2):
-                        if results[j] is not None and results[j] > 0:
+                        if results[j] is not None:
                             batch_success += 1
 
                     total_success += batch_success
