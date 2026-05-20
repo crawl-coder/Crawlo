@@ -1,27 +1,28 @@
-#!/usr/bin/env python3
+#!/usr/bin/python
 # -*- coding: UTF-8 -*-
-"""
-ofweek_distributed 项目运行脚本
-============================
-基于 Crawlo 框架的简化爬虫启动器。
 
-框架会自动处理爬虫模块的导入和注册，用户无需手动导入。
-框架会自动从settings.py中读取SPIDER_MODULES配置。
-"""
+import os
 import sys
 import asyncio
+
+# 添加项目根目录到 Python 路径
+project_root = os.path.dirname(os.path.abspath(__file__))
+if project_root not in sys.path:
+    sys.path.insert(0, project_root)
+
 
 from crawlo.crawler import CrawlerProcess
 
 
 def main():
-    """主函数：运行爬虫"""
+    """运行分布式爬虫"""
     try:
-        # TODO: 请将 'spider_name' 替换为实际要运行的爬虫名称
+        # 分布式模式：启动多个 worker（在不同终端运行同一脚本）
+        # crawlo.cfg 指定 settings 模块 → settings.py 中 CrawloConfig.distributed() 完成配置
+        # 多个 worker 共享同一 Redis 队列协同爬取
         asyncio.run(CrawlerProcess().crawl('of_week_distributed'))
-
     except Exception as e:
-        print(f"❌ 运行失败: {e}")
+        print(f"Run failed: {e}")
         import traceback
         traceback.print_exc()
         sys.exit(1)
