@@ -201,8 +201,30 @@ class EncodingDetector:
     # 常见中文编码（按优先级排序）
     CHINESE_ENCODINGS = ('utf-8', 'gbk', 'gb2312', 'gb18030', 'big5')
 
-    # 西欧编码
-    WESTERN_ENCODINGS = ('latin-1', 'cp1252')
+    # 东亚编码（中/日/韩，chardet 不可用时的兜底顺序）
+    # 中文编码在先（更常见），再日韩编码
+    # gb18030 放最后（范围太广需 CJK 验证）
+    EAST_ASIAN_ENCODINGS = (
+        'gbk', 'gb2312', 'big5',            # 中文
+        'euc_kr', 'shift_jis', 'euc_jp',    # 韩/日/日
+        'gb18030',                           # 中文超集（最后，需验证）
+    )
+
+    @classmethod
+    def _has_cjk_chars(cls, text: str, sample_size: int = 500) -> bool:
+        """检查文本是否包含中日韩字符"""
+        for ch in text[:sample_size]:
+            cp = ord(ch)
+            if 0x4e00 <= cp <= 0x9fff:   # CJK Unified
+                return True
+            if 0x3040 <= cp <= 0x30ff:   # Hiragana + Katakana
+                return True
+            if 0xac00 <= cp <= 0xd7af:   # Hangul
+                return True
+        return False
+
+    # 西欧及西里尔编码
+    WESTERN_ENCODINGS = ('latin-1', 'cp1252', 'cp1251')
 
     @classmethod
     def detect(
@@ -278,6 +300,14 @@ class EncodingDetector:
             auto_detect_fun=cls._auto_detect_callback,
             default_encoding=cls.DEFAULT_ENCODING,
         )
+        # w3lib 可能返回 gb18030 但内容实际是韩文/日文 → 回退到内置检测
+        if encoding in ('gb18030', 'gbk', 'gb2312') and len(body) > 64:
+            try:
+                decoded = body.decode(encoding, errors='replace')
+                if not cls._has_cjk_chars(decoded):
+                    return cls._detect_fallback(body, headers)
+            except (UnicodeError, LookupError):
+                pass
         return encoding
 
     @classmethod
@@ -384,26 +414,55 @@ class EncodingDetector:
 
     @classmethod
     def _detect_from_content(cls, body: bytes) -> Optional[str]:
+        """基于内容自动检测编码（多语言通用）
+
+        策略：UTF-8 → chardet 统计检测 → 东亚编码覆盖兜底 → 西欧编码
+
+        设计说明：
+        - UTF-8 优先（全球占比最高，2026 年 >95%）
+        - chardet 能正确区分中/日/韩编码（区别于逐字节解码的假阳性问题）
+        - chardet 存在将 GBK 中文误判为 latin-1 的已知缺陷 → CJK 安全阀兜底
+        - 东亚编码兜底确保即使 chardet 不可用，中/日/韩仍能正确检测
         """
-        基于内容自动检测编码
+        # 1. UTF-8 优先（全球最常用）
+        try:
+            body.decode('utf-8')
+            return 'utf-8'
+        except UnicodeError:
+            pass
 
-        尝试常见编码，返回第一个成功解码的
+        # 2. chardet 统计检测（能正确区分中/日/韩/俄/阿拉伯等语言）
+        try:
+            import chardet
+            result = chardet.detect(body)
+            enc = result.get('encoding')
+            confidence = result.get('confidence', 0)
+            if enc and confidence > 0.6:
+                resolved = resolve_encoding(enc)
+                # 安全阀：chardet 将 GBK 中文误判为 latin-1 时自动纠正
+                # 取 body 中间段采样（前部可能全是 ASCII 标签），尝试 GB18030 交叉验证
+                mid = body[len(body)//2:len(body)//2 + 4096] if len(body) > 4096 else body
+                try:
+                    decoded = mid.decode('gb18030')
+                    if cls._has_cjk_chars(decoded):
+                        return 'gb18030'
+                except UnicodeError:
+                    pass
+                return resolved
+        except ImportError:
+            pass
 
-        Args:
-            body: 响应体字节内容
-
-        Returns:
-            Optional[str]: 检测到的编码或 None
-        """
-        # 常见中文编码优先
-        for enc in cls.CHINESE_ENCODINGS:
+        # 3. 东亚编码覆盖（chardet 不可用或置信度不足时的兜底）
+        for enc in cls.EAST_ASIAN_ENCODINGS:
             try:
-                body.decode(enc)
+                decoded = body.decode(enc)
+                if enc == 'gb18030' and not cls._has_cjk_chars(decoded):
+                    continue
                 return enc
             except UnicodeError:
                 continue
 
-        # 其他常见编码
+        # 4. 西欧编码（最后手段）
         for enc in cls.WESTERN_ENCODINGS:
             try:
                 body.decode(enc)
@@ -415,18 +474,12 @@ class EncodingDetector:
 
     @classmethod
     def _auto_detect_callback(cls, text: bytes) -> Optional[str]:
+        """自动检测编码的回调函数（供 w3lib 使用）
+
+        策略与 _detect_from_content 一致：
+        ASCII/UTF-8 → chardet 统计检测 → 东亚编码兜底 → 西欧编码
         """
-        自动检测编码的回调函数（供 w3lib 使用）
-
-        参考 Scrapy 的实现，尝试常见编码。
-
-        Args:
-            text: 要检测的字节文本
-
-        Returns:
-            Optional[str]: 检测到的编码
-        """
-        # 优先尝试 ASCII 和 UTF-8
+        # 1. ASCII / UTF-8
         for enc in ('ascii', 'utf-8'):
             try:
                 text.decode(enc)
@@ -434,15 +487,37 @@ class EncodingDetector:
             except UnicodeError:
                 continue
 
-        # 中文编码优先于 latin-1/cp1252（避免 GBK 被逐个字节映射为拉丁字符）
-        for enc in cls.CHINESE_ENCODINGS[1:]:  # 跳过 utf-8（已试过）
+        # 2. chardet 统计检测
+        try:
+            import chardet
+            result = chardet.detect(text)
+            enc = result.get('encoding')
+            confidence = result.get('confidence', 0)
+            if enc and confidence > 0.6:
+                resolved = resolve_encoding(enc)
+                # 安全阀：单字节编码结果再做 GB18030 交叉验证
+                mid = text[len(text)//2:len(text)//2 + 4096] if len(text) > 4096 else text
+                try:
+                    decoded = mid.decode('gb18030')
+                    if cls._has_cjk_chars(decoded):
+                        return 'gb18030'
+                except (UnicodeError, LookupError):
+                    pass
+                return resolved
+        except ImportError:
+            pass
+
+        # 3. 东亚编码兜底
+        for enc in cls.EAST_ASIAN_ENCODINGS:
             try:
-                text.decode(enc)
+                decoded = text.decode(enc)
+                if enc == 'gb18030' and not cls._has_cjk_chars(decoded):
+                    continue
                 return resolve_encoding(enc)
             except UnicodeError:
                 continue
 
-        # 最后尝试其他编码
+        # 4. 西欧编码（最后手段）
         for enc in ('latin-1', 'cp1252', 'cp1251'):
             try:
                 text.decode(enc)
