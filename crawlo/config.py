@@ -75,6 +75,7 @@ MODE_CONFIG_MAP = {
         'DEFAULT_DEDUP_PIPELINE': 'crawlo.pipelines.redis_dedup_pipeline.RedisDedupPipeline',
         'CONCURRENCY': 16,
         'MAX_RUNNING_SPIDERS': 10,
+        'DISTRIBUTED_WORKER_IDLE_TIMEOUT': 300,   # 连续空闲 N 秒后退出（0 = 永不退出）
     }
 }
 
