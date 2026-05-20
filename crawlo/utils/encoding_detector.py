@@ -8,7 +8,7 @@
 - BOM 字节顺序标记检测
 - HTTP Content-Type 头部编码检测
 - HTML meta 标签编码检测
-- 内容自动检测
+- 内容自动检测（chardet 优先，内置 fallback）
 
 设计原则：
 1. 纯函数设计，无状态，便于测试
@@ -18,6 +18,12 @@
 
 import re
 from typing import Optional, Dict, Any
+
+try:
+    import chardet
+    CHARDET_AVAILABLE = True
+except ImportError:
+    CHARDET_AVAILABLE = False
 
 # 尝试导入 w3lib 编码检测函数
 try:
@@ -132,46 +138,32 @@ def _resolve_encoding(encoding_alias: str) -> str:
         return 'utf-8'
     
     encoding_map = {
-        # Unicode
+        # UTF 别名: normalize to hyphenated form
         'utf8': 'utf-8',
-        'utf-8': 'utf-8',
         'utf16': 'utf-16',
-        'utf-16': 'utf-16',
         'utf32': 'utf-32',
-        'utf-32': 'utf-32',
         # ASCII
-        'ascii': 'ascii',
         'us-ascii': 'ascii',
-        # Latin-1
+        # Latin-1 别名
         'latin1': 'latin-1',
-        'latin-1': 'latin-1',
         'iso-8859-1': 'latin-1',
         'iso8859-1': 'latin-1',
         'cp819': 'latin-1',
-        # Windows
-        'cp1252': 'cp1252',
+        # Windows 代码页
         'windows-1252': 'cp1252',
-        'cp1251': 'cp1251',
         'windows-1251': 'cp1251',
-        # Chinese
-        'gbk': 'gbk',
-        'gb2312': 'gb2312',
-        'gb18030': 'gb18030',
-        'big5': 'big5',
+        # 中文编码别名
         'big5-tw': 'big5',
         'big5-hkscs': 'big5',
-        # Japanese
-        'shift_jis': 'shift_jis',
+        # 日文编码别名
         'shift-jis': 'shift_jis',
         'sjis': 'shift_jis',
         'euc-jp': 'euc_jp',
         'eucjp': 'euc_jp',
         'iso-2022-jp': 'iso2022_jp',
-        # Korean
-        'euc-kr': 'euc_kr',
+        # 韩文编码别名
         'euckr': 'euc_kr',
-        # Other
-        'koi8-r': 'koi8_r',
+        # 西里尔编码别名
         'koi8r': 'koi8_r',
     }
     
@@ -362,101 +354,70 @@ class EncodingDetector:
         
         return http_content_type_encoding(content_type)
     
-    @classmethod
-    def _detect_from_html_meta(cls, body: bytes) -> Optional[str]:
+    # ---------- 内容自动检测 ----------
         """
-        从 HTML meta 标签或 XML 声明中检测编码
-        
-        这是 html_body_declared_encoding 的包装方法，
-        用于保持向后兼容性。
-        
+        基于内容自动检测编码（chardet 优先，内置常见编码试探作为 fallback）
+
         Args:
             body: 响应体字节内容
-            
+
         Returns:
             Optional[str]: 检测到的编码或 None
         """
-        encoding = html_body_declared_encoding(body)
-        if encoding:
-            return resolve_encoding(encoding)
-        return None
-    
+        # 1. chardet 统计检测（精度高）
+        if CHARDET_AVAILABLE and body:
+            result = chardet.detect(body[:4096])
+            enc = result.get('encoding')
+            confidence = result.get('confidence', 0)
+            if enc and confidence > 0.5:
+                return resolve_encoding(enc)
+
+        # 2. 无 chardet 或置信度不足，用常见编码试探
+        return cls._try_common_encodings(body)
+
     @classmethod
-    def _detect_from_content(cls, body: bytes) -> Optional[str]:
-        """
-        基于内容自动检测编码
-        
-        尝试常见编码，返回第一个成功解码的
-        
-        Args:
-            body: 响应体字节内容
-            
-        Returns:
-            Optional[str]: 检测到的编码或 None
-        """
-        # 常见中文编码优先
-        for enc in cls.CHINESE_ENCODINGS:
+    def _try_common_encodings(cls, body: bytes) -> Optional[str]:
+        """常见编码试探（chardet 不可用或置信度不足时使用，中文优先）"""
+        encodings = [
+            'ascii', 'utf-8',
+            'gbk', 'gb2312', 'gb18030', 'big5',          # 中文
+            'cp1252', 'cp1251', 'latin-1',                # 西欧/西里尔
+        ]
+        for enc in encodings:
             try:
                 body.decode(enc)
-                return enc
+                return resolve_encoding(enc)
             except UnicodeError:
                 continue
-        
-        # 其他常见编码
-        for enc in cls.WESTERN_ENCODINGS:
-            try:
-                body.decode(enc)
-                return enc
-            except UnicodeError:
-                continue
-        
         return None
-    
+
     @classmethod
     def _auto_detect_callback(cls, text: bytes) -> Optional[str]:
         """
         自动检测编码的回调函数（供 w3lib 使用）
-        
-        参考 Scrapy 的实现，尝试常见编码。
-        
-        Args:
-            text: 要检测的字节文本
-            
-        Returns:
-            Optional[str]: 检测到的编码
+        委托给 _try_common_encodings。
         """
-        # 尝试的编码顺序（参考 Scrapy，优先中文编码）
-        encodings = [
-            'ascii',
-            'utf-8',
-            # 中文编码（优先于西欧编码，避免 GBK 内容被误判为 cp1252）
-            'gbk',
-            'gb2312',
-            'gb18030',
-            'big5',
-            # 西欧编码
-            'cp1252',
-            'cp1251',
-            'latin-1',
-        ]
-
-        for enc in encodings:
-            try:
-                text.decode(enc)
-                return resolve_encoding(enc)
-            except UnicodeError:
-                continue
-
-        # 兜底：如果常见编码都失败，尝试其他特殊编码
-        for enc in cls.CHINESE_ENCODINGS:
-            try:
-                text.decode(enc)
-                return resolve_encoding(enc)
-            except UnicodeError:
-                continue
-        
-        return None
+        return cls._try_common_encodings(text)
     
+    @classmethod
+    def _chardet_cross_check(cls, body: bytes, declared_encoding: str) -> Optional[str]:
+        """用 chardet 对全 body 做交叉验证，检测声明编码与内容是否一致"""
+        if not CHARDET_AVAILABLE or not body or len(body) < 64:
+            return None
+        # 取 body 多段采样（开头 + 中间 + 结尾），避免前部全是 ASCII 漏检
+        samples = [body[:4096]]
+        if len(body) > 8192:
+            samples.append(body[len(body)//2:len(body)//2+4096])
+        if len(body) > 12288:
+            samples.append(body[-4096:])
+        for s in samples:
+            result = chardet.detect(s)
+            enc = result.get('encoding')
+            conf = result.get('confidence', 0)
+            if enc and conf > 0.8 and resolve_encoding(enc).lower() != declared_encoding.lower():
+                return resolve_encoding(enc)
+        return None
+
     @classmethod
     def decode_body(
         cls,
@@ -468,7 +429,9 @@ class EncodingDetector:
         """
         解码响应体为字符串
 
-        如果声明编码解码失败（服务器声明了错误的 charset），
+        先用 strict 模式验证声明编码（取前 4KB 采样），
+        再用 chardet 交叉验证（采样开头/中间/结尾多点），
+        如果声明编码与内容不一致（如页面声明 utf-8 但实际是 gbk），
         自动回退到内容检测。
 
         Args:
@@ -483,20 +446,29 @@ class EncodingDetector:
         if not encoding:
             encoding = cls.detect(body, headers, declared_encoding)
 
-        # 先用 strict 模式验证，如果解码失败不静默吞掉
+        # 步骤 1: 取前 4KB 采样验证声明编码是否可解码
+        sample = body[:4096]
+        strict_ok = True
         try:
-            return body.decode(encoding, errors='strict')
+            sample.decode(encoding, errors='strict')
         except UnicodeDecodeError:
-            # 声明编码不可靠（如页面声明 utf-8 但实际是 gbk），
-            # 回退到内容自动检测
-            if encoding != cls.DEFAULT_ENCODING:
-                pass
-            fallback = cls._detect_from_content(body)
-            if fallback:
-                return body.decode(fallback, errors='replace')
-            return body.decode(cls.DEFAULT_ENCODING, errors='replace')
+            strict_ok = False
         except (LookupError, UnicodeError):
-            return body.decode(cls.DEFAULT_ENCODING, errors='replace')
+            strict_ok = False
+
+        if not strict_ok:
+            # 声明编码明显不可用，直接回退内容检测
+            sample_enc = cls._detect_from_content(sample)
+            if sample_enc:
+                encoding = sample_enc
+        else:
+            # 步骤 2: 采样验证通过，再用 chardet 交叉验证
+            # （前 4KB 可能是纯 ASCII 标签，GBK 中文在后面）
+            chardet_enc = cls._chardet_cross_check(body, encoding)
+            if chardet_enc:
+                encoding = chardet_enc
+
+        return body.decode(encoding, errors='replace')
 
 
 # 便捷函数接口
