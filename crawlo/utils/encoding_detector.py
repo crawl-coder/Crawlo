@@ -319,7 +319,7 @@ class EncodingDetector:
         """
         内置编码检测逻辑（w3lib 不可用时使用）
 
-        检测优先级（参考 Scrapy）：
+        检测优先级：
         1. BOM 字节顺序标记
         2. HTTP Content-Type 头部
         3. HTML/XML body 中声明的编码
