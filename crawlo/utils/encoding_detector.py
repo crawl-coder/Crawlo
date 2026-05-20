@@ -425,23 +425,29 @@ class EncodingDetector:
         Returns:
             Optional[str]: 检测到的编码
         """
-        # 尝试的编码顺序（参考 Scrapy）
+        # 尝试的编码顺序（参考 Scrapy，优先中文编码）
         encodings = [
             'ascii',
             'utf-8',
-            'cp1252',  # Western European
-            'cp1251',  # Cyrillic
+            # 中文编码（优先于西欧编码，避免 GBK 内容被误判为 cp1252）
+            'gbk',
+            'gb2312',
+            'gb18030',
+            'big5',
+            # 西欧编码
+            'cp1252',
+            'cp1251',
             'latin-1',
         ]
-        
+
         for enc in encodings:
             try:
                 text.decode(enc)
                 return resolve_encoding(enc)
             except UnicodeError:
                 continue
-        
-        # 如果常见编码都失败，尝试中文编码
+
+        # 兜底：如果常见编码都失败，尝试其他特殊编码
         for enc in cls.CHINESE_ENCODINGS:
             try:
                 text.decode(enc)
@@ -461,25 +467,35 @@ class EncodingDetector:
     ) -> str:
         """
         解码响应体为字符串
-        
-        如果未提供编码，会自动检测
-        
+
+        如果声明编码解码失败（服务器声明了错误的 charset），
+        自动回退到内容检测。
+
         Args:
             body: 响应体字节内容
             encoding: 指定编码（可选）
             headers: HTTP 响应头
             declared_encoding: 显式声明的编码
-            
+
         Returns:
             str: 解码后的字符串
         """
         if not encoding:
             encoding = cls.detect(body, headers, declared_encoding)
-        
+
+        # 先用 strict 模式验证，如果解码失败不静默吞掉
         try:
-            return body.decode(encoding, errors='replace')
-        except (UnicodeError, LookupError):
-            # 如果指定编码失败，使用默认编码
+            return body.decode(encoding, errors='strict')
+        except UnicodeDecodeError:
+            # 声明编码不可靠（如页面声明 utf-8 但实际是 gbk），
+            # 回退到内容自动检测
+            if encoding != cls.DEFAULT_ENCODING:
+                pass
+            fallback = cls._detect_from_content(body)
+            if fallback:
+                return body.decode(fallback, errors='replace')
+            return body.decode(cls.DEFAULT_ENCODING, errors='replace')
+        except (LookupError, UnicodeError):
             return body.decode(cls.DEFAULT_ENCODING, errors='replace')
 
 
