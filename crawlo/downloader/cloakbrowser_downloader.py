@@ -336,7 +336,11 @@ class CloakBrowserDownloader(DownloaderBase, SmartWaitMixin):
             # 翻页操作
             await self._execute_pagination_actions(page, request)
 
-            # 提取内容
+            # 等待页面稳定后获取内容（防止新导航导致 Page.content 失败）
+            try:
+                await page.wait_for_load_state("networkidle", timeout=5000)
+            except Exception:
+                await page.wait_for_timeout(500)
             page_content = await page.content()
             page_url = page.url
             status_code = response.status if response else 200
@@ -818,6 +822,17 @@ class CloakBrowserDownloader(DownloaderBase, SmartWaitMixin):
                         await page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
                     elif position == "top":
                         await page.evaluate("window.scrollTo(0, 0)")
+                elif action_type == "click_in_frame":
+                    # 跨 iframe 点击（解决跨域 iframe 内元素无法被 page.click 访问的问题）
+                    frame_selector = action_params.get("frame", "")
+                    selector = action_params.get("selector", "")
+                    if frame_selector and selector:
+                        # 按 name/url 查找 iframe
+                        target = page.frame(name=frame_selector) or page.frame(url=frame_selector)
+                        if target:
+                            await target.click(selector)
+                        else:
+                            self.logger.warning(f"  Frame not found: {frame_selector}")
 
             except Exception as e:
                 self.logger.warning(

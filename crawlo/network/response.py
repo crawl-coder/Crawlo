@@ -52,9 +52,6 @@ class Response:
     - 自适应元素追踪（adaptive=True 自动保存指纹+失效时自愈）
     """
 
-    # 默认编码
-    _DEFAULT_ENCODING = "ascii"
-
     # 自适应选择器相关缓存（类级别，按配置 key 隔离不同 crawler 的存储/匹配器）
     _adaptive_storage = None
     _adaptive_matcher = None

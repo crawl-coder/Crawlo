@@ -311,7 +311,7 @@ class EncodingDetector:
         if encoding:
             return resolve_encoding(encoding)
         
-        # 4. 内容自动检测
+        # 4. 内容自动检测（chardet 优先，内置试探 fallback）
         encoding = cls._detect_from_content(body)
         if encoding:
             return encoding
@@ -355,6 +355,9 @@ class EncodingDetector:
         return http_content_type_encoding(content_type)
     
     # ---------- 内容自动检测 ----------
+
+    @classmethod
+    def _detect_from_content(cls, body: bytes) -> Optional[str]:
         """
         基于内容自动检测编码（chardet 优先，内置常见编码试探作为 fallback）
 
