@@ -42,8 +42,10 @@ async def transform(
             async for item in func:
                 yield item
 
-    except Exception as e:
-        # Python 3.8 中 CancelledError 是 Exception 子类
+    except (Exception, asyncio.CancelledError) as e:
+        # 兼容 Python 3.7-3.14：
+        # - 3.8 及之前：CancelledError 是 Exception 子类
+        # - 3.9+：CancelledError 是 BaseException 子类，显式加入元组
         # 通过 athrow() 传入后必须重新抛出，否则违反异步生成器协议：
         #   RuntimeError: generator didn't stop after athrow()
         if isinstance(e, asyncio.CancelledError):
