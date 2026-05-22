@@ -13,11 +13,20 @@
 </p>
 
 <p align="center">
-  <a href="#-快速开始3步上手">快速开始</a> •
-  <a href="#-核心特性">核心特性</a> •
-  <a href="#-文档">文档</a> •
-  <a href="#-示例">示例</a>
+  <a href="javascript:void(0)" onclick="document.getElementById('cn-content').style.display='';document.getElementById('en-content').style.display='none';">中文</a> |
+  <a href="javascript:void(0)" onclick="document.getElementById('cn-content').style.display='none';document.getElementById('en-content').style.display='';">English</a>
 </p>
+
+<p align="center">
+  <a href="#快速开始">快速开始</a> •
+  <a href="#核心特性">核心特性</a> •
+  <a href="#文档">文档</a> •
+  <a href="#示例">示例</a>
+</p>
+
+---
+
+<div id="cn-content">
 
 ## ✨ 快速开始（3步上手）
 
@@ -50,7 +59,7 @@ crawlo run example
 - 支持 HTTP/2、TLS 指纹模拟（绕过 JA3 检测）
 
 ### 🛡️ 强大的反反爬能力
-- **HybridDownloader**：6 级检测优先级（请求标记 → URL 模式 → 域名 → 扩展名 → 默认），自动切换协议/浏览器引擎
+- **HybridDownloader**：6 级检测优先级，自动切换协议/浏览器引擎
 - **Cloudflare 自动绕过**：检测挑战页面后自动切换隐身浏览器
 - **5 种浏览器下载器**：Playwright / Camoufox / CloakBrowser / DrissionPage / Chrome
 - **BROWSER_* 统一配置层**：一套参数覆盖所有浏览器下载器
@@ -59,55 +68,34 @@ crawlo run example
 ### 🤖 AI 集成（MCP Server）
 - Claude / Cursor 直接调用 Crawlo 抓取能力
 - 三种抓取模式：`basic`（1-3s）→ `stealth`（3-10s）→ `max-stealth`（10s+）
-- 浏览器单例池：stealth/max-stealth 模式复用实例，消除重复启动开销
-- 结构化错误返回：区分 `TIMEOUT` / `CONNECTION_ERROR` / `STEALTH_UNAVAILABLE` 等，含建议提示
-- `spider` 工具内置 `delay` 限流参数，保护目标站点
+- 浏览器单例池：stealth/max-stealth 模式复用实例
+- 结构化错误返回：区分 `TIMEOUT` / `CONNECTION_ERROR` 等，含建议提示
 
 ### 📊 四级背压防线
-- **Engine** 层：请求生成端控制（入队 + TaskManager 双维度检查）
-- **QueueManager** 层：策略驱动（`QueueSizeStrategy` / `AdaptiveStrategy` / `CompositeStrategy`）
-- **MemoryQueue** 层：Mixin 委托 + 回退逻辑
-- **硬限制**：队列满直接拒绝
-- 智能增强：`IntelligentBackpressureCalculator` + `BackpressureMonitor` 可选集成
+- Engine 层请求生成控制 + QueueManager 策略驱动
+- 智能增强：`IntelligentBackpressureCalculator` + `BackpressureMonitor`
 
-### 📬 多渠通知系统
-- **5 种渠道**：钉钉 / 飞书 / 企业微信 / 邮件 / 短信
-- **30+ 预定义模板**：任务启停、异常告警、进度更新、数据库监控
-- **异步发送**：`async_send_*` 函数，`run_in_executor` 包装避免阻塞事件循环
-- 消息去重 + 窗口限制，防止通知风暴
+### 📬 多渠道通知系统
+- 5 种渠道：钉钉 / 飞书 / 企业微信 / 邮件 / 短信
+- 30+ 预定义模板，异步发送，消息去重 + 窗口限制
 
 ### 🔄 灵活的配置模式
+
 | 模式 | 适用场景 | Redis 要求 |
 |------|---------|-----------|
 | **Standalone** | 单机开发测试 | 不需要 |
 | **Distributed** | 多节点分布式 | 必需 |
 | **Auto** ⭐ | 智能检测（推荐） | 可选 |
 
-👉 **[详细了解配置模式 →](docs/guides/configuration/run-modes.md)**
-
 ---
 
 ## 📚 文档
-
-### 🎯 按角色阅读
 
 | 你是？ | 推荐阅读 |
 |--------|---------|
 | **新手** | [5分钟快速上手](docs/getting-started/5min-quickstart.md) → [安装指南](docs/getting-started/installation.md) |
 | **开发者** | [配置指南](docs/guides/configuration/) → [调度指南](docs/guides/scheduling/) |
 | **运维** | [配置模式详解](docs/guides/configuration/run-modes.md) → [检查点系统](docs/concepts/checkpoint-guide.md) |
-
-### 📖 完整文档导航
-
-- 🚀 **[快速开始](docs/getting-started/)** - 安装、创建第一个爬虫
-- 📚 **[教程系列](docs/tutorials/)** - 从基础到生产的完整教程
-- 🎯 **[使用指南](docs/guides/)** - 按场景分类的深度指南
-  - [配置指南](docs/guides/configuration/)、[调度指南](docs/guides/scheduling/)
-  - [背压系统](docs/guides/scheduling/backpressure.md)、[运行模式](docs/guides/configuration/run-modes.md)
-- 📖 **[核心概念](docs/concepts/)** - 架构设计、生命周期、错误处理
-- 🔧 **[API参考](docs/reference/)** - 完整的 API 文档
-- 💡 **[实战案例](docs/examples/)** - 真实项目示例和最佳实践
-- ❓ **[常见问题](docs/faq/)** - FAQ 和故障排查
 
 👉 **[浏览完整文档 →](docs/index.md)**
 
@@ -116,24 +104,15 @@ crawlo run example
 ## 💡 示例项目
 
 查看 [`examples/`](examples/) 目录：
-
 - **基础示例** - 快速上手
 - **高级示例** - 复杂场景
 - **生产级示例** - 可直接用于生产
-
-👉 **[查看所有示例 →](docs/examples/)**
 
 ---
 
 ## 🤝 贡献
 
 欢迎提交 Issue 和 Pull Request！
-
-1. Fork 本仓库
-2. 创建特性分支 (`git checkout -b feature/AmazingFeature`)
-3. 提交更改 (`git commit -m 'Add some AmazingFeature'`)
-4. 推送到分支 (`git push origin feature/AmazingFeature`)
-5. 提交 Pull Request
 
 ---
 
@@ -146,3 +125,107 @@ crawlo run example
 <p align="center">
   <strong>⭐ 如果这个项目对你有帮助，请给我们一个 Star！</strong>
 </p>
+
+</div>
+
+<div id="en-content" style="display:none;">
+
+## ✨ Quick Start (3 Steps)
+
+### 1. Install
+```bash
+pip install crawlo
+```
+
+### 2. Create a Spider
+```bash
+crawlo startproject myproject
+cd myproject
+crawlo genspider example example.com
+```
+
+### 3. Run
+```bash
+crawlo run example
+```
+
+👉 **[5-Minute Quickstart Tutorial →](docs/getting-started/5min-quickstart.md)**
+
+---
+
+## 🚀 Key Features
+
+### ⚡ High-Performance Async Architecture
+- Built on asyncio + aiohttp/httpx/curl-cffi multi-protocol downloaders
+- Smart concurrency control, connection pool reuse, auto throughput optimization
+- HTTP/2 support, TLS fingerprint emulation (bypass JA3 detection)
+
+### 🛡️ Robust Anti-Bot Capabilities
+- **HybridDownloader**: 6-level detection priority, auto-switch protocol/browser engine
+- **Cloudflare Auto-Bypass**: Detects challenge pages and auto-switches to stealth browser
+- **5 Browser Downloaders**: Playwright / Camoufox / CloakBrowser / DrissionPage / Chrome
+- **BROWSER_* Unified Config Layer**: One set of params for all browser downloaders
+- **Adaptive Selectors**: Auto-relocate elements when site structure changes
+
+### 🤖 AI Integration (MCP Server)
+- Claude / Cursor directly invoke Crawlo scraping capabilities
+- Three scraping modes: `basic` (1-3s) → `stealth` (3-10s) → `max-stealth` (10s+)
+- Browser singleton pool: stealth/max-stealth modes reuse instances
+- Structured error responses: distinguish `TIMEOUT` / `CONNECTION_ERROR` with suggestions
+
+### 📊 Four-Level Backpressure Defense
+- Engine-level request generation control + QueueManager strategy-driven
+- Intelligent enhancement: `IntelligentBackpressureCalculator` + `BackpressureMonitor`
+
+### 📬 Multi-Channel Notification
+- 5 channels: DingTalk / Feishu / WeCom / Email / SMS
+- 30+ preset templates, async delivery, message dedup + rate limiting
+
+### 🔄 Flexible Run Modes
+
+| Mode | Use Case | Redis Required |
+|------|----------|---------------|
+| **Standalone** | Single-machine dev/test | No |
+| **Distributed** | Multi-node distributed | Yes |
+| **Auto** ⭐ | Auto-detect (recommended) | Optional |
+
+---
+
+## 📚 Documentation
+
+| You are? | Recommended Reading |
+|----------|-------------------|
+| **Beginner** | [5-Min Quickstart](docs/getting-started/5min-quickstart.md) → [Installation](docs/getting-started/installation.md) |
+| **Developer** | [Configuration Guide](docs/guides/configuration/) → [Scheduling Guide](docs/guides/scheduling/) |
+| **Ops** | [Run Modes](docs/guides/configuration/run-modes.md) → [Checkpoint System](docs/concepts/checkpoint-guide.md) |
+
+👉 **[Browse Full Docs →](docs/index.md)**
+
+---
+
+## 💡 Examples
+
+See [`examples/`](examples/) directory:
+- **Basic** - Quick start
+- **Advanced** - Complex scenarios
+- **Production** - Ready for production
+
+---
+
+## 🤝 Contributing
+
+Issues and Pull Requests are welcome!
+
+---
+
+## 📄 License
+
+Licensed under BSD 3-Clause - see [LICENSE](LICENSE) for details.
+
+---
+
+<p align="center">
+  <strong>⭐ If this project helps you, please give us a Star!</strong>
+</p>
+
+</div>
