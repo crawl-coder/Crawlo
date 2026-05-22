@@ -426,11 +426,11 @@ class Engine(RequestGenerationMixin):
                 # 日志已在上面的task_manager.create_task处打印
                 raise
             except Exception as e:
-                # 记录详细的异常信息
+                # 记录详细的异常信息（含堆栈）
                 self.logger.error(
-                    f"处理请求失败: {getattr(request, 'url', 'Unknown URL')} - {type(e).__name__}: {e}"
+                    f"处理请求失败: {getattr(request, 'url', 'Unknown URL')} - {type(e).__name__}: {e}",
+                    exc_info=True
                 )
-                self.logger.debug(f"详细异常信息", exc_info=True)
                 
                 # 发送统计事件
                 if hasattr(self.crawler, 'stats'):
