@@ -97,7 +97,7 @@ async def parse(self, response):
     # 此请求的 depth 保持为 10
 ```
 
-> **⚠️ 重要**：`depth` 传播由 Engine 层（`_handle_spider_output`）统一管理。中间件或工具函数**不应提前注入** `depth` 到 `request.meta`，否则会导致 Engine 的 depth 传播逻辑被跳过，造成子请求 depth 值错误，进而使 `DEPTH_PRIORITY` 调度策略失效。详见 [设计缺陷修复记录](../migration/design-defects-fix.md#medium-8-transform中-_set_meta-提前注入-depth-导致深度优先调度失效)。
+> **⚠️ 重要**：`depth` 传播由 Engine 层（`_handle_spider_output`）统一管理。中间件或工具函数**不应提前注入** `depth` 到 `request.meta`，否则会导致 Engine 的 depth 传播逻辑被跳过，造成子请求 depth 值错误，进而使 `DEPTH_PRIORITY` 调度策略失效。
 
 配合 `DEPTH_PRIORITY` 配置，depth 会影响请求的出队优先级：
 

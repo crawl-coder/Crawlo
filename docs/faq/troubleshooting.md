@@ -419,7 +419,7 @@ def some_middleware(request, spider):
     pass
 ```
 
-详见 [设计缺陷修复记录](../migration/design-defects-fix.md#medium-8-transform中-_set_meta-提前注入-depth-导致深度优先调度失效)。
+> 提示：Engine 层 `_handle_spider_output` 统一管理 depth 传播，中间件或工具函数不应提前注入 depth。
 
 ## Ctrl+C 无法停止爬虫
 

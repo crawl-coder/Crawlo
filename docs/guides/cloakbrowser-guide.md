@@ -409,5 +409,4 @@ CLOAKBROWSER_PROXY = 'socks5://...' # 使用住宅代理
 
 - [下载器选择指南](downloader-guide.md) — 各下载器对比与选型
 - [配置指南](configuration/index.md) — 全局配置详解
-- [CloakBrowser 设计文档](../internal/cloakbrowser-design.md) — 内部架构（面向开发者）
 - [CloakBrowser 官方网站](https://cloakbrowser.dev/)
