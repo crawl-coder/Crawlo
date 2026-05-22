@@ -13,20 +13,18 @@
 </p>
 
 <p align="center">
-  <a href="javascript:void(0)" onclick="document.getElementById('cn-content').style.display='';document.getElementById('en-content').style.display='none';">中文</a> |
-  <a href="javascript:void(0)" onclick="document.getElementById('cn-content').style.display='none';document.getElementById('en-content').style.display='';">English</a>
+  <a href="README.md">中文</a> ·
+  <a href="README.en.md">English</a>
 </p>
 
 <p align="center">
-  <a href="#快速开始">快速开始</a> •
-  <a href="#核心特性">核心特性</a> •
-  <a href="#文档">文档</a> •
+  <a href="#快速开始">快速开始</a> ·
+  <a href="#核心特性">核心特性</a> ·
+  <a href="#文档">文档</a> ·
   <a href="#示例">示例</a>
 </p>
 
 ---
-
-<div id="cn-content">
 
 ## ✨ 快速开始（3步上手）
 
@@ -125,107 +123,3 @@ crawlo run example
 <p align="center">
   <strong>⭐ 如果这个项目对你有帮助，请给我们一个 Star！</strong>
 </p>
-
-</div>
-
-<div id="en-content" style="display:none;">
-
-## ✨ Quick Start (3 Steps)
-
-### 1. Install
-```bash
-pip install crawlo
-```
-
-### 2. Create a Spider
-```bash
-crawlo startproject myproject
-cd myproject
-crawlo genspider example example.com
-```
-
-### 3. Run
-```bash
-crawlo run example
-```
-
-👉 **[5-Minute Quickstart Tutorial →](docs/getting-started/5min-quickstart.md)**
-
----
-
-## 🚀 Key Features
-
-### ⚡ High-Performance Async Architecture
-- Built on asyncio + aiohttp/httpx/curl-cffi multi-protocol downloaders
-- Smart concurrency control, connection pool reuse, auto throughput optimization
-- HTTP/2 support, TLS fingerprint emulation (bypass JA3 detection)
-
-### 🛡️ Robust Anti-Bot Capabilities
-- **HybridDownloader**: 6-level detection priority, auto-switch protocol/browser engine
-- **Cloudflare Auto-Bypass**: Detects challenge pages and auto-switches to stealth browser
-- **5 Browser Downloaders**: Playwright / Camoufox / CloakBrowser / DrissionPage / Chrome
-- **BROWSER_* Unified Config Layer**: One set of params for all browser downloaders
-- **Adaptive Selectors**: Auto-relocate elements when site structure changes
-
-### 🤖 AI Integration (MCP Server)
-- Claude / Cursor directly invoke Crawlo scraping capabilities
-- Three scraping modes: `basic` (1-3s) → `stealth` (3-10s) → `max-stealth` (10s+)
-- Browser singleton pool: stealth/max-stealth modes reuse instances
-- Structured error responses: distinguish `TIMEOUT` / `CONNECTION_ERROR` with suggestions
-
-### 📊 Four-Level Backpressure Defense
-- Engine-level request generation control + QueueManager strategy-driven
-- Intelligent enhancement: `IntelligentBackpressureCalculator` + `BackpressureMonitor`
-
-### 📬 Multi-Channel Notification
-- 5 channels: DingTalk / Feishu / WeCom / Email / SMS
-- 30+ preset templates, async delivery, message dedup + rate limiting
-
-### 🔄 Flexible Run Modes
-
-| Mode | Use Case | Redis Required |
-|------|----------|---------------|
-| **Standalone** | Single-machine dev/test | No |
-| **Distributed** | Multi-node distributed | Yes |
-| **Auto** ⭐ | Auto-detect (recommended) | Optional |
-
----
-
-## 📚 Documentation
-
-| You are? | Recommended Reading |
-|----------|-------------------|
-| **Beginner** | [5-Min Quickstart](docs/getting-started/5min-quickstart.md) → [Installation](docs/getting-started/installation.md) |
-| **Developer** | [Configuration Guide](docs/guides/configuration/) → [Scheduling Guide](docs/guides/scheduling/) |
-| **Ops** | [Run Modes](docs/guides/configuration/run-modes.md) → [Checkpoint System](docs/concepts/checkpoint-guide.md) |
-
-👉 **[Browse Full Docs →](docs/index.md)**
-
----
-
-## 💡 Examples
-
-See [`examples/`](examples/) directory:
-- **Basic** - Quick start
-- **Advanced** - Complex scenarios
-- **Production** - Ready for production
-
----
-
-## 🤝 Contributing
-
-Issues and Pull Requests are welcome!
-
----
-
-## 📄 License
-
-Licensed under BSD 3-Clause - see [LICENSE](LICENSE) for details.
-
----
-
-<p align="center">
-  <strong>⭐ If this project helps you, please give us a Star!</strong>
-</p>
-
-</div>
