@@ -65,14 +65,14 @@ class JobExecutor:
             except asyncio.TimeoutError:
                 self.logger.error(f"定时任务超时: {job.spider_name} (超时时间: {timeout}秒)")
                 await self._handle_job_failure(job, "timeout")
-                self._log_task_completion(job)
+                # _handle_job_failure 内部已在各分支调用 _log_task_completion
                 
             except Exception as e:
                 self.logger.error(f"执行定时任务失败 {job.spider_name}: {e}")
                 import traceback
                 traceback.print_exc()
                 await self._handle_job_failure(job, str(e))
-                self._log_task_completion(job)
+                # _handle_job_failure 内部已在各分支调用 _log_task_completion
         finally:
             job.mark_execution_finished()
     
