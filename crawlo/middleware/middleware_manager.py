@@ -176,7 +176,7 @@ class MiddlewareManager:
             except asyncio.CancelledError:
                 # Handle cancellation properly（只打印一次，避免重复）
                 if not getattr(self, '_cancel_logged', False):
-                    self.logger.info("Request processing cancelled")
+                    self.logger.debug("Request processing cancelled")
                     self._cancel_logged = True
                 raise
             except Exception as e:

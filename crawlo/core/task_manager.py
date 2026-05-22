@@ -269,7 +269,7 @@ class TaskManager(Generic[T]):
                     self._stats.cancelled_count += 1
                     # 只打印一次，避免重复
                     if not getattr(self, '_cancel_logged', False):
-                        self.logger.info("Task was cancelled")
+                        self.logger.debug("Task was cancelled")
                         self._cancel_logged = True
                 except Exception as exception:
                     self._stats.exception_count += 1
