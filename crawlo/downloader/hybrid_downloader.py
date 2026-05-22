@@ -260,3 +260,4 @@ class HybridDownloader(DownloaderBase):
                 self.logger.warning(f"Error closing {name} downloader: {e}")
                 
         self._downloaders.clear()
+        await super().close()

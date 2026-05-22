@@ -270,13 +270,9 @@ class AioHttpDownloader(DownloaderBase):
                 temp_connector_kwargs['happy_eyeballs_delay'] = 0.25  # 快速连接建立
             
             connector = TCPConnector(**temp_connector_kwargs)
-            try:
-                async with ClientSession(connector=connector, timeout=timeout) as temp_session:
-                    async with await self._send_request(temp_session, request) as resp:
-                        return await self._process_response(request, resp)
-            finally:
-                # 确保连接器被正确关闭（防止连接泄漏）
-                await connector.close()
+            async with ClientSession(connector=connector, timeout=timeout) as temp_session:
+                async with await self._send_request(temp_session, request) as resp:
+                    return await self._process_response(request, resp)
         else:
             # 使用默认 session
             async with await self._send_request(self.session, request) as resp:

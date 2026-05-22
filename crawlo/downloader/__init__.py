@@ -17,7 +17,6 @@ Crawlo Downloader Module
 
 from abc import abstractmethod, ABC
 from typing import Final, Set, Optional, TYPE_CHECKING, Dict, Any
-from contextlib import asynccontextmanager
 
 from crawlo.logging import get_logger
 from crawlo.middleware.middleware_manager import MiddlewareManager
@@ -25,6 +24,27 @@ from crawlo.utils.misc import safe_get_config
 
 if TYPE_CHECKING:
     from crawlo import Response
+
+
+class _ActivatedRequest:
+    """类式上下文管理器（非生成器），避免 Python 3.12 asynccontextmanager + athrow(CancelledError) bug"""
+
+    __slots__ = ('_mgr', '_request', '_success')
+
+    def __init__(self, mgr: 'ActivateRequestManager', request):
+        self._mgr = mgr
+        self._request = request
+        self._success = False
+
+    async def __aenter__(self):
+        self._mgr.add(self._request)
+        return self._request
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        if exc_type is None:
+            self._success = True
+        self._mgr.remove(self._request, self._success)
+        return False  # 不抑制异常，让其向上传播
 
 
 class ActivateRequestManager:
@@ -50,16 +70,9 @@ class ActivateRequestManager:
         else:
             self._failed_requests += 1
 
-    @asynccontextmanager
-    async def __call__(self, request):
-        """Context manager usage — finally 块保证总是记录 success/failure"""
-        self.add(request)
-        success = False
-        try:
-            yield request
-            success = True
-        finally:
-            self.remove(request, success)
+    def __call__(self, request):
+        """返回类式上下文管理器（非 asynccontextmanager 生成器）"""
+        return _ActivatedRequest(self, request)
 
     def __len__(self):
         """Return current active request count"""

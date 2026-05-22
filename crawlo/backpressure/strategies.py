@@ -69,7 +69,8 @@ class QueueSizeStrategy(IBackpressureStrategy):
         elif utilization >= HIGH_UTILIZATION_THRESHOLD:
             return self._config.base_delay * DELAY_MULTIPLIER_CRITICAL
         elif utilization >= self._config.threshold:
-            ratio = (utilization - self._config.threshold) / (CRITICAL_UTILIZATION_THRESHOLD - self._config.threshold)
+            denom = CRITICAL_UTILIZATION_THRESHOLD - self._config.threshold
+            ratio = (utilization - self._config.threshold) / denom if denom > 1e-9 else 1.0
             return self._config.base_delay * (1 + ratio * DELAY_MULTIPLIER_MAX_RATIO)
         else:
             return 0.0
@@ -174,7 +175,8 @@ class AdaptiveStrategy(IBackpressureStrategy):
         elif utilization >= 0.90:
             base_delay = self._config.base_delay * 4
         elif utilization >= self._config.threshold:
-            ratio = (utilization - self._config.threshold) / (0.95 - self._config.threshold)
+            denom = 0.95 - self._config.threshold
+            ratio = (utilization - self._config.threshold) / denom if denom > 1e-9 else 1.0
             base_delay = self._config.base_delay * (1 + ratio * 3)
         else:
             base_delay = 0.0
@@ -242,9 +244,14 @@ class AdaptiveStrategy(IBackpressureStrategy):
         # 如果平均延迟较高，降低阈值（更积极地应用背压）
         # 如果平均延迟较低，提高阈值（更宽松）
         if avg_delay > self._config.base_delay * 3:
-            self._dynamic_threshold = min(
-                self._dynamic_threshold * (1 - self._adaptation_rate),
-                self._config.threshold
+            # 下限保护：不低于原始阈值的 30%
+            min_threshold = self._config.threshold * 0.3
+            self._dynamic_threshold = max(
+                min_threshold,
+                min(
+                    self._dynamic_threshold * (1 - self._adaptation_rate),
+                    self._config.threshold
+                )
             )
         elif avg_delay < self._config.base_delay:
             self._dynamic_threshold = max(

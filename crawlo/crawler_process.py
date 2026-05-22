@@ -280,11 +280,12 @@ class CrawlerProcess:
         async with self._semaphore:
             # 创建爬虫任务
             crawl_task = asyncio.create_task(crawler.crawl())
+            shutdown_wait_task = asyncio.create_task(self._shutdown_event.wait())
 
             try:
                 # 等待爬虫完成或收到关闭信号
                 done, pending = await asyncio.wait(
-                    [crawl_task, asyncio.create_task(self._shutdown_event.wait())],
+                    [crawl_task, shutdown_wait_task],
                     return_when=asyncio.FIRST_COMPLETED
                 )
 
@@ -308,11 +309,18 @@ class CrawlerProcess:
                 self._logger.debug(f"Crawl task was cancelled: {spider_cls.name}")
                 raise
             finally:
-                # 确保任务被清理
+                # 确保爬虫任务被清理
                 if not crawl_task.done():
                     crawl_task.cancel()
                     try:
                         await crawl_task
+                    except asyncio.CancelledError:
+                        pass
+                # 确保 shutdown 等待任务被清理，避免 "Task was destroyed but it is pending!"
+                if not shutdown_wait_task.done():
+                    shutdown_wait_task.cancel()
+                    try:
+                        await shutdown_wait_task
                     except asyncio.CancelledError:
                         pass
 

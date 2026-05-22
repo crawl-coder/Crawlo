@@ -284,6 +284,20 @@ class QueueManager(QueueStatusMixin, QueueBackpressureMixin):
             self.logger.error(f"Failed to dequeue request: {e}")
             return None
 
+    async def get_blocking(self, timeout: float = 30.0) -> Optional["Request"]:
+        """阻塞式获取（仅 Redis 队列支持，内存队列 fallback 到普通 get）"""
+        if not self._queue:
+            raise RuntimeError("队列未初始化")
+
+        if self._queue_type == QueueType.REDIS and hasattr(self._queue, 'get_blocking'):
+            result = await self._queue.get_blocking(timeout=timeout)
+            if result and hasattr(result, 'url'):
+                return result
+            return None
+
+        # 内存队列 fallback
+        return await self.get()
+
     async def size(self) -> int:
         """Get queue size"""
         if not self._queue:

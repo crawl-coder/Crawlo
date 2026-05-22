@@ -189,7 +189,7 @@ class CrawloFramework:
         self._logger.info(f"Starting spiders: {', '.join(spider_names)}")
         
         try:
-            return await self._process.crawl_multiple(spider_classes_or_names, settings)
+            return await self._process.crawl(spider_classes_or_names, settings)
         finally:
             # 清理全局Redis连接池
             await self._cleanup_global_resources()

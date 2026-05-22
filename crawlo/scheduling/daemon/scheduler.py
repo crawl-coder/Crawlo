@@ -119,9 +119,13 @@ class SchedulerDaemon:
         self._executor.init_concurrency()
         
         # 设置信号处理器
+        self._pending_stop_tasks: set = set()
+        
         def signal_handler(signum, frame):
             self.logger.info(f"收到信号 {signum}，准备停止调度器")
-            asyncio.create_task(self.stop())
+            task = asyncio.create_task(self.stop())
+            self._pending_stop_tasks.add(task)
+            task.add_done_callback(self._pending_stop_tasks.discard)
         
         signal.signal(signal.SIGINT, signal_handler)
         signal.signal(signal.SIGTERM, signal_handler)

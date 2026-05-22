@@ -46,9 +46,10 @@ class TestPhase0_Infrastructure:
         
         reset_global_context()
         
-        # 首次调用应同步模块级 dict
+        # 首次调用同步到 ctx（返回副本，内容应与模块 dict 一致）
         ctx_registry = get_global_spider_registry()
-        assert ctx_registry is _DEFAULT_SPIDER_REGISTRY, "Should point to same dict"
+        assert sorted(ctx_registry.keys()) == sorted(_DEFAULT_SPIDER_REGISTRY.keys()), \
+            "Should contain same spider names"
 
     def test_context_fields_complete(self):
         """测试 ApplicationContext 字段完整性"""
@@ -98,10 +99,10 @@ class TestPhase1_CoreRegistries:
 
     def test_initializer_registry(self):
         """测试 InitializerRegistry 迁移"""
-        from crawlo.initialization.registry import get_initializer_registry
+        from crawlo.initialization.registry import get_global_registry
         
         reset_global_context()
-        registry = get_initializer_registry()
+        registry = get_global_registry()
         assert registry is not None
 
     def test_job_registry(self):
@@ -151,10 +152,10 @@ class TestPhase2_FrameworkManagers:
 
     def test_performance_monitor(self):
         """测试 PerformanceMonitor 迁移"""
-        from crawlo.extension.monitor.performance_monitor import get_performance_monitor
-        
+        from crawlo.extension.monitor.performance_monitor import _get_performance_monitor
+
         reset_global_context()
-        monitor = get_performance_monitor()
+        monitor = _get_performance_monitor()
         assert monitor is not None
 
 

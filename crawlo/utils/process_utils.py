@@ -29,15 +29,25 @@ class ProcessSignalHandler:
         self.shutdown_event = asyncio.Event()
         self.shutdown_requested = False
         self.crawlers = crawlers or []
+        self._signal_count = 0  # 防重复信号
     
     def setup_signal_handlers(self):
         """设置信号处理器以优雅地处理关闭信号"""
         # sys 已在顶部导入
         
         def signal_handler(signum, frame):
-            self.logger.info(f"Received signal {signum}, initiating graceful shutdown...")
-            self.shutdown_requested = True
-            self.shutdown_event.set()
+            self._signal_count += 1
+            if self._signal_count == 1:
+                self.logger.info(f"Received signal {signum}, initiating graceful shutdown...")
+                self.shutdown_requested = True
+                self.shutdown_event.set()
+            elif self._signal_count == 2:
+                self.logger.warning("Second shutdown signal received, forcing exit...")
+                sys.exit(1)
+            else:
+                # 第 3 次及以上：立即强制退出，不等待任何清理
+                import os
+                os._exit(1)
         
         # 检测平台类型
         is_windows = sys.platform.lower().startswith('win')
@@ -88,6 +98,14 @@ class ProcessSignalHandler:
         """
         # 取消所有正在运行的任务
         for crawler in self.crawlers:
+            # 状态检查：跳过已关闭或正在关闭的 Crawler
+            current_state = getattr(crawler, '_state', 'unknown')
+            closing_states = ['CLOSING', 'closing', 'CLOSED', 'closed']
+            if hasattr(current_state, 'value'):
+                current_state = current_state.value
+            if str(current_state) in closing_states:
+                continue
+
             try:
                 engine = getattr(crawler, '_engine', None)
                 task_manager = getattr(engine, 'task_manager', None) if engine else None

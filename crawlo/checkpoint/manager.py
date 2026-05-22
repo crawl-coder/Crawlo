@@ -409,6 +409,7 @@ class CheckpointManager:
 
         # 构建参数，过滤掉非 Request 构造参数
         request_kwargs = {
+            'url': url,
             'method': request_data.get('method', 'GET'),
             'headers': request_data.get('headers'),
             'meta': request_data.get('meta'),
@@ -430,7 +431,73 @@ class CheckpointManager:
         # 移除 None 值
         request_kwargs = {k: v for k, v in request_kwargs.items() if v is not None}
 
-        return RequestClass(url=url, **request_kwargs)
+        request = RequestClass(**request_kwargs)
+
+        # 恢复 callback 和 errback（回退路径）
+        for attr_name in ('callback', 'errback'):
+            func_path = request_data.get(attr_name)
+            if func_path and isinstance(func_path, str) and spider:
+                try:
+                    restored_func = self._resolve_function(func_path, spider)
+                    if restored_func:
+                        setattr(request, attr_name, restored_func)
+                        self.logger.debug(
+                            f"Restored {attr_name} '{func_path}' for {url}"
+                        )
+                except Exception as e:
+                    self.logger.debug(
+                        f"Failed to restore {attr_name} '{func_path}' for {url}: {e}"
+                    )
+
+        return request
+
+    @staticmethod
+    def _resolve_function(func_path: str, spider: Any):
+        """解析函数路径字符串为实际可调用对象
+
+        支持格式：
+        - "ClassName.method_name" → spider.method_name 或 SpiderClass.method_name
+        - "function_name" → 尝试作为 spider 的方法
+        - "package.module.function" → 尝试导入
+
+        Args:
+            func_path: 函数路径字符串
+            spider: 爬虫实例
+
+        Returns:
+            可调用对象或 None
+        """
+        if not func_path:
+            return None
+
+        # 格式 1: "ClassName.method_name"
+        if '.' in func_path:
+            parts = func_path.rsplit('.', 1)
+            if len(parts) == 2:
+                prefix, method_name = parts
+                # 尝试从 spider 实例获取
+                if hasattr(spider, method_name):
+                    return getattr(spider, method_name)
+                # 尝试从 spider 类获取
+                spider_cls = type(spider)
+                if hasattr(spider_cls, method_name):
+                    return getattr(spider_cls, method_name)
+                # 尝试通过模块导入
+                try:
+                    import importlib
+                    module = importlib.import_module(prefix)
+                    return getattr(module, method_name, None)
+                except (ImportError, AttributeError):
+                    pass
+
+        # 格式 2: 简单函数名，尝试 spider 方法
+        if hasattr(spider, func_path):
+            return getattr(spider, func_path)
+        spider_cls = type(spider)
+        if hasattr(spider_cls, func_path):
+            return getattr(spider_cls, func_path)
+
+        return None
 
     def restore_fingerprints(self, fingerprints: Set[str], scheduler: Optional['Scheduler']) -> bool:
         """恢复去重指纹到过滤器

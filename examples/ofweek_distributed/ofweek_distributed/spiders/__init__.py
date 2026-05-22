@@ -5,6 +5,4 @@ ofweek_distributed.spiders
 存放所有的爬虫。
 """
 
-# 自动导入所有爬虫以确保它们被注册
-# 示例：
-# from .YourSpider import YourSpider
+from .of_week_distributed import OfWeekDistributedSpider

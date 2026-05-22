@@ -320,6 +320,20 @@ class HttpXDownloader(DownloaderBase):
                     f"Request cancelled for {request.url}",
                     url=request.url
                 )
+            except TypeError as e:
+                # httpx HTTP/2 连接池弱引用竞态：
+                # "cannot create weak reference to 'NoneType' object"
+                # 转为 DownloadError 由 RetryMiddleware 统一重试，
+                # 不在此处修改 client 状态（避免影响并发中的其他请求）
+                if "weak reference" in str(e).lower() or "NoneType" in str(e):
+                    self.logger.warning(
+                        f"HTTP/2 连接弱引用异常（将自动重试）: {request.url}"
+                    )
+                    raise DownloadError(
+                        f"HTTP/2 connection weakref error for {request.url}",
+                        url=request.url
+                    ) from e
+                raise
             except Exception as e:
                 self.logger.error(f"请求异常: {type(e).__name__}: {e}")
                 raise

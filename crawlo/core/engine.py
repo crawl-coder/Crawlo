@@ -46,6 +46,7 @@ class Engine(RequestGenerationMixin):
         self._spider_closed: bool = False  # Prevent duplicate close_spider calls
         self._background_tasks: set = set()  # Track fire-and-forget tasks to prevent leaks
         self._request_available = asyncio.Event()  # 事件驱动：新请求可用时唤醒主循环
+        self._idle_since: Optional[float] = None  # 空闲起始时间（使用 time.monotonic()，分布式模式用）
         
         # Initialize configurations
         self._init_configs()
@@ -94,6 +95,11 @@ class Engine(RequestGenerationMixin):
             self.settings, 'CHECKPOINT_SAVE_ON_SIGNAL', True, bool
         )
         
+        # Distributed worker configuration
+        self._worker_idle_timeout = safe_get_config(
+            self.settings, 'DISTRIBUTED_WORKER_IDLE_TIMEOUT', 300, int
+        )
+
         # Downloader configuration
         self.downloader_type = safe_get_config(self.settings, 'DOWNLOADER_TYPE')
         self.downloader_path = safe_get_config(self.settings, 'DOWNLOADER')
@@ -257,6 +263,8 @@ class Engine(RequestGenerationMixin):
                                 self._fc_logged = True
                             while len(self._background_tasks) >= max_inflight:
                                 await asyncio.sleep(0.01)
+                        else:
+                            self._fc_logged = False
                         self._create_background_task(self._crawl(req))
                     
                     # 有请求处理时，增加检查间隔（减少开销）
@@ -264,6 +272,53 @@ class Engine(RequestGenerationMixin):
                 else:
                     idle_count += 1
                     
+                    # ── 关键：仅 distributed 模式阻塞等待 ──
+                    # auto 模式即使用了 Redis，队列空也要退出（auto 是自动检测模式，不是常驻模式）
+                    run_mode = safe_get_config(self.settings, 'RUN_MODE', 'standalone')
+                    if run_mode == 'distributed' and self._start_requests_source is None:
+                        # ── distributed 模式：BZPOPMIN 阻塞等待 ──
+
+                        # 计算剩余空闲配额（_worker_idle_timeout=0 表示永不退出）
+                        if self._worker_idle_timeout > 0:
+                            if self._idle_since is not None:
+                                remaining = self._worker_idle_timeout - (
+                                    time.monotonic() - self._idle_since
+                                )
+                            else:
+                                remaining = self._worker_idle_timeout  # 首次空闲，全配额
+                            if remaining <= 0:
+                                self.logger.info(
+                                    f"Worker idle for {self._worker_idle_timeout}s, exiting"
+                                )
+                                break
+                        else:
+                            remaining = 30.0  # 永不退出，每次 BZPOPMIN 等 30s
+
+                        request = await self.scheduler.next_request_blocking(
+                            timeout=min(30.0, max(1.0, remaining))
+                        )
+                        if request:
+                            idle_count = 0
+                            self._idle_since = None
+                            self._create_background_task(self._crawl(request))
+                            # 回到循环顶部尝试批量获取更多
+                            continue
+                        else:
+                            # BZPOPMIN 超时（30s 内无新任务）
+                            if self._idle_since is None:
+                                self._idle_since = time.monotonic()
+                            if self._worker_idle_timeout > 0:
+                                elapsed = time.monotonic() - self._idle_since
+                                if elapsed >= self._worker_idle_timeout:
+                                    self.logger.info(
+                                        f"Distributed worker idle for {elapsed:.0f}s "
+                                        f"(timeout={self._worker_idle_timeout}s), exiting"
+                                    )
+                                    break
+                            # 超时但未达总配额：跳过 Event 等待直接下轮（BZPOPMIN 已阻塞）
+                            continue
+
+                    # ── standalone / auto 模式：现有行为不变 ──
                     # 首次检测到空闲时，立即检查退出条件
                     if idle_count == 1:
                         should_exit, last_component_states = await self._should_exit(last_component_states)
@@ -306,16 +361,38 @@ class Engine(RequestGenerationMixin):
             self.logger.debug(f"主爬取循环结束，总共执行了 {loop_count} 次")
         
         finally:
-            # 确保请求生成任务完成
+            # 1. 通知 generation_task 退出循环（self.running 是主循环和生成循环的条件）
+            self.running = False
+
+            # 2. 取消并等待 generation_task 完成
             if generation_task and not generation_task.done():
+                generation_task.cancel()
                 try:
                     await generation_task
                 except asyncio.CancelledError:
                     self.logger.debug("Generation task cancelled")
-            
-            # 优雅关闭爬虫（reason 已经在 signal handler 中设置）
+                except Exception as e:
+                    self.logger.debug(f"Generation task completed with error: {e}")
+
+            # 3. 确定关闭原因：检查是否收到过 shutdown 信号
+            shutdown_requested = False
             try:
-                await self.close_spider()
+                if (self.crawler is not None
+                        and hasattr(type(self.crawler), '_process')
+                        and hasattr(self.crawler, '_process')):
+                    # 兼容 __getattr__ 延迟导入的 CrawlerProcess
+                    process = getattr(self.crawler, '_process', None)
+                    if process is not None:
+                        shutdown_requested = getattr(
+                            process, '_shutdown_requested', False
+                        )
+            except Exception:
+                pass
+            reason = 'shutdown' if shutdown_requested else self._close_reason
+
+            # 4. 优雅关闭爬虫
+            try:
+                await self.close_spider(reason=reason)
             except asyncio.CancelledError:
                 self.logger.debug("close_spider cancelled")
 
@@ -349,11 +426,11 @@ class Engine(RequestGenerationMixin):
                 # 日志已在上面的task_manager.create_task处打印
                 raise
             except Exception as e:
-                # 记录详细的异常信息
+                # 记录详细的异常信息（含堆栈）
                 self.logger.error(
-                    f"处理请求失败: {getattr(request, 'url', 'Unknown URL')} - {type(e).__name__}: {e}"
+                    f"处理请求失败: {getattr(request, 'url', 'Unknown URL')} - {type(e).__name__}: {e}",
+                    exc_info=True
                 )
-                self.logger.debug(f"详细异常信息", exc_info=True)
                 
                 # 发送统计事件
                 if hasattr(self.crawler, 'stats'):
@@ -409,10 +486,17 @@ class Engine(RequestGenerationMixin):
 
     async def _fetch(self, request):
         if self.downloader is None:
-            return None
+            self.logger.error("Downloader is not initialized, cannot fetch request")
+            return Failure(request, RuntimeError("Downloader not available"))
         _response = await self.downloader.fetch(request)
         if _response is None:
-            return None
+            self.logger.warning(
+                f"Downloader returned None for {request.url}, skipping errback"
+            )
+            return Failure(
+                request,
+                RuntimeError(f"Downloader returned empty response for {request.url}")
+            )
         output = await process_callback_output(
             self.spider,
             request.callback or self.spider.parse,
@@ -551,12 +635,24 @@ class Engine(RequestGenerationMixin):
     async def _should_exit(self, last_component_states=None) -> tuple[bool, tuple]:
         """检查是否应该退出（5 组件 + start_requests 判断）
         
+        standalone / auto 模式：队列空 + 所有组件空闲 → 正常退出
+        distributed 模式：不因队列空退出，由 BZPOPMIN 超时 + idle_timeout 决定
+        
+        注意：auto 模式即使检测到 Redis 并切换为 Redis 队列，
+             仍然按单机逻辑退出（auto 只是根据环境自动选队列类型，不是常驻 Worker）
+
         Args:
             last_component_states: 上次的组件状态元组，用于减少冗余日志
             
         Returns:
             tuple: (should_exit, current_states)
         """
+        # 分布式模式不因"组件空闲"退出，由 BZPOPMIN 超时 + idle_timeout 决定
+        # 如果将来 _should_exit 增加致命错误等退出条件，需要细化判断，仅跳过"队列空"相关条件
+        run_mode = safe_get_config(self.settings, 'RUN_MODE', 'standalone')
+        if run_mode == 'distributed':
+            return False, None
+
         if self._start_requests_source is None:
             s, d, t, p, bg = await self._check_components_idle(include_background=True)
             current_states = (s, d, t, p, bg)
@@ -651,8 +747,9 @@ class Engine(RequestGenerationMixin):
                     self.logger.warning("调度器关闭超时")
                 except Exception as e:
                     self.logger.debug(f"调度器关闭时发生错误: {e}")
-        except Exception:
+        except (Exception, asyncio.CancelledError):
             # 清理失败，重置标志允许重试
+            # 同时捕获 CancelledError（Python 3.9+ 中为 BaseException 子类）
             self._spider_closed = False
             raise
     

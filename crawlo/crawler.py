@@ -377,6 +377,10 @@ class Crawler:
             
             self._logger.debug(f"Crawler completed successfully in {self._metrics.crawl_duration:.2f}s")
             
+        except asyncio.CancelledError:
+            # Python 3.8: CancelledError 是 Exception 子类，在 3.9+ 是 BaseException
+            # 显式守卫防止被包装为 RuntimeError 破坏取消传播链
+            raise
         except Exception as e:
             self._metrics.crawl_duration = time.time() - crawl_start
             raise RuntimeError(f"Crawler execution failed: {e}")

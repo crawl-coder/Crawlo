@@ -301,23 +301,27 @@ class RedisPriorityQueue:
                 logger.debug(f"详细错误信息:\n{traceback.format_exc()}")
                 return False
 
-            if result and result[0] > 0:
-                logger.debug(f"成功入队 (Project: {self.key_manager.project_name}, Spider: {self.key_manager.spider_name}): {request.url}")
-                # 记录成功统计
-                if hasattr(self, '_stats'):
-                    self._stats['successful_puts'] = self._stats.get('successful_puts', 0) + 1
+            if result is not None:
+                # zadd 返回: 1=新增, 0=已存在(不重复入队), None=管道错误
+                # hset 返回: 1=新增, 0=已更新
+                is_new = result[0] > 0 if result[0] is not None else False
+                if is_new:
+                    logger.debug(f"成功入队 (Project: {self.key_manager.project_name}, Spider: {self.key_manager.spider_name}): {request.url}")
+                    if hasattr(self, '_stats'):
+                        self._stats['successful_puts'] = self._stats.get('successful_puts', 0) + 1
+                    else:
+                        self._stats = {'successful_puts': 1}
                 else:
-                    self._stats = {'successful_puts': 1}
+                    logger.debug(f"请求已在队列中，跳过 (Project: {self.key_manager.project_name}, Spider: {self.key_manager.spider_name}): {request.url}")
+                # 管道操作成功（即使 member 已存在也算操作成功，只是不入队）
+                return True
             else:
-                logger.warning(f"入队失败 (Project: {self.key_manager.project_name}, Spider: {self.key_manager.spider_name}): {request.url}")
-                # 记录失败统计
+                logger.error(f"Redis管道执行失败 (Project: {self.key_manager.project_name}, Spider: {self.key_manager.spider_name}): {request.url}")
                 if hasattr(self, '_stats'):
                     self._stats['failed_puts'] = self._stats.get('failed_puts', 0) + 1
                 else:
                     self._stats = {'failed_puts': 1}
-            
-            success = result and result[0] > 0 if result else False
-            return success
+                return False
         except Exception as e:
             error_context = ErrorContext(
                 context=f"放入队列失败 (Project: {self.key_manager.project_name}, Spider: {self.key_manager.spider_name})"
@@ -395,9 +399,11 @@ class RedisPriorityQueue:
                         results = await pipe.execute()
 
                     # 统计成功数（每两个操作一组: zadd + hset）
+                    # zadd 返回 1=新增, 0=已存在(skip), None=错误
+                    # 管道无错误即算成功（已存在的请求不重复入队）
                     batch_success = 0
                     for j in range(0, len(results), 2):
-                        if results[j] is not None and results[j] > 0:
+                        if results[j] is not None:
                             batch_success += 1
 
                     total_success += batch_success
@@ -476,74 +482,14 @@ class RedisPriorityQueue:
                         
                     serialized = await self._redis.hget(data_key, key)
                     if not serialized:
+                        # 脏数据：ZSET 中有 key 但 hash 中无数据 → 委托 _deserialize_request 清理
+                        await self._deserialize_request(None, key, data_key, queue_name=self.queue_name)
                         continue
 
-                    # 根据序列化格式进行反序列化
-                    try:
-                        if self.serialization_format == 'msgpack' and MSGPACK_AVAILABLE:
-                            # 使用msgpack反序列化
-                            data = msgpack.unpackb(serialized, raw=False)
-                        else:
-                            # 使用pickle反序列化
-                            try:
-                                # 首先尝试标准的 pickle 反序列化
-                                data = pickle.loads(serialized)
-                            except UnicodeDecodeError:
-                                # 如果出现编码错误，尝试使用 latin1 解码
-                                data = pickle.loads(serialized, encoding='latin1')
-                        
-                        # 将数据转换为 Request 对象
-                        
-                        # 如果已经是 Request 对象，直接返回
-                        if isinstance(data, Request):
-                            return data
-                        
-                        # 否则从 dict 反序列化
-                        if isinstance(data, dict):
-                            request = Request.from_dict(data)
-                            return request
-                        
-                        # 未知数据类型
-                        raise TypeError(f"Unexpected data type after deserialization: {type(data).__name__}")
-                    except Exception as deserialize_error:
-                        # 如果反序列化失败，记录详细错误信息并跳过这个任务
-                        error_details = {
-                            'error': str(deserialize_error),
-                            'error_type': type(deserialize_error).__name__,
-                            'key': key,
-                            'data_type': type(data).__name__ if 'data' in locals() else 'N/A',
-                            'serialized_type': type(serialized).__name__,
-                            'serialized_preview': repr(serialized[:100]) if serialized else 'None',
-                        }
-                        logger.error(
-                            f"Failed to deserialize request (Project: {self.key_manager.project_name}, "
-                            f"Spider: {self.key_manager.spider_name}): {error_details}"
-                        )
-                        
-                        # 自动清理脏数据，防止无限重试
-                        try:
-                            # 确定数据 key（考虑集群模式）
-                            if self._is_cluster_mode():
-                                hash_tag = "{queue}"
-                                data_key = self.key_manager.get_requests_data_key() + hash_tag
-                            else:
-                                data_key = self.key_manager.get_requests_data_key()
-                            
-                            # 删除脏数据
-                            await self._redis.hdel(data_key, key)
-                            await self._redis.zrem(self.queue_name, key)
-                            logger.warning(
-                                f"Cleaned up corrupted request data (Project: {self.key_manager.project_name}, "
-                                f"Spider: {self.key_manager.spider_name}): {key}"
-                            )
-                        except Exception as cleanup_error:
-                            logger.error(
-                                f"Failed to cleanup corrupted data (Project: {self.key_manager.project_name}, "
-                                f"Spider: {self.key_manager.spider_name}): {cleanup_error}"
-                            )
-                        
-                        # 继续尝试下一个任务
-                        continue
+                    result = await self._deserialize_request(serialized, key, data_key)
+                    if result:
+                        return result
+                    continue
 
                 # 检查是否超时
                 if time.time() - start_time > timeout:
@@ -561,6 +507,137 @@ class RedisPriorityQueue:
                 context=error_context,
                 raise_error=False
             )
+            return None
+
+    async def _deserialize_request(self, serialized, key, data_key, queue_name=None):
+        """反序列化请求，含脏数据清理
+        
+        统一处理 get() 和 get_blocking() 的反序列化逻辑。
+        
+        Args:
+            serialized: 序列化数据，None 表示 hget 失败（脏数据清理）
+            key: 请求 key
+            data_key: Redis data key
+            queue_name: 队列名（脏数据清理时用于 zrem）
+        
+        Returns:
+            Optional[Request]: 请求对象或 None
+        """
+        if not serialized:
+            # 脏数据清理：ZSET 中有 key 但 hash 中无对应数据
+            await self._redis.hdel(data_key, key)
+            if queue_name:
+                await self._redis.zrem(queue_name, key)
+            return None
+        
+        try:
+            if self.serialization_format == 'msgpack' and MSGPACK_AVAILABLE:
+                data = msgpack.unpackb(serialized, raw=False)
+            else:
+                try:
+                    data = pickle.loads(serialized)
+                except UnicodeDecodeError:
+                    data = pickle.loads(serialized, encoding='latin1')
+            
+            if isinstance(data, Request):
+                return data
+            
+            if isinstance(data, dict):
+                return Request.from_dict(data)
+            
+            raise TypeError(f"Unexpected data type after deserialization: {type(data).__name__}")
+        except Exception as deserialize_error:
+            error_details = {
+                'error': str(deserialize_error),
+                'error_type': type(deserialize_error).__name__,
+                'key': key,
+                'data_type': type(data).__name__ if 'data' in locals() else 'N/A',
+                'serialized_type': type(serialized).__name__,
+                'serialized_preview': repr(serialized[:100]) if serialized else 'None',
+            }
+            logger.error(
+                f"Failed to deserialize request (Project: {self.key_manager.project_name}, "
+                f"Spider: {self.key_manager.spider_name}): {error_details}"
+            )
+            
+            # 清理脏数据
+            try:
+                await self._redis.hdel(data_key, key)
+                if queue_name:
+                    await self._redis.zrem(queue_name, key)
+                logger.warning(
+                    f"Cleaned up corrupted request data (Project: {self.key_manager.project_name}, "
+                    f"Spider: {self.key_manager.spider_name}): {key}"
+                )
+            except Exception as cleanup_error:
+                logger.error(
+                    f"Failed to cleanup corrupted data (Project: {self.key_manager.project_name}, "
+                    f"Spider: {self.key_manager.spider_name}): {cleanup_error}"
+                )
+            return None
+
+    async def get_blocking(self, timeout: float = 30.0) -> Optional['Request']:
+        """
+        阻塞式获取请求（使用 BZPOPMIN）
+        
+        与 get() 的区别：
+        - get(): 非阻塞，空则立即返回 None（向后兼容）
+        - get_blocking(): BZPOPMIN 阻塞等待，timeout 秒内无数据返回 None
+        
+        Args:
+            timeout: 阻塞等待超时（秒），0 = 非阻塞，None = 永久阻塞
+        
+        Returns:
+            Optional[Request]: 请求对象或 None（超时）
+        """
+        try:
+            await self._ensure_connection()
+            if not self._redis:
+                return None
+
+            # BZPOPMIN 要求 timeout 为整数（秒），None = 永久阻塞
+            bzpop_timeout = None if timeout is None else max(1, int(timeout))
+
+            # 集群模式：与 get() 一致的 hash tag 处理
+            if self._is_cluster_mode():
+                hash_tag = "{queue}"
+                queue_name_with_tag = f"{self.queue_name}{hash_tag}"
+                result = await self._redis.bzpopmin(queue_name_with_tag, timeout=bzpop_timeout)
+            else:
+                queue_name_with_tag = self.queue_name
+                result = await self._redis.bzpopmin(self.queue_name, timeout=bzpop_timeout)
+
+            if not result:
+                return None
+
+            _, key, score = result
+            data_key = self.key_manager.get_requests_data_key()
+            if self._is_cluster_mode():
+                data_key = self.key_manager.get_requests_data_key() + "{queue}"
+
+            serialized = await self._redis.hget(data_key, key)
+            if not serialized:
+                # 脏数据：ZSET 有 key 但 hash 无数据 → 委托 _deserialize_request 统一清理
+                return await self._deserialize_request(None, key, data_key, queue_name=queue_name_with_tag)
+
+            # 复用现有的反序列化逻辑
+            return await self._deserialize_request(serialized, key, data_key)
+
+        except Exception as e:
+            # Redis < 5.0 不支持 BZPOPMIN → fallback 到轮询
+            if "unknown command" in str(e).lower():
+                if not getattr(self, '_bzpopmin_unsupported', False):
+                    self._bzpopmin_unsupported = True
+                    logger.warning(
+                        f"BZPOPMIN not supported (Redis < 5.0), "
+                        f"falling back to polling for project {self.key_manager.project_name}"
+                    )
+                # 不额外 sleep，由 engine 层 remaining 控制节奏
+                return None
+            # 其他 Redis 错误同等处理
+            ErrorHandler(__name__).handle_error(e, context=ErrorContext(
+                context=f"阻塞获取队列任务失败 (Project: {self.key_manager.project_name})"
+            ), raise_error=False)
             return None
 
     async def ack(self, request: 'Request') -> None:

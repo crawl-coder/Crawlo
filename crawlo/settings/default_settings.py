@@ -4,18 +4,21 @@
 包含 Crawlo 框架的所有默认设置项
 """
 
-from crawlo.settings.setting_manager import EnvConfigManager
-
 # #############################################################################
 # 1. 框架基础配置
 # #############################################################################
 
-runtime_config = EnvConfigManager.get_runtime_config()
+try:
+    from crawlo.settings.setting_manager import EnvConfigManager
+    runtime_config = EnvConfigManager.get_runtime_config()
+except ImportError:
+    # 循环导入保护（setting_manager 加载过程中 default_settings 被提前导入时触发）
+    runtime_config = {}
 
-PROJECT_NAME = runtime_config['PROJECT_NAME']           # 项目名称（用于日志、Redis Key 等标识）
-VERSION = EnvConfigManager.get_version()                # 项目版本号（从 __version__.py 读取）
-RUN_MODE = runtime_config['CRAWLO_MODE']                # 运行模式：standalone | distributed | auto
-CONCURRENCY = runtime_config['CONCURRENCY']             # 并发数配置
+PROJECT_NAME = runtime_config['PROJECT_NAME'] if runtime_config else 'crawlo'
+VERSION = EnvConfigManager.get_version() if runtime_config else '0.0.0'
+RUN_MODE = runtime_config.get('CRAWLO_MODE', 'standalone') if runtime_config else 'standalone'
+CONCURRENCY = runtime_config.get('CONCURRENCY', 8) if runtime_config else 8
 
 # ---------------------------------------------------------------------------#
 # 爬虫模块
@@ -103,6 +106,9 @@ QUEUE_TYPE = 'auto'                                     # 队列类型：memory 
 QUEUE_MAX_RETRIES = 3                                   # 队列操作最大重试次数
 QUEUE_TIMEOUT = 300                                     # 队列操作超时时间（秒）
 QUEUE_SERIALIZATION_FORMAT = 'pickle'                   # 序列化格式：pickle | json | msgpack
+
+# 分布式 Worker 配置
+DISTRIBUTED_WORKER_IDLE_TIMEOUT = 300                   # 连续空闲 N 秒后退出（0 = 永不退出）
 
 
 # #############################################################################

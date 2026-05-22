@@ -114,9 +114,8 @@ class BackpressureController:
         if result != self._active:
             self._active = result
             self._last_apply_time = 0.0
-        
-        if result:
-            self._apply_count += 1
+            if result:
+                self._apply_count += 1
         
         return result
     
@@ -137,7 +136,7 @@ class BackpressureController:
 
         # 如果有智能计算器，用它增强精度
         if self._intelligent_calc and delay > 0:
-            enhanced = self._intelligent_calc.calculate_delay(queue)
+            enhanced = await self._intelligent_calc.calculate_delay()
             if enhanced is not None:
                 delay = max(delay, enhanced)  # 取最保守值
         

@@ -323,6 +323,22 @@ class Scheduler:
             self.error_handler.handle_error(e, context=ErrorContext(context="Failed to get next request"), raise_error=False)
             return None
 
+    async def next_request_blocking(self, timeout: float = 30.0):
+        """阻塞式获取下一个请求（分布式模式专用）"""
+        if not self.queue_manager:
+            return None
+        try:
+            request = await self.queue_manager.get_blocking(timeout=timeout)
+            if request:
+                async with self._queue_not_full:
+                    self._queue_not_full.notify_all()
+            return request
+        except Exception as e:
+            self.error_handler.handle_error(
+                e, context=ErrorContext(context="阻塞获取请求失败"), raise_error=False
+            )
+            return None
+
     async def enqueue_request(self, request):
         """Add request to queue with dedup check and backpressure wait"""
         # 去重检查

@@ -259,8 +259,12 @@ class Subscriber:
 
             try:
                 if self._timeout > 0:
-                    async with asyncio.timeout(self._timeout):
-                        result = await task
+                    # 使用 wait_for 替代 asyncio.timeout()：
+                    # asyncio.timeout() 要求必须在 Task 上下文中（current_task 非空），
+                    # 但 fire-and-forget 场景下（如 create_task → notify → ensure_future），
+                    # Python 3.11+ 的 task 调度可能在 context switch 时短暂丢失 task 引用。
+                    # wait_for 无此限制，且兼容 3.7-3.14。
+                    result = await asyncio.wait_for(task, timeout=self._timeout)
                 else:
                     result = await task
 
