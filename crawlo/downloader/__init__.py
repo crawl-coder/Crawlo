@@ -52,14 +52,14 @@ class ActivateRequestManager:
 
     @asynccontextmanager
     async def __call__(self, request):
-        """Context manager usage — finally 块保证总是记录 success/failure"""
+        """Context manager usage — 显式异常处理避免 finally 与 athrow(CancelledError) 冲突"""
         self.add(request)
-        success = False
         try:
             yield request
-            success = True
-        finally:
-            self.remove(request, success)
+        except BaseException:
+            self.remove(request, False)
+            raise
+        self.remove(request, True)
 
     def __len__(self):
         """Return current active request count"""
