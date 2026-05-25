@@ -322,7 +322,7 @@ MYSQL_TABLE = None                                      # 表名（默认 {spide
 
 # 批量操作
 MYSQL_BATCH_SIZE = 200                                  # 批量插入大小
-MYSQL_USE_BATCH = True                                  # 是否启用批量插入
+MYSQL_USE_BATCH = False                                  # 是否启用批量插入
 MYSQL_BATCH_TIMEOUT = 90                                # 批量操作超时时间（秒）
 
 # 冲突处理策略（三者互斥，按优先级生效）
