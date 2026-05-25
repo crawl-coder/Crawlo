@@ -39,22 +39,25 @@ class CheckpointManager:
         self.spider_name = spider_name
         self.settings = settings
         self.logger = get_logger('CheckpointManager')
+        self._storage: Optional[BaseStorage] = None  # 延迟初始化，避免未启用时创建 .checkpoints 目录
 
-        # 读取配置
-        storage_type = safe_get_config(settings, 'CHECKPOINT_STORAGE', 'json', str)
-        checkpoint_dir = safe_get_config(settings, 'CHECKPOINT_DIR', None, str)
-        project_name = safe_get_config(settings, 'PROJECT_NAME', 'default', str)
+    @property
+    def storage(self) -> Optional[BaseStorage]:
+        """延迟获取存储后端（仅当检查点启用时才创建目录）"""
+        if self._storage is None and self.enabled:
+            storage_type = safe_get_config(self.settings, 'CHECKPOINT_STORAGE', 'json', str)
+            checkpoint_dir = safe_get_config(self.settings, 'CHECKPOINT_DIR', None, str)
+            project_name = safe_get_config(self.settings, 'PROJECT_NAME', 'default', str)
+            self._storage = self._create_storage(
+                storage_type=storage_type,
+                spider_name=self.spider_name,
+                project_name=project_name,
+                checkpoint_dir=checkpoint_dir,
+            )
+        return self._storage
 
-        # 创建存储后端
-        self.storage: BaseStorage = self._create_storage(
-            storage_type=storage_type,
-            spider_name=spider_name,
-            project_name=project_name,
-            checkpoint_dir=checkpoint_dir,
-        )
-
+    @staticmethod
     def _create_storage(
-        self,
         storage_type: str,
         spider_name: str,
         project_name: str,
@@ -68,7 +71,6 @@ class CheckpointManager:
                 checkpoint_dir=checkpoint_dir,
             )
         else:
-            # 默认使用 JSON
             return JsonStorage(
                 spider_name=spider_name,
                 project_name=project_name,
@@ -90,6 +92,8 @@ class CheckpointManager:
         Returns:
             bool: 是否保存成功
         """
+        if self.storage is None:
+            return False
         try:
             # 1. 提取待处理请求
             requests_data = await self._extract_pending_requests(scheduler)
@@ -132,6 +136,8 @@ class CheckpointManager:
         Returns:
             dict: 包含 requests, fingerprints, stats 的字典，无检查点时返回 None
         """
+        if self.storage is None:
+            return None
         try:
             data = self.storage.load()
             if data:
@@ -149,7 +155,7 @@ class CheckpointManager:
 
     async def has_checkpoint(self) -> bool:
         """是否存在有效检查点"""
-        return self.storage.exists()
+        return bool(self.storage and self.storage.exists())
 
     async def clear(self) -> bool:
         """清除检查点（爬取正常完成后调用）
@@ -157,6 +163,8 @@ class CheckpointManager:
         Returns:
             bool: 是否清除成功
         """
+        if self.storage is None:
+            return False
         try:
             success = self.storage.clear()
             if success:
