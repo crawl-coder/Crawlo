@@ -246,7 +246,10 @@ class GenericSQLPipeline(ResourceManagedPipeline):
                 return item
             except Exception as e:
                 if ErrorClassifier.is_skipable(e):
-                    self.logger.warning(f"Skip item: {ErrorClassifier.get_error_description(e)}")
+                    self.logger.debug(
+                        f"[{self.table_name}] 重复数据已跳过: "
+                        f"{ErrorClassifier.get_error_description(e)}"
+                    )
                     self.crawler.stats.inc_value(f'{self._PREFIX.lower()}/skipped')
                     return item
                 if ErrorClassifier.is_retryable(e) and attempt < self.max_retries - 1:
@@ -313,7 +316,10 @@ class GenericSQLPipeline(ResourceManagedPipeline):
             )
         except Exception as e:
             if ErrorClassifier.is_skipable(e):
-                self.logger.warning(f"[{spider_name}] Batch skipped: {ErrorClassifier.get_error_description(e)}")
+                self.logger.debug(
+                    f"[{spider_name}] 批量数据已跳过: "
+                    f"{ErrorClassifier.get_error_description(e)}"
+                )
                 return
             self._fallback_failures += 1
             self.logger.warning(

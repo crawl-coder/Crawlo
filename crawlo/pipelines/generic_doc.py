@@ -171,8 +171,9 @@ class GenericDocumentPipeline(ResourceManagedPipeline):
                 return item
             except Exception as e:
                 if ErrorClassifier.is_skipable(e):
-                    self.logger.warning(
-                        f"Skip doc: {ErrorClassifier.get_error_description(e)}"
+                    self.logger.debug(
+                        f"[{self._PREFIX.lower()}] 重复文档已跳过: "
+                        f"{ErrorClassifier.get_error_description(e)}"
                     )
                     self.crawler.stats.inc_value(f'{self._PREFIX.lower()}/skipped')
                     return item
@@ -239,8 +240,8 @@ class GenericDocumentPipeline(ResourceManagedPipeline):
             )
         except Exception as e:
             if ErrorClassifier.is_skipable(e):
-                self.logger.warning(
-                    f"[{spider_name}] Batch skipped: {ErrorClassifier.get_error_description(e)}"
+                self.logger.debug(
+                    f"[{spider_name}] 批量文档已跳过: {ErrorClassifier.get_error_description(e)}"
                 )
                 return
             self._fallback_failures += 1
