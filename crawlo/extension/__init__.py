@@ -70,3 +70,36 @@ class ExtensionManager:
             # 订阅 request_scheduled 方法
             if hasattr(extension, 'request_scheduled'):
                 self.crawler.subscriber.subscribe(extension.request_scheduled, event=CrawlerEvent.REQUEST_SCHEDULED)
+
+
+# ── 延迟导出扩展类（支持短路径：crawlo.extension.LogIntervalExtension）──
+def __getattr__(name):
+    _MAPPING = {
+        'LogIntervalExtension':      'crawlo.extension.log_interval',
+        'LogStats':                  'crawlo.extension.log_stats',
+        'CustomLoggerExtension':     'crawlo.extension.logging_extension',
+        'MemoryMonitorExtension':    'crawlo.extension.memory_monitor',
+        'MySQLMonitorExtension':     'crawlo.extension.mysql_monitor',
+        'RedisMonitorExtension':     'crawlo.extension.redis_monitor',
+        'HealthCheckExtension':      'crawlo.extension.health_check',
+        'RequestRecorderExtension':  'crawlo.extension.request_recorder',
+    }
+    if name in _MAPPING:
+        import importlib
+        mod = importlib.import_module(_MAPPING[name])
+        cls = getattr(mod, name)
+        return cls
+    raise AttributeError(f"module '{__name__}' has no attribute '{name}'")
+
+
+__all__ = [
+    'ExtensionManager',
+    'LogIntervalExtension',
+    'LogStats',
+    'CustomLoggerExtension',
+    'MemoryMonitorExtension',
+    'MySQLMonitorExtension',
+    'RedisMonitorExtension',
+    'HealthCheckExtension',
+    'RequestRecorderExtension',
+]

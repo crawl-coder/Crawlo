@@ -54,7 +54,7 @@ class MockSettings:
             'REDIS_PORT': 6379,
             'REDIS_DB': 15,
             'FILTER_CLASS': 'crawlo.filters.aioredis_filter.AioRedisFilter',
-            'CUSTOM_PIPELINES': ['crawlo.pipelines.redis_dedup_pipeline.RedisDedupPipeline'],
+            'CUSTOM_PIPELINES': ['crawlo.pipelines.dedup.redis.RedisDedupPipeline'],
             'CUSTOM_EXTENSIONS': [
                 'crawlo.extension.memory_monitor.MemoryMonitorExtension',
             ],
@@ -105,7 +105,7 @@ async def test_crawler_integration():
     
     # 添加自定义管道和扩展
     config.set('CUSTOM_PIPELINES', [
-        'crawlo.pipelines.console_pipeline.ConsolePipeline',
+        'crawlo.pipelines.console.ConsolePipeline',
     ])
     
     config.set('CUSTOM_EXTENSIONS', [

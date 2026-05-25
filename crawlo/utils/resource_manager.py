@@ -297,7 +297,7 @@ class ResourceManager:
                     f"{error_count} errors in {cleanup_duration:.2f}s"
                 )
             else:
-                self._logger.info(
+                self._logger.debug(
                     f"Cleanup completed successfully: {success_count} resources "
                     f"in {cleanup_duration:.2f}s"
                 )

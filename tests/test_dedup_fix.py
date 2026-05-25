@@ -20,10 +20,10 @@ from collections import namedtuple
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
 # 导入相关模块
-from crawlo.pipelines.redis_dedup_pipeline import RedisDedupPipeline
-from crawlo.pipelines.memory_dedup_pipeline import MemoryDedupPipeline
-from crawlo.pipelines.bloom_dedup_pipeline import BloomDedupPipeline
-from crawlo.pipelines.pipeline_manager import PipelineManager
+from crawlo.pipelines.dedup.redis import RedisDedupPipeline
+from crawlo.pipelines.dedup.memory import MemoryDedupPipeline
+from crawlo.pipelines.dedup.bloom import BloomDedupPipeline
+from crawlo.pipelines.manager import PipelineManager
 from crawlo.exceptions import ItemDiscard
 
 
@@ -131,8 +131,8 @@ class TestDedupFix(unittest.TestCase):
         pipeline_manager.methods = [mock_dedup_method, mock_mysql_method]
         
         # 测试处理数据项
-        with patch('crawlo.pipelines.pipeline_manager.common_call') as mock_common_call, \
-             patch('crawlo.pipelines.pipeline_manager.create_task') as mock_create_task:
+        with patch('crawlo.pipelines.manager.common_call') as mock_common_call, \
+             patch('crawlo.pipelines.manager.create_task') as mock_create_task:
             
             # 设置common_call的副作用来模拟异常
             async def mock_common_call_func(method, *args, **kwargs):
@@ -178,8 +178,8 @@ class TestDedupFix(unittest.TestCase):
         pipeline_manager.methods = [mock_dedup_method, mock_mysql_method]
         
         # 测试处理数据项
-        with patch('crawlo.pipelines.pipeline_manager.common_call') as mock_common_call, \
-             patch('crawlo.pipelines.pipeline_manager.create_task') as mock_create_task:
+        with patch('crawlo.pipelines.manager.common_call') as mock_common_call, \
+             patch('crawlo.pipelines.manager.create_task') as mock_create_task:
             
             # 设置common_call的副作用来模拟异常
             async def mock_common_call_func(method, *args, **kwargs):

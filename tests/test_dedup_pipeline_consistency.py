@@ -17,7 +17,7 @@ import unittest
 # 添加项目根目录到路径
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
-from crawlo.pipelines.pipeline_manager import remove_dedup_pipelines, get_dedup_pipeline_classes
+from crawlo.pipelines.manager import remove_dedup_pipelines, get_dedup_pipeline_classes
 
 
 class TestDedupPipelineConsistency(unittest.TestCase):
@@ -32,10 +32,10 @@ class TestDedupPipelineConsistency(unittest.TestCase):
         
         # 验证包含所有已知的去重管道类
         expected_classes = [
-            'crawlo.pipelines.memory_dedup_pipeline.MemoryDedupPipeline',
-            'crawlo.pipelines.redis_dedup_pipeline.RedisDedupPipeline',
-            'crawlo.pipelines.bloom_dedup_pipeline.BloomDedupPipeline',
-            'crawlo.pipelines.database_dedup_pipeline.DatabaseDedupPipeline'
+            'crawlo.pipelines.dedup.memory.MemoryDedupPipeline',
+            'crawlo.pipelines.dedup.redis.RedisDedupPipeline',
+            'crawlo.pipelines.dedup.bloom.BloomDedupPipeline',
+            'crawlo.pipelines.dedup.mysql.DatabaseDedupPipeline'
         ]
         
         for expected_class in expected_classes:
@@ -53,9 +53,9 @@ class TestDedupPipelineConsistency(unittest.TestCase):
     def test_remove_dedup_pipelines_no_dedup(self):
         """测试从不包含去重管道的列表中移除去重管道"""
         pipelines = [
-            'crawlo.pipelines.console_pipeline.ConsolePipeline',
-            'crawlo.pipelines.csv_pipeline.CSVPipeline',
-            'crawlo.pipelines.mysql_pipeline.MySQLPipeline'
+            'crawlo.pipelines.console.ConsolePipeline',
+            'crawlo.pipelines.file.csv.CSVPipeline',
+            'crawlo.pipelines.sql.mysql.MySQLPipeline'
         ]
         result = remove_dedup_pipelines(pipelines)
         self.assertEqual(result, pipelines, "不应该修改不包含去重管道的列表")
@@ -64,16 +64,16 @@ class TestDedupPipelineConsistency(unittest.TestCase):
     def test_remove_dedup_pipelines_with_dedup(self):
         """测试从包含去重管道的列表中移除去重管道"""
         pipelines = [
-            'crawlo.pipelines.memory_dedup_pipeline.MemoryDedupPipeline',
-            'crawlo.pipelines.console_pipeline.ConsolePipeline',
-            'crawlo.pipelines.redis_dedup_pipeline.RedisDedupPipeline',
-            'crawlo.pipelines.csv_pipeline.CSVPipeline',
-            'crawlo.pipelines.bloom_dedup_pipeline.BloomDedupPipeline'
+            'crawlo.pipelines.dedup.memory.MemoryDedupPipeline',
+            'crawlo.pipelines.console.ConsolePipeline',
+            'crawlo.pipelines.dedup.redis.RedisDedupPipeline',
+            'crawlo.pipelines.file.csv.CSVPipeline',
+            'crawlo.pipelines.dedup.bloom.BloomDedupPipeline'
         ]
         
         expected = [
-            'crawlo.pipelines.console_pipeline.ConsolePipeline',
-            'crawlo.pipelines.csv_pipeline.CSVPipeline'
+            'crawlo.pipelines.console.ConsolePipeline',
+            'crawlo.pipelines.file.csv.CSVPipeline'
         ]
         
         result = remove_dedup_pipelines(pipelines)
@@ -83,10 +83,10 @@ class TestDedupPipelineConsistency(unittest.TestCase):
     def test_remove_dedup_pipelines_all_dedup(self):
         """测试从只包含去重管道的列表中移除去重管道"""
         pipelines = [
-            'crawlo.pipelines.memory_dedup_pipeline.MemoryDedupPipeline',
-            'crawlo.pipelines.redis_dedup_pipeline.RedisDedupPipeline',
-            'crawlo.pipelines.bloom_dedup_pipeline.BloomDedupPipeline',
-            'crawlo.pipelines.database_dedup_pipeline.DatabaseDedupPipeline'
+            'crawlo.pipelines.dedup.memory.MemoryDedupPipeline',
+            'crawlo.pipelines.dedup.redis.RedisDedupPipeline',
+            'crawlo.pipelines.dedup.bloom.BloomDedupPipeline',
+            'crawlo.pipelines.dedup.mysql.DatabaseDedupPipeline'
         ]
         
         result = remove_dedup_pipelines(pipelines)
@@ -96,18 +96,18 @@ class TestDedupPipelineConsistency(unittest.TestCase):
     def test_remove_dedup_pipelines_mixed_order(self):
         """测试混合顺序的管道列表"""
         pipelines = [
-            'crawlo.pipelines.csv_pipeline.CSVPipeline',
-            'crawlo.pipelines.memory_dedup_pipeline.MemoryDedupPipeline',
-            'crawlo.pipelines.console_pipeline.ConsolePipeline',
-            'crawlo.pipelines.bloom_dedup_pipeline.BloomDedupPipeline',
-            'crawlo.pipelines.mysql_pipeline.MySQLPipeline',
-            'crawlo.pipelines.redis_dedup_pipeline.RedisDedupPipeline'
+            'crawlo.pipelines.file.csv.CSVPipeline',
+            'crawlo.pipelines.dedup.memory.MemoryDedupPipeline',
+            'crawlo.pipelines.console.ConsolePipeline',
+            'crawlo.pipelines.dedup.bloom.BloomDedupPipeline',
+            'crawlo.pipelines.sql.mysql.MySQLPipeline',
+            'crawlo.pipelines.dedup.redis.RedisDedupPipeline'
         ]
         
         expected = [
-            'crawlo.pipelines.csv_pipeline.CSVPipeline',
-            'crawlo.pipelines.console_pipeline.ConsolePipeline',
-            'crawlo.pipelines.mysql_pipeline.MySQLPipeline'
+            'crawlo.pipelines.file.csv.CSVPipeline',
+            'crawlo.pipelines.console.ConsolePipeline',
+            'crawlo.pipelines.sql.mysql.MySQLPipeline'
         ]
         
         result = remove_dedup_pipelines(pipelines)

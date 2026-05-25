@@ -30,12 +30,16 @@ from crawlo.exceptions import PipelineInitError, ItemDiscard, InvalidOutputError
 
 
 def get_dedup_pipeline_classes():
-    """获取所有已知的去重管道类名"""
+    """获取所有已知的去重管道类名（含子包路径和短路径）"""
     return [
-        'crawlo.pipelines.memory_dedup_pipeline.MemoryDedupPipeline',
-        'crawlo.pipelines.redis_dedup_pipeline.RedisDedupPipeline',
-        'crawlo.pipelines.bloom_dedup_pipeline.BloomDedupPipeline',
-        'crawlo.pipelines.database_dedup_pipeline.DatabaseDedupPipeline'
+        'crawlo.pipelines.dedup.memory.MemoryDedupPipeline',
+        'crawlo.pipelines.MemoryDedupPipeline',
+        'crawlo.pipelines.dedup.redis.RedisDedupPipeline',
+        'crawlo.pipelines.RedisDedupPipeline',
+        'crawlo.pipelines.dedup.bloom.BloomDedupPipeline',
+        'crawlo.pipelines.BloomDedupPipeline',
+        'crawlo.pipelines.dedup.mysql.DatabaseDedupPipeline',
+        'crawlo.pipelines.dedup.mysql.MySQLDedupPipeline',
     ]
 
 
@@ -201,14 +205,23 @@ class PipelineManager:
             create_task(self.crawler.subscriber.notify(CrawlerEvent.ITEM_SUCCESSFUL, item, self.crawler.spider))
 
     async def close(self):
-        """关闭所有 pipeline，清理资源"""
+        """关闭所有 pipeline，清理资源（防重复清理）"""
         for pipeline in self.pipelines:
             try:
-                # 调用 pipeline 的清理方法
+                # 防重复清理（_on_spider_closed 可能已触发过）
+                if getattr(pipeline, '_cleaned_up', False):
+                    continue
+
+                # 1. 调用 pipeline 的自定义清理逻辑
                 if hasattr(pipeline, '_cleanup_resources'):
                     await pipeline._cleanup_resources()
-                # 兼容旧版 close_spider 方法
                 elif hasattr(pipeline, 'close_spider'):
                     await pipeline.close_spider(self.crawler.spider)
+
+                # 2. 触发 ResourceManager 清理注册的资源
+                if hasattr(pipeline, '_resource_manager'):
+                    await pipeline._resource_manager.cleanup_all()
+
+                pipeline._cleaned_up = True
             except Exception as e:
                 self.logger.error(f"Error closing pipeline {pipeline.__class__.__name__}: {e}")

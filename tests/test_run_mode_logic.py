@@ -176,7 +176,7 @@ class TestQueueRelatedSettingsUpdate:
         _update_queue_related_settings(mode_settings, 'redis', settings)
         
         assert mode_settings['FILTER_CLASS'] == 'crawlo.filters.aioredis_filter.AioRedisFilter'
-        assert mode_settings['DEFAULT_DEDUP_PIPELINE'] == 'crawlo.pipelines.redis_dedup_pipeline.RedisDedupPipeline'
+        assert mode_settings['DEFAULT_DEDUP_PIPELINE'] == 'crawlo.pipelines.dedup.redis.RedisDedupPipeline'
 
     def test_auto_queue_preserves_user_settings(self):
         """Test auto queue preserves user's settings"""

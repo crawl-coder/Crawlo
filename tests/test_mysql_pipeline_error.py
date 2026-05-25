@@ -8,7 +8,7 @@ import asyncio
 import unittest
 from unittest.mock import Mock, patch, AsyncMock
 
-from crawlo.pipelines.mysql_pipeline import MySQLPipeline
+from crawlo.pipelines.sql.mysql import MySQLPipeline
 from crawlo.exceptions import ItemDiscard
 
 

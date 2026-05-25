@@ -93,20 +93,20 @@ class MiddlewarePriorityGroup:
 # 与 default_settings.py 中的配置保持一致
 
 BUILTIN_MIDDLEWARE_PRIORITIES = {
-    # Request processing phase (smaller values execute first)
-    'crawlo.middleware.request_ignore.RequestIgnoreMiddleware': 100,
-    'crawlo.middleware.download_delay.DownloadDelayMiddleware': 200,
-    'crawlo.middleware.default_header.DefaultHeaderMiddleware': 300,
-    'crawlo.middleware.offsite.OffsiteMiddleware': 400,
-    'crawlo.middleware.dynamic_render_middleware.DynamicRenderMiddleware': 350,
-    'crawlo.middleware.cloudflare_bypass.CloudflareBypassMiddleware': 355,
-    'crawlo.middleware.proxy.ProxyMiddleware': 250,
-    
-    # Response processing phase (larger values execute first)
-    'crawlo.middleware.response_filter.ResponseFilterMiddleware': 700,
-    'crawlo.middleware.response_code.ResponseCodeMiddleware': 650,
-    'crawlo.middleware.retry.RetryMiddleware': 600,
-    'crawlo.middleware.file_middleware.FileMiddleware': 550,
+    # ===== 请求预处理阶段（数值越小越先执行）=====
+    'crawlo.middleware.RequestIgnoreMiddleware':         100,
+    'crawlo.middleware.DownloadDelayMiddleware':         200,
+    'crawlo.middleware.ProxyMiddleware':                 250,
+    'crawlo.middleware.DefaultHeaderMiddleware':         300,
+    'crawlo.middleware.DynamicRenderMiddleware':         350,
+    'crawlo.middleware.CloudflareBypassMiddleware':      355,
+    'crawlo.middleware.OffsiteMiddleware':               400,
+
+    # ===== 响应处理阶段（数值越大越先执行）=====
+    'crawlo.middleware.FileMiddleware':                  550,
+    'crawlo.middleware.RetryMiddleware':                 600,
+    'crawlo.middleware.ResponseCodeMiddleware':          650,
+    'crawlo.middleware.ResponseFilterMiddleware':        700,
 }
 
 

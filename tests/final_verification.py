@@ -11,7 +11,7 @@ import os
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from crawlo.settings.setting_manager import SettingManager
-from crawlo.pipelines.mysql_pipeline import MySQLPipeline
+from crawlo.pipelines.sql.mysql import MySQLPipeline
 from crawlo.items import Item, Field
 from crawlo.utils.mysql_connection_pool import MySQLConnectionPoolManager
 from crawlo.utils.db.sql_builder import SQLBuilder
@@ -250,7 +250,7 @@ async def verify_2014_error_handling():
     # 这个测试主要是验证代码中是否包含了正确的错误处理逻辑
     # 实际的 2014 错误需要在真实环境中触发
     
-    from crawlo.pipelines.mysql_pipeline import MySQLPipeline
+    from crawlo.pipelines.sql.mysql import MySQLPipeline
     
     settings = {
         'MYSQL_HOST': 'localhost',
@@ -318,7 +318,7 @@ async def verify_event_loop_closed_fix():
     print("=" * 60)
     print("验证事件循环关闭修复...")
     
-    from crawlo.pipelines.mysql_pipeline import BaseMySQLPipeline
+    from crawlo.pipelines.sql.mysql import BaseMySQLPipeline
     import inspect
     
     # 检查 _close_conn_properly 方法

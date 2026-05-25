@@ -225,41 +225,28 @@ class DownloaderBase(ABC):
 
 # ============================================================
 # 延迟导入具体的下载器实现（仅在库可用时加载）
+# 导入后修正 __module__，使日志/序列化显示短路径
 # ============================================================
-try:
-    from .aiohttp_downloader import AioHttpDownloader
-except ImportError:
-    AioHttpDownloader = None
 
-try:
-    from .cffi_downloader import CurlCffiDownloader
-except ImportError:
-    CurlCffiDownloader = None
+def _import_downloader(mod_name, cls_name):
+    """导入下载器并设置 __module__ 为短路径"""
+    try:
+        import importlib
+        mod = importlib.import_module(f'crawlo.downloader.{mod_name}')
+        cls = getattr(mod, cls_name)
+        cls.__module__ = 'crawlo.downloader'
+        return cls
+    except ImportError:
+        return None
 
-try:
-    from .httpx_downloader import HttpXDownloader
-except ImportError:
-    HttpXDownloader = None
-
-try:
-    from .drissionpage_downloader import DrissionPageDownloader
-except ImportError:
-    DrissionPageDownloader = None
-
-try:
-    from .playwright_downloader import PlaywrightDownloader
-except ImportError:
-    PlaywrightDownloader = None
-
-try:
-    from .hybrid_downloader import HybridDownloader
-except ImportError:
-    HybridDownloader = None
-
-try:
-    from .cloakbrowser_downloader import CloakBrowserDownloader
-except ImportError:
-    CloakBrowserDownloader = None
+AioHttpDownloader = _import_downloader('aiohttp_downloader', 'AioHttpDownloader')
+CurlCffiDownloader = _import_downloader('cffi_downloader', 'CurlCffiDownloader')
+HttpXDownloader = _import_downloader('httpx_downloader', 'HttpXDownloader')
+DrissionPageDownloader = _import_downloader('drissionpage_downloader', 'DrissionPageDownloader')
+PlaywrightDownloader = _import_downloader('playwright_downloader', 'PlaywrightDownloader')
+HybridDownloader = _import_downloader('hybrid_downloader', 'HybridDownloader')
+CloakBrowserDownloader = _import_downloader('cloakbrowser_downloader', 'CloakBrowserDownloader')
+CamoufoxDownloader = _import_downloader('camoufox_downloader', 'CamoufoxDownloader')
 
 
 __all__ = [
@@ -268,20 +255,19 @@ __all__ = [
 ]
 
 # 添加可用的下载器到 __all__
-if AioHttpDownloader:
-    __all__.append('AioHttpDownloader')
-if CurlCffiDownloader:
-    __all__.append('CurlCffiDownloader')
-if HttpXDownloader:
-    __all__.append('HttpXDownloader')
-if DrissionPageDownloader:
-    __all__.append('DrissionPageDownloader')
-if PlaywrightDownloader:
-    __all__.append('PlaywrightDownloader')
-if HybridDownloader:
-    __all__.append('HybridDownloader')
-if CloakBrowserDownloader:
-    __all__.append('CloakBrowserDownloader')
+_ALL_DOWNLOADERS = [
+    ('AioHttpDownloader', AioHttpDownloader),
+    ('CurlCffiDownloader', CurlCffiDownloader),
+    ('HttpXDownloader', HttpXDownloader),
+    ('DrissionPageDownloader', DrissionPageDownloader),
+    ('PlaywrightDownloader', PlaywrightDownloader),
+    ('HybridDownloader', HybridDownloader),
+    ('CloakBrowserDownloader', CloakBrowserDownloader),
+    ('CamoufoxDownloader', CamoufoxDownloader),
+]
+for name, cls in _ALL_DOWNLOADERS:
+    if cls:
+        __all__.append(name)
 
 # 下载器映射（仅包含可用的）
 DOWNLOADER_MAP = {
@@ -293,6 +279,7 @@ DOWNLOADER_MAP = {
     'playwright': PlaywrightDownloader,
     'hybrid': HybridDownloader,
     'cloakbrowser': CloakBrowserDownloader,
+    'camoufox': CamoufoxDownloader,
 }
 DOWNLOADER_MAP = {k: v for k, v in DOWNLOADER_MAP.items() if v is not None}
 

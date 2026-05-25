@@ -15,10 +15,10 @@ import unittest
 from unittest.mock import Mock
 
 from crawlo import Item
-from crawlo.pipelines.memory_dedup_pipeline import MemoryDedupPipeline
-from crawlo.pipelines.redis_dedup_pipeline import RedisDedupPipeline
-from crawlo.pipelines.bloom_dedup_pipeline import BloomDedupPipeline
-from crawlo.pipelines.database_dedup_pipeline import DatabaseDedupPipeline
+from crawlo.pipelines.dedup.memory import MemoryDedupPipeline
+from crawlo.pipelines.dedup.redis import RedisDedupPipeline
+from crawlo.pipelines.dedup.bloom import BloomDedupPipeline
+from crawlo.pipelines.dedup.mysql import DatabaseDedupPipeline
 from crawlo.helpers.distributed_coordinator import DeduplicationTool
 from crawlo.utils.fingerprint import FingerprintGenerator
 

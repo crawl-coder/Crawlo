@@ -8,7 +8,7 @@ import asyncio
 import unittest
 from unittest.mock import Mock, patch
 
-from crawlo.pipelines.mysql_pipeline import BaseMySQLPipeline, MySQLPipeline
+from crawlo.pipelines.sql.mysql import BaseMySQLPipeline, MySQLPipeline
 
 
 class TestMySQLPipelineConfig(unittest.TestCase):
@@ -88,7 +88,7 @@ class TestMySQLPipelineConfig(unittest.TestCase):
         item_dict = {"id": 1, "name": "test"}
         
         async def test_async():
-            with patch('crawlo.pipelines.mysql_pipeline.SQLBuilder.make_insert') as mock_make_insert:
+            with patch('crawlo.pipelines.sql.mysql.SQLBuilder.make_insert') as mock_make_insert:
                 mock_make_insert.return_value = "TEST SQL"
                 
                 # 调用_make_insert_sql方法
@@ -121,7 +121,7 @@ class TestMySQLPipelineConfig(unittest.TestCase):
         item_dict = {"id": 1, "name": "test"}
         
         async def test_async():
-            with patch('crawlo.pipelines.mysql_pipeline.SQLBuilder.make_insert') as mock_make_insert:
+            with patch('crawlo.pipelines.sql.mysql.SQLBuilder.make_insert') as mock_make_insert:
                 mock_make_insert.return_value = "TEST SQL"
                 
                 # 调用_make_insert_sql方法并传递kwargs

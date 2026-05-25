@@ -8,7 +8,7 @@ import unittest
 from unittest.mock import Mock, patch
 from abc import ABC, abstractmethod
 
-from crawlo.pipelines.mysql_pipeline import BaseMySQLPipeline, MySQLPipeline
+from crawlo.pipelines.sql.mysql import BaseMySQLPipeline, MySQLPipeline
 
 
 class TestMySQLPipelineRefactor(unittest.TestCase):

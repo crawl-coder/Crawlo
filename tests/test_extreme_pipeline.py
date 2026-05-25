@@ -15,7 +15,7 @@ class TestCSVPipelineExtreme:
     @pytest.mark.asyncio
     async def test_csv_huge_data(self):
         """测试超大 CSV 数据（10MB）"""
-        from crawlo.pipelines.csv_pipeline import CSVPipeline
+        from crawlo.pipelines.file.csv import CSVPipeline
         
         item = Item()
         item['url'] = 'http://example.com'
@@ -39,7 +39,7 @@ class TestCSVPipelineExtreme:
     @pytest.mark.asyncio
     async def test_csv_special_characters(self):
         """测试 CSV 特殊字符"""
-        from crawlo.pipelines.csv_pipeline import CSVPipeline
+        from crawlo.pipelines.file.csv import CSVPipeline
         
         item = Item()
         item['url'] = 'http://example.com'
@@ -61,7 +61,7 @@ class TestCSVPipelineExtreme:
     @pytest.mark.asyncio
     async def test_csv_many_fields(self):
         """测试超多字段（1000 个）"""
-        from crawlo.pipelines.csv_pipeline import CSVPipeline
+        from crawlo.pipelines.file.csv import CSVPipeline
         
         item = Item()
         for i in range(1000):
@@ -85,7 +85,7 @@ class TestJSONPipelineExtreme:
     @pytest.mark.asyncio
     async def test_json_nested_structure(self):
         """测试嵌套 JSON 结构"""
-        from crawlo.pipelines.json_pipeline import JSONPipeline
+        from crawlo.pipelines.file.json import JsonLinesPipeline
         
         item = Item()
         item['url'] = 'http://example.com'
@@ -103,7 +103,7 @@ class TestJSONPipelineExtreme:
         settings = Mock()
         settings.get.return_value = 'test_nested.json'
         
-        pipeline = JSONPipeline(settings)
+        pipeline = JsonLinesPipeline(settings)
         await pipeline.open()
         
         # 应该能处理嵌套结构
@@ -114,12 +114,12 @@ class TestJSONPipelineExtreme:
     @pytest.mark.asyncio
     async def test_json_many_items(self):
         """测试大量 Item（10000 个）"""
-        from crawlo.pipelines.json_pipeline import JSONPipeline
+        from crawlo.pipelines.file.json import JsonLinesPipeline
         
         settings = Mock()
         settings.get.return_value = 'test_many.json'
         
-        pipeline = JSONPipeline(settings)
+        pipeline = JsonLinesPipeline(settings)
         await pipeline.open()
         
         # 写入 10000 个 item
@@ -138,7 +138,7 @@ class TestMongoPipelineExtreme:
     @pytest.mark.asyncio
     async def test_mongo_connection_failure(self):
         """测试 MongoDB 连接失败"""
-        from crawlo.pipelines.mongo_pipeline import MongoPipeline
+        from crawlo.pipelines.doc.mongo import MongoPipeline
         
         settings = Mock()
         settings.get.return_value = 'mongodb://invalid-host:27017'
@@ -156,13 +156,13 @@ class TestMongoPipelineExtreme:
     @pytest.mark.asyncio
     async def test_mongo_bulk_insert(self):
         """测试 MongoDB 批量插入（Mock）"""
-        from crawlo.pipelines.mongo_pipeline import MongoPipeline
+        from crawlo.pipelines.doc.mongo import MongoPipeline
         
         settings = Mock()
         settings.get.return_value = 'mongodb://localhost:27017'
         settings.getlist.return_value = ['test_db', 'test_collection']
         
-        with patch('crawlo.pipelines.mongo_pipeline.AsyncIOMotorClient') as mock_client:
+        with patch('crawlo.pipelines.doc.mongo.AsyncIOMotorClient') as mock_client:
             mock_db = Mock()
             mock_collection = Mock()
             mock_collection.insert_many = AsyncMock()
@@ -187,7 +187,7 @@ class TestPipelineManagerExtreme:
     @pytest.mark.asyncio
     async def test_manager_empty_pipelines(self):
         """测试空 Pipeline 列表"""
-        from crawlo.pipelines.pipeline_manager import PipelineManager
+        from crawlo.pipelines.manager import PipelineManager
         
         settings = Mock()
         settings.get.return_value = {}
@@ -207,7 +207,7 @@ class TestPipelineManagerExtreme:
     @pytest.mark.asyncio
     async def test_manager_pipeline_exception(self):
         """测试 Pipeline 异常不影响其他 Pipeline"""
-        from crawlo.pipelines.pipeline_manager import PipelineManager
+        from crawlo.pipelines.manager import PipelineManager
         
         class BrokenPipeline:
             async def open(self):

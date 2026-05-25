@@ -32,7 +32,7 @@ def test_redis_config_consistency():
         'PROJECT_NAME': 'test_redis_consistency',
         'QUEUE_TYPE': 'redis',
         'FILTER_CLASS': 'crawlo.filters.memory_filter.MemoryFilter',
-        'DEFAULT_DEDUP_PIPELINE': 'crawlo.pipelines.memory_dedup_pipeline.MemoryDedupPipeline',
+        'DEFAULT_DEDUP_PIPELINE': 'crawlo.pipelines.dedup.memory.MemoryDedupPipeline',
         'REDIS_URL': 'redis://127.0.0.1:6379/2',
         'CONCURRENCY': 1,
         'DOWNLOAD_DELAY': 0.1,
@@ -63,7 +63,7 @@ async def test_scheduler_redis_config_update():
     settings.set('PROJECT_NAME', 'test_scheduler_redis_update')
     settings.set('QUEUE_TYPE', 'redis')
     settings.set('FILTER_CLASS', 'crawlo.filters.memory_filter.MemoryFilter')
-    settings.set('DEFAULT_DEDUP_PIPELINE', 'crawlo.pipelines.memory_dedup_pipeline.MemoryDedupPipeline')
+    settings.set('DEFAULT_DEDUP_PIPELINE', 'crawlo.pipelines.dedup.memory.MemoryDedupPipeline')
     settings.set('REDIS_URL', 'redis://127.0.0.1:6379/2')
     settings.set('CONCURRENCY', 1)
     settings.set('DOWNLOAD_DELAY', 0.1)

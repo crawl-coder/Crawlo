@@ -191,11 +191,11 @@ class DistributedDedupTest:
         # 队列和过滤器配置
         settings.set('QUEUE_TYPE', 'redis')
         settings.set('FILTER_CLASS', 'crawlo.filters.aioredis_filter.AioRedisFilter')
-        settings.set('DEFAULT_DEDUP_PIPELINE', 'crawlo.pipelines.redis_dedup_pipeline.RedisDedupPipeline')
+        settings.set('DEFAULT_DEDUP_PIPELINE', 'crawlo.pipelines.dedup.redis.RedisDedupPipeline')
         
         # 管道配置
         settings.set('PIPELINES', [
-            'crawlo.pipelines.redis_dedup_pipeline.RedisDedupPipeline',
+            'crawlo.pipelines.dedup.redis.RedisDedupPipeline',
         ])
         
         # 并发配置

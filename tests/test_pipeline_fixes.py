@@ -14,9 +14,9 @@ from unittest.mock import Mock, AsyncMock, MagicMock
 from datetime import datetime
 
 # 导入被测试的模块
-from crawlo.pipelines.csv_pipeline import CsvPipeline, CsvDictPipeline, CsvBatchPipeline
-from crawlo.pipelines.json_pipeline import JsonPipeline, JsonLinesPipeline, JsonArrayPipeline
-from crawlo.pipelines.pipeline_manager import normalize_pipelines_config, _validate_pipeline_priorities
+from crawlo.pipelines.file.csv import CsvPipeline, CsvDictPipeline
+from crawlo.pipelines.file.json import JsonLinesPipeline, JsonArrayPipeline
+from crawlo.pipelines.manager import normalize_pipelines_config, _validate_pipeline_priorities
 from crawlo.pipelines.base_pipeline import DedupPipeline
 from crawlo.logging import get_logger
 
@@ -37,39 +37,43 @@ class MockCrawler:
         self.stats.set_value = Mock()
 
 
-class TestCsvBatchPipelineHeaderFix:
-    """测试 P1#1: CsvBatchPipeline 表头写入逻辑修复"""
+class TestCsvBatchHeaderFix:
+    """测试 P1#1: CsvPipeline 批量模式表头写入逻辑修复（原 CsvBatchPipeline 已合并）"""
     
     @pytest.mark.asyncio
     async def test_header_written_immediately(self, tmp_path):
         """验证表头立即写入文件，而不是添加到缓冲区"""
         crawler = MockCrawler()
         crawler.settings.get = Mock(side_effect=lambda key, default=None: {
-            'CSV_BATCH_FILE': str(tmp_path / 'test.csv'),
+            'CSV_FILE': str(tmp_path / 'test.csv'),
             'CSV_DELIMITER': ',',
             'CSV_QUOTECHAR': '"',
         }.get(key, default))
         crawler.settings.get_int = Mock(side_effect=lambda key, default=100: {
             'CSV_BATCH_SIZE': 100,
         }.get(key, default))
+        # 启用批量模式以模拟原 CsvBatchPipeline 行为
+        crawler.settings.get_bool = Mock(side_effect=lambda key, default=False: {
+            'CSV_USE_BUFFER': True,
+            'CSV_INCLUDE_HEADERS': True,
+        }.get(key, default))
         
-        pipeline = CsvBatchPipeline(crawler)
+        pipeline = CsvPipeline(crawler)
         
-        # 使用真实 dict 子类作为 mock item
         class MockItem(dict):
             pass
         
         item = MockItem(name='test', value='123')
         
-        # 处理第一个 item（应该立即写入表头）
+        # 处理第一个 item（应触发初始化）
         await pipeline.process_item(item, crawler.spider)
         
-        # 验证表头已写入（headers_written = True）
+        # 验证表头已写入
         assert pipeline.headers_written is True
         
-        # 验证缓冲区只有数据行，没有表头
+        # 验证缓冲区有数据行
         assert len(pipeline.batch_buffer) == 1
-        assert pipeline.batch_buffer[0] == ['test', '123']  # 只有数据，没有表头
+        assert pipeline.batch_buffer[0] == ['test', '123']
 
 
 class TestJsonArrayPipelineMemoryLimit:
@@ -151,7 +155,7 @@ class TestMongoPipelineFailedBatchSave:
         """验证失败数据保存到文件"""
         # 这个测试需要实际的 MongoPipeline 实例
         # 这里简化为测试 _save_failed_batch 方法
-        from crawlo.pipelines.mongo_pipeline import MongoPipeline
+        from crawlo.pipelines.doc.mongo import MongoPipeline
         
         crawler = MockCrawler()
         crawler.settings.get = Mock(return_value='mongodb://localhost:27017')
@@ -168,8 +172,8 @@ class TestFilePipelineAiofilesSupport:
     
     def test_aiofiles_import(self):
         """验证 aiofiles 导入逻辑"""
-        from crawlo.pipelines.csv_pipeline import AIOFILES_AVAILABLE
-        from crawlo.pipelines.json_pipeline import AIOFILES_AVAILABLE as JSON_AIOFILES_AVAILABLE
+        from crawlo.pipelines.file.csv import AIOFILES_AVAILABLE
+        from crawlo.pipelines.file.json import AIOFILES_AVAILABLE as JSON_AIOFILES_AVAILABLE
         
         # 验证导入了常量（无论是否可用）
         assert isinstance(AIOFILES_AVAILABLE, bool)
@@ -178,7 +182,7 @@ class TestFilePipelineAiofilesSupport:
     @pytest.mark.asyncio
     async def test_csv_pipeline_uses_aiofiles_if_available(self, tmp_path):
         """验证 CSV Pipeline 使用 aiofiles（如果可用）"""
-        from crawlo.pipelines.csv_pipeline import AIOFILES_AVAILABLE
+        from crawlo.pipelines.file.csv import AIOFILES_AVAILABLE
         
         if not AIOFILES_AVAILABLE:
             pytest.skip("aiofiles not installed")
@@ -204,7 +208,7 @@ class TestMongoPipelineSettingsMethod:
     def test_uses_get_int_not_getint(self):
         """验证使用 get_int() 而不是 getint()"""
         import inspect
-        from crawlo.pipelines.mongo_pipeline import MongoPipeline
+        from crawlo.pipelines.doc.mongo import MongoPipeline
         
         # 获取源码
         source = inspect.getsource(MongoPipeline.__init__)

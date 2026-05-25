@@ -17,7 +17,7 @@ playwright install  # 如果需要 Chromium 兼容模式
 
 使用示例:
 # settings.py
-DOWNLOADER = "crawlo.downloader.camoufox_downloader.CamoufoxDownloader"
+DOWNLOADER = "crawlo.downloader.CamoufoxDownloader"
 CAMOUFOX_HEADLESS = True
 CAMOUFOX_HUMANIZE = True
 CAMOUFOX_SOLVE_CLOUDFLARE = True

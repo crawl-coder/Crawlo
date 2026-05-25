@@ -265,12 +265,12 @@ def _update_queue_related_settings(mode_settings: dict, queue_type: str, setting
     """
     queue_config_map = {
         'redis': {
-            'FILTER_CLASS': 'crawlo.filters.aioredis_filter.AioRedisFilter',
-            'DEFAULT_DEDUP_PIPELINE': 'crawlo.pipelines.redis_dedup_pipeline.RedisDedupPipeline'
+            'FILTER_CLASS': 'crawlo.filters.AioRedisFilter',
+            'DEFAULT_DEDUP_PIPELINE': 'crawlo.pipelines.RedisDedupPipeline'
         },
         'auto': {
-            'FILTER_CLASS': settings.get('FILTER_CLASS', 'crawlo.filters.memory_filter.MemoryFilter'),
-            'DEFAULT_DEDUP_PIPELINE': settings.get('DEFAULT_DEDUP_PIPELINE', 'crawlo.pipelines.memory_dedup_pipeline.MemoryDedupPipeline')
+            'FILTER_CLASS': settings.get('FILTER_CLASS', 'crawlo.filters.MemoryFilter'),
+            'DEFAULT_DEDUP_PIPELINE': settings.get('DEFAULT_DEDUP_PIPELINE', 'crawlo.pipelines.MemoryDedupPipeline')
         }
     }
     

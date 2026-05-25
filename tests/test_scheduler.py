@@ -41,14 +41,14 @@ class MockSettings:
             'FILTER_DEBUG': False,
             'PROJECT_NAME': 'test',
             'QUEUE_TYPE': 'memory',
-            'DEFAULT_DEDUP_PIPELINE': 'crawlo.pipelines.memory_dedup_pipeline.MemoryDedupPipeline',
+            'DEFAULT_DEDUP_PIPELINE': 'crawlo.pipelines.dedup.memory.MemoryDedupPipeline',
         }
         if self.use_redis:
             config.update({
                 'REDIS_URL': 'redis://localhost:6379/0',
                 'QUEUE_TYPE': 'redis',
                 'FILTER_CLASS': 'crawlo.filters.aioredis_filter.AioRedisFilter',
-                'DEFAULT_DEDUP_PIPELINE': 'crawlo.pipelines.redis_dedup_pipeline.RedisDedupPipeline',
+                'DEFAULT_DEDUP_PIPELINE': 'crawlo.pipelines.dedup.redis.RedisDedupPipeline',
             })
         
         return config.get(key, default)

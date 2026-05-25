@@ -38,7 +38,7 @@ def test_all_pipeline_fingerprints():
     
     # 测试内存去重管道指纹生成方法
     try:
-        from crawlo.pipelines.memory_dedup_pipeline import MemoryDedupPipeline
+        from crawlo.pipelines.dedup.memory import MemoryDedupPipeline
         memory_pipeline = MemoryDedupPipeline()
         memory_fingerprint = memory_pipeline._generate_item_fingerprint(test_item)
         print(f"Memory pipeline fingerprint: {memory_fingerprint}")
@@ -49,7 +49,7 @@ def test_all_pipeline_fingerprints():
     
     # 测试Redis去重管道指纹生成方法
     try:
-        from crawlo.pipelines.redis_dedup_pipeline import RedisDedupPipeline
+        from crawlo.pipelines.dedup.redis import RedisDedupPipeline
         redis_pipeline = RedisDedupPipeline()
         redis_fingerprint = redis_pipeline._generate_item_fingerprint(test_item)
         print(f"Redis pipeline fingerprint: {redis_fingerprint}")
@@ -60,7 +60,7 @@ def test_all_pipeline_fingerprints():
     
     # 测试Bloom去重管道指纹生成方法
     try:
-        from crawlo.pipelines.bloom_dedup_pipeline import BloomDedupPipeline
+        from crawlo.pipelines.dedup.bloom import BloomDedupPipeline
         bloom_pipeline = BloomDedupPipeline()
         bloom_fingerprint = bloom_pipeline._generate_item_fingerprint(test_item)
         print(f"Bloom pipeline fingerprint: {bloom_fingerprint}")
@@ -71,7 +71,7 @@ def test_all_pipeline_fingerprints():
     
     # 测试数据库去重管道指纹生成方法
     try:
-        from crawlo.pipelines.database_dedup_pipeline import DatabaseDedupPipeline
+        from crawlo.pipelines.dedup.mysql import DatabaseDedupPipeline
         database_pipeline = DatabaseDedupPipeline()
         database_fingerprint = database_pipeline._generate_item_fingerprint(test_item)
         print(f"Database pipeline fingerprint: {database_fingerprint}")

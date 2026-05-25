@@ -97,7 +97,7 @@ class Processor:
     
     async def open(self) -> None:
         """Initialize processor"""
-        from crawlo.pipelines.pipeline_manager import PipelineManager
+        from crawlo.pipelines.manager import PipelineManager
         self.pipelines = await PipelineManager.from_crawler(self.crawler)
         
         # Call open_spider method of all pipelines (if exists)

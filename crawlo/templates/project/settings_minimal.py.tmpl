@@ -23,10 +23,10 @@ DOWNLOAD_DELAY = 1.0
 # 2. 核心组件
 # #############################################################################
 
-DOWNLOADER = 'crawlo.downloader.aiohttp_downloader.AioHttpDownloader'
+DOWNLOADER = 'crawlo.downloader.AioHttpDownloader'
 QUEUE_TYPE = 'memory'
-FILTER_CLASS = 'crawlo.filters.memory_filter.MemoryFilter'
-DEFAULT_DEDUP_PIPELINE = 'crawlo.pipelines.memory_dedup_pipeline.MemoryDedupPipeline'
+FILTER_CLASS = 'crawlo.filters.MemoryFilter'
+DEFAULT_DEDUP_PIPELINE = 'crawlo.pipelines.MemoryDedupPipeline'
 
 
 # #############################################################################

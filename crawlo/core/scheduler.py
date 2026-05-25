@@ -21,10 +21,10 @@ from crawlo.queue.queue_types import QueueType
 
 # ---- 配置常量（统一管理，消除重复） ----
 _DEFAULT_QUEUE_TYPE = 'memory'
-_DEFAULT_FILTER_CLASS = 'crawlo.filters.memory_filter.MemoryFilter'
-_DEFAULT_REDIS_FILTER_CLASS = 'crawlo.filters.aioredis_filter.AioRedisFilter'
-_DEFAULT_DEDUP_MEMORY = 'crawlo.pipelines.memory_dedup_pipeline.MemoryDedupPipeline'
-_DEFAULT_DEDUP_REDIS = 'crawlo.pipelines.redis_dedup_pipeline.RedisDedupPipeline'
+_DEFAULT_FILTER_CLASS = 'crawlo.filters.MemoryFilter'
+_DEFAULT_REDIS_FILTER_CLASS = 'crawlo.filters.AioRedisFilter'
+_DEFAULT_DEDUP_MEMORY = 'crawlo.pipelines.MemoryDedupPipeline'
+_DEFAULT_DEDUP_REDIS = 'crawlo.pipelines.RedisDedupPipeline'
 _DEFAULT_CONCURRENCY = 8
 _DEFAULT_DELAY = 1.0
 _DEFAULT_DEPTH_PRIORITY = 0

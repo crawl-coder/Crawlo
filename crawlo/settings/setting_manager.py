@@ -144,8 +144,8 @@ class SettingManager(MutableMapping):
     
     # 去重管道列表
     _DEDUP_PIPELINES = frozenset([
-        'crawlo.pipelines.memory_dedup_pipeline.MemoryDedupPipeline',
-        'crawlo.pipelines.redis_dedup_pipeline.RedisDedupPipeline',
+        'crawlo.pipelines.MemoryDedupPipeline',
+        'crawlo.pipelines.RedisDedupPipeline',
     ])
     
     def __init__(self, values: Optional[Dict[str, Any]] = None):

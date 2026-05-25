@@ -4,86 +4,75 @@
 Pipeline 模块
 =============
 
-Pipeline体系：
-- BasePipeline: 基础抽象类，定义Pipeline接口规范
-- ResourceManagedPipeline: 提供资源管理功能（推荐使用）
-- FileBasedPipeline/DatabasePipeline/CacheBasedPipeline: 特定场景的专用基类
-
-内置去重Pipeline：
-- MemoryDedupPipeline: 基于内存的去重
-- RedisDedupPipeline: 基于Redis的分布式去重
-- BloomDedupPipeline: 基于Bloom Filter的高效去重
-- DatabaseDedupPipeline: 基于数据库的去重
-
-数据存储Pipeline（支持短路径）：
-- MySQLPipeline: MySQL数据库存储（短路径：crawlo.pipelines.MySQLPipeline）
-- MongoPipeline: MongoDB数据库存储
-- CsvPipeline: CSV文件存储
-- JsonPipeline: JSON文件存储
-- ConsolePipeline: 控制台输出
+目录结构：
+    base_pipeline.py        — 基类 (ResourceManagedPipeline / FileBasedPipeline / DedupPipeline)
+    generic_sql.py          — SQL 通用基类
+    generic_doc.py          — 文档型通用基类
+    manager.py              — PipelineManager
+    dedup/                  — 去重管道
+    sql/                    — SQL 存储管道
+    doc/                    — 文档型存储管道
+    file/                   — 文件型输出管道
+    hbase.py                — HBase 管道
+    console.py              — 控制台输出
 
 使用示例：
-    # 在settings.py中配置（推荐：字典格式，数字越小越先执行）
-    
-    # 方式1：短路径（v1.6.0+，推荐）
     PIPELINES = {
-        'crawlo.pipelines.RedisDedupPipeline': 100,  # 去重
-        'crawlo.pipelines.MySQLPipeline': 300,       # MySQL存储
-        'crawlo.pipelines.MongoPipeline': 400,       # MongoDB存储
+        'crawlo.pipelines.RedisDedupPipeline': 100,
+        'crawlo.pipelines.MySQLPipeline': 300,
     }
-    
-    # 方式2：完整路径（兼容所有版本）
-    PIPELINES = {
-        'crawlo.pipelines.redis_dedup_pipeline.RedisDedupPipeline': 100,
-        'crawlo.pipelines.mysql_pipeline.MySQLPipeline': 300,
-        'crawlo.pipelines.mongo_pipeline.MongoPipeline': 400,
-    }
-    
-    # 兼容：列表格式（按顺序执行，默认优先级500）
-    PIPELINES = [
-        'crawlo.pipelines.RedisDedupPipeline',
-        'crawlo.pipelines.MySQLPipeline',
-    ]
 """
 
-# 导入所有基类（从base_pipeline.py）
+# ── 基类 ──
 from .base_pipeline import (
     BasePipeline,
     ResourceManagedPipeline,
     FileBasedPipeline,
     DatabasePipeline,
-    CacheBasedPipeline
+    CacheBasedPipeline,
 )
 
-# 导出去重管道
-from .memory_dedup_pipeline import MemoryDedupPipeline
-from .redis_dedup_pipeline import RedisDedupPipeline
-from .bloom_dedup_pipeline import BloomDedupPipeline
-from .database_dedup_pipeline import DatabaseDedupPipeline
+# ── 通用基类 ──
+from .generic_sql import GenericSQLPipeline
+from .generic_doc import GenericDocumentPipeline
 
-# 导入常用数据存储管道（支持短路径配置）
-from .mysql_pipeline import MySQLPipeline
-from .mongo_pipeline import MongoPipeline
-from .csv_pipeline import CsvPipeline
-from .json_pipeline import JsonPipeline
-from .console_pipeline import ConsolePipeline
+# ── 去重管道 ──
+from .dedup import MemoryDedupPipeline, RedisDedupPipeline, BloomDedupPipeline
+from .dedup import MySQLDedupPipeline, DatabaseDedupPipeline
+
+# ── SQL 存储管道 ──
+from .sql import MySQLPipeline, SQLitePipeline, PostgreSQLPipeline, ClickHousePipeline
+
+# ── 文档型存储管道 ──
+from .doc import MongoPipeline, ElasticsearchPipeline
+
+# ── 文件型管道 ──
+from .file import CsvPipeline, CsvDictPipeline, JsonLinesPipeline, JsonArrayPipeline
+
+# ── 其他 ──
+from .hbase import HBasePipeline
+from .console import ConsolePipeline
+
+# 向后兼容别名
+JsonPipeline = JsonLinesPipeline
 
 __all__ = [
     # 基类
-    'BasePipeline',
-    'ResourceManagedPipeline',
-    'FileBasedPipeline', 
-    'DatabasePipeline',
-    'CacheBasedPipeline',
+    'BasePipeline', 'ResourceManagedPipeline', 'FileBasedPipeline',
+    'DatabasePipeline', 'CacheBasedPipeline',
+    # 通用基类
+    'GenericSQLPipeline', 'GenericDocumentPipeline',
     # 去重管道
-    'MemoryDedupPipeline',
-    'RedisDedupPipeline', 
-    'BloomDedupPipeline',
-    'DatabaseDedupPipeline',
-    # 数据存储管道（支持短路径：crawlo.pipelines.MySQLPipeline）
-    'MySQLPipeline',
-    'MongoPipeline',
-    'CsvPipeline',
-    'JsonPipeline',
-    'ConsolePipeline'
+    'MemoryDedupPipeline', 'RedisDedupPipeline', 'BloomDedupPipeline',
+    'MySQLDedupPipeline', 'DatabaseDedupPipeline',
+    # SQL 存储管道
+    'MySQLPipeline', 'SQLitePipeline', 'PostgreSQLPipeline', 'ClickHousePipeline',
+    # 文档型存储管道
+    'MongoPipeline', 'ElasticsearchPipeline',
+    # 宽列式
+    'HBasePipeline',
+    # 文件型/控制台
+    'CsvPipeline', 'CsvDictPipeline',
+    'JsonPipeline', 'JsonLinesPipeline', 'JsonArrayPipeline',
+    'ConsolePipeline',
 ]

@@ -20,7 +20,7 @@ pip install cloakbrowser[geoip]  # GeoIP 支持
 
 使用示例:
 # settings.py
-DOWNLOADER = "crawlo.downloader.cloakbrowser_downloader.CloakBrowserDownloader"
+DOWNLOADER = "crawlo.downloader.CloakBrowserDownloader"
 CLOAKBROWSER_HEADLESS = False
 CLOAKBROWSER_HUMANIZE = True
 CLOAKBROWSER_GEOIP = True

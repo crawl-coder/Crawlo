@@ -30,7 +30,7 @@ def demo_valid_config():
             'crawlo.middleware.throttle.ThrottleMiddleware',
         ],
         'PIPELINES': [
-            'crawlo.pipelines.console_pipeline.ConsolePipeline',
+            'crawlo.pipelines.console.ConsolePipeline',
         ]
     }
     
@@ -102,8 +102,8 @@ def demo_distributed_config():
             'crawlo.middleware.throttle.ThrottleMiddleware',
         ],
         'PIPELINES': [
-            'crawlo.pipelines.console_pipeline.ConsolePipeline',
-            'crawlo.pipelines.redis_dedup_pipeline.RedisDedupPipeline',
+            'crawlo.pipelines.console.ConsolePipeline',
+            'crawlo.pipelines.dedup.redis.RedisDedupPipeline',
         ],
         'EXTENSIONS': [
             'crawlo.extension.memory_monitor.MemoryMonitorExtension',
