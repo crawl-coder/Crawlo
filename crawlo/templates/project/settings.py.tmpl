@@ -39,11 +39,6 @@ SPIDER_MODULES = ['{{project_name}}.spiders']
 #     # '{{project_name}}.pipelines.CustomPipeline': 600,
 # }
 
-# MySQL 冲突处理策略（三者互斥，按优先级生效）：
-#   MYSQL_UPDATE_COLUMNS  >  MYSQL_AUTO_UPDATE  >  MYSQL_INSERT_IGNORE
-MYSQL_UPDATE_COLUMNS = ()                               # ON DUPLICATE KEY UPDATE：指定要更新的字段（空元组=更新全部）
-MYSQL_AUTO_UPDATE = False                               # REPLACE INTO：覆盖整行（会导致自增 ID 变化）
-MYSQL_INSERT_IGNORE = False                             # INSERT IGNORE：忽略重复数据，保留旧记录
 
 
 # 如需自定义中间件（优先级越小越先执行）：
@@ -90,7 +85,11 @@ MYSQL_PASSWORD = '123456'
 MYSQL_DB = '{{project_name}}'
 MYSQL_TABLE = '{{project_name}}_data'
 
-MYSQL_INSERT_IGNORE = True
+# 冲突处理策略（三者互斥，按优先级生效）
+MYSQL_UPDATE_COLUMNS = ()                               # 优先：ON DUPLICATE KEY UPDATE（指定字段，空=更新全部）
+MYSQL_AUTO_UPDATE = False                               # 其次：REPLACE INTO（覆盖整行，自增 ID 会变化）
+MYSQL_INSERT_IGNORE = True                              # 默认：INSERT IGNORE（忽略重复，保留旧记录）
+
 
 # ---------------------------------------------------------------------------#
 # MongoDB（如需入库）
