@@ -17,102 +17,87 @@ import unittest
 # 添加项目根目录到路径
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
-from crawlo.pipelines.manager import remove_dedup_pipelines, get_dedup_pipeline_classes
+from crawlo.pipelines.manager import get_builtin_dedup_pipeline_classes, get_manual_dedup_pipeline_classes, get_all_dedup_pipeline_classes
 
 
 class TestDedupPipelineConsistency(unittest.TestCase):
     """测试去重管道配置一致性"""
 
-    def test_get_dedup_pipeline_classes(self):
-        """测试获取所有去重管道类名"""
-        dedup_classes = get_dedup_pipeline_classes()
+    def test_get_builtin_dedup_pipeline_classes(self):
+        """测试获取内置型去重管道类名"""
+        builtin_classes = get_builtin_dedup_pipeline_classes()
         
         # 验证返回的是列表
-        self.assertIsInstance(dedup_classes, list)
+        self.assertIsInstance(builtin_classes, list)
         
-        # 验证包含所有已知的去重管道类
-        expected_classes = [
-            'crawlo.pipelines.dedup.memory.MemoryDedupPipeline',
-            'crawlo.pipelines.dedup.redis.RedisDedupPipeline',
-            'crawlo.pipelines.dedup.bloom.BloomDedupPipeline',
-            'crawlo.pipelines.dedup.mysql.DatabaseDedupPipeline'
+        # 验证只包含内置型短路径
+        expected_builtin = [
+            'crawlo.pipelines.MemoryDedupPipeline',
+            'crawlo.pipelines.RedisDedupPipeline',
         ]
+        self.assertEqual(builtin_classes, expected_builtin)
         
-        for expected_class in expected_classes:
-            self.assertIn(expected_class, dedup_classes, f"缺失去重管道类: {expected_class}")
-        
-        print("✅ 获取去重管道类名测试通过")
+        print("✅ 获取内置型去重管道类名测试通过")
 
-    def test_remove_dedup_pipelines_empty_list(self):
-        """测试从空列表中移除去重管道"""
-        pipelines = []
-        result = remove_dedup_pipelines(pipelines)
-        self.assertEqual(result, [], "空列表处理错误")
-        print("✅ 空列表处理测试通过")
+    def test_get_manual_dedup_pipeline_classes(self):
+        """测试获取手动型去重管道类名"""
+        manual_classes = get_manual_dedup_pipeline_classes()
+        
+        self.assertIsInstance(manual_classes, list)
+        
+        # 验证只包含手动型短路径
+        expected_manual = [
+            'crawlo.pipelines.BloomDedupPipeline',
+            'crawlo.pipelines.MySQLDedupPipeline',
+            'crawlo.pipelines.DatabaseDedupPipeline',
+        ]
+        self.assertEqual(manual_classes, expected_manual)
+        
+        print("✅ 获取手动型去重管道类名测试通过")
 
-    def test_remove_dedup_pipelines_no_dedup(self):
-        """测试从不包含去重管道的列表中移除去重管道"""
-        pipelines = [
-            'crawlo.pipelines.console.ConsolePipeline',
-            'crawlo.pipelines.file.csv.CSVPipeline',
-            'crawlo.pipelines.sql.mysql.MySQLPipeline'
-        ]
-        result = remove_dedup_pipelines(pipelines)
-        self.assertEqual(result, pipelines, "不应该修改不包含去重管道的列表")
-        print("✅ 不包含去重管道的列表处理测试通过")
+    def test_get_all_dedup_pipeline_classes(self):
+        """测试获取所有去重管道类名"""
+        all_classes = get_all_dedup_pipeline_classes()
+        builtin_classes = get_builtin_dedup_pipeline_classes()
+        manual_classes = get_manual_dedup_pipeline_classes()
+        
+        # 全部 = 内置 + 手动
+        self.assertEqual(len(all_classes), len(builtin_classes) + len(manual_classes))
+        for cls in builtin_classes:
+            self.assertIn(cls, all_classes)
+        for cls in manual_classes:
+            self.assertIn(cls, all_classes)
+        
+        print("✅ 获取所有去重管道类名测试通过")
 
-    def test_remove_dedup_pipelines_with_dedup(self):
-        """测试从包含去重管道的列表中移除去重管道"""
-        pipelines = [
-            'crawlo.pipelines.dedup.memory.MemoryDedupPipeline',
-            'crawlo.pipelines.console.ConsolePipeline',
-            'crawlo.pipelines.dedup.redis.RedisDedupPipeline',
-            'crawlo.pipelines.file.csv.CSVPipeline',
-            'crawlo.pipelines.dedup.bloom.BloomDedupPipeline'
-        ]
+    def test_builtin_only_removed_when_default_set(self):
+        """测试 DEFAULT_DEDUP_PIPELINE 有值时只移除内置型，保留手动型"""
+        from crawlo.pipelines.manager import normalize_pipelines_config, get_builtin_dedup_pipeline_classes
         
-        expected = [
-            'crawlo.pipelines.console.ConsolePipeline',
-            'crawlo.pipelines.file.csv.CSVPipeline'
-        ]
+        pipelines_config = {
+            'crawlo.pipelines.MemoryDedupPipeline': 100,      # 内置型，应被移除
+            'crawlo.pipelines.ConsolePipeline': 500,          # 非去重，保留
+            'crawlo.pipelines.BloomDedupPipeline': 200,       # 手动型，保留
+            'crawlo.pipelines.MySQLPipeline': 800,            # 非去重，保留
+        }
         
-        result = remove_dedup_pipelines(pipelines)
-        self.assertEqual(result, expected, "去重管道移除错误")
-        print("✅ 包含去重管道的列表处理测试通过")
-
-    def test_remove_dedup_pipelines_all_dedup(self):
-        """测试从只包含去重管道的列表中移除去重管道"""
-        pipelines = [
-            'crawlo.pipelines.dedup.memory.MemoryDedupPipeline',
-            'crawlo.pipelines.dedup.redis.RedisDedupPipeline',
-            'crawlo.pipelines.dedup.bloom.BloomDedupPipeline',
-            'crawlo.pipelines.dedup.mysql.DatabaseDedupPipeline'
-        ]
+        pipelines = normalize_pipelines_config(pipelines_config)
         
-        result = remove_dedup_pipelines(pipelines)
-        self.assertEqual(result, [], "应该返回空列表")
-        print("✅ 只包含去重管道的列表处理测试通过")
-
-    def test_remove_dedup_pipelines_mixed_order(self):
-        """测试混合顺序的管道列表"""
-        pipelines = [
-            'crawlo.pipelines.file.csv.CSVPipeline',
-            'crawlo.pipelines.dedup.memory.MemoryDedupPipeline',
-            'crawlo.pipelines.console.ConsolePipeline',
-            'crawlo.pipelines.dedup.bloom.BloomDedupPipeline',
-            'crawlo.pipelines.sql.mysql.MySQLPipeline',
-            'crawlo.pipelines.dedup.redis.RedisDedupPipeline'
-        ]
+        # 模拟 _initialize 中的移除逻辑
+        builtin_dedup_classes = get_builtin_dedup_pipeline_classes()
+        remaining = [(p, pri) for p, pri in pipelines if p not in builtin_dedup_classes]
         
-        expected = [
-            'crawlo.pipelines.file.csv.CSVPipeline',
-            'crawlo.pipelines.console.ConsolePipeline',
-            'crawlo.pipelines.sql.mysql.MySQLPipeline'
-        ]
+        remaining_paths = [p for p, _ in remaining]
         
-        result = remove_dedup_pipelines(pipelines)
-        self.assertEqual(result, expected, "混合顺序处理错误")
-        print("✅ 混合顺序的管道列表处理测试通过")
+        # 内置型被移除
+        self.assertNotIn('crawlo.pipelines.MemoryDedupPipeline', remaining_paths)
+        # 手动型保留
+        self.assertIn('crawlo.pipelines.BloomDedupPipeline', remaining_paths)
+        # 非去重保留
+        self.assertIn('crawlo.pipelines.ConsolePipeline', remaining_paths)
+        self.assertIn('crawlo.pipelines.MySQLPipeline', remaining_paths)
+        
+        print("✅ 内置型移除 / 手动型保留测试通过")
 
 
 if __name__ == "__main__":

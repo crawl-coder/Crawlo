@@ -69,8 +69,6 @@ class BloomDedupPipeline(DedupPipeline):
             log_level=settings.get('LOG_LEVEL', 'INFO')
         )
 
-    # _initialize_resources / _cleanup_resources: 无额外逻辑，直接继承 DedupPipeline
-
     async def _cleanup_resources(self):
         """清理资源 + 输出统计"""
         self.logger.info(

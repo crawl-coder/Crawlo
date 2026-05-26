@@ -29,18 +29,38 @@ from crawlo.project import common_call
 from crawlo.exceptions import PipelineInitError, ItemDiscard, InvalidOutputError
 
 
-def get_dedup_pipeline_classes():
-    """获取所有已知的去重管道类名（含子包路径和短路径）"""
+def get_builtin_dedup_pipeline_classes():
+    """获取内置型去重管道类名（短路径）
+
+    内置型：由 DEFAULT_DEDUP_PIPELINE 配置，框架自动管理
+    - MemoryDedupPipeline / RedisDedupPipeline
+    """
     return [
-        'crawlo.pipelines.dedup.memory.MemoryDedupPipeline',
         'crawlo.pipelines.MemoryDedupPipeline',
-        'crawlo.pipelines.dedup.redis.RedisDedupPipeline',
         'crawlo.pipelines.RedisDedupPipeline',
-        'crawlo.pipelines.dedup.bloom.BloomDedupPipeline',
-        'crawlo.pipelines.BloomDedupPipeline',
-        'crawlo.pipelines.dedup.mysql.DatabaseDedupPipeline',
-        'crawlo.pipelines.dedup.mysql.MySQLDedupPipeline',
     ]
+
+
+def get_manual_dedup_pipeline_classes():
+    """获取手动型去重管道类名（短路径）
+
+    手动型：由用户在 PIPELINES 中显式配置，框架不自动插入/移除
+    - BloomDedupPipeline / MySQLDedupPipeline
+    """
+    return [
+        'crawlo.pipelines.BloomDedupPipeline',
+        'crawlo.pipelines.MySQLDedupPipeline',
+        'crawlo.pipelines.DatabaseDedupPipeline',
+    ]
+
+
+def get_all_dedup_pipeline_classes():
+    """获取所有已知的去重管道类名（内置型 + 手动型）"""
+    return get_builtin_dedup_pipeline_classes() + get_manual_dedup_pipeline_classes()
+
+
+# 向后兼容别名
+get_dedup_pipeline_classes = get_all_dedup_pipeline_classes
 
 
 def normalize_pipelines_config(
@@ -130,10 +150,10 @@ class PipelineManager:
         
         # 处理去重管道
         if self.dedup_pipeline:
-            # 移除所有去重管道实例
-            dedup_classes = get_dedup_pipeline_classes()
-            pipelines = [(p, pri) for p, pri in pipelines if p not in dedup_classes]
-            # 在开头插入去重管道（最高优先级：1）
+            # 只移除内置型去重管道（Memory/Redis），保留手动型（Bloom/MySQL）
+            builtin_dedup_classes = get_builtin_dedup_pipeline_classes()
+            pipelines = [(p, pri) for p, pri in pipelines if p not in builtin_dedup_classes]
+            # 在开头插入内置去重管道（最高优先级：1）
             pipelines.insert(0, (self.dedup_pipeline, 1))
             self.logger.debug(f"{self.dedup_pipeline} inserted with priority 1")
         

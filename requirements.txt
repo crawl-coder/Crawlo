@@ -25,8 +25,16 @@ anyio>=4.3.0
 httpcore>=1.0.5
 msgpack>=1.0.0
 yarl>=1.17.0
-mkdocs-material>=9.5.0
-pymdown-extensions>=10.0
+
+# 数据库驱动（使用 pip install crawlo[database] 安装）
+# asyncmy>=0.2.11
+# motor>=3.7.0
+# pymongo>=4.11
+# aiosqlite>=0.19.0
+# asyncpg>=0.29.0
+# clickhouse-connect>=0.7.0
+# elasticsearch>=8.0.0,<9.0.0
+# happybase>=1.2.0
 
 # 可选依赖（使用 pip install crawlo[render] 安装）
 # playwright>=1.55.0
@@ -36,6 +44,13 @@ pymdown-extensions>=10.0
 # 企业级反检测下载器（使用 pip install crawlo[stealth] 安装）
 # cloakbrowser[geoip]>=0.3.14
 
+# Bloom 去重管道（使用 pip install crawlo[bloom] 安装）
+# pybloom-live>=0.3.1
+
 # MCP依赖（使用 pip install crawlo[mcp] 安装）
 # mcp>=1.0.0
 # markdownify>=0.13.1
+
+# 文档构建（开发依赖，非运行时）
+# mkdocs-material>=9.5.0
+# pymdown-extensions>=10.0

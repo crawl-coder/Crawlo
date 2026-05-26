@@ -234,18 +234,24 @@ print("\n" + "=" * 60)
 print("阶段 3: PipelineManager 边界测试")
 print("=" * 60)
 
-from crawlo.pipelines.manager import normalize_pipelines_config, get_dedup_pipeline_classes, _validate_pipeline_priorities
+from crawlo.pipelines.manager import normalize_pipelines_config, get_builtin_dedup_pipeline_classes, get_manual_dedup_pipeline_classes, get_all_dedup_pipeline_classes, _validate_pipeline_priorities
 
-# 3.1 get_dedup_pipeline_classes
+# 3.1 去重管道类列表
 print("\n--- 3.1 去重管道类列表 ---")
-dedup_classes = get_dedup_pipeline_classes()
-check("去重管道列表 5 个", len(dedup_classes) == 5)
-check("包含 MemoryDedupPipeline", any('MemoryDedupPipeline' in c for c in dedup_classes))
-check("包含 RedisDedupPipeline", any('RedisDedupPipeline' in c for c in dedup_classes))
-check("包含 BloomDedupPipeline", any('BloomDedupPipeline' in c for c in dedup_classes))
-check("包含 DatabaseDedupPipeline", any('DatabaseDedupPipeline' in c for c in dedup_classes))
-check("包含 MySQLDedupPipeline", any('MySQLDedupPipeline' in c for c in dedup_classes))
-for cls in dedup_classes:
+builtin_classes = get_builtin_dedup_pipeline_classes()
+manual_classes = get_manual_dedup_pipeline_classes()
+all_classes = get_all_dedup_pipeline_classes()
+
+check("内置型去重 2 个 (短路径)", len(builtin_classes) == 2)
+check("手动型去重 3 个 (短路径)", len(manual_classes) == 3)
+check("全部去重 5 个", len(all_classes) == 5)
+
+check("内置包含 MemoryDedupPipeline", any('MemoryDedupPipeline' in c for c in builtin_classes))
+check("内置包含 RedisDedupPipeline", any('RedisDedupPipeline' in c for c in builtin_classes))
+check("手动包含 BloomDedupPipeline", any('BloomDedupPipeline' in c for c in manual_classes))
+check("手动包含 MySQLDedupPipeline", any('MySQLDedupPipeline' in c for c in manual_classes))
+check("手动包含 DatabaseDedupPipeline", any('DatabaseDedupPipeline' in c for c in manual_classes))
+for cls in all_classes:
     check(f"  路径可导入: {cls}", True)
 
 # 3.2 normalize_pipelines_config 边界测试
