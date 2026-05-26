@@ -412,17 +412,16 @@ class QueueManager(QueueStatusMixin, QueueBackpressureMixin):
                     )
                     await test_queue.connect()
                     await test_queue.close()
-                    self.logger.info("Auto-detection: Redis available, using Redis queue")
-                    # 重要：AUTO模式检测到Redis后，更新背压配置为Redis配置
+                    self.logger.debug("Auto-detection: Redis available, using Redis queue")
                     self._apply_redis_backpressure_config()
                     return QueueType.REDIS
                 except Exception as e:
-                    self.logger.info(f"Auto-detection: Redis unavailable ({e}), falling back to memory queue")
+                    self.logger.debug(f"Auto-detection: Redis unavailable ({e}), falling back to memory queue")
                     # 重要：AUTO模式Redis不可用时，更新背压配置为Memory配置
                     self._apply_memory_backpressure_config()
                     return QueueType.MEMORY
             else:
-                self.logger.info("Auto-detection: Redis not configured, using memory queue")
+                self.logger.debug("Auto-detection: Redis not configured, using memory queue")
                 # 重要：AUTO模式无Redis配置时，更新背压配置为Memory配置
                 self._apply_memory_backpressure_config()
                 return QueueType.MEMORY

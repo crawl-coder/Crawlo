@@ -108,11 +108,18 @@ class RedisDedupPipeline(DedupPipeline):
         spider = getattr(self.crawler, 'spider', None)
         spider_name = getattr(spider, 'name', 'unknown') if spider else 'unknown'
 
+        # 从未处理过 item，无需连接 Redis 仅为了统计
+        if self.processed_count == 0:
+            self.logger.debug(
+                f"RedisDedupPipeline [{spider_name}] closed (no items processed)"
+            )
+            await super()._cleanup_resources()
+            return
+
         try:
-            # 输出 Redis 统计
             await self._ensure_redis_connection()
             total_items = await self.redis_client.scard(self.redis_key)
-            self.logger.info(
+            self.logger.debug(
                 f"RedisDedupPipeline [{spider_name}] closed: "
                 f"processed={self.processed_count}, dropped={self.dropped_count}, "
                 f"redis_keys={total_items}"
