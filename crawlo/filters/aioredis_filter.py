@@ -295,6 +295,7 @@ class AioRedisFilter(BaseFilter):
         # In practice, should call _add_fingerprint_async via async method
         pass
 
+
     async def _add_fingerprint_async(self, fp: str) -> bool:
         """
         Async add new fingerprint to Redis set
