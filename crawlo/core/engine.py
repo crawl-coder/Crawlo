@@ -416,7 +416,7 @@ class Engine(RequestGenerationMixin):
                     f"[{page_type}] {request.url} ({response_time:.2f}s)"
                 )
                 
-                if outputs:
+                if outputs and not isinstance(outputs, Failure):
                     await self._handle_spider_output(outputs, request)
                 
                 # 由于我们不再使用处理队列，不再需要确认任务完成
