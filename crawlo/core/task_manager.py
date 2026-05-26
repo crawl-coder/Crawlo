@@ -320,8 +320,7 @@ class TaskManager(Generic[T]):
         """包装协程添加超时控制，超时后取消内部协程防止资源泄漏"""
         task = asyncio.ensure_future(coroutine)
         try:
-            async with asyncio.timeout(timeout):
-                return await task
+            return await asyncio.wait_for(task, timeout=timeout)
         except asyncio.TimeoutError:
             task.cancel()
             try:
@@ -403,18 +402,17 @@ class TaskManager(Generic[T]):
             # 等待取消完成
             if self.current_task:
                 await asyncio.gather(*self.current_task, return_exceptions=True)
-        else:
-            # 等待任务完成
-            try:
-                async with asyncio.timeout(timeout):
-                    await self._wait_all_done()
-                self.logger.info("All tasks completed gracefully")
-            except asyncio.TimeoutError:
-                self.logger.warning(f"Timeout waiting for tasks ({timeout}s), cancelling remaining...")
-                for task in list(self.current_task):
-                    task.cancel()
-                if self.current_task:
-                    await asyncio.gather(*self.current_task, return_exceptions=True)
+            else:
+                # 等待任务完成
+                try:
+                    await asyncio.wait_for(self._wait_all_done(), timeout=timeout)
+                    self.logger.info("All tasks completed gracefully")
+                except asyncio.TimeoutError:
+                    self.logger.warning(f"Timeout waiting for tasks ({timeout}s), cancelling remaining...")
+                    for task in list(self.current_task):
+                        task.cancel()
+                    if self.current_task:
+                        await asyncio.gather(*self.current_task, return_exceptions=True)
     
     async def _wait_all_done(self) -> None:
         """等待所有任务完成（通过 Event 避免忙轮询）"""

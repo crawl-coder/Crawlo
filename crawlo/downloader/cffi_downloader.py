@@ -135,8 +135,7 @@ class CurlCffiDownloader(DownloaderBase):
                     download_task = asyncio.ensure_future(
                         self._download_with_timeout(request, strict_timeout)
                     )
-                    async with asyncio.timeout(absolute_timeout):
-                        response = await download_task
+                    response = await asyncio.wait_for(download_task, timeout=absolute_timeout)
                 except asyncio.TimeoutError:
                     download_task.cancel()
                     try:
@@ -157,8 +156,7 @@ class CurlCffiDownloader(DownloaderBase):
                     download_task = asyncio.ensure_future(
                         self._download_with_timeout(request)
                     )
-                    async with asyncio.timeout(absolute_timeout):
-                        response = await download_task
+                    response = await asyncio.wait_for(download_task, timeout=absolute_timeout)
                 except asyncio.TimeoutError:
                     download_task.cancel()
                     try:

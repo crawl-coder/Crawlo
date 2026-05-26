@@ -277,11 +277,29 @@ def _update_queue_related_settings(mode_settings: dict, queue_type: str, setting
     if queue_type in ('memory', 'redis'):
         mode_settings.update(queue_config_map[queue_type])
     elif queue_type == 'auto':
-        # auto 模式：主动探测 Redis 可用性，保持 FILTER/DEDUP 与 QUEUE_TYPE 一致
+        # auto 模式：主动探测 Redis 可用性
+        # 用户显式设置自定义值则保留，否则用探测结果
+        default_filter = 'crawlo.filters.MemoryFilter'
+        default_dedup = 'crawlo.pipelines.MemoryDedupPipeline'
+
         if _is_redis_available(settings):
-            mode_settings.update(queue_config_map['redis'])
+            config = queue_config_map['redis']
         else:
-            mode_settings.update(queue_config_map['memory'])
+            config = queue_config_map['memory']
+
+        # FILTER_CLASS
+        filter_val = settings.get('FILTER_CLASS', default_filter)
+        if filter_val == default_filter:
+            mode_settings['FILTER_CLASS'] = config['FILTER_CLASS']
+        else:
+            mode_settings['FILTER_CLASS'] = filter_val
+
+        # DEFAULT_DEDUP_PIPELINE
+        dedup_val = settings.get('DEFAULT_DEDUP_PIPELINE', default_dedup)
+        if dedup_val == default_dedup:
+            mode_settings['DEFAULT_DEDUP_PIPELINE'] = config['DEFAULT_DEDUP_PIPELINE']
+        else:
+            mode_settings['DEFAULT_DEDUP_PIPELINE'] = dedup_val
 
 
 def _is_redis_available(settings: SettingManager) -> bool:

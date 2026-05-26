@@ -715,8 +715,7 @@ class Engine(RequestGenerationMixin):
                     if asyncio.iscoroutine(close_result):
                         close_task = asyncio.ensure_future(close_result)
                         try:
-                            async with asyncio.timeout(5.0):
-                                await close_task
+                            await asyncio.wait_for(close_task, timeout=5.0)
                         except asyncio.TimeoutError:
                             close_task.cancel()
                             try:
@@ -734,8 +733,7 @@ class Engine(RequestGenerationMixin):
                 try:
                     close_task = asyncio.ensure_future(self.scheduler.close())
                     try:
-                        async with asyncio.timeout(5.0):
-                            await close_task
+                        await asyncio.wait_for(close_task, timeout=5.0)
                     except asyncio.TimeoutError:
                         close_task.cancel()
                         try:

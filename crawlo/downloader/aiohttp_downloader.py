@@ -181,13 +181,12 @@ class AioHttpDownloader(DownloaderBase):
                     sock_read=self._timeout_secs * 0.50,       # 50%（15秒）
                     sock_connect=min(10.0, self._timeout_secs * 0.33)  # 33%（10秒）
                 )
-                # 使用 asyncio.timeout 强制超时保护，超时后取消下载防止连接泄漏
+                # 使用 asyncio.wait_for 强制超时保护，超时后取消下载防止连接泄漏
                 try:
                     download_task = asyncio.ensure_future(
                         self._download_with_timeout(request, retry_timeout)
                     )
-                    async with asyncio.timeout(absolute_timeout):
-                        response = await download_task
+                    response = await asyncio.wait_for(download_task, timeout=absolute_timeout)
                 except asyncio.TimeoutError:
                     download_task.cancel()
                     try:
@@ -208,8 +207,7 @@ class AioHttpDownloader(DownloaderBase):
                     download_task = asyncio.ensure_future(
                         self._download_with_timeout(request)
                     )
-                    async with asyncio.timeout(absolute_timeout):
-                        response = await download_task
+                    response = await asyncio.wait_for(download_task, timeout=absolute_timeout)
                 except asyncio.TimeoutError:
                     download_task.cancel()
                     try:
