@@ -127,11 +127,19 @@ class ResourceManagedPipeline(BasePipeline):
         self.batch_size = self.settings.get_int('PIPELINE_BATCH_SIZE', 100)
         self.use_batch = self.settings.get_bool('PIPELINE_USE_BATCH', False)
         
+        # 防重复清理标志（_on_spider_closed 和 PipelineManager.close 都会触发清理）
+        self._cleaned_up = False
+        
         self.logger.debug(f"{self.__class__.__name__} 已初始化")
     
     async def _ensure_initialized(self):
         """确保资源已初始化（DCL 模式）"""
         return await self._ensure_lazy_init('_initialized', '_init_lock', self._initialize_resources)
+
+    @classmethod
+    def from_crawler(cls, crawler):
+        """从 Crawler 创建实例（默认实现）"""
+        return cls(crawler)
 
     async def _ensure_lazy_init(self, flag_attr: str, lock_attr: str, init_coro):
         """
@@ -228,10 +236,11 @@ class ResourceManagedPipeline(BasePipeline):
     
     async def _on_spider_closed(self, **kwargs):
         """spider_closed 事件处理 - 刷新批量数据"""
-        # 注意：子类（如 MySQLPipeline）会重写 _cleanup_resources 方法，
-        # 在其中处理批量刷新和资源清理，所以这里只刷新批量数据
+        if self._cleaned_up:
+            return
+        self._cleaned_up = True
         try:
-            # 1. 刷新批量数据（子类可以在 _cleanup_resources 中再次刷新）
+            # 1. 刷新批量数据
             if self.use_batch and self.batch_buffer:
                 spider = self.crawler.spider
                 self.logger.info(f"准备刷新批量数据，spider={spider}")
@@ -513,7 +522,10 @@ class FileBasedPipeline(ResourceManagedPipeline):
 
 class ConnectablePipeline(ResourceManagedPipeline):
     """
-    可连接 Pipeline 基类（向后兼容保留，新代码推荐 DatabasePipeline）。
+    可连接 Pipeline 基类（@deprecated — 向后兼容保留）。
+
+    新代码推荐使用 GenericSQLPipeline 或 GenericDocumentPipeline。
+    将在 v2.0 中移除。
 
     提供连接资源操作的通用功能：
     - DCL 懒初始化（委托给 _ensure_lazy_init）
@@ -551,11 +563,12 @@ class ConnectablePipeline(ResourceManagedPipeline):
 
 class DatabasePipeline(ConnectablePipeline):
     """
-    数据库 Pipeline 基类（推荐用于自定义数据库 Pipeline）。
+    数据库 Pipeline 基类（@deprecated — 向后兼容保留）。
+
+    新代码推荐使用 GenericSQLPipeline 或 GenericDocumentPipeline。
+    将在 v2.0 中移除。
 
     提供连接池管理 + 批量写入优化 + 事务支持。
-    内置 MySQLPipeline / MongoPipeline 直接继承 ResourceManagedPipeline，
-    此基类主要用于用户扩展。
     """
     
     def __init__(self, crawler):

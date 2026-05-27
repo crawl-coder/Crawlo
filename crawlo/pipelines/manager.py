@@ -29,14 +29,38 @@ from crawlo.project import common_call
 from crawlo.exceptions import PipelineInitError, ItemDiscard, InvalidOutputError
 
 
-def get_dedup_pipeline_classes():
-    """获取所有已知的去重管道类名"""
+def get_builtin_dedup_pipeline_classes():
+    """获取内置型去重管道类名（短路径）
+
+    内置型：由 DEFAULT_DEDUP_PIPELINE 配置，框架自动管理
+    - MemoryDedupPipeline / RedisDedupPipeline
+    """
     return [
-        'crawlo.pipelines.memory_dedup_pipeline.MemoryDedupPipeline',
-        'crawlo.pipelines.redis_dedup_pipeline.RedisDedupPipeline',
-        'crawlo.pipelines.bloom_dedup_pipeline.BloomDedupPipeline',
-        'crawlo.pipelines.database_dedup_pipeline.DatabaseDedupPipeline'
+        'crawlo.pipelines.MemoryDedupPipeline',
+        'crawlo.pipelines.RedisDedupPipeline',
     ]
+
+
+def get_manual_dedup_pipeline_classes():
+    """获取手动型去重管道类名（短路径）
+
+    手动型：由用户在 PIPELINES 中显式配置，框架不自动插入/移除
+    - BloomDedupPipeline / MySQLDedupPipeline
+    """
+    return [
+        'crawlo.pipelines.BloomDedupPipeline',
+        'crawlo.pipelines.MySQLDedupPipeline',
+        'crawlo.pipelines.DatabaseDedupPipeline',
+    ]
+
+
+def get_all_dedup_pipeline_classes():
+    """获取所有已知的去重管道类名（内置型 + 手动型）"""
+    return get_builtin_dedup_pipeline_classes() + get_manual_dedup_pipeline_classes()
+
+
+# 向后兼容别名
+get_dedup_pipeline_classes = get_all_dedup_pipeline_classes
 
 
 def normalize_pipelines_config(
@@ -126,10 +150,10 @@ class PipelineManager:
         
         # 处理去重管道
         if self.dedup_pipeline:
-            # 移除所有去重管道实例
-            dedup_classes = get_dedup_pipeline_classes()
-            pipelines = [(p, pri) for p, pri in pipelines if p not in dedup_classes]
-            # 在开头插入去重管道（最高优先级：1）
+            # 只移除内置型去重管道（Memory/Redis），保留手动型（Bloom/MySQL）
+            builtin_dedup_classes = get_builtin_dedup_pipeline_classes()
+            pipelines = [(p, pri) for p, pri in pipelines if p not in builtin_dedup_classes]
+            # 在开头插入内置去重管道（最高优先级：1）
             pipelines.insert(0, (self.dedup_pipeline, 1))
             self.logger.debug(f"{self.dedup_pipeline} inserted with priority 1")
         
@@ -201,14 +225,23 @@ class PipelineManager:
             create_task(self.crawler.subscriber.notify(CrawlerEvent.ITEM_SUCCESSFUL, item, self.crawler.spider))
 
     async def close(self):
-        """关闭所有 pipeline，清理资源"""
+        """关闭所有 pipeline，清理资源（防重复清理）"""
         for pipeline in self.pipelines:
             try:
-                # 调用 pipeline 的清理方法
+                # 防重复清理（_on_spider_closed 可能已触发过）
+                if getattr(pipeline, '_cleaned_up', False):
+                    continue
+
+                # 1. 调用 pipeline 的自定义清理逻辑
                 if hasattr(pipeline, '_cleanup_resources'):
                     await pipeline._cleanup_resources()
-                # 兼容旧版 close_spider 方法
                 elif hasattr(pipeline, 'close_spider'):
                     await pipeline.close_spider(self.crawler.spider)
+
+                # 2. 触发 ResourceManager 清理注册的资源
+                if hasattr(pipeline, '_resource_manager'):
+                    await pipeline._resource_manager.cleanup_all()
+
+                pipeline._cleaned_up = True
             except Exception as e:
                 self.logger.error(f"Error closing pipeline {pipeline.__class__.__name__}: {e}")

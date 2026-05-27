@@ -23,10 +23,10 @@ RANDOMNESS = False              # 禁用随机延迟以保证性能
 # 2. 核心组件
 # #############################################################################
 
-DOWNLOADER = 'crawlo.downloader.aiohttp_downloader.AioHttpDownloader'
+DOWNLOADER = 'crawlo.downloader.AioHttpDownloader'
 QUEUE_TYPE = 'auto'             # 自动：Redis 可用 → 分布式，否则 → 内存
-FILTER_CLASS = 'crawlo.filters.aioredis_filter.AioRedisFilter'
-DEFAULT_DEDUP_PIPELINE = 'crawlo.pipelines.redis_dedup_pipeline.RedisDedupPipeline'
+FILTER_CLASS = 'crawlo.filters.AioRedisFilter'
+DEFAULT_DEDUP_PIPELINE = 'crawlo.pipelines.RedisDedupPipeline'
 
 
 # #############################################################################

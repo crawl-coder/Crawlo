@@ -11,7 +11,7 @@ import os
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from scrapy.settings import Settings
-from crawlo.pipelines.mysql_pipeline import MySQLPipeline
+from crawlo.pipelines.sql.mysql import MySQLPipeline
 from crawlo.items import Item, Field
 import logging
 

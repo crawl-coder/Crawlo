@@ -5,13 +5,6 @@ import os
 import sys
 import asyncio
 
-# 添加项目根目录到 Python 路径
-project_root = os.path.dirname(os.path.abspath(__file__))
-if project_root not in sys.path:
-    sys.path.insert(0, project_root)
-
-# 导入爬虫模块以确保爬虫被注册
-from ofweek_standalone.spiders import OfWeekSpider
 
 from crawlo.crawler import CrawlerProcess
 

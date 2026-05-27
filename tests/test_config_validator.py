@@ -40,7 +40,7 @@ class TestConfigValidator(unittest.TestCase):
                 'crawlo.middleware.throttle.ThrottleMiddleware',
             ],
             'PIPELINES': [
-                'crawlo.pipelines.console_pipeline.ConsolePipeline',
+                'crawlo.pipelines.console.ConsolePipeline',
             ]
         }
         
@@ -65,8 +65,8 @@ class TestConfigValidator(unittest.TestCase):
                 'crawlo.middleware.throttle.ThrottleMiddleware',
             ],
             'PIPELINES': [
-                'crawlo.pipelines.console_pipeline.ConsolePipeline',
-                'crawlo.pipelines.redis_dedup_pipeline.RedisDedupPipeline',
+                'crawlo.pipelines.console.ConsolePipeline',
+                'crawlo.pipelines.dedup.redis.RedisDedupPipeline',
             ],
             'EXTENSIONS': [
                 'crawlo.extension.memory_monitor.MemoryMonitorExtension',

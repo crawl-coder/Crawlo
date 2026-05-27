@@ -58,8 +58,10 @@ class ResourceCleanup:
         if running_tasks:
             self.logger.info(f"等待 {len(running_tasks)} 个任务完成...")
             try:
-                async with asyncio.timeout(30.0):
-                    await asyncio.gather(*running_tasks, return_exceptions=True)
+                await asyncio.wait_for(
+                    asyncio.gather(*running_tasks, return_exceptions=True),
+                    timeout=30.0
+                )
                 self.logger.info("所有任务已完成")
             except asyncio.TimeoutError:
                 self.logger.warning("部分任务未能在超时时间内完成，强制停止")

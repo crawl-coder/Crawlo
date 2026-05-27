@@ -87,22 +87,45 @@ class BaseMiddleware:
         return cls()
 
 
-# 导入并导出新添加的中间件类
-# 注意：这里不能直接导入，因为会导致循环导入
-# 所以我们使用延迟导入的方式
-
+# 延迟导入（避免循环引用）
 def __getattr__(name):
-    if name == 'FileMiddleware':
-        from .file_middleware import FileMiddleware
-        return FileMiddleware
-    if name == 'DynamicRenderMiddleware':
-        from .dynamic_render_middleware import DynamicRenderMiddleware
-        return DynamicRenderMiddleware
+    _MAPPING = {
+        # 请求预处理
+        'RequestIgnoreMiddleware':       'crawlo.middleware.request_ignore',
+        'DownloadDelayMiddleware':       'crawlo.middleware.download_delay',
+        'DefaultHeaderMiddleware':       'crawlo.middleware.default_header',
+        'DynamicRenderMiddleware':       'crawlo.middleware.dynamic_render_middleware',
+        'CloudflareBypassMiddleware':    'crawlo.middleware.cloudflare_bypass',
+        'OffsiteMiddleware':             'crawlo.middleware.offsite',
+        'ProxyMiddleware':               'crawlo.middleware.proxy',
+        # 响应处理
+        'RetryMiddleware':               'crawlo.middleware.retry',
+        'ResponseCodeMiddleware':        'crawlo.middleware.response_code',
+        'ResponseFilterMiddleware':      'crawlo.middleware.response_filter',
+        # 其他
+        'FileMiddleware':                'crawlo.middleware.file_middleware',
+        'MiddlewareManager':             'crawlo.middleware.middleware_manager',
+    }
+    if name in _MAPPING:
+        import importlib
+        mod = importlib.import_module(_MAPPING[name])
+        cls = getattr(mod, name)
+        return cls
     raise AttributeError(f"module '{__name__}' has no attribute '{name}'")
 
 
 __all__ = [
-    'BaseMiddleware', 
-    'FileMiddleware',
+    'BaseMiddleware',
+    'RequestIgnoreMiddleware',
+    'DownloadDelayMiddleware',
+    'DefaultHeaderMiddleware',
     'DynamicRenderMiddleware',
+    'CloudflareBypassMiddleware',
+    'OffsiteMiddleware',
+    'ProxyMiddleware',
+    'RetryMiddleware',
+    'ResponseCodeMiddleware',
+    'ResponseFilterMiddleware',
+    'FileMiddleware',
+    'MiddlewareManager',
 ]

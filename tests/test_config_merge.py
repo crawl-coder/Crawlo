@@ -64,7 +64,7 @@ class TestConfigMerge(unittest.TestCase):
         pipelines = settings.get('PIPELINES')
         
         # 检查默认管道是否存在
-        self.assertIn('crawlo.pipelines.console_pipeline.ConsolePipeline', pipelines)
+        self.assertIn('crawlo.pipelines.console.ConsolePipeline', pipelines)
         
         # 检查自定义管道是否存在
         self.assertIn('myproject.pipelines.CustomPipeline', pipelines)
@@ -72,7 +72,7 @@ class TestConfigMerge(unittest.TestCase):
         # 检查去重管道是否在开头
         dedup_pipeline = settings.get('DEFAULT_DEDUP_PIPELINE')
         self.assertEqual(pipelines[0], dedup_pipeline)
-        self.assertEqual(dedup_pipeline, 'crawlo.pipelines.memory_dedup_pipeline.MemoryDedupPipeline')
+        self.assertEqual(dedup_pipeline, 'crawlo.pipelines.dedup.memory.MemoryDedupPipeline')
 
     def test_extension_merge(self):
         """测试扩展配置合并"""
@@ -117,7 +117,7 @@ class TestConfigMerge(unittest.TestCase):
         
         # 检查管道和扩展
         pipelines = settings.get('PIPELINES')
-        self.assertIn('crawlo.pipelines.console_pipeline.ConsolePipeline', pipelines)
+        self.assertIn('crawlo.pipelines.console.ConsolePipeline', pipelines)
         
         extensions = settings.get('EXTENSIONS')
         self.assertIn('crawlo.extension.log_interval.LogIntervalExtension', extensions)
@@ -136,7 +136,7 @@ class TestConfigMerge(unittest.TestCase):
         
         # 检查管道和扩展
         pipelines = settings.get('PIPELINES')
-        self.assertIn('crawlo.pipelines.console_pipeline.ConsolePipeline', pipelines)
+        self.assertIn('crawlo.pipelines.console.ConsolePipeline', pipelines)
         
         extensions = settings.get('EXTENSIONS')
         self.assertIn('crawlo.extension.log_interval.LogIntervalExtension', extensions)

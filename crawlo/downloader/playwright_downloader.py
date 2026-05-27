@@ -149,19 +149,19 @@ class PlaywrightDownloader(DownloaderBase, SmartWaitMixin, StealthMixin):
             if self.google_referer:
                 referer = "https://www.google.com/"
 
-            # ===== 设置资源屏蔽（在导航前设置）=====
-            await self._setup_resource_blocking(page, request)
-
-            # ===== 应用反检测脚本（在导航前注入）=====
+            # ===== 应用反检测脚本（在导航前注入，必须保持）=====
             if self.stealth_level != 'none':
                 await self._inject_stealth_scripts(page)
 
             # 应用请求特定的设置
             await self._apply_request_settings(page, request)
 
-            # 访问页面 - 根据等待策略选择不同的 wait_until
+            # 访问页面（资源屏蔽延后到页面加载后）
             wait_until = self._get_wait_until(request)
             response = await page.goto(request.url, wait_until=wait_until, referer=referer)
+
+            # ===== 页面加载后再设置资源屏蔽 =====
+            await self._setup_resource_blocking(page, request)
 
             # ===== 智能等待页面加载 =====
             await self._smart_wait_for_page_load(page, request)

@@ -256,26 +256,90 @@ def _get_mode_settings(settings: SettingManager, run_mode: str) -> dict:
 
 def _update_queue_related_settings(mode_settings: dict, queue_type: str, settings: SettingManager) -> None:
     """
-    根据队列类型更新相关配置
-    
+    根据队列类型更新相关配置（FILTER_CLASS / DEFAULT_DEDUP_PIPELINE）
+
     Args:
-        mode_settings: 模式配置字典
+        mode_settings: 模式配置字典（会被原地修改）
         queue_type: 队列类型
         settings: 设置管理器
     """
     queue_config_map = {
         'redis': {
-            'FILTER_CLASS': 'crawlo.filters.aioredis_filter.AioRedisFilter',
-            'DEFAULT_DEDUP_PIPELINE': 'crawlo.pipelines.redis_dedup_pipeline.RedisDedupPipeline'
+            'FILTER_CLASS': 'crawlo.filters.AioRedisFilter',
+            'DEFAULT_DEDUP_PIPELINE': 'crawlo.pipelines.RedisDedupPipeline'
         },
-        'auto': {
-            'FILTER_CLASS': settings.get('FILTER_CLASS', 'crawlo.filters.memory_filter.MemoryFilter'),
-            'DEFAULT_DEDUP_PIPELINE': settings.get('DEFAULT_DEDUP_PIPELINE', 'crawlo.pipelines.memory_dedup_pipeline.MemoryDedupPipeline')
-        }
+        'memory': {
+            'FILTER_CLASS': 'crawlo.filters.MemoryFilter',
+            'DEFAULT_DEDUP_PIPELINE': 'crawlo.pipelines.MemoryDedupPipeline'
+        },
     }
-    
-    if queue_type in queue_config_map:
+
+    if queue_type in ('memory', 'redis'):
         mode_settings.update(queue_config_map[queue_type])
+    elif queue_type == 'auto':
+        # auto 模式：主动探测 Redis 可用性
+        # 用户显式设置自定义值则保留，否则用探测结果
+        default_filter = 'crawlo.filters.MemoryFilter'
+        default_dedup = 'crawlo.pipelines.MemoryDedupPipeline'
+
+        if _is_redis_available(settings):
+            config = queue_config_map['redis']
+        else:
+            config = queue_config_map['memory']
+
+        # FILTER_CLASS
+        filter_val = settings.get('FILTER_CLASS', default_filter)
+        if filter_val == default_filter:
+            mode_settings['FILTER_CLASS'] = config['FILTER_CLASS']
+        else:
+            mode_settings['FILTER_CLASS'] = filter_val
+
+        # DEFAULT_DEDUP_PIPELINE
+        dedup_val = settings.get('DEFAULT_DEDUP_PIPELINE', default_dedup)
+        if dedup_val == default_dedup:
+            mode_settings['DEFAULT_DEDUP_PIPELINE'] = config['DEFAULT_DEDUP_PIPELINE']
+        else:
+            mode_settings['DEFAULT_DEDUP_PIPELINE'] = dedup_val
+
+
+def _is_redis_available(settings: SettingManager) -> bool:
+    """
+    探测 Redis 是否可用（同步方式，仅在配置加载阶段使用）
+
+    Args:
+        settings: 设置管理器
+
+    Returns:
+        Redis 是否可用
+    """
+    try:
+        from crawlo.utils.redis import RedisConfig
+        import redis
+
+        redis_host = settings.get('REDIS_HOST', '127.0.0.1')
+        redis_port = settings.get_int('REDIS_PORT', 6379)
+        redis_password = settings.get('REDIS_PASSWORD') or None
+        redis_db = settings.get_int('REDIS_DB', 0)
+
+        redis_config = RedisConfig(
+            host=redis_host,
+            port=redis_port,
+            password=redis_password,
+            db=redis_db,
+        )
+
+        client = redis.Redis.from_url(
+            redis_config.to_url(),
+            socket_connect_timeout=2,
+            socket_timeout=2,
+        )
+        client.ping()
+        client.close()
+        _logger.debug("auto mode: Redis available, using Redis filter & dedup")
+        return True
+    except Exception:
+        _logger.debug("auto mode: Redis unavailable, using Memory filter & dedup")
+        return False
 
 
 def _load_project_settings(custom_settings: Optional[dict] = None) -> SettingManager:
@@ -336,6 +400,10 @@ def _load_project_settings(custom_settings: Optional[dict] = None) -> SettingMan
     if run_mode:
         mode_settings = _get_mode_settings(settings, run_mode)
         
+        # auto 模式：在合并前先探测 Redis，同步 FILTER_CLASS / DEFAULT_DEDUP_PIPELINE
+        queue_type = mode_settings.get('QUEUE_TYPE', 'memory')
+        _update_queue_related_settings(mode_settings, queue_type, settings)
+
         # Merge mode configuration
         # Priority rules:
         # 1. priority_keys: RUN_MODE config takes precedence

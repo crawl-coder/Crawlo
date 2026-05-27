@@ -21,14 +21,14 @@ class TestDedupPipelinePriority:
     def test_dedup_pipeline_default_priority(self):
         """测试默认情况下优先级计算"""
         settings = SettingManager({
-            'DEFAULT_DEDUP_PIPELINE': 'crawlo.pipelines.memory_dedup_pipeline.MemoryDedupPipeline',
+            'DEFAULT_DEDUP_PIPELINE': 'crawlo.pipelines.dedup.memory.MemoryDedupPipeline',
             'PIPELINES': {
-                'crawlo.pipelines.console_pipeline.ConsolePipeline': 300,
+                'crawlo.pipelines.console.ConsolePipeline': 300,
             }
         })
         
         pipelines = settings.attributes['PIPELINES']
-        dedup_priority = pipelines['crawlo.pipelines.memory_dedup_pipeline.MemoryDedupPipeline']
+        dedup_priority = pipelines['crawlo.pipelines.dedup.memory.MemoryDedupPipeline']
         
         # 验证去重管道优先级为 200 (300 - 100)
         assert dedup_priority == 200
@@ -36,12 +36,12 @@ class TestDedupPipelinePriority:
     def test_dedup_pipeline_with_empty_pipelines(self):
         """测试空管道列表时的默认优先级"""
         settings = SettingManager({
-            'DEFAULT_DEDUP_PIPELINE': 'crawlo.pipelines.memory_dedup_pipeline.MemoryDedupPipeline',
+            'DEFAULT_DEDUP_PIPELINE': 'crawlo.pipelines.dedup.memory.MemoryDedupPipeline',
             'PIPELINES': {}  # 会被默认配置覆盖
         })
         
         pipelines = settings.attributes['PIPELINES']
-        dedup_priority = pipelines['crawlo.pipelines.memory_dedup_pipeline.MemoryDedupPipeline']
+        dedup_priority = pipelines['crawlo.pipelines.dedup.memory.MemoryDedupPipeline']
         
         # 默认 PIPELINES 有 ConsolePipeline: 100
         # 去重管道优先级 = 100 - 100 = 0，但 max(1, 0) = 1
@@ -50,14 +50,14 @@ class TestDedupPipelinePriority:
     def test_dedup_pipeline_with_low_priority(self):
         """测试低优先级管道时的计算"""
         settings = SettingManager({
-            'DEFAULT_DEDUP_PIPELINE': 'crawlo.pipelines.memory_dedup_pipeline.MemoryDedupPipeline',
+            'DEFAULT_DEDUP_PIPELINE': 'crawlo.pipelines.dedup.memory.MemoryDedupPipeline',
             'PIPELINES': {
-                'crawlo.pipelines.console_pipeline.ConsolePipeline': 50,
+                'crawlo.pipelines.console.ConsolePipeline': 50,
             }
         })
         
         pipelines = settings.attributes['PIPELINES']
-        dedup_priority = pipelines['crawlo.pipelines.memory_dedup_pipeline.MemoryDedupPipeline']
+        dedup_priority = pipelines['crawlo.pipelines.dedup.memory.MemoryDedupPipeline']
         
         # 验证使用 max(1, 50 - 100) = 1
         assert dedup_priority == 1

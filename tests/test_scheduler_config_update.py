@@ -41,13 +41,13 @@ class MockSettings:
                 'REDIS_URL': 'redis://localhost:6379/0',
                 'QUEUE_TYPE': 'redis',
                 'FILTER_CLASS': filter_class or 'crawlo.filters.memory_filter.MemoryFilter',
-                'DEFAULT_DEDUP_PIPELINE': dedup_pipeline or 'crawlo.pipelines.memory_dedup_pipeline.MemoryDedupPipeline',
+                'DEFAULT_DEDUP_PIPELINE': dedup_pipeline or 'crawlo.pipelines.dedup.memory.MemoryDedupPipeline',
             })
         else:
             self._settings.update({
                 'QUEUE_TYPE': 'memory',
                 'FILTER_CLASS': filter_class or 'crawlo.filters.memory_filter.MemoryFilter',
-                'DEFAULT_DEDUP_PIPELINE': dedup_pipeline or 'crawlo.pipelines.memory_dedup_pipeline.MemoryDedupPipeline',
+                'DEFAULT_DEDUP_PIPELINE': dedup_pipeline or 'crawlo.pipelines.dedup.memory.MemoryDedupPipeline',
             })
         
     def get(self, key, default=None):
@@ -100,7 +100,7 @@ async def test_config_update_logs():
     crawler = MockCrawler(
         use_redis=True, 
         filter_class='crawlo.filters.memory_filter.MemoryFilter',
-        dedup_pipeline='crawlo.pipelines.memory_dedup_pipeline.MemoryDedupPipeline'
+        dedup_pipeline='crawlo.pipelines.dedup.memory.MemoryDedupPipeline'
     )
     
     scheduler = Scheduler.create_instance(crawler)

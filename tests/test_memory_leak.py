@@ -491,7 +491,7 @@ class TestPipelineMemoryLeak:
     def test_csv_pipeline(self):
         """测试: CSV Pipeline"""
         import tempfile
-        from crawlo.pipelines.csv_pipeline import CsvPipeline
+        from crawlo.pipelines.file.csv import CsvPipeline
         
         self.profiler.take_snapshot("before")
         
@@ -531,7 +531,7 @@ class TestPipelineMemoryLeak:
     def test_json_pipeline(self):
         """测试: JSON Pipeline"""
         import tempfile
-        from crawlo.pipelines.json_pipeline import JsonPipeline
+        from crawlo.pipelines.file.json import JsonLinesPipeline as JsonPipeline
         
         self.profiler.take_snapshot("before")
         

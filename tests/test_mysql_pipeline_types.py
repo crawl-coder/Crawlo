@@ -17,7 +17,7 @@ from typing import Dict, Any
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
 from crawlo.items import Item, Field
-from crawlo.pipelines.mysql_pipeline import BaseMySQLPipeline
+from crawlo.pipelines.sql.mysql import BaseMySQLPipeline
 
 
 # 创建一个简单的 Item 类用于测试

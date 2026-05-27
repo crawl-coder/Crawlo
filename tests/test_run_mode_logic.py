@@ -169,27 +169,27 @@ class TestQueueRelatedSettingsUpdate:
     def test_redis_queue_updates_filter_and_pipeline(self):
         """Test redis queue updates related settings correctly"""
         from crawlo.project import _update_queue_related_settings
-        
+
         mode_settings = {}
         settings = SettingManager()
-        
+
         _update_queue_related_settings(mode_settings, 'redis', settings)
-        
-        assert mode_settings['FILTER_CLASS'] == 'crawlo.filters.aioredis_filter.AioRedisFilter'
-        assert mode_settings['DEFAULT_DEDUP_PIPELINE'] == 'crawlo.pipelines.redis_dedup_pipeline.RedisDedupPipeline'
+
+        assert mode_settings['FILTER_CLASS'] == 'crawlo.filters.AioRedisFilter'
+        assert mode_settings['DEFAULT_DEDUP_PIPELINE'] == 'crawlo.pipelines.RedisDedupPipeline'
 
     def test_auto_queue_preserves_user_settings(self):
         """Test auto queue preserves user's settings"""
         from crawlo.project import _update_queue_related_settings
-        
+
         mode_settings = {}
         settings = SettingManager()
         settings.set('FILTER_CLASS', 'custom.Filter')
         settings.set('DEFAULT_DEDUP_PIPELINE', 'custom.Pipeline')
-        
+
         _update_queue_related_settings(mode_settings, 'auto', settings)
-        
-        # Should use user's settings
+
+        # Should preserve user's custom settings
         assert mode_settings['FILTER_CLASS'] == 'custom.Filter'
         assert mode_settings['DEFAULT_DEDUP_PIPELINE'] == 'custom.Pipeline'
 

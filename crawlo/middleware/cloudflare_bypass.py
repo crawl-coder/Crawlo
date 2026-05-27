@@ -7,19 +7,21 @@ Automatically detect and bypass Cloudflare challenge pages.
 
 Features:
 - Detect Cloudflare challenge pages (403/503 + signatures)
-- Auto fallback to stealth browser for retry
-- Support multiple stealth browsers (camoufox, playwright, drissionpage)
+- Progressive downloader chain (camoufox → cloakbrowser auto-escalation)
+- CF cookie persistence (cf_clearance cache per domain)
 - Smart retry mechanism
 
 Usage:
 # settings.py
 # Middleware is already registered in framework, no manual configuration needed
-# Only configure the downloader type for bypass
-CLOUDFLARE_BYPASS_DOWNLOADER = 'camoufox'  # or 'playwright', 'drissionpage'
+# Only configure the downloader chain for bypass
+CLOUDFLARE_BYPASS_DOWNLOADER_CHAIN = ['camoufox', 'cloakbrowser']
+CLOUDFLARE_BYPASS_COOKIE_CACHE_ENABLED = True
 """
 
 import re
-from typing import Optional, Union
+import time
+from typing import Optional, Union, Dict, List
 from urllib.parse import urlparse
 
 from crawlo.network.request import Request
@@ -39,8 +41,9 @@ class CloudflareBypassMiddleware:
     3. Support Turnstile challenge type detection
     
     Bypass strategy:
-    1. Use stealth browser (camoufox recommended) to retry
-    2. Support request-level configuration for different browsers
+    1. Use progressive downloader chain (default: camoufox → cloakbrowser)
+    2. Cache cf_clearance cookies for reuse
+    3. Support request-level configuration for different browsers
     """
     
     # Cloudflare challenge status codes
@@ -83,7 +86,23 @@ class CloudflareBypassMiddleware:
         
         # Configuration
         self.max_retries = crawler.settings.get_int("CLOUDFLARE_BYPASS_MAX_RETRIES", 2)
-        self.default_downloader = crawler.settings.get("CLOUDFLARE_BYPASS_DOWNLOADER", "camoufox")
+        self.default_downloader = crawler.settings.get("CLOUDFLARE_BYPASS_DOWNLOADER", "cloakbrowser")
+        
+        # Progressive downloader chain
+        raw_chain = crawler.settings.get("CLOUDFLARE_BYPASS_DOWNLOADER_CHAIN", None)
+        if raw_chain:
+            self._downloader_chain = list(raw_chain)
+        else:
+            self._downloader_chain = ['cloakbrowser']
+        
+        # Cookie cache
+        self._cookie_cache_enabled = crawler.settings.getbool(
+            "CLOUDFLARE_BYPASS_COOKIE_CACHE_ENABLED", True
+        )
+        # domain -> {cookies: dict, expires_at: float}
+        self._cf_cookie_cache: Dict[str, Dict] = {}
+        # CF cookies to capture after successful bypass
+        self._cf_cookie_names = {'cf_clearance', '__cf_bm', '__cflb', 'cf_chl_rc_m'}
         
         # Cache known Cloudflare domains
         self._cloudflare_domains = set()
@@ -97,7 +116,11 @@ class CloudflareBypassMiddleware:
             for pattern in self.CLOUDFLARE_SIGNATURE_PATTERNS
         ]
         
-        self.logger.debug(f"CloudflareBypassMiddleware initialized (downloader={self.default_downloader})")
+        self.logger.info(
+            f"CloudflareBypassMiddleware initialized "
+            f"(chain={self._downloader_chain}, "
+            f"cookie_cache={'enabled' if self._cookie_cache_enabled else 'disabled'})"
+        )
 
     @classmethod
     def create_instance(cls, crawler):
@@ -116,33 +139,31 @@ class CloudflareBypassMiddleware:
             request.meta['use_dynamic_loader'] = True
             request.meta['dynamic_downloader_type'] = request.meta.get(
                 'cloudflare_bypass_downloader', 
-                self.default_downloader
+                self._downloader_chain[0]
             )
+        
+        # Inject cached CF cookies for known domains
+        if self._cookie_cache_enabled:
+            self._inject_cf_cookies(request)
         
         return None
 
     async def process_response(self, request: Request, response: Response, spider) -> Union[Request, Response]:
         """Post-process response"""
+        # If this request used a stealth browser and succeeded, cache cookies
+        if response.status < 400 and request.meta.get('cloudflare_bypass_attempted'):
+            if self._cookie_cache_enabled:
+                self._capture_cf_cookies(request.url, response)
+            # Check if the stealth browser itself got a CF challenge (escalation needed)
+            if self._is_cloudflare_challenge(response):
+                return self._handle_escalation(request, response)
+            return response
+        
         # Check if this is a Cloudflare challenge page
         if not self._is_cloudflare_challenge(response):
             return response
         
-        # Check if max retries reached
-        bypass_count = request.meta.get('cloudflare_bypass_count', 0)
-        if bypass_count >= self.max_retries:
-            self.logger.warning(f"Max Cloudflare bypass retries reached for {request.url}")
-            return response
-        
-        # Mark as Cloudflare domain
-        self._mark_cloudflare_domain(request.url)
-        
-        # Create new request with stealth browser
-        self.logger.info(f"Cloudflare challenge detected for {request.url}, attempting bypass with {self.default_downloader}")
-        
-        # Create retry request
-        retry_request = self._create_bypass_request(request, bypass_count)
-        
-        return retry_request
+        return self._handle_bypass_retry(request)
 
     async def process_exception(self, request: Request, exception: Exception, spider) -> Optional[Request]:
         """Handle exception"""
@@ -157,12 +178,11 @@ class CloudflareBypassMiddleware:
         ]
         
         if any(indicator in exception_str for indicator in cloudflare_error_indicators):
-            bypass_count = request.meta.get('cloudflare_bypass_count', 0)
-            if bypass_count < self.max_retries:
-                self.logger.info(f"Cloudflare-related exception for {request.url}, attempting bypass")
-                return self._create_bypass_request(request, bypass_count)
+            return self._handle_bypass_retry(request)
         
         return None
+
+    # ── Private: Detection ──
 
     def _is_cloudflare_challenge(self, response: Response) -> bool:
         """Detect if this is a Cloudflare challenge page"""
@@ -195,24 +215,14 @@ class CloudflareBypassMiddleware:
         return False
     
     def _detect_cloudflare_type(self, page_content: str) -> Optional[str]:
-        """
-        Detect Cloudflare Turnstile challenge type
-        
-        Args:
-            page_content: Page content
-            
-        Returns:
-            Challenge type: 'non-interactive', 'managed', 'interactive', 'embedded' or None
-        """
+        """Detect Cloudflare Turnstile challenge type"""
         try:
             content = page_content if isinstance(page_content, str) else page_content.decode('utf-8', errors='ignore')
             
-            # Check Turnstile type
             for ctype in self.CHALLENGE_TYPES:
                 if f"cType: '{ctype}'" in content:
                     return ctype
             
-            # Check if embedded Turnstile
             if 'challenges.cloudflare.com/turnstile' in content:
                 return "embedded"
             
@@ -220,26 +230,147 @@ class CloudflareBypassMiddleware:
         except Exception:
             return None
 
-    def _create_bypass_request(self, original_request: Request, bypass_count: int) -> Request:
+    # ── Private: Bypass & Escalation ──
+
+    def _handle_bypass_retry(self, request: Request) -> Optional[Request]:
+        """Create bypass retry request with progressive downloader chain"""
+        bypass_count = request.meta.get('cloudflare_bypass_count', 0)
+        
+        # Determine which downloader to use based on chain index
+        chain_index = min(bypass_count, len(self._downloader_chain) - 1)
+        downloader = self._downloader_chain[chain_index]
+        
+        # Check if we've exhausted all downloaders
+        if chain_index >= len(self._downloader_chain) - 1 and bypass_count >= self.max_retries:
+            self.logger.warning(
+                f"All {len(self._downloader_chain)} downloaders exhausted for {request.url}"
+            )
+            return None
+        
+        # Mark domain as Cloudflare-protected
+        self._mark_cloudflare_domain(request.url)
+        
+        self.logger.info(
+            f"Cloudflare challenge detected for {request.url}, "
+            f"attempting bypass with {downloader} "
+            f"(attempt {bypass_count + 1}/{self.max_retries}, "
+            f"chain[{chain_index}/{len(self._downloader_chain) - 1}])"
+        )
+        
+        return self._create_bypass_request(request, bypass_count, downloader)
+
+    def _handle_escalation(self, request: Request, response: Response) -> Optional[Request]:
+        """Handle case where current stealth browser also hit CF challenge — escalate to next"""
+        chain_index = request.meta.get('cloudflare_bypass_chain_index', 0)
+        bypass_count = request.meta.get('cloudflare_bypass_count', 0)
+        
+        next_index = chain_index + 1
+        
+        if next_index >= len(self._downloader_chain):
+            self.logger.warning(
+                f"All downloaders in chain exhausted for {request.url}, "
+                f"last tried: {self._downloader_chain[chain_index]}"
+            )
+            return None
+        
+        next_downloader = self._downloader_chain[next_index]
+        self.logger.info(
+            f"Escalating Cloudflare bypass for {request.url}: "
+            f"{self._downloader_chain[chain_index]} → {next_downloader}"
+        )
+        
+        return self._create_bypass_request(request, bypass_count, next_downloader, chain_index=next_index)
+
+    def _create_bypass_request(
+        self, 
+        original_request: Request, 
+        bypass_count: int, 
+        downloader: str,
+        chain_index: int = None
+    ) -> Request:
         """Create bypass request"""
-        # Copy original request
         retry_request = original_request.copy()
-            
-        # Update meta
+        
+        if chain_index is None:
+            chain_index = min(bypass_count, len(self._downloader_chain) - 1)
+        
         retry_request.meta['cloudflare_bypass_count'] = bypass_count + 1
         retry_request.meta['cloudflare_bypass_attempted'] = True
+        retry_request.meta['cloudflare_bypass_chain_index'] = chain_index
         retry_request.meta['use_dynamic_loader'] = True
-        retry_request.meta['dynamic_downloader_type'] = retry_request.meta.get(
-            'cloudflare_bypass_downloader', 
-            self.default_downloader
-        )
+        retry_request.meta['dynamic_downloader_type'] = downloader
             
         self.logger.debug(
-            f"Created bypass request (attempt {bypass_count + 1}/{self.max_retries}) "
-            f"using {retry_request.meta['dynamic_downloader_type']}"
+            f"Created bypass request (attempt {bypass_count + 1}), "
+            f"downloader={downloader}, chain_index={chain_index}"
         )
             
         return retry_request
+
+    # ── Private: Cookie Management ──
+
+    def _capture_cf_cookies(self, url: str, response: Response):
+        """Capture Cloudflare cookies from successful response"""
+        try:
+            domain = urlparse(url).netloc.lower()
+            cookies = {}
+            
+            # Extract from response headers
+            set_cookie_headers = response.headers.get('Set-Cookie', '')
+            if isinstance(set_cookie_headers, list):
+                cookie_strs = set_cookie_headers
+            else:
+                cookie_strs = [set_cookie_headers] if set_cookie_headers else []
+            
+            for cookie_str in cookie_strs:
+                for part in cookie_str.split(';'):
+                    part = part.strip()
+                    if '=' in part:
+                        key, _, value = part.partition('=')
+                        key = key.strip()
+                        if key in self._cf_cookie_names:
+                            cookies[key] = value
+            
+            if cookies:
+                # Cache with 24h expiry
+                self._cf_cookie_cache[domain] = {
+                    'cookies': cookies,
+                    'expires_at': time.time() + 86400,
+                }
+                self.logger.info(
+                    f"Cached CF cookies for {domain}: "
+                    f"{', '.join(cookies.keys())}"
+                )
+        except Exception as e:
+            self.logger.debug(f"Failed to capture CF cookies: {e}")
+
+    def _inject_cf_cookies(self, request: Request):
+        """Inject cached CF cookies into request"""
+        try:
+            domain = urlparse(request.url).netloc.lower()
+            cached = self._cf_cookie_cache.get(domain)
+            
+            if not cached:
+                return
+            
+            # Check expiry
+            if time.time() > cached['expires_at']:
+                del self._cf_cookie_cache[domain]
+                return
+            
+            # Inject cookies
+            existing_cookies = request.cookies or {}
+            for key, value in cached['cookies'].items():
+                if key not in existing_cookies:
+                    existing_cookies[key] = value
+            
+            if existing_cookies != request.cookies:
+                request.cookies = existing_cookies
+                self.logger.debug(f"Injected CF cookies for {domain}")
+        except Exception:
+            pass
+
+    # ── Private: Domain Cache ──
 
     def _is_known_cloudflare_domain(self, url: str) -> bool:
         """Check if this is a known Cloudflare domain"""

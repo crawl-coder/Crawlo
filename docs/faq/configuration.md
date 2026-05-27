@@ -188,9 +188,9 @@ PIPELINES = {
     'crawlo.pipelines.MySQLPipeline': 300,
 }
 
-# 方式2：完整路径（兼容所有版本）
+# 方式2：完整路径（v2.0 新目录结构）
 # PIPELINES = {
-#     'crawlo.pipelines.mysql_pipeline.MySQLPipeline': 300,
+#     'crawlo.pipelines.sql.mysql.MySQLPipeline': 300,
 # }
 ```
 
@@ -208,7 +208,7 @@ PIPELINES = {
 
 # 方式2：完整路径
 # PIPELINES = {
-#     'crawlo.pipelines.mongo_pipeline.MongoPipeline': 300,
+#     'crawlo.pipelines.doc.mongo.MongoPipeline': 300,
 # }
 ```
 

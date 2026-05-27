@@ -16,7 +16,7 @@ import traceback
 # 添加项目根目录到路径
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
-from crawlo.pipelines.redis_dedup_pipeline import RedisDedupPipeline
+from crawlo.pipelines.dedup.redis import RedisDedupPipeline
 
 
 class MockSettings:

@@ -422,7 +422,7 @@ class TestSettingManagerIntegration(unittest.TestCase):
         settings = SettingManager()
         pipelines = settings.get('PIPELINES')
         # 去重管道必须存在
-        dedup = settings.get('DEFAULT_DEDUP_PIPELINE', 'crawlo.pipelines.memory_dedup_pipeline.MemoryDedupPipeline')
+        dedup = settings.get('DEFAULT_DEDUP_PIPELINE', 'crawlo.pipelines.dedup.memory.MemoryDedupPipeline')
         self.assertIn(dedup, pipelines, "去重管道必须存在于 PIPELINES 中")
 
     def test_setting_manager_get_int_bool_float(self):

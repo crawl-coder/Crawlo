@@ -8,7 +8,7 @@ import asyncio
 import unittest
 from unittest.mock import Mock, patch, AsyncMock
 
-from crawlo.pipelines.mysql_pipeline import BaseMySQLPipeline, MySQLPipeline
+from crawlo.pipelines.sql.mysql import BaseMySQLPipeline, MySQLPipeline
 
 
 class TestBaseMySQLPipeline(unittest.TestCase):
@@ -64,7 +64,7 @@ class TestBaseMySQLPipeline(unittest.TestCase):
         
         # 由于_make_insert_sql是异步方法，我们需要运行事件循环
         async def test_async():
-            with patch('crawlo.pipelines.mysql_pipeline.SQLBuilder.make_insert') as mock_make_insert:
+            with patch('crawlo.pipelines.sql.mysql.SQLBuilder.make_insert') as mock_make_insert:
                 mock_make_insert.return_value = "TEST SQL"
                 result = await pipeline._make_insert_sql(item_dict)
                 mock_make_insert.assert_called_once_with(table=pipeline.table_name, data=item_dict)

@@ -11,7 +11,7 @@ import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
 from crawlo.utils.db.sql_builder import SQLBuilder
-from crawlo.pipelines.mysql_pipeline import BaseMySQLPipeline, MySQLPipeline
+from crawlo.pipelines.sql.mysql import BaseMySQLPipeline, MySQLPipeline
 
 
 def verify_mysql_syntax():

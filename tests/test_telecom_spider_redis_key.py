@@ -22,7 +22,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 # 导入相关模块
 from crawlo.queue.queue_manager import QueueManager, QueueConfig, QueueType
 from crawlo.filters.aioredis_filter import AioRedisFilter
-from crawlo.pipelines.redis_dedup_pipeline import RedisDedupPipeline
+from crawlo.pipelines.dedup.redis import RedisDedupPipeline
 
 
 class MockSettings:

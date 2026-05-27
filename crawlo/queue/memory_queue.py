@@ -287,21 +287,22 @@ class MemoryQueue(BackpressureableQueueMixin, IQueue):
             await self.open()
         
         timeout_value = timeout if timeout is not None else 0
-        
+
         try:
-            # 使用 async with asyncio.timeout 处理超时
-            async with asyncio.timeout(timeout_value if timeout_value > 0 else None):
+            if timeout_value > 0:
+                queue_item = await asyncio.wait_for(self._queue.get(), timeout=timeout_value)
+            else:
                 queue_item = await self._queue.get()
             self._total_gets += 1
             self._stats.record_dequeue()
-            
+
             # 记录智能背压指标
             if self._intelligent_backpressure_enabled and self._metrics_collector:
                 self._metrics_collector.record_dequeue()
-            
+
             # 返回 QueueItem 中包装的实际元素
             return queue_item.item if isinstance(queue_item, QueueItem) else queue_item
-            
+
         except asyncio.TimeoutError:
             # 记录超时
             if self._intelligent_backpressure_enabled and self._metrics_collector:
@@ -687,9 +688,11 @@ class SpiderPriorityQueue(asyncio.PriorityQueue):
             队列元素或None(超时)
         """
         try:
-            async with asyncio.timeout(timeout if timeout > 0 else None):
+            if timeout > 0:
+                _, item = await asyncio.wait_for(super().get(), timeout=timeout)
+            else:
                 _, item = await super().get()
-                return item
+            return item
         except asyncio.TimeoutError:
             return None
 

@@ -24,7 +24,6 @@
 """
 import json
 import os
-import re
 from copy import deepcopy
 from importlib import import_module
 from collections.abc import MutableMapping
@@ -36,9 +35,9 @@ from crawlo.settings import default_settings
 
 class ConfigFormat:
     """配置格式类型"""
-    DICT = 'dict'      # 字典格式 {'path': priority}
-    LIST = 'list'      # 列表格式 ['path']
-    TUPLE_LIST = 'tuple_list'  # 元组列表 [('path', priority)]
+    DICT: str = 'dict'      # 字典格式 {'path': priority}
+    LIST: str = 'list'      # 列表格式 ['path']
+    TUPLE_LIST: str = 'tuple_list'  # 元组列表 [('path', priority)]
 
 
 def normalize_component_config(
@@ -144,8 +143,8 @@ class SettingManager(MutableMapping):
     
     # 去重管道列表
     _DEDUP_PIPELINES = frozenset([
-        'crawlo.pipelines.memory_dedup_pipeline.MemoryDedupPipeline',
-        'crawlo.pipelines.redis_dedup_pipeline.RedisDedupPipeline',
+        'crawlo.pipelines.MemoryDedupPipeline',
+        'crawlo.pipelines.RedisDedupPipeline',
     ])
     
     def __init__(self, values: Optional[Dict[str, Any]] = None):

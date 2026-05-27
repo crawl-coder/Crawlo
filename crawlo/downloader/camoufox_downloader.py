@@ -17,7 +17,7 @@ playwright install  # 如果需要 Chromium 兼容模式
 
 使用示例:
 # settings.py
-DOWNLOADER = "crawlo.downloader.camoufox_downloader.CamoufoxDownloader"
+DOWNLOADER = "crawlo.downloader.CamoufoxDownloader"
 CAMOUFOX_HEADLESS = True
 CAMOUFOX_HUMANIZE = True
 CAMOUFOX_SOLVE_CLOUDFLARE = True
@@ -90,7 +90,7 @@ class CamoufoxDownloader(DownloaderBase):
             get_browser_config_list(s, "CAMOUFOX", "BLOCK_RESOURCES", ["image", "font", "media"])
         )
         self.timeout = get_browser_config_int(s, "CAMOUFOX", "TIMEOUT", 30000)
-        self.load_timeout = get_browser_config_int(s, "CAMOUFOX", "LOAD_TIMEOUT", 10000)
+        self.load_timeout = get_browser_config_int(s, "CAMOUFOX", "LOAD_TIMEOUT", 60000)
         self.viewport_width = get_browser_config_int(s, "CAMOUFOX", "VIEWPORT_WIDTH", 1280)
         self.viewport_height = get_browser_config_int(s, "CAMOUFOX", "VIEWPORT_HEIGHT", 720)
         self.max_pages = get_browser_config_int(s, "CAMOUFOX", "MAX_PAGES", 10)
@@ -228,16 +228,16 @@ class CamoufoxDownloader(DownloaderBase):
                 "height": self.viewport_height
             })
             
-            # 设置资源屏蔽
-            await self._setup_resource_blocking(page, request)
-            
             # 应用请求设置
             await self._apply_request_settings(page, request)
             
-            # 访问页面
+            # 访问页面（资源屏蔽延后到 CF 绕过后，与 CloakBrowser 一致）
             wait_until = self._get_wait_until(request)
             response = await page.goto(request.url, wait_until=wait_until)
-            
+
+            # CF 绕过后再启用资源屏蔽
+            await self._setup_resource_blocking(page, request)
+
             # 智能等待
             await self._smart_wait_for_page_load(page, request)
             

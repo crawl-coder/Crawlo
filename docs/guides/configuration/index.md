@@ -191,9 +191,80 @@ CLOAKBROWSER_PROXY = 'socks5://user:pass@proxy:1080'
 | 参数 | 默认值 | 说明 |
 | :--- | :--- | :--- |
 | `PIPELINES` | `{}` | 启用的管道列表。键为管道类路径，值为优先级（0-1000）。 |
-| `MYSQL_HOST` | `"127.0.0.1"` | MySQL 数据库地址。 |
-| `MYSQL_BATCH_SIZE` | `200` | 批量插入的数据量，大幅提升入库速度。 |
-| `MONGO_URI` | `""` | MongoDB 连接字符串。 |
+
+**MySQL 配置（MySQLPipeline，依赖 `pip install crawlo[database]`）：**
+
+| 参数 | 默认值 | 说明 |
+| :--- | :--- | :--- |
+| `MYSQL_HOST` | `"127.0.0.1"` | 数据库地址。 |
+| `MYSQL_PORT` | `3306` | 端口。 |
+| `MYSQL_DB` | `"crawlo_db"` | 数据库名。 |
+| `MYSQL_TABLE` | `"{spider_name}_items"` | 表名。 |
+| `MYSQL_BATCH_SIZE` | `200` | 批量插入数据量。 |
+
+**SQLite 配置（SQLitePipeline，依赖 `pip install crawlo[sqlite]`）：**
+
+| 参数 | 默认值 | 说明 |
+| :--- | :--- | :--- |
+| `SQLITE_PATH` | `"data"` | 数据库文件目录。 |
+| `SQLITE_DB` | `"crawlo"` | 数据库文件名（不含 .db）。 |
+| `SQLITE_AUTO_UPDATE` | `False` | 启用 `INSERT OR REPLACE`（默认 `INSERT OR IGNORE`）。 |
+
+**PostgreSQL 配置（PostgreSQLPipeline，依赖 `pip install crawlo[postgresql]`）：**
+
+| 参数 | 默认值 | 说明 |
+| :--- | :--- | :--- |
+| `PG_HOST` | `"127.0.0.1"` | 数据库地址。 |
+| `PG_PORT` | `5432` | 端口。 |
+| `PG_DB` | `"crawlo"` | 数据库名。 |
+| `PG_TABLE` | `"{spider_name}_items"` | 表名。 |
+| `PG_CONFLICT_COLUMNS` | — | **必需**：ON CONFLICT 的冲突列（如 `('id',)`）。 |
+
+**ClickHouse 配置（ClickHousePipeline，依赖 `pip install crawlo[clickhouse]`）：**
+
+| 参数 | 默认值 | 说明 |
+| :--- | :--- | :--- |
+| `CLICKHOUSE_HOST` | `"127.0.0.1"` | 地址。 |
+| `CLICKHOUSE_PORT` | `8123` | HTTP 端口。 |
+| `CLICKHOUSE_DB` | `"crawlo"` | 数据库名。 |
+| `CLICKHOUSE_TABLE` | `"{spider_name}_items"` | 表名。 |
+| `CLICKHOUSE_USE_BATCH` | `True` | 默认启用批量模式。 |
+| `CLICKHOUSE_BATCH_SIZE` | `10000` | 批量大小。 |
+
+**MongoDB 配置（MongoPipeline，依赖 `pip install crawlo[database]`）：**
+
+| 参数 | 默认值 | 说明 |
+| :--- | :--- | :--- |
+| `MONGO_URI` | `"mongodb://localhost:27017"` | 连接字符串。 |
+| `MONGO_DB` | `"crawlo_db"` | 数据库名。 |
+| `MONGO_COLLECTION` | `"{spider_name}"` | 集合名。 |
+| `MONGO_DEDUPLICATE_MODE` | `"upsert"` | `"upsert"`（覆盖）或 `"insert"`（跳过重复）。 |
+
+**Elasticsearch 配置（ElasticsearchPipeline，依赖 `pip install crawlo[elasticsearch]`）：**
+
+| 参数 | 默认值 | 说明 |
+| :--- | :--- | :--- |
+| `ELASTICSEARCH_HOSTS` | `['http://127.0.0.1:9200']` | ES 节点列表。 |
+| `ELASTICSEARCH_INDEX` | `"{spider_name}"` | 索引名。 |
+| `ELASTICSEARCH_USE_BATCH` | `True` | 默认启用批量模式。 |
+| `ELASTICSEARCH_BATCH_SIZE` | `500` | 批量大小。 |
+
+**HBase 配置（HBasePipeline，依赖 `pip install crawlo[hbase]`）：**
+
+| 参数 | 默认值 | 说明 |
+| :--- | :--- | :--- |
+| `HBASE_HOST` | `"127.0.0.1"` | Thrift 服务地址。 |
+| `HBASE_PORT` | `9090` | Thrift 端口。 |
+| `HBASE_TABLE` | `"{spider_name}_data"` | 表名。 |
+| `HBASE_COLUMN_FAMILY` | `"cf"` | 列族名。 |
+
+**通用冲突策略（SQL 类型 Pipeline 共享）：**
+
+| 参数 | 默认值 | 说明 |
+| :--- | :--- | :--- |
+| `{PREFIX}_UPDATE_COLUMNS` | `()` | UPSERT 时指定更新字段。 |
+| `{PREFIX}_AUTO_UPDATE` | `False` | 是否覆盖整行（REPLACE INTO）。 |
+| `{PREFIX}_INSERT_IGNORE` | `False` | 是否忽略重复（INSERT IGNORE）。 |
 
 ---
 
