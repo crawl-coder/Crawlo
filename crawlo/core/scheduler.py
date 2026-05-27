@@ -18,6 +18,7 @@ from crawlo.utils.request.request_serializer import RequestSerializer
 from crawlo.queue.queue_manager import QueueManager
 from crawlo.queue.config import QueueConfig
 from crawlo.queue.queue_types import QueueType
+from crawlo.queue.task_tracker import TaskResult
 
 # ---- 配置常量（统一管理，消除重复） ----
 _DEFAULT_QUEUE_TYPE = 'memory'
@@ -33,6 +34,12 @@ _DEFAULT_DEPTH_PRIORITY = 0
 # ---- 配置映射：每种队列模式对应的过滤器、去重管道 ----
 _MODE_CONFIG = {
     QueueType.REDIS: {
+        'filter_class': _DEFAULT_REDIS_FILTER_CLASS,
+        'dedup_pipeline': _DEFAULT_DEDUP_REDIS,
+        'source_filter_patterns': ['memory_filter'],
+        'source_dedup_pattern': 'memory_dedup_pipeline',
+    },
+    QueueType.REDIS_STREAM: {
         'filter_class': _DEFAULT_REDIS_FILTER_CLASS,
         'dedup_pipeline': _DEFAULT_DEDUP_REDIS,
         'source_filter_patterns': ['memory_filter'],
@@ -93,7 +100,10 @@ class Scheduler:
         return self.queue_type == QueueType.MEMORY
 
     def _is_redis_queue(self) -> bool:
-        return self.queue_type == QueueType.REDIS
+        return self.queue_type in (QueueType.REDIS, QueueType.REDIS_STREAM)
+
+    def _is_stream_queue(self) -> bool:
+        return self.queue_type == QueueType.REDIS_STREAM
 
     # ============================
     # 工厂方法
@@ -197,7 +207,7 @@ class Scheduler:
         """检测当前过滤器是否与队列类型匹配"""
         if not self.queue_manager:
             return False
-        if self._is_redis_queue():
+        if self._is_redis_queue():  # includes REDIS and REDIS_STREAM
             return 'memory_filter' in current_filter
         elif self._is_memory_queue():
             return 'aioredis_filter' in current_filter or 'redis_filter' in current_filter
@@ -349,6 +359,7 @@ class Scheduler:
                 is_duplicate = await common_call(self.dupe_filter.requested, request)
             if is_duplicate:
                 self.dupe_filter.log_stats(request)
+                self.logger.info(f"Filtered duplicate request: {request.url}")
                 return False
 
         if not self.queue_manager:
@@ -450,6 +461,73 @@ class Scheduler:
         except Exception as e:
             self.error_handler.handle_error(e, context=ErrorContext(context="Failed to close scheduler"), raise_error=False)
 
-    async def ack_request(self, request):
+    async def next_request_with_ack(self):
+        """
+        带 ACK 语义的出队（REDIS_STREAM 模式专用）。
+
+        Returns:
+            (request, receipt) 或 (None, None)
+            receipt 用于后续 ack_request / nack_request 调用
+        """
+        if not self.queue_manager:
+            return (None, None)
+
+        # Stream 队列：使用带 receipt 的出队
+        if self._is_stream_queue():
+            if hasattr(self.queue_manager._queue, 'get_with_receipt'):
+                result = await self.queue_manager._queue.get_with_receipt(timeout=30.0)
+                if result:
+                    request, message_id = result
+                    if request:
+                        try:
+                            spider = getattr(self.crawler, 'spider', None)
+                            request = self.request_serializer.restore_after_deserialization(request, spider)
+                        except Exception as deser_error:
+                            self.logger.error(
+                                f"[队列] 请求反序列化失败: {deser_error}"
+                            )
+                            return (None, None)
+                        return (request, message_id)
+                return (None, None)
+
+        # 非 Stream 队列：退化为普通出队，receipt = None
+        request = await self.next_request()
+        return (request, None)
+
+    async def ack_request(self, request_or_receipt):
+        """
+        确认请求处理完成。
+
+        REDIS_STREAM 模式：XACK 确认消息
+        REDIS ZSET 模式：空操作（任务出队时即认为完成）
+        Memory 模式：空操作
+        """
+        # Stream 队列：XACK
+        if self._is_stream_queue():
+            if isinstance(request_or_receipt, str) and request_or_receipt:
+                # receipt = message_id
+                if hasattr(self.queue_manager._queue, 'ack'):
+                    await self.queue_manager._queue.ack(request_or_receipt)
+            elif hasattr(request_or_receipt, 'url'):
+                # 老式 Request 对象，尝试从 meta 获取 message_id
+                message_id = getattr(request_or_receipt, 'meta', {}).get('__stream_message_id')
+                if message_id and hasattr(self.queue_manager._queue, 'ack'):
+                    await self.queue_manager._queue.ack(message_id)
+
+    async def nack_request(self, receipt, reason: str = 'failed', result: TaskResult = TaskResult.RETRY):
+        """
+        确认请求处理失败。
+
+        REDIS_STREAM 模式：根据 result 决定重试/死信/XACK
+        其他模式：空操作
+        """
+        if not self._is_stream_queue():
+            return
+
+        if not receipt:
+            return
+
+        if hasattr(self.queue_manager._queue, 'nack'):
+            await self.queue_manager._queue.nack(receipt, error=reason, result=result)
         """确认请求处理完成（当前为空操作，任务出队时即认为完成）"""
         pass

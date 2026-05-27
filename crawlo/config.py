@@ -70,12 +70,14 @@ MODE_CONFIG_MAP = {
     },
     'distributed': {
         'RUN_MODE': 'distributed',
-        'QUEUE_TYPE': 'redis',
+        'QUEUE_TYPE': 'redis_stream',
         'FILTER_CLASS': 'crawlo.filters.AioRedisFilter',
         'DEFAULT_DEDUP_PIPELINE': 'crawlo.pipelines.RedisDedupPipeline',
         'CONCURRENCY': 16,
         'MAX_RUNNING_SPIDERS': 10,
         'DISTRIBUTED_WORKER_IDLE_TIMEOUT': 300,   # 连续空闲 N 秒后退出（0 = 永不退出）
+        'STREAM_DELIVERY_COUNT_LIMIT': 3,           # Stream 最大投递次数
+        'STREAM_CONSUMER_IDLE_TIMEOUT': 60000,      # ms，任务超时未 ACK 可回收
     }
 }
 
@@ -148,7 +150,7 @@ class ConfigValidator:
     def _validate_queue(self, config: Dict[str, Any]):
         """验证队列设置"""
         queue_type = config.get('QUEUE_TYPE', 'memory')
-        valid_types = ['memory', 'redis', 'auto']
+        valid_types = ['memory', 'redis', 'redis_stream', 'auto']
         if queue_type not in valid_types:
             self.errors.append(f"QUEUE_TYPE 必须是以下值之一: {valid_types}")
         

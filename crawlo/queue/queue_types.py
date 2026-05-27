@@ -21,6 +21,7 @@ class QueueType(Enum):
     """
     MEMORY = "memory"
     REDIS = "redis"
+    REDIS_STREAM = "redis_stream"  # Redis Streams + Consumer Groups（分布式 ACK/故障转移）
     AUTO = "auto"
     DISK = "disk"  # 保留用于兼容，但不在框架中使用
     
@@ -44,20 +45,20 @@ class QueueType(Enum):
     def supports_distributed(self) -> bool:
         """
         检查该队列类型是否支持分布式部署
-        
+
         Returns:
             bool: 是否支持分布式
         """
-        return self == QueueType.REDIS
-    
+        return self in (QueueType.REDIS, QueueType.REDIS_STREAM)
+
     def requires_external_service(self) -> bool:
         """
         检查该队列类型是否需要外部服务
-        
+
         Returns:
             bool: 是否需要外部服务
         """
-        return self == QueueType.REDIS
+        return self in (QueueType.REDIS, QueueType.REDIS_STREAM)
 
 
 class QueuePriority(Enum):

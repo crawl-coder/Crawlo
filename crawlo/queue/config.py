@@ -84,11 +84,11 @@ class QueueConfig:
         queue_type_str = queue_type.value if isinstance(queue_type, QueueType) else str(queue_type).lower()
         
         # 根据队列类型获取背压配置
-        if queue_type_str == 'redis':
+        if queue_type_str in ('redis', 'redis_stream'):
             backpressure_config = cls._get_backpressure_config(
                 settings, 'REDIS',
                 defaults={
-                    'max_size': 50000,
+                    'max_size': 100000,
                     'ratio': 0.6,
                     'delay_base': 0.5,
                     'delay_max': 5.0,
