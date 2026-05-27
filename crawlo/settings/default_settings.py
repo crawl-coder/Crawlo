@@ -544,7 +544,9 @@ DYNAMIC_RENDER_STATIC_PATTERNS = []          # 静态内容 URL 模式
 
 # 当检测到 Cloudflare 挑战页面时，自动使用隐身浏览器重新请求
 CLOUDFLARE_BYPASS_MAX_RETRIES = 2                       # 最大绕过重试次数
-CLOUDFLARE_BYPASS_DOWNLOADER = 'camoufox'               # 绕过时使用的下载器
+CLOUDFLARE_BYPASS_DOWNLOADER = 'cloakbrowser'           # 绕过时使用的下载器（单一下载器模式）
+CLOUDFLARE_BYPASS_DOWNLOADER_CHAIN = ['cloakbrowser']   # 渐进式升级链：当前下载器失败后自动尝试下一个
+CLOUDFLARE_BYPASS_COOKIE_CACHE_ENABLED = True            # 成功绕过后将 cf_clearance cookie 缓存复用
 
 
 # #############################################################################

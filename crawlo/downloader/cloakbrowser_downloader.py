@@ -44,6 +44,14 @@ from crawlo.utils.misc import (
 )
 
 
+# Cloudflare 挑战特征检测模式
+CLOUDFLARE_CHALLENGE_PATTERNS = [
+    'cf_chl_opt', 'just a moment', 'checking your browser',
+    'challenge-platform', '__cf_bm', 'cf_clearance',
+    'turnstile', 'verify you are a human',
+]
+
+
 class CloakBrowserDownloader(DownloaderBase, SmartWaitMixin):
     """
     基于 CloakBrowser 的隐身动态内容下载器
@@ -91,7 +99,7 @@ class CloakBrowserDownloader(DownloaderBase, SmartWaitMixin):
         self.proxy = get_browser_config(s, "CLOAKBROWSER", "PROXY", None)
         self.proxy_api_url = s.get("PROXY_API_URL", None)
         self.timeout = get_browser_config_int(s, "CLOAKBROWSER", "TIMEOUT", 30000)
-        self.load_timeout = get_browser_config_int(s, "CLOAKBROWSER", "LOAD_TIMEOUT", 10000)
+        self.load_timeout = get_browser_config_int(s, "CLOAKBROWSER", "LOAD_TIMEOUT", 60000)
         self.viewport_width = get_browser_config_int(s, "CLOAKBROWSER", "VIEWPORT_WIDTH", 1280)
         self.viewport_height = get_browser_config_int(s, "CLOAKBROWSER", "VIEWPORT_HEIGHT", 720)
         self.max_pages = get_browser_config_int(s, "CLOAKBROWSER", "MAX_PAGES", 10)
@@ -299,6 +307,7 @@ class CloakBrowserDownloader(DownloaderBase, SmartWaitMixin):
             start_time = time.time()
 
         page = None
+        cf_bypassed = False
         try:
             # 获取页面
             page = await self._get_page()
@@ -313,15 +322,63 @@ class CloakBrowserDownloader(DownloaderBase, SmartWaitMixin):
                 "height": self.viewport_height,
             })
 
-            # 资源屏蔽
-            await self._setup_resource_blocking(page, request)
-
             # 请求级设置
             await self._apply_request_settings(page, request)
 
-            # 导航
+            # 导航（注意：此时尚未启用资源屏蔽，让 CloakBrowser 充分加载 CF 挑战所需资源）
             wait_until = self._get_wait_until(request)
             response = await page.goto(request.url, wait_until=wait_until)
+
+            # Cloudflare 挑战检测：如果返回 CF 挑战页，等待异步绕过
+            if response and response.status in {403, 503, 520, 521, 522, 523, 524}:
+                try:
+                    peek_body = await page.content()
+                    peek_lower = peek_body.lower()
+                    has_cf = any(p in peek_lower for p in CLOUDFLARE_CHALLENGE_PATTERNS)
+                except Exception:
+                    has_cf = False
+
+                if has_cf:
+                    bypass_start = time.time()
+                    initial_url = page.url
+                    cf_timeout_s = max(10, min(self.load_timeout // 1000, 90))
+                    self.logger.info(
+                        f"Cloudflare challenge detected for {request.url}, "
+                        f"waiting up to {cf_timeout_s}s for bypass..."
+                    )
+
+                    for _ in range(cf_timeout_s):
+                        await asyncio.sleep(1)
+                        try:
+                            current_url = page.url
+                            if (current_url != initial_url
+                                    and current_url != 'about:blank'
+                                    and 'security' not in current_url.lower()
+                                    and 'challenge' not in current_url.lower()):
+                                # 绕过成功，等待页面稳定
+                                try:
+                                    await page.wait_for_load_state(
+                                        'networkidle', timeout=5000)
+                                except Exception:
+                                    await page.wait_for_timeout(500)
+                                cf_bypassed = True
+                                elapsed = time.time() - bypass_start
+                                self.logger.info(
+                                    f"Cloudflare bypassed for {request.url} "
+                                    f"in {elapsed:.0f}s"
+                                )
+                                break
+                        except Exception:
+                            # 页面正在导航，跳过本轮检查
+                            continue
+                    else:
+                        self.logger.warning(
+                            f"Cloudflare bypass timeout ({cf_timeout_s}s) "
+                            f"for {request.url}, using current page"
+                        )
+
+            # 绕过成功后，再启用资源屏蔽（不干扰 CF 解题过程）
+            await self._setup_resource_blocking(page, request)
 
             # 智能等待
             await self._smart_wait_for_page_load(page, request)
@@ -337,13 +394,21 @@ class CloakBrowserDownloader(DownloaderBase, SmartWaitMixin):
             await self._execute_pagination_actions(page, request)
 
             # 等待页面稳定后获取内容（防止新导航导致 Page.content 失败）
-            try:
-                await page.wait_for_load_state("networkidle", timeout=5000)
-            except Exception:
-                await page.wait_for_timeout(500)
+            if cf_bypassed:
+                # CF 绕过后给更多时间让页面完全渲染
+                try:
+                    await page.wait_for_load_state("networkidle", timeout=15000)
+                except Exception:
+                    await page.wait_for_timeout(2000)
+            else:
+                try:
+                    await page.wait_for_load_state("networkidle", timeout=5000)
+                except Exception:
+                    await page.wait_for_timeout(500)
             page_content = await page.content()
             page_url = page.url
-            status_code = response.status if response else 200
+            # CF 绕过后，状态码改为 200（原 response 仍为 403）
+            status_code = 200 if cf_bypassed else (response.status if response else 200)
             headers = dict(response.headers) if response else {}
             cookies = await self._get_cookies()
 
@@ -368,6 +433,12 @@ class CloakBrowserDownloader(DownloaderBase, SmartWaitMixin):
             raise
         finally:
             if page:
+                if cf_bypassed:
+                    # CF 绕过后给 3 秒窗口观察页面（之后页面池回收导航到 about:blank）
+                    try:
+                        await page.wait_for_timeout(3000)
+                    except Exception:
+                        pass
                 await self._release_page(page)
 
     # ---- 页面池管理 ----
