@@ -77,13 +77,16 @@ crawlo run example
 - 5 种渠道：钉钉 / 飞书 / 企业微信 / 邮件 / 短信
 - 30+ 预定义模板，异步发送，消息去重 + 窗口限制
 
-### 🔄 灵活的配置模式
+### 🔄 三种部署模式
 
-| 模式 | 适用场景 | Redis 要求 |
-|------|---------|-----------|
-| **Standalone** | 单机开发测试 | 不需要 |
-| **Distributed** | 多节点分布式 | 必需 |
-| **Auto** ⭐ | 智能检测（推荐） | 可选 |
+| 模式 | 配置 | 协调机制 | 适用场景 |
+|------|------|---------|---------|
+| **内存模式** | `RUN_MODE='standalone'` `QUEUE_TYPE='memory'` | 无（单机自动退出） | 开发调试、快速验证 |
+| **多节点协作** ⭐ | `RUN_MODE='auto'` `QUEUE_TYPE='redis'` | 竞争消费（BZPOPMIN） | 多机并发，可接受任务丢失 |
+| **分布式系统** | `RUN_MODE='distributed'` `QUEUE_TYPE='redis_stream'` | ACK + 心跳 + 故障转移 | 生产环境，任务可靠性高 |
+
+> 三种模式的优先级模型完全一致，切换模式无需修改爬虫代码。
+> [详细了解 →](docs/concepts/architecture.md#2-部署模式-deployment-modes)
 
 ---
 

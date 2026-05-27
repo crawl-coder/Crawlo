@@ -82,15 +82,16 @@ crawlo run example
 - **Async Delivery**: `async_send_*` functions, `run_in_executor` wrapper to avoid blocking event loop
 - Message dedup + rate limiting to prevent notification storms
 
-### 🔄 Flexible Run Modes
+### 🔄 Three Deployment Modes
 
-| Mode | Use Case | Redis Required |
-|------|----------|---------------|
-| **Standalone** | Single-machine dev/test | No |
-| **Distributed** | Multi-node distributed | Yes |
-| **Auto** ⭐ | Auto-detect (recommended) | Optional |
+| Mode | Config | Coordination | Use Case |
+|------|-------|-------------|----------|
+| **Memory Mode** | `RUN_MODE='standalone'` `QUEUE_TYPE='memory'` | None (auto exit) | Dev/debug, quick validation |
+| **Multi-Node** ⭐ | `RUN_MODE='auto'` `QUEUE_TYPE='redis'` | Competing consumption (BZPOPMIN) | Multi-machine, task loss acceptable |
+| **Distributed** | `RUN_MODE='distributed'` `QUEUE_TYPE='redis_stream'` | ACK + heartbeat + failover | Production, high reliability |
 
-👉 **[Learn More About Run Modes →](docs/guides/configuration/run-modes.md)**
+> All three modes share the same priority model — switch without modifying spider code.
+> [Learn More →](docs/concepts/architecture.md#2-部署模式-deployment-modes)
 
 ---
 

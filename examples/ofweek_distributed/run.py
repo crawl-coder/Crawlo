@@ -32,10 +32,7 @@ def main():
     """运行分布式爬虫"""
     try:
         process = CrawlerProcess()
-        crawler = asyncio.run(process.crawl('of_week_distributed'))
-
-        # 显示集群运行摘要（新版分布式功能）
-        _print_cluster_status(crawler)
+        asyncio.run(process.crawl('of_week_distributed'))
 
     except KeyboardInterrupt:
         print("\n收到中断信号，已停止")
@@ -45,35 +42,6 @@ def main():
         traceback.print_exc()
         sys.exit(1)
 
-
-def _print_cluster_status(crawler):
-    """打印集群状态汇总"""
-    engine = getattr(crawler, '_engine', None)
-    if not engine or not getattr(engine, '_cluster_worker_id', None):
-        return
-
-    try:
-        print("\n" + "=" * 55)
-        print("  Crawlo 分布式集群 — 运行摘要")
-        print("=" * 55)
-        print(f"  Worker:      {engine._cluster_worker_id}")
-
-        if engine._cluster_monitor:
-            s = asyncio.run(engine._cluster_monitor.status())
-            print(f"  活跃节点:     {s['workers']['active']}/{s['workers']['total']}")
-            print(f"  队列 Pending: {s['queue']['pending']}")
-            print(f"  队列处理中:   {s['queue']['processing']}")
-            print(f"  完成:         {s['progress']['completed']}")
-            print(f"  失败:         {s['progress']['failed']}")
-            print(f"  速率:         {s['progress']['items_per_sec']}/s")
-            dead_total = s['dead_letter'].get('total', 0)
-            if dead_total > 0:
-                print(f"  死信队列:     {dead_total}")
-
-        print("=" * 55)
-    except Exception as e:
-        from crawlo.logging import get_logger
-        get_logger(__name__).debug(f"Cluster status: {e}")
 
 
 if __name__ == '__main__':

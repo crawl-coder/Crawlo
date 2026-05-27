@@ -120,8 +120,8 @@ class CloudflareBypassMiddleware:
         ]
         
         # 首次实例化输出 INFO，后续仅 debug 避免重复
-        if not self._init_logged:
-            self._init_logged = True
+        if not CloudflareBypassMiddleware._init_logged:
+            CloudflareBypassMiddleware._init_logged = True
             self.logger.info(
                 f"CloudflareBypassMiddleware initialized "
                 f"(chain={self._downloader_chain}, "

@@ -73,13 +73,10 @@ class RedisDedupPipeline(DedupPipeline):
                     decode_responses=True,
                     socket_connect_timeout=5,
                     socket_timeout=5,
-                    shared=self.settings.get_bool('REDIS_POOL_SHARED_MODE', False)
+                    shared=True  # 复用框架已有的连接池，避免重复创建
                 )
                 self.redis_client = await redis_pool.get_connection()
                 await self.redis_client.ping()
-                self.logger.info(
-                    f"Redis connected: {self.redis_host}:{self.redis_port}/{self.redis_db}"
-                )
             except Exception as e:
                 self.logger.error(f"Redis connection failed: {e}")
                 raise RuntimeError(f"Redis 连接失败: {e}")

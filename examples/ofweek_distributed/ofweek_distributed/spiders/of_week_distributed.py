@@ -55,7 +55,7 @@ class OfWeekDistributedSpider(Spider):
 
         # 测试分布式：1 页列表 + 每页 ~10 个详情 = ~10 个任务
         # 生产环境可改为更大页数（当前网站约 1851 页）
-        max_page = 5
+        max_page = 2
         start_urls = []
         for page in range(1, max_page + 1):
             url = f'https://ee.ofweek.com/CATList-2800-8100-ee-{page}.html'
