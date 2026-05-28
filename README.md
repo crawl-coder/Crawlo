@@ -18,15 +18,15 @@
 </p>
 
 <p align="center">
-  <a href="#quick-start-3-steps">Quick Start</a> ·
-  <a href="#key-features">Key Features</a> ·
-  <a href="#documentation">Docs</a> ·
-  <a href="#examples">Examples</a>
+  <a href="#quick-start-en">Quick Start</a> ·
+  <a href="#features-en">Key Features</a> ·
+  <a href="#docs-en">Docs</a> ·
+  <a href="#examples-en">Examples</a>
 </p>
 
 ---
 
-## ✨ Quick Start (3 Steps)
+## <a id="quick-start-en"></a>✨ Quick Start (3 Steps)
 
 ### 1. Install
 ```bash
@@ -49,7 +49,7 @@ crawlo run example
 
 ---
 
-## 🚀 Key Features
+## <a id="features-en"></a>🚀 Key Features
 
 ### ⚡ High-Performance Async Architecture
 - Built on asyncio + aiohttp/httpx/curl-cffi multi-protocol downloaders
@@ -95,7 +95,7 @@ crawlo run example
 
 ---
 
-## 📚 Documentation
+## <a id="docs-en"></a>📚 Documentation
 
 ### 🎯 By Role
 
@@ -121,7 +121,7 @@ crawlo run example
 
 ---
 
-## 💡 Examples
+## <a id="examples-en"></a>💡 Examples
 
 Check out the [`examples/`](examples/) directory:
 - **Basic** - Quick start

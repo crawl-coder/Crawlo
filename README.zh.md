@@ -18,15 +18,15 @@
 </p>
 
 <p align="center">
-  <a href="#快速开始3步上手">快速开始</a> ·
-  <a href="#核心特性">核心特性</a> ·
-  <a href="#文档">文档</a> ·
-  <a href="#示例项目">示例</a>
+  <a href="#quick-start-zh">快速开始</a> ·
+  <a href="#features-zh">核心特性</a> ·
+  <a href="#docs-zh">文档</a> ·
+  <a href="#examples-zh">示例</a>
 </p>
 
 ---
 
-## ✨ 快速开始（3步上手）
+## <a id="quick-start-zh"></a>✨ 快速开始（3步上手）
 
 ### 1. 安装
 ```bash
@@ -49,7 +49,7 @@ crawlo run example
 
 ---
 
-## 🚀 核心特性
+## <a id="features-zh"></a>🚀 核心特性
 
 ### ⚡ 高性能异步架构
 - 基于 asyncio + aiohttp/httpx/curl-cffi 多种协议下载器
@@ -90,7 +90,7 @@ crawlo run example
 
 ---
 
-## 📚 文档
+## <a id="docs-zh"></a>📚 文档
 
 | 你是？ | 推荐阅读 |
 |--------|---------|
@@ -102,7 +102,7 @@ crawlo run example
 
 ---
 
-## 💡 示例项目
+## <a id="examples-zh"></a>💡 示例项目
 
 查看 [`examples/`](examples/) 目录：
 - **基础示例** - 快速上手
