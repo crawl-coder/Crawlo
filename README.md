@@ -18,7 +18,7 @@
 </p>
 
 <p align="center">
-  <a href="#quick-start">Quick Start</a> ·
+  <a href="#quick-start-3-steps">Quick Start</a> ·
   <a href="#key-features">Key Features</a> ·
   <a href="#documentation">Docs</a> ·
   <a href="#examples">Examples</a>
