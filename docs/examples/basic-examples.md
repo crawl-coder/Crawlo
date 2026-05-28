@@ -298,29 +298,37 @@ class LoginSpider(Spider):
 
 ### 案例7: 分布式抓取
 
-**场景**：使用多节点抓取大量数据
+**场景**：使用多节点并行抓取大量数据，支持 ACK 确认、故障转移和自动协调退出
 
-**配置**：
+**配置**（使用分布式系统模式）：
 
 ```python
 # settings.py
-from crawlo.config import CrawloConfig
+RUN_MODE = 'distributed'
+QUEUE_TYPE = 'redis_stream'
 
-config = CrawloConfig.distributed(
-    project_name='distributed_spider',
-    redis_host='redis.example.com',
-    redis_port=6379,
-    redis_password='your_password',
-    concurrency=32,
-)
+# Redis 配置
+REDIS_HOST = 'redis.example.com'
+REDIS_PORT = 6379
+REDIS_PASSWORD = 'your_password'
 
-locals().update(config.to_dict())
+# 并发控制
+CONCURRENCY = 16
+DOWNLOAD_DELAY = 0.5
+
+# 集群配置（可选，默认自动启用）
+CLUSTER_HEARTBEAT_INTERVAL = 15
+CLUSTER_WORKER_TIMEOUT = 90
+CLUSTER_FAILOVER_CHECK_INTERVAL = 30
 ```
+
+> 详细说明见：[部署模式](../concepts/architecture.md#2-部署模式-deployment-modes)、[Redis Key 说明](../concepts/redis-keys.md)
 
 **爬虫代码**：
 
 ```python
 from crawlo import Spider
+from crawlo import Request
 
 
 class DistributedSpider(Spider):
@@ -349,18 +357,22 @@ class DistributedSpider(Spider):
         }
 ```
 
-**启动多个节点**：
+**启动多个 Worker**：
 
 ```bash
-# 节点 1
-crawlo run distributed
+# 终端 1 — Worker 1
+cd examples/ofweek_distributed
+python run.py
 
-# 节点 2（同一台机器或不同机器）
-crawlo run distributed
+# 终端 2 — Worker 2（间隔若干秒启动）
+python run.py
 
-# 节点 3
-crawlo run distributed
+# 终端 3~N
+python run.py
 ```
+
+各 Worker 自动注册到 Redis，通过 Consumer Group 分配任务。
+当所有任务完成时，Leader Worker 自动广播 shutdown 信号，所有 Worker 优雅退出。
 
 ---
 
@@ -499,7 +511,7 @@ NOTIFICATION_CHANNELS = ['feishu']
 
 查看 [examples/](https://github.com/crawl-coder/Crawlo/tree/main/examples) 目录获取更多示例：
 
-- **ofweek_standalone** - Auto 模式示例
+- **ofweek_standalone** - 内存模式示例
 - **ofweek_spider** - 基础爬虫示例
 - **ofweek_distributed** - 分布式示例
 - **eastmoney_fin_report_crawler** - 财务报告爬虫

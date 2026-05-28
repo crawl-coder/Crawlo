@@ -1,78 +1,75 @@
 # 配置问题
 
-## 如何选择运行模式？
+## 如何选择部署模式？
 
-Crawlo 提供三种运行模式：
+Crawlo 提供三种部署模式：
 
-### Standalone 模式（单机）
+### 内存模式
+
+对应配置：`RUN_MODE='standalone'`，`QUEUE_TYPE='memory'`
 
 **适用场景**：
 - 本地开发调试
 - 小规模数据采集（< 10万条）
-- 不需要分布式
+- 不需要外部依赖
 
 **配置**：
 ```python
-from crawlo.config import CrawloConfig
-
-config = CrawloConfig.standalone(
-    project_name='myproject',
-    concurrency=8
-)
+# settings.py
+RUN_MODE = 'standalone'
+QUEUE_TYPE = 'memory'
+CONCURRENCY = 8
 ```
 
-### Distributed 模式（分布式）
+### 多节点协作模式
+
+对应配置：`RUN_MODE='auto'`，`QUEUE_TYPE='redis'`
 
 **适用场景**：
-- 多节点协同爬取
-- 大规模数据采集
-- 需要断点续爬
+- 多机并发爬取
+- 能接受任务丢失
+- 已有 Redis 环境
 
 **配置**：
 ```python
-config = CrawloConfig.distributed(
-    project_name='myproject',
-    redis_host='localhost',
-    redis_port=6379,
-    concurrency=16
-)
+# settings.py
+RUN_MODE = 'auto'
+QUEUE_TYPE = 'redis'
+CONCURRENCY = 16
 ```
 
-### Auto 模式（推荐）⭐
+### 分布式系统模式 ⭐
+
+对应配置：`RUN_MODE='distributed'`，`QUEUE_TYPE='redis_stream'`
 
 **适用场景**：
 - 生产环境部署
-- 需要容错能力
-- 不确定是否有 Redis
+- 任务可靠性要求高
+- 需要 ACK 确认、故障转移、自动协调退出
 
 **配置**：
 ```python
-config = CrawloConfig.auto(
-    project_name='myproject',
-    concurrency=12
-)
+# settings.py
+RUN_MODE = 'distributed'
+QUEUE_TYPE = 'redis_stream'
+CONCURRENCY = 16
 ```
 
-**优势**：
-- ✅ Redis 可用时使用 Redis 队列
-- ✅ Redis 不可用时自动降级到内存队列
-- ✅ 同一份代码可在不同环境运行
-
-查看 [运行模式详解](../guides/configuration/run-modes.md) 了解更多。
+查看 [三种部署模式详解](../guides/configuration/run-modes.md) 了解更多。
 
 ## Redis 是必需的吗？
 
-**不是！** 取决于运行模式：
+**不是！** 取决于部署模式：
 
 | 模式 | Redis 要求 |
 |------|-----------|
-| Standalone | ❌ 不需要 |
-| Distributed | ✅ 必需 |
-| Auto | ⚠️ 可选（推荐） |
+| 内存模式 | ❌ 不需要 |
+| 多节点协作 | ✅ 必需 |
+| 分布式系统 | ✅ 必需 |
 
 **建议**：
-- 开发测试：使用 Standalone 模式，无需 Redis
-- 生产环境：使用 Auto 模式，有 Redis 更好
+- 开发测试：使用内存模式，无需 Redis
+- 多机并发：使用多节点协作或分布式系统模式
 
 ## 如何配置代理？
 
@@ -240,10 +237,10 @@ RETRY_HTTP_CODES = [500, 502, 503, 504, 408]
 
 ```python
 # settings.py
-# 内存去重（Standalone 模式）
+# 内存去重（内存模式）
 DEFAULT_DEDUP_PIPELINE = 'crawlo.pipelines.MemoryDedupPipeline'
 
-# Redis 去重（Distributed 模式）
+# Redis 去重（分布式系统模式）
 DEFAULT_DEDUP_PIPELINE = 'crawlo.pipelines.RedisDedupPipeline'
 ```
 

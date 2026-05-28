@@ -148,7 +148,7 @@ sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
 ## 📚 下一步
 
 - 🚀 [5分钟快速上手](../getting-started/5min-quickstart.md) - 创建你的第一个爬虫
-- 📖 [运行模式详解](../guides/configuration/run-modes.md) - 了解三种运行模式
+- 📖 [三种部署模式详解](../guides/configuration/run-modes.md) - 了解三种部署模式
 - ❓ [安装问题 FAQ](../faq/installation.md) - 解决安装问题
 
 ---

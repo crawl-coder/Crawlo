@@ -1,4 +1,4 @@
-# 核心架构与运行模式
+# 核心架构与部署模式
 
 Crawlo 采用解耦的异步架构设计，确保了在处理高并发请求时的极高性能和稳定性。
 
@@ -85,6 +85,7 @@ Worker 之间通过竞争消费协作，无直接通信。
 - 任务状态流转：XADD → PENDING → XREADGROUP → PROCESSING → XACK → DONE
 - 崩溃恢复：心跳超时 → suspect（30s 二次确认）→ XCLAIM 回收任务
 - Worker 退出：Leader 选举协调退出（队列空 + 所有 Worker 空闲 → 广播 shutdown）
+- Redis Key 参考：[分布式 Redis Key 说明](redis-keys.md)
 
 ---
 

@@ -15,7 +15,7 @@
 - Playwright 安装问题
 
 ### [配置问题](configuration.md)
-- 如何选择运行模式？
+- 如何选择部署模式？
 - Redis 是必需的吗？
 - 如何配置代理？
 
