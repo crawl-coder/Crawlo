@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <strong>Python 3.10+</strong> · <strong>Python 3.14 Compatible</strong>
+  <strong>Python 3.8+</strong> · <strong>Python 3.14 Compatible</strong>
 </p>
 
 <p align="center">
