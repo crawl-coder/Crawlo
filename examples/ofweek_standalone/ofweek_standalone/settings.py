@@ -22,6 +22,10 @@ locals().update(config.to_dict())
 
 # =================================== 爬虫配置 ===================================
 
+# 启用检查点（断点续爬）
+CHECKPOINT_ENABLED = True
+CHECKPOINT_DIR = '.checkpoints'  # 检查点存储目录
+
 DOWNLOADER = "crawlo.downloader.aiohttp_downloader.AioHttpDownloader"
 
 # 爬虫模块配置

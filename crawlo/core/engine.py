@@ -474,21 +474,16 @@ class Engine(RequestGenerationMixin):
                 except Exception as e:
                     self.logger.debug(f"Generation task completed with error: {e}")
 
-            # 3. 确定关闭原因：检查是否收到过 shutdown 信号
-            shutdown_requested = False
-            try:
-                if (self.crawler is not None
-                        and hasattr(type(self.crawler), '_process')
-                        and hasattr(self.crawler, '_process')):
-                    # 兼容 __getattr__ 延迟导入的 CrawlerProcess
-                    process = getattr(self.crawler, '_process', None)
-                    if process is not None:
-                        shutdown_requested = getattr(
-                            process, '_shutdown_requested', False
-                        )
-            except Exception:
-                pass
-            reason = 'shutdown' if shutdown_requested else self._close_reason
+            # 3. 确定关闭原因
+            reason = self._close_reason
+            if reason != 'shutdown':
+                # 直接检查 CrawlerProcess 的信号状态
+                process = getattr(self.crawler, '_process', None) if self.crawler else None
+                if process is not None:
+                    try:
+                        reason = 'shutdown' if process._shutdown_requested else reason
+                    except Exception:
+                        pass
 
             # 4. 优雅关闭爬虫
             try:

@@ -52,7 +52,6 @@ class CrawlerProcess:
         # ProcessSignalHandler 已在顶部导入
         self._signal_handler = ProcessSignalHandler(self._logger, self._crawlers)
         self._shutdown_event: asyncio.Event = self._signal_handler.shutdown_event
-        self._shutdown_requested: bool = self._signal_handler.shutdown_requested
 
         # Windows 平台: 在框架层面自动应用猴子补丁修复
         # 必须在 _logger 和 _signal_handler 初始化之后调用
@@ -83,6 +82,11 @@ class CrawlerProcess:
         """
         self._signal_handler.set_crawlers(self._crawlers)
         # 延迟信号处理器设置到事件循环启动后
+
+    @property
+    def _shutdown_requested(self) -> bool:
+        """实时读取信号处理器的状态，而非初始化时拷贝的值"""
+        return self._signal_handler.shutdown_requested
 
     def _apply_windows_asyncio_fix(self) -> None:
         """
@@ -272,6 +276,8 @@ class CrawlerProcess:
 
         merged_settings = self._merge_settings(settings)
         crawler = Crawler(spider_cls, merged_settings)
+        # 让 engine 可以访问 CrawlerProcess 的状态（如 shutdown_requested）
+        crawler._process = self
 
         # 将 crawler 添加到信号处理器的列表中
         if crawler not in self._crawlers:
