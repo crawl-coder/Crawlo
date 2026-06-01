@@ -152,16 +152,16 @@ async def test_backpressure():
     print("【2】背压控制（BackpressureController）")
     print("=" * 60)
 
-    from crawlo.core.engine_helpers import BackpressureController
+    from crawlo.core.engine_helpers import EngineBackpressureAdapter
 
-    controller = BackpressureController(
+    controller = EngineBackpressureAdapter(
         max_queue_size=100,
         backpressure_ratio=0.5,
         initial_wait=0.1,
         max_wait=1.0,
     )
 
-    ck("2.1 BackpressureController 初始化成功",
+    ck("2.1 EngineBackpressureAdapter 初始化成功",
        controller is not None)
 
     scheduler = MagicMock()

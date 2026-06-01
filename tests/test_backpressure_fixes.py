@@ -39,13 +39,13 @@ async def _run_all_tests():
     print("2. PASS - AdaptiveStrategy.record_delay OK, history=2")
     passed += 1
 
-    # 3. Engine BackpressureController delegates to unified module
-    from crawlo.core.engine_helpers import BackpressureController as EngineBC
+    # 3. Engine EngineBackpressureAdapter delegates to unified module
+    from crawlo.core.engine_helpers import EngineBackpressureAdapter as EngineBC
     ebc = EngineBC(max_queue_size=200, backpressure_ratio=0.9)
     assert hasattr(ebc, "_unified")
     stats = ebc.get_stats()
     assert stats["backpressure_ratio"] == 0.9
-    print("3. PASS - Engine BackpressureController integration OK")
+    print("3. PASS - Engine EngineBackpressureAdapter integration OK")
     passed += 1
 
     # 4. CompositeStrategy bug fix (no m.metrics access)

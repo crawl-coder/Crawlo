@@ -5,8 +5,8 @@ import time
 from dataclasses import dataclass, field
 from typing import Any, Optional, Dict
 
-from crawlo.backpressure.interfaces import BackpressureStrategyConfig
-from crawlo.backpressure.strategies import QueueSizeStrategy
+from crawlo.backpressure.interfaces import BackpressureStrategyConfig, IBackpressureStrategy
+from crawlo.backpressure.strategies import QueueSizeStrategy, AdaptiveStrategy
 from crawlo.backpressure import BackpressureController as _UnifiedController
 
 
@@ -91,56 +91,71 @@ class GenerationStats:
         )
 
 
-class BackpressureController:
+class EngineBackpressureAdapter:
     """
-    Backpressure controller to prevent system overload
-    
+    Engine-level backpressure adapter — bridges Engine primitives (scheduler,
+    task_manager) to the generic backpressure strategy module.
+
     Controls request generation speed by checking both queue capacity
-    and task concurrency. Internally delegates to backpressure module
+    and task concurrency. Internally delegates to crawlo.backpressure module
     for unified strategy management.
-    
+
     Example:
-        controller = BackpressureController(
+        adapter = EngineBackpressureAdapter(
             max_queue_size=200,
-            backpressure_ratio=0.9
+            backpressure_ratio=0.9,
+            strategy='queue_size'
         )
-        
-        if await controller.should_pause(scheduler, task_manager):
-            await controller.wait_for_capacity(scheduler, task_manager)
+
+        if adapter.should_pause(scheduler, task_manager):
+            await adapter.wait_for_capacity(scheduler, task_manager)
     """
-    
+
     def __init__(
         self,
         max_queue_size: int = 200,
         backpressure_ratio: float = 0.9,
         initial_wait: float = 0.01,
-        max_wait: float = 1.0
+        max_wait: float = 1.0,
+        strategy: str = 'queue_size',
     ):
         """
-        Initialize backpressure controller
-        
+        Initialize backpressure adapter
+
         Args:
             max_queue_size: Maximum queue size
             backpressure_ratio: Backpressure trigger ratio
             initial_wait: Initial wait time in seconds
             max_wait: Maximum wait time in seconds
+            strategy: Strategy name ('queue_size' | 'adaptive')
         """
         self.max_queue_size = max_queue_size
         self.backpressure_ratio = backpressure_ratio
         self.initial_wait = initial_wait
         self.max_wait = max_wait
-        
+        self.strategy_name = strategy
+
         # Statistics
         self._pause_count = 0
         self._total_wait_time = 0.0
 
-        # Internal: delegate to unified backpressure module for queue strategy
+        # Internal: create backpressure strategy from config
         config = BackpressureStrategyConfig(
             threshold=backpressure_ratio,
             base_delay=initial_wait,
             max_delay=max_wait,
         )
-        self._unified = _UnifiedController(strategy=QueueSizeStrategy(config=config))
+        strategy_cls = self._resolve_strategy(strategy)(config=config)
+        self._unified = _UnifiedController(strategy=strategy_cls)
+
+    @staticmethod
+    def _resolve_strategy(name: str) -> type:
+        """Resolve strategy class from name"""
+        _map = {
+            'queue_size': QueueSizeStrategy,
+            'adaptive': AdaptiveStrategy,
+        }
+        return _map.get(name, QueueSizeStrategy)
     
     @property
     def pause_count(self) -> int:
@@ -264,13 +279,14 @@ class BackpressureController:
     
     def __repr__(self) -> str:
         return (
-            f"<BackpressureController: max_queue={self.max_queue_size}, "
+            f"<EngineBackpressureAdapter: max_queue={self.max_queue_size}, "
             f"ratio={self.backpressure_ratio}, "
+            f"strategy={self.strategy_name}, "
             f"pauses={self._pause_count}>"
         )
 
 
 __all__ = [
     'GenerationStats',
-    'BackpressureController',
+    'EngineBackpressureAdapter',
 ]

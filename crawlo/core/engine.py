@@ -19,7 +19,7 @@ from crawlo.downloader import DownloaderBase
 from crawlo.core.processor import Processor
 from crawlo.core.scheduler import Scheduler
 from crawlo.checkpoint import CheckpointManager
-from crawlo.core.engine_helpers import GenerationStats, BackpressureController
+from crawlo.core.engine_helpers import GenerationStats, EngineBackpressureAdapter
 from crawlo.core.engine_generation import RequestGenerationMixin
 from crawlo.core.engine_generation import resolve_start_requests, process_callback_output
 from crawlo.utils.misc import load_object
@@ -95,9 +95,10 @@ class Engine(RequestGenerationMixin):
         
         # Initialize helper utilities
         self._generation_stats = GenerationStats()
-        self._backpressure_ctrl = BackpressureController(
+        self._backpressure_ctrl = EngineBackpressureAdapter(
             max_queue_size=self.max_queue_size,
-            backpressure_ratio=self.backpressure_ratio
+            backpressure_ratio=self.backpressure_ratio,
+            strategy=self.backpressure_strategy,
         )
 
         # Cluster components (Phase 2-6, distributed only)
@@ -147,6 +148,9 @@ class Engine(RequestGenerationMixin):
         self.generation_batch_size = safe_get_config(self.settings, 'REQUEST_GENERATION_BATCH_SIZE', 10, int)
         self.generation_interval = safe_get_config(self.settings, 'REQUEST_GENERATION_INTERVAL', 0.01, float)
         self.backpressure_ratio = safe_get_config(self.settings, 'BACKPRESSURE_RATIO', 0.9, float)
+        self.backpressure_strategy = safe_get_config(
+            self.settings, 'BACKPRESSURE_STRATEGY', 'queue_size', str
+        )
         self.enable_controlled_generation = safe_get_config(
             self.settings, 'ENABLE_CONTROLLED_REQUEST_GENERATION', False, bool
         )

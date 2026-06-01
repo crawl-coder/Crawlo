@@ -361,7 +361,7 @@ class TestCoreModuleImports:
         from crawlo.core.engine import Engine
         from crawlo.core.scheduler import Scheduler
         from crawlo.core.processor import Processor
-        from crawlo.core.engine_helpers import GenerationStats, BackpressureController
+        from crawlo.core.engine_helpers import GenerationStats, EngineBackpressureAdapter
         
         # All imports successful
         assert ApplicationContext is not None
@@ -371,7 +371,7 @@ class TestCoreModuleImports:
         assert Scheduler is not None
         assert Processor is not None
         assert GenerationStats is not None
-        assert BackpressureController is not None
+        assert EngineBackpressureAdapter is not None
 
 
 if __name__ == '__main__':
