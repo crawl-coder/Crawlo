@@ -18,21 +18,11 @@ from .request.response_helper import (
 
 from .request.fingerprint import FingerprintGenerator
 
-from .request.request_serializer import RequestSerializer
-
 # 编码检测
 from .encoding_detector import (
     EncodingDetector,
     detect_encoding,
     decode_body,
-)
-
-# 批量处理
-from .batch import (
-    BatchProcessor,
-    RedisBatchProcessor,
-    batch_process,
-    process_in_batches
 )
 
 # 中间件优先级常量
@@ -43,6 +33,27 @@ from crawlo.middleware.priority import (
     get_default_middleware_priority,
 )
 
+
+def __getattr__(name):
+    """延迟导入 request_serializer 和 batch，避免循环导入。
+    
+    这两个模块间接依赖 crawlo.logging（通过 crawlo.network → response），
+    而 logging/manager.py 通过 from crawlo.utils.singleton import SingletonMeta
+    触发本包的导入，此时 logging 尚未完成初始化，直接导入会形成循环。
+    """
+    if name == 'RequestSerializer':
+        from .request.request_serializer import RequestSerializer
+        return RequestSerializer
+    elif name in ('BatchProcessor', 'RedisBatchProcessor',
+                  'batch_process', 'process_in_batches'):
+        from .batch import (
+            BatchProcessor, RedisBatchProcessor,
+            batch_process, process_in_batches
+        )
+        return globals().get(name)
+    raise AttributeError(f"module 'crawlo.utils' has no attribute '{name}'")
+
+
 __all__ = [
     # response_helper
     "parse_cookies",
@@ -52,13 +63,13 @@ __all__ = [
     "get_header_value",
     # fingerprint
     "FingerprintGenerator",
-    # request_serializer
+    # request_serializer (lazy)
     "RequestSerializer",
     # encoding_detector
     "EncodingDetector",
     "detect_encoding",
     "decode_body",
-    # batch
+    # batch (lazy)
     "BatchProcessor",
     "RedisBatchProcessor",
     "batch_process",

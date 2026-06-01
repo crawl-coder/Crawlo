@@ -11,7 +11,7 @@ ofweek_standalone 项目配置文件
 from crawlo.config import CrawloConfig
 
 # 使用自动检测模式配置工厂创建配置
-config = CrawloConfig.auto(
+config = CrawloConfig.standalone(
     project_name='ofweek_standalone',
     concurrency=12,  # 降低并发以便测试中断
     download_delay=1.0,  # 增加延时，方便测试检查点
@@ -76,17 +76,11 @@ REDIS_DB = 0
 
 
 # MySQL配置
-# MYSQL_HOST = '127.0.0.1'
-# MYSQL_PORT = 3306
-# MYSQL_USER = 'crawlo'
-# MYSQL_PASSWORD = 'crawlo123'
-# MYSQL_DB = 'crawlo_deployer'
-
 MYSQL_HOST = '127.0.0.1'
 MYSQL_PORT = 3306
-MYSQL_USER = 'root'
-MYSQL_PASSWORD = 'oscar&0503'
-MYSQL_DB = 'crawlo_db'
+MYSQL_USER = 'crawlo'
+MYSQL_PASSWORD = 'crawlo123'
+MYSQL_DB = 'crawlo_deployer'
 
 MYSQL_TABLE = 'ofweek_news'
 MYSQL_BATCH_SIZE = 10  # 优化：增加批量大小以减少批量操作次数

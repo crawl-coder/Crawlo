@@ -91,7 +91,7 @@ def main(args):
     """
     主函数：运行指定爬虫
     用法:
-        crawlo run <spider_name>|all [--json] [--no-stats] [--log-level LEVEL] [--config CONFIG] [--concurrency NUM]
+        crawlo run <spider_name>|all|schedule [--json] [--no-stats] [--log-level LEVEL] [--config CONFIG] [--concurrency NUM]
     """
     # 确保框架已初始化
     init_manager = get_framework_initializer()
@@ -101,15 +101,31 @@ def main(args):
 
     if len(args) < 1:
         console.print(
-            "[bold red]用法:[/bold red] [blue]crawlo run[/blue] <爬虫名称>|all [bold yellow][--json] [--no-stats] [--log-level LEVEL] [--config CONFIG] [--concurrency NUM][/bold yellow]")
+            "[bold red]用法:[/bold red] [blue]crawlo run[/blue] <爬虫名称>|all|schedule [bold yellow][--json] [--no-stats] [--log-level LEVEL] [--config CONFIG] [--concurrency NUM][/bold yellow]")
         console.print("示例:")
         console.print("   [blue]crawlo run baidu[/blue]")
         console.print("   [blue]crawlo run all[/blue]")
+        console.print("   [blue]crawlo run schedule[/blue]")
         console.print("   [blue]crawlo run all --json --no-stats[/blue]")
         return 1
 
     # 解析参数
     spider_arg = args[0]
+
+    # 如果指定的是 schedule，启动定时任务调度器
+    if spider_arg == 'schedule':
+        try:
+            from crawlo.scheduling import start_scheduler
+            project_root = _find_project_root()
+            if not project_root:
+                console.print("[bold red]找不到 'crawlo.cfg'[/bold red]，请在项目目录中运行此命令。")
+                return 1
+            start_scheduler(str(project_root))
+        except KeyboardInterrupt:
+            console.print("[bold yellow]调度器被用户中断。[/bold yellow]")
+        except Exception as e:
+            console.print(f"[bold red]调度器运行出错: {e}[/bold red]")
+        return 0
     show_json = "--json" in args
     no_stats = "--no-stats" in args
     
