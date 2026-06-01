@@ -1,7 +1,6 @@
 aiohttp>=3.13.4
 aiofiles>=25.1.0
 aioredis>=2.0.1
-asyncmy>=0.2.11
 chardet>=7.4.3
 cssselect>=1.2.0
 dateparser>=1.2.2
@@ -9,10 +8,8 @@ httpx[http2]>=0.27.0
 pytz>=2024.2
 curl-cffi>=0.15.0
 lxml>=4.9.0
-motor>=3.7.0
 parsel>=1.9.1
 pydantic>=2.11.7
-pymongo>=4.11
 python-dateutil>=2.9.0.post0
 redis>=6.2.0
 ujson>=5.12.0
@@ -25,32 +22,3 @@ anyio>=4.3.0
 httpcore>=1.0.5
 msgpack>=1.0.0
 yarl>=1.17.0
-
-# 数据库驱动（使用 pip install crawlo[database] 安装）
-# asyncmy>=0.2.11
-# motor>=3.7.0
-# pymongo>=4.11
-# aiosqlite>=0.19.0
-# asyncpg>=0.29.0
-# clickhouse-connect>=0.7.0
-# elasticsearch>=8.0.0,<9.0.0
-# happybase>=1.2.0
-
-# 可选依赖（使用 pip install crawlo[render] 安装）
-# playwright>=1.55.0
-# DrissionPage>=4.1.1.2
-# camoufox>=0.4.11
-
-# 企业级反检测下载器（使用 pip install crawlo[stealth] 安装）
-# cloakbrowser[geoip]>=0.3.14
-
-# Bloom 去重管道（使用 pip install crawlo[bloom] 安装）
-# pybloom-live>=0.3.1
-
-# MCP依赖（使用 pip install crawlo[mcp] 安装）
-# mcp>=1.0.0
-# markdownify>=0.13.1
-
-# 文档构建（开发依赖，非运行时）
-# mkdocs-material>=9.5.0
-# pymdown-extensions>=10.0

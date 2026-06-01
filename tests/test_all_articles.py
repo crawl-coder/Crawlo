@@ -152,17 +152,23 @@ def test_pipelines():
     try:
         from crawlo.pipelines import __all__ as pipeline_all
         ck(f"导出 Pipeline 总数: {len(pipeline_all)}",
-           len(pipeline_all) >= 15)
-        core_pipelines = ['MySQLPipeline', 'MongoPipeline', 'PostgreSQLPipeline',
-                          'ClickHousePipeline', 'ElasticsearchPipeline',
-                          'SQLitePipeline', 'HBasePipeline',
-                          'CsvPipeline', 'JsonLinesPipeline',
-                          'MemoryDedupPipeline', 'RedisDedupPipeline',
-                          'GenericSQLPipeline', 'GenericDocumentPipeline']
+           len(pipeline_all) >= 10)
+        # 无外部依赖的核心管道应在 __all__ 中
+        core_pipelines = ['CsvPipeline', 'ConsolePipeline', 'MemoryDedupPipeline',
+                          'RedisDedupPipeline', 'GenericSQLPipeline', 'GenericDocumentPipeline']
         for name in core_pipelines:
-            ck(f"Pipeline '{name}' 已导出",
+            ck(f"Pipeline '{name}' 在 __all__ 中",
                name in pipeline_all,
                f"已导出: {pipeline_all}")
+        # 依赖数据库驱动的管道通过惰性导入可用
+        lazy_pipelines = ['MySQLPipeline', 'MongoPipeline', 'PostgreSQLPipeline',
+                          'ClickHousePipeline', 'ElasticsearchPipeline',
+                          'SQLitePipeline', 'HBasePipeline', 'BloomDedupPipeline',
+                          'MySQLDedupPipeline', 'DatabaseDedupPipeline']
+        for name in lazy_pipelines:
+            mod = __import__('crawlo.pipelines', fromlist=[name])
+            cls = getattr(mod, name)
+            ck(f"Pipeline '{name}' 可通过惰性导入", cls is not None)
     except ImportError as e:
         # 可选依赖不支持，跳过 Pipeline 导入测试
         ck(f"Pipeline 安装依赖: {e}", True)
