@@ -4,7 +4,7 @@ MySQL Pipeline - 异步 MySQL 数据管道
 ====================================
 
 继承 GenericSQLPipeline，只需实现 MySQL 专属逻辑：
-- 连接池初始化 (aiomysql)
+- 连接池初始化 (asyncmy)
 - 表存在性检查 (information_schema)
 - 单条/批量插入 (委托 MySQLHelper)
 
@@ -31,7 +31,7 @@ class MySQLPipeline(GenericSQLPipeline):
     # ═══════════════════════════════════════════════
 
     async def _initialize_pool(self):
-        """创建 aiomysql 连接池"""
+        """创建 asyncmy 连接池"""
         self.pool = await MySQLConnectionPoolManager.get_pool(
             host=self.settings.get('MYSQL_HOST', 'localhost'),
             port=self.settings.get_int('MYSQL_PORT', 3306),

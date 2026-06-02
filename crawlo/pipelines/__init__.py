@@ -36,9 +36,8 @@ from .base_pipeline import (
 from .generic_sql import GenericSQLPipeline
 from .generic_doc import GenericDocumentPipeline
 
-# ── 去重管道 ──
-from .dedup import MemoryDedupPipeline, RedisDedupPipeline, BloomDedupPipeline
-from .dedup import MySQLDedupPipeline, DatabaseDedupPipeline
+# ── 去重管道（仅有可选依赖的通过 __getattr__ 延迟加载）──
+from .dedup import MemoryDedupPipeline, RedisDedupPipeline
 
 # ── 文件型管道（无外部依赖） ──
 from .file import CsvPipeline, CsvDictPipeline, JsonLinesPipeline, JsonArrayPipeline

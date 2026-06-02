@@ -18,7 +18,7 @@ config = CrawloConfig.distributed(
     redis_port=6379,
     redis_password='',
     redis_db=0,
-    concurrency=8,          # 分布式模式下并发数（每个 worker）
+    concurrency=12,          # 分布式模式下并发数（每个 worker）
     download_delay=1.0,     # 请求间隔（秒）
 )
 
@@ -38,10 +38,9 @@ SPIDER_MODULES = ['ofweek_distributed.spiders']
 
 # 数据管道
 # 如需添加自定义管道，请取消注释并添加
-# PIPELINES = [
-#     'crawlo.pipelines.mysql_pipeline.MySQLPipeline',  # MySQL 存储（使用asyncmy异步库）
-#     # 'ofweek_distributed.pipelines.CustomPipeline',  # 用户自定义管道示例
-# ]
+PIPELINES = [
+    'crawlo.pipelines.MySQLPipeline',
+]
 
 # =================================== 系统配置 ===================================
 
@@ -60,7 +59,7 @@ SPIDER_MODULES = ['ofweek_distributed.spiders']
 # 日志配置
 from datetime import datetime
 LOG_LEVEL = 'INFO'
-LOG_FILE = f'logs/zlzp_jobs_crawler_{datetime.now().strftime("%Y%m%d_%H%M%S")}.log'
+LOG_FILE = f'logs/ofweek_distributed_{datetime.now().strftime("%Y%m%d_%H%M%S")}.log'
 LOG_ENCODING = 'utf-8'  # 明确指定日志文件编码
 
 # 输出配置
@@ -77,26 +76,12 @@ OUTPUT_DIR = 'output'
 # MySQL配置
 MYSQL_HOST = '127.0.0.1'
 MYSQL_PORT = 3306
-MYSQL_USER = 'root'
-MYSQL_PASSWORD = '123456'
-MYSQL_DB = 'ofweek_distributed'
-MYSQL_TABLE = 'ofweek_distributed_data'
+MYSQL_USER = 'crawlo'
+MYSQL_PASSWORD = 'crawlo123'
+MYSQL_DB = 'crawlo_deployer'
+MYSQL_TABLE = 'ofweek_news'
 MYSQL_BATCH_SIZE = 100
-MYSQL_USE_BATCH = False  # 是否启用批量插入
-
-# MySQL SQL生成行为控制配置
-MYSQL_AUTO_UPDATE = False  # 是否使用 REPLACE INTO（完全覆盖已存在记录）
-MYSQL_INSERT_IGNORE = False  # 是否使用 INSERT IGNORE（忽略重复数据）
-MYSQL_UPDATE_COLUMNS = ()  # 冲突时需更新的列名；指定后 MYSQL_AUTO_UPDATE 失效
-
-# MongoDB配置
-MONGO_URI = 'mongodb://localhost:27017'
-MONGO_DATABASE = 'ofweek_distributed_db'
-MONGO_COLLECTION = 'ofweek_distributed_items'
-MONGO_MAX_POOL_SIZE = 200
-MONGO_MIN_POOL_SIZE = 20
-MONGO_BATCH_SIZE = 100  # 批量插入条数
-MONGO_USE_BATCH = False  # 是否启用批量插入
+MYSQL_USE_BATCH = True
 
 # =================================== 代理配置 ===================================
 

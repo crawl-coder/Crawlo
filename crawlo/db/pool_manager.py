@@ -10,7 +10,7 @@
 
         @classmethod
         async def _create_pool(cls, **config):
-            return await aiomysql.create_pool(**config)
+            return await asyncmy.create_pool(**config)
 
         @classmethod
         async def _close_pool(cls, pool):
