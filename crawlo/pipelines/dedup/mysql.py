@@ -6,7 +6,7 @@
 提供持久化去重功能，适用于需要长期运行或断点续爬的场景。
 """
 
-import aiomysql
+import asyncmy
 
 from crawlo.pipelines.base_pipeline import DedupPipeline
 from crawlo.spider import Spider
@@ -57,7 +57,7 @@ class MySQLDedupPipeline(DedupPipeline):
     async def open_spider(self, spider: Spider) -> None:
         """爬虫启动时初始化数据库连接"""
         try:
-            self.pool = await aiomysql.create_pool(
+            self.pool = await asyncmy.create_pool(
                 **self.db_config,
                 minsize=2,
                 maxsize=10
