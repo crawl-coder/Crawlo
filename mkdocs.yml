@@ -96,7 +96,9 @@ nav:
     - 创建第一个爬虫: getting-started/first-spider.md
   - 📚 教程系列:
     - 概览: tutorials/index.md
-    - 部署到生产环境: tutorials/deploy-production.md
+  - 🖥 生产部署:
+    - 概览: deployment.md
+    - 部署模式详解: guides/configuration/run-modes.md
   - 🎯 使用指南:
     - 概览: guides/index.md
     - 配置指南:

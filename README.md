@@ -91,7 +91,7 @@ crawlo run example
 | **Distributed** | `RUN_MODE='distributed'` `QUEUE_TYPE='redis_stream'` | ACK + heartbeat + failover | Production, high reliability |
 
 > All three modes share the same priority model — switch without modifying spider code.
-> [Learn More →](docs/concepts/architecture.md#2-部署模式-deployment-modes)
+> [Learn More →](docs/concepts/architecture.md#2-部署模式-deployment-modes) · [Production Deployment →](docs/deployment.md)
 
 ---
 
@@ -103,7 +103,7 @@ crawlo run example
 |----------|-------------------|
 | **Beginner** | [5-Min Quickstart](docs/getting-started/5min-quickstart.md) → [Installation](docs/getting-started/installation.md) |
 | **Developer** | [Configuration Guide](docs/guides/configuration/) → [Scheduling Guide](docs/guides/scheduling/) |
-| **Ops** | [Run Mode Deep Dive](docs/guides/configuration/run-modes.md) → [Checkpoint System](docs/concepts/checkpoint-guide.md) |
+| **Ops** | [Run Mode Deep Dive](docs/guides/configuration/run-modes.md) → [Checkpoint System](docs/concepts/checkpoint-guide.md) → **[Production Deployment](docs/deployment.md)** |
 
 ### 📖 Full Docs Navigation
 
@@ -113,6 +113,7 @@ crawlo run example
   - [Configuration](docs/guides/configuration/), [Scheduling](docs/guides/scheduling/)
   - [Backpressure](docs/guides/scheduling/backpressure.md), [Run Modes](docs/guides/configuration/run-modes.md)
 - 📖 **[Concepts](docs/concepts/)** - Architecture, lifecycle, error handling
+- 🖥 **[Production Deployment](docs/deployment.md)** - Linux server setup, systemd, monitoring
 - 🔧 **[API Reference](docs/reference/)** - Complete API docs
 - 💡 **[Examples](docs/examples/)** - Real-world examples and best practices
 - ❓ **[FAQ](docs/faq/)** - FAQ and troubleshooting

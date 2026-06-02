@@ -20,6 +20,10 @@
 - [三种部署模式详解](../guides/configuration/run-modes.md) - 内存/多节点协作/分布式系统
 - [背压系统](../guides/scheduling/backpressure.md) - 流量控制
 
+### 生产部署
+- [生产环境部署指南](../deployment.md) — Linux 服务器部署（systemd / 监控 / 安全）
+- [部署模式详解](../guides/configuration/run-modes.md) — 三种运行模式对比与配置
+
 ### 实战案例
 - [基础示例](../examples/basic-examples.md) - 简单案例
 - [完整项目案例](../examples/index.md) - 真实项目
