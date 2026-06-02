@@ -86,7 +86,7 @@ crawlo run example
 | **分布式系统** | `RUN_MODE='distributed'` `QUEUE_TYPE='redis_stream'` | ACK + 心跳 + 故障转移 | 生产环境，任务可靠性高 |
 
 > 三种模式的优先级模型完全一致，切换模式无需修改爬虫代码。
-> [详细了解 →](docs/concepts/architecture.md#2-部署模式-deployment-modes)
+> [详细了解 →](docs/concepts/architecture.md#2-部署模式-deployment-modes) · [生产部署指南 →](docs/deployment.md)
 
 ---
 
@@ -96,7 +96,7 @@ crawlo run example
 |--------|---------|
 | **新手** | [5分钟快速上手](docs/getting-started/5min-quickstart.md) → [安装指南](docs/getting-started/installation.md) |
 | **开发者** | [配置指南](docs/guides/configuration/) → [调度指南](docs/guides/scheduling/) |
-| **运维** | [配置模式详解](docs/guides/configuration/run-modes.md) → [检查点系统](docs/concepts/checkpoint-guide.md) |
+| **运维** | [配置模式详解](docs/guides/configuration/run-modes.md) → [检查点系统](docs/concepts/checkpoint-guide.md) → **[生产部署指南](docs/deployment.md)** |
 
 👉 **[浏览完整文档 →](docs/index.md)**
 
