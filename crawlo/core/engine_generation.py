@@ -155,11 +155,12 @@ class RequestGenerationMixin:
         self.logger.debug("开始流式请求生成（带背压控制）")
         processed_count = 0
         
-        # 背压阈值：队列中未处理请求数超过此值时暂停生成
-        # 取并发数的 2~3 倍，确保下载器始终有活干，同时不会过度积压
+        # 背压阈值：响应 BACKPRESSURE_RATIO 配置
+        # ratio 越低 → 阈值越低 → 更积极暂停生成
         concurrency = self.task_manager._concurrency_limit if self.task_manager else 8
-        backpressure_high = max(concurrency * 3, 50)
-        backpressure_low = max(concurrency * 1, 20)
+        ratio = getattr(self, 'backpressure_ratio', 0.9)
+        backpressure_high = max(int(concurrency * 3 * ratio), 20)
+        backpressure_low = max(int(concurrency * 1 * ratio), 10)
         
         try:
             while self.running and self._start_requests_source is not None:
@@ -172,6 +173,7 @@ class RequestGenerationMixin:
                                 f"背压暂停生成: 队列 {queue_size} >= {backpressure_high}，"
                                 f"等待下载器消费"
                             )
+                            self._generation_stats.increment_backpressure()
                             # 等待队列降到低水位
                             while self.running and await self.scheduler.async_size() > backpressure_low:
                                 await asyncio.sleep(0.1)

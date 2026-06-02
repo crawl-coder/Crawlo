@@ -13,7 +13,7 @@
 ### 2. 安装与配置
 - **安装指南**：[安装指南](installation.md)
 - **配置说明**：查看 [FAQ-配置问题](../faq/configuration.md)
-- **运行模式**：查看 [运行模式详解](../guides/configuration/run-modes.md)
+- **部署模式**：查看 [三种部署模式详解](../guides/configuration/run-modes.md)
 
 ### 3. [创建第一个爬虫](first-spider.md)
 - 项目结构说明

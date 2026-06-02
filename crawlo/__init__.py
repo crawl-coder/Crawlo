@@ -11,23 +11,6 @@ if sys.platform == 'win32':
     from crawlo.utils.asyncio_utils import apply_windows_patches
     apply_windows_patches()
 
-# 为了向后兼容，从helpers中导入cleaners相关的功能
-import crawlo.helpers as cleaners
-from crawlo import helpers
-from crawlo.helpers.time_utils import (
-    TimeUtils,
-    parse_time,
-    format_time,
-    time_diff,
-    to_timestamp,
-    to_datetime,
-    now,
-    to_timezone,
-    to_utc,
-    to_local,
-    from_timestamp_with_tz
-)
-
 
 # 延迟导入的辅助函数
 def _lazy_import(module_name, attr_name):
@@ -35,6 +18,7 @@ def _lazy_import(module_name, attr_name):
     import importlib
     module = importlib.import_module(module_name)
     return getattr(module, attr_name)
+
 
 def __getattr__(name):
     """实现模块级别的延迟导入（PEP 562）"""
@@ -59,6 +43,33 @@ def __getattr__(name):
         return _lazy_import('crawlo.spider', 'Spider')
     elif name == 'Failure':
         return _lazy_import('crawlo.core.failure', 'Failure')
+    elif name in ('cleaners', 'helpers'):
+        import crawlo.helpers
+        return crawlo.helpers
+    # 时间工具 — 原 from crawlo.helpers.time_utils import ...
+    elif name in ('TimeUtils', 'parse_time', 'format_time', 'time_diff',
+                  'to_timestamp', 'to_datetime', 'now',
+                  'to_timezone', 'to_utc', 'to_local',
+                  'from_timestamp_with_tz'):
+        from crawlo.helpers.time_utils import (
+            TimeUtils, parse_time, format_time, time_diff,
+            to_timestamp, to_datetime, now,
+            to_timezone, to_utc, to_local,
+            from_timestamp_with_tz,
+        )
+        _globals = globals()
+        _globals['TimeUtils'] = TimeUtils
+        _globals['parse_time'] = parse_time
+        _globals['format_time'] = format_time
+        _globals['time_diff'] = time_diff
+        _globals['to_timestamp'] = to_timestamp
+        _globals['to_datetime'] = to_datetime
+        _globals['now'] = now
+        _globals['to_timezone'] = to_timezone
+        _globals['to_utc'] = to_utc
+        _globals['to_local'] = to_local
+        _globals['from_timestamp_with_tz'] = from_timestamp_with_tz
+        return _globals[name]
     raise AttributeError(f"module 'crawlo' has no attribute '{name}'")
 
 
@@ -84,7 +95,6 @@ def get_bootstrap_manager():
 try:
     from crawlo.__version__ import __version__
 except ImportError:
-    # 开发模式下可能未安装，回退到元数据或 dev
     try:
         from importlib.metadata import version
         __version__ = version("crawlo")
@@ -93,29 +103,12 @@ except ImportError:
 
 # 定义对外 API
 __all__ = [
-    'Spider',
-    'Item',
-    'Field',
-    'Request',
-    'Response',
-    'DownloaderBase',
-    'BaseMiddleware',
-    'TimeUtils',
-    'parse_time',
-    'format_time',
-    'time_diff',
-    'to_timestamp',
-    'to_datetime',
-    'now',
-    'to_timezone',
-    'to_utc',
-    'to_local',
-    'from_timestamp_with_tz',
-    'cleaners',
-    'helpers',
-    'Crawler',
-    'CrawlerProcess',
-    'get_framework_initializer',
-    'get_bootstrap_manager',
-    '__version__',
+    'Spider', 'Item', 'Field', 'Request', 'Response',
+    'DownloaderBase', 'BaseMiddleware',
+    'TimeUtils', 'parse_time', 'format_time', 'time_diff',
+    'to_timestamp', 'to_datetime', 'now',
+    'to_timezone', 'to_utc', 'to_local', 'from_timestamp_with_tz',
+    'cleaners', 'helpers',
+    'Crawler', 'CrawlerProcess',
+    'get_framework_initializer', 'get_bootstrap_manager', '__version__',
 ]

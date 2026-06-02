@@ -46,6 +46,9 @@ class CloudflareBypassMiddleware:
     3. Support request-level configuration for different browsers
     """
     
+    # 类级别：是否已输出过初始化日志（避免重复）
+    _init_logged: bool = False
+
     # Cloudflare challenge status codes
     CHALLENGE_STATUS_CODES = {403, 503, 520, 521, 522, 523, 524}
     
@@ -96,7 +99,7 @@ class CloudflareBypassMiddleware:
             self._downloader_chain = ['cloakbrowser']
         
         # Cookie cache
-        self._cookie_cache_enabled = crawler.settings.getbool(
+        self._cookie_cache_enabled = crawler.settings.get_bool(
             "CLOUDFLARE_BYPASS_COOKIE_CACHE_ENABLED", True
         )
         # domain -> {cookies: dict, expires_at: float}
@@ -116,11 +119,20 @@ class CloudflareBypassMiddleware:
             for pattern in self.CLOUDFLARE_SIGNATURE_PATTERNS
         ]
         
-        self.logger.info(
-            f"CloudflareBypassMiddleware initialized "
-            f"(chain={self._downloader_chain}, "
-            f"cookie_cache={'enabled' if self._cookie_cache_enabled else 'disabled'})"
-        )
+        # 首次实例化输出 INFO，后续仅 debug 避免重复
+        if not CloudflareBypassMiddleware._init_logged:
+            CloudflareBypassMiddleware._init_logged = True
+            self.logger.info(
+                f"CloudflareBypassMiddleware initialized "
+                f"(chain={self._downloader_chain}, "
+                f"cookie_cache={'enabled' if self._cookie_cache_enabled else 'disabled'})"
+            )
+        else:
+            self.logger.debug(
+                f"CloudflareBypassMiddleware initialized "
+                f"(chain={self._downloader_chain}, "
+                f"cookie_cache={'enabled' if self._cookie_cache_enabled else 'disabled'})"
+            )
 
     @classmethod
     def create_instance(cls, crawler):

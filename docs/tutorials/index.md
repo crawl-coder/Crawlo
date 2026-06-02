@@ -17,7 +17,7 @@
 
 ### 使用指南
 - [配置指南](../guides/configuration/index.md) - 配置详解
-- [运行模式详解](../guides/configuration/run-modes.md) - standalone/distributed模式
+- [三种部署模式详解](../guides/configuration/run-modes.md) - 内存/多节点协作/分布式系统
 - [背压系统](../guides/scheduling/backpressure.md) - 流量控制
 
 ### 实战案例

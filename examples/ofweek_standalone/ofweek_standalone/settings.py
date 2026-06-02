@@ -11,7 +11,7 @@ ofweek_standalone 项目配置文件
 from crawlo.config import CrawloConfig
 
 # 使用自动检测模式配置工厂创建配置
-config = CrawloConfig.auto(
+config = CrawloConfig.standalone(
     project_name='ofweek_standalone',
     concurrency=12,  # 降低并发以便测试中断
     download_delay=1.0,  # 增加延时，方便测试检查点
@@ -21,6 +21,18 @@ config = CrawloConfig.auto(
 locals().update(config.to_dict())
 
 # =================================== 爬虫配置 ===================================
+
+# 启用检查点（断点续爬）
+CHECKPOINT_ENABLED = True
+CHECKPOINT_DIR = '.checkpoints'  # 检查点存储目录
+
+# 启用完整背压控制（1800 页测试，受控请求生成模式）
+ENABLE_CONTROLLED_REQUEST_GENERATION = True
+BACKPRESSURE_RATIO = 0.5              # 队列利用率达 50% 时触发背压
+BACKPRESSURE_STRATEGY = 'queue_size'  # 队列大小策略
+SCHEDULER_MAX_QUEUE_SIZE = 200         # 小队列让背压更明显
+CONCURRENCY = 4                        # 低并发，让队列容易满
+LOG_LEVEL = 'DEBUG'                    # 显示背压日志
 
 DOWNLOADER = "crawlo.downloader.aiohttp_downloader.AioHttpDownloader"
 
@@ -76,17 +88,11 @@ REDIS_DB = 0
 
 
 # MySQL配置
-# MYSQL_HOST = '127.0.0.1'
-# MYSQL_PORT = 3306
-# MYSQL_USER = 'crawlo'
-# MYSQL_PASSWORD = 'crawlo123'
-# MYSQL_DB = 'crawlo_deployer'
-
 MYSQL_HOST = '127.0.0.1'
 MYSQL_PORT = 3306
-MYSQL_USER = 'root'
-MYSQL_PASSWORD = 'oscar&0503'
-MYSQL_DB = 'crawlo_db'
+MYSQL_USER = 'crawlo'
+MYSQL_PASSWORD = 'crawlo123'
+MYSQL_DB = 'crawlo_deployer'
 
 MYSQL_TABLE = 'ofweek_news'
 MYSQL_BATCH_SIZE = 10  # 优化：增加批量大小以减少批量操作次数

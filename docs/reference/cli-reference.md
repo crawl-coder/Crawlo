@@ -29,7 +29,7 @@ crawlo run <spider_name> [options]
 - `-L, --log-level`: 设置日志级别 (DEBUG, INFO, WARNING, ERROR, CRITICAL)。
 - `-s, --set`: 覆盖配置项 (如 `-s CONCURRENCY=10`)。
 - `-a, --arg`: 传递爬虫参数 (如 `-a category=news`)。
-- `--mode`: 运行模式 (standalone, distributed, auto)。
+- `--mode`: 部署模式：standalone（内存模式）、distributed（分布式系统）、auto（多节点协作）。
 - `--fresh` 或 `--no-resume`: 忽略检查点，从头开始爬取。
 - `--clean-checkpoint`: 清除检查点文件后从头开始。
 

@@ -40,18 +40,37 @@ from .generic_doc import GenericDocumentPipeline
 from .dedup import MemoryDedupPipeline, RedisDedupPipeline, BloomDedupPipeline
 from .dedup import MySQLDedupPipeline, DatabaseDedupPipeline
 
-# ── SQL 存储管道 ──
-from .sql import MySQLPipeline, SQLitePipeline, PostgreSQLPipeline, ClickHousePipeline
-
-# ── 文档型存储管道 ──
-from .doc import MongoPipeline, ElasticsearchPipeline
-
-# ── 文件型管道 ──
+# ── 文件型管道（无外部依赖） ──
 from .file import CsvPipeline, CsvDictPipeline, JsonLinesPipeline, JsonArrayPipeline
 
-# ── 其他 ──
-from .hbase import HBasePipeline
+# ── 控制台管道 ──
 from .console import ConsolePipeline
+
+
+def __getattr__(name):
+    """延迟导入有可选依赖的 Pipeline，避免强制安装 asyncmy/pymongo/aiosqlite 等"""
+    import importlib
+
+    _lazy_map = {
+        # SQL 存储管道（依赖 asyncmy/aiosqlite/asyncpg/clickhouse-connect）
+        'MySQLPipeline': ('crawlo.pipelines.sql.mysql', 'MySQLPipeline'),
+        'SQLitePipeline': ('crawlo.pipelines.sql.sqlite', 'SQLitePipeline'),
+        'PostgreSQLPipeline': ('crawlo.pipelines.sql.postgresql', 'PostgreSQLPipeline'),
+        'ClickHousePipeline': ('crawlo.pipelines.sql.clickhouse', 'ClickHousePipeline'),
+        # 文档型存储管道（依赖 pymongo/elasticsearch）
+        'MongoPipeline': ('crawlo.pipelines.doc.mongo', 'MongoPipeline'),
+        'ElasticsearchPipeline': ('crawlo.pipelines.doc.elasticsearch', 'ElasticsearchPipeline'),
+        # 其他有外部依赖的管道
+        'HBasePipeline': ('crawlo.pipelines.hbase', 'HBasePipeline'),
+        'BloomDedupPipeline': ('crawlo.pipelines.dedup.bloom', 'BloomDedupPipeline'),
+        'MySQLDedupPipeline': ('crawlo.pipelines.dedup.mysql', 'MySQLDedupPipeline'),
+        'DatabaseDedupPipeline': ('crawlo.pipelines.dedup.mysql', 'DatabaseDedupPipeline'),
+    }
+    if name in _lazy_map:
+        module_path, attr = _lazy_map[name]
+        module = importlib.import_module(module_path)
+        return getattr(module, attr)
+    raise AttributeError(f"module 'crawlo.pipelines' has no attribute '{name}'")
 
 # 向后兼容别名
 JsonPipeline = JsonLinesPipeline
@@ -62,16 +81,9 @@ __all__ = [
     'DatabasePipeline', 'CacheBasedPipeline',
     # 通用基类
     'GenericSQLPipeline', 'GenericDocumentPipeline',
-    # 去重管道
-    'MemoryDedupPipeline', 'RedisDedupPipeline', 'BloomDedupPipeline',
-    'MySQLDedupPipeline', 'DatabaseDedupPipeline',
-    # SQL 存储管道
-    'MySQLPipeline', 'SQLitePipeline', 'PostgreSQLPipeline', 'ClickHousePipeline',
-    # 文档型存储管道
-    'MongoPipeline', 'ElasticsearchPipeline',
-    # 宽列式
-    'HBasePipeline',
-    # 文件型/控制台
+    # 去重管道（Memory/Redis 无外部依赖）
+    'MemoryDedupPipeline', 'RedisDedupPipeline',
+    # 文件型/控制台（无外部依赖）
     'CsvPipeline', 'CsvDictPipeline',
     'JsonPipeline', 'JsonLinesPipeline', 'JsonArrayPipeline',
     'ConsolePipeline',

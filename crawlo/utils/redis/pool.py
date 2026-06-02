@@ -31,6 +31,9 @@ from crawlo.utils.error_handler import ErrorHandler, ErrorContext
 class RedisConnectionPool:
     """Redis连接池管理器"""
 
+    # 类级别：是否已输出过初始化日志（避免重复）
+    _init_logged: bool = False
+
     # 默认连接池配置
     DEFAULT_CONFIG = {
         'max_connections': 50,
@@ -180,7 +183,12 @@ class RedisConnectionPool:
             if should_use_cluster and REDIS_CLUSTER_AVAILABLE:
                 self.logger.debug(f"Redis集群连接池初始化成功: {self.redis_url}")
             else:
-                self.logger.info(f"Redis connection pool initialized successfully: {self.redis_url}")
+                msg = f"Redis connection pool initialized successfully: {self.redis_url}"
+                if not RedisConnectionPool._init_logged:
+                    RedisConnectionPool._init_logged = True
+                    self.logger.info(msg)
+                else:
+                    self.logger.debug(msg)
                 self.logger.debug(f"Connection pool configuration: {self.config}")
 
         except Exception as e:

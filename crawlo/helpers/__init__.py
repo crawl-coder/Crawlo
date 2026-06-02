@@ -9,7 +9,7 @@
 框架本身并不使用这些工具，它们完全独立于框架核心逻辑。
 """
 
-# 日期工具
+# 日期工具 — 无 logging 依赖，可立即导入
 from .time_utils import (
     TimeUtils,
     parse_time,
@@ -24,7 +24,7 @@ from .time_utils import (
     from_timestamp_with_tz
 )
 
-# 数据清洗工具
+# 数据清洗工具 — 无 logging 依赖
 from .text_cleaner import (
     TextCleaner,
     remove_html_tags,
@@ -41,25 +41,26 @@ from .text_cleaner import (
     truncate,
 )
 
-# 文件下载工具
-from .file_downloader import (
-    FileDownloader,
-)
-
-# 自适应元素选择器
-from .adaptive_selector import (
-    ElementFingerprint,
-    SimilarityMatcher,
-    FingerprintStorage,
-    SqliteStorage,
-    RedisStorage,
-)
 
 def __getattr__(name):
-    """延迟导入 MySQLExistsChecker 和 check_exists（避免导入时触发 utils.db 全链）"""
+    """延迟导入 file_downloader 和 adaptive_selector，避免循环导入。
+    
+    这两个模块依赖 crawlo.logging，但 helpers 包被 __init__.py 较早导入，
+    此时 logging 模块可能尚未完成初始化，导致循环 ImportError。
+    """
     if name in ('MySQLExistsChecker', 'check_exists'):
         from .mysql_exists_checker import MySQLExistsChecker, check_exists
         return globals().get(name) or (MySQLExistsChecker if name == 'MySQLExistsChecker' else check_exists)
+    elif name == 'FileDownloader':
+        from .file_downloader import FileDownloader
+        return FileDownloader
+    elif name in ('ElementFingerprint', 'SimilarityMatcher',
+                  'FingerprintStorage', 'SqliteStorage', 'RedisStorage'):
+        from .adaptive_selector import (
+            ElementFingerprint, SimilarityMatcher,
+            FingerprintStorage, SqliteStorage, RedisStorage,
+        )
+        return globals().get(name)
     raise AttributeError(f"module 'crawlo.helpers' has no attribute '{name}'")
 
 

@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <strong>Python 3.11+</strong> · <strong>Python 3.14 Compatible</strong>
+  <strong>Python 3.8+</strong> · <strong>Python 3.14 Compatible</strong>
 </p>
 
 <p align="center">
@@ -18,15 +18,15 @@
 </p>
 
 <p align="center">
-  <a href="#quick-start">Quick Start</a> ·
-  <a href="#key-features">Key Features</a> ·
-  <a href="#documentation">Docs</a> ·
-  <a href="#examples">Examples</a>
+  <a href="#quick-start-en">Quick Start</a> ·
+  <a href="#features-en">Key Features</a> ·
+  <a href="#docs-en">Docs</a> ·
+  <a href="#examples-en">Examples</a>
 </p>
 
 ---
 
-## ✨ Quick Start (3 Steps)
+## <a id="quick-start-en"></a>✨ Quick Start (3 Steps)
 
 ### 1. Install
 ```bash
@@ -49,7 +49,7 @@ crawlo run example
 
 ---
 
-## 🚀 Key Features
+## <a id="features-en"></a>🚀 Key Features
 
 ### ⚡ High-Performance Async Architecture
 - Built on asyncio + aiohttp/httpx/curl-cffi multi-protocol downloaders
@@ -82,19 +82,20 @@ crawlo run example
 - **Async Delivery**: `async_send_*` functions, `run_in_executor` wrapper to avoid blocking event loop
 - Message dedup + rate limiting to prevent notification storms
 
-### 🔄 Flexible Run Modes
+### 🔄 Three Deployment Modes
 
-| Mode | Use Case | Redis Required |
-|------|----------|---------------|
-| **Standalone** | Single-machine dev/test | No |
-| **Distributed** | Multi-node distributed | Yes |
-| **Auto** ⭐ | Auto-detect (recommended) | Optional |
+| Mode | Config | Coordination | Use Case |
+|------|-------|-------------|----------|
+| **Memory Mode** | `RUN_MODE='standalone'` `QUEUE_TYPE='memory'` | None (auto exit) | Dev/debug, quick validation |
+| **Multi-Node** ⭐ | `RUN_MODE='auto'` `QUEUE_TYPE='redis'` | Competing consumption (BZPOPMIN) | Multi-machine, task loss acceptable |
+| **Distributed** | `RUN_MODE='distributed'` `QUEUE_TYPE='redis_stream'` | ACK + heartbeat + failover | Production, high reliability |
 
-👉 **[Learn More About Run Modes →](docs/guides/configuration/run-modes.md)**
+> All three modes share the same priority model — switch without modifying spider code.
+> [Learn More →](docs/concepts/architecture.md#2-部署模式-deployment-modes)
 
 ---
 
-## 📚 Documentation
+## <a id="docs-en"></a>📚 Documentation
 
 ### 🎯 By Role
 
@@ -120,7 +121,7 @@ crawlo run example
 
 ---
 
-## 💡 Examples
+## <a id="examples-en"></a>💡 Examples
 
 Check out the [`examples/`](examples/) directory:
 - **Basic** - Quick start

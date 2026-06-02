@@ -65,12 +65,12 @@ def show_help():
     command_descriptions = {
         'startproject': ('创建新项目', 'crawlo startproject <project_name>'),
         'genspider': ('生成爬虫模板', 'crawlo genspider <spider_name> [domain]'),
-        'run': ('运行爬虫', 'crawlo run <spider_name>|all [options]'),
+        'run': ('运行爬虫或定时调度', 'crawlo run <spider_name>|all|schedule [options]'),
         'check': ('检查爬虫代码', 'crawlo check [options]'),
         'list': ('列出所有爬虫', 'crawlo list'),
         'stats': ('查看统计信息', 'crawlo stats [spider_name]'),
         'help': ('显示帮助信息', 'crawlo -h|--help'),
-        'schedule': ('启动定时任务守护进程', 'crawlo schedule'),
+        'schedule': ('启动定时任务守护进程 (也可用 crawlo run schedule)', 'crawlo schedule'),
         'shell': ('交互式终端', 'crawlo shell [url]')
     }
         
@@ -97,11 +97,12 @@ def show_help():
     console.print("[bold green]命令详细用法:[/bold green]")
         
     # run 命令
-    console.print("[bold cyan]run[/bold cyan] - 运行爬虫")
-    console.print("  用法: crawlo run <spider_name>|all [--json] [--no-stats] [--log-level LEVEL] [--config CONFIG] [--concurrency NUM]")
+    console.print("[bold cyan]run[/bold cyan] - 运行爬虫或启动定时任务调度器")
+    console.print("  用法: crawlo run <spider_name>|all|schedule [--json] [--no-stats] [--log-level LEVEL] [--config CONFIG] [--concurrency NUM]")
     console.print("  示例:")
     console.print("    crawlo run myspider")
     console.print("    crawlo run all")
+    console.print("    crawlo run schedule    # 启动定时任务调度器")
     console.print("    crawlo run all --json --no-stats")
     console.print("    crawlo run myspider --log-level DEBUG")
     console.print("    crawlo run myspider --concurrency 32")

@@ -29,10 +29,12 @@ from crawlo.utils.misc import safe_get_config
 try:
     # 使用完整版Redis队列
     from crawlo.queue.redis_priority_queue import RedisPriorityQueue
+    from crawlo.queue.redis_stream_queue import RedisStreamQueue
 
     REDIS_AVAILABLE = True
 except ImportError:
     RedisPriorityQueue = None
+    RedisStreamQueue = None
     REDIS_AVAILABLE = False
 
 
@@ -226,7 +228,10 @@ class QueueManager(QueueStatusMixin, QueueBackpressureMixin):
             # 统一的入队操作
             success = False
             # 使用明确的类型检查来确定调用哪个方法
-            if isinstance(self._queue, RedisPriorityQueue):
+            if isinstance(self._queue, RedisStreamQueue):
+                # Stream 队列：put(request, priority)
+                success = await self._queue.put(request, final_priority)
+            elif isinstance(self._queue, RedisPriorityQueue):
                 # Redis队列需要两个参数（Request 对象，队列内部会序列化）
                 success = await self._queue.put(request, final_priority)
             else:
@@ -260,7 +265,7 @@ class QueueManager(QueueStatusMixin, QueueBackpressureMixin):
                 self._queue_semaphore.release()
 
             # 反序列化处理（仅对 Redis 队列）
-            if result and self._queue_type == QueueType.REDIS:
+            if result and self._queue_type in (QueueType.REDIS, QueueType.REDIS_STREAM):
                 # 这里需要 spider 实例，暂时返回原始请求
                 # 实际的 callback 恢复在 scheduler 中处理
                 # 确保返回类型是Request或None
@@ -289,7 +294,7 @@ class QueueManager(QueueStatusMixin, QueueBackpressureMixin):
         if not self._queue:
             raise RuntimeError("队列未初始化")
 
-        if self._queue_type == QueueType.REDIS and hasattr(self._queue, 'get_blocking'):
+        if self._queue_type in (QueueType.REDIS, QueueType.REDIS_STREAM) and hasattr(self._queue, 'get_blocking'):
             result = await self._queue.get_blocking(timeout=timeout)
             if result and hasattr(result, 'url'):
                 return result
@@ -363,10 +368,10 @@ class QueueManager(QueueStatusMixin, QueueBackpressureMixin):
                 else:
                     # 如果没有size方法，假设队列为空
                     return True
-            # 对于 Redis 队列，使用异步检查
-            elif self._queue and self._queue_type == QueueType.REDIS:
+            # 对于 Redis 队列（包括 ZSET 和 Stream），使用异步检查
+            elif self._queue and self._queue_type in (QueueType.REDIS, QueueType.REDIS_STREAM):
                 # 使用统一的 size() API
-                if isinstance(self._queue, RedisPriorityQueue):
+                if isinstance(self._queue, (RedisPriorityQueue, RedisStreamQueue)):
                     try:
                         size = await self._queue.size()
                         is_empty = size == 0
@@ -399,37 +404,37 @@ class QueueManager(QueueStatusMixin, QueueBackpressureMixin):
 
 
 
+    async def _test_redis_connection(self) -> bool:
+        """测试 Redis 连接是否可用（纯 ping，不创建任何队列/stream/key）"""
+        try:
+            import redis.asyncio as aioredis
+            r = aioredis.from_url(self.config.redis_url, socket_connect_timeout=3)
+            await r.ping()
+            await r.aclose()
+            return True
+        except Exception:
+            return False
+
     async def _determine_queue_type(self) -> QueueType:
         """Determine queue type"""
         if self.config.queue_type == QueueType.AUTO:
             # 自动选择：优先使用 Redis（如果可用）
             if REDIS_AVAILABLE and self.config.redis_url:
-                # 测试 Redis 连接
-                try:
-                    test_queue = RedisPriorityQueue(
-                        redis_url=self.config.redis_url,
-                        project_name="default"
-                    )
-                    await test_queue.connect()
-                    await test_queue.close()
+                if await self._test_redis_connection():
                     self.logger.debug("Auto-detection: Redis available, using Redis queue")
                     self._apply_redis_backpressure_config()
                     return QueueType.REDIS
-                except Exception as e:
-                    self.logger.debug(f"Auto-detection: Redis unavailable ({e}), falling back to memory queue")
-                    # 重要：AUTO模式Redis不可用时，更新背压配置为Memory配置
+                else:
+                    self.logger.debug("Auto-detection: Redis unavailable, falling back to memory queue")
                     self._apply_memory_backpressure_config()
                     return QueueType.MEMORY
             else:
                 self.logger.debug("Auto-detection: Redis not configured, using memory queue")
-                # 重要：AUTO模式无Redis配置时，更新背压配置为Memory配置
                 self._apply_memory_backpressure_config()
                 return QueueType.MEMORY
 
         elif self.config.queue_type == QueueType.REDIS:
-            # Distributed 模式：必须使用 Redis，不允许降级
             if self.config.run_mode == 'distributed':
-                # 分布式模式必须确保 Redis 可用
                 if not REDIS_AVAILABLE:
                     error_msg = (
                         "Distributed 模式要求 Redis 可用，但 Redis 客户端库未安装。\n"
@@ -437,7 +442,6 @@ class QueueManager(QueueStatusMixin, QueueBackpressureMixin):
                     )
                     self.logger.error(error_msg)
                     raise RuntimeError(error_msg)
-                
                 if not self.config.redis_url:
                     error_msg = (
                         "Distributed 模式要求配置 Redis 连接信息。\n"
@@ -445,21 +449,9 @@ class QueueManager(QueueStatusMixin, QueueBackpressureMixin):
                     )
                     self.logger.error(error_msg)
                     raise RuntimeError(error_msg)
-                
-                # 测试 Redis 连接
-                try:
-                    test_queue = RedisPriorityQueue(
-                        redis_url=self.config.redis_url,
-                        project_name="default"
-                    )
-                    await test_queue.connect()
-                    await test_queue.close()
-                    self.logger.debug("Distributed mode: Redis connection verified")
-                    return QueueType.REDIS
-                except Exception as e:
+                if not await self._test_redis_connection():
                     error_msg = (
                         f"Distributed 模式要求 Redis 可用，但无法连接到 Redis 服务器。\n"
-                        f"错误信息: {e}\n"
                         f"Redis URL: {self.config.redis_url}\n"
                         f"请检查：\n"
                         f"  1. Redis 服务是否正在运行\n"
@@ -467,27 +459,46 @@ class QueueManager(QueueStatusMixin, QueueBackpressureMixin):
                         f"  3. 网络连接是否正常"
                     )
                     self.logger.error(error_msg)
-                    raise RuntimeError(error_msg) from e
+                    raise RuntimeError(error_msg)
+                self.logger.debug("Distributed mode: Redis connection verified")
+                return QueueType.REDIS
             else:
-                # 非 distributed 模式：QUEUE_TYPE='redis' 时允许降级到 memory
-                # 这提供了向后兼容性和更好的容错性
                 if REDIS_AVAILABLE and self.config.redis_url:
-                    # 测试 Redis 连接
-                    try:
-                        test_queue = RedisPriorityQueue(
-                            redis_url=self.config.redis_url,
-                            project_name="default"
-                        )
-                        await test_queue.connect()
-                        await test_queue.close()
+                    if await self._test_redis_connection():
                         self.logger.debug("Redis mode: Redis available, using distributed queue")
                         return QueueType.REDIS
-                    except Exception as e:
-                        self.logger.warning(f"Redis mode: Redis unavailable ({e}), falling back to memory queue")
+                    else:
+                        self.logger.warning("Redis mode: Redis unavailable, falling back to memory queue")
                         return QueueType.MEMORY
                 else:
                     self.logger.warning("Redis mode: Redis not configured, falling back to memory queue")
                     return QueueType.MEMORY
+
+        elif self.config.queue_type == QueueType.REDIS_STREAM:
+            if self.config.run_mode == 'distributed' or True:
+                if not REDIS_AVAILABLE:
+                    error_msg = (
+                        "REDIS_STREAM 模式要求 Redis 客户端库已安装。\n"
+                        "请安装: pip install redis"
+                    )
+                    self.logger.error(error_msg)
+                    raise RuntimeError(error_msg)
+                if not self.config.redis_url:
+                    error_msg = (
+                        "REDIS_STREAM 模式要求配置 Redis 连接信息。\n"
+                        "请在 settings.py 中配置 REDIS_HOST、REDIS_PORT 等参数"
+                    )
+                    self.logger.error(error_msg)
+                    raise RuntimeError(error_msg)
+                if not await self._test_redis_connection():
+                    error_msg = (
+                        f"REDIS_STREAM 模式无法连接到 Redis 服务器。\n"
+                        f"Redis URL: {self.config.redis_url}"
+                    )
+                    self.logger.error(error_msg)
+                    raise RuntimeError(error_msg)
+                self.logger.debug("REDIS_STREAM mode: Redis connection verified")
+                return QueueType.REDIS_STREAM
 
         elif self.config.queue_type == QueueType.MEMORY:
             return QueueType.MEMORY
@@ -497,7 +508,64 @@ class QueueManager(QueueStatusMixin, QueueBackpressureMixin):
 
     async def _create_queue(self, queue_type: QueueType):
         """Create queue instance"""
-        if queue_type == QueueType.REDIS:
+        if queue_type == QueueType.REDIS_STREAM:
+            # RedisStreamQueue
+            if not REDIS_AVAILABLE:
+                raise RuntimeError("REDIS_STREAM队列不可用：未能导入RedisStreamQueue")
+
+            project_name = "default"
+            spider_name = None
+
+            if hasattr(self.config, 'settings') and self.config.settings:
+                try:
+                    from crawlo.utils.redis import RedisKeyManager
+                    key_manager = RedisKeyManager.from_settings(self.config.settings)
+                    project_name = key_manager.project_name
+                    spider_name = key_manager.spider_name
+                except Exception as e:
+                    self.logger.warning(f"无法从配置中解析项目名称和爬虫名称: {e}")
+                    project_name = "default"
+                    spider_name = None
+
+            if not spider_name and hasattr(self.config, 'settings') and self.config.settings:
+                try:
+                    spider_name = self.config.settings.get('SPIDER_NAME', None)
+                except Exception:
+                    pass
+
+            # 读取 Stream 配置
+            stream_max_length = safe_get_config(
+                self.config.settings if hasattr(self.config, 'settings') else None,
+                'STREAM_MAX_LENGTH', 100000
+            )
+            stream_consumer_idle_timeout = safe_get_config(
+                self.config.settings if hasattr(self.config, 'settings') else None,
+                'STREAM_CONSUMER_IDLE_TIMEOUT', 60000
+            )
+            stream_delivery_count_limit = safe_get_config(
+                self.config.settings if hasattr(self.config, 'settings') else None,
+                'STREAM_DELIVERY_COUNT_LIMIT', 3
+            )
+            stream_block_timeout = safe_get_config(
+                self.config.settings if hasattr(self.config, 'settings') else None,
+                'STREAM_BLOCK_TIMEOUT', 5000
+            )
+
+            queue = RedisStreamQueue(
+                redis_url=self.config.redis_url,
+                project_name=project_name,
+                spider_name=spider_name,
+                max_length=stream_max_length,
+                consumer_idle_timeout=stream_consumer_idle_timeout,
+                delivery_count_limit=stream_delivery_count_limit,
+                block_timeout=stream_block_timeout,
+                serialization_format=self.config.serialization_format,
+            )
+            # Stream queue 需要立即 connect 以创建 Consumer Group
+            await queue.connect()
+            return queue
+
+        elif queue_type == QueueType.REDIS:
             # RedisPriorityQueue 已在文件顶部导入
             if not REDIS_AVAILABLE:
                 raise RuntimeError(f"Redis队列不可用：未能导入RedisPriorityQueue")

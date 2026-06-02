@@ -2,7 +2,7 @@
 
 ## 安装 Crawlo 的最低要求是什么？
 
-- **Python**: 3.11+
+- **Python**: 3.8+
 - **操作系统**: Windows/Linux/macOS
 - **内存**: 最少 512MB
 - **磁盘**: 最少 100MB
@@ -56,14 +56,14 @@ pip install crawlo
 
 **错误信息**：
 ```
-ERROR: Package 'crawlo' requires a different Python: 3.10.x not in '>=3.11'
+ERROR: Package 'crawlo' requires a different Python: 3.7.x not in '>=3.8'
 ```
 
 **解决方案**：
-升级到 Python 3.11+：
+升级到 Python 3.8+：
 ```bash
 # 使用 conda
-conda create -n crawlo python=3.11
+conda create -n crawlo python=3.8
 conda activate crawlo
 pip install crawlo
 ```

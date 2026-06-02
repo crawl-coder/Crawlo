@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <strong>Python 3.11+</strong> · <strong>已适配 Python 3.14</strong>
+  <strong>Python 3.8+</strong> · <strong>已适配 Python 3.14</strong>
 </p>
 
 <p align="center">
@@ -18,15 +18,15 @@
 </p>
 
 <p align="center">
-  <a href="#快速开始">快速开始</a> ·
-  <a href="#核心特性">核心特性</a> ·
-  <a href="#文档">文档</a> ·
-  <a href="#示例">示例</a>
+  <a href="#quick-start-zh">快速开始</a> ·
+  <a href="#features-zh">核心特性</a> ·
+  <a href="#docs-zh">文档</a> ·
+  <a href="#examples-zh">示例</a>
 </p>
 
 ---
 
-## ✨ 快速开始（3步上手）
+## <a id="quick-start-zh"></a>✨ 快速开始（3步上手）
 
 ### 1. 安装
 ```bash
@@ -49,7 +49,7 @@ crawlo run example
 
 ---
 
-## 🚀 核心特性
+## <a id="features-zh"></a>🚀 核心特性
 
 ### ⚡ 高性能异步架构
 - 基于 asyncio + aiohttp/httpx/curl-cffi 多种协议下载器
@@ -77,17 +77,20 @@ crawlo run example
 - 5 种渠道：钉钉 / 飞书 / 企业微信 / 邮件 / 短信
 - 30+ 预定义模板，异步发送，消息去重 + 窗口限制
 
-### 🔄 灵活的配置模式
+### 🔄 三种部署模式
 
-| 模式 | 适用场景 | Redis 要求 |
-|------|---------|-----------|
-| **Standalone** | 单机开发测试 | 不需要 |
-| **Distributed** | 多节点分布式 | 必需 |
-| **Auto** ⭐ | 智能检测（推荐） | 可选 |
+| 模式 | 配置 | 协调机制 | 适用场景 |
+|------|------|---------|---------|
+| **内存模式** | `RUN_MODE='standalone'` `QUEUE_TYPE='memory'` | 无（单机自动退出） | 开发调试、快速验证 |
+| **多节点协作** ⭐ | `RUN_MODE='auto'` `QUEUE_TYPE='redis'` | 竞争消费（BZPOPMIN） | 多机并发，可接受任务丢失 |
+| **分布式系统** | `RUN_MODE='distributed'` `QUEUE_TYPE='redis_stream'` | ACK + 心跳 + 故障转移 | 生产环境，任务可靠性高 |
+
+> 三种模式的优先级模型完全一致，切换模式无需修改爬虫代码。
+> [详细了解 →](docs/concepts/architecture.md#2-部署模式-deployment-modes)
 
 ---
 
-## 📚 文档
+## <a id="docs-zh"></a>📚 文档
 
 | 你是？ | 推荐阅读 |
 |--------|---------|
@@ -99,7 +102,7 @@ crawlo run example
 
 ---
 
-## 💡 示例项目
+## <a id="examples-zh"></a>💡 示例项目
 
 查看 [`examples/`](examples/) 目录：
 - **基础示例** - 快速上手

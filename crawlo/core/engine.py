@@ -1,6 +1,7 @@
 #!/usr/bin/python
 # -*- coding:UTF-8 -*-
 import asyncio
+import sys
 import time
 from inspect import iscoroutine, isasyncgen, isgenerator
 from typing import Optional, Callable, Any, Union, Dict, Iterator
@@ -18,12 +19,53 @@ from crawlo.downloader import DownloaderBase
 from crawlo.core.processor import Processor
 from crawlo.core.scheduler import Scheduler
 from crawlo.checkpoint import CheckpointManager
-from crawlo.core.engine_helpers import GenerationStats, BackpressureController
+from crawlo.core.engine_helpers import GenerationStats, EngineBackpressureAdapter
 from crawlo.core.engine_generation import RequestGenerationMixin
 from crawlo.core.engine_generation import resolve_start_requests, process_callback_output
 from crawlo.utils.misc import load_object
 from crawlo.utils.misc import safe_get_config
 from crawlo.__version__ import __version__
+from crawlo.queue.task_tracker import TaskTracker, TaskResult
+
+# Cluster module (Phase 2-3: distributed only)
+try:
+    from crawlo.cluster import WorkerRegistry, HeartbeatDaemon, DistributedLock, FailoverManager
+    from crawlo.cluster import ProgressAggregator, DistributedRateLimiter, ClusterMonitor
+    from crawlo.cluster import DynamicConfig, ClusterMessenger
+    CLUSTER_AVAILABLE = True
+except ImportError:
+    CLUSTER_AVAILABLE = False
+    WorkerRegistry = HeartbeatDaemon = DistributedLock = FailoverManager = None
+    ProgressAggregator = DistributedRateLimiter = ClusterMonitor = None
+    DynamicConfig = ClusterMessenger = None
+
+
+async def _ack_message(request, engine, success: bool, error: Exception = None):
+    """
+    Distributed ACK helper (Phase 3).
+
+    Sends XACK on success, NACK on failure (with error classification).
+    Called from crawl_task() to confirm task completion in distributed mode.
+    """
+    if not engine._cluster_worker_id:
+        return
+    meta = getattr(request, 'meta', None) if request else None
+    if not meta:
+        return
+    message_id = meta.get('__stream_message_id')
+    if not message_id or not engine.scheduler:
+        return
+
+    try:
+        if success:
+            await engine.scheduler.ack_request(message_id)
+        else:
+            result = TaskResult.RETRY
+            if engine._task_tracker and error:
+                result = engine._task_tracker.classify_error(error)
+            await engine.scheduler.nack_request(message_id, result=result)
+    except Exception:
+        pass
 
 
 class Engine(RequestGenerationMixin):
@@ -53,10 +95,33 @@ class Engine(RequestGenerationMixin):
         
         # Initialize helper utilities
         self._generation_stats = GenerationStats()
-        self._backpressure_ctrl = BackpressureController(
+        self._backpressure_ctrl = EngineBackpressureAdapter(
             max_queue_size=self.max_queue_size,
-            backpressure_ratio=self.backpressure_ratio
+            backpressure_ratio=self.backpressure_ratio,
+            strategy=self.backpressure_strategy,
         )
+
+        # Cluster components (Phase 2-6, distributed only)
+        self._cluster_registry = None       # WorkerRegistry
+        self._cluster_heartbeat = None      # HeartbeatDaemon
+        self._cluster_failover = None       # FailoverManager
+        self._cluster_lock = None           # DistributedLock (for failover)
+        self._cluster_progress = None       # ProgressAggregator (Phase 4)
+        self._cluster_monitor = None        # ClusterMonitor (Phase 4)
+        self._cluster_rate_limiter = None   # DistributedRateLimiter (Phase 4)
+        self._cluster_messenger = None      # ClusterMessenger (Phase 6)
+        self._cluster_dynamic_config = None # DynamicConfig (Phase 6)
+        self._cluster_worker_id = None      # Worker ID
+        self._cluster_heartbeat_task = None # asyncio.Task
+        self._cluster_failover_task = None  # asyncio.Task
+        self._cluster_paused = False        # Phase 6: pause flag from control channel
+        self._task_tracker = None           # TaskTracker (for ACK)
+
+        # Leader coordinated shutdown
+        self._cluster_redis = None              # Redis client for leader election
+        self._leader_lock_key = None            # Redis key: leader election lock
+        self._leader_shutdown_task = None       # asyncio.Task for leader shutdown loop
+        self._coordinated_shutdown_enabled = True  # Default from settings (overridden by _init_configs)
 
         self.logger = get_logger(name=self.__class__.__name__)
     
@@ -83,6 +148,9 @@ class Engine(RequestGenerationMixin):
         self.generation_batch_size = safe_get_config(self.settings, 'REQUEST_GENERATION_BATCH_SIZE', 10, int)
         self.generation_interval = safe_get_config(self.settings, 'REQUEST_GENERATION_INTERVAL', 0.01, float)
         self.backpressure_ratio = safe_get_config(self.settings, 'BACKPRESSURE_RATIO', 0.9, float)
+        self.backpressure_strategy = safe_get_config(
+            self.settings, 'BACKPRESSURE_STRATEGY', 'queue_size', str
+        )
         self.enable_controlled_generation = safe_get_config(
             self.settings, 'ENABLE_CONTROLLED_REQUEST_GENERATION', False, bool
         )
@@ -98,6 +166,11 @@ class Engine(RequestGenerationMixin):
         # Distributed worker configuration
         self._worker_idle_timeout = safe_get_config(
             self.settings, 'DISTRIBUTED_WORKER_IDLE_TIMEOUT', 300, int
+        )
+
+        # Coordinated shutdown via leader election
+        self._coordinated_shutdown_enabled = safe_get_config(
+            self.settings, 'DISTRIBUTED_COORDINATED_SHUTDOWN_ENABLED', True, bool
         )
 
         # Downloader configuration
@@ -178,6 +251,9 @@ class Engine(RequestGenerationMixin):
         # 启动引擎
         self.engine_start()
 
+        # 初始化集群组件（Phase 2-3, distributed 模式）
+        await self._init_cluster()
+
         # 检查点恢复：如果存在检查点且 resume=True，从检查点恢复
         checkpoint_resumed = False
         if resume:
@@ -218,7 +294,14 @@ class Engine(RequestGenerationMixin):
                 )
             
             self.logger.debug("请求生成任务创建完成")
-            
+
+            # 启动集群后台任务（Phase 2-3, distributed 模式）
+            await self._start_cluster_tasks()
+
+            # 设置初始请求可用事件，确保主循环第一轮尝试从队列获取
+            # （防止 initial requests 未成功入队导致 _request_available 永远不被设置）
+            self._request_available.set()
+
             # 主爬取循环
             loop_count = 0
             last_exit_check = 0  # 记录上次检查退出条件的循环次数
@@ -238,7 +321,28 @@ class Engine(RequestGenerationMixin):
             
             while self.running:
                 loop_count += 1
-                
+
+                # Phase 6: 检查集群控制状态（双通道兜底：Pub/Sub + 持久化 Key）
+                if self._cluster_messenger and self._cluster_dynamic_config:
+                    try:
+                        # Pub/Sub 即时通知已通过 _on_control_message 更新 _cluster_paused
+                        # 此处检查持久化 Key 作为兜底（断连恢复后同步状态）
+                        state = await self._cluster_dynamic_config.get_control_state()
+                        if state == "paused":
+                            self._cluster_paused = True
+                        elif state == "running":
+                            self._cluster_paused = False
+                        elif state == "shutdown":
+                            self.logger.warning("Persistent shutdown state detected, exiting")
+                            self.running = False
+                            break
+                    except Exception:
+                        pass
+
+                    if self._cluster_paused:
+                        await asyncio.sleep(0.5)
+                        continue
+
                 # 批量获取请求
                 requests = []
                 for _ in range(batch_size):
@@ -374,21 +478,16 @@ class Engine(RequestGenerationMixin):
                 except Exception as e:
                     self.logger.debug(f"Generation task completed with error: {e}")
 
-            # 3. 确定关闭原因：检查是否收到过 shutdown 信号
-            shutdown_requested = False
-            try:
-                if (self.crawler is not None
-                        and hasattr(type(self.crawler), '_process')
-                        and hasattr(self.crawler, '_process')):
-                    # 兼容 __getattr__ 延迟导入的 CrawlerProcess
-                    process = getattr(self.crawler, '_process', None)
-                    if process is not None:
-                        shutdown_requested = getattr(
-                            process, '_shutdown_requested', False
-                        )
-            except Exception:
-                pass
-            reason = 'shutdown' if shutdown_requested else self._close_reason
+            # 3. 确定关闭原因
+            reason = self._close_reason
+            if reason != 'shutdown':
+                # 直接检查 CrawlerProcess 的信号状态
+                process = getattr(self.crawler, '_process', None) if self.crawler else None
+                if process is not None:
+                    try:
+                        reason = 'shutdown' if process._shutdown_requested else reason
+                    except Exception:
+                        pass
 
             # 4. 优雅关闭爬虫
             try:
@@ -404,42 +503,38 @@ class Engine(RequestGenerationMixin):
     async def _crawl(self, request):
         async def crawl_task():
             start_time = time.time()
+            _last_error = None  # Capture error for distributed NACK
             try:
                 outputs = await self._fetch(request)
                 response_time = time.time() - start_time
                 if self.task_manager:
                     self.task_manager.record_response_time(response_time)
-                # 精简每请求日志：仅 URL + 页面类型 + 耗时
                 depth = getattr(request, 'meta', {}).get('depth', 0)
                 page_type = '详情' if isinstance(depth, int) and depth > 1 else '列表'
                 self.logger.debug(
                     f"[{page_type}] {request.url} ({response_time:.2f}s)"
                 )
-                
                 if outputs and not isinstance(outputs, Failure):
                     await self._handle_spider_output(outputs, request)
-                
-                # 由于我们不再使用处理队列，不再需要确认任务完成
-                # 任务在从主队列取出时就已经被认为是完成的
+
+                # Distributed ACK: success
+                await _ack_message(request, self, success=True)
+
             except asyncio.CancelledError:
-                # 正确处理取消异常（静默处理，避免重复日志）
-                # 日志已在上面的task_manager.create_task处打印
+                await _ack_message(request, self, success=False)
                 raise
             except Exception as e:
-                # 记录详细的异常信息（含堆栈）
+                _last_error = e
                 self.logger.error(
                     f"处理请求失败: {getattr(request, 'url', 'Unknown URL')} - {type(e).__name__}: {e}",
                     exc_info=True
                 )
-                
-                # 发送统计事件
                 if hasattr(self.crawler, 'stats'):
                     self.crawler.stats.inc_value('downloader/exception_count')
                     self.crawler.stats.inc_value(f'downloader/exception_type_count/{type(e).__name__}')
                     if hasattr(request, 'url'):
                         self.crawler.stats.inc_value(f'downloader/failed_urls_count')
-                
-                # ========== 调用用户定义的 errback ==========
+
                 errback = getattr(request, 'errback', None)
                 if errback and callable(errback):
                     try:
@@ -451,14 +546,14 @@ class Engine(RequestGenerationMixin):
                             f"errback 执行失败 [{getattr(request, 'url', 'Unknown URL')}]: "
                             f"{type(errback_error).__name__}: {errback_error}"
                         )
-                # ==========================================
-                
-                # 关键错误需要重新抛出，避免系统处于不稳定状态
+
+                # Distributed NACK: failure
+                await _ack_message(request, self, success=False, error=e)
+
                 if ErrorClassifier.is_critical(e):
                     self.logger.critical(f"遇到关键错误，停止爬虫: {type(e).__name__}: {e}")
                     raise
-                
-                # 非关键错误继续处理下一个请求
+
                 return None
 
         # 使用异步任务创建，遵守并发限制
@@ -673,6 +768,476 @@ class Engine(RequestGenerationMixin):
         
         return False, current_states
 
+    # ============================
+    # Cluster (Phase 2-3, distributed)
+    # ============================
+
+    async def _init_cluster(self):
+        """
+        初始化集群组件（distributed 模式）。
+
+        - WorkerRegistry: 注册到 Redis
+        - HeartbeatDaemon: 周期性心跳
+        - FailoverManager: 故障检测与任务回收
+        - DistributedLock: 故障检测互斥锁
+        - TaskTracker: 任务生命周期追踪
+        """
+        run_mode = safe_get_config(self.settings, 'RUN_MODE', 'standalone')
+        queue_type = safe_get_config(self.settings, 'QUEUE_TYPE', 'memory')
+
+        # 只在 stream 队列 + distributed 模式下启用
+        if run_mode != 'distributed' or queue_type != 'redis_stream':
+            return
+        if not CLUSTER_AVAILABLE:
+            self.logger.warning("Cluster module not available, distributed features disabled")
+            return
+
+        try:
+            # 获取 Redis 客户端和队列实例
+            redis_client = None
+            from crawlo.queue.redis_stream_queue import RedisStreamQueue
+
+            # 优先尝试复用 scheduler.queue_manager 中的队列
+            if self.scheduler and self.scheduler.queue_manager:
+                q = getattr(self.scheduler.queue_manager, '_queue', None)
+                if isinstance(q, RedisStreamQueue):
+                    queue = q
+                    redis_client = queue._redis
+                else:
+                    self.logger.debug(
+                        f"scheduler.queue_manager._queue is {type(q).__name__} (not RedisStreamQueue), "
+                        f"creating a fresh stream queue for cluster components"
+                    )
+
+            # scheduler 队列不可用时，直接创建新的 RedisStreamQueue
+            if not redis_client:
+                redis_url = safe_get_config(self.settings, 'REDIS_URL', None)
+                if not redis_url:
+                    self.logger.error("REDIS_URL not configured, cluster init failed")
+                    return
+
+                project = safe_get_config(self.settings, 'PROJECT_NAME', 'crawlo')
+                spider_name = safe_get_config(self.settings, 'SPIDER_NAME', 'default')
+                queue = RedisStreamQueue(
+                    redis_url=redis_url,
+                    project_name=project,
+                    spider_name=spider_name,
+                )
+                await queue.connect()
+                redis_client = queue._redis
+                self.logger.info("Created dedicated RedisStreamQueue for cluster init")
+
+            # 确保队列已连接（幂等操作）
+            try:
+                await queue.connect()
+            except Exception:
+                pass
+
+            # 构建 Key Manager
+            from crawlo.utils.redis.keys import RedisKeyManager
+            project = safe_get_config(self.settings, 'PROJECT_NAME', 'crawlo')
+            spider_name = safe_get_config(self.settings, 'SPIDER_NAME', 'default')
+            key_manager = RedisKeyManager(project, spider_name)
+
+            # Store Redis client and leader lock key for coordinated shutdown
+            self._cluster_redis = redis_client
+            self._leader_lock_key = f"crawlo:{project}:{spider_name}:cluster:leader"
+
+            # Worker timeout & heartbeat interval from settings
+            worker_timeout = safe_get_config(self.settings, 'CLUSTER_WORKER_TIMEOUT', 90)
+            heartbeat_interval = safe_get_config(self.settings, 'CLUSTER_HEARTBEAT_INTERVAL', 15)
+            failover_interval = safe_get_config(self.settings, 'CLUSTER_FAILOVER_CHECK_INTERVAL', 30)
+
+            # 1. WorkerRegistry
+            self._cluster_registry = WorkerRegistry(
+                redis_client, key_manager,
+                worker_timeout=worker_timeout,
+            )
+            worker_info = {
+                'host': safe_get_config(self.settings, 'HOST', 'localhost'),
+                'pid': __import__('os').getpid(),
+                'concurrency': self.task_manager._concurrency_limit if self.task_manager else 0,
+            }
+            self._cluster_worker_id = await self._cluster_registry.register(worker_info)
+
+            # 2. HeartbeatDaemon
+            self._cluster_heartbeat = HeartbeatDaemon(
+                self._cluster_registry,
+                self._cluster_worker_id,
+                interval=heartbeat_interval,
+            )
+            # Inject TaskTracker as stats provider
+            self._task_tracker = TaskTracker(self._cluster_worker_id)
+            self._cluster_heartbeat.set_stats_provider(self._task_tracker)
+
+            # 3. DistributedLock (for failover)
+            lock_timeout = safe_get_config(self.settings, 'CLUSTER_FAILOVER_LOCK_TIMEOUT', 30)
+            lock_retry = safe_get_config(self.settings, 'DISTRIBUTED_LOCK_RETRY_COUNT', 3)
+            lock_retry_delay = safe_get_config(self.settings, 'DISTRIBUTED_LOCK_RETRY_DELAY', 0.5)
+            self._cluster_lock = DistributedLock(
+                redis_client,
+                f"{project}:{spider_name}:lock:failover",
+                default_timeout=lock_timeout,
+                retry_count=lock_retry,
+                retry_delay=lock_retry_delay,
+            )
+
+            # 4. FailoverManager
+            self._cluster_failover = FailoverManager(
+                self._cluster_registry,
+                queue,
+                self._cluster_lock,
+                redis_client,
+                suspect_timeout=30,
+                failover_interval=failover_interval,
+            )
+
+            # 5. ProgressAggregator (Phase 4)
+            report_interval = safe_get_config(self.settings, 'PROGRESS_REPORT_INTERVAL', 10)
+            self._cluster_progress = ProgressAggregator(
+                redis_client, key_manager,
+                report_interval=report_interval,
+            )
+
+            # 6. DistributedRateLimiter (Phase 4)
+            rate_limit_enabled = safe_get_config(self.settings, 'DISTRIBUTED_RATE_LIMIT_ENABLED', False)
+            rate_limit_rate = safe_get_config(self.settings, 'DISTRIBUTED_RATE_LIMIT_DEFAULT_RATE', 0)
+            rate_limit_capacity = safe_get_config(self.settings, 'DISTRIBUTED_RATE_LIMIT_CAPACITY', 10)
+            self._cluster_rate_limiter = DistributedRateLimiter(
+                redis_client, f"crawlo:{project}:{spider_name}",
+                enabled=rate_limit_enabled,
+                default_rate=rate_limit_rate,
+                default_capacity=rate_limit_capacity,
+            )
+
+            # 7. ClusterMonitor (Phase 4)
+            self._cluster_monitor = ClusterMonitor(
+                self._cluster_registry,
+                self._cluster_progress,
+                stream_queue=queue,
+                failover_manager=self._cluster_failover,
+            )
+
+            # 8. ClusterMessenger (Phase 6)
+            self._cluster_messenger = ClusterMessenger(
+                redis_client, f"crawlo:{project}:{spider_name}"
+            )
+
+            # 9. DynamicConfig (Phase 6)
+            dynamic_config_enabled = safe_get_config(self.settings, 'DYNAMIC_CONFIG_ENABLED', False)
+            self._cluster_dynamic_config = DynamicConfig(
+                redis_client,
+                messenger=self._cluster_messenger,
+                namespace=f"crawlo:{project}:{spider_name}",
+                rate_limiter=self._cluster_rate_limiter,
+                enabled=dynamic_config_enabled,
+            )
+
+            self.logger.info(
+                f"Cluster initialized: worker={self._cluster_worker_id}, "
+                f"heartbeat={heartbeat_interval}s, failover={failover_interval}s, "
+                f"rate_limit={'on' if rate_limit_enabled else 'off'}, "
+                f"dynamic_config={'on' if dynamic_config_enabled else 'off'}"
+            )
+
+        except Exception as e:
+            self.logger.error(f"Cluster initialization failed: {e}")
+            import traceback
+            self.logger.debug(traceback.format_exc())
+
+    async def _start_cluster_tasks(self):
+        """启动集群后台任务（心跳 + 故障检测 + 消息监听）"""
+        if not self._cluster_worker_id:
+            return
+
+        # 启动心跳守护
+        if self._cluster_heartbeat:
+            self._cluster_heartbeat_task = await self._cluster_heartbeat.start()
+
+        # 启动 Pub/Sub 消息监听
+        if self._cluster_messenger:
+            await self._cluster_messenger.start()
+            # 订阅控制消息
+            await self._cluster_messenger.subscribe("control", self._on_control_message)
+            # 订阅配置变更
+            await self._cluster_messenger.subscribe("config", self._on_config_message)
+
+        # 启动故障检测循环
+        if self._cluster_failover:
+            self._cluster_failover_task = asyncio.create_task(self._failover_loop())
+
+        # 启动 Leader 协调退出循环
+        if self._coordinated_shutdown_enabled and self._cluster_dynamic_config:
+            self._leader_shutdown_task = asyncio.create_task(self._leader_shutdown_loop())
+
+        self.logger.debug("Cluster background tasks started")
+
+    # ---- 消息处理器 (Phase 6) ----
+
+    async def _on_control_message(self, message: dict):
+        """处理控制消息（暂停/恢复/停止）"""
+        action = message.get("action", "")
+        if action == "pause":
+            self._cluster_paused = True
+            self.logger.info("Cluster control: PAUSED")
+        elif action == "resume":
+            self._cluster_paused = False
+            self.logger.info("Cluster control: RESUMED")
+        elif action == "shutdown":
+            self.logger.warning("Cluster control: SHUTDOWN received")
+            self.running = False
+
+    async def _on_config_message(self, message: dict):
+        """处理配置变更消息"""
+        action = message.get("action", "")
+        if action == "rate_limit" and self._cluster_rate_limiter:
+            domain = message.get("domain", "")
+            rate = message.get("rate", 0)
+            await self._cluster_rate_limiter.set_rate(domain, rate)
+        elif action == "seed_urls" and self._cluster_dynamic_config:
+            urls = await self._cluster_dynamic_config.pop_seed_urls(count=100)
+            for url in urls:
+                from crawlo.network.request import Request
+                await self.scheduler.enqueue_request(Request(url=url))
+
+    async def _failover_loop(self):
+        """故障检测后台循环"""
+        while self.running:
+            try:
+                await self._cluster_failover.check_and_recover()
+                await asyncio.sleep(self._cluster_failover._failover_interval)
+            except asyncio.CancelledError:
+                break
+            except Exception:
+                await asyncio.sleep(5)  # 出错时短间隔重试
+
+    # ---- Leader 协调退出 (Phase 7) ----
+
+    async def _leader_shutdown_loop(self):
+        """Leader Worker 协调退出后台循环
+
+        Leader 负责监控集群整体状态，在所有任务完成时广播 shutdown。
+        使用 Redis SETNX 进行 Leader 选举（锁 TTL = heartbeat_interval * 2）。
+        """
+        if not self._cluster_dynamic_config or not self._cluster_redis:
+            return
+
+        leader_lock_ttl = safe_get_config(
+            self.settings, 'CLUSTER_HEARTBEAT_INTERVAL', 15, int
+        ) * 2
+        check_interval = 10
+
+        while self.running:
+            try:
+                # 1. 尝试获取/续期 Leader 锁
+                if not await self._try_acquire_leader_lock(leader_lock_ttl):
+                    await asyncio.sleep(check_interval)
+                    continue
+
+                # 2. 检查协调退出条件
+                if not await self._check_leader_shutdown_conditions():
+                    await asyncio.sleep(check_interval)
+                    continue
+
+                # 3. 条件全部满足 → 广播 shutdown
+                self.logger.warning(
+                    "Coordinated shutdown: all tasks complete, all workers idle, "
+                    "broadcasting shutdown signal"
+                )
+                await self._cluster_dynamic_config.shutdown_cluster()
+
+                # Leader 自己也停止
+                self.running = False
+                break
+
+            except asyncio.CancelledError:
+                break
+            except Exception as e:
+                self.logger.debug(f"Leader shutdown loop error: {e}")
+                await asyncio.sleep(5)
+
+    async def _try_acquire_leader_lock(self, ttl: int) -> bool:
+        """尝试获取或续期 Leader 锁"""
+        if not self._cluster_redis or not self._leader_lock_key:
+            return False
+        try:
+            # SET NX - 原子获取锁
+            acquired = await self._cluster_redis.set(
+                self._leader_lock_key,
+                self._cluster_worker_id,
+                nx=True,
+            )
+            if acquired:
+                await self._cluster_redis.expire(self._leader_lock_key, ttl)
+                return True
+
+            # 检查是否已经持有（续期）
+            current = await self._cluster_redis.get(self._leader_lock_key)
+            if current:
+                current_str = current.decode("utf-8") if isinstance(current, bytes) else current
+                if current_str == self._cluster_worker_id:
+                    await self._cluster_redis.expire(self._leader_lock_key, ttl)
+                    return True
+
+            return False
+        except Exception:
+            return False
+
+    async def _release_leader_lock(self):
+        """释放 Leader 锁"""
+        if not self._cluster_redis or not self._leader_lock_key:
+            return
+        try:
+            current = await self._cluster_redis.get(self._leader_lock_key)
+            if current:
+                current_str = current.decode("utf-8") if isinstance(current, bytes) else current
+                if current_str == self._cluster_worker_id:
+                    await self._cluster_redis.delete(self._leader_lock_key)
+        except Exception:
+            pass
+
+    async def _check_leader_shutdown_conditions(self) -> bool:
+        """检查协调退出的前置条件
+
+        条件:
+        1. 所有种子 URL 已生成完毕（_start_requests_source 已耗尽）
+        2. 队列为空（无待处理请求）
+        3. 当前 Worker 无在途后台任务
+        4. 短暂等待后重检队列（防止瞬态误判）
+        5. 所有已注册 Worker 均空闲（tasks_processing == 0）
+        """
+        # 条件 1: 种子已全部生成
+        if self._start_requests_source is not None:
+            return False
+
+        # 条件 2: 队列为空
+        if self.scheduler and self.scheduler.queue_manager:
+            is_empty = await self.scheduler.async_idle()
+            if not is_empty:
+                return False
+
+        # 条件 3: 无在途后台任务
+        if len(self._background_tasks) > 0:
+            return False
+
+        # 条件 4: 短暂等待后重检，防止瞬态误判
+        await asyncio.sleep(2)
+
+        if self.scheduler and self.scheduler.queue_manager:
+            is_empty = await self.scheduler.async_idle()
+            if not is_empty:
+                self.logger.debug("Coordinated shutdown re-check: queue not empty, postponing")
+                return False
+
+        # 条件 5: 所有注册 Worker 空闲
+        if self._cluster_registry:
+            try:
+                active_workers = await self._cluster_registry.get_active_workers()
+                for worker in active_workers:
+                    wid = worker.get("id", "")
+                    if wid == self._cluster_worker_id:
+                        continue  # 跳过自己
+                    processing = worker.get("tasks_processing", 1)
+                    if processing > 0:
+                        self.logger.debug(
+                            f"Coordinated shutdown: worker {wid} still processing "
+                            f"{processing} tasks"
+                        )
+                        return False
+            except Exception as e:
+                self.logger.debug(f"Coordinated shutdown worker check error: {e}")
+                return False
+
+        return True
+
+    async def _shutdown_cluster(self):
+        """
+        优雅关闭集群组件。
+
+        1. 停止 Pub/Sub 消息监听
+        2. 停止心跳（阻止新任务分配到此 Worker）
+        3. 停止故障检测
+        4. 等待在途任务 drain（超时保护）
+        5. 注销 Worker
+        """
+        if not self._cluster_worker_id:
+            return
+
+        try:
+            # 停止 Pub/Sub 消息监听
+            if self._cluster_messenger:
+                await self._cluster_messenger.stop()
+
+            # 停止心跳（阻止调度器认为此 Worker 存活，不再分配新任务）
+            if self._cluster_heartbeat:
+                await self._cluster_heartbeat.stop()
+            if self._cluster_heartbeat_task and not self._cluster_heartbeat_task.done():
+                self._cluster_heartbeat_task.cancel()
+
+            # 停止故障检测
+            if self._cluster_failover_task and not self._cluster_failover_task.done():
+                self._cluster_failover_task.cancel()
+
+            # 停止 Leader 协调退出循环并释放锁
+            if self._leader_shutdown_task and not self._leader_shutdown_task.done():
+                self._leader_shutdown_task.cancel()
+            await self._release_leader_lock()
+
+            # 等待在途任务 drain
+            await self._drain_inflight_tasks()
+
+            # 注销 Worker（关闭前最后一步）
+            if self._cluster_registry:
+                await self._cluster_registry.deregister(self._cluster_worker_id)
+
+            self.logger.info(f"Cluster shutdown complete: {self._cluster_worker_id}")
+
+        except Exception as e:
+            self.logger.debug(f"Cluster shutdown error: {e}")
+
+    async def _drain_inflight_tasks(self):
+        """
+        等待在途任务完成后再注销 Worker（P0 场景安全性）。
+
+        逻辑：
+        1. 检查 _background_tasks（_crawl 创建的后台任务）
+        2. 等待它们全部完成，最多等待 CLUSTER_GRACEFUL_SHUTDOWN_TIMEOUT 秒
+        3. 超时后强制继续注销（日志警告）
+        4. 已完成任务会被 _ack_message 自动 XACK，无需手动处理
+        """
+        drain_timeout = safe_get_config(
+            self.settings, 'CLUSTER_GRACEFUL_SHUTDOWN_TIMEOUT', 30, int
+        )
+
+        inflight = [t for t in self._background_tasks if not t.done()]
+        if not inflight:
+            return
+
+        self.logger.info(
+            f"Draining {len(inflight)} inflight tasks (timeout={drain_timeout}s)..."
+        )
+
+        try:
+            done, pending = await asyncio.wait(
+                inflight,
+                timeout=drain_timeout,
+            )
+
+            if pending:
+                self.logger.warning(
+                    f"Drain timeout: {len(pending)}/{len(inflight)} tasks still pending, "
+                    f"forcing shutdown (tasks will be recovered by failover)"
+                )
+                # 取消残留任务（它们的 XACK/NACK 由 failover 机制回收）
+                for task in pending:
+                    task.cancel()
+            else:
+                self.logger.info(
+                    f"All {len(done)} inflight tasks drained successfully"
+                )
+        except Exception as e:
+            self.logger.warning(f"Drain error: {e}")
+
     async def close_spider(self, reason='finished'):
         # 幂等保护：防止 close_spider 被重复调用
         if self._spider_closed:
@@ -728,6 +1293,9 @@ class Engine(RequestGenerationMixin):
                 except Exception as e:
                     self.logger.debug(f"下载器关闭时发生错误: {e}")
             
+            # 关闭集群组件（Phase 3：heartbeat + failover + deregister）
+            await self._shutdown_cluster()
+
             # 关闭调度器（带超时保护，超时后取消内部协程防止资源泄漏）
             if self.scheduler is not None:
                 try:
