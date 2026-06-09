@@ -20,6 +20,7 @@ PROJECT_NAME: str = str(_cfg.get('PROJECT_NAME', 'crawlo'))
 VERSION: str = str(_version)
 RUN_MODE: str = str(_cfg.get('CRAWLO_MODE', 'standalone'))
 CONCURRENCY: int = int(_cfg.get('CONCURRENCY', 8))
+MAX_RUNNING_SPIDERS: int = int(_cfg.get('MAX_RUNNING_SPIDERS', 3))
 
 # ---------------------------------------------------------------------------#
 # 爬虫模块
@@ -335,6 +336,7 @@ PIPELINES = {
 REDIS_HOST = '127.0.0.1'                                # Redis 主机地址
 REDIS_PORT = 6379                                       # Redis 端口
 REDIS_PASSWORD = ''                                     # Redis 密码
+REDIS_USER = ''                                         # Redis 用户名（Redis 6.0+ ACL）
 REDIS_DB = 0                                            # Redis 数据库编号
 REDIS_TTL = 0                                           # 指纹过期时间（0 = 永不过期）
 REDIS_POOL_SHARED_MODE = False                          # 连接池共享模式（True=共享单例）

@@ -291,6 +291,7 @@ class CrawloConfig:
                      redis_host: str = '127.0.0.1',
                      redis_port: int = 6379,
                      redis_password: Optional[str] = None,
+                     redis_username: Optional[str] = None,
                      redis_db: int = 0,
                      project_name: str = 'crawlo',
                      **kwargs) -> 'CrawloConfig':
@@ -303,17 +304,19 @@ class CrawloConfig:
             redis_host: Redis 主机地址
             redis_port: Redis 端口
             redis_password: Redis 密码
+            redis_username: Redis 用户名（Redis 6.0+ ACL）
             redis_db: Redis 数据库编号
             project_name: 项目名称
             **kwargs: 其他配置参数
             
-        Returns:
+            Returns:
             CrawloConfig 实例
         """
         redis_cfg = RedisConfig(
             host=redis_host,
             port=redis_port,
             password=redis_password,
+            username=redis_username,
             db=redis_db
         )
         
@@ -323,6 +326,7 @@ class CrawloConfig:
             'REDIS_HOST': redis_host,
             'REDIS_PORT': redis_port,
             'REDIS_PASSWORD': redis_password,
+            'REDIS_USER': redis_username,
             'REDIS_DB': redis_db,
             'REDIS_URL': redis_cfg.to_url(),
             'PROJECT_NAME': project_name,
