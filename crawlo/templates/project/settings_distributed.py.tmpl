@@ -1,7 +1,12 @@
 # -*- coding: UTF-8 -*-
 """
 {{project_name}} 项目配置文件（分布式版）
+==============================
+基于 Crawlo 框架的分布式爬虫项目配置。
 适合大规模数据采集和多节点部署。
+
+此配置使用 CrawloConfig.distributed() 工厂方法创建分布式模式配置，
+支持多节点协同工作，适用于大规模数据采集任务。
 """
 
 from datetime import datetime
@@ -12,16 +17,8 @@ from crawlo.config import CrawloConfig
 # 1. 基础配置
 # #############################################################################
 
-# ---------------------------------------------------------------------------#
-# Redis（分布式模式依赖）
-# ---------------------------------------------------------------------------#
-
-REDIS_HOST = '127.0.0.1'                                # Redis 主机地址
-REDIS_PORT = 6379                                       # Redis 端口
-REDIS_PASSWORD = ''                                     # Redis 密码
-REDIS_USER = ''                                         # Redis 用户名（Redis 6.0+ ACL）
-REDIS_DB = 0                                            # Redis 数据库编号
-
+# concurrency   : 单个爬虫并发请求数（生产推荐 16-32）
+# download_delay: 请求间隔延迟（秒），根据目标网站反爬强度调整
 config = CrawloConfig.distributed(
     project_name='{{project_name}}',
     concurrency=16,
@@ -37,12 +34,21 @@ locals().update(config.to_dict())
 
 SPIDER_MODULES = ['{{project_name}}.spiders']
 
+# 如需自定义管道（MySQL 存储 等），取消注释并添加：
 # PIPELINES = {
-#     '{{project_name}}.pipelines.CustomPipeline': 600,
+#     'crawlo.pipelines.MySQLPipeline': 300,
+#     # '{{project_name}}.pipelines.CustomPipeline': 600,
 # }
+
+# 如需自定义中间件（优先级越小越先执行）：
 # MIDDLEWARES = {
 #     '{{project_name}}.middlewares.CustomMiddleware': 500,
 # }
+
+# 如需自定义扩展：
+# EXTENSIONS = [
+#     '{{project_name}}.extensions.CustomExtension',
+# ]
 
 
 # #############################################################################
@@ -50,13 +56,23 @@ SPIDER_MODULES = ['{{project_name}}.spiders']
 # #############################################################################
 
 LOG_LEVEL = 'INFO'
-LOG_FILE = f'logs/{{project_name}}_{datetime.now():%Y%m%d_%H%M%S}.log'
+LOG_FILE = f'logs/{{project_name}}_{datetime.now().strftime("%Y%m%d_%H%M%S")}.log'
 LOG_ENCODING = 'utf-8'
 
 
 # #############################################################################
 # 4. 数据库配置
 # #############################################################################
+
+# ---------------------------------------------------------------------------#
+# Redis（分布式模式依赖，已由 CrawloConfig.distributed() 设置）
+# ---------------------------------------------------------------------------#
+
+REDIS_HOST = '127.0.0.1'                                # Redis 主机地址
+REDIS_PORT = 6379                                       # Redis 端口
+REDIS_PASSWORD = ''                                     # Redis 密码
+REDIS_USER = ''                                         # Redis 用户名（Redis 6.0+ ACL）
+REDIS_DB = 0                                            # Redis 数据库编号
 
 # ---------------------------------------------------------------------------#
 # MySQL（如需入库）
@@ -70,7 +86,12 @@ MYSQL_DB = '{{project_name}}'
 MYSQL_TABLE = '{{project_name}}_data'
 MYSQL_BATCH_SIZE = 100
 MYSQL_USE_BATCH = True
-MYSQL_INSERT_IGNORE = False
+
+# 冲突处理策略（三者互斥，按优先级生效，修改时取消注释）：
+# MYSQL_UPDATE_COLUMNS  >  MYSQL_AUTO_UPDATE  >  MYSQL_INSERT_IGNORE
+# MYSQL_UPDATE_COLUMNS = ()                               # ON DUPLICATE KEY UPDATE：指定要更新的字段（空元组=更新全部）
+# MYSQL_AUTO_UPDATE = False                               # REPLACE INTO：覆盖整行（会导致自增 ID 变化）
+# MYSQL_INSERT_IGNORE = True                              # INSERT IGNORE：忽略重复数据，保留旧记录（默认行为）
 
 # ---------------------------------------------------------------------------#
 # MongoDB（如需入库）
@@ -82,10 +103,26 @@ MYSQL_INSERT_IGNORE = False
 
 
 # #############################################################################
-# 5. 下载器与反反爬虫配置
+# 5. 浏览器下载器配置（含 Playwright / Camoufox / CloakBrowser / DrissionPage）
 # #############################################################################
 
-# Curl-Cffi 指纹模拟
+# 通用配置（所有浏览器下载器共用，各下载器可通过自身前缀覆盖）
+# BROWSER_HEADLESS = True              # 无头模式
+# BROWSER_TIMEOUT = 30000              # 超时时间（毫秒）
+# BROWSER_LOAD_TIMEOUT = 10000         # 页面加载超时（毫秒）
+# BROWSER_VIEWPORT_WIDTH = 1280        # 视口宽度
+# BROWSER_VIEWPORT_HEIGHT = 720        # 视口高度
+# BROWSER_MAX_PAGES = 10               # 单浏览器最大页面数
+# BROWSER_PROXY = None                 # 代理设置
+# BROWSER_BLOCK_RESOURCES = ["image", "font", "media"]
+# BROWSER_AUTO_SCROLL = False          # 自动滚动
+# BROWSER_SCROLL_DELAY = 500           # 滚动延迟（毫秒）
+# BROWSER_WAIT_STRATEGY = "auto"       # 等待策略：auto | networkidle | domcontentloaded | element
+# BROWSER_WAIT_TIMEOUT = 10000         # 智能等待超时（毫秒）
+# BROWSER_WAIT_FOR_ELEMENT = None      # 等待特定元素选择器
+# BROWSER_STEALTH_LEVEL = 'basic'      # 反检测级别：none | basic | advanced
+
+# Curl-Cffi 指纹模拟（分布式推荐，消耗低）
 CURL_BROWSER_TYPE = "chrome"
 CURL_BROWSER_VERSION_MAP = {
     "chrome": "chrome136",
@@ -94,29 +131,63 @@ CURL_BROWSER_VERSION_MAP = {
     "firefox": "firefox135",
 }
 
-# 浏览器下载器通用配置（各下载器可通过自身前缀覆盖）
-# BROWSER_HEADLESS = True
-# BROWSER_TIMEOUT = 30000
-# BROWSER_LOAD_TIMEOUT = 10000
-# BROWSER_VIEWPORT_WIDTH = 1280
-# BROWSER_VIEWPORT_HEIGHT = 720
-# BROWSER_MAX_PAGES = 10
-# BROWSER_PROXY = None
+# Playwright 特有参数
+# PLAYWRIGHT_BROWSER_TYPE = "chromium"     # chromium | firefox | webkit
+# PLAYWRIGHT_SINGLE_BROWSER_MODE = True    # 单浏览器多标签页模式
 
+# Camoufox 特有参数（基于 Firefox，内置 Cloudflare 绕过）
+# CAMOUFOX_SOLVE_CLOUDFLARE = True
+
+# CloakBrowser 特有参数（基于 Chromium，C++ 层反检测）
+# CLOAKBROWSER_GEOIP = False
+# CLOAKBROWSER_FINGERPRINT = None          # 指纹种子（相同种子=相同指纹）
+
+# 混合下载器（HybridDownloader）
+# HYBRID_DEFAULT_PROTOCOL_DOWNLOADER = "curl_cffi"      # 普通请求用 Curl-Cffi（分布式推荐）
+# HYBRID_DEFAULT_DYNAMIC_DOWNLOADER = "cloakbrowser"    # 动态渲染用 CloakBrowser
+
+
+# #############################################################################
+# 6. 反反爬虫配置
+# #############################################################################
+
+# ---------------------------------------------------------------------------#
+# 动态渲染中间件（自动检测页面是否需要浏览器渲染）
+# ---------------------------------------------------------------------------#
+
+# 与 HybridDownloader 分层协作：中间件检测页面类型，下载器读取标记选择下载方式
+# DYNAMIC_RENDER_ENABLED = True
+# DYNAMIC_RENDER_DOMAIN_PATTERNS = ['spa.example.com']
+# DYNAMIC_RENDER_URL_PATTERNS = [r'/app/', r'/#/', r'/spa/']
+
+# ---------------------------------------------------------------------------#
+# Cloudflare 绕过
+# ---------------------------------------------------------------------------#
+
+# CLOUDFLARE_BYPASS_MAX_RETRIES = 2
+# CLOUDFLARE_BYPASS_DOWNLOADER = 'cloakbrowser'   # 或 camoufox / playwright
+
+# ---------------------------------------------------------------------------#
 # 健康检查
-HEALTH_CHECK_INTERVAL = 60
+# ---------------------------------------------------------------------------#
+
+HEALTH_CHECK_INTERVAL = 60                              # 每 60 秒上报 Worker 健康状态
 
 
 # #############################################################################
-# 6. 代理配置
+# 7. 代理配置
 # #############################################################################
 
+# 静态代理
 # PROXY_LIST = ["http://proxy1:8080", "http://proxy2:8080"]
+
+# 动态代理 API
 # PROXY_API_URL = "http://your-proxy-api.com/get-proxy"
+# PROXY_EXTRACTOR = "proxy"
 
 
 # #############################################################################
-# 7. 定时任务配置
+# 8. 定时任务配置
 # #############################################################################
 
 SCHEDULER_ENABLED = False
@@ -143,3 +214,29 @@ SCHEDULER_JOBS = [
         'kwargs': {},
     },
 ]
+
+
+# #############################################################################
+# 9. 通知系统配置（钉钉 / 飞书 / 企业微信）
+# #############################################################################
+
+NOTIFICATION_ENABLED = False
+NOTIFICATION_CHANNELS = []              # 如 ['dingtalk', 'feishu', 'wecom']
+
+# 钉钉
+# DINGTALK_WEBHOOK = "https://oapi.dingtalk.com/robot/send?access_token=YOUR_TOKEN"
+# DINGTALK_SECRET = "YOUR_SECRET"
+
+# 飞书
+# FEISHU_WEBHOOK = "https://open.feishu.cn/open-apis/bot/v2/hook/YOUR_HOOK_ID"
+# FEISHU_SECRET = "YOUR_SECRET"
+
+# 企业微信
+# WECOM_WEBHOOK = "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=YOUR_KEY"
+
+
+# #############################################################################
+# 10. 其他输出配置
+# #############################################################################
+
+OUTPUT_DIR = 'output'

@@ -44,7 +44,7 @@ SPIDER_MODULES = ['{{project_name}}.spiders']
 # #############################################################################
 
 LOG_LEVEL = 'INFO'
-LOG_FILE = f'logs/{{project_name}}_{datetime.now():%Y%m%d_%H%M%S}.log'
+LOG_FILE = f'logs/{{project_name}}_{datetime.now().strftime("%Y%m%d_%H%M%S")}.log'
 LOG_ENCODING = 'utf-8'
 
 

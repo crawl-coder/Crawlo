@@ -4,7 +4,7 @@
 基于 Crawlo 框架的爬虫项目配置。
 
 使用 CrawloConfig.auto() 自动检测模式：
-  如果 Redis 可用 → 分布式模式；否则 → 单机模式。
+  如果 Redis 可用 → 多节点协作模式；否则 → 单机模式。
 """
 
 from datetime import datetime
@@ -66,7 +66,7 @@ LOG_ENCODING = 'utf-8'
 # #############################################################################
 
 # ---------------------------------------------------------------------------#
-# Redis（分布式模式必需）
+# Redis（多节点协作 / 分布式模式必需）
 # ---------------------------------------------------------------------------#
 
 REDIS_HOST = '127.0.0.1'                                # Redis 主机地址
@@ -87,7 +87,7 @@ MYSQL_DB = '{{project_name}}'
 MYSQL_TABLE = '{{project_name}}_data'
 
 # 冲突处理策略（三者互斥，按优先级生效，修改时取消注释）：
-#   MYSQL_UPDATE_COLUMNS  >  MYSQL_AUTO_UPDATE  >  MYSQL_INSERT_IGNORE
+# MYSQL_UPDATE_COLUMNS  >  MYSQL_AUTO_UPDATE  >  MYSQL_INSERT_IGNORE
 # MYSQL_UPDATE_COLUMNS = ()                               # ON DUPLICATE KEY UPDATE：指定要更新的字段（空元组=更新全部）
 # MYSQL_AUTO_UPDATE = False                               # REPLACE INTO：覆盖整行（会导致自增 ID 变化）
 # MYSQL_INSERT_IGNORE = True                              # INSERT IGNORE：忽略重复数据，保留旧记录（默认行为）

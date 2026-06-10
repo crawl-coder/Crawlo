@@ -24,7 +24,7 @@ RANDOMNESS = False              # 禁用随机延迟以保证性能
 # #############################################################################
 
 DOWNLOADER = 'crawlo.downloader.AioHttpDownloader'
-QUEUE_TYPE = 'auto'             # 自动：Redis 可用 → 分布式，否则 → 内存
+QUEUE_TYPE = 'auto'             # 自动：Redis 可用 → 多节点协作，否则 → 内存
 FILTER_CLASS = 'crawlo.filters.AioRedisFilter'
 DEFAULT_DEDUP_PIPELINE = 'crawlo.pipelines.RedisDedupPipeline'
 
@@ -45,7 +45,7 @@ SPIDER_MODULES = ['{{project_name}}.spiders']
 # #############################################################################
 
 LOG_LEVEL = 'INFO'
-LOG_FILE = f'logs/{{project_name}}_{datetime.now():%Y%m%d_%H%M%S}.log'
+LOG_FILE = f'logs/{{project_name}}_{datetime.now().strftime("%Y%m%d_%H%M%S")}.log'
 LOG_ENCODING = 'utf-8'
 
 
@@ -53,7 +53,7 @@ LOG_ENCODING = 'utf-8'
 # 5. 数据库配置
 # #############################################################################
 
-# Redis（高性能模式推荐分布式）
+# Redis（多节点协作 / 分布式模式推荐）
 REDIS_HOST = '127.0.0.1'                                # Redis 主机地址
 REDIS_PORT = 6379                                       # Redis 端口
 REDIS_PASSWORD = ''                                     # Redis 密码
