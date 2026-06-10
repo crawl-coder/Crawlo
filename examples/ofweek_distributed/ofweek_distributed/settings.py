@@ -45,8 +45,8 @@ SPIDER_MODULES = ['ofweek_distributed.spiders']
 # 数据管道
 # 如需添加自定义管道，请取消注释并添加
 PIPELINES = {
-    'crawlo.pipelines.MySQLPipeline': 400,
-    'crawlo.pipelines.ConsolePipeline': 500,
+    'crawlo.pipelines.MySQLPipeline': 500,
+    'crawlo.pipelines.ConsolePipeline': 300,
 }
 
 # =================================== 系统配置 ===================================
