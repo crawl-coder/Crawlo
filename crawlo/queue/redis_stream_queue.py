@@ -12,7 +12,7 @@
 优先级设计（与 Memory/Redis ZSET 队列口径一致）：
 - priority 作为消息字段存储，数值越小越优先
 - 出队采用 FIFO 语义（Stream 天然有序），先入队的先被消费
-- 这与 Scrapy 等框架行为一致：seed URL 先入队自然先被消费
+- seed URL 先入队自然先被消费
 
 Redis 版本要求：基础功能 5.0+，XAUTOCLAIM 需要 6.2+。
 低版本自动降级为 XPENDING + XCLAIM 手动 fallback。
@@ -74,6 +74,8 @@ class RedisStreamQueue:
         delivery_count_limit: int = 3,
         block_timeout: int = 5000,
         serialization_format: str = "pickle",
+        stream_compact: bool = True,
+        priority_enabled: bool = True,
     ):
         """
         初始化 Redis Stream Queue。
@@ -97,6 +99,7 @@ class RedisStreamQueue:
         self._delivery_count_limit = delivery_count_limit
         self._block_timeout = block_timeout
         self._serialization_format = serialization_format
+        self._stream_compact = stream_compact
 
         # Consumer 标识
         self._consumer_name = consumer_name or self._generate_consumer_name()
@@ -105,21 +108,64 @@ class RedisStreamQueue:
         self._redis = None
         self._connected = False
 
-        # Stream keys（单 Stream + 死信 Stream）
+        # Stream keys：主 Stream + 可选高优 Stream + 死信 Stream
+        # priority_enabled=True  → 双 Stream（priority < 0 → 高优）
+        # priority_enabled=False → 单 Stream（所有 priority → 同一个）
         namespace = f"{project_name}:{self.spider_name}"
         self._stream = f"crawlo:{namespace}:stream:tasks"
+        self._priority_enabled = priority_enabled
+        self._high_stream = f"crawlo:{namespace}:stream:tasks:high" if priority_enabled else self._stream
         self._failed_stream = f"crawlo:{namespace}:stream:failed"
         self._group_name = f"crawlo:{namespace}:group:workers"
 
-        # 兼容旧代码的别名（指向同一个 stream）
-        self._high_stream = self._stream
+        # 兼容旧代码的别名
         self._low_stream = self._stream
 
         # 版本检测标志
         self._redis_version = None
         self._has_xautoclaim = False
 
+        # message_id → stream_key 映射（支持双 Stream 的 ACK/NACK）
+        self._message_stream: dict = {}
+
         self.logger = get_logger(self.__class__.__name__)
+
+    # ---- 公开属性（供 FailoverManager 等外部组件使用） ----
+
+    @property
+    def group_name(self) -> str:
+        """Consumer Group 名称"""
+        return self._group_name
+
+    @property
+    def max_length(self) -> int:
+        """Stream 最大长度"""
+        return self._max_length
+
+    @property
+    def high_stream(self) -> str:
+        """高优 Stream key"""
+        return self._high_stream
+
+    @property
+    def stream(self) -> str:
+        """主 Stream key"""
+        return self._stream
+
+    @property
+    def failed_stream(self) -> str:
+        """死信 Stream key"""
+        return self._failed_stream
+
+    @property
+    def consumer_idle_timeout(self) -> int:
+        """Consumer 空闲超时（ms）"""
+        return self._consumer_idle_timeout
+
+    @property
+    def delivery_count_limit(self) -> int:
+        """最大投递次数上限"""
+        return self._delivery_count_limit
 
     # -------------------------------
     # 连接管理
@@ -162,18 +208,24 @@ class RedisStreamQueue:
         # 创建 Consumer Group（幂等操作）
         await self._ensure_consumer_groups()
 
+        # 标记已连接（_recover_orphan_pending 内部调用 claim_pending 需要 _connected=True）
         self._connected = True
+
+        # 回收孤儿 pending 消息（上一轮运行遗留的已读未 ACK 消息）
+        await self._recover_orphan_pending()
         self.logger.debug(
             f"Consumer '{self._consumer_name}' connected to group '{self._group_name}'"
         )
 
     async def _ensure_consumer_groups(self):
         """确保 Consumer Group 存在（幂等，安全重复调用）"""
-        ok = await create_consumer_group_safe(
-            self._redis, self._stream, self._group_name, self._consumer_name
-        )
-        if not ok:
-            self.logger.warning(f"Failed to ensure consumer group on {self._stream}")
+        streams = {self._stream, self._high_stream}  # 去重：priority 关闭时两者相同
+        for stream in streams:
+            ok = await create_consumer_group_safe(
+                self._redis, stream, self._group_name, self._consumer_name
+            )
+            if not ok:
+                self.logger.warning(f"Failed to ensure consumer group on {stream}")
 
     async def close(self):
         """关闭连接"""
@@ -183,6 +235,118 @@ class RedisStreamQueue:
             self._connected = False
         self.logger.debug("Stream queue connection closed")
 
+    def _get_message_stream(self, message_id: str) -> str:
+        """根据 message_id 返回正确的 Stream key（支持双 Stream）"""
+        return self._message_stream.pop(message_id, self._stream)
+
+    async def _recover_orphan_pending(self):
+        """
+        启动时回收两个 Stream 的孤儿 pending 消息。
+
+        仅在「重启恢复」场景触发：Consumer Group 存在但无活跃消费者
+        （上一轮 Worker 已全部退出）。并发启动场景跳过——
+        此时其他 Worker 正在处理消息，不应回收其 pending。
+
+        策略：
+        1. 检查 Consumer Group 是否有活跃消费者，有则跳过
+        2. XPENDING 检查是否有 pending 消息
+        3. XAUTOCLAIM / XPENDING+XCLAIM 将消息 claim 到当前 Consumer
+        4. 对每条消息：XRANGE 读原始字段 → XACK+XDEL 原消息 → XADD 重新入队
+        5. 重新入队的消息可被任何 Worker 通过 XREADGROUP 正常消费
+        """
+        # 检查是否为并发启动：若任一流存在活跃消费者（idle < threshold），跳过回收
+        idle_threshold = getattr(self, '_orphan_idle_threshold_ms', 30000)
+        for check_stream in {self._stream, self._high_stream}:
+            try:
+                consumers = await self._redis.xinfo_consumers(check_stream, self._group_name)
+                if consumers:
+                    active = [
+                        c for c in consumers
+                        if (c.get('idle', c.get(b'idle', 0)) if isinstance(c, dict) else 0) < idle_threshold
+                    ]
+                    if active:
+                        self.logger.debug(
+                            f"Active consumers detected in group '{self._group_name}' "
+                            f"(stream={check_stream}, idle<{idle_threshold}ms), skipping orphan recovery"
+                        )
+                        return
+            except Exception:
+                pass
+
+        streams = {self._stream, self._high_stream}  # 去重：priority 关闭时两者相同
+        for stream in streams:
+            await self._recover_stream_orphans(stream)
+
+    async def _recover_stream_orphans(self, stream_key: str):
+        """回收单个 Stream 的孤儿 pending 消息"""
+        try:
+            pending_count = await get_pending_count(self._redis, stream_key, self._group_name)
+            if pending_count == 0:
+                return
+
+            self.logger.info(
+                f"Found {pending_count} pending messages in {stream_key}, "
+                f"recovering orphan tasks..."
+            )
+
+            total_recovered = 0
+
+            while True:
+                claimed_messages = await self.claim_pending(
+                    min_idle_ms=1,
+                    count=100,
+                    stream=stream_key,
+                )
+                if not claimed_messages:
+                    break
+
+                for msg_id, request, retry_count in claimed_messages:
+                    try:
+                        msgs = await self._redis.xrange(
+                            stream_key, min=msg_id, max=msg_id, count=1
+                        )
+                        if not msgs:
+                            await self._redis.xack(stream_key, self._group_name, msg_id)
+                            continue
+
+                        _, fields = msgs[0]
+
+                        await self._redis.xack(stream_key, self._group_name, msg_id)
+                        await self._redis.xdel(stream_key, msg_id)
+
+                        if retry_count >= self._delivery_count_limit:
+                            dead_fields = dict(fields)
+                            dead_fields[b"original_message_id"] = msg_id if isinstance(msg_id, bytes) else msg_id.encode()
+                            dead_fields[b"dead_at"] = str(time.time()).encode()
+                            dead_fields[b"dead_reason"] = b"orphan pending on startup, max retries exceeded"
+                            dead_fields[b"retry_count"] = str(retry_count).encode()
+                            await self._redis.xadd(
+                                self._failed_stream, dead_fields,
+                                maxlen=self._max_length // 10, approximate=True
+                            )
+                        else:
+                            new_fields = {k: v for k, v in fields.items() if k != b"retry_count"}
+                            new_fields[b"retry_count"] = str(retry_count + 1).encode()
+                            new_fields[b"reenqueued_at"] = str(time.time()).encode()
+                            new_fields[b"recovered_orphan"] = b"true"
+                            await self._redis.xadd(
+                                stream_key, new_fields,
+                                maxlen=self._max_length, approximate=True
+                            )
+
+                        total_recovered += 1
+                    except Exception as e:
+                        self.logger.warning(f"Failed to recover orphan message {msg_id}: {e}")
+
+            if total_recovered > 0:
+                self.logger.info(
+                    f"Recovered {total_recovered} orphan pending messages from {stream_key}, "
+                    f"re-enqueued for processing"
+                )
+
+        except Exception as e:
+            self.logger.warning(f"Orphan pending recovery failed for {stream_key}: {e}")
+
     # -------------------------------
     # 队列操作
     # -------------------------------
@@ -191,12 +355,12 @@ class RedisStreamQueue:
         """
         XADD 入队。
 
-        所有请求写入同一个 Stream，priority 作为消息字段保留，
-        与 Memory/Redis ZSET 队列口径一致（数值越小越优先）。
+        priority < 0 → 高优 Stream (tasks:high)
+        priority >= 0 → 普通 Stream (tasks)
 
         Args:
             request: Request 对象
-            priority: 优先级（数值越小越优先，0 = 最高优先）
+            priority: 优先级（数值越小越优先，负数为高优）
 
         Returns:
             入队是否成功
@@ -205,6 +369,9 @@ class RedisStreamQueue:
 
         # 序列化请求
         data = self._serialize_request(request)
+
+        # 选择目标 Stream（优先级关闭时一律走主 Stream）
+        target_stream = self._high_stream if (self._priority_enabled and priority < 0) else self._stream
 
         # 消息字段
         fields = {
@@ -216,7 +383,7 @@ class RedisStreamQueue:
 
         try:
             await self._redis.xadd(
-                self._stream, fields,
+                target_stream, fields,
                 maxlen=self._max_length, approximate=True
             )
             return True
@@ -294,11 +461,19 @@ class RedisStreamQueue:
 
     async def ack(self, message_id: str) -> bool:
         """
-        XACK 确认消息处理完成。
+        XACK 确认消息处理完成，并 XDEL 从 Stream 中删除已处理消息。
+
+        XACK 只是将消息从 PEUL (pending) 列表移除，消息本身仍留在 Stream 中。
+        加上 XDEL 确保：消费一条删一条，Stream 中只保留未处理的消息，
+        运行结束后 Stream 自然为空，无需额外清理。
         """
         self._ensure_connected()
+        stream = self._get_message_stream(message_id)
         try:
-            result = await self._redis.xack(self._stream, self._group_name, message_id)
+            result = await self._redis.xack(stream, self._group_name, message_id)
+            if result > 0:
+                # ACK 成功后删除消息，避免 Stream 堆积已处理数据
+                await self._redis.xdel(stream, message_id)
             return result > 0
         except Exception as e:
             self.logger.error(f"XACK failed for {message_id}: {e}")
@@ -338,6 +513,7 @@ class RedisStreamQueue:
         self,
         min_idle_ms: Optional[int] = None,
         count: int = 10,
+        stream: Optional[str] = None,
     ) -> List[Tuple[str, Any]]:
         """
         回收超时未 ACK 的消息。
@@ -345,16 +521,22 @@ class RedisStreamQueue:
         Redis 6.2+：使用 XAUTOCLAIM（一步完成）
         Redis 5.0-6.1：使用 XPENDING + XCLAIM（两步）
 
+        Args:
+            min_idle_ms: 最小空闲时间（ms），超过此时间的 pending 消息才回收
+            count: 一次最多回收数量
+            stream: 目标 Stream key（默认 self._stream）
+
         Returns:
             [(message_id, request, retry_count), ...]
         """
         self._ensure_connected()
-        idle_ms = min_idle_ms or self._consumer_idle_timeout
+        idle_ms = min_idle_ms if min_idle_ms is not None else self._consumer_idle_timeout
+        target_stream = stream or self._stream
 
         if self._has_xautoclaim:
-            return await self._claim_with_xautoclaim(idle_ms, count)
+            return await self._claim_with_xautoclaim(idle_ms, count, target_stream)
         else:
-            return await self._claim_manual(idle_ms, count)
+            return await self._claim_manual(idle_ms, count, target_stream)
 
     async def pending_info(self) -> Dict[str, Any]:
         """查询 Pending 状态"""
@@ -372,16 +554,23 @@ class RedisStreamQueue:
     # -------------------------------
 
     async def size(self) -> int:
-        """获取队列大小（近似）"""
+        """获取队列大小（近似，含 Stream 总数）"""
         self._ensure_connected()
+        total = 0
         try:
-            info = await self._redis.xinfo_stream(self._stream)
-            return info.get("length", 0)
+            streams = {self._stream, self._high_stream}
+            for stream in streams:
+                try:
+                    info = await self._redis.xinfo_stream(stream)
+                    total += info.get("length", 0)
+                except Exception:
+                    pass
+            return total
         except Exception:
             return 0
 
     async def empty(self) -> bool:
-        """检查队列是否为空"""
+        """检查两个 Stream 是否都为空"""
         return await self.size() == 0
 
     # ============================
@@ -402,51 +591,134 @@ class RedisStreamQueue:
         uid = uuid.uuid4().hex[:8]
         return f"worker-{host}-{pid}-{uid}"
 
+    # 不再使用 _REQUEST_DEFAULTS 硬编码默认值表
+    # 原因：维护默认值表容易与 Request.__init__ 不同步，曾导致 encoding 乱码 bug
+    # 现在改为：仅跳过 None/空值字段，反序列化时由 Request.from_dict() 自行补全默认值
+
     def _serialize_request(self, request) -> bytes:
-        """序列化 Request 对象（先转为 dict 剥离回调，避免 pickle 无法序列化）"""
+        """序列化 Request 对象"""
         try:
-            if self._serialization_format == "json":
-                from crawlo.utils.request import request_to_dict
-                data = request_to_dict(request)
-                return json.dumps(data).encode("utf-8")
+            from crawlo.utils.request.request_serializer import RequestSerializer
+            serializer = RequestSerializer(serialization_format=self._serialization_format)
+
+            if self._stream_compact:
+                data = self._compact_request_dict(request)
             else:
-                # 使用框架标准序列化：先转为 dict（剥离 callback/middleware 等不可序列化引用）
-                from crawlo.utils.request.request_serializer import RequestSerializer
-                serializer = RequestSerializer(serialization_format=self._serialization_format)
                 data = serializer.prepare_for_serialization(request)
+
+            if self._serialization_format == "json":
+                return json.dumps(data, ensure_ascii=False).encode("utf-8")
+            else:
                 return pickle.dumps(data)
         except Exception as e:
             self.logger.error(f"Serialization failed: {e}")
             return pickle.dumps(request)  # fallback
 
+    def _compact_request_dict(self, request) -> dict:
+        """
+        精简序列化：只存储非默认值字段，节省 Redis 内存。
+
+        核心策略：
+        - 跳过 priority/headers（已有其他机制处理）
+        - 跳过 None/空容器/空字符串
+        - 跳过与 Request.from_dict() 默认值相同的字段
+        - 注意：encoding 不在默认值表中，因为其默认值是 None（自动检测），
+          必须保留为 None 时跳过、非 None 时存储
+
+        反序列化时由 Request.from_dict() 自动补全缺失字段的默认值。
+        """
+        from crawlo.utils.request.request_serializer import RequestSerializer
+        serializer = RequestSerializer(serialization_format=self._serialization_format)
+        full = serializer.prepare_for_serialization(request)
+
+        # 与 Request.from_dict() 中的默认值保持一致
+        # 注意：encoding 不在此表中！其默认值 None 表示"自动检测"，
+        # 而非某个具体编码值，跳过 None 后 from_dict 会正确补全
+        _SKIP_DEFAULTS = {
+            'method': 'GET',
+            'dont_filter': False,
+            'allow_redirects': True,
+            'verify': True,
+            'use_dynamic_loader': False,
+        }
+
+        compact = {}
+        for key, value in full.items():
+            # 跳过 priority（已在 Stream 消息的 priority 字段中）
+            if key == 'priority':
+                continue
+            # 跳过 headers（由 DefaultHeaderMiddleware 在出队时注入）
+            if key == 'headers':
+                continue
+            # 跳过 cookies（由 CookiesMiddleware 在出队时注入）
+            if key == 'cookies':
+                continue
+            # 跳过值为 None 的字段（encoding=None、body=None 等）
+            if value is None:
+                continue
+            # 跳过空容器
+            if isinstance(value, (dict, list)) and len(value) == 0:
+                continue
+            # 跳过空字符串
+            if isinstance(value, str) and value == '':
+                continue
+            # 跳过与 from_dict() 默认值相同的字段
+            if key in _SKIP_DEFAULTS and value == _SKIP_DEFAULTS[key]:
+                continue
+            compact[key] = value
+
+        return compact
+
     def _deserialize_request(self, raw: bytes):
-        """反序列化 Request（dict → Request，callback 由 Scheduler 恢复）"""
+        """反序列化 Request"""
         try:
             if self._serialization_format == "json":
                 data = json.loads(raw.decode("utf-8"))
-                from crawlo.utils.request import request_from_dict
-                return request_from_dict(data)
             else:
                 data = pickle.loads(raw)
-                if isinstance(data, dict):
-                    from crawlo import Request
-                    return Request.from_dict(data)
-                return data  # 可能是回退的 pickle Request
+
+            if isinstance(data, dict):
+                if self._stream_compact:
+                    data = self._expand_compact_dict(data)
+                from crawlo import Request
+                return Request.from_dict(data)
+            return data  # 可能是回退的 pickle Request
         except Exception as e:
             self.logger.error(f"Deserialization failed: {e}")
             return None
 
+    def _expand_compact_dict(self, data: dict) -> dict:
+        """将精简 dict 还原为完整 dict（由 Request.from_dict() 补全默认值）"""
+        # Request.from_dict() 已为所有缺失字段提供正确的默认值：
+        # method='GET', dont_filter=False, allow_redirects=True, verify=True,
+        # encoding=None（自动检测）, use_dynamic_loader=False 等
+        # 无需手动补全，直接返回即可
+        data.setdefault('method', 'GET')  # 仅做保底，from_dict 也会处理
+        return data
+
     async def _read(
         self, consumer: str, count: int = 1, block: Optional[int] = None
     ) -> Optional[List[Tuple[bytes, Dict[bytes, bytes]]]]:
-        """单 Stream 读取"""
+        """
+        Stream 读取：优先高优，普通兜底。
+
+        1. 若启用双 Stream：先非阻塞检查高优 Stream（10ms）
+        2. 阻塞读取普通 Stream（带完整超时）
+        """
+        if self._priority_enabled and self._high_stream != self._stream:
+            try:
+                high_msgs = await stream_read(
+                    self._redis, self._group_name, consumer,
+                    self._high_stream, count=count, block=10,
+                )
+                if high_msgs:
+                    return high_msgs
+            except Exception:
+                pass
+
         return await stream_read(
-            self._redis,
-            self._group_name,
-            consumer,
-            self._stream,
-            count=count,
-            block=block,
+            self._redis, self._group_name, consumer,
+            self._stream, count=count, block=block,
         )
 
     async def _read_with_priority(
@@ -458,14 +730,26 @@ class RedisStreamQueue:
     def _parse_message(
         self, stream_msg: Tuple[bytes, List[Tuple[bytes, Dict[bytes, bytes]]]]
     ) -> Optional[Any]:
-        """解析 XREADGROUP 返回的消息（只返回 Request）"""
-        _, messages = stream_msg
+        """解析 XREADGROUP 返回的消息（返回 Request，并在 meta 中注入 message_id 用于 ACK）"""
+        stream, messages = stream_msg
         if not messages:
             return None
-        _, fields = messages[0]
+        msg_id_raw, fields = messages[0]
+        message_id = msg_id_raw.decode("utf-8") if isinstance(msg_id_raw, bytes) else str(msg_id_raw)
         raw_data = fields.get(b"data")
         if raw_data:
-            return self._deserialize_request(raw_data)
+            request = self._deserialize_request(raw_data)
+            # 注入 message_id 到 meta，使 ACK/NACK 可用
+            if request and hasattr(request, "meta"):
+                request.meta["__stream_message_id"] = message_id
+                retry_count = int(fields.get(b"retry_count", b"0"))
+                request.meta["__stream_retry_count"] = retry_count
+                stream_key = stream.decode("utf-8") if isinstance(stream, bytes) else stream
+                request.meta["__stream"] = stream_key
+            # 记录 message_id → stream 映射
+            if message_id:
+                self._message_stream[message_id] = stream_key
+            return request
         return None
 
     def _parse_message_with_id(
@@ -487,7 +771,10 @@ class RedisStreamQueue:
         if request and hasattr(request, "meta"):
             request.meta["__stream_message_id"] = message_id
             request.meta["__stream_retry_count"] = retry_count
-            request.meta["__stream"] = stream.decode("utf-8") if isinstance(stream, bytes) else stream
+            request.meta["__stream"] = stream_key = stream.decode("utf-8") if isinstance(stream, bytes) else stream
+
+        # 记录 message_id → stream 映射（用于 ACK/NACK 定位正确 Stream）
+        self._message_stream[message_id] = stream_key
 
         return (request, message_id)
 
@@ -495,8 +782,9 @@ class RedisStreamQueue:
         """
         重试消息：读取原始消息字段，增加 retry_count 后重新 XADD。
         """
+        stream = self._get_message_stream(message_id)
         try:
-            msgs = await self._redis.xrange(self._stream, min=message_id, max=message_id, count=1)
+            msgs = await self._redis.xrange(stream, min=message_id, max=message_id, count=1)
             if msgs:
                 _, fields = msgs[0]
                 retry_count = int(fields.get(b"retry_count", b"0")) + 1
@@ -504,8 +792,9 @@ class RedisStreamQueue:
                 if retry_count >= self._delivery_count_limit:
                     return await self._escalate_to_dead_letter(message_id, error)
 
-                # XACK 当前消息
-                await self._redis.xack(self._stream, self._group_name, message_id)
+                # XACK + XDEL 当前消息（ACK 后删除，避免 Stream 堆积）
+                await self._redis.xack(stream, self._group_name, message_id)
+                await self._redis.xdel(stream, message_id)
 
                 # 重新入队（保留原始数据，更新重试计数）
                 new_fields = {
@@ -517,7 +806,7 @@ class RedisStreamQueue:
                 new_fields[b"reenqueued_at"] = str(time.time()).encode()
 
                 await self._redis.xadd(
-                    self._stream, new_fields,
+                    stream, new_fields,
                     maxlen=self._max_length, approximate=True
                 )
                 return True
@@ -531,14 +820,16 @@ class RedisStreamQueue:
         self, message_id: str, error: Optional[str] = None
     ) -> bool:
         """将消息升级到死信队列"""
+        stream = self._get_message_stream(message_id)
         try:
-            msgs = await self._redis.xrange(self._stream, min=message_id, max=message_id, count=1)
+            msgs = await self._redis.xrange(stream, min=message_id, max=message_id, count=1)
             if msgs:
                 _, fields = msgs[0]
                 retry_count = int(fields.get(b"retry_count", b"0"))
 
-                # XACK 原消息
-                await self._redis.xack(self._stream, self._group_name, message_id)
+                # XACK + XDEL 原消息（转入死信后从主 Stream 删除）
+                await self._redis.xack(stream, self._group_name, message_id)
+                await self._redis.xdel(stream, message_id)
 
                 # 写入死信 Stream
                 dead_fields = dict(fields)
@@ -560,13 +851,13 @@ class RedisStreamQueue:
         return False
 
     async def _claim_with_xautoclaim(
-        self, min_idle_ms: int, count: int
+        self, min_idle_ms: int, count: int, stream: str
     ) -> List[Tuple[str, Any]]:
         """使用 XAUTOCLAIM 回收消息（Redis 6.2+）"""
         claimed = []
         try:
             result = await self._redis.xautoclaim(
-                self._stream, self._group_name, self._consumer_name,
+                stream, self._group_name, self._consumer_name,
                 min_idle_time=min_idle_ms,
                 count=count,
             )
@@ -580,17 +871,17 @@ class RedisStreamQueue:
                     retry_count = int(fields.get(b"retry_count", b"0"))
                     claimed.append((msg_id, request, retry_count))
         except Exception as e:
-            self.logger.warning(f"XAUTOCLAIM failed on {self._stream}: {e}")
+            self.logger.warning(f"XAUTOCLAIM failed on {stream}: {e}")
         return claimed
 
     async def _claim_manual(
-        self, min_idle_ms: int, count: int
+        self, min_idle_ms: int, count: int, stream: str
     ) -> List[Tuple[str, Any]]:
         """手动 XPENDING + XCLAIM（Redis 5.0-6.1 fallback）"""
         claimed = []
         try:
             msgs = await claim_pending_manual(
-                self._redis, self._stream, self._group_name,
+                self._redis, stream, self._group_name,
                 self._consumer_name, min_idle_ms=min_idle_ms, batch_size=count,
             )
             for msg_id, fields in msgs:
@@ -599,7 +890,7 @@ class RedisStreamQueue:
                 retry_count = int(fields.get(b"retry_count", fields.get("retry_count", b"0")))
                 claimed.append((msg_id, request, retry_count))
         except Exception as e:
-            self.logger.warning(f"Manual claim failed on {self._stream}: {e}")
+            self.logger.warning(f"Manual claim failed on {stream}: {e}")
         return claimed
 
 

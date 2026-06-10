@@ -66,6 +66,18 @@ class WorkerRegistry:
         self._workers_key = f"crawlo:{ns}:registry:workers"
         self._heartbeats_key = f"crawlo:{ns}:registry:heartbeats"
 
+    # ---- 公开属性（供 FailoverManager 等外部组件使用） ----
+
+    @property
+    def worker_timeout(self) -> int:
+        """Worker 心跳超时（秒）"""
+        return self._worker_timeout
+
+    @property
+    def heartbeats_key(self) -> str:
+        """心跳 ZSET 的 Redis key"""
+        return self._heartbeats_key
+
     # ---- 注册 / 注销 ----
 
     async def register(self, worker_info: Dict[str, Any]) -> str:

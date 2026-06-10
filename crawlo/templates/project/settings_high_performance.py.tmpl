@@ -54,10 +54,11 @@ LOG_ENCODING = 'utf-8'
 # #############################################################################
 
 # Redis（高性能模式推荐分布式）
-REDIS_HOST = '127.0.0.1'
-REDIS_PORT = 6379
-REDIS_PASSWORD = ''
-REDIS_DB = 0
+REDIS_HOST = '127.0.0.1'                                # Redis 主机地址
+REDIS_PORT = 6379                                       # Redis 端口
+REDIS_PASSWORD = ''                                     # Redis 密码
+REDIS_USER = ''                                         # Redis 用户名（Redis 6.0+ ACL）
+REDIS_DB = 0                                            # Redis 数据库编号
 
 # MySQL
 MYSQL_HOST = '127.0.0.1'

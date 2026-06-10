@@ -109,6 +109,7 @@ nav:
   - 📖 核心概念:
     - 概览: concepts/index.md
     - 架构设计: concepts/architecture.md
+    - 分布式架构: distributed_architecture.md
     - 核心组件: concepts/core-components.md
     - 请求生命周期: concepts/request-lifecycle.md
     - 爬虫生命周期: concepts/spider-lifecycle.md

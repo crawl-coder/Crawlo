@@ -9,6 +9,12 @@
 - 核心组件交互
 - 数据流转
 
+### 🌐 [分布式架构](../distributed_architecture.md)
+- Redis Key 命名空间
+- 任务/Worker 生命周期
+- 故障恢复与协调退出
+- 集群组件详解
+
 ### 🧩 [核心组件](core-components.md)
 - Engine（引擎）
 - Scheduler（调度器）

@@ -85,7 +85,7 @@ Worker 之间通过竞争消费协作，无直接通信。
 - 任务状态流转：XADD → PENDING → XREADGROUP → PROCESSING → XACK → DONE
 - 崩溃恢复：心跳超时 → suspect（30s 二次确认）→ XCLAIM 回收任务
 - Worker 退出：Leader 选举协调退出（队列空 + 所有 Worker 空闲 → 广播 shutdown）
-- Redis Key 参考：[分布式 Redis Key 说明](redis-keys.md)
+- 详细设计：[分布式架构设计文档](../distributed_architecture.md)
 
 ---
 

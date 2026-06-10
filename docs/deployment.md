@@ -11,6 +11,7 @@
 ## 相关文档
 
 - [部署模式详解](guides/configuration/run-modes.md) — 三种运行模式的配置与工作机制
+- [分布式架构设计](distributed_architecture.md) — 集群架构、任务生命周期、故障恢复、协调退出
 - [配置指南](guides/configuration/) — 全部配置项说明
 - [故障排查](faq/troubleshooting.md) — 常见问题诊断
 
