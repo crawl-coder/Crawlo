@@ -1,7 +1,5 @@
 # Crawlo 分布式架构设计文档
 
-> 版本：1.8.0 | 更新：2026-06-10
-
 ---
 
 ## 目录
@@ -9,6 +7,7 @@
 - [1. 架构概览](#1-架构概览)
   - [设计原则](#设计原则)
   - [激活条件](#激活条件)
+  - [Redis 版本要求](#redis-版本要求)
   - [架构全景](#架构全景)
   - [核心特性](#核心特性)
 - [2. Redis Key 命名空间](#2-redis-key-命名空间)
@@ -68,6 +67,24 @@ QUEUE_TYPE = "redis_stream"
 ```
 
 两个条件同时满足时，集群组件（9 个子模块）全部启动。
+
+### Redis 版本要求
+
+| 需求 | 版本 | 说明 |
+|---|---|---|
+| **最低版本** | **Redis 5.0+** | Stream 基础功能（XADD / XREADGROUP / XACK / XCLAIM） |
+| **推荐版本** | **Redis 6.2+** | XAUTOCLAIM 一步完成 orphan 回收，效率更高 |
+| **部署推荐** | **Redis 7+** | 生产环境推荐使用最新稳定版（`redis:7-alpine`） |
+| **最高版本** | **无上限** | 向下兼容，无最大版本限制 |
+
+**自动降级策略**：框架启动时通过 `crawlo.utils.redis.stream_utils` 检测 Redis 版本：
+- `supports_xstream()` → 检查 `major >= 5`，不满足则**无法使用分布式模式**
+- `supports_xautoclaim()` → 检查 `major > 6 or (major == 6 and minor >= 2)`
+  - ✅ 6.2+：使用 XAUTOCLAIM（原子 claim + 自动清理已删除消息）
+  - ⚠️ 5.0-6.1：降级为 XPENDING + XCLAIM 手动两步回收（功能等价，多一次 Redis 往返）
+
+> `crawlo/utils/redis/stream_utils.py` 中 `detect_redis_version()` 从 Redis INFO 命令
+> 解析版本号，连接时自动检测并记录日志。
 
 ### 架构全景
 
@@ -692,6 +709,9 @@ Leader 检测到完成条件
 | `QUEUE_TYPE` | `auto` | 设为 `redis_stream` 使用 Stream 队列 |
 | `CONCURRENCY` | `8` | 每 Worker 并发请求数 |
 | `DOWNLOAD_DELAY` | `1.0` | 请求间隔（秒） |
+
+> **环境依赖**：分布式模式依赖 **Redis 5.0+**（推荐 6.2+），详见
+> [Redis 版本要求](#redis-版本要求)。
 
 ### 10.2 集群配置
 
