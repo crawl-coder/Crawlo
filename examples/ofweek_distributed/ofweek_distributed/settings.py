@@ -24,7 +24,7 @@ REDIS_DB = 0                                            # Redis 数据库编号
 # 使用分布式模式配置工厂创建配置
 config = CrawloConfig.distributed(
     project_name='ofweek_distributed',
-    concurrency=12,          # 分布式模式下并发数（每个 worker）
+    concurrency=8,          # 分布式模式下并发数（每个 worker）
     download_delay=1.0,     # 请求间隔（秒）
 )
 
@@ -44,10 +44,10 @@ SPIDER_MODULES = ['ofweek_distributed.spiders']
 
 # 数据管道
 # 如需添加自定义管道，请取消注释并添加
-PIPELINES = [
-    'crawlo.pipelines.ConsolePipeline',
-    'crawlo.pipelines.MySQLPipeline',
-]
+PIPELINES = {
+    'crawlo.pipelines.MySQLPipeline': 400,
+    'crawlo.pipelines.ConsolePipeline': 500,
+}
 
 # =================================== 系统配置 ===================================
 
