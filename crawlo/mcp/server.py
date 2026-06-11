@@ -334,7 +334,7 @@ async def screenshot(
         data = await fetcher.screenshot(url, mode=mode)
         if data:
             b64 = base64.b64encode(data).decode('utf-8')
-            return f"Screenshot of {url}\nSize: {len(data):,} bytes\nBase64: data:image/png;base64,{b64[:200]}... ({len(b64)} chars total)"
+            return f"Screenshot of {url}\nSize: {len(data):,} bytes\nBase64: data:image/png;base64,{b64}"
         return f"Error: Failed to capture screenshot of {url}"
     except Exception as e:
         return f"Error: {type(e).__name__}: {e}"
