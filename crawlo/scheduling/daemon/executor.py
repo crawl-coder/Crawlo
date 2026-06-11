@@ -35,8 +35,8 @@ class JobExecutor:
             self._stats['job_stats'][job.spider_name]['total'] += 1
             self._stats['job_stats'][job.spider_name]['last_execution'] = time.time()
             
-            # 获取超时配置
-            timeout = self.settings.get_int('SCHEDULER_JOB_TIMEOUT', 3600)
+            # 获取超时配置：优先使用任务级 timeout，其次全局 SCHEDULER_JOB_TIMEOUT
+            timeout = job.timeout if job.timeout is not None else self.settings.get_int('SCHEDULER_JOB_TIMEOUT', 7200)
             
             try:
                 # 使用 asyncio.wait_for 实现超时控制

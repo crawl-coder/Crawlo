@@ -70,7 +70,8 @@ class SchedulerDaemon:
                         args=job_config.get('args', {}),
                         priority=job_config.get('priority', 0),
                         max_retries=job_config.get('max_retries', 0),
-                        retry_delay=job_config.get('retry_delay', 60)
+                        retry_delay=job_config.get('retry_delay', 60),
+                        timeout=job_config.get('timeout'),
                     )
                     self._registry.register_job(job)
                     self._stats['job_stats'][job.spider_name] = {
