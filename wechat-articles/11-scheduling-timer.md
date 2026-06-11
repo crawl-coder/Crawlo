@@ -64,7 +64,7 @@ SCHEDULER_JOBS = [
     },
     {
         'spider': 'weekly_report',
-        'interval': {'days': 1},         # 每 1 天
+        'cron': '0 0 0 * * 1',           # 每周一凌晨 0 点
     },
 ]
 ```
