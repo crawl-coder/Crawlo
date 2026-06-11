@@ -20,7 +20,19 @@
 - 30+ 内置消息模板
 - 自定义模板 + 防刷机制
 
-### 🔍 [自适应选择器](adaptive-selector.md)
+### 🔗 [中间件参考](../concepts/middleware-reference.md)
+- 13 个内置中间件逐一说明
+- 洋葱模型执行顺序 + 优先级表
+- 自定义中间件开发
+
+### 🌐 [代理配置](proxy-guide.md)
+- 静态代理列表 + 动态 API
+- 自动切换策略 + 白名单
+
+### 🛡️ [Cloudflare 绕过](cloudflare-bypass.md)
+- 自动检测 JS Challenge / Turnstile
+- CloakBrowser / Camoufox / Playwright 三种浏览器
+- 与 HybridDownloader 协同
 - 元素指纹 + 多维度相似度匹配
 - 网站改版时选择器自动恢复
 - class/层级/文本/属性变化全覆盖
