@@ -104,6 +104,40 @@ response.xpath(
 )
 ```
 
+### 高手进阶：find_similar() — 找到一个，定位全部
+
+还有一个隐藏大招。你找到第一个商品后，能不能自动定位到其余商品？
+
+```python
+# 1. 先找到第一个商品（保存指纹）
+response.css('.product-item', adaptive=True, identifier='product')
+
+# 2. 自动找到列表中所有同类商品
+all_products = response.find_similar('product', threshold=50)
+
+# 3. 每个商品提取信息
+for item in all_products:
+    title = item.css('.name').get()
+    price = item.css('.price').get()
+    yield {'title': title, 'price': price}
+```
+
+`find_similar()` 基于 DOM 层级（同父元素 + 同深度 + 同标签）+ 属性/文本相似度，自动找到所有结构相同的相邻元素。原来需要精确选择器定位的"商品列表"，现在只需要找到一个参考物就够了。
+
+### 实战技巧：ignore_attributes — 跳过 URL 噪音
+
+`href`、`src` 这类属性在不同的页面元素间完全不同，会干扰匹配精度：
+
+```python
+from crawlo.helpers.adaptive_selector import SimilarityMatcher
+
+# 忽略 href 和 src，提高匹配精度
+matcher = SimilarityMatcher(ignore_attributes={'href', 'src'})
+
+# 或直接在 find_similar 中指定
+response.find_similar('nav_link', threshold=60, ignore_attributes={'href', 'src'})
+```
+
 ### 场景覆盖表
 
 | 网站变化类型 | 是否恢复 |
@@ -112,6 +146,7 @@ response.xpath(
 | DOM 层级调整 | ✅ |
 | 新增/替换属性 | ✅ |
 | 文本内容微调 | ✅ |
+| 相邻结构元素 | ✅ `find_similar()` |
 | 标签类型变了 (`<h3>`→`<h2>`) | ⚠️ 受同标签预过滤影响 |
 
 ---
@@ -166,6 +201,69 @@ ADAPTIVE_SIMILARITY_THRESHOLD = 0.0         # 全局阈值，越低越包容
 - 拼多多的 class 是 `.goods-price`
 
 传统做法是为每个网站单独写选择器。但如果你先用一个网站"教会"爬虫"价格元素长什么样"，自适应选择器就可以在其他网站上自动定位到价格——因为它记住的是"价格元素的特征"（通常包含数字、货币符号、特定标签和位置），而不是具体的 class 名称。
+
+---
+
+## 08. 实战案例：电商全站爬取
+
+来看一个完整的电商爬虫，感受一下真实世界的威力：
+
+```python
+class ECommerceSpider(Spider):
+    name = 'ecommerce'
+
+    def parse(self, response):
+        # === 列表页 ===
+        # ① 自适应定位商品列表容器
+        items = response.css('.product-grid .item', adaptive=True,
+                             identifier='product_list')
+
+        for item in items:
+            # ② 自适应提取每条商品信息
+            title = item.css('.title', adaptive=True, identifier='prod_title').get()
+            price = item.css('.price', adaptive=True, identifier='prod_price').get()
+            link = item.css('a::attr(href)', adaptive=True, identifier='prod_link').get()
+
+            if title and link:
+                yield Request(url=response.urljoin(link),
+                              meta={'title': title, 'price': price},
+                              callback=self.parse_detail)
+
+        # ③ 如果商品列表定位失败（大改版），用 find_similar 兜底
+        if not items:
+            items = response.find_similar('product_list', threshold=40)
+            for item in items:
+                # 重新尝试提取
+                ...
+
+    def parse_detail(self, response):
+        # === 详情页 ===
+        # ④ 自适应提取正文（忽略 href/src 噪音）
+        body = response.css('.article-body', adaptive=True,
+                           identifier='article_body')
+        content = body.css('::text').getall() if body else []
+
+        # ⑤ 提取元数据
+        author = response.xpath('//span[@class="author"]/text()',
+                                adaptive=True, identifier='author').get()
+        date = response.xpath('//time[@class="date"]/@datetime',
+                              adaptive=True, identifier='pub_date').get()
+
+        yield {
+            'title': response.meta.get('title'),
+            'price': response.meta.get('price'),
+            'author': author,
+            'date': date,
+            'content': '\n'.join(content) if content else '',
+        }
+```
+
+这个爬虫在网站改版时能够：
+- **列表页**：class 变化 → 自适应恢复；完全找不到 → `find_similar()` 兜底
+- **详情页**：content/author/date 三个选择器独立恢复
+- **URL 噪音**：`ignore_attributes` 排除 href 干扰
+
+一个爬虫、一次配置、长期免疫改版。
 
 ---
 
