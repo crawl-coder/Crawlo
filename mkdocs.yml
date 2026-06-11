@@ -105,6 +105,8 @@ nav:
       - 概览: guides/configuration/index.md
       - 运行模式详解: guides/configuration/run-modes.md
     - 自适应选择器: guides/adaptive-selector.md
+    - 扩展系统: guides/extension-guide.md
+    - 通知系统: guides/notification-guide.md
     - 调度指南:
       - 定时任务调度器: guides/scheduling/scheduler.md
       - 背压系统: guides/scheduling/backpressure.md
