@@ -407,8 +407,7 @@ class Response(ResponseAdaptiveMixin):
             percentage=percentage,
             timeout=timeout,
         )
-    # 自适应选择器方法已提取到 ResponseAdaptiveMixin (response_adaptive.py)
-
+        
     # ==================== 通用选择器方法 ====================
 
     def _is_xpath(self, query: str) -> bool:
