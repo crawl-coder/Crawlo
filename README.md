@@ -61,7 +61,7 @@ crawlo run example
 - **Cloudflare Auto-Bypass**: Detects challenge pages and auto-switches to stealth browser
 - **5 Browser Downloaders**: Playwright / Camoufox / CloakBrowser / DrissionPage / Chrome
 - **BROWSER_* Unified Config Layer**: One set of params for all browser downloaders
-- **Adaptive Selectors**: Auto-relocate elements when site structure changes (selector self-healing)
+- **Adaptive Selectors**: Auto-relocate elements when site structure changes (selector self-healing) — [Guide →](docs/guides/adaptive-selector.md)
 
 ### 🤖 AI Integration (MCP Server)
 - Claude / Cursor directly invoke Crawlo scraping capabilities
@@ -112,7 +112,9 @@ crawlo run example
 - 🎯 **[Guides](docs/guides/)** - Scenario-based deep dives
   - [Configuration](docs/guides/configuration/), [Scheduling](docs/guides/scheduling/)
   - [Backpressure](docs/guides/scheduling/backpressure.md), [Run Modes](docs/guides/configuration/run-modes.md)
+  - [Adaptive Selector](docs/guides/adaptive-selector.md) — selector self-healing after site redesign
 - 📖 **[Concepts](docs/concepts/)** - Architecture, lifecycle, error handling
+  - [Distributed Architecture](docs/distributed_architecture.md) — Redis Streams, failover, coordinated shutdown
 - 🖥 **[Production Deployment](docs/deployment.md)** - Linux server setup, systemd, monitoring
 - 🔧 **[API Reference](docs/reference/)** - Complete API docs
 - 💡 **[Examples](docs/examples/)** - Real-world examples and best practices
