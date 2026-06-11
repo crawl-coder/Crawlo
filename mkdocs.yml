@@ -104,6 +104,7 @@ nav:
     - 配置指南:
       - 概览: guides/configuration/index.md
       - 运行模式详解: guides/configuration/run-modes.md
+    - 自适应选择器: guides/adaptive-selector.md
     - 调度指南:
       - 背压系统: guides/scheduling/backpressure.md
   - 📖 核心概念:

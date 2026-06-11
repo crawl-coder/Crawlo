@@ -254,11 +254,11 @@ class SimilarityMatcher:
         # Key similarity: Jaccard-style (order-independent)
         keys1, keys2 = set(dict1.keys()), set(dict2.keys())
         if not keys1 and not keys2:
-            key_score = 1.0
-        elif not keys1 or not keys2:
-            key_score = 0.0
-        else:
-            key_score = len(keys1 & keys2) / len(keys1 | keys2)
+            return 1.0  # 两个字典都为空，视为完美匹配
+        if not keys1 or not keys2:
+            return 0.0  # 一个为空另一个非空，视为完全不同
+
+        key_score = len(keys1 & keys2) / len(keys1 | keys2)
 
         # Value similarity: SequenceMatcher on sorted keys ensures stability
         if keys1 and keys2:
