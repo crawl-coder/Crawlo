@@ -48,23 +48,33 @@ SCHEDULER_JOBS = [
 
 **时间间隔（更直观）：**
 
+支持 4 种单位，也可组合使用：
+
 ```python
 SCHEDULER_JOBS = [
     {
         'spider': 'heartbeat_spider',
-        'interval': {'seconds': 30},     # 每 30 秒
+        'interval': {'seconds': 30},        # 每 30 秒
     },
     {
         'spider': 'price_checker',
-        'interval': {'minutes': 15},     # 每 15 分钟
+        'interval': {'minutes': 15},        # 每 15 分钟
     },
     {
         'spider': 'monitor_spider',
-        'interval': {'hours': 1},        # 每 1 小时
+        'interval': {'hours': 1},           # 每 1 小时
+    },
+    {
+        'spider': 'news_crawler',
+        'interval': {'days': 1},            # 每 24 小时
+    },
+    {
+        'spider': 'deep_report',
+        'interval': {'hours': 1, 'minutes': 30},  # 每 1.5 小时（组合）
     },
     {
         'spider': 'weekly_report',
-        'cron': '0 0 0 * * 1',           # 每周一凌晨 0 点
+        'cron': '0 0 0 * * 1',              # 每周一凌晨 0 点
     },
 ]
 ```
