@@ -19,6 +19,7 @@
   - [4.2 _init_cluster() 初始化顺序](#42-_init_cluster-初始化顺序)
   - [4.3 运行状态](#43-运行状态)
   - [4.4 优雅关闭](#44-优雅关闭)
+  - [4.5 动态扩缩容](#45-动态扩缩容)
 - [5. 集群组件详解](#5-集群组件详解)
   - [5.1 WorkerRegistry](#51-workerregistry)
   - [5.2 HeartbeatDaemon](#52-heartbeatdaemon)
@@ -131,6 +132,7 @@ QUEUE_TYPE = "redis_stream"
 | **种子去重** | Worker 通过 SETNX 互斥选举唯一的种子 URL 生成器 |
 | **两阶段故障检测** | suspect 标记 → 30s 二次确认 → XAUTOCLAIM 回收 |
 | **优雅协调退出** | Leader 检测全部空闲 → 广播 shutdown → 所有 Worker drain 后退出 |
+| **动态扩缩容** | 新 Worker 即插即用，崩溃 Worker 任务 120s 内自动回收，不丢数据 |
 | **持久化控制状态** | 双通道 (Pub/Sub + Redis Key) 保证退出信号不丢失 |
 
 ---
@@ -349,6 +351,104 @@ Engine.close_spider(reason='shutdown')
        └─ 7. WorkerRegistry.deregister()
               ─ HDEL registry:workers  ZREM registry:heartbeats
 ```
+
+### 4.5 动态扩缩容
+
+#### 新增 Worker（Scale Up）
+
+运行中加入新 Worker，**即插即用，无需任何人工干预**。
+
+```
+新 Worker 启动                         Redis
+  │                                     │
+  ├─ SETNX seed:generator ────────────► │ 已存在 → 返回 False
+  │  └─ 跳过 start_requests             │ 避免重复生成种子 URL
+  │                                     │
+  ├─ WorkerRegistry.register() ───────► │ HSET registry + ZADD heartbeats
+  ├─ HeartbeatDaemon.start()            │
+  │                                     │
+  ├─ XGROUP CREATECONSUMER ───────────► │ Consumer Group 加入新消费者
+  │                                     │ Redis 自动负载均衡后续 XREADGROUP 消息
+  │                                     │
+  ├─ _recover_orphan_pending()          │
+  │  └─ XINFO CONSUMERS                │
+  │    → 活跃 Consumer 存在 (idle<30s) │
+  │    → 跳过孤儿回收 ✓                 │
+  │                                     │
+  └─ main loop                          │
+     └─ XREADGROUP stream > ──────────► │ 立即参与消息消费
+                                        │ Pub/Sub 同步限速/配置
+```
+
+| 步骤 | 机制 | 说明 |
+|---|---|---|
+| 种子生成 | `SET NX EX 120` | 首个 Worker 获取锁后生成种子，后续 Worker 跳过 |
+| 消费组加入 | `XGROUP CREATECONSUMER` | Redis 自动负载均衡，新 Consumer 无缝接管 |
+| 孤儿回收 | `XINFO CONSUMERS` idle 检查 | 已有活跃 Consumer → 不误触回收 |
+| 配置同步 | Pub/Sub + 持久化 Key | 即时 + 兜底，新 Worker 自动继承当前配置 |
+| 进度统计 | `ProgressAggregator` | `HINCRBY` 全局聚合，新 Worker 统计自动合并 |
+
+#### Worker 退出（Scale Down）
+
+##### 正常退出（SIGTERM / 协调退出信号）
+
+```
+退出的 Worker                              其他 Worker
+  │                                          │
+  ├─ update_status(STOPPING) ──► Redis       │
+  │                               │           ├─ FailoverManager 扫描到该 Worker
+  │                               │           │   status == "stopping" → 跳过 ✓
+  ├─ _drain_inflight_tasks()      │           │
+  │  └─ 等待在途任务完成(30s)      │           │
+  │     ├─ 完成 → XACK ✓          │           │
+  │     └─ 超时 → cancel          │           │
+  │        └─ NACK → 回到 Stream   │           │
+  │                               │           ├─ XREADGROUP 取到该消息
+  │                               │           │   正常处理 → XACK
+  │                               │           │
+  └─ deregister() ────────────────► Redis     │
+```
+
+- **STATUS_STOPPING 豁免**：FailoverManager 跳过 stopping 状态的 Worker，防止 drain 期间误回收
+- **Drain 兜底**：30 秒超时后 cancel 并 NACK 回 Stream，其他 Worker 自动接管
+
+##### 崩溃退出（进程 kill、OOM、网络分区）
+
+```
+时间线                    事件
+─────────────────────────────────────────────────────
+t=0       Worker 崩溃，心跳停止
+t=90s     detect_dead_workers() 心跳超时 → mark suspect
+t=120s    二次确认 → DistributedLock 持锁 → 正式回收
+
+崩溃 Worker                                 其他 Worker
+  │                                            │
+  │ heartbeat 停止 ──► Redis ZSET 无更新       │
+  │                     │                      │
+  │                     │    每 30s 执行 FailoverManager.check_and_recover()
+  │                     │    ├─ Phase 1: mark suspect (防网络抖动)
+  │                     │    └─ Phase 2 (30s 后确认):
+  │                     │       └─ DistributedLock 持锁
+  │                     │          ├─ XAUTOCLAIM 回收两个 Stream
+  │                     │          │   └─ XRANGE → XACK+XDEL → XADD (retry+1)
+  │                     │          │       超限 → stream:failed (死信)
+  │                     │          └─ deregister()
+```
+
+**最坏恢复时间**：约 120 秒（90s 超时 + 30s 确认）。
+
+#### 数据丢失分析
+
+| 崩溃时机 | 丢数据？ | 处理方式 |
+|---|---|---|
+| 消息仍在 Stream 未消费 | **不丢** | XREADGROUP 原子分配，其他 Worker 正常读取 |
+| 消息已消费、下载中 | **不丢** | 消息在 PEL pending 中，XAUTOCLAIM 回收重新入队 |
+| 处理完成、ACK 前 | **不丢，可能重复** | 回收重新执行（**至少一次**语义）；MySQL 唯一键 / dedup 作为最后防线 |
+| 处理完成、ACK 后 | **不丢** | XACK 已将消息从 PEL 移除 |
+| 死信 | **不丢** | 转入 `stream:failed`，可排查后手动重试 |
+
+> **唯一风险——重复消费**：Worker 完成 MySQL 写入但 XACK 前崩溃 → 消息被回收重放。
+> 数据库唯一键约束保证幂等写入，不会产生脏数据。
 
 ---
 
