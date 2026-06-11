@@ -291,8 +291,6 @@ class SimilarityMatcher:
         elements (e.g., list items under the same parent), then filters by
         attribute/text similarity.
 
-        Inspired by Scrapling's find_similar().
-
         Args:
             target_fp: Reference element fingerprint (e.g., the first matched product)
             root_element: Page root element
