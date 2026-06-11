@@ -22,6 +22,7 @@
 | 属性新增/变化 | `class="btn"` → `class="btn primary"` | ✅ |
 | 文本微调 | `"Price: $10"` → `"Price: $12"` | ✅ |
 | 标签类型变化 | `<h3>` → `<h2>` | ⚠️ 需重新抓取指纹 |
+| 相邻结构元素 | 找到第一个商品后自动定位其余 | ✅ [find_similar()](#find_similar) |
 
 > 标签类型变化受同标签预过滤策略影响，详见[算法设计](#算法设计)。
 
@@ -48,6 +49,37 @@ class MySpider(Spider):
 | `adaptive` | `False` | 启用自适应追踪 |
 | `identifier` | query 字符串 | 指纹标识符，同页面复用的选择器应使用不同 identifier |
 | `percentage` | `50.0` | 改版匹配时的最低相似度阈值（0-100） |
+
+### find_similar() — 相邻结构元素查找
+
+定位一个元素后，自动找到同一列表中所有结构相似的相邻元素：
+
+```python
+# 1. 先定位第一个商品
+response.css('.product-item', adaptive=True, identifier='product')
+
+# 2. 查找其余同类商品（排除自身，基于 DOM 层级 + 属性相似度）
+all_products = response.find_similar('product', threshold=50)
+
+# 3. 比较时忽略易变的 href/src 属性
+all_links = response.find_similar('nav_link', threshold=60, ignore_attributes={'href', 'src'})
+```
+
+| 参数 | 默认值 | 说明 |
+|---|---|---|
+| `identifier` | — | 指纹标识符（与 adaptive=True 中使用的一致） |
+| `threshold` | `50.0` | 最低相似度百分比 |
+| `ignore_attributes` | `None` | 比较时跳过的属性集合，如 `{'href', 'src'}` |
+
+### ignore_attributes — 比较时跳过易变属性
+
+网站改版时 `href`、`src` 等 URL 属性通常会变，跳过它们可提高匹配精度：
+
+```python
+from crawlo.helpers.adaptive_selector import SimilarityMatcher
+
+matcher = SimilarityMatcher(ignore_attributes={'href', 'src'})
+```
 
 ### 配置
 
@@ -184,6 +216,7 @@ LOG_LEVEL = 'DEBUG'
 | 文本大幅变化 | 文本权重最高(2.0)，完全改版后可能低于阈值 | 降低 `percentage` 或使用更稳定的属性做 identifier |
 | 跨域不共享 | 指纹按域名分区存储 | 多域名网站为每个域名使用不同的 identifier |
 | 指纹不自动刷新 | 首次保存后锁定不覆盖 | 调用 `Response.cleanup_adaptive()` 清除所有指纹后重新建立 |
+| URL 属性干扰 | `href`/`src` 变化降低匹配精度 | 使用 `ignore_attributes={'href', 'src'}` |
 
 ## 示例项目
 
