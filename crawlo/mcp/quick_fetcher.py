@@ -13,6 +13,9 @@ MCP 场景下的轻量级抓取器：
 
 import asyncio
 import atexit
+import base64
+import json
+import os
 import re
 import time
 from typing import Optional, Dict, Any, List
@@ -22,6 +25,9 @@ from crawlo.network.response import Response
 
 import aiohttp
 from aiohttp import ClientSession, TCPConnector, ClientTimeout
+
+# Cookie 持久化文件路径
+_COOKIE_FILE = os.path.expanduser("~/.crawlo/mcp_cookies.json")
 
 
 @dataclass
@@ -57,8 +63,12 @@ class QuickFetcher:
         # 浏览器单例池（复用实例，避免每次 3-10s 启动开销）
         self._stealth_page: Optional[Any] = None       # DrissionPage ChromiumPage
         self._stealth_lock = asyncio.Lock()
+        self._stealth_fetch_lock = asyncio.Lock()       # stealth 互斥（单 Page 安全）
         self._camoufox_browser: Optional[Any] = None   # AsyncCamoufox
         self._camoufox_lock = asyncio.Lock()
+
+        # 加载持久化 Cookie
+        self._load_cookies()
 
     async def _get_session(self) -> ClientSession:
         """获取或创建 aiohttp session"""
@@ -158,6 +168,7 @@ class QuickFetcher:
 
                 if persist_session and result.cookies:
                     self._cookies.update(result.cookies)
+                    self._save_cookies()  # 持久化到文件
 
                 if format == 'html':
                     result.content = response.text
@@ -264,11 +275,19 @@ class QuickFetcher:
             except Exception:
                 page_cookies = {}
 
+            # 检测实际状态：页面内容为空 → 可能加载失败
+            if not html or len(html.strip()) < 50:
+                status = 502
+            elif current_url != url:
+                status = 302  # 发生重定向
+            else:
+                status = 200
+
             response = Response(
                 url=current_url,
                 headers={'Content-Type': 'text/html; charset=utf-8'},
                 body=html.encode('utf-8') if isinstance(html, str) else html,
-                status=200,
+                status=status,
             )
             response.cookies = page_cookies
             return response
@@ -330,10 +349,12 @@ class QuickFetcher:
                 except Exception:
                     pass
 
-            await page.goto(url, wait_until='networkidle', timeout=timeout * 1000)
+            response_obj = await page.goto(url, wait_until='networkidle', timeout=timeout * 1000)
 
             html = await page.content()
             current_url = page.url
+            status = response_obj.status if response_obj else 200
+            resp_headers = dict(response_obj.headers) if response_obj else {'Content-Type': 'text/html; charset=utf-8'}
 
             try:
                 page_cookies = {c['name']: c['value'] for c in await context.cookies()}
@@ -342,9 +363,9 @@ class QuickFetcher:
 
             response = Response(
                 url=current_url,
-                headers={'Content-Type': 'text/html; charset=utf-8'},
+                headers=resp_headers,
                 body=html.encode('utf-8') if isinstance(html, str) else html,
-                status=200,
+                status=status,
             )
             response.cookies = page_cookies
 
@@ -383,12 +404,18 @@ class QuickFetcher:
 
         async def _limited_fetch(url: str, index: int) -> FetchResult:
             nonlocal _delay_counter
-            async with semaphore:
-                if delay > 0:
-                    # 错峰启动：按 index % concurrency 分组延迟
-                    stagger = (index % concurrency) * delay
-                    await asyncio.sleep(stagger)
-                return await self.fetch(url, mode, format)
+            if mode == 'stealth':
+                # 浏览器模式共享单 Page，必须串行执行
+                async with self._stealth_fetch_lock:
+                    if delay > 0:
+                        await asyncio.sleep(delay)
+                    return await self.fetch(url, mode, format)
+            else:
+                async with semaphore:
+                    if delay > 0:
+                        stagger = (index % concurrency) * delay
+                        await asyncio.sleep(stagger)
+                    return await self.fetch(url, mode, format)
 
         tasks = [_limited_fetch(url, i) for i, url in enumerate(urls)]
         results = await asyncio.gather(*tasks, return_exceptions=True)
@@ -425,6 +452,101 @@ class QuickFetcher:
             # Fallback to plain text if markdownify is not available
             return self._html_to_text(html)
 
+    # ---- Cookie 持久化 ----
+
+    def _save_cookies(self):
+        """持久化 Cookie 到文件"""
+        if not self._cookies:
+            return
+        try:
+            os.makedirs(os.path.dirname(_COOKIE_FILE), exist_ok=True)
+            with open(_COOKIE_FILE, 'w') as f:
+                json.dump(self._cookies, f)
+        except Exception:
+            pass
+
+    def _load_cookies(self):
+        """从文件加载持久化 Cookie"""
+        try:
+            with open(_COOKIE_FILE) as f:
+                self._cookies = json.load(f)
+        except (FileNotFoundError, json.JSONDecodeError):
+            pass
+
+    # ---- evaluate / screenshot ----
+
+    async def evaluate(self, url: str, script: str, mode: str = 'stealth',
+                       cookies: Optional[Dict[str, str]] = None) -> str:
+        """Execute JavaScript on a page and return the result.
+
+        Args:
+            url: Target URL
+            script: JavaScript code to execute
+            mode: stealth or max-stealth
+            cookies: Optional cookies
+        """
+        if mode == 'max-stealth':
+            try:
+                from camoufox.async_api import AsyncCamoufox
+            except ImportError:
+                return "Error: camoufox not installed"
+            try:
+                browser = await self._get_camoufox_browser()
+                context = await browser.new_context()
+                page = await context.new_page()
+                await page.goto(url, wait_until='networkidle', timeout=30000)
+                result = await page.evaluate(script)
+                await page.close()
+                await context.close()
+                return str(result)
+            except Exception as e:
+                await self._camoufox_try_close()
+                return f"Error: {e}"
+        else:
+            try:
+                page = await self._get_stealth_page()
+                if cookies:
+                    for k, v in cookies.items():
+                        try:
+                            page.set.cookie(name=k, value=v, url=url)
+                        except Exception:
+                            pass
+                page.get(url)
+                # DrissionPage: run_js returns the result
+                result = page.run_js(script)
+                return str(result) if result is not None else 'null'
+            except Exception as e:
+                await self._stealth_try_quit()
+                return f"Error: {e}"
+
+    async def screenshot(self, url: str, mode: str = 'stealth') -> Optional[bytes]:
+        """Take a screenshot of a web page.
+
+        Returns:
+            bytes: PNG image bytes, or None if failed
+        """
+        if mode == 'max-stealth':
+            try:
+                browser = await self._get_camoufox_browser()
+                context = await browser.new_context()
+                page = await context.new_page()
+                await page.goto(url, wait_until='networkidle', timeout=30000)
+                data = await page.screenshot(type='png', full_page=False)
+                await page.close()
+                await context.close()
+                return data
+            except Exception:
+                await self._camoufox_try_close()
+                return None
+        else:
+            try:
+                page = await self._get_stealth_page()
+                page.get(url)
+                return page.get_screenshot(as_bytes='png')
+            except Exception:
+                await self._stealth_try_quit()
+                return None
+
     async def close(self):
         """清理资源"""
         if self._session and not self._session.closed:
@@ -439,15 +561,17 @@ def _cleanup_fetcher():
     """清理全局 Fetcher 实例（程序退出时调用）"""
     from crawlo.core.application import get_global_context
     ctx = get_global_context()
-    if ctx.quick_fetcher is not None:
+    fetcher = ctx.mcp_fetcher or ctx.quick_fetcher  # 共用时只需关一次
+    if fetcher is not None:
         try:
             loop = asyncio.get_event_loop()
             if loop.is_running():
-                loop.create_task(ctx.quick_fetcher.close())
+                loop.create_task(fetcher.close())
             else:
-                loop.run_until_complete(ctx.quick_fetcher.close())
+                loop.run_until_complete(fetcher.close())
         except Exception:
             pass
+        ctx.mcp_fetcher = None
         ctx.quick_fetcher = None
 
 

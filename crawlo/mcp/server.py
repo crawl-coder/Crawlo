@@ -22,6 +22,7 @@ Claude Desktop 配置:
 }
 """
 import asyncio
+import base64
 from typing import Optional, Dict, List
 
 from mcp.server.fastmcp import FastMCP
@@ -32,7 +33,7 @@ from crawlo.mcp.quick_fetcher import QuickFetcher, FetchResult
 mcp = FastMCP("Crawlo", json_response=True)
 
 async def _get_fetcher() -> QuickFetcher:
-    """获取全局 Fetcher 实例（存储于 ApplicationContext，DCL 线程安全）"""
+    """获取全局 Fetcher 实例（mcp_fetcher 与 quick_fetcher 共享同一实例）"""
     from crawlo.core.application import get_global_context
     ctx = get_global_context()
     if ctx.mcp_fetcher is not None:
@@ -40,6 +41,9 @@ async def _get_fetcher() -> QuickFetcher:
     with ctx.mcp_fetcher_lock:
         if ctx.mcp_fetcher is None:
             ctx.mcp_fetcher = QuickFetcher()
+        # 共享同一实例，避免启动两个浏览器池
+        if ctx.quick_fetcher is None:
+            ctx.quick_fetcher = ctx.mcp_fetcher
     return ctx.mcp_fetcher
 
 
@@ -281,6 +285,62 @@ async def spider(
 
 
 @mcp.tool()
+async def evaluate(
+    url: str,
+    script: str,
+    mode: str = "stealth",
+) -> str:
+    """Execute JavaScript on a web page and return the result.
+
+    Uses a headless browser to load the page and run custom JavaScript.
+    Useful for extracting data that requires JS rendering or interacting
+    with the page before extraction.
+
+    Args:
+        url: Target URL
+        script: JavaScript code to execute (e.g., 'document.title')
+        mode: stealth or max-stealth
+
+    Returns:
+        JavaScript execution result as string
+    """
+    try:
+        fetcher = await _get_fetcher()
+        return await fetcher.evaluate(url, script, mode=mode)
+    except Exception as e:
+        return f"Error: {type(e).__name__}: {e}"
+
+
+@mcp.tool()
+async def screenshot(
+    url: str,
+    mode: str = "stealth",
+) -> str:
+    """Take a screenshot of a web page.
+
+    Loads the page in a headless browser and captures a screenshot.
+    Returns the image as a base64-encoded PNG string that the AI can
+    analyze visually.
+
+    Args:
+        url: Target URL
+        mode: stealth or max-stealth
+
+    Returns:
+        Base64-encoded PNG image or error message
+    """
+    try:
+        fetcher = await _get_fetcher()
+        data = await fetcher.screenshot(url, mode=mode)
+        if data:
+            b64 = base64.b64encode(data).decode('utf-8')
+            return f"Screenshot of {url}\nSize: {len(data):,} bytes\nBase64: data:image/png;base64,{b64[:200]}... ({len(b64)} chars total)"
+        return f"Error: Failed to capture screenshot of {url}"
+    except Exception as e:
+        return f"Error: {type(e).__name__}: {e}"
+
+
+@mcp.tool()
 async def status() -> str:
     """Get Crawlo framework status and environment info.
 
@@ -336,6 +396,33 @@ async def status() -> str:
         lines.append("  ✗ markdownify (markdown fallback to text)")
 
     return "\n".join(lines)
+
+
+# ============================================================
+# MCP Prompts
+# ============================================================
+
+@mcp.prompt()
+def scrape_prompt() -> str:
+    """Scraping workflow prompt"""
+    return """You are a web scraping assistant. For each task:
+1. Use fetch() first with mode='basic' to get page content in markdown
+2. If fetch() returns empty or error, retry with mode='stealth'
+3. Use extract() with regex to find specific patterns in the content
+4. For bulk URLs, use spider() with concurrency=2 and delay=1.0
+5. Use evaluate() to run JavaScript for dynamic content extraction
+6. Use screenshot() for visual analysis when needed"""
+
+@mcp.prompt()
+def data_collection_prompt() -> str:
+    """Data collection workflow prompt"""
+    return """To collect structured data from a website:
+1. fetch(url, mode='basic', format='markdown') — get the page
+2. If the page uses JavaScript rendering, retry with mode='stealth'
+3. Use extract(url, pattern, mode) to find specific data with regex
+4. For multiple similar pages, collect URLs first, then use spider()
+5. For heavily protected sites, use mode='max-stealth'
+6. After each fetch, cookies are persisted automatically via persist_session"""
 
 
 def main():
