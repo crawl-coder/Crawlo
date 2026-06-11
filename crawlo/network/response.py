@@ -380,7 +380,7 @@ class Response:
 
         # 自适应逻辑
         if result:
-            # 选择器生效 → 如果 adaptive=True，保存所有匹配元素的指纹
+            # 选择器生效 → 保存指纹（仅首次，不覆盖已有，防止渐进改版时丢失原始基准）
             if adaptive and self._is_adaptive_enabled():
                 base_id = identifier or query
                 for i, elem in enumerate(result[:10]):  # 最多保存 10 个
@@ -553,7 +553,11 @@ class Response:
         cls._adaptive_matcher = SimilarityMatcher(threshold=threshold)
 
     def _save_element_fingerprint(self, selector_item, identifier: str) -> None:
-        """保存元素的指纹到存储
+        """保存元素的指纹到存储（仅首次保存，已有指纹不覆盖）
+
+        设计意图：保留首次抓取时的"原始"指纹作为恢复基准。
+        网站渐进改版时（class→tag→结构），始终用原始指纹匹配，
+        避免被中间状态的指纹污染。
 
         Args:
             selector_item: parsel Selector 对象
@@ -563,6 +567,11 @@ class Response:
             return
 
         try:
+            # 已有指纹则跳过，保留原始基准
+            existing = self.__class__._adaptive_storage.retrieve(self.url, identifier)
+            if existing is not None:
+                return
+
             # parsel Selector 的根元素
             root = selector_item.root if hasattr(selector_item, 'root') else selector_item
             if isinstance(root, HtmlElement):
