@@ -46,14 +46,27 @@ pip install crawlo[mcp]
 {
   "mcpServers": {
     "crawlo": {
-      "command": "uvx",
-      "args": ["crawlo-mcp"]
+      "command": "python",
+      "args": ["-m", "crawlo.mcp"]
     }
   }
 }
 ```
 
-启动方式：`crawlo-mcp`（通过 stdio 与 AI 客户端通信）。
+也可直接用 CLI 命令：
+
+```json
+{
+  "mcpServers": {
+    "crawlo": {
+      "command": "crawlo-mcp",
+      "args": []
+    }
+  }
+}
+```
+
+安装后通过 `crawlo-mcp` 或 `python -m crawlo.mcp` 启动。
 
 ---
 

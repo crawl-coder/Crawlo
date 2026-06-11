@@ -15,8 +15,8 @@ Claude Desktop 配置:
 {
   "mcpServers": {
     "crawlo": {
-      "command": "uvx",
-      "args": ["crawlo-mcp"]
+      "command": "python",
+      "args": ["-m", "crawlo.mcp"]
     }
   }
 }
