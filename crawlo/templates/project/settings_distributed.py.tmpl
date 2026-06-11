@@ -192,18 +192,15 @@ HEALTH_CHECK_INTERVAL = 60                              # 每 60 秒上报 Worke
 
 SCHEDULER_ENABLED = False
 
-# 全局任务超时（秒），单个任务可通过 'timeout' 字段覆盖
-# SCHEDULER_JOB_TIMEOUT = 7200          # 默认 2 小时，长任务请适当调大
-
 SCHEDULER_JOBS = [
     {
         'spider': 'spider_name_1',
         'cron': '*/5 * * * *',          # 每 5 分钟执行一次
         'enabled': True,
         'priority': 10,
+        'timeout': 3600,                # 单次超时（秒），按爬虫预期时长设置
         'max_retries': 3,
         'retry_delay': 60,
-        'timeout': 3600,                # 本任务超时 1 小时（可选，不设则用全局值）
         'args': {},
         'kwargs': {},
     },
@@ -212,6 +209,7 @@ SCHEDULER_JOBS = [
         'cron': '0 2 * * *',            # 每天凌晨 2 点
         'enabled': True,
         'priority': 20,
+        'timeout': 7200,                # 单次超时（秒），不同爬虫可设不同值
         'max_retries': 2,
         'retry_delay': 120,
         'args': {'daily': True},
