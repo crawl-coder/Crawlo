@@ -709,7 +709,7 @@ SCHEDULER_JOBS: list[dict[str, object]] = [
 ]                                                       # 定时任务配置列表
 SCHEDULER_CHECK_INTERVAL = 1                            # 调度器检查间隔（秒）
 SCHEDULER_MAX_CONCURRENT = 3                            # 爬虫实例最大并发数（同时运行的不同爬虫数量，非单个爬虫内部并发）
-SCHEDULER_JOB_TIMEOUT = 3600                            # 单个任务超时时间（秒）
+SCHEDULER_JOB_TIMEOUT = 7200                            # 单个任务超时时间（秒），长任务请调大
 
 # ---------------------------------------------------------------------------#
 # 资源监控
