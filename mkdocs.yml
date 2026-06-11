@@ -110,6 +110,7 @@ nav:
     - 中间件参考: concepts/middleware-reference.md
     - 代理配置: guides/proxy-guide.md
     - Cloudflare 绕过: guides/cloudflare-bypass.md
+    - Helpers 工具集: guides/helpers-reference.md
     - 调度指南:
       - 定时任务调度器: guides/scheduling/scheduler.md
       - 背压系统: guides/scheduling/backpressure.md

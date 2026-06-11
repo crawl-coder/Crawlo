@@ -33,6 +33,12 @@
 - 自动检测 JS Challenge / Turnstile
 - CloakBrowser / Camoufox / Playwright 三种浏览器
 - 与 HybridDownloader 协同
+
+### 🧰 [Helpers 工具集](helpers-reference.md)
+- TimeUtils: 时间格式化与解析
+- TextCleaner: HTML/空白符/文本清洗
+- FileDownloader: 异步下载 + 断点续传
+- MySQLExistsChecker: 数据库去重检查
 - 元素指纹 + 多维度相似度匹配
 - 网站改版时选择器自动恢复
 - class/层级/文本/属性变化全覆盖
