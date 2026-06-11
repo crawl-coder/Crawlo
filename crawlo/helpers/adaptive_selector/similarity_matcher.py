@@ -20,7 +20,7 @@ Optimizations:
 - Detailed match logging: Facilitate debugging and monitoring
 """
 from difflib import SequenceMatcher
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple, Set
 
 from lxml.html import HtmlElement
 
@@ -46,15 +46,18 @@ class SimilarityMatcher:
         'siblings': 0.5,       # 兄弟节点信息（通常变化较多，权重较低）
     }
 
-    def __init__(self, threshold: float = 0.0, weights: Optional[Dict[str, float]] = None):
+    def __init__(self, threshold: float = 0.0, weights: Optional[Dict[str, float]] = None,
+                 ignore_attributes: Optional[Set[str]] = None):
         """Initialize matcher
 
         Args:
             threshold: Minimum similarity threshold (0-100 percentage), matches below this score will be discarded
             weights: Dimension weight configuration, uses default if None
+            ignore_attributes: Attribute names to skip in important_attrs comparison (e.g., {'href', 'src'})
         """
         self.threshold = threshold
         self.weights = weights or self.DEFAULT_WEIGHTS
+        self.ignore_attributes = ignore_attributes or set()
         self.logger = get_logger(self.__class__.__name__)
 
     def calculate_similarity(self, original: ElementFingerprint, candidate: ElementFingerprint) -> float:
@@ -94,21 +97,23 @@ class SimilarityMatcher:
         total_weight += attr_weight
 
         # 4. Important attributes comparison (class, id, href, src)
-        important_attrs_weight = self.weights.get('important_attrs', 2.0)
-        important_checks = 0
-        important_score = 0
-        for attrib in ('class', 'id', 'href', 'src'):
-            if original.attributes.get(attrib):
-                important_score += SequenceMatcher(
-                    None,
-                    original.attributes[attrib],
-                    candidate.attributes.get(attrib) or "",
-                ).ratio()
-                important_checks += 1
-        
-        if important_checks > 0:
-            total_score += (important_score / important_checks) * important_attrs_weight
-            total_weight += important_attrs_weight
+        important_attrs = [a for a in ('class', 'id', 'href', 'src') if a not in self.ignore_attributes]
+        if important_attrs:
+            important_attrs_weight = self.weights.get('important_attrs', 2.0)
+            important_checks = 0
+            important_score = 0
+            for attrib in important_attrs:
+                if original.attributes.get(attrib):
+                    important_score += SequenceMatcher(
+                        None,
+                        original.attributes[attrib],
+                        candidate.attributes.get(attrib) or "",
+                    ).ratio()
+                    important_checks += 1
+
+            if important_checks > 0:
+                total_score += (important_score / important_checks) * important_attrs_weight
+                total_weight += important_attrs_weight
 
         # 5. DOM path similarity
         path_weight = self.weights.get('path', 1.0)
@@ -273,3 +278,89 @@ class SimilarityMatcher:
             val_score = 0.0
 
         return key_score * 0.5 + val_score * 0.5
+
+    def find_similar_elements(
+        self,
+        target_fp: ElementFingerprint,
+        root_element: HtmlElement,
+        threshold: float = 50.0,
+    ) -> List[HtmlElement]:
+        """Find structurally similar sibling elements based on DOM hierarchy.
+
+        Uses same ancestry path + tag + depth to locate structurally similar
+        elements (e.g., list items under the same parent), then filters by
+        attribute/text similarity.
+
+        Inspired by Scrapling's find_similar().
+
+        Args:
+            target_fp: Reference element fingerprint (e.g., the first matched product)
+            root_element: Page root element
+            threshold: Minimum similarity percentage to include (default 50.0)
+
+        Returns:
+            List[HtmlElement]: Structurally similar elements, excluding the reference
+        """
+        if not target_fp.path or len(target_fp.path) < 2:
+            self.logger.debug("find_similar_elements: path too short, cannot determine structure")
+            return []
+
+        # Build scoped xpath using parent tag to limit search scope
+        path_parts = list(target_fp.path)
+        if len(path_parts) >= 3:
+            # Scope: find tag under the same parent, at same nesting depth
+            parent_tag = path_parts[-2]
+            child_tag = path_parts[-1]
+            xpath_query = f".//{parent_tag}/{child_tag}"
+        elif len(path_parts) >= 2:
+            parent_tag = path_parts[-2]
+            child_tag = path_parts[-1]
+            xpath_query = f".//{parent_tag}/{child_tag}"
+        else:
+            child_tag = path_parts[-1]
+            xpath_query = f".//{child_tag}"
+
+        try:
+            candidates = root_element.xpath(xpath_query)
+        except Exception:
+            self.logger.debug(f"find_similar_elements: invalid xpath '{xpath_query}'")
+            return []
+
+        if not candidates:
+            return []
+
+        # Determine reference element depth
+        ref_depth = len(target_fp.path)
+        matched = []
+        first_match: Optional[HtmlElement] = None
+
+        for node in candidates:
+            if not isinstance(node, HtmlElement):
+                continue
+
+            candidate_fp = ElementFingerprint.from_element(node)
+
+            # Depth check: same or +/-1
+            node_depth = len(candidate_fp.path)
+            if abs(node_depth - ref_depth) > 1:
+                continue
+
+            score = self.calculate_similarity(target_fp, candidate_fp)
+
+            # Exclude the reference element: skip first 100% match (self-match)
+            # When fingerprints are structurally identical (e.g., same-class siblings),
+            # the first element with 100% score is the reference itself.
+            # Keep subsequent 100% matches (other structurally identical siblings).
+            if score >= 99.9:
+                if not matched and first_match is None:
+                    first_match = node
+                    continue
+
+            if score >= threshold:
+                matched.append(node)
+
+        self.logger.debug(
+            f"find_similar_elements: found {len(matched)} similar elements "
+            f"(path='{xpath_query}', threshold={threshold}%)"
+        )
+        return matched

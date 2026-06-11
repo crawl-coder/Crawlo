@@ -552,6 +552,61 @@ class Response:
         )
         cls._adaptive_matcher = SimilarityMatcher(threshold=threshold)
 
+    def find_similar(
+        self,
+        identifier: str,
+        threshold: float = 50.0,
+        ignore_attributes: Optional[Any] = None,
+    ) -> "SelectorList":
+        """Find structurally similar elements based on a saved fingerprint.
+
+        After locating a reference element with adaptive=True, this method finds
+        all structurally similar sibling elements (e.g., other products in the same
+        list). Uses DOM hierarchy (same parent/grandparent + depth) + attribute/text
+        similarity for matching.
+
+        Example:
+            response.css('.product-item', adaptive=True, identifier='product')
+            all_products = response.find_similar('product', threshold=60)
+
+        Args:
+            identifier: Fingerprint identifier (same as used in xpath/css adaptive call)
+            threshold: Minimum similarity percentage (0-100, default 50)
+            ignore_attributes: Attribute names to skip in comparison (e.g., {'href', 'src'})
+
+        Returns:
+            SelectorList of similar elements (excluding the reference element itself)
+        """
+        if not self._is_adaptive_enabled() or self.__class__._adaptive_storage is None:
+            return SelectorList([])
+
+        element_data = self._retrieve_element_fingerprint(identifier)
+        if not element_data:
+            get_logger('Response').warning(
+                f"find_similar: no fingerprint found for identifier '{identifier}'"
+            )
+            return SelectorList([])
+
+        from crawlo.helpers.adaptive_selector import ElementFingerprint, SimilarityMatcher
+
+        target_fp = ElementFingerprint.from_dict(element_data)
+        matcher = SimilarityMatcher(
+            threshold=threshold,
+            ignore_attributes=ignore_attributes or set(),
+        )
+
+        page_root = self.selector._root if hasattr(self.selector, '_root') else self.selector.root
+        results = matcher.find_similar_elements(target_fp, page_root, threshold)
+
+        if results:
+            get_logger('Response').debug(
+                f"find_similar: found {len(results)} similar elements for '{identifier}'"
+            )
+
+        return SelectorList([
+            Selector(root=el, type='html') for el in results
+        ])
+
     def _save_element_fingerprint(self, selector_item, identifier: str) -> None:
         """保存元素的指纹到存储（仅首次保存，已有指纹不覆盖）
 
