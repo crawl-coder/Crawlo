@@ -17,10 +17,10 @@
 - SQLite/Redis 双存储后端
 
 ### 📊 [调度指南](scheduling/)
-- 请求调度
+- [定时任务调度器](scheduling/scheduler.md) — Cron + Interval 双触发模式
 - 并发控制
 - 限速策略
-- 背压系统
+- [背压系统](scheduling/backpressure.md)
 
 
 ## 🎯 按场景查找
