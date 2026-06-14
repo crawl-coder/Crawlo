@@ -89,10 +89,7 @@ def get_task_info(task: asyncio.Task) -> dict:
     """
     获取 asyncio.Task 的详细内省信息。
 
-    当前返回基础信息（name、done、cancelled）。
-
-    注意：Python 3.14 的增强内省 API（如 Task.get_stack()、Task.get_coro()）
-    尚未在 CPython 中正式落地，后续 PEP 定稿后可在此处添加增强逻辑。
+    当前返回基础信息（name、done、cancelled），以及调用栈和协程信息。
 
     Args:
         task: asyncio.Task 实例
@@ -106,19 +103,18 @@ def get_task_info(task: asyncio.Task) -> dict:
         'cancelled': task.cancelled(),
     }
 
-    # 预留：Python 3.14+ 增强内省能力待 PEP 落地后启用
-    # if sys.version_info >= (3, 14):
-    #     try:
-    #         info['stack'] = task.get_stack(limit=5)
-    #     except Exception:
-    #         info['stack'] = []
-    #     try:
-    #         coro = task.get_coro()
-    #         if coro:
-    #             info['coroutine'] = str(coro)
-    #             info['cr_frame'] = str(getattr(coro, 'cr_frame', None))
-    #     except Exception:
-    #         pass
+    # 增强内省：Task.get_stack() / Task.get_coro() 自 Python 3.7 起可用
+    try:
+        info['stack'] = task.get_stack(limit=5)
+    except Exception:
+        info['stack'] = []
+    try:
+        coro = task.get_coro()
+        if coro:
+            info['coroutine'] = str(coro)
+            info['cr_frame'] = str(getattr(coro, 'cr_frame', None))
+    except Exception:
+        pass
 
     return info
 

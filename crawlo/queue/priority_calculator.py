@@ -195,5 +195,5 @@ class PriorityCalculator:
             from urllib.parse import urlparse
             parsed = urlparse(url)
             return parsed.netloc
-        except:
+        except Exception:
             return "unknown"

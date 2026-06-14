@@ -667,7 +667,7 @@ class QueueManager(QueueStatusMixin, QueueBackpressureMixin):
                 try:
                     if self._queue:
                         await self._queue.close()
-                except:
+                except Exception:
                     pass
                 self._queue = None
                 # 重新创建内存队列

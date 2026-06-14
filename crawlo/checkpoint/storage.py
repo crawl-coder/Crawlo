@@ -82,11 +82,11 @@ class JsonStorage(BaseStorage):
                 
                 # 原子替换（POSIX 系统保证原子性）
                 os.replace(tmp_path, self._path)
-            except:
+            except Exception:
                 # 如果失败，清理临时文件
                 try:
                     os.unlink(tmp_path)
-                except:
+                except Exception:
                     pass
                 raise
 
