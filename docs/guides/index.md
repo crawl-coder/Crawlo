@@ -34,6 +34,12 @@
 - CloakBrowser / Camoufox / Playwright 三种浏览器
 - 与 HybridDownloader 协同
 
+### 🐚 [交互式终端 Shell](shell-guide.md)
+- 调试选择器 / 分析页面结构 / 验证提取逻辑
+- 快速测试请求参数、Headers、Cookies、代理
+- 自适应选择器工作流
+- 从 curl 命令直接抓取
+
 ### 🧰 [Helpers 工具集](helpers-reference.md)
 - TimeUtils: 时间格式化与解析
 - TextCleaner: HTML/空白符/文本清洗
