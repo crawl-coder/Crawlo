@@ -319,12 +319,12 @@ class CamoufoxDownloader(DownloaderBase):
             self._used_pages.discard(page_id)
             try:
                 await page.goto("about:blank", timeout=BROWSER_PAGE_GOTO_BLANK_TIMEOUT_MS)
-            except:
+            except Exception:
                 pass
         else:
             try:
                 await page.close()
-            except:
+            except Exception:
                 pass
 
     def _get_wait_until(self, request) -> str:

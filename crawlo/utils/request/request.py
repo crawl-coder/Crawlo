@@ -127,7 +127,7 @@ def request_fingerprint(
 
             # 兼容 headers 的访问方式（如 MultiDict 或 dict）
             if hasattr(request.headers, 'get_all'):
-                # 如 scrapy.http.Headers 的 get_all 方法
+                # 如 get_all 方法
                 values = request.headers.get_all(name_str)
                 value = ';'.join(str(v) for v in values) if values else ''
             elif hasattr(request.headers, '__getitem__'):

@@ -9,7 +9,6 @@
     crawlo shell https://example.com # 启动并预抓取 URL
 """
 import asyncio
-import os
 import sys
 
 from crawlo.logging import get_logger

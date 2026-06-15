@@ -44,7 +44,7 @@ SPIDER_MODULES = ['{{project_name}}.spiders']
 # #############################################################################
 
 LOG_LEVEL = 'INFO'
-LOG_FILE = f'logs/{{project_name}}_{datetime.now():%Y%m%d_%H%M%S}.log'
+LOG_FILE = f'logs/{{project_name}}_{datetime.now().strftime("%Y%m%d_%H%M%S")}.log'
 LOG_ENCODING = 'utf-8'
 
 
@@ -53,10 +53,11 @@ LOG_ENCODING = 'utf-8'
 # #############################################################################
 
 # Redis
-REDIS_HOST = '127.0.0.1'
-REDIS_PORT = 6379
-REDIS_PASSWORD = ''
-REDIS_DB = 0
+REDIS_HOST = '127.0.0.1'                                # Redis 主机地址
+REDIS_PORT = 6379                                       # Redis 端口
+REDIS_PASSWORD = ''                                     # Redis 密码
+REDIS_USER = ''                                         # Redis 用户名（Redis 6.0+ ACL）
+REDIS_DB = 0                                            # Redis 数据库编号
 
 # MySQL
 MYSQL_HOST = '127.0.0.1'
@@ -103,6 +104,7 @@ SCHEDULER_JOBS = [
         'cron': '*/5 * * * *',          # 每 5 分钟执行一次
         'enabled': True,
         'priority': 10,
+        'timeout': 3600,                # 单次超时（秒），按爬虫预期时长设置
         'max_retries': 3,
         'retry_delay': 60,
         'args': {},
@@ -113,6 +115,7 @@ SCHEDULER_JOBS = [
         'cron': '0 2 * * *',            # 每天凌晨 2 点
         'enabled': True,
         'priority': 20,
+        'timeout': 7200,                # 单次超时（秒），不同爬虫可设不同值
         'max_retries': 2,
         'retry_delay': 120,
         'args': {'daily': True},

@@ -10,16 +10,52 @@
 - 高级配置
 - 配置示例
 
+### 🔌 [扩展系统](extension-guide.md)
+- 8 个内置扩展：日志/监控/健康检查/请求录制
+- 自定义扩展开发
+- ExtensionManager 事件订阅
+
+### 📬 [通知系统](notification-guide.md)
+- 5 渠道：钉钉/飞书/企微/邮件/短信
+- 30+ 内置消息模板
+- 自定义模板 + 防刷机制
+
+### 🔗 [中间件参考](../concepts/middleware-reference.md)
+- 13 个内置中间件逐一说明
+- 洋葱模型执行顺序 + 优先级表
+- 自定义中间件开发
+
+### 🌐 [代理配置](proxy-guide.md)
+- 静态代理列表 + 动态 API
+- 自动切换策略 + 白名单
+
+### 🛡️ [Cloudflare 绕过](cloudflare-bypass.md)
+- 自动检测 JS Challenge / Turnstile
+- CloakBrowser / Camoufox / Playwright 三种浏览器
+- 与 HybridDownloader 协同
+
+### 🐚 [交互式终端 Shell](shell-guide.md)
+- 调试选择器 / 分析页面结构 / 验证提取逻辑
+- 快速测试请求参数、Headers、Cookies、代理
+- 自适应选择器工作流
+- 从 curl 命令直接抓取
+
+### 🧰 [Helpers 工具集](helpers-reference.md)
+- TimeUtils: 时间格式化与解析
+- TextCleaner: HTML/空白符/文本清洗
+- FileDownloader: 异步下载 + 断点续传
+- MySQLExistsChecker: 数据库去重检查
+- 元素指纹 + 多维度相似度匹配
+- 网站改版时选择器自动恢复
+- class/层级/文本/属性变化全覆盖
+- SQLite/Redis 双存储后端
+
 ### 📊 [调度指南](scheduling/)
-- 请求调度
+- [定时任务调度器](scheduling/scheduler.md) — Cron + Interval 双触发模式
 - 并发控制
 - 限速策略
-- 背压系统
+- [背压系统](scheduling/backpressure.md)
 
-### 🚀 [分布式测试](distributed-test.md)
-- 5 Worker 分布式测试案例
-- 负载均衡与去重验证
-- 协调退出演示
 
 ## 🎯 按场景查找
 

@@ -108,14 +108,16 @@ class AioRedisFilter(BaseFilter):
         # Get project name
         project_name = safe_get_config(settings, 'PROJECT_NAME', 'default')
         
-        # Get spider name (optional)
+        # Get spider name (try settings first, then crawler.spider)
         spider_name = safe_get_config(settings, 'SPIDER_NAME')
+        if not spider_name and hasattr(crawler, 'spider') and crawler.spider:
+            spider_name = getattr(crawler.spider, 'name', None)
         
         # Create Redis Key manager
         key_manager = RedisKeyManager(project_name, spider_name)
         
-        # Generate filter key name
-        redis_key = key_manager.get_filter_fingerprint_key()
+        # Generate dedup request key
+        redis_key = key_manager.get_dedup_request_key()
         
         # Get TTL configuration
         ttl = safe_get_config(settings, 'REDIS_TTL', 0, int)

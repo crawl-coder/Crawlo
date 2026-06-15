@@ -304,10 +304,6 @@ class Processor:
             except Exception as e:
                 self.logger.warning(f"Error closing middleware manager: {e}")
         
-        # 关闭管道（已在 engine.close_spider 中调用）
-        # if self.pipelines and hasattr(self.pipelines, 'close'):
-        #     await self.pipelines.close()
-        
         self.logger.debug("Processor closed")
     
     def idle(self) -> bool:

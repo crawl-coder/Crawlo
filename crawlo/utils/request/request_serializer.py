@@ -4,7 +4,7 @@
 Request Serialization Utility
 Serializes Request objects using to_dict() / from_dict() methods.
 
-Design reference: Scrapy's request_to_dict / request_from_dict mechanism
+Serialization support for Request objects
 """
 from typing import Any, Dict, Optional, TYPE_CHECKING, Literal
 

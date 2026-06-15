@@ -88,17 +88,23 @@ class RedisKeyManager:
         """获取失败重试计数 Key"""
         return f"{self.get_failed_queue_key()}:retries:{request_key}"
 
-    # ==================== 过滤器相关 Key ====================
+    # ==================== 去重相关 Key ====================
 
     def get_filter_fingerprint_key(self) -> str:
-        """获取请求去重过滤器指纹 Key"""
-        return self._generate_key("filter", "fingerprint")
+        """获取请求去重指纹 Key（旧名称，保持向后兼容）"""
+        return self.get_dedup_request_key()
 
-    # ==================== 数据项相关 Key ====================
+    def get_dedup_request_key(self) -> str:
+        """获取请求去重 Key: crawlo:{P}:{S}:dedup:request"""
+        return self._generate_key("dedup", "request")
 
     def get_item_fingerprint_key(self) -> str:
-        """获取数据项去重指纹 Key"""
-        return self._generate_key("item", "fingerprint")
+        """获取数据项去重指纹 Key（旧名称，保持向后兼容）"""
+        return self.get_dedup_item_key()
+
+    def get_dedup_item_key(self) -> str:
+        """获取数据项去重 Key: crawlo:{P}:{S}:dedup:item"""
+        return self._generate_key("dedup", "item")
 
     # ==================== 静态方法 ====================
 
@@ -179,7 +185,7 @@ class RedisKeyValidator:
         if parts[0] != 'crawlo':
             return False
 
-        valid_components = ['filter', 'queue', 'item']
+        valid_components = ['filter', 'queue', 'item', 'dedup', 'stream', 'group']
 
         if len(parts) >= 4 and parts[3] in valid_components:
             if project_name and parts[1] != project_name:
@@ -193,6 +199,18 @@ class RedisKeyValidator:
             elif parts[3] in ['filter', 'item']:
                 if len(parts) < 5 or parts[4] != 'fingerprint':
                     return False
+            elif parts[3] == 'dedup':
+                valid_subcomponents = ['request', 'item']
+                if len(parts) < 5 or parts[4] not in valid_subcomponents:
+                    return False
+            elif parts[3] == 'stream':
+                valid_subcomponents = ['tasks', 'failed']
+                if len(parts) < 5 or parts[4] not in valid_subcomponents:
+                    return False
+            elif parts[3] == 'group':
+                valid_subcomponents = ['workers']
+                if len(parts) < 5 or parts[4] not in valid_subcomponents:
+                    return False
         else:
             if project_name and parts[1] != project_name:
                 return False
@@ -204,6 +222,14 @@ class RedisKeyValidator:
                     return False
             elif parts[2] in ['filter', 'item']:
                 if len(parts) < 4 or parts[3] != 'fingerprint':
+                    return False
+            elif parts[2] == 'dedup':
+                valid_subcomponents = ['request', 'item']
+                if len(parts) < 4 or parts[3] not in valid_subcomponents:
+                    return False
+            elif parts[2] == 'stream':
+                valid_subcomponents = ['tasks', 'failed']
+                if len(parts) < 4 or parts[3] not in valid_subcomponents:
                     return False
 
         return True

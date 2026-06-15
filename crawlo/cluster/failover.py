@@ -70,6 +70,13 @@ class FailoverManager:
 
         self.logger = get_logger(self.__class__.__name__)
 
+    # ---- 公开属性 ----
+
+    @property
+    def failover_interval(self) -> int:
+        """故障检测间隔（秒）"""
+        return self._failover_interval
+
     # ---- 故障检测主方法 ----
 
     async def check_and_recover(self) -> dict:
@@ -120,9 +127,9 @@ class FailoverManager:
         """清理过期的 Worker 心跳记录"""
         try:
             # 心跳超时远长于 worker_timeout，清理更旧的数据
-            deadline = time.time() - self._registry._worker_timeout * 2
+            deadline = time.time() - self._registry.worker_timeout * 2
             await self._redis.zremrangebyscore(
-                self._registry._heartbeats_key, 0, deadline
+                self._registry.heartbeats_key, 0, deadline
             )
         except Exception:
             pass
@@ -133,6 +140,8 @@ class FailoverManager:
 
         初次检测：标记 suspect
         二次确认：正式回收任务 + 注销
+
+        注意：跳过 stopping 状态的 Worker（正在优雅退出，不应回收其任务）。
         """
         worker_info = await self._registry.get_worker_info(worker_id)
 
@@ -140,6 +149,10 @@ class FailoverManager:
             return
 
         current_status = worker_info.get("status", "")
+
+        # stopping 状态的 Worker 正在 drain 在途任务，不应被回收
+        if current_status == WorkerRegistry.STATUS_STOPPING:
+            return
 
         if current_status == WorkerRegistry.STATUS_SUSPECT:
             # 二次确认：检查是否超过 suspect 等待期
@@ -176,6 +189,8 @@ class FailoverManager:
         回收崩溃 Worker 的未完成任务。
 
         使用 XAUTOCLAIM（Redis 6.2+）或 XPENDING+XCLAIM（Redis 5.0-6.1）。
+        回收策略：XCLAIM 后 XACK+XDEL 原消息，再 XADD 重新入队（增加 retry_count）。
+        重新入队的消息可被任何活跃 Worker 通过 XREADGROUP 消费。
 
         Returns:
             回收的任务数量
@@ -185,22 +200,57 @@ class FailoverManager:
             return 0
 
         total_claimed = 0
+        group = self._stream_queue.group_name
+        max_len = self._stream_queue.max_length
+
         try:
-            claimed_messages = await self._stream_queue.claim_pending(
-                min_idle_ms=self._stream_queue._consumer_idle_timeout,
-                count=100,  # 一次回收最多 100 条
-            )
-            for msg_id, request, retry_count in claimed_messages:
-                if retry_count >= self._stream_queue._delivery_count_limit:
-                    # 超过最大投递次数 → 死信
-                    await self._stream_queue._escalate_to_dead_letter(
-                        msg_id, f"Worker {dead_worker_id} crashed, max retries exceeded"
+            # 回收两个 Stream 的 pending 消息：高优 + 普通
+            for stream_key in (self._stream_queue.high_stream, self._stream_queue.stream):
+                while True:
+                    claimed_messages = await self._stream_queue.claim_pending(
+                        min_idle_ms=self._stream_queue.consumer_idle_timeout,
+                        count=100,
+                        stream=stream_key,
                     )
-                    self.logger.debug(f"Message {msg_id} escalated to dead letter (retries={retry_count})")
-                else:
-                    total_claimed += 1
+                    if not claimed_messages:
+                        break
+
+                    for msg_id, request, retry_count in claimed_messages:
+                        try:
+                            if retry_count >= self._stream_queue.delivery_count_limit:
+                                await self._stream_queue._escalate_to_dead_letter(
+                                    msg_id, f"Worker {dead_worker_id} crashed, max retries exceeded"
+                                )
+                                self.logger.debug(f"Message {msg_id} escalated to dead letter (retries={retry_count})")
+                            else:
+                                msgs = await self._redis.xrange(stream_key, min=msg_id, max=msg_id, count=1)
+                                if not msgs:
+                                    await self._redis.xack(stream_key, group, msg_id)
+                                    continue
+
+                                _, fields = msgs[0]
+
+                                await self._redis.xack(stream_key, group, msg_id)
+                                await self._redis.xdel(stream_key, msg_id)
+
+                                new_fields = {k: v for k, v in fields.items() if k != b"retry_count"}
+                                new_fields[b"retry_count"] = str(retry_count + 1).encode()
+                                new_fields[b"reenqueued_at"] = str(time.time()).encode()
+                                new_fields[b"failover_from"] = dead_worker_id.encode()
+                                await self._redis.xadd(stream_key, new_fields, maxlen=max_len, approximate=True)
+                                total_claimed += 1
+                        except Exception as e:
+                            self.logger.warning(f"Failed to re-enqueue claimed message {msg_id}: {e}")
+                            total_claimed += 1
+
         except Exception as e:
             self.logger.error(f"Claim worker tasks failed for {dead_worker_id}: {e}")
+
+        if total_claimed > 0:
+            self.logger.info(
+                f"Failover: recovered {total_claimed} tasks from dead worker {dead_worker_id}, "
+                f"re-enqueued for processing"
+            )
 
         return total_claimed
 
@@ -210,7 +260,7 @@ class FailoverManager:
         """查询死信队列状态"""
         stats = {"total": 0}
         try:
-            info = await self._redis.xinfo_stream(self._stream_queue._failed_stream)
+            info = await self._redis.xinfo_stream(self._stream_queue.failed_stream)
             stats["total"] = info.get("length", 0)
         except Exception:
             pass
@@ -228,7 +278,7 @@ class FailoverManager:
         retried = 0
         try:
             msgs = await self._redis.xrange(
-                self._stream_queue._failed_stream, count=count
+                self._stream_queue.failed_stream, count=count
             )
             for msg_id, fields in msgs:
                 # 复制字段，重置 retry_count
@@ -237,12 +287,12 @@ class FailoverManager:
                 new_fields[b"reenqueued_at"] = str(time.time()).encode()
 
                 await self._redis.xadd(
-                    self._stream_queue._stream,
+                    self._stream_queue.stream,
                     new_fields,
-                    maxlen=self._stream_queue._max_length,
+                    maxlen=self._stream_queue.max_length,
                     approximate=True,
                 )
-                await self._redis.xdel(self._stream_queue._failed_stream, msg_id)
+                await self._redis.xdel(self._stream_queue.failed_stream, msg_id)
                 retried += 1
         except Exception as e:
             self.logger.error(f"Retry dead letters failed: {e}")

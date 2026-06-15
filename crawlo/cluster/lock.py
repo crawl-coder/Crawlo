@@ -63,7 +63,7 @@ class DistributedLock:
             retry_delay: 重试间隔（秒）
         """
         self._redis = redis_client
-        self._lock_key = f"crawlo:lock:{lock_name}"
+        self._lock_key = f"crawlo:{lock_name}"
         self._default_timeout = default_timeout
         self._retry_count = retry_count
         self._retry_delay = retry_delay

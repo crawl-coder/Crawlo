@@ -7,7 +7,6 @@
 """
 import sys
 from pathlib import Path
-from importlib import import_module
 
 from rich.console import Console
 from rich.table import Table

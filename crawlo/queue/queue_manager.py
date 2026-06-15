@@ -169,9 +169,13 @@ class QueueManager(QueueStatusMixin, QueueBackpressureMixin):
 
         try:
             # 应用智能调度算法计算优先级
-            intelligent_priority = self._priority_calculator.calculate_priority(request)
-            # 结合原始优先级和智能优先级
-            final_priority = priority + intelligent_priority
+            # 分布式模式下跳过：Domain throttle 由 DistributedRateLimiter 处理，
+            # PriorityCalculator 的负值修正会将所有请求路由到高优 Stream
+            if self._queue_type == QueueType.REDIS_STREAM:
+                final_priority = priority
+            else:
+                intelligent_priority = self._priority_calculator.calculate_priority(request)
+                final_priority = priority + intelligent_priority
 
             # 更新统计信息
             self._priority_calculator.update_stats(request)
@@ -559,7 +563,18 @@ class QueueManager(QueueStatusMixin, QueueBackpressureMixin):
                 consumer_idle_timeout=stream_consumer_idle_timeout,
                 delivery_count_limit=stream_delivery_count_limit,
                 block_timeout=stream_block_timeout,
-                serialization_format=self.config.serialization_format,
+                serialization_format=safe_get_config(
+                    self.config.settings if hasattr(self.config, 'settings') else None,
+                    'STREAM_SERIALIZATION_FORMAT', 'json'
+                ),
+                stream_compact=safe_get_config(
+                    self.config.settings if hasattr(self.config, 'settings') else None,
+                    'STREAM_COMPACT', True, bool
+                ),
+                priority_enabled=safe_get_config(
+                    self.config.settings if hasattr(self.config, 'settings') else None,
+                    'STREAM_PRIORITY_ENABLED', True, bool
+                ),
             )
             # Stream queue 需要立即 connect 以创建 Consumer Group
             await queue.connect()
@@ -652,7 +667,7 @@ class QueueManager(QueueStatusMixin, QueueBackpressureMixin):
                 try:
                     if self._queue:
                         await self._queue.close()
-                except:
+                except Exception:
                     pass
                 self._queue = None
                 # 重新创建内存队列

@@ -61,7 +61,7 @@ crawlo run example
 - **Cloudflare 自动绕过**：检测挑战页面后自动切换隐身浏览器
 - **5 种浏览器下载器**：Playwright / Camoufox / CloakBrowser / DrissionPage / Chrome
 - **BROWSER_* 统一配置层**：一套参数覆盖所有浏览器下载器
-- **自适应选择器**：网站改版时自动重新定位元素（选择器自愈）
+- **自适应选择器**：网站改版时自动重新定位元素（选择器自愈） — [使用指南 →](docs/guides/adaptive-selector.md)
 
 ### 🤖 AI 集成（MCP Server）
 - Claude / Cursor 直接调用 Crawlo 抓取能力

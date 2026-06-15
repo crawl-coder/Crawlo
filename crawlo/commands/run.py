@@ -335,29 +335,6 @@ def main(args):
 
         spider_class = process.get_spider_class(spider_name)
 
-        # 显示启动信息
-        # 根据用户要求，不再显示项目启动信息
-        # if not show_json:
-        #     info_table = Table(
-        #         title=f"启动爬虫: [bold cyan]{spider_name}[/bold cyan]",
-        #         box=box.SIMPLE,
-        #         show_header=False,
-        #         title_style="bold green"
-        #     )
-        #     info_table.add_column("Key", style="yellow")
-        #     info_table.add_column("Value", style="cyan")
-        #     info_table.add_row("Project", project_package)
-        #     info_table.add_row("Class", spider_class.__name__)
-        #     info_table.add_row("Module", spider_class.__module__)
-        #     console.print(info_table)
-        #     console.print()
-
-        # 注册 stats 记录
-        # 注意：CrawlerProcess没有crawlers属性，我们需要在运行时注册
-        # if not no_stats:
-        #     for crawler in process.crawlers:
-        #         crawler.signals.connect(record_stats, signal="spider_closed")
-
         # 运行爬虫 (使用增强版的 run_with_cleanup)
         with Progress(
                 SpinnerColumn(),

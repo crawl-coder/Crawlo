@@ -31,20 +31,29 @@ class CrawlerProcess:
     简化版本，专注于核心功能
     """
 
-    def __init__(self, settings: Optional['SettingManager'] = None, max_concurrency: int = 3, spider_modules: Optional[List[str]] = None) -> None:
+    def __init__(self, settings: Optional['SettingManager'] = None, max_spiders: int = None, spider_modules: Optional[List[str]] = None) -> None:
         """
         初始化爬虫进程管理器
 
         Args:
             settings: 配置管理器
-            max_concurrency: 最大并发数
+            max_spiders: 同时运行的最大爬虫数（默认从 settings 的 MAX_RUNNING_SPIDERS 读取，未配置时为 3）
             spider_modules: 爬虫模块列表
         """
         # 初始化框架配置
         self._settings: Optional['SettingManager'] = settings or initialize_framework()
-        self._max_concurrency: int = max_concurrency
+
+        # 从 settings 读取 MAX_RUNNING_SPIDERS，参数 max_spiders 可覆盖
+        if max_spiders is not None:
+            effective_max_spiders = max_spiders
+        elif self._settings:
+            effective_max_spiders = int(self._settings.get('MAX_RUNNING_SPIDERS', 3))
+        else:
+            effective_max_spiders = 3
+
+        self._max_spiders: int = effective_max_spiders
         self._crawlers: List[Crawler] = []
-        self._semaphore: asyncio.Semaphore = asyncio.Semaphore(max_concurrency)
+        self._semaphore: asyncio.Semaphore = asyncio.Semaphore(effective_max_spiders)
         self._logger = get_logger('crawler.process')
         
         # 信号处理相关（必须在 _apply_windows_asyncio_fix 之前创建，

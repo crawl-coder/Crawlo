@@ -11,14 +11,20 @@ ofweek_distributed 项目配置文件（分布式版）
 
 from crawlo.config import CrawloConfig
 
+# ---------------------------------------------------------------------------#
+# Redis（分布式模式依赖）
+# ---------------------------------------------------------------------------#
+
+REDIS_HOST = '127.0.0.1'                                # Redis 主机地址
+REDIS_PORT = 6379                                       # Redis 端口
+REDIS_PASSWORD = ''                                     # Redis 密码
+REDIS_USER = ''                                         # Redis 用户名（Redis 6.0+ ACL）
+REDIS_DB = 0                                            # Redis 数据库编号
+
 # 使用分布式模式配置工厂创建配置
 config = CrawloConfig.distributed(
     project_name='ofweek_distributed',
-    redis_host='127.0.0.1',
-    redis_port=6379,
-    redis_password='',
-    redis_db=0,
-    concurrency=12,          # 分布式模式下并发数（每个 worker）
+    concurrency=8,          # 分布式模式下并发数（每个 worker）
     download_delay=1.0,     # 请求间隔（秒）
 )
 
@@ -38,9 +44,10 @@ SPIDER_MODULES = ['ofweek_distributed.spiders']
 
 # 数据管道
 # 如需添加自定义管道，请取消注释并添加
-PIPELINES = [
-    'crawlo.pipelines.MySQLPipeline',
-]
+PIPELINES = {
+    'crawlo.pipelines.MySQLPipeline': 500,
+    'crawlo.pipelines.ConsolePipeline': 300,
+}
 
 # =================================== 系统配置 ===================================
 

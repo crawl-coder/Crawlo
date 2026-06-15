@@ -264,15 +264,27 @@ class FingerprintStorage:
 
         self.logger.debug(f"FingerprintStorage initialized with backend: {backend} (cache_size={cache_size})")
 
+    @staticmethod
+    def _make_identifier(url: str, identifier: str) -> str:
+        """构建带路径哈希的标识符，避免同域名不同页面的指纹冲突
+
+        例: /products 和 /search 页面的 'title' 标识符 → 不同 key
+        """
+        from urllib.parse import urlparse
+        path = urlparse(url).path.rstrip('/') or '/'
+        path_hash = sha256(path.encode()).hexdigest()[:8]
+        return f"{identifier}@{path_hash}"
+
     def save(self, url: str, identifier: str, fingerprint: ElementFingerprint) -> None:
         """保存元素指纹并更新缓存"""
         domain = extract_domain_from_url(url)
-        
+        full_identifier = self._make_identifier(url, identifier)
+
         # 先保存到后端
-        self._backend.save(domain, identifier, fingerprint)
-        
+        self._backend.save(domain, full_identifier, fingerprint)
+
         # 更新缓存
-        cache_key = (domain, identifier)
+        cache_key = (domain, full_identifier)
         with self._cache_lock:
             if cache_key in self._cache:
                 self._cache.move_to_end(cache_key)
@@ -281,27 +293,33 @@ class FingerprintStorage:
                 self._cache.popitem(last=False)
 
     def retrieve(self, url: str, identifier: str) -> Optional[Dict]:
-        """加载元素指纹数据（优先查询缓存）"""
-        domain = extract_domain_from_url(url)
-        cache_key = (domain, identifier)
+        """加载元素指纹数据（优先查询缓存）
 
-        # 1. 尝试从缓存获取
+        优先用路径哈希 key 查询；未命中则回退到不带路径的旧 key（兼容历史指纹）
+        """
+        domain = extract_domain_from_url(url)
+        full_identifier = self._make_identifier(url, identifier)
+
+        # 1. 尝试从缓存获取（新 key）
+        cache_key = (domain, full_identifier)
         with self._cache_lock:
             if cache_key in self._cache:
                 self._cache.move_to_end(cache_key)
-                self.logger.debug(f"Cache hit: {domain}:{identifier}")
+                self.logger.debug(f"Cache hit: {domain}:{full_identifier}")
                 return self._cache[cache_key]
 
-        # 2. 从后端加载
-        data = self._backend.retrieve(domain, identifier)
-        
+        # 2. 从后端加载（新 key → 旧 key fallback）
+        data = self._backend.retrieve(domain, full_identifier)
+        if data is None:
+            data = self._backend.retrieve(domain, identifier)  # 兼容旧格式
+
         # 3. 填充缓存
         if data:
             with self._cache_lock:
                 self._cache[cache_key] = data
                 if len(self._cache) > self._cache_size:
                     self._cache.popitem(last=False)
-        
+
         return data
 
     def clear_cache(self) -> None:

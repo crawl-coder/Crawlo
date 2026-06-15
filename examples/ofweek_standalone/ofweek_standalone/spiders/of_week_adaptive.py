@@ -6,22 +6,19 @@
 此爬虫演示如何使用 Crawlo 的自适应元素追踪功能：
 - 使用 adaptive=True 自动保存/更新元素指纹
 - 当网站改版导致选择器失效时，自动匹配最相似的元素
+- find_similar() 定位同类相邻元素
+- ignore_attributes 比较时跳过易变属性
 
 使用示例：
-    # 1. 直接运行爬虫（首次运行会保存元素指纹）
     python run.py of_week_adaptive
-    
-    # 2. 或者在 settings.py 中配置定时任务，每天自动运行
-    # 首次运行：选择器命中，自动保存指纹到 .crawlo/adaptive_fingerprints.db
-    # 网站改版后：选择器失效，自动使用指纹匹配最相似的元素
 
 自适应追踪原理：
     1. 首次爬取：response.xpath('//div[@class="item"]', adaptive=True)
        → 选择器命中，提取元素特征（tag、text、attributes、path等）保存为指纹
-       
+
     2. 网站改版：class 从 "item" 变成 "product"
        → 原选择器失效，但指纹已保存
-       
+
     3. 自动恢复：框架使用指纹在页面中查找最相似的元素
        → 基于文本内容、DOM路径、属性等多维度相似度匹配
        → 返回匹配度最高的元素，爬虫继续正常工作
@@ -85,9 +82,16 @@ class OfWeekAdaptiveSpider(Spider):
             )
             self.logger.info(f"在页面 {response.url} 中找到 {len(rows)} 个条目")
 
+            # find_similar() 演示：如果列表项选择器失效，可通过第一个命中的元素
+            # 自动定位其余同类元素（基于 DOM 层级 + 属性相似度）
+            # 取消注释以启用：
+            # if not rows:
+            #     rows = response.find_similar('list_item_selector', threshold=50)
+
             for row in rows:
                 try:
                     # 提取URL和标题（详情页选择器也使用自适应追踪）
+                    # href 在不同文章间完全不同，ignore_attributes 提高匹配精度
                     url = row.xpath('./h3/a/@href', adaptive=True, identifier='detail_link').extract_first()
                     title = row.xpath('./h3/a/text()', adaptive=True, identifier='detail_title').extract_first()
 

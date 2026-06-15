@@ -36,4 +36,5 @@ if __name__ == '__main__':
     python -m build
     twine upload dist/*
     pip install -i https://pypi.org/simple/ crawlo
+    pip install -i https://pypi.org/simple/ --upgrade crawlo
     """

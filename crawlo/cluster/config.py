@@ -82,11 +82,20 @@ class DynamicConfig:
         await self._publish("control", {"action": "resume"})
         self.logger.info("Cluster resumed")
 
-    async def shutdown_cluster(self):
-        """通知所有 Worker 停止"""
+    async def shutdown_cluster(self, cleanup: bool = True):
+        """
+        通知所有 Worker 停止，并清理运行数据。
+
+        Args:
+            cleanup: 是否清理 Redis 中的运行数据（stream、dedup、registry 等）。
+                     默认 True。设为 False 可保留数据用于调试。
+        """
         await self._redis.set(self._control_key, "shutdown")
         await self._publish("control", {"action": "shutdown"})
         self.logger.warning("Cluster shutdown signal sent")
+
+        if cleanup:
+            await self._cleanup_run_data()
 
     async def get_control_state(self) -> str:
         """
@@ -101,6 +110,45 @@ class DynamicConfig:
         if state:
             return state.decode("utf-8") if isinstance(state, bytes) else state
         return "running"  # 默认正常运行
+
+    async def _cleanup_run_data(self):
+        """
+        清理本轮运行的 Redis 数据。
+
+        在 Leader 确认所有任务完成后调用。
+
+        清理策略：
+        - control:state  → 必须清理（残留 shutdown 会导致下次启动立即退出）
+        - cluster:leader → 清理（释放 leader 锁）
+        - 其他 key 均保留：
+          - stream:tasks        → ACK+XDEL 已逐条删除，空 Stream 下次启动可直接复用
+          - registry:workers/heartbeats → 保留 Worker 信息供运维查看
+          - dedup:request/item  → 保留，跨运行去重有价值
+
+        注意：不删除 config:rate_limits 和 config:seed_urls，这些是用户配置。
+        """
+        keys_to_delete = [
+            f"{self._ns}:cluster:leader",
+        ]
+
+        try:
+            deleted = await self._redis.delete(*keys_to_delete)
+            # 重置 control:state 为 running（而非删除），防止后续 Worker
+            # 在 Leader 退出后获取锁时误判为 running 并重复触发 shutdown
+            await self._redis.set(f"{self._ns}:control:state", "running")
+
+            # 不清理以下 key：
+            # - stream:tasks：ACK+XDEL 已逐条删除消息，空 Stream 下次启动复用（XGROUP CREATE MKSTREAM）
+            # - registry:workers / registry:heartbeats：保留 Worker 信息供运维查看
+            # - dedup:request / dedup:item：跨运行去重有价值
+
+            self.logger.info(
+                f"Cleanup: deleted {deleted} Redis keys for completed run "
+                f"(namespace={self._ns}, dedup_preserved=True, "
+                f"stream_preserved=True, registry_preserved=True)"
+            )
+        except Exception as e:
+            self.logger.warning(f"Cleanup failed (data will persist until TTL expires): {e}")
 
     # ---- 限速调整（双通道） ----
 

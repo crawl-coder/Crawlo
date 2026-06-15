@@ -18,7 +18,8 @@ class ScheduledJob:
         args: Optional[Dict[str, Any]] = None,
         priority: int = 0,
         max_retries: int = 0,
-        retry_delay: int = 60
+        retry_delay: int = 60,
+        timeout: Optional[int] = None,
     ):
         self.spider_name = spider_name
         self.cron = cron
@@ -27,6 +28,7 @@ class ScheduledJob:
         self.priority = priority
         self.max_retries = max_retries
         self.retry_delay = retry_delay
+        self.timeout = timeout  # None → 使用全局配置 SCHEDULER_JOB_TIMEOUT
         self.current_retries = 0
         self.trigger = TimeTrigger(cron=cron, interval=interval)
         self.last_execution_time = 0
@@ -44,8 +46,16 @@ class ScheduledJob:
         """标记任务开始执行"""
         self.is_executing = True
         self.last_execution_time = time.time()
-        # 计算下一次执行时间
-        self.next_execution_time = self.trigger.get_next_time(self.last_execution_time)
+        # 基于原定调度时间计算下次执行时间，防止任务超时时产生时间漂移
+        # 例：cron '0 */6 * * *'，0:00 开始，8:00 完成
+        #     fix 前: get_next_time(8:00) → 12:00（漂移，丢失对齐）
+        #     fix 后: get_next_time(6:00) → 12:00（正确对齐）
+        scheduled_at = self.next_execution_time
+        next_scheduled = self.trigger.get_next_time(scheduled_at)
+        # 如果任务超时太久导致继而下一次也已过，从当前时间重算
+        if next_scheduled <= self.last_execution_time:
+            next_scheduled = self.trigger.get_next_time(self.last_execution_time)
+        self.next_execution_time = next_scheduled
     
     def mark_execution_finished(self):
         """标记任务执行完成"""

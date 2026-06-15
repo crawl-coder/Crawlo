@@ -141,8 +141,8 @@ class ClusterMonitor:
         # 使用 XPENDING 获取 pending 消息
         try:
             result = await self._stream_queue._redis.xpending_range(
-                self._stream_queue._stream,
-                self._stream_queue._group_name,
+                self._stream_queue.stream,
+                self._stream_queue.group_name,
                 min="-", max="+", count=count,
             )
             if result:
@@ -152,7 +152,7 @@ class ClusterMonitor:
                         "consumer": entry.get("consumer"),
                         "idle_ms": entry.get("idle", 0),
                         "delivery_count": entry.get("delivery_count", 0),
-                        "stream": self._stream_queue._stream,
+                        "stream": self._stream_queue.stream,
                     })
         except Exception:
             pass

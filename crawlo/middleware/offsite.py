@@ -102,7 +102,7 @@ class OffsiteMiddleware:
                 parsed_url = urlparse(request.url)
                 hostname = parsed_url.hostname or "unknown"
                 self.stats.inc_value(f'offsite_request_count/{hostname}')
-            except:
+            except Exception:
                 self.stats.inc_value('offsite_request_count/invalid_url')
             
             self.logger.info(f"Filtered offsite request: {request.url}")

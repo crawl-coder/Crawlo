@@ -104,11 +104,21 @@ nav:
     - 配置指南:
       - 概览: guides/configuration/index.md
       - 运行模式详解: guides/configuration/run-modes.md
+    - 自适应选择器: guides/adaptive-selector.md
+    - 交互式终端 Shell: guides/shell-guide.md
+    - 扩展系统: guides/extension-guide.md
+    - 通知系统: guides/notification-guide.md
+    - 中间件参考: concepts/middleware-reference.md
+    - 代理配置: guides/proxy-guide.md
+    - Cloudflare 绕过: guides/cloudflare-bypass.md
+    - Helpers 工具集: guides/helpers-reference.md
     - 调度指南:
+      - 定时任务调度器: guides/scheduling/scheduler.md
       - 背压系统: guides/scheduling/backpressure.md
   - 📖 核心概念:
     - 概览: concepts/index.md
     - 架构设计: concepts/architecture.md
+    - 分布式架构: distributed_architecture.md
     - 核心组件: concepts/core-components.md
     - 请求生命周期: concepts/request-lifecycle.md
     - 爬虫生命周期: concepts/spider-lifecycle.md

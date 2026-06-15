@@ -73,7 +73,7 @@ class CrawloShell:
     """
     Crawlo 交互式终端
     
-    提供类似 scrapy shell 的实时交互环境：
+    提供交互式环境：
     - fetch(url): 抓取页面并更新 request/response
     - view(response): 在浏览器中预览页面
     - 支持 IPython（await 异步代码）和原生 Console 降级
