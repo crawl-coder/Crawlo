@@ -367,15 +367,15 @@ class FrameworkStartupLogger(BaseInitializer):
             # 记录框架启动信息（符合规范要求）
             logger.info(f"Crawlo Framework Started {version}")
             
-            # 获取运行模式和队列类型
+            # 获取运行模式和队列类型（auto 的实际值由队列管理器启动后解析并打印）
             run_mode = "unknown"
             queue_type = "unknown"
             if context.settings:
                 run_mode = context.settings.get('RUN_MODE', 'standalone')
                 queue_type = context.settings.get('QUEUE_TYPE', 'memory')
+                if queue_type == 'auto':
+                    queue_type = 'auto-detect'
             logger.info(f"Run mode: {run_mode}, Queue type: {queue_type}")
-            
-            # 注意：爬虫名称信息将在实际启动爬虫时记录，而不是在框架初始化时
             
             return self._create_result(
                 success=True,

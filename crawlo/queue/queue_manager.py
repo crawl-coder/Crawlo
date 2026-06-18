@@ -425,15 +425,15 @@ class QueueManager(QueueStatusMixin, QueueBackpressureMixin):
             # 自动选择：优先使用 Redis（如果可用）
             if REDIS_AVAILABLE and self.config.redis_url:
                 if await self._test_redis_connection():
-                    self.logger.debug("Auto-detection: Redis available, using Redis queue")
+                    self.logger.info("Queue type: redis (auto-detected, Redis available)")
                     self._apply_redis_backpressure_config()
                     return QueueType.REDIS
                 else:
-                    self.logger.debug("Auto-detection: Redis unavailable, falling back to memory queue")
+                    self.logger.info("Queue type: memory (auto-detected, Redis unavailable)")
                     self._apply_memory_backpressure_config()
                     return QueueType.MEMORY
             else:
-                self.logger.debug("Auto-detection: Redis not configured, using memory queue")
+                self.logger.info("Queue type: memory (auto-detected, Redis not configured)")
                 self._apply_memory_backpressure_config()
                 return QueueType.MEMORY
 
