@@ -98,25 +98,28 @@ nav:
     - 概览: tutorials/index.md
   - 🖥 生产部署:
     - 概览: deployment.md
-    - 部署模式详解: guides/configuration/run-modes.md
   - 🎯 使用指南:
     - 概览: guides/index.md
     - 配置指南:
       - 概览: guides/configuration/index.md
       - 运行模式详解: guides/configuration/run-modes.md
+    - 下载器指南: guides/downloader-guide.md
     - 自适应选择器: guides/adaptive-selector.md
     - 交互式终端 Shell: guides/shell-guide.md
+    - Request & Response: guides/request-response-usage.md
     - 扩展系统: guides/extension-guide.md
     - 通知系统: guides/notification-guide.md
     - 中间件参考: concepts/middleware-reference.md
     - 代理配置: guides/proxy-guide.md
     - Cloudflare 绕过: guides/cloudflare-bypass.md
     - Helpers 工具集: guides/helpers-reference.md
+    - 分布式测试: guides/distributed-test.md
     - 调度指南:
       - 定时任务调度器: guides/scheduling/scheduler.md
       - 背压系统: guides/scheduling/backpressure.md
   - 📖 核心概念:
     - 概览: concepts/index.md
+    - 三种部署模式详解: architecture-overview.md
     - 架构设计: concepts/architecture.md
     - 分布式架构: distributed_architecture.md
     - 核心组件: concepts/core-components.md
@@ -125,9 +128,11 @@ nav:
     - 中间件链: concepts/middleware-chain.md
     - 错误处理机制: concepts/error-handling.md
     - 检查点系统: concepts/checkpoint-guide.md
+    - Redis Key 说明: concepts/redis-keys.md
   - 🔧 API参考:
     - 概览: reference/index.md
     - 命令行参考: reference/cli-reference.md
+    - 核心 API: reference/api/index.md
   - 💡 实战案例:
     - 概览: examples/index.md
     - 基础示例: examples/basic-examples.md

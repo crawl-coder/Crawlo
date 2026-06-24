@@ -9,6 +9,11 @@
 - 核心组件交互
 - 数据流转
 
+### 🌐 [三种部署模式详解](../architecture-overview.md) 🆕
+- 单机模式 / 多节点协作 / 分布式系统三种模式对比
+- 每种模式的设计原理、架构图、适用场景
+- 模式切换：零代码改动
+
 ### 🌐 [分布式架构](../distributed_architecture.md)
 - Redis Key 命名空间
 - 任务/Worker 生命周期

@@ -51,7 +51,10 @@ class MySpider(Spider):
 项目初始化、爬虫编写及运行基础。
 
 ### [🏗️ 核心架构](concepts/architecture.md)
-深入了解 Crawlo 的异步引擎、洋葱模型中间件以及三种部署模式（内存/多节点协作/分布式系统）。
+了解 Crawlo 的异步引擎、洋葱模型中间件、核心组件交互与数据流转。
+
+### [🌐 三种部署模式详解](architecture-overview.md)
+三种部署模式（单机/多节点协作/分布式）的设计原理、架构图、适用场景与对比，帮助你在不同阶段选择合适的模式。
 
 ### [🛠️ 核心组件](concepts/core-components.md)
 详解下载器、调度器、管道和爬虫基类。学习如何配置代理、处理重试以及对接 MySQL/MongoDB。
@@ -76,7 +79,7 @@ class MySpider(Spider):
 ### [💻 命令行参考](reference/cli-reference.md)
 一站式查阅所有 `crawlo` 命令及参数。
 
-### [🐚 Shell 交互式终端](shell-guide.md)
+### [🐚 Shell 交互式终端](guides/shell-guide.md)
 实时调试选择器、测试动态渲染，无需编写完整爬虫。
 
 ### [🔄 curl 命令转换](migration/curl-conversion.md)
@@ -89,14 +92,16 @@ Ctrl+C 优雅关闭后从断点续爬，支持 JSON/SQLite 双存储后端。
 
 如果您是 Crawlo 的新用户，建议按以下顺序学习：
 
-1. **入门** - 阅读[快速入门指南](getting-started/index.md)，运行第一个示例。
-2. **架构** - 了解[核心架构](concepts/architecture.md)设计及部署模式。
-3. **深入** - 掌握[核心组件](concepts/core-components.md)的使用。
-4. **下载器** - 学习[下载器选择指南](guides/downloader-guide.md)，选择合适的下载器。
-5. **调试** - 使用 [Shell 交互式终端](shell-guide.md)实时调试选择器。
-   - 尝试 [curl 命令转换](migration/curl-conversion.md)：从浏览器复制 curl 直接执行
+1. **入门** - 阅读[快速入门指南](getting-started/index.md)，运行第一个示例
+2. **架构** - 了解[核心架构](concepts/architecture.md)和[三种部署模式](architecture-overview.md)
+3. **组件** - 掌握[核心组件](concepts/core-components.md)的使用
+4. **调试** - 使用 [Shell 交互式终端](guides/shell-guide.md)实时调试选择器
+
+**进阶路径（生产部署）**：
+
+5. **下载器** - 学习[下载器选择指南](guides/downloader-guide.md)
 6. **持久化** - 了解[检查点持久化](concepts/checkpoint-guide.md)：Ctrl+C 后断点续爬
-7. **高阶** - 探索[高级特性](reference/index.md)如 AI 适配、自适应选择器、CloakBrowser。
+7. **高阶** - 探索[高级特性](reference/index.md)如 AI 适配、自适应选择器、分布式架构
 
 ## 贡献
 
