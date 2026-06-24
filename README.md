@@ -57,9 +57,9 @@ crawlo run example
 - 支持 HTTP/2、TLS 指纹模拟（绕过 JA3 检测）
 
 ### 🛡️ 强大的反反爬能力
-- **HybridDownloader**：6 级检测优先级，自动切换协议/浏览器引擎
+- **HybridDownloader**：5 级检测优先级，自动切换协议/浏览器引擎
 - **Cloudflare 自动绕过**：检测挑战页面后自动切换隐身浏览器
-- **5 种浏览器下载器**：Playwright / Camoufox / CloakBrowser / DrissionPage / Chrome
+- **4 种浏览器下载器**：Playwright / Camoufox / CloakBrowser / DrissionPage
 - **BROWSER_* 统一配置层**：一套参数覆盖所有浏览器下载器
 - **自适应选择器**：网站改版时自动重新定位元素（选择器自愈） — [使用指南 →](docs/guides/adaptive-selector.md)
 

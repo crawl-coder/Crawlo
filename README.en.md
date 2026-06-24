@@ -57,9 +57,9 @@ crawlo run example
 - HTTP/2 support, TLS fingerprint emulation (bypass JA3 detection)
 
 ### 🛡️ Robust Anti-Bot Capabilities
-- **HybridDownloader**: 6-level detection priority, auto-switch protocol/browser engine
+- **HybridDownloader**: 5-level detection priority, auto-switch protocol/browser engine
 - **Cloudflare Auto-Bypass**: Detects challenge pages and auto-switches to stealth browser
-- **5 Browser Downloaders**: Playwright / Camoufox / CloakBrowser / DrissionPage / Chrome
+- **4 Browser Downloaders**: Playwright / Camoufox / CloakBrowser / DrissionPage
 - **BROWSER_* Unified Config Layer**: One set of params for all browser downloaders
 - **Adaptive Selectors**: Auto-relocate elements when site structure changes (selector self-healing) — [Guide →](docs/guides/adaptive-selector.md)
 
