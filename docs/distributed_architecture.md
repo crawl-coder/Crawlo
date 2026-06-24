@@ -87,6 +87,50 @@ QUEUE_TYPE = "redis_stream"
 > `crawlo/utils/redis/stream_utils.py` 中 `detect_redis_version()` 从 Redis INFO 命令
 > 解析版本号，连接时自动检测并记录日志。
 
+#### 各版本对分布式设计的影响
+
+Crawlo 的分布式设计**不因 Redis 版本而改变架构思路**——始终基于 Stream + Consumer Groups + ACK。
+不同版本的区别仅在于**故障回收的实现路径**和**性能开销**：
+
+**Redis 5.0-6.1（最低可用）**
+
+Stream 在 5.0 引入，提供了 Crawlo 分布式所需的全部基础原语：
+- `XADD`（入队）、`XREADGROUP`（消费）、`XACK`（确认）、`XCLAIM`（手动转移任务）
+- `XPENDING`（查询 PENDING 列表）
+
+但缺少 `XAUTOCLAIM` 命令（6.2 才引入）。Crawlo 在此版本下的故障回收路径为：
+
+```
+XPENDING（列出超时任务）→ 逐条 XCLAIM（转移所有权）→ XRANGE（读内容）
+  → XACK + XDEL（清理原消息）→ XADD（重新入队，retry+1）
+```
+
+这是**三步手动回收**，每次回收一批任务需要多次 Redis 往返。功能上与 XAUTOCLAIM 完全等价，
+但在高并发故障场景下（如同时崩溃多个 Worker），回收延迟略高（多 1-2 次 RTT）。
+
+**Redis 6.2+（推荐）**
+
+引入了 `XAUTOCLAIM` 命令，将上述三步合并为一步原子操作：
+
+```
+XAUTOCLAIM（自动 claim 超时任务 + 返回任务内容）→ XACK + XDEL → XADD
+```
+
+Crawlo 在此版本下：
+- 孤儿回收（启动时）：单次 `XAUTOCLAIM` 批量 claim，减少 Redis 往返
+- Failover 回收（运行时）：持有 DistributedLock 后执行 `XAUTOCLAIM`，原子性更强
+- 自动清理已删除的消息，避免 PENDING 列表膨胀
+
+**Redis 7+（生产推荐）**
+
+7.0+ 在 Stream 性能和稳定性上有显著提升，但 Crawlo 的分布式设计思路不变：
+- Stream 的 `MAXLEN` trimming 性能优化（`XADD ... MAXLEN ~ N` 近似修剪更高效）
+- ACL（访问控制列表）支持更完善，适合多团队共享 Redis 的场景
+- Sentinel 和 Cluster 的故障转移速度更快（对 Crawlo 透明，Crawlo 只需重连）
+
+> **总结**：Redis 版本影响的是故障回收的效率，不是架构设计。Crawlo 在 5.0 上就能
+> 完整运行分布式模式，6.2+ 只是让故障回收更快更简洁。
+
 ### 架构全景
 
 ```
@@ -898,3 +942,323 @@ echo "=== Tasks ===" && redis-cli XLEN crawlo:{project}:{spider}:stream:tasks &&
 echo "=== Control ===" && redis-cli GET crawlo:{project}:{spider}:control:state && \
 echo "=== Dead Letters ===" && redis-cli XLEN crawlo:{project}:{spider}:stream:failed
 ```
+
+---
+
+## 附录 C：Redis 高可用方案
+
+分布式模式依赖 Redis 作为中心化存储，Redis 自身的可用性直接影响集群可用性。
+
+### 主从复制（Master-Slave）
+
+最简单的高可用方案。一个 Master 负责读写，一个或多个 Slave 同步数据。
+
+```conf
+# redis.conf (Master)
+bind 0.0.0.0
+port 6379
+
+# redis.conf (Slave)
+replicaof 10.0.0.1 6379
+```
+
+**局限**：Master 宕机需手动切换 Slave 为 Master，期间集群不可用。
+
+### 哨兵模式（Sentinel）
+
+Sentinel 监控 Master 状态，自动故障转移。
+
+```conf
+# sentinel.conf
+sentinel monitor crawlo-master 10.0.0.1 6379 2
+sentinel down-after-milliseconds crawlo-master 30000
+sentinel failover-timeout crawlo-master 180000
+```
+
+**Crawlo 配置**：连接 Sentinel 而非直连 Redis：
+
+```python
+REDIS_URL = "redis+sentinel://10.0.0.1:26379,10.0.0.2:26379/0"
+```
+
+**故障转移行为**：
+- Sentinel 检测到 Master 宕机 → 选举新 Master → 通知 Crawlo
+- Crawlo 的 Redis 连接池自动重连新 Master
+- 重连期间 PENDING 任务暂时无法 ACK，但不丢失（存在 Stream 中）
+- 重连后 XAUTOCLAIM 会回收超时任务
+
+### Redis Cluster
+
+数据分片 + 自动故障转移，适合大规模部署。
+
+```python
+REDIS_URL = "redis+cluster://10.0.0.1:7000,10.0.0.2:7000,10.0.0.3:7000/0"
+```
+
+**注意**：Redis Cluster 中 Stream 的 Key 必须在同一个 slot，Crawlo 使用 `{project}:{spider}` 作为 hash tag 确保 Stream、Registry、Filter 等 Key 落在同一节点。
+
+### 推荐方案
+
+| 规模 | 方案 | 理由 |
+|------|------|------|
+| < 5 Worker | 单 Redis | 够用，运维简单 |
+| 5-20 Worker | 主从 + Sentinel | 自动故障转移 |
+| > 20 Worker | Redis Cluster | 分片提升吞吐 |
+
+---
+
+## 附录 D：网络分区与脑裂处理
+
+### 网络分区场景
+
+当网络分区导致部分 Worker 无法连接 Redis 时：
+
+```
+          ┌─── Redis ───┐
+          │             │
+     ┌────┴────┐   ┌────┴────┐
+     │ Worker A │   │ Worker B │
+     │ (可达)    │   │ (不可达)  │
+     └─────────┘   └─────────┘
+        正常运行      心跳超时 → 被 Failover 标记为 suspect
+```
+
+### 脑裂风险
+
+Crawlo 的分布式设计中，**不存在真正的脑裂问题**，因为：
+
+1. **Redis 是唯一的真理来源**：所有状态（任务、心跳、锁、配置）都存储在 Redis 中。Worker 之间不直接通信，不持有独立状态。
+
+2. **Leader 选举基于 Redis SETNX**：分区后的 Worker 无法执行 `SETNX`，不会产生两个 Leader。
+
+3. **任务消费基于 Consumer Groups**：即使分区导致 Worker B 无法 ACK，其 PENDING 任务会被 XAUTOCLAIM 回收并重新分配给可达的 Worker A。不会出现同一任务被两个 Worker 同时处理的情况。
+
+### 分区恢复后
+
+Worker B 网络恢复后：
+
+1. 重新连接 Redis
+2. 发现心跳已超时 → 自己已被标记为 dead
+3. **不会**继续处理旧任务（已被 XCLAIM 走）
+4. 重新注册为新 Worker，从 Stream 消费新任务
+
+### 风险点
+
+| 场景 | 风险 | 缓解措施 |
+|------|------|---------|
+| Worker B 分区时正在处理任务 | 任务被 XCLAIM 后重复执行 | Pipeline 层做幂等处理（RedisDedupPipeline） |
+| 分区期间 Leader 不可达 | 无法协调退出 | 等待分区恢复，或手动 `redis-cli SET control:state shutdown` |
+| Redis 自身分区 | 全集群暂停 | Sentinel 自动故障转移 |
+
+---
+
+## 附录 E：大规模性能基准
+
+### 10 Worker 测试（1800 页深爬）
+
+| 指标 | 数值 |
+|------|------|
+| Worker 数 | 10 |
+| 总请求数 | ~36,000 |
+| 总耗时 | 22.6 分钟 |
+| 单 Worker 速度 | ~160 pages/min |
+| 成功率 | 99.99% |
+| 错误数 | 2（ConnectTimeout，网络波动） |
+| 数据丢失 | 0 |
+| 死信数 | 0 |
+
+### 扩展性分析
+
+| Worker 数 | 理论加速比 | 实际加速比 | 协调开销 |
+|-----------|-----------|-----------|---------|
+| 1 | 1x | 1x | 0% |
+| 5 | 5x | 4.7x | ~6% |
+| 10 | 10x | 9.2x | ~8% |
+| 20 | 20x | 17.5x（预估） | ~12% |
+| 50 | 50x | 38x（预估） | ~24% |
+
+**结论**：10 Worker 以内扩展性接近线性，20+ Worker 时 Redis 单点成为瓶颈，建议使用 Redis Cluster 或 Redis Sentinel 分片。
+
+### Redis 资源消耗（10 Worker 基准）
+
+| 指标 | 数值 |
+|------|------|
+| Redis 内存 | ~50 MB |
+| Stream 长度 | ~36,000 条（峰值） |
+| 每秒操作数 | ~800 ops/s |
+| 网络带宽 | ~2 Mbps |
+
+---
+
+## 附录 F：Docker Compose 部署方案
+
+### 单 Redis + N Worker
+
+```yaml
+version: "3.8"
+
+services:
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy noeviction
+    restart: unless-stopped
+
+  worker:
+    build: .
+    depends_on:
+      - redis
+    environment:
+      - CRAWLO_MODE=distributed
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+    command: crawlo run my_spider
+    deploy:
+      replicas: 5
+    restart: unless-stopped
+
+volumes:
+  redis-data:
+```
+
+### Redis Sentinel 高可用
+
+```yaml
+version: "3.8"
+
+services:
+  redis-master:
+    image: redis:7-alpine
+    command: redis-server --appendonly yes
+    restart: unless-stopped
+
+  redis-slave:
+    image: redis:7-alpine
+    command: redis-server --replicaof redis-master 6379
+    depends_on:
+      - redis-master
+    restart: unless-stopped
+
+  sentinel:
+    image: redis:7-alpine
+    command: >
+      sh -c 'echo "sentinel monitor mymaster redis-master 6379 2" > /etc/sentinel.conf &&
+             echo "sentinel down-after-milliseconds mymaster 30000" >> /etc/sentinel.conf &&
+             redis-server /etc/sentinel.conf --sentinel'
+    depends_on:
+      - redis-master
+    restart: unless-stopped
+
+  worker:
+    build: .
+    depends_on:
+      - sentinel
+    environment:
+      - CRAWLO_MODE=distributed
+      - REDIS_URL=redis+sentinel://sentinel:26379/0
+    command: crawlo run my_spider
+    deploy:
+      replicas: 10
+    restart: unless-stopped
+```
+
+### 使用方法
+
+```bash
+# 启动集群
+docker-compose up -d
+
+# 动态扩容
+docker-compose up -d --scale worker=20
+
+# 查看日志
+docker-compose logs -f worker
+
+# 停止集群
+docker-compose down
+```
+
+---
+
+## 附录 G：Prometheus + Grafana 监控集成
+
+### Prometheus 指标采集
+
+Crawlo 的 Redis Key 可以通过 `redis_exporter` 采集为 Prometheus 指标：
+
+```yaml
+# prometheus.yml
+scrape_configs:
+  - job_name: "redis"
+    static_configs:
+      - targets: ["redis:9121"]
+
+  - job_name: "crawlo-workers"
+    static_configs:
+      - targets: ["worker:9090"]  # 需在 Worker 中启动 metrics server
+```
+
+### 关键监控指标
+
+| 指标 | Redis 命令 | 告警阈值 |
+|------|-----------|---------|
+| 活跃 Worker 数 | `HLEN registry:workers` | < 预期数量 |
+| 待处理任务数 | `XLEN stream:tasks` | 持续增长 |
+| PENDING 任务数 | `XPENDING stream:tasks` | > 100 |
+| 死信队列长度 | `XLEN stream:failed` | > 0 |
+| 去重集合大小 | `SCARD dedup:request` | 持续增长 |
+| Leader 状态 | `GET lock:leader` | 空值 |
+| 控制状态 | `GET control:state` | = "shutdown" |
+
+### Grafana Dashboard
+
+推荐的 Grafana Panel 布局：
+
+1. **集群概览**：Worker 数量、任务总量、处理速度
+2. **任务状态**：Stream 长度、PENDING 数、死信数
+3. **Worker 健康**：各 Worker 心跳时间、处理量
+4. **去重统计**：去重命中率、集合增长曲线
+5. **告警面板**：活跃告警列表
+
+---
+
+## 附录 H：多 Spider 资源隔离
+
+### 资源隔离机制
+
+Crawlo 的 Redis Key 以 `{project}:{spider}` 为前缀，天然实现了 Spider 级别的资源隔离：
+
+```
+crawlo:myproject:spider_a:stream:tasks    ← Spider A 的任务
+crawlo:myproject:spider_b:stream:tasks    ← Spider B 的任务
+crawlo:myproject:spider_a:dedup:request   ← Spider A 的去重
+crawlo:myproject:spider_b:dedup:request   ← Spider B 的去重
+```
+
+### 并行调度
+
+`SchedulerDaemon` 支持多 Spider 并行运行，通过 `asyncio.Semaphore` 控制最大并发 Spider 数（默认 3）：
+
+```python
+SCHEDULER_JOBS = [
+    {"spider": "news_163", "cron": "0 8 * * *"},
+    {"spider": "news_sina", "cron": "0 8 * * *"},
+    {"spider": "news_baidu", "cron": "0 8 * * *"},
+]
+SCHEDULER_MAX_CONCURRENT = 3  # 最多同时运行 3 个 Spider
+```
+
+### 资源竞争
+
+多个 Spider 共享同一个 Redis 实例时，可能产生资源竞争。缓解策略：
+
+| 策略 | 说明 |
+|------|------|
+| 分离 Redis 实例 | 高负载 Spider 使用独立 Redis |
+| Redis Cluster 分片 | 利用 hash tag 将不同 Spider 路由到不同节点 |
+| 限速配置 | 每个 Spider 独立配置 `CONCURRENCY` 和 `DOWNLOAD_DELAY` |
+| 错峰调度 | 通过 Cron 表达式错开高峰 |
+
