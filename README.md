@@ -5,154 +5,124 @@
 <h1 align="center">Crawlo</h1>
 
 <p align="center">
-  <strong>A Modern High-Performance Python Async Web Scraping Framework</strong>
+  <strong>基于 asyncio 的现代化高性能 Python 异步爬虫框架</strong>
 </p>
 
 <p align="center">
-  <strong>Python 3.8+</strong> · <strong>Python 3.14 Compatible</strong>
+  <strong>Python 3.8+</strong> · <strong>已适配 Python 3.14</strong>
 </p>
 
 <p align="center">
-  <a href="README.zh.md">中文</a> ·
-  <a href="README.md">English</a>
+  <a href="README.md">中文</a> ·
+  <a href="README.en.md">English</a>
 </p>
 
 <p align="center">
-  <a href="#quick-start-en">Quick Start</a> ·
-  <a href="#features-en">Key Features</a> ·
-  <a href="#docs-en">Docs</a> ·
-  <a href="#examples-en">Examples</a>
+  <a href="#quick-start-zh">快速开始</a> ·
+  <a href="#features-zh">核心特性</a> ·
+  <a href="#docs-zh">文档</a> ·
+  <a href="#examples-zh">示例</a>
 </p>
 
 ---
 
-## <a id="quick-start-en"></a>✨ Quick Start (3 Steps)
+## <a id="quick-start-zh"></a>✨ 快速开始（3步上手）
 
-### 1. Install
+### 1. 安装
 ```bash
 pip install crawlo
 ```
 
-### 2. Create a Spider
+### 2. 创建爬虫
 ```bash
 crawlo startproject myproject
 cd myproject
 crawlo genspider example example.com
 ```
 
-### 3. Run
+### 3. 运行
 ```bash
 crawlo run example
 ```
 
-👉 **[5-Minute Quickstart Tutorial →](docs/getting-started/5min-quickstart.md)**
+👉 **[查看5分钟快速上手教程 →](docs/getting-started/5min-quickstart.md)**
 
 ---
 
-## <a id="features-en"></a>🚀 Key Features
+## <a id="features-zh"></a>🚀 核心特性
 
-### ⚡ High-Performance Async Architecture
-- Built on asyncio + aiohttp/httpx/curl-cffi multi-protocol downloaders
-- Smart concurrency control, connection pool reuse, auto throughput optimization
-- HTTP/2 support, TLS fingerprint emulation (bypass JA3 detection)
+### ⚡ 高性能异步架构
+- 基于 asyncio + aiohttp/httpx/curl-cffi 多种协议下载器
+- 智能并发控制，连接池复用，自动优化吞吐量
+- 支持 HTTP/2、TLS 指纹模拟（绕过 JA3 检测）
 
-### 🛡️ Robust Anti-Bot Capabilities
-- **HybridDownloader**: 6-level detection priority, auto-switch protocol/browser engine
-- **Cloudflare Auto-Bypass**: Detects challenge pages and auto-switches to stealth browser
-- **5 Browser Downloaders**: Playwright / Camoufox / CloakBrowser / DrissionPage / Chrome
-- **BROWSER_* Unified Config Layer**: One set of params for all browser downloaders
-- **Adaptive Selectors**: Auto-relocate elements when site structure changes (selector self-healing) — [Guide →](docs/guides/adaptive-selector.md)
+### 🛡️ 强大的反反爬能力
+- **HybridDownloader**：6 级检测优先级，自动切换协议/浏览器引擎
+- **Cloudflare 自动绕过**：检测挑战页面后自动切换隐身浏览器
+- **5 种浏览器下载器**：Playwright / Camoufox / CloakBrowser / DrissionPage / Chrome
+- **BROWSER_* 统一配置层**：一套参数覆盖所有浏览器下载器
+- **自适应选择器**：网站改版时自动重新定位元素（选择器自愈） — [使用指南 →](docs/guides/adaptive-selector.md)
 
-### 🤖 AI Integration (MCP Server)
-- Claude / Cursor directly invoke Crawlo scraping capabilities
-- Three scraping modes: `basic` (1-3s) → `stealth` (3-10s) → `max-stealth` (10s+)
-- Browser singleton pool: stealth/max-stealth modes reuse instances
-- Structured error responses: distinguish `TIMEOUT` / `CONNECTION_ERROR` / `STEALTH_UNAVAILABLE`, with suggestions
+### 🤖 AI 集成（MCP Server）
+- Claude / Cursor 直接调用 Crawlo 抓取能力
+- 三种抓取模式：`basic`（1-3s）→ `stealth`（3-10s）→ `max-stealth`（10s+）
+- 浏览器单例池：stealth/max-stealth 模式复用实例
+- 结构化错误返回：区分 `TIMEOUT` / `CONNECTION_ERROR` 等，含建议提示
 
-### 📊 Four-Level Backpressure Defense
-- **Engine** layer: request generation control (enqueue + TaskManager dual checks)
-- **QueueManager** layer: strategy-driven (`QueueSizeStrategy` / `AdaptiveStrategy` / `CompositeStrategy`)
-- **MemoryQueue** layer: Mixin delegation + fallback logic
-- **Hard limit**: direct rejection when queue is full
-- Smart enhancement: `IntelligentBackpressureCalculator` + `BackpressureMonitor` optional integration
+### 📊 四级背压防线
+- Engine 层请求生成控制 + QueueManager 策略驱动
+- 智能增强：`IntelligentBackpressureCalculator` + `BackpressureMonitor`
 
-### 📬 Multi-Channel Notification
-- **5 Channels**: DingTalk / Feishu / WeCom / Email / SMS
-- **30+ Preset Templates**: task start/stop, anomaly alerts, progress updates, DB monitoring
-- **Async Delivery**: `async_send_*` functions, `run_in_executor` wrapper to avoid blocking event loop
-- Message dedup + rate limiting to prevent notification storms
+### 📬 多渠道通知系统
+- 5 种渠道：钉钉 / 飞书 / 企业微信 / 邮件 / 短信
+- 30+ 预定义模板，异步发送，消息去重 + 窗口限制
 
-### 🔄 Three Deployment Modes
+### 🔄 三种部署模式
 
-| Mode | Config | Coordination | Use Case |
-|------|-------|-------------|----------|
-| **Memory Mode** | `RUN_MODE='standalone'` `QUEUE_TYPE='memory'` | None (auto exit) | Dev/debug, quick validation |
-| **Multi-Node** ⭐ | `RUN_MODE='auto'` `QUEUE_TYPE='redis'` | Competing consumption (BZPOPMIN) | Multi-machine, task loss acceptable |
-| **Distributed** | `RUN_MODE='distributed'` `QUEUE_TYPE='redis_stream'` | ACK + heartbeat + failover | Production, high reliability |
+| 模式 | 配置 | 协调机制 | 适用场景 |
+|------|------|---------|---------|
+| **内存模式** | `RUN_MODE='standalone'` `QUEUE_TYPE='memory'` | 无（单机自动退出） | 开发调试、快速验证 |
+| **多节点协作** ⭐ | `RUN_MODE='auto'` `QUEUE_TYPE='redis'` | 竞争消费（BZPOPMIN） | 多机并发，可接受任务丢失 |
+| **分布式系统** | `RUN_MODE='distributed'` `QUEUE_TYPE='redis_stream'` | ACK + 心跳 + 故障转移 | 生产环境，任务可靠性高 |
 
-> All three modes share the same priority model — switch without modifying spider code.
-> [Learn More →](docs/concepts/architecture.md#2-部署模式-deployment-modes) · [Production Deployment →](docs/deployment.md)
+> 三种模式的优先级模型完全一致，切换模式无需修改爬虫代码。
+> [详细了解 →](docs/architecture-overview.md) · [生产部署指南 →](docs/deployment.md)
 
 ---
 
-## <a id="docs-en"></a>📚 Documentation
+## <a id="docs-zh"></a>📚 文档
 
-### 🎯 By Role
+| 你是？ | 推荐阅读 |
+|--------|---------|
+| **新手** | [5分钟快速上手](docs/getting-started/5min-quickstart.md) → [安装指南](docs/getting-started/installation.md) |
+| **开发者** | [配置指南](docs/guides/configuration/) → [调度指南](docs/guides/scheduling/) |
+| **运维** | [三种部署模式详解](docs/architecture-overview.md) → [检查点系统](docs/concepts/checkpoint-guide.md) → **[生产部署指南](docs/deployment.md)** |
 
-| You are? | Recommended Reading |
-|----------|-------------------|
-| **Beginner** | [5-Min Quickstart](docs/getting-started/5min-quickstart.md) → [Installation](docs/getting-started/installation.md) |
-| **Developer** | [Configuration Guide](docs/guides/configuration/) → [Scheduling Guide](docs/guides/scheduling/) |
-| **Ops** | [Run Mode Deep Dive](docs/guides/configuration/run-modes.md) → [Checkpoint System](docs/concepts/checkpoint-guide.md) → **[Production Deployment](docs/deployment.md)** |
-
-### 📖 Full Docs Navigation
-
-- 🚀 **[Getting Started](docs/getting-started/)** - Install, create your first spider
-- 📚 **[Tutorials](docs/tutorials/)** - Complete guides from basics to production
-- 🎯 **[Guides](docs/guides/)** - Scenario-based deep dives
-  - [Configuration](docs/guides/configuration/), [Scheduling](docs/guides/scheduling/)
-  - [Backpressure](docs/guides/scheduling/backpressure.md), [Run Modes](docs/guides/configuration/run-modes.md)
-  - [Adaptive Selector](docs/guides/adaptive-selector.md) — selector self-healing after site redesign
-- 📖 **[Concepts](docs/concepts/)** - Architecture, lifecycle, error handling
-  - [Distributed Architecture](docs/distributed_architecture.md) — Redis Streams, failover, coordinated shutdown
-- 🖥 **[Production Deployment](docs/deployment.md)** - Linux server setup, systemd, monitoring
-- 🔧 **[API Reference](docs/reference/)** - Complete API docs
-- 💡 **[Examples](docs/examples/)** - Real-world examples and best practices
-- ❓ **[FAQ](docs/faq/)** - FAQ and troubleshooting
-
-👉 **[Browse Complete Docs →](docs/index.md)**
+👉 **[浏览完整文档 →](docs/index.md)**
 
 ---
 
-## <a id="examples-en"></a>💡 Examples
+## <a id="examples-zh"></a>💡 示例项目
 
-Check out the [`examples/`](examples/) directory:
-- **Basic** - Quick start
-- **Advanced** - Complex scenarios
-- **Production** - Ready for production
-
-👉 **[View All Examples →](docs/examples/)**
+查看 [`examples/`](examples/) 目录：
+- **基础示例** - 快速上手
+- **高级示例** - 复杂场景
+- **生产级示例** - 可直接用于生产
 
 ---
 
-## 🤝 Contributing
+## 🤝 贡献
 
-Issues and Pull Requests are welcome!
-
-1. Fork the repository
-2. Create your feature branch (`git checkout -b feature/AmazingFeature`)
-3. Commit your changes (`git commit -m 'Add some AmazingFeature'`)
-4. Push to the branch (`git push origin feature/AmazingFeature`)
-5. Open a Pull Request
+欢迎提交 Issue 和 Pull Request！
 
 ---
 
-## 📄 License
+## 📄 许可证
 
-Licensed under BSD 3-Clause - see the [LICENSE](LICENSE) file for details.
+本项目采用 BSD 3-Clause 许可证 - 查看 [LICENSE](LICENSE) 文件了解详情。
 
 ---
 
 <p align="center">
-  <strong>⭐ If this project helps you, please give us a Star!</strong>
+  <strong>⭐ 如果这个项目对你有帮助，请给我们一个 Star！</strong>
 </p>
