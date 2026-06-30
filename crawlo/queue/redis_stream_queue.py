@@ -76,6 +76,8 @@ class RedisStreamQueue:
         serialization_format: str = "pickle",
         stream_compact: bool = True,
         priority_enabled: bool = True,
+        sentinel_urls: Optional[List[str]] = None,
+        sentinel_service: str = "mymaster",
     ):
         """
         初始化 Redis Stream Queue。
@@ -90,6 +92,8 @@ class RedisStreamQueue:
             delivery_count_limit: 最大投递次数，超过则进死信
             block_timeout: XREADGROUP 阻塞超时（ms）
             serialization_format: 序列化格式（pickle | json | msgpack）
+            sentinel_urls: Sentinel 地址列表（空 = 直连模式）
+            sentinel_service: Sentinel 监控的 Master 名称
         """
         self.redis_url = redis_url
         self.project_name = project_name
@@ -100,6 +104,8 @@ class RedisStreamQueue:
         self._block_timeout = block_timeout
         self._serialization_format = serialization_format
         self._stream_compact = stream_compact
+        self._sentinel_urls = sentinel_urls or []
+        self._sentinel_service = sentinel_service
 
         # Consumer 标识
         self._consumer_name = consumer_name or self._generate_consumer_name()
@@ -181,8 +187,9 @@ class RedisStreamQueue:
 
         Args:
             sentinel_urls: Sentinel 地址列表，如 ['redis://10.0.0.1:26379', 'redis://10.0.0.2:26379']
-                          为空则使用直连模式
+                          为空则使用构造函数中传入的 sentinel_urls / 直连模式
         """
+        sentinel_urls = sentinel_urls if sentinel_urls is not None else self._sentinel_urls
         if self._connected:
             await self._ensure_consumer_groups()
             return

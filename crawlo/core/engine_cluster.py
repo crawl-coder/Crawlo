@@ -135,6 +135,12 @@ class ClusterMixin:
                     priority_enabled=safe_get_config(
                         self.settings, 'STREAM_PRIORITY_ENABLED', True, bool
                     ),
+                    sentinel_urls=safe_get_config(
+                        self.settings, 'REDIS_SENTINEL_URLS', []
+                    ),
+                    sentinel_service=safe_get_config(
+                        self.settings, 'REDIS_SENTINEL_SERVICE', 'mymaster'
+                    ),
                 )
                 await queue.connect()
                 redis_client = queue._redis
