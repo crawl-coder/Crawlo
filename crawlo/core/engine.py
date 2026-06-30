@@ -45,6 +45,8 @@ class Engine(RequestGenerationMixin, ClusterMixin):
         self.processor: Optional[Processor] = None
         self._start_requests_source = None  # Original generator (sync gen / async gen / iter)
         self._start_requests_is_async = False  # Whether it's an async generator
+        self._seed_lock_key = None  # 种子锁 key（分布式模式）
+        self._seed_renewal_task = None  # 种子锁续期任务
         self._close_reason: str = 'finished'  # Close reason: finished / shutdown
         self._spider_closed: bool = False  # Prevent duplicate close_spider calls
         self._background_tasks: set = set()  # Track fire-and-forget tasks to prevent leaks
@@ -222,14 +224,25 @@ class Engine(RequestGenerationMixin, ClusterMixin):
 
         if not checkpoint_resumed:
             # 正常流程：从 start_requests 开始（流式，不物化）
-            # 分布式模式：SETNX 选举种子生成器，只有一个 Worker 生成种子 URL
+            # 分布式模式：SETNX 选举种子生成器 + 锁续期 + 崩溃恢复
             is_seed_generator = True
             run_mode = safe_get_config(self.settings, 'RUN_MODE', 'standalone')
             if run_mode == 'distributed' and self._cluster_redis:
                 project = safe_get_config(self.settings, 'PROJECT_NAME', 'crawlo')
                 spider_name = safe_get_config(self.settings, 'SPIDER_NAME', 'default')
                 seed_lock_key = f"crawlo:{project}:{spider_name}:seed:generator"
-                # 尝试成为种子生成器（锁 TTL=120s，覆盖种子生成过程）
+
+                # 检查是否有死锁（持有者已不在 Registry 中）
+                lock_owner = await self._cluster_redis.get(seed_lock_key)
+                if lock_owner:
+                    owner_str = lock_owner.decode() if isinstance(lock_owner, bytes) else str(lock_owner)
+                    if self._cluster_registry:
+                        owner_info = await self._cluster_registry.get_worker_info(owner_str)
+                        if not owner_info:
+                            await self._cluster_redis.delete(seed_lock_key)
+                            self.logger.info(f"Cleared stale seed lock from dead worker: {owner_str}")
+
+                # 尝试成为种子生成器（锁 TTL=120s，续期任务防止长时生成期间过
                 acquired = await self._cluster_redis.set(
                     seed_lock_key, self._cluster_worker_id, nx=True, ex=120
                 )
@@ -240,6 +253,10 @@ class Engine(RequestGenerationMixin, ClusterMixin):
                         f"Worker {self._cluster_worker_id}: another Worker is generating "
                         f"seed URLs, skipping start_requests"
                     )
+                else:
+                    # 启动锁续期任务：每 60 秒延长 TTL
+                    self._seed_lock_key = seed_lock_key
+                    self._seed_renewal_task = asyncio.create_task(self._renew_seed_lock())
 
             if is_seed_generator:
                 try:
@@ -404,9 +421,28 @@ class Engine(RequestGenerationMixin, ClusterMixin):
                     return True
         return False
 
+    async def _renew_seed_lock(self):
+        """种子锁续期任务：每 60 秒延长锁 TTL，防止长时种子生成期间锁过期"""
+        try:
+            while self.running and self._seed_lock_key:
+                await asyncio.sleep(60)
+                if self._cluster_redis and self._seed_lock_key:
+                    await self._cluster_redis.expire(self._seed_lock_key, 120)
+        except asyncio.CancelledError:
+            pass
+
     async def _cleanup_crawl(self, generation_task):
         """crawl() 退出后的清理工作"""
         self.running = False
+
+        # 停止种子锁续期
+        if self._seed_renewal_task and not self._seed_renewal_task.done():
+            self._seed_renewal_task.cancel()
+            try:
+                await self._seed_renewal_task
+            except asyncio.CancelledError:
+                pass
+        self._seed_renewal_task = None
 
         if generation_task and not generation_task.done():
             generation_task.cancel()

@@ -70,6 +70,14 @@ crawlo check
 crawlo stats [spider_name]
 ```
 
+### `crawlo dead-letter`
+管理分布式模式下的死信队列。
+```bash
+crawlo dead-letter list <project> <spider>    # 查看死信列表
+crawlo dead-letter retry <project> <spider>  # 重新入队 (--count N)
+crawlo dead-letter stats <project> <spider>  # 查看死信统计
+```
+
 ### `crawlo-mcp`
 启动 MCP Server，供 Claude/Cursor 调用。
 ```bash

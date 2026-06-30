@@ -171,22 +171,55 @@ class RedisStreamQueue:
     # 连接管理
     # -------------------------------
 
-    async def connect(self):
-        """连接到 Redis 并初始化 Consumer Group"""
+    async def connect(self, sentinel_urls: Optional[List[str]] = None):
+        """
+        连接到 Redis 并初始化 Consumer Group。
+
+        支持两种模式：
+        - 直连：使用 redis_url 直接连接单 Redis 实例
+        - Sentinel：通过 sentinel_urls 列表连接 Redis Sentinel 集群自动发现 Master
+
+        Args:
+            sentinel_urls: Sentinel 地址列表，如 ['redis://10.0.0.1:26379', 'redis://10.0.0.2:26379']
+                          为空则使用直连模式
+        """
         if self._connected:
-            # 即使已连接，也确保 Consumer Group 存在
-            # (防止外部删除 Stream 导致 Group 丢失)
             await self._ensure_consumer_groups()
             return
 
         import redis.asyncio as aioredis
-        self._redis = aioredis.from_url(
-            self.redis_url,
-            decode_responses=False,
-            max_connections=50,
-            health_check_interval=30,
-            retry_on_timeout=True,
-        )
+
+        if sentinel_urls:
+            # Sentinel 模式：自动发现 Master，故障转移时自动切换
+            sentinels = []
+            for url in sentinel_urls:
+                from urllib.parse import urlparse
+                parsed = urlparse(url)
+                sentinels.append((parsed.hostname, parsed.port or 26379))
+
+            self._sentinel = aioredis.Sentinel(
+                sentinels,
+                socket_connect_timeout=3,
+                socket_keepalive=True,
+            )
+            self._redis = self._sentinel.master_for(
+                self._sentinel_service or "mymaster",
+                db=0,
+                decode_responses=False,
+                max_connections=50,
+                health_check_interval=30,
+                retry_on_timeout=True,
+            )
+            self.logger.info(f"Sentinel mode: {len(sentinels)} sentinel(s)")
+        else:
+            # 直连模式
+            self._redis = aioredis.from_url(
+                self.redis_url,
+                decode_responses=False,
+                max_connections=50,
+                health_check_interval=30,
+                retry_on_timeout=True,
+            )
 
         # 检测 Redis 版本（首次连接输出 INFO，后续仅 debug 避免重复日志）
         try:
@@ -302,37 +335,46 @@ class RedisStreamQueue:
 
                 for msg_id, request, retry_count in claimed_messages:
                     try:
-                        msgs = await self._redis.xrange(
-                            stream_key, min=msg_id, max=msg_id, count=1
+                        result = await self._redis.eval(
+                            (
+                                "local msgs = redis.call('XRANGE', KEYS[1], ARGV[1], ARGV[1], 'COUNT', 1) "
+                                "if #msgs == 0 then redis.call('XACK', KEYS[1], ARGV[2], ARGV[1]); return {-2, 0} end "
+                                "local flat = msgs[1][2]; local fields = {} "
+                                "for i = 1, #flat, 2 do fields[flat[i]] = flat[i + 1] end "
+                                "local rc = 1; if fields['retry_count'] then rc = tonumber(fields['retry_count']) + 1 end "
+                                "redis.call('XACK', KEYS[1], ARGV[2], ARGV[1]) "
+                                "redis.call('XDEL', KEYS[1], ARGV[1]) "
+                                "if rc >= tonumber(ARGV[5]) then return {0, rc, flat} end "
+                                "fields['retry_count'] = tostring(rc) "
+                                "fields['reenqueued_at'] = ARGV[3] "
+                                "fields['recovered_orphan'] = ARGV[4] "
+                                "local nf = {}; for k, v in pairs(fields) do nf[#nf+1]=k; nf[#nf+1]=v end "
+                                "redis.call('XADD', KEYS[1], 'MAXLEN', '~', tonumber(ARGV[6]), '*', unpack(nf)) "
+                                "return {1, rc}"
+                            ),
+                            1, stream_key, msg_id, self._group_name,
+                            str(time.time()), "true",
+                            str(self._delivery_count_limit), str(self._max_length)
                         )
-                        if not msgs:
-                            await self._redis.xack(stream_key, self._group_name, msg_id)
-                            continue
-
-                        _, fields = msgs[0]
-
-                        await self._redis.xack(stream_key, self._group_name, msg_id)
-                        await self._redis.xdel(stream_key, msg_id)
-
-                        if retry_count >= self._delivery_count_limit:
-                            dead_fields = dict(fields)
-                            dead_fields[b"original_message_id"] = msg_id if isinstance(msg_id, bytes) else msg_id.encode()
-                            dead_fields[b"dead_at"] = str(time.time()).encode()
-                            dead_fields[b"dead_reason"] = b"orphan pending on startup, max retries exceeded"
-                            dead_fields[b"retry_count"] = str(retry_count).encode()
-                            await self._redis.xadd(
-                                self._failed_stream, dead_fields,
-                                maxlen=self._max_length // 10, approximate=True
-                            )
-                        else:
-                            new_fields = {k: v for k, v in fields.items() if k != b"retry_count"}
-                            new_fields[b"retry_count"] = str(retry_count + 1).encode()
-                            new_fields[b"reenqueued_at"] = str(time.time()).encode()
-                            new_fields[b"recovered_orphan"] = b"true"
-                            await self._redis.xadd(
-                                stream_key, new_fields,
-                                maxlen=self._max_length, approximate=True
-                            )
+                        if result and len(result) >= 2:
+                            action = int(result[0])
+                            if action == 0:
+                                # 超限进死信
+                                flat = result[2]
+                                dead_fields = {}
+                                it = iter(flat)
+                                for k in it:
+                                    v = next(it)
+                                    k_str = k.decode() if isinstance(k, bytes) else str(k)
+                                    dead_fields[k_str.encode()] = v if isinstance(v, bytes) else str(v).encode()
+                                dead_fields[b'original_message_id'] = msg_id.encode() if isinstance(msg_id, str) else msg_id
+                                dead_fields[b'dead_at'] = str(time.time()).encode()
+                                dead_fields[b'dead_reason'] = b"orphan pending on startup, max retries exceeded"
+                                dead_fields[b'retry_count'] = str(int(result[1])).encode()
+                                await self._redis.xadd(
+                                    self._failed_stream, dead_fields,
+                                    maxlen=self._max_length // 10, approximate=True
+                                )
 
                         total_recovered += 1
                     except Exception as e:
@@ -461,22 +503,20 @@ class RedisStreamQueue:
 
     async def ack(self, message_id: str) -> bool:
         """
-        XACK 确认消息处理完成，并 XDEL 从 Stream 中删除已处理消息。
-
-        XACK 只是将消息从 PEUL (pending) 列表移除，消息本身仍留在 Stream 中。
-        加上 XDEL 确保：消费一条删一条，Stream 中只保留未处理的消息，
-        运行结束后 Stream 自然为空，无需额外清理。
+        原子性地 XACK + XDEL，消除两条命令之间的崩溃窗口。
         """
         self._ensure_connected()
         stream = self._get_message_stream(message_id)
+        lua = (
+            "local acked = redis.call('XACK', KEYS[1], ARGV[1], ARGV[2]) "
+            "if acked > 0 then redis.call('XDEL', KEYS[1], ARGV[2]) end "
+            "return tostring(acked)"
+        )
         try:
-            result = await self._redis.xack(stream, self._group_name, message_id)
-            if result > 0:
-                # ACK 成功后删除消息，避免 Stream 堆积已处理数据
-                await self._redis.xdel(stream, message_id)
-            return result > 0
+            result = await self._redis.eval(lua, 1, stream, self._group_name, message_id)
+            return result and int(result) > 0
         except Exception as e:
-            self.logger.error(f"XACK failed for {message_id}: {e}")
+            self.logger.error(f"Atomic ACK failed for {message_id}: {e}")
             return False
 
     async def nack(
@@ -780,63 +820,87 @@ class RedisStreamQueue:
 
     async def _retry_message(self, message_id: str, error: Optional[str] = None) -> bool:
         """
-        重试消息：读取原始消息字段，增加 retry_count 后重新 XADD。
+        原子重试：读取原消息 → XACK+XDEL → XADD 重新入队。
+        全程使用 Lua 脚本在 Redis 服务端原子执行。
         """
         stream = self._get_message_stream(message_id)
+        lua_retry = (
+            "local msgs = redis.call('XRANGE', KEYS[1], ARGV[1], ARGV[1], 'COUNT', 1) "
+            "if #msgs == 0 then return {-1, 0} end "
+            "local flat = msgs[1][2] "
+            "local fields = {} "
+            "for i = 1, #flat, 2 do fields[flat[i]] = flat[i + 1] end "
+            "local retry_count = 1 "
+            "if fields['retry_count'] then retry_count = tonumber(fields['retry_count']) + 1 end "
+            "if retry_count >= tonumber(ARGV[5]) then "
+            "  redis.call('XACK', KEYS[1], ARGV[2], ARGV[1]) "
+            "  redis.call('XDEL', KEYS[1], ARGV[1]) "
+            "  return {0, retry_count} "
+            "end "
+            "redis.call('XACK', KEYS[1], ARGV[2], ARGV[1]) "
+            "redis.call('XDEL', KEYS[1], ARGV[1]) "
+            "fields['retry_count'] = tostring(retry_count) "
+            "fields['last_error'] = ARGV[3] "
+            "fields['reenqueued_at'] = ARGV[4] "
+            "local nf = {} "
+            "for k, v in pairs(fields) do nf[#nf + 1] = k; nf[#nf + 1] = v end "
+            "redis.call('XADD', KEYS[1], 'MAXLEN', '~', tonumber(ARGV[6]), '*', unpack(nf)) "
+            "return {1, retry_count}"
+        )
         try:
-            msgs = await self._redis.xrange(stream, min=message_id, max=message_id, count=1)
-            if msgs:
-                _, fields = msgs[0]
-                retry_count = int(fields.get(b"retry_count", b"0")) + 1
-
-                if retry_count >= self._delivery_count_limit:
+            result = await self._redis.eval(
+                lua_retry, 1, stream,
+                message_id, self._group_name,
+                (error or "unknown"), str(time.time()),
+                str(self._delivery_count_limit), str(self._max_length)
+            )
+            if result:
+                action = int(result[0]) if len(result) > 0 else -1
+                if action == -1:
+                    return False
+                if action == 0:
                     return await self._escalate_to_dead_letter(message_id, error)
-
-                # XACK + XDEL 当前消息（ACK 后删除，避免 Stream 堆积）
-                await self._redis.xack(stream, self._group_name, message_id)
-                await self._redis.xdel(stream, message_id)
-
-                # 重新入队（保留原始数据，更新重试计数）
-                new_fields = {
-                    k: v for k, v in fields.items()
-                    if k not in (b"retry_count",)
-                }
-                new_fields[b"retry_count"] = str(retry_count).encode()
-                new_fields[b"last_error"] = (error or "unknown").encode()
-                new_fields[b"reenqueued_at"] = str(time.time()).encode()
-
-                await self._redis.xadd(
-                    stream, new_fields,
-                    maxlen=self._max_length, approximate=True
-                )
                 return True
         except Exception as e:
-            self.logger.debug(f"Retry read failed for {message_id}: {e}")
-
-        # 读取不到原始消息 → 直接 XACK（可能是已过期/已处理）
+            self.logger.debug(f"Atomic retry failed for {message_id}: {e}")
         return await self.ack(message_id)
 
     async def _escalate_to_dead_letter(
         self, message_id: str, error: Optional[str] = None
     ) -> bool:
-        """将消息升级到死信队列"""
+        """原子地将消息从主 Stream 移除，然后 Python 层写入死信"""
         stream = self._get_message_stream(message_id)
+        lua_claim = (
+            "local msgs = redis.call('XRANGE', KEYS[1], ARGV[1], ARGV[1], 'COUNT', 1) "
+            "if #msgs == 0 then return nil end "
+            "redis.call('XACK', KEYS[1], ARGV[2], ARGV[1]) "
+            "redis.call('XDEL', KEYS[1], ARGV[1]) "
+            "local flat = msgs[1][2] "
+            "local out = {} "
+            "for i = 1, #flat, 2 do out[#out + 1] = flat[i]; out[#out + 1] = flat[i + 1] end "
+            "return out"
+        )
         try:
-            msgs = await self._redis.xrange(stream, min=message_id, max=message_id, count=1)
-            if msgs:
-                _, fields = msgs[0]
-                retry_count = int(fields.get(b"retry_count", b"0"))
+            raw_fields = await self._redis.eval(
+                lua_claim, 1, stream, message_id, self._group_name
+            )
+            if raw_fields:
+                # 解析 Lua 返回的平铺数组 → dict
+                dead_fields = {}
+                retry_count = 0
+                it = iter(raw_fields)
+                for k in it:
+                    v = next(it)
+                    k_str = k.decode() if isinstance(k, bytes) else str(k)
+                    v_bytes = v if isinstance(v, bytes) else str(v).encode()
+                    dead_fields[k_str.encode()] = v_bytes
+                    if k_str == 'retry_count':
+                        retry_count = int(v_bytes)
 
-                # XACK + XDEL 原消息（转入死信后从主 Stream 删除）
-                await self._redis.xack(stream, self._group_name, message_id)
-                await self._redis.xdel(stream, message_id)
-
-                # 写入死信 Stream
-                dead_fields = dict(fields)
-                dead_fields[b"original_message_id"] = message_id.encode()
-                dead_fields[b"dead_at"] = str(time.time()).encode()
-                dead_fields[b"dead_reason"] = (error or "max retries exceeded").encode()
-                dead_fields[b"retry_count"] = str(retry_count).encode()
+                dead_fields[b'original_message_id'] = message_id.encode()
+                dead_fields[b'dead_at'] = str(time.time()).encode()
+                dead_fields[b'dead_reason'] = (error or "max retries exceeded").encode()
+                dead_fields[b'retry_count'] = str(retry_count).encode()
 
                 await self._redis.xadd(
                     self._failed_stream, dead_fields,

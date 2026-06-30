@@ -216,7 +216,7 @@ XADD → Stream → XREADGROUP → PROCESSING → XACK → DONE
                               XAUTOCLAIM → 重新分配
 ```
 
-这是与多节点协作模式最本质的区别：**任务有状态**。不是弹出就消失，而是要确认才完成。
+这是与多节点协作模式最本质的区别：**任务有状态**。不是弹出就消失，而是要确认才完成。ACK 通过 Lua 脚本在 Redis 服务端原子执行 XACK+XDEL，消除进程崩溃窗口。
 
 **心跳注册**：每个 Worker 启动时向 Redis Hash 注册自己（`HSET registry:workers worker_id info`），然后每 15 秒（±20% Jitter）更新心跳时间戳。其他组件通过心跳判断 Worker 是否存活。
 
