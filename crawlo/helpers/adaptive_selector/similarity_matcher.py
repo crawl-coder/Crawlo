@@ -259,24 +259,19 @@ class SimilarityMatcher:
         and SequenceMatcher for values. Each contributes 50% weight.
 
         Rationale for 50/50 split: For HTML attributes, key existence
-        (which attributes are present) and value similarity (what they
-        contain) are equally important signals. Example:
-          - <div class="price"> vs <div class="price old">
-            Keys identical (100% key score), values partially match
-            → balanced 50/50 gives reasonable partial score.
-          - <div> vs <div id="main">
-            Keys differ (→ lower key score), but the id attribute
-            carries high semantic weight. In practice, important_attrs
-            dimension (weight×2.0) separately handles class/id/href/src
-            with SequenceMatcher, compensating for this case.
+        and value similarity are equally important signals. The
+        important_attrs dimension (weightx2.0) separately handles
+        class/id/href/src, compensating for single-attribute mismatches.
 
         Args:
-            dict1: First dictionary
-            dict2: Second dictionary
+            dict1: First dictionary (None treated as empty).
+            dict2: Second dictionary (None treated as empty).
 
         Returns:
             float: Similarity (0.0 ~ 1.0)
         """
+        dict1 = dict1 or {}
+        dict2 = dict2 or {}
         # Key similarity: Jaccard-style (order-independent)
         keys1, keys2 = set(dict1.keys()), set(dict2.keys())
         if not keys1 and not keys2:
