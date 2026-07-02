@@ -140,8 +140,14 @@ class ElementFingerprint:
             parent_name=data.get('parent_name'),
             parent_attribs=data.get('parent_attribs', {}),
             parent_text=data.get('parent_text'),
-            siblings=tuple(data['siblings']) if 'siblings' in data else None,
-            children=tuple(data['children']) if 'children' in data else None,
+            siblings=(
+                tuple(data['siblings'])
+                if data.get('siblings') is not None else None
+            ),
+            children=(
+                tuple(data['children'])
+                if data.get('children') is not None else None
+            ),
         )
 
     def __repr__(self) -> str:

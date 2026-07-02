@@ -30,6 +30,7 @@ class ResponseAdaptiveMixin:
     _adaptive_enabled_global = None
     _adaptive_initialized = False
     _cleanup_registered = False
+    _adaptive_max_fingerprint_elements = 10
 
     # ========================================================================
     # 初始化 / 配置 / 清理
@@ -55,6 +56,7 @@ class ResponseAdaptiveMixin:
         backend = _get('ADAPTIVE_STORAGE_BACKEND', 'sqlite')
         sqlite_path = _get('ADAPTIVE_SQLITE_PATH', 'adaptive_fingerprints.db')
         threshold = float(_get('ADAPTIVE_SIMILARITY_THRESHOLD', 0))
+        max_elements = int(_get('ADAPTIVE_MAX_FINGERPRINT_ELEMENTS', 10))
         redis_host = _get('REDIS_HOST', 'localhost')
         redis_port = int(_get('REDIS_PORT', 6379))
         redis_password = _get('REDIS_PASSWORD', '')
@@ -62,6 +64,7 @@ class ResponseAdaptiveMixin:
 
         config_key = (backend, sqlite_path, threshold)
         if cls._adaptive_config_key == config_key and cls._adaptive_storage is not None:
+            cls._adaptive_max_fingerprint_elements = max_elements
             return True
 
         try:
@@ -72,6 +75,7 @@ class ResponseAdaptiveMixin:
                 redis_password=redis_password, redis_db=redis_db,
             )
             cls._adaptive_matcher = SimilarityMatcher(threshold=threshold)
+            cls._adaptive_max_fingerprint_elements = max_elements
             cls._adaptive_config_key = config_key
             cls._adaptive_enabled_global = True
             cls._adaptive_initialized = True
@@ -97,6 +101,7 @@ class ResponseAdaptiveMixin:
 
             cls._adaptive_matcher = None
             cls._adaptive_config_key = None
+            cls._adaptive_max_fingerprint_elements = 10
             cls._adaptive_enabled_global = None
             cls._adaptive_initialized = False
 
@@ -223,16 +228,18 @@ class ResponseAdaptiveMixin:
         """
         if result:
             if adaptive and self._is_adaptive_enabled():
+                max_elems = self.__class__._adaptive_max_fingerprint_elements
                 base_id = identifier or query
-                for i, elem in enumerate(result[:10]):
+                for i, elem in enumerate(result[:max_elems]):
                     idx_id = f'{base_id}_{i}' if len(result) > 1 else base_id
                     self._save_element_fingerprint(elem, idx_id)
             return result
 
         if adaptive and self._is_adaptive_enabled():
+            max_elems = self.__class__._adaptive_max_fingerprint_elements
             base_id = identifier or query
             saved_elements = []
-            for i in range(10):
+            for i in range(max_elems):
                 idx_id = f'{base_id}_{i}' if i > 0 else base_id
                 element_data = self._retrieve_element_fingerprint(idx_id)
                 if not element_data:

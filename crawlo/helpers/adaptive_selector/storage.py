@@ -146,7 +146,15 @@ class SqliteStorage(StorageBackend):
                 self._connection.close()
                 self._connection = None
 
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.close()
+        return False
+
     def __del__(self):
+        # 仅作为安全网；优先使用 close() 或 context manager
         try:
             self.close()
         except Exception:

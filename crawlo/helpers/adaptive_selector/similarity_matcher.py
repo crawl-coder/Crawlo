@@ -51,9 +51,18 @@ class SimilarityMatcher:
         """Initialize matcher
 
         Args:
-            threshold: Minimum similarity threshold (0-100 percentage), matches below this score will be discarded
-            weights: Dimension weight configuration, uses default if None
-            ignore_attributes: Attribute names to skip in important_attrs comparison (e.g., {'href', 'src'})
+            threshold: Minimum similarity threshold (0-100 percentage).
+                Matches scoring below this value are discarded.
+                Used as floor value: effective_threshold = max(self.threshold, percentage)
+                where percentage is the per-query threshold from xpath/css.
+                In practice, configure via ADAPTIVE_SIMILARITY_THRESHOLD (default 30).
+            weights: Dimension weight configuration, uses default if None.
+                text=2.0 is the highest weight — works well for stable text
+                (titles, prices) but may degrade with dynamic content (timestamps,
+                CSRF tokens). For pages with volatile text, increase tag/path
+                weights via ignore_attributes or custom weights.
+            ignore_attributes: Attribute names to skip in important_attrs
+                comparison (e.g., {'href', 'src'}).
         """
         self.threshold = threshold
         self.weights = weights or self.DEFAULT_WEIGHTS
@@ -248,6 +257,18 @@ class SimilarityMatcher:
 
         Uses Jaccard-like set comparison (order-independent) for keys,
         and SequenceMatcher for values. Each contributes 50% weight.
+
+        Rationale for 50/50 split: For HTML attributes, key existence
+        (which attributes are present) and value similarity (what they
+        contain) are equally important signals. Example:
+          - <div class="price"> vs <div class="price old">
+            Keys identical (100% key score), values partially match
+            → balanced 50/50 gives reasonable partial score.
+          - <div> vs <div id="main">
+            Keys differ (→ lower key score), but the id attribute
+            carries high semantic weight. In practice, important_attrs
+            dimension (weight×2.0) separately handles class/id/href/src
+            with SequenceMatcher, compensating for this case.
 
         Args:
             dict1: First dictionary
