@@ -612,6 +612,13 @@ LOG_FILE = None                                         # 日志文件路径
 LOG_FORMAT = '%(asctime)s - [%(name)s] - %(levelname)s: %(message)s'
 LOG_ENCODING = 'utf-8'
 STATS_DUMP = True                                       # 是否周期性输出统计信息
+STATS_BACKEND = 'memory'                                # 统计后端：memory（默认）| redis | file | prometheus
+STATS_PREFIX = 'crawlo'                                 # 统计键前缀
+
+# ---- Prometheus 监控（STATS_BACKEND='prometheus' 时生效） ----
+PROMETHEUS_METRICS_PORT = 9100                          # 指标暴露端口，设为 0 则自动分配可用端口
+PROMETHEUS_LABELS = {}                                  # 额外标签，如 {'env': 'production'}
+
 INTERVAL = 60                                           # 日志输出间隔（秒）
 LOG_RETENTION_DAYS = 1                                  # 日志文件保留天数（爬虫关闭时自动清理）
 
