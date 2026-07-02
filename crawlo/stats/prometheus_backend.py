@@ -24,6 +24,7 @@ import logging
 import os
 import re
 import socket
+import threading
 from typing import Any, Dict, Optional
 
 from crawlo.stats.backends import StatsBackend
@@ -88,6 +89,9 @@ class PrometheusStatsBackend(StatsBackend):
         self._labels = labels or {'spider': 'default', 'worker_id': 'default'}
         self._registry = registry or CollectorRegistry()
 
+        # 线程锁保护四本字典的并发访问（调用方始终先持锁再调 _get_or_create_*）
+        self._lock = threading.Lock()
+
         # 指标对象缓存；值为 None 表示该 key 因指标名非法被跳过
         self._counters: Dict[str, Optional[Counter]] = {}
         self._gauges: Dict[str, Optional[Gauge]] = {}
@@ -136,6 +140,7 @@ class PrometheusStatsBackend(StatsBackend):
         return list(self._labels.keys())
 
     def _get_or_create_counter(self, name: str, key: str) -> Optional[Counter]:
+        # 调用方必须已持 lock
         if name not in self._counters:
             try:
                 self._counters[name] = Counter(
@@ -149,6 +154,7 @@ class PrometheusStatsBackend(StatsBackend):
         return self._counters[name]
 
     def _get_or_create_gauge(self, name: str, key: str) -> Optional[Gauge]:
+        # 调用方必须已持 lock
         if name not in self._gauges:
             try:
                 self._gauges[name] = Gauge(
@@ -168,10 +174,11 @@ class PrometheusStatsBackend(StatsBackend):
         except (TypeError, ValueError):
             return
         name = _sanitize_metric_name(key, self._prefix)
-        metric = self._get_or_create_counter(name, key)
-        if metric is not None:
-            metric.labels(**self._labels).inc(amount)
-        self._counter_values[name] = self._counter_values.get(name, 0.0) + amount
+        with self._lock:
+            metric = self._get_or_create_counter(name, key)
+            if metric is not None:
+                metric.labels(**self._labels).inc(amount)
+            self._counter_values[name] = self._counter_values.get(name, 0.0) + amount
 
     def set_value(self, key: str, value: Any) -> None:
         # 仅数值映射为 Gauge；字符串值（reason / spider_name / end_time
@@ -181,67 +188,80 @@ class PrometheusStatsBackend(StatsBackend):
         except (TypeError, ValueError):
             return
         name = _sanitize_metric_name(key, self._prefix)
-        metric = self._get_or_create_gauge(name, key)
-        if metric is not None:
-            metric.labels(**self._labels).set(numeric)
-        self._gauge_values[name] = numeric
+        with self._lock:
+            metric = self._get_or_create_gauge(name, key)
+            if metric is not None:
+                metric.labels(**self._labels).set(numeric)
+            self._gauge_values[name] = numeric
 
     def get_value(self, key: str, default: Any = None) -> Any:
         name = _sanitize_metric_name(key, self._prefix)
-        if name in self._gauge_values:
-            return self._gauge_values[name]
-        if name in self._counter_values:
-            return self._counter_values[name]
+        with self._lock:
+            if name in self._gauge_values:
+                return self._gauge_values[name]
+            if name in self._counter_values:
+                return self._counter_values[name]
         return default
 
     def get_stats(self) -> Dict[str, Any]:
-        return {
-            'metrics_endpoint': f'http://0.0.0.0:{self._port}/metrics',
-            'port': self._port,
-            'labels': self._labels,
-            'counter_count': sum(1 for v in self._counters.values() if v is not None),
-            'gauge_count': sum(1 for v in self._gauges.values() if v is not None),
-        }
+        with self._lock:
+            return {
+                'metrics_endpoint': f'http://0.0.0.0:{self._port}/metrics',
+                'port': self._port,
+                'labels': self._labels,
+                'counter_count': sum(1 for v in self._counters.values() if v is not None),
+                'gauge_count': sum(1 for v in self._gauges.values() if v is not None),
+            }
 
     def clear(self) -> None:
         """从注册表注销所有指标，避免清空后再次 inc/set 时报
         'Duplicated timeseries'。"""
-        for metric in list(self._counters.values()):
-            if metric is not None:
-                try:
-                    self._registry.unregister(metric)
-                except Exception:
-                    pass
-        for metric in list(self._gauges.values()):
-            if metric is not None:
-                try:
-                    self._registry.unregister(metric)
-                except Exception:
-                    pass
-        self._counters.clear()
-        self._gauges.clear()
-        self._counter_values.clear()
-        self._gauge_values.clear()
+        with self._lock:
+            for metric in list(self._counters.values()):
+                if metric is not None:
+                    try:
+                        self._registry.unregister(metric)
+                    except Exception:
+                        pass
+            for metric in list(self._gauges.values()):
+                if metric is not None:
+                    try:
+                        self._registry.unregister(metric)
+                    except Exception:
+                        pass
+            self._counters.clear()
+            self._gauges.clear()
+            self._counter_values.clear()
+            self._gauge_values.clear()
 
     def max_value(self, key: str, value: Any) -> None:
         try:
             v = float(value)
         except (TypeError, ValueError):
             return
-        name = _sanitize_metric_name(key, self._prefix)
-        current = self._gauge_values.get(name)
-        if current is None or v > current:
-            self.set_value(key, v)
+        # 读-比-写 全程持锁，避免并发 max_value 竞态条件
+        with self._lock:
+            name = _sanitize_metric_name(key, self._prefix)
+            current = self._gauge_values.get(name)
+            if current is None or v > current:
+                metric = self._get_or_create_gauge(name, key)
+                if metric is not None:
+                    metric.labels(**self._labels).set(v)
+                self._gauge_values[name] = v
 
     def min_value(self, key: str, value: Any) -> None:
         try:
             v = float(value)
         except (TypeError, ValueError):
             return
-        name = _sanitize_metric_name(key, self._prefix)
-        current = self._gauge_values.get(name)
-        if current is None or v < current:
-            self.set_value(key, v)
+        with self._lock:
+            name = _sanitize_metric_name(key, self._prefix)
+            current = self._gauge_values.get(name)
+            if current is None or v < current:
+                metric = self._get_or_create_gauge(name, key)
+                if metric is not None:
+                    metric.labels(**self._labels).set(v)
+                self._gauge_values[name] = v
 
     def append_value(self, key: str, value: Any) -> None:
         """Prometheus 指标模型不表达列表；忽略以避免对非数值转 float 报错。"""
