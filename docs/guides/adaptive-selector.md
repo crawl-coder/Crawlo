@@ -48,7 +48,7 @@ class MySpider(Spider):
 |---|---|---|
 | `adaptive` | `False` | 启用自适应追踪 |
 | `identifier` | query 字符串 | 指纹标识符，同页面复用的选择器应使用不同 identifier |
-| `percentage` | `50.0` | 改版匹配时的最低相似度阈值（0-100） |
+| `percentage` | `50.0` | 改版匹配时的最低相似度阈值（0-100）。实际生效值为 `max(全局阈值, percentage)` |
 
 ### find_similar() — 相邻结构元素查找
 
@@ -88,7 +88,8 @@ matcher = SimilarityMatcher(ignore_attributes={'href', 'src'})
 # 高级配置（可选）：
 ADAPTIVE_STORAGE_BACKEND = 'sqlite'       # 'sqlite'（单机）或 'redis'（分布式）
 ADAPTIVE_SQLITE_PATH = 'adaptive_fingerprints.db'
-ADAPTIVE_SIMILARITY_THRESHOLD = 0.0       # 全局最低相似度阈值
+ADAPTIVE_SIMILARITY_THRESHOLD = 30.0      # 全局最低相似度阈值（0-100，与查询 percentage 取大值）
+ADAPTIVE_MAX_FINGERPRINT_ELEMENTS = 10    # 每个选择器最多保存的元素指纹数
 ```
 
 ### 手动配置（不使用 settings）
@@ -138,6 +139,7 @@ Response.configure_adaptive(
 - **同标签预过滤**：只扫描与目标标签相同的元素（`xpath('.//tag')`）
 - **扫描上限**：单次匹配最多扫描 `MAX_SCAN_ELEMENTS = 5000` 个元素
 - **LRU 缓存**：内存缓存 128 条指纹，避免频繁磁盘 I/O
+- **指纹保存上限**：每个选择器最多保存 `ADAPTIVE_MAX_FINGERPRINT_ELEMENTS`（默认 10）个元素的指纹；超过上限的选择器结果不保存指纹
 
 ### 4. 指纹锁定
 
@@ -146,6 +148,20 @@ Response.configure_adaptive(
 ### 5. 存储 Key 隔离
 
 存储 key 为 `domain + identifier + @path_hash`，同域名不同页面的相同 identifier 不会冲突。
+
+### 6. 双阈值机制
+
+匹配时同时受两个阈值约束，取**较大值**作为实际阈值：
+
+```
+effective_threshold = max(ADAPTIVE_SIMILARITY_THRESHOLD, percentage)
+```
+
+举例：
+- `ADAPTIVE_SIMILARITY_THRESHOLD=30` + `percentage=50` → 实际阈值 50
+- `ADAPTIVE_SIMILARITY_THRESHOLD=70` + `percentage=20` → 实际阈值 70
+
+全局阈值确保低 `percentage` 请求不会意外接受低分匹配；查询阈值控制单次匹配的精细度。
 
 ## 存储后端
 
@@ -159,6 +175,7 @@ ADAPTIVE_SQLITE_PATH = 'adaptive_fingerprints.db'
 - WAL 模式，支持并发
 - 文件零配置，开箱即用
 - `INSERT OR REPLACE` 语义，同 key 覆盖
+- 支持上下文管理器（`with SqliteStorage(...) as s:`），自动关闭连接
 
 ### Redis（分布式）
 
