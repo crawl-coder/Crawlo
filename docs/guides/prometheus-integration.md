@@ -65,8 +65,9 @@ crawlo_queue_size{spider="myspider",worker_id="oscar-mbp-12345"} 0
 |--------|--------|------|
 | `STATS_BACKEND` | `'memory'` | 统计后端类型。设为 `'prometheus'` 启用 |
 | `PROMETHEUS_METRICS_PORT` | `9100` | 指标暴露端口。设为 `0` 自动分配可用端口（多 worker 同机部署时使用） |
-| `PROMETHEUS_LABELS` | `{}` | 额外标签，如 `{'env': 'production', 'dc': 'shanghai'}` |
+| `PROMETHEUS_LABELS` | `{}` | 额外标签，如 `{'env': 'production', 'dc': 'shanghai'}`。注意不会覆盖 `spider`/`worker_id` 内置标签 |
 | `MEMORY_MONITOR_ENABLED` | `False` | 启用内存监控（建议开启以暴露 `memory_rss_mb` 指标） |
+| `MEMORY_MONITOR_INTERVAL` | `60` | 内存监控采样间隔（秒） |
 
 ### 完整配置示例
 
@@ -134,6 +135,7 @@ MEMORY_MONITOR_INTERVAL = 60
 | `crawlo_queue_size` | `queue_size` | 默认启用的 `LogIntervalExtension`（内置） |
 
 > `queue_size` 由 `LogIntervalExtension` 每周期自动写入，该扩展默认启用，无需额外配置。
+> 注意：爬虫空闲（无请求、无产出、队列为空）时跳过写入，此时队列指标在 Prometheus 中保留上一周期值。
 
 ---
 
