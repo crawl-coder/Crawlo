@@ -1,0 +1,317 @@
+{
+  "__inputs": [
+    {
+      "name": "DS_PROMETHEUS",
+      "label": "Prometheus",
+      "description": "Prometheus data source",
+      "type": "datasource",
+      "pluginId": "prometheus",
+      "pluginName": "Prometheus"
+    }
+  ],
+  "__requires": [
+    { "type": "grafana", "id": "grafana", "name": "Grafana", "version": "8.0.0" },
+    { "type": "datasource", "id": "prometheus", "name": "Prometheus", "version": "1.0.0" },
+    { "type": "panel", "id": "timeseries", "name": "Time series", "version": "" },
+    { "type": "panel", "id": "stat", "name": "Stat", "version": "" },
+    { "type": "panel", "id": "bargauge", "name": "Bar gauge", "version": "" }
+  ],
+  "title": "Crawlo 爬虫监控",
+  "description": "Crawlo framework metrics dashboard — request rates, memory, concurrency, queue, errors",
+  "tags": ["crawlo", "crawler", "monitoring"],
+  "schemaVersion": 36,
+  "version": 1,
+  "gnetId": null,
+  "editable": true,
+  "refresh": "30s",
+  "time": { "from": "now-6h", "to": "now" },
+  "timezone": "browser",
+  "panels": [
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 },
+      "id": 0,
+      "panels": [],
+      "title": "核心指标",
+      "type": "row"
+    },
+    {
+      "id": 1,
+      "title": "请求速率 (QPS)",
+      "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 1 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "rps",
+          "min": 0,
+          "decimals": 1,
+          "custom": { "lineInterpolation": "smooth", "showPoints": "never" }
+        }
+      },
+      "targets": [
+        {
+          "expr": "rate(crawlo_response_received_count_total{spider=~\"$spider\", worker_id=~\"$worker_id\"}[1m])",
+          "legendFormat": "QPS"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "title": "采集速率 (Items/s)",
+      "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "gridPos": { "h": 8, "w": 8, "x": 8, "y": 1 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "rps",
+          "min": 0,
+          "decimals": 2,
+          "custom": { "lineInterpolation": "smooth", "showPoints": "never" }
+        }
+      },
+      "targets": [
+        {
+          "expr": "rate(crawlo_item_successful_count_total{spider=~\"$spider\", worker_id=~\"$worker_id\"}[5m])",
+          "legendFormat": "Items/s"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "title": "成功率",
+      "type": "stat",
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "gridPos": { "h": 8, "w": 4, "x": 16, "y": 1 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0,
+          "max": 100,
+          "decimals": 1,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "orange", "value": 90 },
+              { "color": "green", "value": 99 }
+            ]
+          },
+          "color": { "mode": "thresholds" }
+        }
+      },
+      "targets": [
+        {
+          "expr": "crawlo_item_successful_count_total{spider=~\"$spider\", worker_id=~\"$worker_id\"} / clamp_min(crawlo_item_successful_count_total{spider=~\"$spider\", worker_id=~\"$worker_id\"} + crawlo_item_discard_count_total{spider=~\"$spider\", worker_id=~\"$worker_id\"}, 1) * 100"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "title": "状态码分布",
+      "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "gridPos": { "h": 8, "w": 4, "x": 20, "y": 1 },
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "lineInterpolation": "smooth", "showPoints": "never", "stacking": { "mode": "normal" } },
+          "decimals": 0,
+          "min": 0
+        }
+      },
+      "targets": [
+        {
+          "expr": "increase(crawlo_response_status_code_success_count_total{spider=~\"$spider\", worker_id=~\"$worker_id\"}[5m])",
+          "legendFormat": "2xx"
+        },
+        {
+          "expr": "increase(crawlo_response_status_code_4xx_total{spider=~\"$spider\", worker_id=~\"$worker_id\"}[5m])",
+          "legendFormat": "4xx"
+        },
+        {
+          "expr": "increase(crawlo_response_status_code_5xx_total{spider=~\"$spider\", worker_id=~\"$worker_id\"}[5m])",
+          "legendFormat": "5xx"
+        }
+      ]
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 9 },
+      "id": 5,
+      "panels": [],
+      "title": "系统资源",
+      "type": "row"
+    },
+    {
+      "id": 6,
+      "title": "内存趋势",
+      "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 10 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes",
+          "min": 0,
+          "decimals": 0,
+          "custom": { "lineInterpolation": "smooth", "showPoints": "never" }
+        }
+      },
+      "targets": [
+        {
+          "expr": "crawlo_memory_rss_mb{spider=~\"$spider\", worker_id=~\"$worker_id\"} * 1048576",
+          "legendFormat": "RSS"
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "title": "并发水位",
+      "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "gridPos": { "h": 8, "w": 8, "x": 8, "y": 10 },
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 0,
+          "custom": { "lineInterpolation": "smooth", "showPoints": "never" }
+        }
+      },
+      "targets": [
+        {
+          "expr": "crawlo_concurrency_limit{spider=~\"$spider\", worker_id=~\"$worker_id\"}",
+          "legendFormat": "上限"
+        },
+        {
+          "expr": "crawlo_max_concurrent_seen{spider=~\"$spider\", worker_id=~\"$worker_id\"}",
+          "legendFormat": "峰值"
+        }
+      ]
+    },
+    {
+      "id": 8,
+      "title": "平均响应时间",
+      "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 10 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ms",
+          "min": 0,
+          "custom": { "lineInterpolation": "smooth", "showPoints": "never" }
+        }
+      },
+      "targets": [
+        {
+          "expr": "crawlo_avg_response_time_ms{spider=~\"$spider\", worker_id=~\"$worker_id\"}",
+          "legendFormat": "avg"
+        }
+      ]
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 18 },
+      "id": 9,
+      "panels": [],
+      "title": "队列与错误",
+      "type": "row"
+    },
+    {
+      "id": 10,
+      "title": "队列积压",
+      "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 19 },
+      "fieldConfig": {
+        "defaults": {
+          "min": 0,
+          "decimals": 0,
+          "custom": { "lineInterpolation": "smooth", "showPoints": "never" }
+        }
+      },
+      "targets": [
+        {
+          "expr": "crawlo_queue_size{spider=~\"$spider\", worker_id=~\"$worker_id\"}",
+          "legendFormat": "pending"
+        }
+      ]
+    },
+    {
+      "id": 11,
+      "title": "重试 / 异常率",
+      "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "gridPos": { "h": 8, "w": 8, "x": 8, "y": 19 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "rps",
+          "min": 0,
+          "decimals": 2,
+          "custom": { "lineInterpolation": "smooth", "showPoints": "never" }
+        }
+      },
+      "targets": [
+        {
+          "expr": "rate(crawlo_retry_count_total{spider=~\"$spider\", worker_id=~\"$worker_id\"}[5m])",
+          "legendFormat": "重试"
+        },
+        {
+          "expr": "rate(crawlo_downloader_exception_count_total{spider=~\"$spider\", worker_id=~\"$worker_id\"}[5m])",
+          "legendFormat": "异常"
+        }
+      ]
+    },
+    {
+      "id": 12,
+      "title": "各 Worker 请求数",
+      "type": "bargauge",
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 19 },
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 0,
+          "min": 0,
+          "unit": "none"
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum by(worker_id) (crawlo_response_received_count_total{spider=~\"$spider\", worker_id=~\"$worker_id\"})",
+          "legendFormat": "{{ worker_id }}"
+        }
+      ]
+    }
+  ],
+  "templating": {
+    "list": [
+      {
+        "name": "spider",
+        "type": "query",
+        "query": "label_values(crawlo_response_received_count_total, spider)",
+        "refresh": 1,
+        "includeAll": true,
+        "multi": true,
+        "allValue": ".*",
+        "sort": 1
+      },
+      {
+        "name": "worker_id",
+        "type": "query",
+        "query": "label_values(crawlo_response_received_count_total{spider=~\"$spider\"}, worker_id)",
+        "refresh": 1,
+        "includeAll": true,
+        "multi": true,
+        "allValue": ".*",
+        "sort": 1
+      }
+    ]
+  },
+  "annotations": {
+    "list": [
+      {
+        "name": "爬虫启动/关闭",
+        "type": "dashboard",
+        "builtIn": 1,
+        "datasource": { "type": "grafana", "uid": "-- Grafana --" }
+      }
+    ]
+  }
+}

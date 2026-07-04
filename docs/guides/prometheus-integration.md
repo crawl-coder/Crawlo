@@ -217,7 +217,7 @@ scrape_configs:
 ### 导入方式
 
 1. 打开 Grafana → `+` → `Import`
-2. 上传 `assets/grafana/crawlo-dashboard.json`（如仓库中尚未包含，参考下方 PromQL 手动创建）
+2. 上传 `assets/grafana/crawlo-dashboard.json` 导入预置看板
 3. 选择 Prometheus 数据源
 4. 保存
 
