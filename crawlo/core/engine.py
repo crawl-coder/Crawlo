@@ -817,8 +817,18 @@ class Engine(RequestGenerationMixin, ClusterMixin):
                     self.logger.debug(f"调度器关闭时发生错误: {e}")
         except (Exception, asyncio.CancelledError):
             # 清理失败，重置标志允许重试
-            # 同时捕获 CancelledError（Python 3.9+ 中为 BaseException 子类）
             self._spider_closed = False
+            # 即使清理异常也尝试通知扩展（fire-and-forget，不计入 _background_tasks）
+            try:
+                if self.crawler is not None and self.crawler.subscriber is not None:
+                    from crawlo.event import CrawlerEvent
+                    asyncio.ensure_future(
+                        self.crawler.subscriber.notify(
+                            CrawlerEvent.SPIDER_CLOSED, reason='error'
+                        )
+                    )
+            except Exception:
+                pass
             raise
     
     async def _cleanup_old_logs(self):
