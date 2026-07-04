@@ -31,7 +31,7 @@ crawlo run myspider
 启动日志中应看到：
 
 ```
-Prometheus metrics endpoint started on http://0.0.0.0:9100/metrics (labels={'spider': 'myspider', 'worker_id': 'oscar-mbp-12345'})
+Prometheus metrics endpoint started on http://localhost:9100/metrics (labels={'spider': 'myspider', 'worker_id': 'oscar-mbp-12345'})
 ```
 
 ### 4. 验证指标

@@ -129,7 +129,7 @@ class PrometheusStatsBackend(StatsBackend):
 
             logger.info(
                 f"Prometheus metrics endpoint started on "
-                f"http://0.0.0.0:{self._port}/metrics "
+                f"http://localhost:{self._port}/metrics "
                 f"(labels={self._labels})"
             )
         except OSError as e:
@@ -217,7 +217,7 @@ class PrometheusStatsBackend(StatsBackend):
     def get_stats(self) -> Dict[str, Any]:
         with self._lock:
             return {
-                'metrics_endpoint': f'http://0.0.0.0:{self._port}/metrics',
+                'metrics_endpoint': f'http://localhost:{self._port}/metrics',
                 'port': self._port,
                 'labels': self._labels,
                 'counter_count': sum(1 for v in self._counters.values() if v is not None),
