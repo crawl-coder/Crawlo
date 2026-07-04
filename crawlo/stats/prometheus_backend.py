@@ -89,6 +89,17 @@ class PrometheusStatsBackend(StatsBackend):
         self._labels = labels or {'spider': 'default', 'worker_id': 'default'}
         self._registry = registry or CollectorRegistry()
 
+        # 提前校验标签名合法性，避免创建 Counter/Gauge 时才崩溃
+        # Prometheus 标签名必须匹配 [a-zA-Z_][a-zA-Z0-9_]*
+        import re as _re
+        for label_name in self._labels:
+            if not _re.match(r'^[a-zA-Z_][a-zA-Z0-9_]*$', label_name):
+                raise ValueError(
+                    f"Invalid Prometheus label name: {label_name!r}. "
+                    "Label names must match [a-zA-Z_][a-zA-Z0-9_]*. "
+                    f"Candidate fix: check PROMETHEUS_LABELS in settings."
+                )
+
         # 线程锁保护四本字典的并发访问（调用方始终先持锁再调 _get_or_create_*）
         self._lock = threading.Lock()
 

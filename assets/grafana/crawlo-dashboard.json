@@ -166,13 +166,20 @@
     {
       "id": 7,
       "title": "并发水位",
-      "type": "timeseries",
+      "type": "stat",
       "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
       "gridPos": { "h": 8, "w": 8, "x": 8, "y": 10 },
       "fieldConfig": {
         "defaults": {
           "decimals": 0,
-          "custom": { "lineInterpolation": "smooth", "showPoints": "never" }
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null }
+            ]
+          },
+          "color": { "mode": "none" }
         }
       },
       "targets": [
@@ -189,14 +196,23 @@
     {
       "id": 8,
       "title": "平均响应时间",
-      "type": "timeseries",
+      "type": "stat",
       "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
       "gridPos": { "h": 8, "w": 8, "x": 16, "y": 10 },
       "fieldConfig": {
         "defaults": {
           "unit": "ms",
           "min": 0,
-          "custom": { "lineInterpolation": "smooth", "showPoints": "never" }
+          "decimals": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "orange", "value": 500 },
+              { "color": "red", "value": 1000 }
+            ]
+          },
+          "color": { "mode": "thresholds" }
         }
       },
       "targets": [
