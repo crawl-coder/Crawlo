@@ -63,7 +63,8 @@ CLOAKBROWSER_MAX_PAGES = 5
 # =================================== HybridDownloader 配置 ===================================
 
 HYBRID_DEFAULT_PROTOCOL_DOWNLOADER = "aiohttp"
-HYBRID_DEFAULT_DYNAMIC_DOWNLOADER = "cloakbrowser"  # 使用 CloakBrowser 下载器
+HYBRID_DEFAULT_DYNAMIC_DOWNLOADER = "cloakbrowser"  # 运行时可通过 -s 参数覆盖为 playwright/camoufox/cloakbrowser
+HYBRID_DYNAMIC_DOMAINS = ["www.infoq.cn"]           # 域名匹配时动态渲染
 HYBRID_VERBOSE_LOGGING = True  # 启用详细日志，方便调试
 
 # =================================== 日志配置 ===================================

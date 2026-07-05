@@ -24,7 +24,6 @@ Camoufox 特性:
 """
 import time
 import asyncio
-import platform
 from typing import Optional, Dict, List, Set
 from urllib.parse import urlparse
 
@@ -90,7 +89,7 @@ class CamoufoxDownloader(DownloaderBase):
         config = {
             "headless": self.headless,
             "humanize": self.humanize,
-            "os": platform.system().lower() or "windows",
+            # Camoufox v0.4+ 自动检测系统版本，不显式传递 os 参数
         }
         effective_proxy = proxy or self.proxy
         if effective_proxy:
