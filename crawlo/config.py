@@ -288,21 +288,23 @@ class CrawloConfig:
     
     @classmethod
     def distributed(cls,
-                     project_name: str = 'crawlo',
-                     **kwargs) -> 'CrawloConfig':
+                    project_name: str = 'crawlo',
+                    sentinel_urls: Optional[List[str]] = None,
+                    sentinel_service: str = 'mymaster',
+                    **kwargs) -> 'CrawloConfig':
         """
         分布式模式
-        
+
         使用 Redis 队列，支持多节点扩展，适合大规模爬取。
-        
-        Redis 连接参数从 settings 中的 REDIS_HOST/REDIS_PORT/REDIS_PASSWORD/REDIS_USER/REDIS_DB 读取，
-        与 default_settings.py 保持风格统一。
-        
+
         Args:
             project_name: 项目名称
+            sentinel_urls: Sentinel 地址列表（非空时走 Sentinel 高可用模式）
+                如 ['redis://10.0.0.1:26379', 'redis://10.0.0.2:26379']
+            sentinel_service: Sentinel 监控的 Master 名称，默认 'mymaster'
             **kwargs: 其他配置参数
-            
-            Returns:
+
+        Returns:
             CrawloConfig 实例
         """
         redis_host = kwargs.pop('REDIS_HOST', '127.0.0.1')
@@ -310,28 +312,39 @@ class CrawloConfig:
         redis_password = kwargs.pop('REDIS_PASSWORD', '')
         redis_username = kwargs.pop('REDIS_USER', '')
         redis_db = kwargs.pop('REDIS_DB', 0)
-        
+
         # 兼容旧参数名（redis_host 等）
         redis_host = kwargs.pop('redis_host', redis_host)
         redis_port = kwargs.pop('redis_port', redis_port)
         redis_password = kwargs.pop('redis_password', redis_password)
         redis_username = kwargs.pop('redis_username', redis_username)
         redis_db = kwargs.pop('redis_db', redis_db)
-        
+
         # 空字符串密码转为 None
         if redis_password == '':
             redis_password = None
         if redis_username == '':
             redis_username = None
-        
+
         redis_cfg = RedisConfig(
             host=redis_host,
             port=redis_port,
             password=redis_password,
             username=redis_username,
-            db=redis_db
+            db=redis_db,
         )
-        
+
+        # Sentinel 配置（非空则覆盖直连模式）
+        effective_sentinel_urls = list(sentinel_urls or [])
+        sentinel_urls_kwargs = kwargs.pop('sentinel_urls', None)
+        if sentinel_urls_kwargs:
+            effective_sentinel_urls = list(sentinel_urls_kwargs)
+
+        sentinel_service_val = sentinel_service
+        sentinel_service_kwargs = kwargs.pop('sentinel_service', None)
+        if sentinel_service_kwargs:
+            sentinel_service_val = sentinel_service_kwargs
+
         settings = BASE_CONFIG.copy()
         settings.update(MODE_CONFIG_MAP['distributed'])
         settings.update({
@@ -341,6 +354,8 @@ class CrawloConfig:
             'REDIS_USER': redis_username,
             'REDIS_DB': redis_db,
             'REDIS_URL': redis_cfg.to_url(),
+            'REDIS_SENTINEL_URLS': effective_sentinel_urls,
+            'REDIS_SENTINEL_SERVICE': sentinel_service_val,
             'PROJECT_NAME': project_name,
             'SCHEDULER_QUEUE_NAME': f'crawlo:{project_name}:queue:requests',
         })

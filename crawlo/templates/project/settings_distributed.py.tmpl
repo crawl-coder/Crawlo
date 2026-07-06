@@ -19,10 +19,16 @@ from crawlo.config import CrawloConfig
 
 # concurrency   : 单个爬虫并发请求数（生产推荐 16-32）
 # download_delay: 请求间隔延迟（秒），根据目标网站反爬强度调整
+# concurrency   : 单个爬虫并发请求数（生产推荐 16-32）
+# download_delay: 请求间隔延迟（秒），根据目标网站反爬强度调整
+# sentinel_urls : Sentinel 地址列表（非空时走 Sentinel 高可用，否则直连）
+# sentinel_service: Sentinel Master 名称（仅 sentinel_urls 非空时生效）
 config = CrawloConfig.distributed(
     project_name='{{project_name}}',
     concurrency=16,
     download_delay=1.0,
+    # sentinel_urls=['redis://10.0.0.1:26379', 'redis://10.0.0.2:26379'],
+    # sentinel_service='mymaster',
 )
 
 locals().update(config.to_dict())
