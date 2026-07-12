@@ -1,10 +1,22 @@
 # -*- coding: UTF-8 -*-
 """
-InfoQ 动态下载器测试爬虫
-==========================
-测试三种动态下载器（playwright / camoufox / cloakbrowser）的使用
+InfoQ AI 快讯爬虫
+==================
+测试动态下载器对 AI 快讯页 https://www.infoq.cn/aibriefs 的解析。
 
-测试目标：https://www.infoq.cn/aibriefs
+页面结构（基于 demo.html 实际抓取结果）：
+  _aibriefs-list_u5zau_105          — 列表容器
+  _aibriefs-list-item_gicxd_61       — 每条快讯
+    _aibriefs-list-item-left_gicxd_65 — 日期区域
+      _aibriefs-list-item-left-month_gicxd_78  — 月份（如 "07月"）
+      _aibriefs-list-item-left-day_gicxd_84    — 日（如 "03"）
+      _aibriefs-list-item-left-year_gicxd_91   — 年（如 "2026"）
+    _content-item_gicxd_98             — 内容区域
+      _item_ndgee_65                   — 条目
+        _title_ndgee_69                — 标题
+        _info_ndgee_76                 — 信息行
+          _item-time_ndgee_82          — 时间（如 "13:16"）
+        _desc_ndgee_165               — 描述/全文
 """
 import os
 from crawlo import Spider, Request
@@ -12,11 +24,10 @@ from ..items import InfoqArticle
 
 
 class InfoqSpider(Spider):
-    """InfoQ AI 简报爬虫 - 测试动态下载器"""
+    """InfoQ AI 快讯爬虫"""
 
     name = 'infoq_spider'
 
-    # 目标 URL
     START_URL = 'https://www.infoq.cn/aibriefs'
 
     def __init__(self, *args, **kwargs):
@@ -25,144 +36,145 @@ class InfoqSpider(Spider):
 
     def start_requests(self):
         """生成起始请求"""
+        # JS 循环：自动翻页直到按钮消失（async 模式，CloakBrowser 兼容）
+        LOAD_MORE_JS = """async () => {
+            const sel = 'div[class*="_look-more_"]';
+            const wait = ms => new Promise(r => setTimeout(r, ms));
+            let noNew = 0;
+            while (noNew < 3) {
+                window.scrollTo(0, document.body.scrollHeight);
+                await wait(500);
+                const btn = document.querySelector(sel);
+                if (btn && btn.offsetParent !== null) {
+                    btn.click();
+                    await wait(2000);
+                    noNew = 0;
+                } else {
+                    noNew++;
+                    await wait(500);
+                }
+            }
+        }"""
 
-        # 使用动态下载器
-        self.logger.info(f"[动态下载器] 启用动态下载器")
         yield Request(
             url=self.START_URL,
-            callback=self.parse,
-            meta={
-                'use_dynamic_loader': True,
-                # 动态加载参数
-                'cloakbrowser_auto_scroll': True,
-                'cloakbrowser_scroll_delay': 500,
-                'cloakbrowser_block_resources': ["image", "font", "media"],
-            }
-        )
-
-    def parse(self, response):
-        """解析列表页"""
-
-        # 输出基本信息
-        current_page = response.meta.get('page', 1)
-        self.logger.info(f"\n{'#'*60}")
-        self.logger.info(f"# 测试模式: {self.test_mode}")
-        self.logger.info(f"# 当前页码: {current_page}")
-        self.logger.info(f"# URL: {response.url}")
-        self.logger.info(f"# 状态码: {response.status}")
-        self.logger.info(f"# 内容长度: {len(response.text)} 字符")
-        self.logger.info(f"# 使用动态下载器: {response.request.meta.get('use_dynamic_loader', False)}")
-        self.logger.info(f"{'#'*60}\n")
-
-        # 提取页面标题
-        title = response.xpath('//title/text()').get()
-        self.logger.info(f"页面标题: {title}")
-
-        # 提取文章列表
-        article_items = response.xpath('//div[@article-item]')
-        self.logger.info(f"找到文章容器: {len(article_items)} 个")
-
-        # 提取文章信息
-        article_count = 0
-        for idx, item in enumerate(article_items, 1):
-            url = item.xpath('.//h4[@class="title"]/a/@href').get()
-            article_title = item.xpath('.//h4[@class="title"]/a/text()').get()
-            author = item.xpath('.//a[@com-author-name]/text()').get()
-            date = item.xpath('.//span[@class="date"]/text()').get()
-            summary = item.xpath('.//p[@class="summary"]/span/text()').get()
-
-            if idx <= 3:
-                self.logger.debug(f"文章 {idx}: url={url}, title={article_title}")
-
-            if url:
-                full_url = response.urljoin(url)
-                article_count += 1
-
-                article = InfoqArticle(
-                    url=full_url,
-                    title=article_title.strip() if article_title else '',
-                    author=author.strip() if author else '',
-                    date=date.strip() if date else '',
-                    summary=summary.strip() if summary else '',
-                    source='infoq.cn',
-                    type='article'
-                )
-
-                yield article
-
-                if article_count <= 3:
-                    yield Request(
-                        url=full_url,
-                        callback=self.parse_detail,
-                        meta={
-                            'article_title': article_title,
-                            'use_dynamic_loader': True,
-                        }
-                    )
-
-        self.logger.info(f"提取到 {article_count} 篇文章")
-
-        if article_count == 0:
-            yield InfoqArticle(
-                url=response.url,
-                title=title or 'Unknown',
-                source='infoq.cn',
-                note='No articles found'
-            )
-
-        # 尝试点击"加载更多"按钮
-        self.logger.info("尝试点击'加载更多'按钮加载下一页...")
-        yield Request(
-            url=response.url,
             callback=self.parse,
             dont_filter=True,
             meta={
                 'use_dynamic_loader': True,
                 'cloakbrowser_auto_scroll': True,
+                'cloakbrowser_scroll_delay': 500,
                 'cloakbrowser_block_resources': ["image", "font", "media"],
                 'dynamic_actions': [
-                    {
-                        'type': 'scroll_to_bottom',
-                        'params': {
-                            'scroll_delay': 500,
-                            'max_no_content': 2
-                        }
-                    },
-                    {
-                        'type': 'wait',
-                        'params': {
-                            'timeout': 1000
-                        }
-                    },
-                    {
-                        'type': 'click_and_wait',
-                        'params': {
-                            'selector': '//div[@class="_look-more_u5zau_117"]',
-                            'wait_timeout': 3000,
-                            'wait_for': 'networkidle'
-                        }
+                    {'type': 'evaluate', 'params': {'script': LOAD_MORE_JS}},
+                ],
+            }
+        )
+
+    def parse(self, response):
+        """解析 AI 快讯列表页"""
+        self.logger.info(
+            f"[{response.status}] {response.url} "
+            f"({len(response.text)} bytes)"
+        )
+
+        # 提取快讯列表
+        article_items = response.xpath(
+            '//div[contains(@class, "_aibriefs-list-item_")]'
+        )
+        self.logger.info(f"items: {len(article_items)}")
+
+        # 提取信息（含去重检查）
+        seen_titles = set()
+        ordered_titles = []  # 有序标题列表（用于详情页引用）
+        duplicates = 0
+        for item in article_items:
+            title = item.xpath(
+                './/div[contains(@class, "_title_")]/text()'
+            ).get('') or ''
+            desc = item.xpath(
+                './/div[contains(@class, "_desc_")]/text()'
+            ).get('') or ''
+            month = item.xpath(
+                './/div[contains(@class, "left-month")]/text()'
+            ).get('') or ''
+            day = item.xpath(
+                './/div[contains(@class, "left-day")]/text()'
+            ).get('') or ''
+            year = item.xpath(
+                './/div[contains(@class, "left-year")]/text()'
+            ).get('') or ''
+            time_str = item.xpath(
+                './/div[contains(@class, "_item-time_")]/text()'
+            ).get('') or ''
+
+            month_clean = month.replace('月', '').strip()
+            date_parts = [p for p in [year, month_clean, day] if p]
+            date_str = '-'.join(date_parts)
+            if time_str:
+                date_str = f"{date_str} {time_str}"
+
+            title_stripped = title.strip()
+            if title_stripped in seen_titles:
+                duplicates += 1
+                continue
+            seen_titles.add(title_stripped)
+            ordered_titles.append(title_stripped)
+
+            yield InfoqArticle(
+                url=response.url,
+                title=title_stripped,
+                content=desc.strip(),
+                date=date_str,
+                source='infoq.cn',
+                type='aibrief'
+            )
+
+        self.logger.info(f"unique: {len(seen_titles)}, duplicates skipped: {duplicates}")
+
+        if len(article_items) == 0:
+            self.logger.warning("no items found, dumping HTML...")
+            self.logger.warning(response.text[:2000])
+
+        # 尝试展开第一条快讯的更多内容（如果有 _more 按钮）
+        self.logger.info("expanding first item...")
+        yield Request(
+            url=response.url,
+            callback=self.parse_detail,
+            dont_filter=True,
+            meta={
+                'use_dynamic_loader': True,
+                'dynamic_actions': [{
+                    'type': 'click_and_wait',
+                    'params': {
+                        'selector': (
+                            '(//div[contains(@class, "_aibriefs-list-item_")])[1]'
+                            '//div[contains(@class, "_more_")]'
+                        ),
+                        'wait_timeout': 2000,
+                        'wait_for': 'networkidle',
                     }
-                ]
+                }],
+                'article_title': ordered_titles[0] if ordered_titles else '',
             }
         )
 
     def parse_detail(self, response):
-        """解析详情页"""
-        article_title = response.meta.get('article_title', '')
+        """解析详情/展开后的快讯内容"""
+        title = response.meta.get('article_title', '')
+        self.logger.info(
+            f"[detail] {response.url} ({len(response.text)} bytes)"
+        )
 
-        content_html = response.xpath('//div[@class="ProseMirror"]').get()
-        content_text = response.xpath('//div[@class="ProseMirror"]//text()').getall()
-        content_text = ''.join([t.strip() for t in content_text if t.strip()])
+        content = response.xpath(
+            '(//div[@class="_desc_ndgee_165"])[1]/text()'
+        ).get('') or ''
 
-        self.logger.info(f"详情页: {response.url}")
-        self.logger.info(f"文章标题: {article_title}")
-        self.logger.info(f"正文长度: {len(content_text)} 字符")
-
+        self.logger.info(f"title: {title}, content: {len(content)} chars")
         yield InfoqArticle(
             url=response.url,
-            title=article_title,
-            content=content_text,
-            content_html=content_html,
+            title=title,
+            content=content,
             source='infoq.cn',
             type='detail'
         )

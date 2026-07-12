@@ -97,13 +97,20 @@ class CamoufoxDownloader(DownloaderBase):
                 config["proxy"] = {"server": effective_proxy}
             elif isinstance(effective_proxy, dict):
                 config["proxy"] = effective_proxy
-        if self.solve_cloudflare:
-            config["solve_cloudflare"] = True
+
+        # 排除内置插件（UBO 下载常因网络问题失败）
+        try:
+            from camoufox.addons import DefaultAddons
+            config["exclude_addons"] = [DefaultAddons.UBO]
+        except ImportError:
+            pass
 
         # 同步 API: 在后台线程中创建实例并进入上下文
+        # Camoufox v0.4+ __enter__() 返回 Browser，需用 new_page() 获取页面
         def _create():
             browser = Camoufox(**config)
-            page = browser.__enter__()  # with Camoufox() as page
+            browser_instance = browser.__enter__()  # 返回 playwright.sync_api.Browser
+            page = browser_instance.new_page()
             return browser, page
 
         self._browser, self._page = await asyncio.to_thread(_create)
