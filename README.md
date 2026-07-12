@@ -98,7 +98,11 @@ crawlo run example
 | **开发者** | [配置指南](docs/guides/configuration/) → [调度指南](docs/guides/scheduling/) |
 | **运维** | [三种部署模式详解](docs/architecture-overview.md) → [检查点系统](docs/concepts/checkpoint-guide.md) → **[生产部署指南](docs/deployment.md)** |
 
-👉 **[浏览完整文档 →](docs/index.md)**
+---
+
+> ## 📖 [浏览完整文档](docs/index.md)
+>
+> 包含快速入门、使用指南、核心概念、API 参考、实战案例、FAQ 等全部内容。
 
 ---
 

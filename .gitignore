@@ -11,6 +11,7 @@ benchmark/
 listed_company_executive_crawler/
 _wechat_articles/
 wechat-articles/
+crawlo-promo/
 
 # Distribution / packaging
 .Python

@@ -303,5 +303,30 @@ class StatsBackendFactory:
         
         elif backend_type == 'file':
             return FileStatsBackend(file_path=settings.get('STATS_FILE', 'stats.json'))
-        
+
+        elif backend_type == 'prometheus':
+            try:
+                from crawlo.stats.prometheus_backend import PrometheusStatsBackend
+
+                import os
+                import socket
+                worker_id = (
+                    settings.get('WORKER_ID')
+                    or f"{socket.gethostname()}-{os.getpid()}"
+                )
+                return PrometheusStatsBackend(
+                    prefix=settings.get('STATS_PREFIX', 'crawlo'),
+                    port=settings.get_int('PROMETHEUS_METRICS_PORT', 9100),
+                    labels={
+                        'spider': settings.get('PROJECT_NAME', 'crawlo'),
+                        'worker_id': worker_id,
+                        **settings.get_dict('PROMETHEUS_LABELS', {}),
+                    },
+                )
+            except ImportError as e:
+                get_logger(cls.__name__).warning(
+                    f"prometheus-client not installed, fallback to memory backend: {e}"
+                )
+                return MemoryStatsBackend()
+
         return MemoryStatsBackend()

@@ -575,6 +575,14 @@ class QueueManager(QueueStatusMixin, QueueBackpressureMixin):
                     self.config.settings if hasattr(self.config, 'settings') else None,
                     'STREAM_PRIORITY_ENABLED', True, bool
                 ),
+                sentinel_urls=safe_get_config(
+                    self.config.settings if hasattr(self.config, 'settings') else None,
+                    'REDIS_SENTINEL_URLS', []
+                ),
+                sentinel_service=safe_get_config(
+                    self.config.settings if hasattr(self.config, 'settings') else None,
+                    'REDIS_SENTINEL_SERVICE', 'mymaster'
+                ),
             )
             # Stream queue 需要立即 connect 以创建 Consumer Group
             await queue.connect()

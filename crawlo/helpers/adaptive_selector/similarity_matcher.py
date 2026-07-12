@@ -51,9 +51,18 @@ class SimilarityMatcher:
         """Initialize matcher
 
         Args:
-            threshold: Minimum similarity threshold (0-100 percentage), matches below this score will be discarded
-            weights: Dimension weight configuration, uses default if None
-            ignore_attributes: Attribute names to skip in important_attrs comparison (e.g., {'href', 'src'})
+            threshold: Minimum similarity threshold (0-100 percentage).
+                Matches scoring below this value are discarded.
+                Used as floor value: effective_threshold = max(self.threshold, percentage)
+                where percentage is the per-query threshold from xpath/css.
+                In practice, configure via ADAPTIVE_SIMILARITY_THRESHOLD (default 30).
+            weights: Dimension weight configuration, uses default if None.
+                text=2.0 is the highest weight — works well for stable text
+                (titles, prices) but may degrade with dynamic content (timestamps,
+                CSRF tokens). For pages with volatile text, increase tag/path
+                weights via ignore_attributes or custom weights.
+            ignore_attributes: Attribute names to skip in important_attrs
+                comparison (e.g., {'href', 'src'}).
         """
         self.threshold = threshold
         self.weights = weights or self.DEFAULT_WEIGHTS
@@ -249,13 +258,20 @@ class SimilarityMatcher:
         Uses Jaccard-like set comparison (order-independent) for keys,
         and SequenceMatcher for values. Each contributes 50% weight.
 
+        Rationale for 50/50 split: For HTML attributes, key existence
+        and value similarity are equally important signals. The
+        important_attrs dimension (weightx2.0) separately handles
+        class/id/href/src, compensating for single-attribute mismatches.
+
         Args:
-            dict1: First dictionary
-            dict2: Second dictionary
+            dict1: First dictionary (None treated as empty).
+            dict2: Second dictionary (None treated as empty).
 
         Returns:
             float: Similarity (0.0 ~ 1.0)
         """
+        dict1 = dict1 or {}
+        dict2 = dict2 or {}
         # Key similarity: Jaccard-style (order-independent)
         keys1, keys2 = set(dict1.keys()), set(dict2.keys())
         if not keys1 and not keys2:

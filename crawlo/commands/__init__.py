@@ -23,7 +23,8 @@ _commands = {
     'stats': 'crawlo.commands.stats',
     'help': 'crawlo.commands.help',
     'schedule': 'crawlo.commands.schedule',
-    'shell': 'crawlo.commands.shell'
+    'shell': 'crawlo.commands.shell',
+    'dead-letter': 'crawlo.commands.dead_letter',
 }
 
 def get_commands():

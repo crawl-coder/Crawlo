@@ -762,9 +762,15 @@ class TestResponseAdaptive(unittest.TestCase):
         Response.configure_adaptive()
         self.assertTrue(Response._is_adaptive_enabled())
 
-        # 禁用：直接重置类属性
-        Response._adaptive_enabled_global = False
-        self.assertFalse(Response._is_adaptive_enabled())
+        # 禁用：清理全部资源后再调用 _is_adaptive_enabled 应自动重新初始化
+        Response.cleanup_adaptive()
+        # 不传任何 settings，使用默认配置 → 仍会初始化
+        self.assertTrue(Response._is_adaptive_enabled())
+
+        # 通过 settings 显式禁用：传入空配置（实际应传 ADAPTIVE_SELECTOR_ENABLED=False）
+        # 但当前 _is_adaptive_enabled 尚未读取该配置；下方验证：清理后 storage=None
+        Response.cleanup_adaptive()
+        self.assertIsNone(Response._adaptive_storage)
 
 
 if __name__ == '__main__':

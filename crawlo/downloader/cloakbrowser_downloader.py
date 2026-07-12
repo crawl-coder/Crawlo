@@ -119,7 +119,8 @@ class CloakBrowserDownloader(DownloaderBase, SmartWaitMixin):
         self.geoip = s.get_bool("CLOAKBROWSER_GEOIP", False)
         self.timezone = s.get("CLOAKBROWSER_TIMEZONE", None)
         self.locale = s.get("CLOAKBROWSER_LOCALE", None)
-        self.backend = s.get("CLOAKBROWSER_BACKEND", "playwright")
+        # CloakBrowser >=0.4.7 已移除 backend 参数，仅支持 Playwright
+        self.backend = "playwright"
         self.stealth_args = s.get_bool("CLOAKBROWSER_STEALTH_ARGS", True)
         self.fingerprint = s.get("CLOAKBROWSER_FINGERPRINT", None)
         self.fingerprint_platform = s.get("CLOAKBROWSER_FINGERPRINT_PLATFORM", None)
@@ -149,7 +150,6 @@ class CloakBrowserDownloader(DownloaderBase, SmartWaitMixin):
                 "humanize": self.humanize,
                 "geoip": self.geoip,
                 "stealth_args": self.stealth_args,
-                "backend": self.backend,
             }
 
             # 代理解析：CLOAKBROWSER_PROXY > PROXY_API_URL 动态获取

@@ -86,6 +86,18 @@ class MemoryMonitorExtension(BaseMonitorExtension):
 
                 trend_slope, is_increasing, trend_status = self._calculate_memory_trend()
 
+                # 将内存指标写入 StatsCollector，供 Prometheus 等后端暴露
+                try:
+                    self.crawler.stats.set_value(
+                        'memory_rss_mb', round(process_rss / 1024 / 1024, 2)
+                    )
+                    self.crawler.stats.set_value(
+                        'memory_percent', round(process_percent, 2)
+                    )
+                    self.crawler.stats.set_value('thread_count', thread_count)
+                except Exception:
+                    pass
+
                 if system_percent > 0 or process_percent > 0:
                     issues = self._detect_issues(process_percent, process_rss, is_increasing, trend_slope, thread_count)
                     self._log_memory_status(process_rss, process_vms, process_percent, thread_count,

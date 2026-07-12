@@ -118,6 +118,12 @@ STREAM_COMPACT = True                                   # 精简序列化（仅�
 STREAM_SERIALIZATION_FORMAT = 'json'                    # Stream 序列化格式（默认 json，使 redis-cli 可读）
 STREAM_PRIORITY_ENABLED = True                           # 双 Stream 优先级支持（True: 独立高优 Stream, False: 单 Stream FIFO）
 
+# Sentinel 高可用配置
+# 优先级：REDIS_SENTINEL_URLS 非空 → 走 Sentinel 模式，忽略 REDIS_HOST/REDIS_PORT
+#          REDIS_SENTINEL_URLS 为空 → 走直连模式，使用 REDIS_HOST/REDIS_PORT
+REDIS_SENTINEL_URLS = []               # Sentinel 地址列表，如 ["redis://10.0.0.1:26379", "redis://10.0.0.2:26379"]
+REDIS_SENTINEL_SERVICE = "mymaster"    # Sentinel 监控的 Master 名称
+
 # 分布式 Worker 配置
 DISTRIBUTED_WORKER_IDLE_TIMEOUT = 120                   # 连续空闲 N 秒后退出（0 = 永不退出）
 DISTRIBUTED_COORDINATED_SHUTDOWN_ENABLED = True         # 是否启用 Leader 协调退出（在所有 Worker 空闲时自动广播 shutdown）
@@ -606,6 +612,13 @@ LOG_FILE = None                                         # 日志文件路径
 LOG_FORMAT = '%(asctime)s - [%(name)s] - %(levelname)s: %(message)s'
 LOG_ENCODING = 'utf-8'
 STATS_DUMP = True                                       # 是否周期性输出统计信息
+STATS_BACKEND = 'memory'                                # 统计后端：memory（默认）| redis | file | prometheus
+STATS_PREFIX = 'crawlo'                                 # 统计键前缀
+
+# ---- Prometheus 监控（STATS_BACKEND='prometheus' 时生效） ----
+PROMETHEUS_METRICS_PORT = 9100                          # 指标暴露端口，设为 0 则自动分配可用端口
+PROMETHEUS_LABELS = {}                                  # 额外标签，如 {'env': 'production'}
+
 INTERVAL = 60                                           # 日志输出间隔（秒）
 LOG_RETENTION_DAYS = 1                                  # 日志文件保留天数（爬虫关闭时自动清理）
 
@@ -743,7 +756,8 @@ SCHEDULER_MAX_RESOURCE_AGE = 7200                       # 资源最大存活时�
 
 ADAPTIVE_STORAGE_BACKEND = 'sqlite'                     # 存储后端：sqlite（单机）| redis（分布式）
 ADAPTIVE_SQLITE_PATH = 'adaptive_fingerprints.db'       # SQLite 数据库路径
-ADAPTIVE_SIMILARITY_THRESHOLD = 0.0              # 最低相似度阈值（0-100，0 = 不过滤）
+ADAPTIVE_SIMILARITY_THRESHOLD = 30.0                    # 最低相似度阈值（0-100），低于此值的匹配将被丢弃
+ADAPTIVE_MAX_FINGERPRINT_ELEMENTS = 10                  # 每个选择器最多保存的元素指纹数
 
 
 # #############################################################################

@@ -282,7 +282,7 @@ Crawlo 在此版本下：
 
 ### 关键点
 
-- **种子去重**：所有 Worker 启动时通过 `SET NX EX 120` 竞选种子生成器，只有一个 Worker 生成 `start_requests`。其余 Worker 跳过种子生成，直接进入任务消费
+- **种子去重**：所有 Worker 启动时通过 `SET NX EX 120` 竞选种子生成器，只有一个 Worker 生成 `start_requests`。其余 Worker 跳过种子生成，直接进入任务消费。种子生成器启动后台续期任务（每 60 秒延长 TTL），启动前检测死锁并自动接管
 - **双 Stream 路由**：`priority < 0` → `stream:tasks:high`；`priority ≥ 0` → `stream:tasks`。可通过 `STREAM_PRIORITY_ENABLED=False` 降级为单 Stream
 - **优先级消费策略**：`_read()` 策略为先非阻塞检查高优 Stream（10ms 超时），有消息则返回；无消息则阻塞等待普通 Stream
 - **消息-Stream 映射**：`_message_stream` 字典记录每个 `message_id` 的来源 Stream，确保 ACK/NACK 路由回正确的 Stream
@@ -489,7 +489,7 @@ t=120s    二次确认 → DistributedLock 持锁 → 正式回收
 | 消息已消费、下载中 | **不丢** | 消息在 PEL pending 中，XAUTOCLAIM 回收重新入队 |
 | 处理完成、ACK 前 | **不丢，可能重复** | 回收重新执行（**至少一次**语义）；MySQL 唯一键 / dedup 作为最后防线 |
 | 处理完成、ACK 后 | **不丢** | XACK 已将消息从 PEL 移除 |
-| 死信 | **不丢** | 转入 `stream:failed`，可排查后手动重试 |
+| 死信 | **不丢** | 转入 `stream:failed`，通过 `crawlo dead-letter list/retry` 排查或重新入队 |
 
 > **唯一风险——重复消费**：Worker 完成 MySQL 写入但 XACK 前崩溃 → 消息被回收重放。
 > 数据库唯一键约束保证幂等写入，不会产生脏数据。
@@ -645,27 +645,61 @@ _on_config_message(action):
 
 ---
 
-## 6. 消息可靠投递
+## 6. 消息可靠投递（Lua 原子化 ACK/NACK/重试）
 
 ### 6.1 ACK / NACK 机制
+
+ACK 使用 Lua 脚本在 Redis 服务端原子执行 XACK + XDEL，消除进程崩溃窗口：
 
 ```python
 async def _ack_message(request, engine, success, error=None):
     if not engine._cluster_worker_id:
         return  # 非分布式模式，跳过
-    
+
     message_id = request.meta['__stream_message_id']
-    
+
     if success:
+        # Lua 脚本原子执行 XACK + XDEL
+        # → 消除了 XACK 和 XDEL 之间的崩溃窗口（幽灵消息问题）
         await engine.scheduler.ack_request(message_id)
-        # → _get_message_stream(message_id) 路由到正确 Stream
-        # → XACK (从 pending 列表移除)
-        # → XDEL (从 Stream 物理删除)
     else:
         result = engine._task_tracker.classify_error(error)
         # → RETRY / DEAD_LETTER / ACK
+        # 重试路径同样使用 Lua 脚本原子执行：XRANGE + XACK + XDEL + XADD
         await engine.scheduler.nack_request(message_id, result=result)
-        # → _get_message_stream(message_id) 路由到正确 Stream
+```
+
+**原子 ACK Lua 脚本**：
+```lua
+local acked = redis.call('XACK', KEYS[1], ARGV[1], ARGV[2])
+if acked > 0 then
+    redis.call('XDEL', KEYS[1], ARGV[2])
+end
+return tostring(acked)
+```
+
+**原子重试 Lua 脚本**（XRANGE → 转 hash 表 → XACK+XDEL → XADD 重新入队，全程原子）：
+```lua
+local msgs = redis.call('XRANGE', KEYS[1], ARGV[1], ARGV[1], 'COUNT', 1)
+local flat = msgs[1][2]
+local fields = {}
+for i = 1, #flat, 2 do fields[flat[i]] = flat[i + 1] end
+-- 注意：XRANGE 返回的 fields 是平铺数组 [k1,v1,k2,v2,...]，需先转 hash 表
+local retry_count = 1
+if fields['retry_count'] then retry_count = tonumber(fields['retry_count']) + 1 end
+if retry_count >= tonumber(ARGV[5]) then
+    redis.call('XACK', KEYS[1], ARGV[2], ARGV[1])
+    redis.call('XDEL', KEYS[1], ARGV[1])
+    return {0, retry_count}  -- 超限进死信
+end
+redis.call('XACK', KEYS[1], ARGV[2], ARGV[1])
+redis.call('XDEL', KEYS[1], ARGV[1])
+fields['retry_count'] = tostring(retry_count)
+-- unpack(fields) 重新入队
+local nf = {}
+for k, v in pairs(fields) do nf[#nf + 1] = k; nf[#nf + 1] = v end
+redis.call('XADD', KEYS[1], 'MAXLEN', '~', tonumber(ARGV[6]), '*', unpack(nf))
+return {1, retry_count}
 ```
 
 > **双 Stream ACK 路由**：`_message_stream` 字典记录每个 `message_id` 的来源 Stream
@@ -991,8 +1025,17 @@ REDIS_URL = "redis+sentinel://10.0.0.1:26379,10.0.0.2:26379/0"
 
 数据分片 + 自动故障转移，适合大规模部署。
 
+> **注意**：当前分布式模式（RedisStreamQueue）已支持通过代码传入 Sentinel 参数。
+> 完整的生产级 Sentinel 配置参见 [示例配置文件](../examples/ofweek_distributed/ofweek_distributed/settings.py)。
+
 ```python
-REDIS_URL = "redis+cluster://10.0.0.1:7000,10.0.0.2:7000,10.0.0.3:7000/0"
+# Sentinel 模式（代码层已支持）
+from crawlo.queue.redis_stream_queue import RedisStreamQueue
+queue = RedisStreamQueue(redis_url="", ...)
+await queue.connect(sentinel_urls=[
+    "redis://10.0.0.1:26379",
+    "redis://10.0.0.2:26379",
+])
 ```
 
 **注意**：Redis Cluster 中 Stream 的 Key 必须在同一个 slot，Crawlo 使用 `{project}:{spider}` 作为 hash tag 确保 Stream、Registry、Filter 等 Key 落在同一节点。

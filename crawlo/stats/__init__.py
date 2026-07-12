@@ -11,6 +11,7 @@ Crawlo 统计模块
 - MemoryStatsBackend: 内存存储后端（默认）
 - RedisStatsBackend: Redis 存储后端
 - FileStatsBackend: 文件存储后端
+- PrometheusStatsBackend: Prometheus 指标暴露后端（需 pip install crawlo[monitoring]）
 - StatsBackendFactory: 后端工厂
 
 使用示例：

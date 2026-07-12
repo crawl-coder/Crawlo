@@ -9,26 +9,36 @@ Crawlo 提供了多种下载器，覆盖从简单静态页面到高强度反爬�
 | 下载器 | 类型 | 反检测能力 | 速度 | 内存占用 | 适用场景 |
 |--------|------|-----------|------|---------|---------|
 | **AioHttpDownloader** | 协议 | 无 | 最快 | 极低 | 静态页面、API 接口 |
-| **HttpXDownloader** | 协议 | 无 | 最快 | 极低 | 同上，HTTP/2 支持 |
-| **CurlCffiDownloader** | 协议 | TLS 指纹模拟 | 快 | 低 | 有 TLS 指纹检测的 API |
-| **PlaywrightDownloader** | 浏览器 | JS 注入（基础） | 中 | 中 | JS 渲染页面 |
-| **DrissionPageDownloader** | 浏览器 | JS 注入（基础） | 中 | 中 | 简单动态页面 |
-| **CamoufoxDownloader** | 浏览器 | C++ 补丁（Firefox） | 中慢 | 中高 | 中度反爬站点 |
-| **CloakBrowserDownloader** | 浏览器 | C++ 补丁（Chromium） | 中慢 | 高 | 高强度反爬站点 |
+| **HttpXDownloader** | 协议 | HTTP/2 支持 | 最快 | 极低 | 需要 HTTP/2 的 API |
+| **CurlCffiDownloader** | 协议 | TLS 指纹模拟 | 快 | 低 | Cloudflare 5 秒盾、TLS 检测 |
+| **PlaywrightDownloader** | 浏览器 | JS 注入（基础） | 中 | 中 | 需要 JS 渲染的 SPA 页面 |
+| **CamoufoxDownloader** | 浏览器 | 浏览器指纹伪装（Firefox） | 中慢 | 中高 | 浏览器指纹检测、Akamai |
+| **CloakBrowserDownloader** | 浏览器 | C++ 补丁（Chromium） | 中慢 | 高 | 高强度反爬、Cloudflare |
+| **DrissionPageDownloader** | 浏览器 | JS 注入（基础） | 中 | 中 | 国产环境、简单动态页面 |
+| **HybridDownloader** | 混合 | 协议+动态自动切换 | 动态 | 低→动态 | 复杂场景，推荐默认使用 |
 
 ---
 
 ## 如何选择下载器
 
+**首选：HybridDownloader（框架默认）**。它会根据请求类型自动在协议层和动态层间切换，大部分场景不用手动选下载器。
+
+需要手动指定时的决策路径：
+
 ```
 目标页面需要 JS 渲染吗？
-├── 否 → 使用协议下载器（AioHttp / HttpX）
-│         └── 有 TLS 指纹检测？→ CurlCffi
+├── 否 → 使用协议下载器
+│         ├── 普通 API → AioHttpDownloader
+│         ├── 需要 HTTP/2 → HttpXDownloader
+│         └── Cluodflare / TLS 检测 → CurlCffiDownloader
 │
 └── 是 → 站点有反爬检测吗？
-          ├── 无/弱 → PlaywrightDownloader（最轻量）
-          ├── 中度 → CamoufoxDownloader（Firefox 反检测）
-          └── 强（Cloudflare/reCAPTCHA）→ CloakBrowserDownloader（最强）
+          ├── 无 → PlaywrightDownloader（最轻量）
+          ├── 中文生态 → DrissionPageDownloader
+          ├── 浏览器指纹检测 → CamoufoxDownloader（Firefox）
+          └── 高强度反爬 → CloakBrowserDownloader（Chromium）
+
+也可以直接用 HybridDownloader，让它按规则自动选择。
 ```
 
 ---
@@ -39,28 +49,30 @@ Crawlo 提供了多种下载器，覆盖从简单静态页面到高强度反爬�
 
 ```python
 # settings.py
-DOWNLOADER = 'crawlo.downloader.hybrid_downloader.HybridDownloader'
+DOWNLOADER = 'hybrid'   # 短名称（推荐），或 'crawlo.downloader.HybridDownloader'
 ```
+
+**框架默认使用的就是 HybridDownloader**，不配置 DOWNLOADER 即可。
 
 ### 工作原理
 
 HybridDownloader 维护两类下载器：
-- **协议下载器**：aiohttp / httpx / curl_cffi，处理静态页面
-- **动态下载器**：Playwright / Camoufox / CloakBrowser，处理 JS 渲染页面
+- **协议下载器**：默认 aiohttp，处理普通 HTTP 请求（快）
+- **动态下载器**：默认 playwright，处理需要 JS 渲染的请求（稳）
+
+动态下载器**懒加载**——首次匹配动态请求时才初始化浏览器，不浪费内存。
 
 ### 自动路由规则
 
-1. **请求级标记**：`request.meta['use_dynamic_loader'] = True` → 使用动态下载器
-2. **域名规则**：`HYBRID_DYNAMIC_DOMAINS` 列表中的域名 → 自动走动态下载器
-3. **URL 模式**：`HYBRID_DYNAMIC_URL_PATTERNS` 匹配的 URL → 自动走动态下载器
-4. **默认**：其余请求走协议下载器
+1. **请求标记**：`yield Request(url, meta={'use_dynamic_loader': True})` → 使用动态下载器
+2. **URL 模式**：`HYBRID_DYNAMIC_URL_PATTERNS` → 匹配正则表达式的 URL 走动态层
+3. **域名匹配**：`HYBRID_DYNAMIC_DOMAINS` → 匹配的域名自动走动态层
+4. **默认**：其余走协议下载器
 
 ### 配置示例
 
 ```python
 # settings.py
-DOWNLOADER = 'crawlo.downloader.hybrid_downloader.HybridDownloader'
-
 # 默认协议下载器
 HYBRID_DEFAULT_PROTOCOL_DOWNLOADER = 'httpx'
 

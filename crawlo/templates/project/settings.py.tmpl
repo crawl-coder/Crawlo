@@ -75,6 +75,12 @@ REDIS_PASSWORD = ''                                     # Redis 密码
 REDIS_USER = ''                                         # Redis 用户名（Redis 6.0+ ACL）
 REDIS_DB = 0                                            # Redis 数据库编号
 
+# Redis Sentinel 高可用
+# 优先级：REDIS_SENTINEL_URLS 非空 → 走 Sentinel 模式，忽略 REDIS_HOST/REDIS_PORT
+#          REDIS_SENTINEL_URLS 为空 → 走直连模式，使用 REDIS_HOST/REDIS_PORT
+# REDIS_SENTINEL_URLS = ['redis://10.0.0.1:26379', 'redis://10.0.0.2:26379']
+# REDIS_SENTINEL_SERVICE = 'mymaster'                    # Sentinel 监控的 Master 名称
+
 # ---------------------------------------------------------------------------#
 # MySQL（如需入库）
 # ---------------------------------------------------------------------------#

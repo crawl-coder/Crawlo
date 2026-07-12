@@ -95,11 +95,12 @@ class CheckpointManager:
         if self.storage is None:
             return False
         try:
-            # 1. 提取待处理请求
-            requests_data = await self._extract_pending_requests(scheduler)
-
-            # 2. 提取去重指纹
+            # 1. 提取去重指纹（必须在提取请求之前，防止
+            #    提取间隙产生的新请求被遗漏）
             fingerprints = self._extract_fingerprints(scheduler)
+
+            # 2. 提取待处理请求
+            requests_data = await self._extract_pending_requests(scheduler)
 
             # 3. 收集统计信息
             stats_data = self._extract_stats(stats)

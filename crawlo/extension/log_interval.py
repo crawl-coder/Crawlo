@@ -261,6 +261,11 @@ class LogIntervalExtension:
                 response_rate = last_response_count - self.response_count
 
                 queue_size = await self._get_queue_size()
+                # 写入 StatsCollector，供 Prometheus 等后端暴露
+                try:
+                    self.stats.set_value('queue_size', queue_size)
+                except Exception:
+                    pass
                 # 智能检测：爬虫闲置时静默跳过
                 if item_rate == 0 and response_rate == 0 and queue_size == 0:
                     await asyncio.sleep(self.seconds)
