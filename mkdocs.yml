@@ -129,6 +129,8 @@ nav:
     - 错误处理机制: concepts/error-handling.md
     - 检查点系统: concepts/checkpoint-guide.md
     - Redis Key 说明: concepts/redis-keys.md
+  - 📝 发布记录:
+    - v1.7.2: releases/v1.7.2.md
   - 🔧 API参考:
     - 概览: reference/index.md
     - 命令行参考: reference/cli-reference.md
