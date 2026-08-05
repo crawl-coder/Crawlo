@@ -131,6 +131,8 @@ nav:
     - Redis Key 说明: concepts/redis-keys.md
   - 📝 发布记录:
     - v1.7.2: releases/v1.7.2.md
+    - v1.7.1: releases/v1.7.1.md
+    - v1.7.0: releases/v1.7.0.md
   - 🔧 API参考:
     - 概览: reference/index.md
     - 命令行参考: reference/cli-reference.md
