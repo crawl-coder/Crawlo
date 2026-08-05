@@ -14,9 +14,12 @@ MCP 场景下的轻量级抓取器：
 import asyncio
 import atexit
 import base64
+import contextlib
+import io
 import json
 import os
 import re
+import sys
 import time
 from typing import Optional, Dict, Any, List
 from dataclasses import dataclass, field
@@ -28,6 +31,45 @@ from aiohttp import ClientSession, TCPConnector, ClientTimeout
 
 # Cookie 持久化文件路径
 _COOKIE_FILE = os.path.expanduser("~/.crawlo/mcp_cookies.json")
+
+
+@contextlib.contextmanager
+def _redirect_browser_stdout():
+    """临时重定向 sys.stdout，防止 Camoufox 首次下载浏览器时
+    把 tqdm 进度条 / click 输出打到 stdout，污染 MCP 的 stdio
+    JSON-RPC 消息流。
+
+    MCP 的 stdio transport 读写依赖底层文件描述符（而非 Python 的
+    sys.stdout 文本对象），因此临时替换 sys.stdout 不会破坏协议通道，
+    但能截住 Camoufox 的下载输出（写入日志文件）。
+    """
+    import logging
+    logger = logging.getLogger("crawlo.mcp.camoufox")
+
+    if not sys.stdout:
+        yield
+        return
+
+    log_path = os.path.expanduser("~/.crawlo/camoufox_download.log")
+    try:
+        os.makedirs(os.path.dirname(log_path), exist_ok=True)
+        real_stdout = sys.stdout
+        buf = io.StringIO()
+        sys.stdout = buf
+        try:
+            yield
+        finally:
+            sys.stdout = real_stdout
+        captured = buf.getvalue()
+        if captured.strip():
+            logger.warning("Camoufox browser output redirected (MCP stdio protection):\n%s", captured)
+            with open(log_path, "a", encoding="utf-8") as f:
+                f.write(captured)
+                f.write("\n")
+    except Exception as e:
+        # 兜底：即使重定向失败也不影响主流程
+        logger.warning("Failed to redirect browser stdout: %s", e)
+        yield
 
 
 @dataclass
@@ -311,7 +353,10 @@ class QuickFetcher:
                     await self._camoufox_try_close()
                     self._camoufox_browser = None
 
-            self._camoufox_browser = await AsyncCamoufox(headless=True).__aenter__()
+            # 首次创建可能触发 Camoufox 浏览器下载（tqdm 进度条打到 stdout），
+            # 临时重定向以免污染 MCP stdio 的 JSON-RPC 消息流
+            with _redirect_browser_stdout():
+                self._camoufox_browser = await AsyncCamoufox(headless=True).__aenter__()
             return self._camoufox_browser
 
     async def _camoufox_try_close(self):

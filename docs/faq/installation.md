@@ -211,6 +211,15 @@ pip install --force-reinstall crawlo
 
 > 💡 **说明**：Redis、MySQL、MongoDB 等数据库支持已包含在基础安装中，无需额外安装。
 
+> ⚠️ **MCP 场景（max-stealth 模式）**：首次使用 Camoufox 浏览器时，需要下载约 300MB 的浏览器二进制。在 MCP（Claude Desktop / Cursor）中触发下载时，进度条会直接打到 stdout，可能干扰 stdio 协议的 JSON-RPC 消息流。**建议提前手动预下载**：
+>
+> ```bash
+> pip install camoufox
+> python -m camoufox fetch
+> ```
+>
+> 即使未预下载，Crawlo 也已内置防护：会临时把下载日志重定向到 `~/.crawlo/camoufox_download.log`，避免污染协议通道。
+
 ## 在 Docker 中使用 Crawlo？
 
 创建 `Dockerfile`：

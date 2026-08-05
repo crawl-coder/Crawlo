@@ -61,6 +61,17 @@ playwright install
 pip install crawlo[mcp]
 ```
 
+> ⚠️ **版本兼容**：MCP Server 依赖 `mcp>=1.0,<2.0`（mcp 2.x 移除了 `mcp.server.fastmcp`，安装最新版会导致启动即崩溃）。Crawlo 已锁定该范围，无需手动干预。
+>
+> ⚠️ **max-stealth 模式预下载**：首次使用 Camoufox 浏览器（max-stealth 模式）时需下载约 300MB 二进制。在 Claude/Cursor 中首次触发下载时，进度条会打到 stdout，可能干扰 stdio 协议的 JSON-RPC 消息流。建议提前手动预下载：
+>
+> ```bash
+> pip install camoufox
+> python -m camoufox fetch
+> ```
+>
+> Crawlo 也已内置防护：下载日志会被临时重定向到 `~/.crawlo/camoufox_download.log`，避免污染协议通道。
+
 ### 全部依赖
 
 ```bash

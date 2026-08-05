@@ -9,6 +9,18 @@
 </p>
 
 <p align="center">
+  <a href="https://github.com/crawl-coder/Crawlo/actions/workflows/test.yml">
+    <img src="https://github.com/crawl-coder/Crawlo/actions/workflows/test.yml/badge.svg" alt="CI"/>
+  </a>
+  <a href="https://pypi.org/project/crawlo/">
+    <img src="https://img.shields.io/pypi/v/crawlo.svg" alt="PyPI version"/>
+  </a>
+  <a href="https://pypi.org/project/crawlo/">
+    <img src="https://img.shields.io/pypi/pyversions/crawlo.svg" alt="Python versions"/>
+  </a>
+</p>
+
+<p align="center">
   <strong>Python 3.8+</strong> · <strong>Python 3.14 Compatible</strong>
 </p>
 
