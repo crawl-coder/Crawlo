@@ -1,0 +1,52 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master, develop_distributed]
+  pull_request:
+    branches: [main, master]
+
+jobs:
+  test:
+    name: Python ${{ matrix.python-version }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.9", "3.10", "3.11", "3.12"]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          # 安装基础依赖 + 核心测试所需的可选依赖：
+          #   monitoring → prometheus-client（test_prometheus_backend）
+          #   mcp        → mcp 包（test_mcp_server）
+          #   sqlite     → aiosqlite（可选）
+          # 不装 [all]：playwright/camoufox/cloakbrowser 等重型浏览器依赖在 CI 中
+          # 需额外下载二进制，且核心单元测试不依赖它们。
+          pip install -e ".[monitoring,mcp,sqlite]"
+          pip install pytest pytest-asyncio
+
+      - name: Run core unit tests
+        run: |
+          python -m pytest \
+            tests/test_adaptive_selector.py \
+            tests/test_adaptive_enhancements.py \
+            tests/test_adaptive_fixes.py \
+            tests/test_adaptive_find_similar.py \
+            tests/test_prometheus_backend.py \
+            tests/test_mcp_server.py \
+            tests/test_logic_fixes.py \
+            tests/test_batch_processor.py \
+            tests/test_encoding_detection.py \
+            -v --tb=short
