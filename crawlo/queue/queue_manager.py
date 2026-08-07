@@ -244,13 +244,25 @@ class QueueManager(QueueStatusMixin, QueueBackpressureMixin):
                 await self._queue.put((final_priority, request))
                 success = True
 
+            # 修复信号量泄漏：如果 put 返回 False（请求未真正入队），
+            # 必须释放已 acquire 的信号量，否则会造成永久泄漏
+            # （get 时不会 release，因为队列里没有对应元素）
+            if not success and semaphore_acquired and self._queue_semaphore:
+                try:
+                    self._queue_semaphore.release()
+                except ValueError:
+                    pass
+
             return success
 
         except Exception as e:
             self.logger.error(f"Failed to enqueue request: {e}")
             # 只在已获取信号量时才释放
             if semaphore_acquired and self._queue_semaphore:
-                self._queue_semaphore.release()
+                try:
+                    self._queue_semaphore.release()
+                except ValueError:
+                    pass
             return False
 
     async def get(self) -> Optional["Request"]:
@@ -259,14 +271,20 @@ class QueueManager(QueueStatusMixin, QueueBackpressureMixin):
             raise RuntimeError("队列未初始化")
 
         try:
-            # 内存队列使用0.01秒的超时，Redis队列使用较短的超时时间
-            # 不再使用配置的超时时间，避免长时间等待
-            timeout = 0.01 if self._queue_type == QueueType.MEMORY else 0.01
+            # 修复：原 timeout = 0.01 if MEMORY else 0.01 两分支同值，简化为常量
+            timeout = 0.01
             result = await self._queue.get(timeout=timeout)
 
-            # 释放信号量（仅对内存队列）
-            if self._queue_semaphore and result:
-                self._queue_semaphore.release()
+            # 修复信号量泄漏：只要从队列取出元素（无论后续校验是否通过），
+            # 都必须释放信号量。原实现只在 result 真值时 release，
+            # 导致反序列化异常返回 None 时信号量永不释放。
+            # 使用 try/finally 确保对称释放。
+            if self._queue_semaphore and result is not None:
+                try:
+                    self._queue_semaphore.release()
+                except ValueError:
+                    # 信号量可能已被其他路径释放，忽略下溢
+                    pass
 
             # 反序列化处理（仅对 Redis 队列）
             if result and self._queue_type in (QueueType.REDIS, QueueType.REDIS_STREAM):
@@ -276,6 +294,8 @@ class QueueManager(QueueStatusMixin, QueueBackpressureMixin):
                 if hasattr(result, 'url'):  # 简单检查是否为Request对象
                     return result
                 else:
+                    # 无效结果，记录但不影响信号量（已释放）
+                    self.logger.warning("Dequeued non-Request object from Redis queue, discarding")
                     return None
 
             # 如果是内存队列，需要解包(priority, request)元组
@@ -286,6 +306,7 @@ class QueueManager(QueueStatusMixin, QueueBackpressureMixin):
                     if hasattr(request_obj, 'url'):  # 简单检查是否为Request对象
                         return request_obj
                     else:
+                        self.logger.warning("Dequeued non-Request object from memory queue, discarding")
                         return None
 
             return None
@@ -479,30 +500,31 @@ class QueueManager(QueueStatusMixin, QueueBackpressureMixin):
                     return QueueType.MEMORY
 
         elif self.config.queue_type == QueueType.REDIS_STREAM:
-            if self.config.run_mode == 'distributed' or True:
-                if not REDIS_AVAILABLE:
-                    error_msg = (
-                        "REDIS_STREAM 模式要求 Redis 客户端库已安装。\n"
-                        "请安装: pip install redis"
-                    )
-                    self.logger.error(error_msg)
-                    raise RuntimeError(error_msg)
-                if not self.config.redis_url:
-                    error_msg = (
-                        "REDIS_STREAM 模式要求配置 Redis 连接信息。\n"
-                        "请在 settings.py 中配置 REDIS_HOST、REDIS_PORT 等参数"
-                    )
-                    self.logger.error(error_msg)
-                    raise RuntimeError(error_msg)
-                if not await self._test_redis_connection():
-                    error_msg = (
-                        f"REDIS_STREAM 模式无法连接到 Redis 服务器。\n"
-                        f"Redis URL: {self.config.redis_url}"
-                    )
-                    self.logger.error(error_msg)
-                    raise RuntimeError(error_msg)
-                self.logger.debug("REDIS_STREAM mode: Redis connection verified")
-                return QueueType.REDIS_STREAM
+            # 修复：移除调试残留 `or True` 恒真分支
+            # REDIS_STREAM 模式对所有 run_mode 都要求 Redis 可用
+            if not REDIS_AVAILABLE:
+                error_msg = (
+                    "REDIS_STREAM 模式要求 Redis 客户端库已安装。\n"
+                    "请安装: pip install redis"
+                )
+                self.logger.error(error_msg)
+                raise RuntimeError(error_msg)
+            if not self.config.redis_url:
+                error_msg = (
+                    "REDIS_STREAM 模式要求配置 Redis 连接信息。\n"
+                    "请在 settings.py 中配置 REDIS_HOST、REDIS_PORT 等参数"
+                )
+                self.logger.error(error_msg)
+                raise RuntimeError(error_msg)
+            if not await self._test_redis_connection():
+                error_msg = (
+                    f"REDIS_STREAM 模式无法连接到 Redis 服务器。\n"
+                    f"Redis URL: {self.config.redis_url}"
+                )
+                self.logger.error(error_msg)
+                raise RuntimeError(error_msg)
+            self.logger.debug("REDIS_STREAM mode: Redis connection verified")
+            return QueueType.REDIS_STREAM
 
         elif self.config.queue_type == QueueType.MEMORY:
             return QueueType.MEMORY

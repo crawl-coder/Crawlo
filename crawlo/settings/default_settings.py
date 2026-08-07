@@ -107,7 +107,10 @@ ENABLE_CONTROLLED_REQUEST_GENERATION = False            # 是否启用受控请�
 QUEUE_TYPE = 'auto'                                     # 队列类型：memory | redis | redis_stream | auto
 QUEUE_MAX_RETRIES = 3                                   # 队列操作最大重试次数
 QUEUE_TIMEOUT = 300                                     # 队列操作超时时间（秒）
-QUEUE_SERIALIZATION_FORMAT = 'pickle'                   # 序列化格式：pickle | json | msgpack（适用于 redis 队列）
+# 安全修复：默认从 pickle 改为 json，避免 Redis 被入侵时反序列化 RCE
+# pickle 反序列化可执行任意代码，Redis 通常是共享资源，默认不安全
+# 如需 pickle（信任 Redis 环境 + 需要 pickle 才能序列化的对象），显式设置为 'pickle'
+QUEUE_SERIALIZATION_FORMAT = 'json'                     # 序列化格式：json（默认，安全）| pickle（不推荐）| msgpack（适用于 redis 队列）
 
 # Stream 配置（仅 QUEUE_TYPE='redis_stream' 时生效）
 STREAM_MAX_LENGTH = 100000                              # Stream 最大长度（近似修剪）

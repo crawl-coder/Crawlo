@@ -232,20 +232,13 @@ class Engine(RequestGenerationMixin, ClusterMixin):
                 spider_name = safe_get_config(self.settings, 'SPIDER_NAME', 'default')
                 seed_lock_key = f"crawlo:{project}:{spider_name}:seed:generator"
 
-                # 检查是否有死锁（持有者已不在 Registry 中）
-                lock_owner = await self._cluster_redis.get(seed_lock_key)
-                if lock_owner:
-                    owner_str = lock_owner.decode() if isinstance(lock_owner, bytes) else str(lock_owner)
-                    if self._cluster_registry:
-                        owner_info = await self._cluster_registry.get_worker_info(owner_str)
-                        if not owner_info:
-                            await self._cluster_redis.delete(seed_lock_key)
-                            self.logger.info(f"Cleared stale seed lock from dead worker: {owner_str}")
-
-                # 尝试成为种子生成器（锁 TTL=120s，续期任务防止长时生成期间过
-                acquired = await self._cluster_redis.set(
-                    seed_lock_key, self._cluster_worker_id, nx=True, ex=120
+                # 修复：原实现 get-check-delete-set 三步非原子，两个 Worker 可能同时清锁同时抢锁
+                # 改用 Lua 脚本：若锁 owner 不在 registry 中（死锁），则删除并尝试 SETNX
+                # Lua 脚本在 Redis 单实例上是原子执行的，消除竞态窗口
+                acquired = await self._try_acquire_seed_lock_atomic(
+                    seed_lock_key, project, spider_name
                 )
+
                 if not acquired:
                     is_seed_generator = False
                     self._start_requests_source = None
@@ -431,6 +424,97 @@ class Engine(RequestGenerationMixin, ClusterMixin):
         except asyncio.CancelledError:
             pass
 
+    # 种子锁原子获取的 Lua 脚本
+    # KEYS[1] = seed_lock_key
+    # ARGV[1] = worker_id
+    # ARGV[2] = ttl (120)
+    # ARGV[3..] = 已知的活跃 worker_id 列表（registry 中存活的）
+    # 逻辑：
+    #   1. 若 key 不存在 -> SETNX 成功，返回 1
+    #   2. 若 key 存在且 owner 在活跃列表中 -> 锁有效，返回 0
+    #   3. 若 key 存在但 owner 不在活跃列表中（死锁）-> 删除并重新 SETNX，返回 1
+    _SEED_LOCK_LUA = """
+local key = KEYS[1]
+local worker_id = ARGV[1]
+local ttl = tonumber(ARGV[2])
+local active_count = tonumber(ARGV[3])
+local current = redis.call('GET', key)
+if current == false then
+    redis.call('SET', key, worker_id, 'EX', ttl)
+    return 1
+end
+if current == worker_id then
+    redis.call('EXPIRE', key, ttl)
+    return 1
+end
+for i = 1, active_count do
+    if ARGV[3 + i] == current then
+        return 0
+    end
+end
+-- owner 不在活跃列表中，死锁，清理并抢占
+redis.call('DEL', key)
+redis.call('SET', key, worker_id, 'EX', ttl)
+return 2
+"""
+
+    async def _try_acquire_seed_lock_atomic(
+        self, seed_lock_key: str, project: str, spider_name: str
+    ) -> bool:
+        """
+        原子地获取种子锁（含死锁清理）。
+
+        使用 Lua 脚本保证 get-check-delete-set 的原子性，
+        避免原实现多 Worker 同时清锁的竞态。
+
+        Returns:
+            bool: 是否成功获取锁
+        """
+        try:
+            # 收集活跃 worker 列表
+            active_workers = []
+            if self._cluster_registry:
+                try:
+                    workers = await self._cluster_registry.list_workers()
+                    active_workers = [
+                        w.get('worker_id') if isinstance(w, dict) else str(w)
+                        for w in (workers or [])
+                    ]
+                    active_workers = [w for w in active_workers if w]
+                except Exception as e:
+                    self.logger.debug(f"Failed to list active workers for seed lock: {e}")
+
+            args = [self._cluster_worker_id, 120, len(active_workers)] + active_workers
+            result = await self._cluster_redis.eval(
+                self._SEED_LOCK_LUA, 1, seed_lock_key, *args
+            )
+            result_int = int(result) if result is not None else 0
+            if result_int == 1:
+                self.logger.debug(f"Acquired seed lock (fresh): {seed_lock_key}")
+                return True
+            elif result_int == 2:
+                # 清理了死锁并抢占
+                self.logger.info(
+                    f"Cleared stale seed lock and acquired: {seed_lock_key}"
+                )
+                return True
+            else:
+                # 锁被活跃 worker 持有
+                return False
+        except Exception as e:
+            # Lua 脚本失败时回退到简单 SETNX（保底，不阻塞启动）
+            self.logger.warning(
+                f"Atomic seed lock acquisition failed ({e}), falling back to SETNX"
+            )
+            try:
+                acquired = await self._cluster_redis.set(
+                    seed_lock_key, self._cluster_worker_id, nx=True, ex=120
+                )
+                return bool(acquired)
+            except Exception as fallback_err:
+                self.logger.error(f"Seed lock fallback SETNX failed: {fallback_err}")
+                return False
+
     async def _cleanup_crawl(self, generation_task):
         """crawl() 退出后的清理工作"""
         self.running = False
@@ -577,7 +661,8 @@ class Engine(RequestGenerationMixin, ClusterMixin):
         if self.scheduler is not None:
             await self._schedule_request(start_request)
         else:
-            self.logger.warning("⚠️ Scheduler 未初始化，无法入队请求")
+            # 修复：移除 emoji，避免影响日志 grep/解析
+            self.logger.warning("Scheduler 未初始化，无法入队请求")
 
     async def _schedule_request(self, request):
         if self.scheduler is not None and await self.scheduler.enqueue_request(request):

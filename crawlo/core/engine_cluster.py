@@ -63,8 +63,19 @@ async def _ack_message(request, engine, success: bool, error: Exception = None):
             if engine._task_tracker and error:
                 result = engine._task_tracker.classify_error(error)
             await engine.scheduler.nack_request(message_id, result=result)
-    except Exception:
-        pass
+    except Exception as ack_err:
+        # 修复：原实现 except Exception: pass 静默吞错
+        # ACK 失败会导致任务被重复投递或卡在 PEL，NACK 失败会导致死任务不进死信
+        # 改为记录警告日志 + 统计计数，便于运维定位问题
+        engine.logger.warning(
+            f"ACK/NACK failed for message {message_id} "
+            f"(success={success}, error={ack_err!r})"
+        )
+        if hasattr(engine.crawler, 'stats') and engine.crawler.stats is not None:
+            try:
+                engine.crawler.stats.inc_value('scheduler/ack_failure_count')
+            except Exception:
+                pass
 
 
 class ClusterMixin:

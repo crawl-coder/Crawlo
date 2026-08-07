@@ -377,7 +377,17 @@ class Scheduler:
             while queue_size >= max_size:
                 retry_count += 1
                 if retry_count > max_retries:
-                    self.logger.error(f"Queue full for too long ({max_retries} retries), dropping: {request.url}")
+                    # 修复：原实现直接 return False 静默丢请求，对非 Stream 队列无死信兜底
+                    # 改为记录严重错误并统计，避免任务静默丢失
+                    self.logger.error(
+                        f"Queue full for too long ({max_retries} retries), "
+                        f"request enqueue failed: {request.url}"
+                    )
+                    if self.stats is not None:
+                        try:
+                            self.stats.inc_value('scheduler/enqueue_dropped_count')
+                        except Exception:
+                            pass
                     return False
                 if retry_count == 1:
                     self.logger.warning(f"Queue full ({queue_size}/{max_size}), pausing...")

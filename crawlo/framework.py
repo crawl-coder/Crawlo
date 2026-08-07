@@ -41,14 +41,16 @@ class CrawloFramework:
             elif isinstance(settings, dict):
                 config.update(settings)
         config.update(kwargs)
-        
+
+        # 修复：先初始化 logger，确保 _load_project_config 可用 self._logger
+        self._logger = get_logger('crawlo.framework')
+
         # 如果没有提供配置，尝试自动加载项目配置
         if not config:
             config = self._load_project_config()
 
         # 初始化框架
         self._settings = initialize_framework(config)
-        self._logger = get_logger('crawlo.framework')
 
         # 获取版本号
         version = EnvConfigManager.get_version()
@@ -75,19 +77,20 @@ class CrawloFramework:
             # 查找项目根目录
             project_root = self._find_project_root()
             if not project_root:
-                print("警告: 未找到项目根目录，使用默认配置")
+                # 修复：print 改为 logger（此时 _logger 已初始化）
+                self._logger.warning("未找到项目根目录，使用默认配置")
                 return {}
-            
+
             # 添加项目根目录到Python路径
             if project_root not in sys.path:
                 sys.path.insert(0, project_root)
-            
+
             # 读取crawlo.cfg配置文件
             cfg_file = os.path.join(project_root, "crawlo.cfg")
             settings_module_path = read_crawlo_cfg(cfg_file)
-            
+
             if not settings_module_path:
-                print(f"警告: 配置文件 {cfg_file} 无效或不存在，使用默认配置")
+                self._logger.warning(f"配置文件 {cfg_file} 无效或不存在，使用默认配置")
                 return {}
             
             project_package = settings_module_path.split(".")[0]

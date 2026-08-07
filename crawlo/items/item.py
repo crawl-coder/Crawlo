@@ -30,6 +30,8 @@ class Item(MutableMapping, metaclass=ItemMeta):
             )
 
         self._values: Dict[str, Any] = {}
+        # 实例级动态字段存储（不污染类级 FIELDS）
+        self._dynamic_fields: Dict[str, Any] = {}
 
         # Initialize fields with default values
         for field_name, field_obj in self.FIELDS.items():
@@ -47,12 +49,13 @@ class Item(MutableMapping, metaclass=ItemMeta):
         # 支持动态字段：如果字段不存在且允许动态创建，则自动创建
         if key not in self.FIELDS:
             if getattr(self.__class__, 'allow_dynamic', True):
-                # 自动创建字段定义
-                self.__class__.FIELDS[key] = Field()
+                # 修复：动态字段写入实例级存储，不污染类级 FIELDS
+                # 原实现 self.__class__.FIELDS[key] = Field() 会导致跨实例污染 + 内存泄漏
+                self._dynamic_fields[key] = Field()
             else:
                 raise KeyError(f"{self.__class__.__name__} does not contain field: {key}")
 
-        field = self.FIELDS[key]
+        field = self._dynamic_fields.get(key) or self.FIELDS[key]
         try:
             validated_value = field.validate(value, field_name=key)
             self._values[key] = validated_value
