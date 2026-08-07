@@ -1,3 +1,10 @@
 [build-system]
 requires = ["setuptools>=80.9.0", "wheel"]
 build-backend = "setuptools.build_meta"
+
+[tool.pytest.ini_options]
+# pytest-asyncio 1.0+ 默认 strict 模式要求 @pytest.mark.asyncio，
+# 项目中大量测试使用裸 async def 作为测试用例（无显式装饰器），
+# 设为 auto 以兼容旧写法，保持兼容。
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
