@@ -1,0 +1,442 @@
+
+##############################################################################
+  Crawlo 10-Worker 分布式测试总结（快照） 2026-08-09T00:01:21
+##############################################################################
+  示例根目录: /Users/oscar/projects/Crawlo/examples/ofweek_distributed
+  Worker 日志目录: /Users/oscar/projects/Crawlo/examples/ofweek_distributed/logs/workers
+  Python: /Users/oscar/software/miniconda3/envs/crawlo/bin/python
+
+==============================================================================
+  Redis 实时快照
+==============================================================================
+  STR crawlo:ofweek_distributed:of_week_distributed:control:state = shutdown  (TTL=-1s)
+  SET crawlo:ofweek_distributed:of_week_distributed:dedup:item  SCARD = 1999
+  SET crawlo:ofweek_distributed:of_week_distributed:dedup:request  SCARD = 2099
+  STR crawlo:ofweek_distributed:of_week_distributed:seed:generator = Oscar-MacPro-51640-521bb770  (TTL=41s)
+  STREAM crawlo:ofweek_distributed:of_week_distributed:stream:tasks
+    XLEN = 0
+    GROUP crawlo:ofweek_distributed:of_week_distributed:group:workers consumers=10 pending=0 lag=0
+  STREAM crawlo:ofweek_distributed:of_week_distributed:stream:tasks:high
+    XLEN = 0
+    GROUP crawlo:ofweek_distributed:of_week_distributed:group:workers consumers=10 pending=0 lag=0
+
+==============================================================================
+  每个 Worker 最终统计
+==============================================================================
+
+  --- worker_01.log  (735,895 bytes / 1,669 lines) ---
+    启动信息: Run mode: distributed, Queue type: redis_stream
+2  Queue type: redis_stream
+    start_requests 执行次数: 1 (seed生成: ['100'])  skipped_seed: False
+    解析计数: list_pages=40  detail_pages=180  items_extracted=800  errors=0
+    reason = 'finished'
+    request_scheduler_count = 900
+    response_received_count = 220
+    item_successful_count = 180
+    协调退出: Coordinated shutdown: all tasks complete, all workers idle, broadcasting shutdown signal
+    末 30 行日志:
+      Duplicate entry 'https://ee.ofweek.com/2025-08/ART-8230-2806-30668282.html' for key 'ofweek_news.uk_url'
+      Duplicate entry 'https://ee.ofweek.com/2025-08/ART-8110-2850-30668236.html' for key 'ofweek_news.uk_url'
+      Duplicate entry 'https://ee.ofweek.com/2025-09/ART-8420-2815-30670467.html' for key 'ofweek_news.uk_url'
+      2026-08-09 00:00:43,888 - [MySQLPipeline] - INFO: [of_week_distributed] Batch insert success: 80 items -> table=ofweek_news, 0 rows, 0.050s
+      2026-08-09 00:00:43,892 - [WorkerRegistry] - INFO: Worker deregistered: Oscar-MacPro-51640-521bb770
+      2026-08-09 00:00:43,892 - [Engine] - INFO: Cluster shutdown complete: Oscar-MacPro-51640-521bb770
+      2026-08-09 00:00:43,894 - [StatsCollector] - INFO: of_week_distributed stats:
+      {'crawlo:avg_response_time_ms': 1168.0,
+       'crawlo:concurrency_limit': 8,
+       'crawlo:concurrency_utilization': 100.0,
+       'crawlo:dedup/cleanup_count': 1,
+       'crawlo:dedup/new_count': 180,
+       'crawlo:dedup/process_time': 0.31,
+       'crawlo:elapsed_time': '103.89s',
+       'crawlo:end_time': '2026-08-09 00:00:43',
+       'crawlo:item_successful_count': 180,
+       'crawlo:items_per_minute': 103.95,
+       'crawlo:max_concurrent_seen': 8,
+       'crawlo:mysql/batch_items': 180,
+       'crawlo:mysql/batch_success': 2,
+       'crawlo:mysql/batch_time': 0.11,
+       'crawlo:mysql/rows': 0,
+       'crawlo:pages_per_minute': 127.05,
+       'crawlo:reason': 'finished',
+       'crawlo:request_scheduler_count': 900,
+       'crawlo:response_received_count': 220,
+       'crawlo:response_status_code/200': 220,
+       'crawlo:response_status_code/success_count': 220,
+       'crawlo:spider_name': 'of_week_distributed',
+       'crawlo:start_time': '2026-08-08 23:59:00'}
+
+  --- worker_02.log  (689,524 bytes / 1,493 lines) ---
+    启动信息: Run mode: distributed, Queue type: redis_stream
+2  Queue type: redis_stream
+    start_requests 执行次数: 0 (seed生成: [])  skipped_seed: True
+    解析计数: list_pages=30  detail_pages=190  items_extracted=600  errors=0
+    锁日志: skipping start_requests
+    reason = 'finished'
+    request_scheduler_count = 600
+    response_received_count = 220
+    item_successful_count = 190
+    末 30 行日志:
+      Failed to delete log file: logs/ofweek_distributed_20260808_235904.log, error: [Errno 2] No such file or directory: 'logs/ofweek_distributed_20260808_235904.log'
+      Failed to delete log file: logs/ofweek_distributed_20260808_235900.log, error: [Errno 2] No such file or directory: 'logs/ofweek_distributed_20260808_235900.log'
+      Failed to delete log file: logs/ofweek_distributed_20260808_235902.log, error: [Errno 2] No such file or directory: 'logs/ofweek_distributed_20260808_235902.log'
+      Failed to delete log file: logs/ofweek_distributed_20260808_235908.log, error: [Errno 2] No such file or directory: 'logs/ofweek_distributed_20260808_235908.log'
+      2026-08-09 00:00:43,292 - [WorkerRegistry] - INFO: Worker deregistered: Oscar-MacPro-51657-8721ea50
+      2026-08-09 00:00:43,292 - [Engine] - INFO: Cluster shutdown complete: Oscar-MacPro-51657-8721ea50
+      2026-08-09 00:00:43,294 - [StatsCollector] - INFO: of_week_distributed stats:
+      {'crawlo:avg_response_time_ms': 1071.0,
+       'crawlo:concurrency_limit': 8,
+       'crawlo:concurrency_utilization': 100.0,
+       'crawlo:dedup/cleanup_count': 1,
+       'crawlo:dedup/new_count': 190,
+       'crawlo:dedup/process_time': 0.28,
+       'crawlo:elapsed_time': '102.29s',
+       'crawlo:end_time': '2026-08-09 00:00:43',
+       'crawlo:item_successful_count': 190,
+       'crawlo:items_per_minute': 111.44,
+       'crawlo:max_concurrent_seen': 8,
+       'crawlo:mysql/batch_items': 190,
+       'crawlo:mysql/batch_success': 2,
+       'crawlo:mysql/batch_time': 0.13,
+       'crawlo:mysql/rows': 0,
+       'crawlo:pages_per_minute': 129.04,
+       'crawlo:reason': 'finished',
+       'crawlo:request_scheduler_count': 600,
+       'crawlo:response_received_count': 220,
+       'crawlo:response_status_code/200': 220,
+       'crawlo:response_status_code/success_count': 220,
+       'crawlo:spider_name': 'of_week_distributed',
+       'crawlo:start_time': '2026-08-08 23:59:01'}
+
+  --- worker_03.log  (696,580 bytes / 1,447 lines) ---
+    启动信息: Run mode: distributed, Queue type: redis_stream
+2  Queue type: redis_stream
+    start_requests 执行次数: 0 (seed生成: [])  skipped_seed: True
+    解析计数: list_pages=30  detail_pages=180  items_extracted=599  errors=0
+    锁日志: skipping start_requests
+    reason = 'finished'
+    request_scheduler_count = 599
+    response_received_count = 210
+    item_successful_count = 180
+    末 30 行日志:
+      Duplicate entry 'https://ee.ofweek.com/2025-09/ART-8420-2816-30670395.html' for key 'ofweek_news.uk_url'
+      Duplicate entry 'https://ee.ofweek.com/2025-09/ART-8220-2816-30670383.html' for key 'ofweek_news.uk_url'
+      Duplicate entry 'https://ee.ofweek.com/2025-09/ART-8330-2816-30670399.html' for key 'ofweek_news.uk_url'
+      2026-08-09 00:00:45,342 - [MySQLPipeline] - INFO: [of_week_distributed] Batch insert success: 80 items -> table=ofweek_news, 0 rows, 0.084s
+      2026-08-09 00:00:45,346 - [WorkerRegistry] - INFO: Worker deregistered: Oscar-MacPro-51660-835889eb
+      2026-08-09 00:00:45,346 - [Engine] - INFO: Cluster shutdown complete: Oscar-MacPro-51660-835889eb
+      2026-08-09 00:00:45,347 - [StatsCollector] - INFO: of_week_distributed stats:
+      {'crawlo:avg_response_time_ms': 1226.0,
+       'crawlo:concurrency_limit': 8,
+       'crawlo:concurrency_utilization': 100.0,
+       'crawlo:dedup/cleanup_count': 1,
+       'crawlo:dedup/new_count': 180,
+       'crawlo:dedup/process_time': 0.38,
+       'crawlo:elapsed_time': '103.35s',
+       'crawlo:end_time': '2026-08-09 00:00:45',
+       'crawlo:item_successful_count': 180,
+       'crawlo:items_per_minute': 104.5,
+       'crawlo:max_concurrent_seen': 8,
+       'crawlo:mysql/batch_items': 180,
+       'crawlo:mysql/batch_success': 2,
+       'crawlo:mysql/batch_time': 0.15,
+       'crawlo:mysql/rows': 0,
+       'crawlo:pages_per_minute': 121.92,
+       'crawlo:reason': 'finished',
+       'crawlo:request_scheduler_count': 599,
+       'crawlo:response_received_count': 210,
+       'crawlo:response_status_code/200': 210,
+       'crawlo:response_status_code/success_count': 210,
+       'crawlo:spider_name': 'of_week_distributed',
+       'crawlo:start_time': '2026-08-08 23:59:02'}
+
+  --- worker_04.log  (699,100 bytes / 908 lines) ---
+    启动信息: Run mode: distributed, Queue type: redis_stream
+2  Queue type: redis_stream
+    start_requests 执行次数: 0 (seed生成: [])  skipped_seed: True
+    解析计数: list_pages=0  detail_pages=210  items_extracted=0  errors=0
+    锁日志: skipping start_requests
+    reason = 'finished'
+    response_received_count = 210
+    item_successful_count = 210
+    末 30 行日志:
+      Duplicate entry 'https://ee.ofweek.com/2025-09/ART-8110-2816-30670774.html' for key 'ofweek_news.uk_url'
+      Duplicate entry 'https://ee.ofweek.com/2025-09/ART-8130-2816-30670736.html' for key 'ofweek_news.uk_url'
+      Duplicate entry 'https://ee.ofweek.com/2025-09/ART-8320315-8460-30670753.html' for key 'ofweek_news.uk_url'
+      Duplicate entry 'https://ee.ofweek.com/2025-09/ART-8460-2806-30670706.html' for key 'ofweek_news.uk_url'
+      2026-08-09 00:00:43,285 - [MySQLPipeline] - INFO: [of_week_distributed] Batch insert success: 10 items -> table=ofweek_news, 0 rows, 0.008s
+      2026-08-09 00:00:43,292 - [WorkerRegistry] - INFO: Worker deregistered: Oscar-MacPro-51684-ab6aefb1
+      2026-08-09 00:00:43,292 - [Engine] - INFO: Cluster shutdown complete: Oscar-MacPro-51684-ab6aefb1
+      2026-08-09 00:00:43,293 - [StatsCollector] - INFO: of_week_distributed stats:
+      {'crawlo:avg_response_time_ms': 1102.0,
+       'crawlo:concurrency_limit': 8,
+       'crawlo:concurrency_utilization': 100.0,
+       'crawlo:dedup/cleanup_count': 1,
+       'crawlo:dedup/new_count': 210,
+       'crawlo:dedup/process_time': 0.51,
+       'crawlo:elapsed_time': '100.29s',
+       'crawlo:end_time': '2026-08-09 00:00:43',
+       'crawlo:item_successful_count': 210,
+       'crawlo:items_per_minute': 125.63,
+       'crawlo:max_concurrent_seen': 8,
+       'crawlo:mysql/batch_items': 210,
+       'crawlo:mysql/batch_success': 3,
+       'crawlo:mysql/batch_time': 0.13,
+       'crawlo:mysql/rows': 0,
+       'crawlo:pages_per_minute': 125.63,
+       'crawlo:reason': 'finished',
+       'crawlo:response_received_count': 210,
+       'crawlo:response_status_code/200': 210,
+       'crawlo:response_status_code/success_count': 210,
+       'crawlo:spider_name': 'of_week_distributed',
+       'crawlo:start_time': '2026-08-08 23:59:03'}
+
+  --- worker_05.log  (700,179 bytes / 908 lines) ---
+    启动信息: Run mode: distributed, Queue type: redis_stream
+2  Queue type: redis_stream
+    start_requests 执行次数: 0 (seed生成: [])  skipped_seed: True
+    解析计数: list_pages=0  detail_pages=210  items_extracted=0  errors=0
+    锁日志: skipping start_requests
+    reason = 'finished'
+    response_received_count = 210
+    item_successful_count = 210
+    末 30 行日志:
+      Duplicate entry 'https://ee.ofweek.com/2025-08/ART-8230-2803-30668419.html' for key 'ofweek_news.uk_url'
+      Duplicate entry 'https://ee.ofweek.com/2025-08/ART-8460-2818-30668413.html' for key 'ofweek_news.uk_url'
+      Duplicate entry 'https://ee.ofweek.com/2025-08/ART-8110-2850-30668394.html' for key 'ofweek_news.uk_url'
+      Duplicate entry 'https://ee.ofweek.com/2025-08/ART-8230-2806-30668409.html' for key 'ofweek_news.uk_url'
+      2026-08-09 00:00:43,647 - [MySQLPipeline] - INFO: [of_week_distributed] Batch insert success: 10 items -> table=ofweek_news, 0 rows, 0.012s
+      2026-08-09 00:00:43,650 - [WorkerRegistry] - INFO: Worker deregistered: Oscar-MacPro-51693-8fa71c48
+      2026-08-09 00:00:43,650 - [Engine] - INFO: Cluster shutdown complete: Oscar-MacPro-51693-8fa71c48
+      2026-08-09 00:00:43,651 - [StatsCollector] - INFO: of_week_distributed stats:
+      {'crawlo:avg_response_time_ms': 1021.0,
+       'crawlo:concurrency_limit': 8,
+       'crawlo:concurrency_utilization': 100.0,
+       'crawlo:dedup/cleanup_count': 1,
+       'crawlo:dedup/new_count': 210,
+       'crawlo:dedup/process_time': 0.46,
+       'crawlo:elapsed_time': '99.65s',
+       'crawlo:end_time': '2026-08-09 00:00:43',
+       'crawlo:item_successful_count': 210,
+       'crawlo:items_per_minute': 126.44,
+       'crawlo:max_concurrent_seen': 8,
+       'crawlo:mysql/batch_items': 210,
+       'crawlo:mysql/batch_success': 3,
+       'crawlo:mysql/batch_time': 0.15,
+       'crawlo:mysql/rows': 0,
+       'crawlo:pages_per_minute': 126.44,
+       'crawlo:reason': 'finished',
+       'crawlo:response_received_count': 210,
+       'crawlo:response_status_code/200': 210,
+       'crawlo:response_status_code/success_count': 210,
+       'crawlo:spider_name': 'of_week_distributed',
+       'crawlo:start_time': '2026-08-08 23:59:04'}
+
+  --- worker_06.log  (711,960 bytes / 943 lines) ---
+    启动信息: Run mode: distributed, Queue type: redis_stream
+2  Queue type: redis_stream
+    start_requests 执行次数: 0 (seed生成: [])  skipped_seed: True
+    解析计数: list_pages=0  detail_pages=219  items_extracted=0  errors=0
+    锁日志: skipping start_requests
+    reason = 'finished'
+    response_received_count = 219
+    item_successful_count = 219
+    末 30 行日志:
+      Duplicate entry 'https://ee.ofweek.com/2025-09/ART-8210-2816-30670051.html' for key 'ofweek_news.uk_url'
+      Duplicate entry 'https://ee.ofweek.com/2025-09/ART-8330-2816-30670049.html' for key 'ofweek_news.uk_url'
+      Duplicate entry 'https://ee.ofweek.com/2025-09/ART-8210-2816-30670040.html' for key 'ofweek_news.uk_url'
+      Duplicate entry 'https://ee.ofweek.com/2025-09/ART-8210-2816-30670039.html' for key 'ofweek_news.uk_url'
+      2026-08-09 00:00:45,988 - [MySQLPipeline] - INFO: [of_week_distributed] Batch insert success: 19 items -> table=ofweek_news, 0 rows, 0.020s
+      2026-08-09 00:00:45,993 - [WorkerRegistry] - INFO: Worker deregistered: Oscar-MacPro-51710-d96d3399
+      2026-08-09 00:00:45,993 - [Engine] - INFO: Cluster shutdown complete: Oscar-MacPro-51710-d96d3399
+      2026-08-09 00:00:45,996 - [StatsCollector] - INFO: of_week_distributed stats:
+      {'crawlo:avg_response_time_ms': 1238.0,
+       'crawlo:concurrency_limit': 8,
+       'crawlo:concurrency_utilization': 100.0,
+       'crawlo:dedup/cleanup_count': 1,
+       'crawlo:dedup/new_count': 219,
+       'crawlo:dedup/process_time': 0.34,
+       'crawlo:elapsed_time': '100.99s',
+       'crawlo:end_time': '2026-08-09 00:00:45',
+       'crawlo:item_successful_count': 219,
+       'crawlo:items_per_minute': 130.11,
+       'crawlo:max_concurrent_seen': 8,
+       'crawlo:mysql/batch_items': 219,
+       'crawlo:mysql/batch_success': 3,
+       'crawlo:mysql/batch_time': 0.15,
+       'crawlo:mysql/rows': 0,
+       'crawlo:pages_per_minute': 130.11,
+       'crawlo:reason': 'finished',
+       'crawlo:response_received_count': 219,
+       'crawlo:response_status_code/200': 219,
+       'crawlo:response_status_code/success_count': 219,
+       'crawlo:spider_name': 'of_week_distributed',
+       'crawlo:start_time': '2026-08-08 23:59:05'}
+
+  --- worker_07.log  (631,969 bytes / 866 lines) ---
+    启动信息: Run mode: distributed, Queue type: redis_stream
+2  Queue type: redis_stream
+    start_requests 执行次数: 0 (seed生成: [])  skipped_seed: True
+    解析计数: list_pages=0  detail_pages=200  items_extracted=0  errors=0
+    锁日志: skipping start_requests
+    reason = 'finished'
+    response_received_count = 200
+    item_successful_count = 200
+    末 30 行日志:
+      Duplicate entry 'https://ee.ofweek.com/2026-01/ART-8420-2812-30678510.html' for key 'ofweek_news.uk_url'
+      Duplicate entry 'https://ee.ofweek.com/2026-01/ART-8110-2800-30678482.html' for key 'ofweek_news.uk_url'
+      Duplicate entry 'https://ee.ofweek.com/2025-08/ART-8500-2850-30668224.html' for key 'ofweek_news.uk_url'
+      2026-08-09 00:00:19,335 - [MySQLPipeline] - INFO: [of_week_distributed] Batch insert success: 100 items -> table=ofweek_news, 0 rows, 0.050s
+      2026-08-09 00:00:43,414 - [Engine] - WARNING: Persistent shutdown state detected, exiting
+      2026-08-09 00:00:43,417 - [WorkerRegistry] - INFO: Worker deregistered: Oscar-MacPro-51715-c9df2ab3
+      2026-08-09 00:00:43,417 - [Engine] - INFO: Cluster shutdown complete: Oscar-MacPro-51715-c9df2ab3
+      2026-08-09 00:00:43,419 - [StatsCollector] - INFO: of_week_distributed stats:
+      {'crawlo:avg_response_time_ms': 1142.0,
+       'crawlo:concurrency_limit': 8,
+       'crawlo:concurrency_utilization': 100.0,
+       'crawlo:dedup/cleanup_count': 1,
+       'crawlo:dedup/new_count': 200,
+       'crawlo:dedup/process_time': 0.34,
+       'crawlo:elapsed_time': '97.42s',
+       'crawlo:end_time': '2026-08-09 00:00:43',
+       'crawlo:item_successful_count': 200,
+       'crawlo:items_per_minute': 123.18,
+       'crawlo:max_concurrent_seen': 8,
+       'crawlo:mysql/batch_items': 200,
+       'crawlo:mysql/batch_success': 2,
+       'crawlo:mysql/batch_time': 0.11,
+       'crawlo:mysql/rows': 0,
+       'crawlo:pages_per_minute': 123.18,
+       'crawlo:reason': 'finished',
+       'crawlo:response_received_count': 200,
+       'crawlo:response_status_code/200': 200,
+       'crawlo:response_status_code/success_count': 200,
+       'crawlo:spider_name': 'of_week_distributed',
+       'crawlo:start_time': '2026-08-08 23:59:06'}
+
+  --- worker_08.log  (703,130 bytes / 908 lines) ---
+    启动信息: Run mode: distributed, Queue type: redis_stream
+2  Queue type: redis_stream
+    start_requests 执行次数: 0 (seed生成: [])  skipped_seed: True
+    解析计数: list_pages=0  detail_pages=210  items_extracted=0  errors=0
+    锁日志: skipping start_requests
+    reason = 'finished'
+    response_received_count = 210
+    item_successful_count = 210
+    末 30 行日志:
+      Duplicate entry 'https://ee.ofweek.com/2025-09/ART-8210-2815-30670174.html' for key 'ofweek_news.uk_url'
+      Duplicate entry 'https://ee.ofweek.com/2025-09/ART-8120-2816-30670163.html' for key 'ofweek_news.uk_url'
+      Duplicate entry 'https://ee.ofweek.com/2025-09/ART-8420-2815-30670114.html' for key 'ofweek_news.uk_url'
+      Duplicate entry 'https://ee.ofweek.com/2025-09/ART-12001-2816-30670126.html' for key 'ofweek_news.uk_url'
+      2026-08-09 00:00:46,106 - [MySQLPipeline] - INFO: [of_week_distributed] Batch insert success: 10 items -> table=ofweek_news, 0 rows, 0.011s
+      2026-08-09 00:00:46,109 - [WorkerRegistry] - INFO: Worker deregistered: Oscar-MacPro-51734-fad04670
+      2026-08-09 00:00:46,109 - [Engine] - INFO: Cluster shutdown complete: Oscar-MacPro-51734-fad04670
+      2026-08-09 00:00:46,111 - [StatsCollector] - INFO: of_week_distributed stats:
+      {'crawlo:avg_response_time_ms': 1066.0,
+       'crawlo:concurrency_limit': 8,
+       'crawlo:concurrency_utilization': 100.0,
+       'crawlo:dedup/cleanup_count': 1,
+       'crawlo:dedup/new_count': 210,
+       'crawlo:dedup/process_time': 0.35,
+       'crawlo:elapsed_time': '99.11s',
+       'crawlo:end_time': '2026-08-09 00:00:46',
+       'crawlo:item_successful_count': 210,
+       'crawlo:items_per_minute': 127.13,
+       'crawlo:max_concurrent_seen': 8,
+       'crawlo:mysql/batch_items': 210,
+       'crawlo:mysql/batch_success': 3,
+       'crawlo:mysql/batch_time': 0.15,
+       'crawlo:mysql/rows': 0,
+       'crawlo:pages_per_minute': 127.13,
+       'crawlo:reason': 'finished',
+       'crawlo:response_received_count': 210,
+       'crawlo:response_status_code/200': 210,
+       'crawlo:response_status_code/success_count': 210,
+       'crawlo:spider_name': 'of_week_distributed',
+       'crawlo:start_time': '2026-08-08 23:59:07'}
+
+  --- worker_09.log  (694,477 bytes / 866 lines) ---
+    启动信息: Run mode: distributed, Queue type: redis_stream
+2  Queue type: redis_stream
+    start_requests 执行次数: 0 (seed生成: [])  skipped_seed: True
+    解析计数: list_pages=0  detail_pages=200  items_extracted=0  errors=0
+    锁日志: skipping start_requests
+    reason = 'finished'
+    response_received_count = 200
+    item_successful_count = 200
+    末 30 行日志:
+      Duplicate entry 'https://ee.ofweek.com/2025-08/ART-8460-2807-30668063.html' for key 'ofweek_news.uk_url'
+      Duplicate entry 'https://ee.ofweek.com/2025-07/ART-8320315-8440-30668019.html' for key 'ofweek_news.uk_url'
+      Duplicate entry 'https://ee.ofweek.com/2025-09/ART-8500-2816-30670880.html' for key 'ofweek_news.uk_url'
+      2026-08-09 00:00:19,269 - [MySQLPipeline] - INFO: [of_week_distributed] Batch insert success: 100 items -> table=ofweek_news, 0 rows, 0.058s
+      2026-08-09 00:00:43,837 - [Engine] - WARNING: Persistent shutdown state detected, exiting
+      2026-08-09 00:00:43,841 - [WorkerRegistry] - INFO: Worker deregistered: Oscar-MacPro-51735-8d8d549e
+      2026-08-09 00:00:43,841 - [Engine] - INFO: Cluster shutdown complete: Oscar-MacPro-51735-8d8d549e
+      2026-08-09 00:00:43,843 - [StatsCollector] - INFO: of_week_distributed stats:
+      {'crawlo:avg_response_time_ms': 1087.0,
+       'crawlo:concurrency_limit': 8,
+       'crawlo:concurrency_utilization': 100.0,
+       'crawlo:dedup/cleanup_count': 1,
+       'crawlo:dedup/new_count': 200,
+       'crawlo:dedup/process_time': 0.35,
+       'crawlo:elapsed_time': '95.84s',
+       'crawlo:end_time': '2026-08-09 00:00:43',
+       'crawlo:item_successful_count': 200,
+       'crawlo:items_per_minute': 125.21,
+       'crawlo:max_concurrent_seen': 8,
+       'crawlo:mysql/batch_items': 200,
+       'crawlo:mysql/batch_success': 2,
+       'crawlo:mysql/batch_time': 0.13,
+       'crawlo:mysql/rows': 0,
+       'crawlo:pages_per_minute': 125.21,
+       'crawlo:reason': 'finished',
+       'crawlo:response_received_count': 200,
+       'crawlo:response_status_code/200': 200,
+       'crawlo:response_status_code/success_count': 200,
+       'crawlo:spider_name': 'of_week_distributed',
+       'crawlo:start_time': '2026-08-08 23:59:08'}
+
+  --- worker_10.log  (643,264 bytes / 866 lines) ---
+    启动信息: Run mode: distributed, Queue type: redis_stream
+2  Queue type: redis_stream
+    start_requests 执行次数: 0 (seed生成: [])  skipped_seed: True
+    解析计数: list_pages=0  detail_pages=200  items_extracted=0  errors=0
+    锁日志: skipping start_requests
+    reason = 'finished'
+    response_received_count = 200
+    item_successful_count = 200
+    末 30 行日志:
+      Duplicate entry 'https://ee.ofweek.com/2025-09/ART-8460-2812-30670305.html' for key 'ofweek_news.uk_url'
+      Duplicate entry 'https://ee.ofweek.com/2025-09/ART-8210-2816-30670279.html' for key 'ofweek_news.uk_url'
+      Duplicate entry 'https://ee.ofweek.com/2025-09/ART-8420-2816-30670259.html' for key 'ofweek_news.uk_url'
+      2026-08-09 00:00:21,528 - [MySQLPipeline] - INFO: [of_week_distributed] Batch insert success: 100 items -> table=ofweek_news, 0 rows, 0.068s
+      2026-08-09 00:00:46,169 - [Engine] - WARNING: Persistent shutdown state detected, exiting
+      2026-08-09 00:00:46,172 - [WorkerRegistry] - INFO: Worker deregistered: Oscar-MacPro-51753-e7ef7977
+      2026-08-09 00:00:46,172 - [Engine] - INFO: Cluster shutdown complete: Oscar-MacPro-51753-e7ef7977
+      2026-08-09 00:00:46,174 - [StatsCollector] - INFO: of_week_distributed stats:
+      {'crawlo:avg_response_time_ms': 1031.0,
+       'crawlo:concurrency_limit': 8,
+       'crawlo:concurrency_utilization': 100.0,
+       'crawlo:dedup/cleanup_count': 1,
+       'crawlo:dedup/new_count': 200,
+       'crawlo:dedup/process_time': 0.35,
+       'crawlo:elapsed_time': '97.17s',
+       'crawlo:end_time': '2026-08-09 00:00:46',
+       'crawlo:item_successful_count': 200,
+       'crawlo:items_per_minute': 123.49,
+       'crawlo:max_concurrent_seen': 8,
+       'crawlo:mysql/batch_items': 200,
+       'crawlo:mysql/batch_success': 2,
+       'crawlo:mysql/batch_time': 0.14,
+       'crawlo:mysql/rows': 0,
+       'crawlo:pages_per_minute': 123.49,
+       'crawlo:reason': 'finished',
+       'crawlo:response_received_count': 200,
+       'crawlo:response_status_code/200': 200,
+       'crawlo:response_status_code/success_count': 200,
+       'crawlo:spider_name': 'of_week_distributed',
+       'crawlo:start_time': '2026-08-08 23:59:09'}
+
+------------------------------------------------------------------------------
+  EOF
+------------------------------------------------------------------------------

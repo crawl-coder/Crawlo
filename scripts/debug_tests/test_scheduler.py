@@ -12,8 +12,8 @@ import asyncio
 import sys
 import pytest
 from unittest.mock import Mock
-from crawlo.core.task_scheduler import Scheduler
-from crawlo.network.request import Request
+from crawlo.core.scheduling.task_scheduler import Scheduler
+from crawlo.http.request import Request
 from crawlo.logging import get_logger
 
 

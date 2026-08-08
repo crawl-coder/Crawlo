@@ -70,6 +70,15 @@ class CheckpointCoordinator:
             if fingerprints and scheduler is not None:
                 checkpoint_mgr.restore_fingerprints(fingerprints, scheduler)
 
+            # 关键修复：只有当真的恢复了请求 OR 恢复了指纹时才算恢复成功
+            # 否则（空 checkpoint：0 请求、0 指纹）应返回 False，让 start_requests 正常执行
+            if restored_count == 0 and not fingerprints:
+                self._logger.info(
+                    "Checkpoint file exists but no requests/fingerprints to restore, "
+                    "treating as no-resume so start_requests will execute normally"
+                )
+                return False
+
             self._logger.info(
                 f"Resumed from checkpoint: {restored_count}/{len(requests_data)} requests restored, "
                 f"{len(fingerprints)} fingerprints recovered"

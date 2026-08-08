@@ -13,7 +13,7 @@ from functools import wraps
 from typing import Optional, Callable, Any, Dict, List
 
 from crawlo.logging import get_logger
-from crawlo.core.exceptions import DetailedException, ErrorContext
+from crawlo.core.errors import DetailedException, ErrorContext
 
 
 class ErrorHandler:

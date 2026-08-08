@@ -25,8 +25,8 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 from unittest.mock import AsyncMock, Mock, patch
 
 from crawlo.middleware.proxy import ProxyMiddleware, Proxy
-from crawlo.network.request import Request
-from crawlo.network.response import Response
+from crawlo.http.request import Request
+from crawlo.http.response import Response
 from crawlo.settings.setting_manager import SettingManager
 
 

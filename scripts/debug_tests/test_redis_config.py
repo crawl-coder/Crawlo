@@ -9,7 +9,7 @@ sys.path.insert(0, "/Users/oscar/projects/Crawlo")
 快速测试 Redis 连接配置修复
 """
 import asyncio
-from crawlo.queue.redis_priority_queue import RedisPriorityQueue
+from crawlo.queue.backends.redis_priority import RedisPriorityQueue
 from crawlo.settings.default_settings import REDIS_URL
 
 async def test_redis_config():

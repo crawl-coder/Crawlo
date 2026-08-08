@@ -15,14 +15,14 @@ from aiohttp import (
     BasicAuth,
 )
 
-from crawlo.network.response import Response
+from crawlo.http.response import Response
 from crawlo.logging import get_logger
 from crawlo.downloader import DownloaderBase
 from crawlo.utils.misc import safe_get_config
 from crawlo.constants import ABSOLUTE_TIMEOUT_MULTIPLIER_NORMAL, ABSOLUTE_TIMEOUT_MULTIPLIER_EXTENDED
 
 if TYPE_CHECKING:
-    from crawlo.network.request import Request
+    from crawlo.http.request import Request
     from crawlo.crawler import Crawler
 
 
@@ -36,7 +36,7 @@ def _supports_happy_eyeballs() -> bool:
 
 
 _HAPPY_EYEBALLS_SUPPORTED = _supports_happy_eyeballs()
-from crawlo.network.exceptions import DownloadError
+from crawlo.http.exceptions import DownloadError
 
 
 class AioHttpDownloader(DownloaderBase):

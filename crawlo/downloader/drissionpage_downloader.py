@@ -27,7 +27,7 @@ from crawlo.constants import SUBPROCESS_RUN_TIMEOUT
 from crawlo.downloader import DownloaderBase
 from crawlo.utils.parsing import PageActionHandler, SelectorConverter
 from crawlo.downloader.stealth_scripts import get_drissionpage_stealth_script
-from crawlo.network.response import Response
+from crawlo.http.response import Response
 from crawlo.logging import get_logger
 from crawlo.utils.misc import (
     get_browser_config,

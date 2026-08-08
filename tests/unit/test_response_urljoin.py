@@ -9,7 +9,7 @@ sys.path.insert(0, "/Users/oscar/projects/Crawlo")
 Response.urljoin 方法测试
 """
 import unittest
-from crawlo.network.response import Response
+from crawlo.http.response import Response
 
 
 class TestResponseUrljoin(unittest.TestCase):

@@ -19,7 +19,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 
-from crawlo.network.response import Response
+from crawlo.http.response import Response
 
 
 # ========== 场景1：Class 名称变化 ==========

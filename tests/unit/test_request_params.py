@@ -9,7 +9,7 @@ sys.path.insert(0, "/Users/oscar/projects/Crawlo")
 Request参数处理测试
 """
 import unittest
-from crawlo.network.request import Request
+from crawlo.http.request import Request
 
 
 class TestRequestParams(unittest.TestCase):
@@ -22,7 +22,7 @@ class TestRequestParams(unittest.TestCase):
         request = Request(
             url="https://api.example.com/users",
             method="GET",
-            get_params=params
+            params=params
         )
         
         # 验证参数是否正确附加到URL上
@@ -87,7 +87,7 @@ class TestRequestParams(unittest.TestCase):
         request = Request(
             url="https://api.example.com/users?category=active",
             method="GET",
-            get_params=params
+            params=params
         )
         
         # 验证原有参数和新参数都存在

@@ -70,7 +70,7 @@ TEST_SITES = [
 async def test_cloudflare_detection():
     """测试 Cloudflare 检测能力"""
     from crawlo.middleware.cloudflare_bypass import CloudflareBypassMiddleware
-    from crawlo.network.response import Response
+    from crawlo.http.response import Response
     
     print("=" * 80)
     print("Cloudflare 防护真实网站测试")

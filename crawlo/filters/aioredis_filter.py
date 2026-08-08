@@ -3,7 +3,7 @@ from typing import Optional, Dict, Any, TYPE_CHECKING
 
 if TYPE_CHECKING:
     from crawlo.crawler import Crawler
-    from crawlo.network.request import Request
+    from crawlo.http.request import Request
 
 # Try to import Redis cluster support
 try:

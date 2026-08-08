@@ -21,13 +21,13 @@ import warnings
 
 # 延迟导入 Request 和 Response 用于类型注解
 if TYPE_CHECKING:
-    from crawlo.network.request import Request
-    from crawlo.network.response import Response
+    from crawlo.http.request import Request
+    from crawlo.http.response import Response
     from crawlo.crawler import Crawler
     from crawlo.settings.setting_manager import SettingManager
 
 # 运行时导入 Request（避免循环依赖）
-from crawlo.network.request import Request as RequestClass
+from crawlo.http.request import Request as RequestClass
 from crawlo.spider.exceptions import AmbiguousSpiderError, SpiderNameConflictWarning
 
 # 冲突追踪表：name -> [候选类完整路径列表]
@@ -641,7 +641,7 @@ class Spider(metaclass=SpiderMeta):
         Returns:
             Request: Request对象
         """
-        from crawlo.network.request import Request
+        from crawlo.http.request import Request
         return Request(
             url=url,
             callback=callback or self.parse,

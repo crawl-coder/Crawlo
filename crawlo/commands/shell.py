@@ -29,7 +29,7 @@ def _load_project_settings():
     """尝试加载项目配置"""
     try:
         from crawlo.project import _find_project_root
-        from crawlo.initialization import initialize_framework
+        from crawlo.core.application import initialize_framework
         
         project_root = _find_project_root()
         if not project_root:

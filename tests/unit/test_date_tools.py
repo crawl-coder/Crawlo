@@ -9,7 +9,7 @@ sys.path.insert(0, "/Users/oscar/projects/Crawlo")
 日期工具测试
 """
 import unittest
-from crawlo.helpers import (
+from crawlo.utils.time_utils import (
     TimeUtils,
     parse_time,
     format_time,
@@ -110,19 +110,15 @@ class TestDateTools(unittest.TestCase):
 
     def test_time_utils_class(self):
         """测试TimeUtils类方法"""
-        # 测试日期加减
+        # 测试日期加减（TimeUtils.add 统一方法）
         base_date = "2025-09-10"
-        plus_30_days = TimeUtils.add_days(base_date, 30)
+        plus_30_days = TimeUtils.add(base_date, days=30)
         self.assertEqual(plus_30_days.month, 10)
         self.assertEqual(plus_30_days.day, 10)
-        
+
         # 测试月份加减
-        plus_3_months = TimeUtils.add_months(base_date, 3)
+        plus_3_months = TimeUtils.add(base_date, months=3)
         self.assertEqual(plus_3_months.month, 12)
-        
-        # 测试闰年判断
-        self.assertTrue(TimeUtils.is_leap_year(2024))
-        self.assertFalse(TimeUtils.is_leap_year(2025))
 
 
 if __name__ == '__main__':

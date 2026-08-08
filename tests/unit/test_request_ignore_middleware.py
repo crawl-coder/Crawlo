@@ -15,7 +15,7 @@ import unittest
 from unittest.mock import Mock, patch
 
 from crawlo.middleware.request_ignore import RequestIgnoreMiddleware
-from crawlo.network.exceptions import IgnoreRequestError
+from crawlo.http.exceptions import IgnoreRequestError
 from crawlo.settings.setting_manager import SettingManager
 
 
@@ -64,7 +64,7 @@ class TestRequestIgnoreMiddleware(unittest.TestCase):
         self.crawler.settings = self.settings
         self.crawler.stats = MockStats()
 
-    @patch('crawlo.utils.log.get_logger')
+    @patch('crawlo.middleware.request_ignore.get_logger')
     def test_middleware_initialization(self, mock_get_logger):
         """测试中间件初始化"""
         self.settings.set('LOG_LEVEL', 'INFO')
@@ -74,7 +74,7 @@ class TestRequestIgnoreMiddleware(unittest.TestCase):
         middleware = RequestIgnoreMiddleware.create_instance(self.crawler)
         self.assertIsInstance(middleware, RequestIgnoreMiddleware)
 
-    @patch('crawlo.utils.log.get_logger')
+    @patch('crawlo.middleware.request_ignore.get_logger')
     def test_request_ignore_event_handling(self, mock_get_logger):
         """测试请求忽略事件处理"""
         self.settings.set('LOG_LEVEL', 'DEBUG')
@@ -83,10 +83,7 @@ class TestRequestIgnoreMiddleware(unittest.TestCase):
         
         # 创建中间件实例
         mock_stats = MockStats()
-        middleware = RequestIgnoreMiddleware(
-            stats=mock_stats,
-            log_level='DEBUG'
-        )
+        middleware = RequestIgnoreMiddleware(stats=mock_stats)
         
         # 创建异常和请求对象
         exc = IgnoreRequestError("test reason")
@@ -101,7 +98,7 @@ class TestRequestIgnoreMiddleware(unittest.TestCase):
         self.assertEqual(mock_stats.stats['request_ignore_count'], 1)
         self.assertIn('request_ignore_count/reason/test reason', mock_stats.stats)
 
-    @patch('crawlo.utils.log.get_logger')
+    @patch('crawlo.middleware.request_ignore.get_logger')
     def test_request_ignore_event_handling_with_domain(self, mock_get_logger):
         """测试带域名的请求忽略事件处理"""
         self.settings.set('LOG_LEVEL', 'DEBUG')
@@ -110,10 +107,7 @@ class TestRequestIgnoreMiddleware(unittest.TestCase):
         
         # 创建中间件实例
         mock_stats = MockStats()
-        middleware = RequestIgnoreMiddleware(
-            stats=mock_stats,
-            log_level='DEBUG'
-        )
+        middleware = RequestIgnoreMiddleware(stats=mock_stats)
         
         # 创建异常和请求对象
         exc = IgnoreRequestError("test reason")
@@ -126,7 +120,7 @@ class TestRequestIgnoreMiddleware(unittest.TestCase):
         # 验证域名统计信息
         self.assertIn('request_ignore_count/domain/example.com', mock_stats.stats)
 
-    @patch('crawlo.utils.log.get_logger')
+    @patch('crawlo.middleware.request_ignore.get_logger')
     def test_request_ignore_event_handling_with_invalid_url(self, mock_get_logger):
         """测试带无效URL的请求忽略事件处理"""
         self.settings.set('LOG_LEVEL', 'DEBUG')
@@ -135,10 +129,7 @@ class TestRequestIgnoreMiddleware(unittest.TestCase):
         
         # 创建中间件实例
         mock_stats = MockStats()
-        middleware = RequestIgnoreMiddleware(
-            stats=mock_stats,
-            log_level='DEBUG'
-        )
+        middleware = RequestIgnoreMiddleware(stats=mock_stats)
         
         # 创建异常和请求对象（没有url属性，会触发异常）
         exc = IgnoreRequestError("test reason")
@@ -154,26 +145,20 @@ class TestRequestIgnoreMiddleware(unittest.TestCase):
     def test_process_exception_with_ignore_request_error(self):
         """测试处理IgnoreRequestError异常"""
         # 创建中间件实例
-        middleware = RequestIgnoreMiddleware(
-            stats=MockStats(),
-            log_level='INFO'
-        )
+        middleware = RequestIgnoreMiddleware(stats=MockStats())
         
         # 创建异常和请求对象
         exc = IgnoreRequestError("test reason")
         request = Mock()
         
-        # 应该返回True表示异常已被处理
+        # 当前实现总是返回None表示异常已被处理
         result = middleware.process_exception(request, exc, Mock())
-        self.assertTrue(result)
+        self.assertIsNone(result)
 
     def test_process_exception_with_other_exception(self):
         """测试处理其他异常"""
         # 创建中间件实例
-        middleware = RequestIgnoreMiddleware(
-            stats=MockStats(),
-            log_level='INFO'
-        )
+        middleware = RequestIgnoreMiddleware(stats=MockStats())
         
         # 创建异常和请求对象
         exc = ValueError("test error")

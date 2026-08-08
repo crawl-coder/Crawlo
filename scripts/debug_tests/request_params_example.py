@@ -3,7 +3,7 @@
 """
 Request参数处理示例
 """
-from crawlo.network.request import Request
+from crawlo.http.request import Request
 
 
 def demo_get_params():

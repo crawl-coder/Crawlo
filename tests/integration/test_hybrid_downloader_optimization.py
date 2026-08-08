@@ -112,7 +112,7 @@ class TestHybridDownloaderLazyLoading:
     async def test_dynamic_downloader_created_on_demand(self):
         """测试动态下载器按需创建"""
         from crawlo.downloader.hybrid_downloader import HybridDownloader
-        from crawlo.network.request import Request
+        from crawlo.http.request import Request
         
         # 创建 mock crawler
         mock_crawler = Mock()
@@ -213,7 +213,7 @@ class TestHybridDownloaderDetermineType:
     def test_request_meta_priority(self):
         """测试请求标记最高优先级"""
         from crawlo.downloader.hybrid_downloader import HybridDownloader
-        from crawlo.network.request import Request
+        from crawlo.http.request import Request
         
         mock_crawler = Mock()
         mock_crawler.settings.get.return_value = "aiohttp"
@@ -233,7 +233,7 @@ class TestHybridDownloaderDetermineType:
     def test_url_pattern_matching(self):
         """测试 URL 模式匹配"""
         from crawlo.downloader.hybrid_downloader import HybridDownloader
-        from crawlo.network.request import Request
+        from crawlo.http.request import Request
         
         mock_crawler = Mock()
         mock_crawler.settings.get.return_value = "aiohttp"
@@ -255,7 +255,7 @@ class TestHybridDownloaderDetermineType:
     def test_static_file_extensions(self):
         """测试静态文件扩展名判断"""
         from crawlo.downloader.hybrid_downloader import HybridDownloader
-        from crawlo.network.request import Request
+        from crawlo.http.request import Request
         
         mock_crawler = Mock()
         mock_crawler.settings.get.return_value = "aiohttp"

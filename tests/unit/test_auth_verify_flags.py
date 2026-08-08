@@ -12,7 +12,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
 from crawlo import Request
 from crawlo.items import Item, Field
-from crawlo.network.response import Response
+from crawlo.http.response import Response
 from crawlo.core.engine import Engine
 
 

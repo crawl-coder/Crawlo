@@ -37,8 +37,6 @@ def test_complete_log_functionality():
         config = configure(
             LOG_LEVEL='DEBUG',
             LOG_FILE=log_file,
-            LOG_MAX_BYTES=2048,  # 小的轮转大小用于测试
-            LOG_BACKUP_COUNT=2,
             LOG_CONSOLE_ENABLED=True,
             LOG_FILE_ENABLED=True,
             LOG_ENCODING='utf-8'
@@ -47,8 +45,6 @@ def test_complete_log_functionality():
         current_config = LogManager().config
         print(f"   配置级别: {current_config.level}")
         print(f"   配置文件路径: {current_config.file_path}")
-        print(f"   轮转大小: {current_config.max_bytes}")
-        print(f"   备份数量: {current_config.backup_count}")
         print(f"   控制台启用: {current_config.console_enabled}")
         print(f"   文件启用: {current_config.file_enabled}")
         print(f"   编码: {current_config.encoding}")
@@ -217,11 +213,19 @@ def test_configuration_edge_cases():
     # 3. 测试无效配置处理
     print("3. 测试无效配置处理...")
     LogManager().reset()
-    
-    # 测试无效级别（应该使用默认级别）
-    config = configure(LOG_LEVEL='INVALID')
-    print(f"   无效级别处理: {config.level}")
-    
+
+    # 测试无效级别（应该抛出ValueError）
+    try:
+        configure(LOG_LEVEL='INVALID')
+        raise AssertionError("无效级别应该抛出ValueError")
+    except ValueError as e:
+        print(f"   无效级别正确抛出ValueError: {e}")
+
+    # 测试有效级别工作正常
+    LogManager().reset()
+    config = configure(LOG_LEVEL='DEBUG')
+    print(f"   有效级别DEBUG: {config.level}")
+
     # 测试空配置
     LogManager().reset()
     config = configure()

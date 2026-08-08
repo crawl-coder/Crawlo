@@ -17,8 +17,8 @@ import aiohttp
 from typing import Optional, Any, Dict
 
 from crawlo.logging import get_logger
-from crawlo.network.request import Request
-from crawlo.network.response import Response
+from crawlo.http.request import Request
+from crawlo.http.response import Response
 from crawlo.settings.setting_manager import SettingManager
 
 

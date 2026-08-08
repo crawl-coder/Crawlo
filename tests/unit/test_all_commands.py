@@ -90,12 +90,12 @@ def test_startproject_command():
         # 检查必要的文件是否存在
         required_files = [
             "crawlo.cfg",
-            "settings.py",
-            "spiders/__init__.py",
-            "items.py",
-            "middlewares.py"
+            f"{project_name}/settings.py",
+            f"{project_name}/spiders/__init__.py",
+            f"{project_name}/items.py",
+            f"{project_name}/middlewares.py"
         ]
-        
+
         for file_path in required_files:
             full_path = project_path / file_path
             assert full_path.exists(), f"必要文件不存在: {full_path}"
@@ -107,7 +107,7 @@ def test_list_command():
     print("测试 list 命令...")
     
     # 在示例项目目录中测试 list 命令
-    example_dir = Path(__file__).parent.parent / "examples" / "ofweek_standalone"
+    example_dir = Path(__file__).parent.parent.parent / "examples" / "ofweek_standalone"
     
     # 测试普通 list 命令
     code, stdout, stderr = run_command("python -m crawlo.cli list", cwd=example_dir)
@@ -163,7 +163,7 @@ def test_check_command():
     print("测试 check 命令...")
     
     # 在示例项目目录中测试 check 命令
-    example_dir = Path(__file__).parent.parent / "examples" / "ofweek_standalone"
+    example_dir = Path(__file__).parent.parent.parent / "examples" / "ofweek_standalone"
     
     # 测试普通 check 命令
     code, stdout, stderr = run_command("python -m crawlo.cli check", cwd=example_dir)
@@ -177,7 +177,7 @@ def test_stats_command():
     print("测试 stats 命令...")
     
     # 在示例项目目录中测试 stats 命令
-    example_dir = Path(__file__).parent.parent / "examples" / "ofweek_standalone"
+    example_dir = Path(__file__).parent.parent.parent / "examples" / "ofweek_standalone"
     
     # 测试普通 stats 命令
     code, stdout, stderr = run_command("python -m crawlo.cli stats", cwd=example_dir)

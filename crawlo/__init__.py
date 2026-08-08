@@ -36,13 +36,13 @@ def __getattr__(name):
     elif name == 'BaseMiddleware':
         return _lazy_import('crawlo.middleware', 'BaseMiddleware')
     elif name == 'Request':
-        return _lazy_import('crawlo.network.request', 'Request')
+        return _lazy_import('crawlo.http.request', 'Request')
     elif name == 'Response':
-        return _lazy_import('crawlo.network.response', 'Response')
+        return _lazy_import('crawlo.http.response', 'Response')
     elif name == 'Spider':
         return _lazy_import('crawlo.spider', 'Spider')
     elif name == 'Failure':
-        return _lazy_import('crawlo.core.failure', 'Failure')
+        return _lazy_import('crawlo.core.errors', 'Failure')
     elif name in ('cleaners', 'helpers'):
         import crawlo.utils
         return crawlo.utils

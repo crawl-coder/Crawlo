@@ -12,7 +12,7 @@ from .error_handler import (
 )
 # ErrorContext / DetailedException 从 crawlo.exceptions 间接导入，
 # 保留导出以兼容旧路径 from crawlo.utils.error_handler import ErrorContext
-from crawlo.core.exceptions import ErrorContext, DetailedException  # noqa: F401
+from crawlo.core.errors import ErrorContext, DetailedException  # noqa: F401
 
 __all__ = [
     'ErrorHandler',

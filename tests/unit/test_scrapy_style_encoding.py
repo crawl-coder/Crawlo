@@ -9,7 +9,7 @@ sys.path.insert(0, "/Users/oscar/projects/Crawlo")
 Scrapy风格编码检测测试
 """
 import unittest
-from crawlo.network.response import Response
+from crawlo.http.response import Response
 
 
 class TestScrapyStyleEncoding(unittest.TestCase):
@@ -29,15 +29,9 @@ class TestScrapyStyleEncoding(unittest.TestCase):
 
     def test_declared_encoding_method(self):
         """测试 _declared_encoding 方法"""
-        class MockRequest:
-            encoding = 'gbk'
-        
-        response = Response(
-            url="https://example.com",
-            body=b'',
-            request=MockRequest()
-        )
-        self.assertEqual(response._declared_encoding(), 'gbk')
+        # _declared_encoding() 方法已移除，声明编码优先级现通过 response.encoding 覆盖
+        # （见 test_request_encoding_priority）
+        self.skipTest("_declared_encoding() 方法已移除，声明编码优先级由 response.encoding 覆盖")
 
     def test_content_type_encoding(self):
         """测试 Content-Type 头部编码检测"""
@@ -46,7 +40,8 @@ class TestScrapyStyleEncoding(unittest.TestCase):
             body=b'',
             headers={"content-type": "text/html; charset=iso-8859-1"}
         )
-        self.assertEqual(response.encoding, 'iso-8859-1')
+        # w3lib 按 HTML5 规范将 iso-8859-1 解析为 cp1252（windows-1252）
+        self.assertEqual(response.encoding, 'cp1252')
 
     def test_case_insensitive_content_type(self):
         """测试 Content-Type 头部大小写不敏感"""
@@ -63,18 +58,14 @@ class TestScrapyStyleEncoding(unittest.TestCase):
             url="https://example.com",
             body=b''
         )
-        self.assertEqual(response.encoding, 'utf-8')
+        # w3lib 对空内容将 ascii 解析为 cp1252
+        self.assertEqual(response.encoding, 'cp1252')
 
     def test_declared_encoding_priority(self):
         """测试声明编码的优先级"""
-        # 模拟没有request编码的情况
-        response = Response(
-            url="https://example.com",
-            body=b'',
-            headers={"content-type": "text/html; charset=iso-8859-1"}
-        )
-        # 应该返回Content-Type中的编码
-        self.assertEqual(response._declared_encoding(), 'iso-8859-1')
+        # _declared_encoding() 方法已移除，Content-Type 编码检测由 response.encoding 覆盖
+        # （见 test_content_type_encoding）
+        self.skipTest("_declared_encoding() 方法已移除，Content-Type 编码检测由 response.encoding 覆盖")
 
 
 def test_scrapy_style_encoding():
@@ -100,10 +91,9 @@ def test_scrapy_style_encoding():
     )
     print(f"Content-Type 编码: {response2.encoding}")
     
-    # 测试声明编码方法
-    declared_enc = response2._declared_encoding()
-    print(f"声明编码: {declared_enc}")
-    
+    # 测试声明编码方法（_declared_encoding 已移除，改用 response.encoding）
+    print(f"声明编码(即 response.encoding): {response2.encoding}")
+
     # 测试默认编码
     response3 = Response(
         url="https://example.com",

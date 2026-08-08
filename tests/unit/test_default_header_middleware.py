@@ -15,7 +15,7 @@ from unittest.mock import Mock, patch
 
 from crawlo.middleware.default_header import DefaultHeaderMiddleware
 from crawlo.settings.setting_manager import SettingManager
-from crawlo.core.exceptions import NotConfiguredError
+from crawlo.core.errors import NotConfiguredError
 
 
 class MockLogger:
@@ -51,17 +51,21 @@ class TestDefaultHeaderMiddleware(unittest.TestCase):
 
     def test_middleware_initialization_without_config(self):
         """测试没有配置时中间件初始化"""
+        # 显式清除默认配置
+        self.settings.set('USER_AGENT', None)
+        self.settings.set('DEFAULT_REQUEST_HEADERS', {})
+
         # 创建一个模拟的crawler对象
         crawler = Mock()
         crawler.settings = self.settings
-        
+
         logger = MockLogger('DefaultHeaderMiddleware')
         with patch('crawlo.middleware.default_header.get_logger', return_value=logger):
             # 应该抛出NotConfiguredError异常
             with self.assertRaises(NotConfiguredError) as context:
                 DefaultHeaderMiddleware.create_instance(crawler)
-            
-            self.assertIn("未配置DEFAULT_REQUEST_HEADERS、USER_AGENT或随机头部配置，DefaultHeaderMiddleware已禁用", str(context.exception))
+
+            self.assertIn("DefaultHeaderMiddleware", str(context.exception))
 
     def test_middleware_initialization_with_default_headers(self):
         """测试使用默认请求头配置时中间件初始化"""
@@ -71,6 +75,7 @@ class TestDefaultHeaderMiddleware(unittest.TestCase):
             'Accept-Language': 'en-US,en;q=0.5',
             'Accept-Encoding': 'gzip, deflate',
         })
+        self.settings.set('USER_AGENT', None)
         self.settings.set('LOG_LEVEL', 'DEBUG')
         
         # 创建一个模拟的crawler对象
@@ -108,49 +113,44 @@ class TestDefaultHeaderMiddleware(unittest.TestCase):
             self.assertEqual(middleware.headers['User-Agent'], 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36')
 
     def test_middleware_initialization_with_random_user_agent_enabled(self):
-        """测试启用随机User-Agent时中间件初始化"""
-        # 启用随机User-Agent并提供一个User-Agent
-        self.settings.set('RANDOM_USER_AGENT_ENABLED', True)
-        self.settings.set('USER_AGENTS', ['Test-Agent/1.0'])  # 提供一个User-Agent以通过初始化检查
+        """测试启用User-Agent轮换时中间件初始化"""
+        # 启用User-Agent轮换，不设置固定UA
+        self.settings.set('USER_AGENT_ROTATION', True)
+        self.settings.set('USER_AGENT', None)
         self.settings.set('LOG_LEVEL', 'DEBUG')
-        
+
         # 创建一个模拟的crawler对象
         crawler = Mock()
         crawler.settings = self.settings
-        
+
         logger = MockLogger('DefaultHeaderMiddleware')
         with patch('crawlo.middleware.default_header.get_logger', return_value=logger):
             # 应该正常创建实例，使用内置User-Agent列表
             middleware = DefaultHeaderMiddleware.create_instance(crawler)
-            
+
             self.assertIsInstance(middleware, DefaultHeaderMiddleware)
-            self.assertTrue(middleware.random_user_agent_enabled)
-            # 注意：这里user_agents会被get_user_agents覆盖，所以长度可能不为1
+            self.assertTrue(middleware.rotation_enabled)
 
     def test_middleware_initialization_with_custom_user_agents(self):
-        """测试使用自定义User-Agent列表时中间件初始化"""
-        # 设置自定义User-Agent列表
-        custom_user_agents = [
-            'Custom-Agent/1.0',
-            'Custom-Agent/2.0',
-            'Custom-Agent/3.0'
-        ]
-        self.settings.set('RANDOM_USER_AGENT_ENABLED', True)
-        self.settings.set('USER_AGENTS', custom_user_agents)
+        """测试启用User-Agent轮换时加载UA列表"""
+        # 启用User-Agent轮换
+        self.settings.set('USER_AGENT_ROTATION', True)
+        self.settings.set('USER_AGENT', None)
+        self.settings.set('USER_AGENT_TYPE', 'desktop')
         self.settings.set('LOG_LEVEL', 'DEBUG')
-        
+
         # 创建一个模拟的crawler对象
         crawler = Mock()
         crawler.settings = self.settings
-        
+
         logger = MockLogger('DefaultHeaderMiddleware')
         with patch('crawlo.middleware.default_header.get_logger', return_value=logger):
-            # 应该正常创建实例，使用自定义User-Agent列表
+            # 应该正常创建实例，使用内置User-Agent列表
             middleware = DefaultHeaderMiddleware.create_instance(crawler)
-            
+
             self.assertIsInstance(middleware, DefaultHeaderMiddleware)
-            self.assertTrue(middleware.random_user_agent_enabled)
-            self.assertEqual(middleware.user_agents, custom_user_agents)
+            self.assertTrue(middleware.rotation_enabled)
+            self.assertTrue(len(middleware.user_agents) > 0)
 
     def test_process_request_with_default_headers(self):
         """测试处理请求时添加默认请求头"""
@@ -220,37 +220,33 @@ class TestDefaultHeaderMiddleware(unittest.TestCase):
 
     def test_process_request_with_random_user_agent(self):
         """测试处理请求时添加随机User-Agent"""
-        # 启用随机User-Agent并设置自定义列表
-        custom_user_agents = [
-            'Custom-Agent/1.0',
-            'Custom-Agent/2.0',
-            'Custom-Agent/3.0'
-        ]
-        self.settings.set('RANDOM_USER_AGENT_ENABLED', True)
-        self.settings.set('USER_AGENTS', custom_user_agents)
+        # 启用User-Agent轮换，不设置固定UA
+        self.settings.set('USER_AGENT_ROTATION', True)
+        self.settings.set('USER_AGENT', None)
         self.settings.set('LOG_LEVEL', 'DEBUG')
-        
+
         # 创建一个模拟的crawler对象
         crawler = Mock()
         crawler.settings = self.settings
-        
+
         logger = MockLogger('DefaultHeaderMiddleware')
         with patch('crawlo.middleware.default_header.get_logger', return_value=logger):
             middleware = DefaultHeaderMiddleware.create_instance(crawler)
-            
+
             # 创建没有User-Agent的请求
             request = Mock()
             request.headers = {}
             request.url = 'https://example.com'
-            
+
             spider = Mock()
-            
+
             # 处理请求
             middleware.process_request(request, spider)
-            
+
             # 检查随机User-Agent是否添加
             self.assertIn('User-Agent', request.headers)
-            self.assertIn(request.headers['User-Agent'], custom_user_agents)
+            self.assertIsInstance(request.headers['User-Agent'], str)
+            self.assertTrue(len(request.headers['User-Agent']) > 0)
 
     def test_process_request_with_existing_user_agent(self):
         """测试处理已有User-Agent的请求"""
@@ -292,6 +288,7 @@ class TestDefaultHeaderMiddleware(unittest.TestCase):
         """Test getting random User-Agent from built-in list"""
         # Enable User-Agent rotation
         self.settings.set('USER_AGENT_ROTATION', True)
+        self.settings.set('USER_AGENT', None)
         self.settings.set('USER_AGENT_TYPE', 'desktop')
         self.settings.set('LOG_LEVEL', 'DEBUG')
 

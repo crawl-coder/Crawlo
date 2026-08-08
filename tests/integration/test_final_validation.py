@@ -16,10 +16,10 @@ import pickle
 import sys
 sys.path.insert(0, "..")
 
-from crawlo.network.request import Request
+from crawlo.http.request import Request
 from crawlo.spider import Spider
-from crawlo.core.task_scheduler import Scheduler
-from crawlo.queue.redis_priority_queue import RedisPriorityQueue
+from crawlo.core.scheduling.task_scheduler import Scheduler
+from crawlo.queue.backends.redis_priority import RedisPriorityQueue
 from crawlo.utils.log import get_logger
 from unittest.mock import Mock
 

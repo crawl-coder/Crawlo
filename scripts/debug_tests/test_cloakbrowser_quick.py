@@ -19,7 +19,7 @@ async def test_cloakbrowser_spider():
     """测试 CloakBrowser 爬虫基本功能"""
     from crawlo.crawler import Crawler
     from crawlo.spider.spider import Spider
-    from crawlo.network.request import Request
+    from crawlo.http.request import Request
     
     class CloakBrowserTestSpider(Spider):
         """测试爬虫"""

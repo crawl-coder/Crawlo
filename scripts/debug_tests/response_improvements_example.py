@@ -3,7 +3,7 @@
 """
 Response 改进功能使用示例
 """
-from crawlo.network.response import Response
+from crawlo.http.response import Response
 
 
 def demo_response_improvements():

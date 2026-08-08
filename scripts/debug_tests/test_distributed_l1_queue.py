@@ -4,8 +4,8 @@ L1 Unit Tests: RedisStreamQueue (14 cases)
 import pytest
 import pytest_asyncio
 import redis.asyncio as aioredis
-from crawlo.network.request import Request
-from crawlo.queue.redis_stream_queue import RedisStreamQueue
+from crawlo.http.request import Request
+from crawlo.queue.backends.redis_stream import RedisStreamQueue
 from crawlo.queue.task_tracker import TaskResult
 
 REDIS_URL = "redis://127.0.0.1:6379/0"

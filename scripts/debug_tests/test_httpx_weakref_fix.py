@@ -15,7 +15,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
 from unittest.mock import AsyncMock, MagicMock, patch
 from crawlo.downloader.httpx_downloader import HttpXDownloader
-from crawlo.network.exceptions import DownloadError
+from crawlo.http.exceptions import DownloadError
 
 
 class MockCrawler:

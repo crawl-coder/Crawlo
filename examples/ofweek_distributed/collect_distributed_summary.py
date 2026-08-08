@@ -18,8 +18,15 @@ EXAMPLE_ROOT = Path(__file__).resolve().parent
 LOG_DIR = EXAMPLE_ROOT / "logs" / "workers"
 WORKER_LOGS = sorted(LOG_DIR.glob("worker_*.log")) if LOG_DIR.exists() else []
 OUT_TXT = EXAMPLE_ROOT / "logs" / f"distributed_summary_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt"
-REDIS = ["redis-cli", "-h", "127.0.0.1", "-p", "6379"]
+REDIS_HOST = "127.0.0.1"
+REDIS_PORT = 6379
+REDIS_DB = 0
 PYTHON_BIN = "/Users/oscar/software/miniconda3/envs/crawlo/bin/python"
+
+
+def get_redis():
+    import redis as _redis
+    return _redis.Redis(host=REDIS_HOST, port=REDIS_PORT, db=REDIS_DB, decode_responses=True)
 
 
 def cmd(args):
@@ -34,34 +41,46 @@ def h(title, char="="):
 
 
 def redis_snapshot(out):
+    r = get_redis()
     out.append(h("Redis 实时快照"))
-    for sk in cmd(REDIS + ["--scan", "--pattern", "crawlo:ofweek_distributed*"]).splitlines():
-        sk = sk.strip()
-        if not sk:
+    try:
+        keys = list(r.scan_iter(match="crawlo:ofweek_distributed*"))
+    except Exception as e:
+        out.append(f"  (Redis scan error: {e})")
+        keys = []
+    if not keys:
+        out.append("  (无 crawlo:ofweek_distributed* 键 — 测试数据已清理)")
+    for sk in sorted(keys):
+        try:
+            t = r.type(sk)
+        except Exception:
             continue
-        t = cmd(REDIS + ["TYPE", sk]).strip()
         if t == "stream":
             out.append(f"  STREAM {sk}")
-            out.append(f"    XLEN = {cmd(REDIS + ['XLEN', sk]).strip()}")
-            info = cmd(REDIS + ["XINFO", "GROUPS", sk]).strip()
-            if info:
-                lines = info.splitlines()
-                for i in range(0, len(lines), 2):
-                    if i + 1 < len(lines):
-                        out.append(f"    {lines[i].strip()} = {lines[i+1].strip()}")
+            try:
+                xlen = r.xlen(sk)
+                out.append(f"    XLEN = {xlen}")
+                groups = r.xinfo_groups(sk)
+                for g in groups:
+                    out.append(f"    GROUP {g.get('name', '?')} "
+                               f"consumers={g.get('consumers', '?')} "
+                               f"pending={g.get('pending', '?')} "
+                               f"lag={g.get('lag', '?')}")
+            except Exception as e:
+                out.append(f"    (stream info error: {e})")
         elif t == "set":
-            out.append(f"  SET {sk}  SCARD = {cmd(REDIS + ['SCARD', sk]).strip()}")
+            try:
+                scard = r.scard(sk)
+                out.append(f"  SET {sk}  SCARD = {scard}")
+            except Exception as e:
+                out.append(f"  SET {sk}  (error: {e})")
         elif t == "hash":
-            hlen = cmd(REDIS + ["HLEN", sk]).strip()
-            out.append(f"  HASH {sk}  HLEN = {hlen}")
-            if "registry:workers" in sk:
-                for pair in (cmd(REDIS + ["HGETALL", sk]).splitlines() or []):
-                    pass  # 下面单独打印
-                vals = cmd(REDIS + ["HGETALL", sk]).splitlines()
-                for i in range(0, len(vals), 2):
-                    if i + 1 < len(vals):
-                        fid = vals[i].split(":", 1)[-1] if ":" in vals[i] else vals[i]
-                        v = vals[i + 1]
+            try:
+                hlen = r.hlen(sk)
+                out.append(f"  HASH {sk}  HLEN = {hlen}")
+                if "registry:workers" in sk:
+                    vals = r.hgetall(sk)
+                    for fid, v in vals.items():
                         try:
                             import json
                             obj = json.loads(v)
@@ -71,14 +90,22 @@ def redis_snapshot(out):
                                 f"proc={obj.get('tasks_processing')} pid={obj.get('pid')}"
                             )
                         except Exception:
-                            out.append(f"    {fid} = {v[:80]}")
+                            out.append(f"    {fid} = {str(v)[:80]}")
+            except Exception as e:
+                out.append(f"  HASH {sk}  (error: {e})")
         elif t == "zset":
-            zlen = cmd(REDIS + ["ZCARD", sk]).strip()
-            out.append(f"  ZSET {sk}  ZCARD = {zlen}")
+            try:
+                zcard = r.zcard(sk)
+                out.append(f"  ZSET {sk}  ZCARD = {zcard}")
+            except Exception as e:
+                out.append(f"  ZSET {sk}  (error: {e})")
         elif t == "string":
-            val = cmd(REDIS + ["GET", sk]).strip()
-            ttl = cmd(REDIS + ["TTL", sk]).strip()
-            out.append(f"  STR {sk} = {val[:64]}  (TTL={ttl}s)")
+            try:
+                val = r.get(sk) or ""
+                ttl = r.ttl(sk)
+                out.append(f"  STR {sk} = {str(val)[:64]}  (TTL={ttl}s)")
+            except Exception as e:
+                out.append(f"  STR {sk}  (error: {e})")
         else:
             out.append(f"  {t.upper()} {sk}")
 

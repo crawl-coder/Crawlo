@@ -7,7 +7,7 @@
 
 与 queue/interfaces.py 同目录，供 IQueue 实现类使用。
 """
-from crawlo.core.exceptions import ScheduleException
+from crawlo.core.errors import ScheduleException
 
 
 # ============= 队列异常 =============

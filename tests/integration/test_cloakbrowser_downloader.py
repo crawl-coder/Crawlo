@@ -248,7 +248,7 @@ class TestHybridDownloaderIntegration:
     async def test_hybrid_selects_cloakbrowser(self):
         """测试 HybridDownloader 选择 cloakbrowser"""
         from crawlo.downloader.hybrid_downloader import HybridDownloader
-        from crawlo.network.request import Request
+        from crawlo.http.request import Request
         
         # 创建混合下载器
         mock_crawler = Mock()
@@ -298,7 +298,7 @@ class TestExceptionHandling:
     async def test_download_without_initialization(self, mock_crawler):
         """测试未初始化时下载的错误处理"""
         from crawlo.downloader.cloakbrowser_downloader import CloakBrowserDownloader
-        from crawlo.network.request import Request
+        from crawlo.http.request import Request
         
         downloader = CloakBrowserDownloader(mock_crawler)
         
@@ -425,7 +425,7 @@ class TestConfigurationOverrides:
     def test_meta_overrides_headless(self, mock_crawler):
         """测试 meta 覆盖 headless 配置"""
         from crawlo.downloader.cloakbrowser_downloader import CloakBrowserDownloader
-        from crawlo.network.request import Request
+        from crawlo.http.request import Request
         
         downloader = CloakBrowserDownloader(mock_crawler)
         
@@ -440,7 +440,7 @@ class TestConfigurationOverrides:
     def test_meta_overrides_wait_strategy(self, mock_crawler):
         """测试 meta 覆盖 wait_strategy"""
         from crawlo.downloader.cloakbrowser_downloader import CloakBrowserDownloader
-        from crawlo.network.request import Request
+        from crawlo.http.request import Request
         
         downloader = CloakBrowserDownloader(mock_crawler)
         

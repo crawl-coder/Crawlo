@@ -48,7 +48,7 @@ class TestErrorTypesTimeoutFix:
     
     def test_no_duplicate_timeout_error(self):
         """Verify asyncio.TimeoutError is not in NETWORK_EXCEPTIONS"""
-        from crawlo.core.error_types import ErrorClassifier
+        from crawlo.core.errors import ErrorClassifier
         import asyncio
         
         # In Python 3.11+, asyncio.TimeoutError is an alias of TimeoutError
@@ -65,7 +65,7 @@ class TestErrorTypesTimeoutFix:
     
     def test_retryable_exceptions_no_duplicate(self):
         """Verify RETRYABLE_EXCEPTIONS has no duplicate TimeoutError"""
-        from crawlo.core.error_types import ErrorClassifier
+        from crawlo.core.errors import ErrorClassifier
         
         retryable_exceptions = ErrorClassifier.RETRYABLE_EXCEPTIONS
         timeout_count = sum(1 for exc in retryable_exceptions if exc is TimeoutError)
@@ -78,7 +78,7 @@ class TestDynamicSemaphoreSuperFix:
     
     def test_dynamic_semaphore_no_super_init(self):
         """Verify DynamicSemaphore doesn't call super().__init__()"""
-        from crawlo.core.task_manager import DynamicSemaphore
+        from crawlo.core.scheduling.task_manager import DynamicSemaphore
         import inspect
         
         # Get the __init__ source code
@@ -90,7 +90,7 @@ class TestDynamicSemaphoreSuperFix:
     
     def test_dynamic_semaphore_instantiation(self):
         """Verify DynamicSemaphore can be instantiated correctly"""
-        from crawlo.core.task_manager import DynamicSemaphore
+        from crawlo.core.scheduling.task_manager import DynamicSemaphore
         
         # Should work without errors
         semaphore = DynamicSemaphore(initial_value=5)
@@ -128,7 +128,7 @@ class TestSchedulerConstants:
     
     def test_default_constants_exist(self):
         """Verify default constants are defined"""
-        from crawlo.core import task_scheduler as scheduler
+        import crawlo.core.scheduling.task_scheduler as scheduler
         
         assert hasattr(scheduler, '_DEFAULT_QUEUE_TYPE')
         assert hasattr(scheduler, '_DEFAULT_FILTER_CLASS')
@@ -138,7 +138,7 @@ class TestSchedulerConstants:
     
     def test_default_values_correct(self):
         """Verify constant values are correct"""
-        from crawlo.core.task_scheduler import (
+        from crawlo.core.scheduling.task_scheduler import (
             _DEFAULT_QUEUE_TYPE,
             _DEFAULT_FILTER_CLASS,
             _DEFAULT_CONCURRENCY,
@@ -154,7 +154,7 @@ class TestSchedulerConstants:
     
     def test_constants_used_in_code(self):
         """Verify constants are used instead of magic numbers"""
-        from crawlo.core.task_scheduler import Scheduler
+        from crawlo.core.scheduling.task_scheduler import Scheduler
         import inspect
         
         source = inspect.getsource(Scheduler.create_instance)
@@ -198,23 +198,23 @@ class TestProcessorSafeGetConfig:
 
 # Test P1-5: engine_helpers.py time import
 class TestEngineHelpersTimeImport:
-    """Test P1-5: engine_helpers.py moved time import to top"""
-    
+    """Test P1-5: engine.py (merged) has time import at top"""
+
     def test_time_imported_at_top(self):
         """Verify time is imported at module level"""
-        import crawlo.core.engine_helpers as module
+        import crawlo.core.engine as module
         import inspect
-        
+
         source = inspect.getsource(module)
-        
-        # Check time is imported at top (in first 20 lines)
-        lines = source.split('\n')[:20]
+
+        # Check time is imported at top (in first 30 lines — merged file has more imports)
+        lines = source.split('\n')[:30]
         has_top_import = any('import time' in line for line in lines)
         assert has_top_import, "time should be imported at module top"
-    
+
     def test_no_local_time_import(self):
         """Verify no local import of time in methods"""
-        from crawlo.core.engine_helpers import GenerationStats
+        from crawlo.core.engine import GenerationStats
         import inspect
         
         source = inspect.getsource(GenerationStats.mark_start)
@@ -231,19 +231,20 @@ class TestErrorTypesDocumentation:
     """Test P1-6: error_types.py documentation is in English"""
     
     def test_module_docstring_english(self):
-        """Verify module docstring is in English"""
-        from crawlo.core import error_types
-        
-        docstring = error_types.__doc__
+        """Verify module docstring references merged error components"""
+        import crawlo.core.errors as module
+
+        docstring = module.__doc__
         assert docstring is not None
-        
-        # Should contain English words, not Chinese
-        assert "Error Type Classification" in docstring
-        assert "错误类型分类" not in docstring
+
+        # 合并后的模块 docstring 应包含三个子模块的核心符号
+        assert "ErrorClassifier" in docstring
+        assert "CrawloException" in docstring
+        assert "Failure" in docstring
     
     def test_class_docstring_english(self):
         """Verify ErrorClassifier docstring is in English"""
-        from crawlo.core.error_types import ErrorClassifier
+        from crawlo.core.errors import ErrorClassifier
         
         docstring = ErrorClassifier.__doc__
         assert docstring is not None
@@ -292,9 +293,9 @@ class TestEngineHelpersTypeAnnotations:
     
     def test_to_dict_return_type(self):
         """Verify to_dict() returns Dict[str, Any]"""
-        from crawlo.core.engine_helpers import GenerationStats
+        from crawlo.core.engine import GenerationStats
         import inspect
-        
+
         # Get the method
         method = GenerationStats.to_dict
         
@@ -314,12 +315,12 @@ class TestCoreModuleImports:
         """Verify all modified modules can be imported"""
         # Should not raise any import errors
         from crawlo.core.application import ApplicationContext
-        from crawlo.core.error_types import ErrorClassifier
-        from crawlo.core.task_manager import DynamicSemaphore
+        from crawlo.core.errors import ErrorClassifier
+        from crawlo.core.scheduling.task_manager import DynamicSemaphore
         from crawlo.core.engine import Engine
-        from crawlo.core.task_scheduler import Scheduler
+        from crawlo.core.scheduling.task_scheduler import Scheduler
         from crawlo.core.processor import Processor
-        from crawlo.core.engine_helpers import GenerationStats, EngineBackpressureAdapter
+        from crawlo.core.engine import GenerationStats, EngineBackpressureAdapter
         
         # All imports successful
         assert ApplicationContext is not None

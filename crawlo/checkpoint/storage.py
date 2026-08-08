@@ -57,6 +57,11 @@ class JsonStorage(BaseStorage):
         # 确保目录存在
         os.makedirs(self._dir, exist_ok=True)
 
+    @property
+    def filepath(self) -> str:
+        """检查点文件路径（公开只读属性）"""
+        return self._path
+
     def save(self, data: Dict[str, Any]) -> bool:
         """保存检查点到 JSON 文件（原子写入）"""
         try:
@@ -155,6 +160,11 @@ class SqliteStorage(BaseStorage):
 
         # 初始化表
         self._init_tables()
+
+    @property
+    def filepath(self) -> str:
+        """检查点文件路径（公开只读属性）"""
+        return self._path
 
     def _init_tables(self):
         """初始化数据库表"""

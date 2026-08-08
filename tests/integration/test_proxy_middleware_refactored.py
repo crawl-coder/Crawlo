@@ -18,7 +18,7 @@ import unittest
 from unittest.mock import Mock, patch
 
 from crawlo.middleware.proxy import ProxyMiddleware, Proxy
-from crawlo.core.exceptions import NotConfiguredError
+from crawlo.core.errors import NotConfiguredError
 from crawlo.settings.setting_manager import SettingManager
 
 

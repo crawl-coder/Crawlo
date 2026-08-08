@@ -1,7 +1,7 @@
 """L1 Unit Tests: TaskTracker (8 cases)"""
 import asyncio
 import pytest
-from crawlo.network.request import Request
+from crawlo.http.request import Request
 from crawlo.queue.task_tracker import TaskTracker, TaskResult
 
 

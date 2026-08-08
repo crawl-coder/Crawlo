@@ -204,7 +204,7 @@ def test_engine():
        SCHEDULER_RESOURCE_CHECK_INTERVAL == 300)
 
     # 验证引擎核心组件
-    from crawlo.core.task_scheduler import Scheduler
+    from crawlo.core.scheduling.task_scheduler import Scheduler
     ck("Scheduler 存在", Scheduler is not None)
 
 

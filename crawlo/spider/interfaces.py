@@ -12,7 +12,7 @@ from typing import (
 
 if TYPE_CHECKING:
     from crawlo.spider import Spider
-    from crawlo.network.request import Request
+    from crawlo.http.request import Request
 
 
 # ==================== 爬虫加载器接口 ====================

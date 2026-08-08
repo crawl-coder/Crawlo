@@ -1,9 +1,4 @@
 #!/usr/bin/python
-# -*- coding: UTF-8 -*-
-import sys
-import os
-sys.path.insert(0, "/Users/oscar/projects/Crawlo")
-#!/usr/bin/python
 # -*- coding:UTF-8 -*-
 """
 Response.follow 方法测试
@@ -11,19 +6,8 @@ Response.follow 方法测试
 import unittest
 from unittest.mock import Mock
 
-# 模拟 Request 类
-class MockRequest:
-    def __init__(self, url, callback=None, **kwargs):
-        self.url = url
-        self.callback = callback
-        self.kwargs = kwargs
-
-# 模拟 crawlo.Request
-import sys
-sys.modules['crawlo'] = Mock()
-sys.modules['crawlo'].Request = MockRequest
-
-from crawlo.network.response import Response
+from crawlo.http.request import Request
+from crawlo.http.response import Response
 
 
 class TestResponseFollow(unittest.TestCase):
@@ -53,11 +37,11 @@ class TestResponseFollow(unittest.TestCase):
         </body>
         </html>
         """
-        
+
         # 创建模拟的请求对象
         mock_request = Mock()
         mock_request.callback = None
-        
+
         self.response = Response(
             url="https://example.com/test",
             body=html_content.encode('utf-8'),
@@ -81,7 +65,7 @@ class TestResponseFollow(unittest.TestCase):
         """测试处理复杂的相对URL"""
         request = self.response.follow("../other/path", callback=lambda r: None)
         self.assertEqual(request.url, "https://example.com/other/path")
-        
+
         request2 = self.response.follow("./another/path", callback=lambda r: None)
         self.assertEqual(request2.url, "https://example.com/another/path")
 
@@ -89,21 +73,21 @@ class TestResponseFollow(unittest.TestCase):
         """测试处理带查询参数的URL"""
         request = self.response.follow("/path?param=value", callback=lambda r: None)
         self.assertEqual(request.url, "https://example.com/path?param=value")
-        
+
         request2 = self.response.follow("/path#section", callback=lambda r: None)
         self.assertEqual(request2.url, "https://example.com/path#section")
 
     def test_follow_with_additional_kwargs(self):
         """测试传递额外参数"""
         request = self.response.follow(
-            "/path", 
+            "/path",
             callback=lambda r: None,
             method="POST",
             headers={"User-Agent": "test"}
         )
         self.assertEqual(request.url, "https://example.com/path")
-        self.assertEqual(request.kwargs.get("method"), "POST")
-        self.assertEqual(request.kwargs.get("headers"), {"User-Agent": "test"})
+        self.assertEqual(request.method, "POST")
+        self.assertEqual(request.headers.get("User-Agent"), "test")
 
 
 if __name__ == '__main__':

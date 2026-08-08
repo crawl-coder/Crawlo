@@ -1,7 +1,7 @@
 """Quick distributed tests with minimal delays"""
 import asyncio, time, redis.asyncio as aioredis
-from crawlo.network.request import Request
-from crawlo.queue.redis_stream_queue import RedisStreamQueue
+from crawlo.http.request import Request
+from crawlo.queue.backends.redis_stream import RedisStreamQueue
 from crawlo.queue.task_tracker import TaskTracker, TaskResult
 from crawlo.utils.redis.keys import RedisKeyManager
 from crawlo.cluster.registry import WorkerRegistry

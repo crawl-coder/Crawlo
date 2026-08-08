@@ -16,7 +16,7 @@ import time
 from typing import Any, Dict, List, Optional, Set, TYPE_CHECKING
 
 from crawlo.logging import get_logger
-from crawlo.network.request import Request
+from crawlo.http.request import Request
 from crawlo.utils.misc import safe_get_config
 from crawlo.checkpoint.storage import BaseStorage, JsonStorage, SqliteStorage
 

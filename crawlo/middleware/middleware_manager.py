@@ -11,16 +11,16 @@ if TYPE_CHECKING:
     from crawlo import Request, Response
 else:
     # Import actual classes for isinstance checks
-    from crawlo.network.request import Request
-    from crawlo.network.response import Response
+    from crawlo.http.request import Request
+    from crawlo.http.response import Response
 from crawlo.logging import get_logger
 from crawlo.utils.misc import load_object
 from crawlo.middleware import BaseMiddleware
 from crawlo.project import common_call
 from crawlo.event import CrawlerEvent
 from crawlo.utils.misc import safe_get_config
-from crawlo.core.exceptions import MiddlewareInitError, InvalidOutputError, NotConfiguredError
-from crawlo.network.exceptions import RequestMethodError, IgnoreRequestError
+from crawlo.core.errors import MiddlewareInitError, InvalidOutputError, NotConfiguredError
+from crawlo.http.exceptions import RequestMethodError, IgnoreRequestError
 
 
 class MiddlewareManager:

@@ -1,9 +1,9 @@
 """Backpressure: slow website / queue saturation tests (instant version)"""
 import asyncio
 
-from crawlo.backpressure.strategies import QueueSizeStrategy
-from crawlo.backpressure.interfaces import BackpressureStrategyConfig
-from crawlo.backpressure import BackpressureController
+from crawlo.queue.backpressure.strategies import QueueSizeStrategy
+from crawlo.queue.backpressure.interfaces import BackpressureStrategyConfig
+from crawlo.queue.backpressure import BackpressureController
 
 
 class PipeQueue:

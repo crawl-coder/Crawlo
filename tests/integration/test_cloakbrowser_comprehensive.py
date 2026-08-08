@@ -473,7 +473,7 @@ async def test_persistent_context():
 @test_case("5.1 AUTO 等待策略")
 async def test_wait_auto():
     from crawlo.downloader.cloakbrowser_downloader import CloakBrowserDownloader
-    from crawlo.network.request import Request
+    from crawlo.http.request import Request
     dl = CloakBrowserDownloader(make_mock_crawler())
     req = Request(url="https://example.com")
     assert dl._get_wait_until(req) == "domcontentloaded"
@@ -483,7 +483,7 @@ async def test_wait_auto():
 async def test_wait_network_idle():
     from crawlo.downloader.cloakbrowser_downloader import CloakBrowserDownloader
     from crawlo.downloader.wait_strategies import WaitStrategy
-    from crawlo.network.request import Request
+    from crawlo.http.request import Request
     dl = CloakBrowserDownloader(make_mock_crawler({'CLOAKBROWSER_WAIT_STRATEGY': WaitStrategy.NETWORK_IDLE}))
     req = Request(url="https://example.com")
     assert dl._get_wait_until(req) == "networkidle"
@@ -493,7 +493,7 @@ async def test_wait_network_idle():
 async def test_wait_dom_ready():
     from crawlo.downloader.cloakbrowser_downloader import CloakBrowserDownloader
     from crawlo.downloader.wait_strategies import WaitStrategy
-    from crawlo.network.request import Request
+    from crawlo.http.request import Request
     dl = CloakBrowserDownloader(make_mock_crawler({'CLOAKBROWSER_WAIT_STRATEGY': WaitStrategy.DOM_READY}))
     req = Request(url="https://example.com")
     assert dl._get_wait_until(req) == "domcontentloaded"
@@ -503,7 +503,7 @@ async def test_wait_dom_ready():
 async def test_wait_meta_override():
     from crawlo.downloader.cloakbrowser_downloader import CloakBrowserDownloader
     from crawlo.downloader.wait_strategies import WaitStrategy
-    from crawlo.network.request import Request
+    from crawlo.http.request import Request
     dl = CloakBrowserDownloader(make_mock_crawler({'CLOAKBROWSER_WAIT_STRATEGY': WaitStrategy.AUTO}))
     req = Request(url="https://example.com")
     req.meta['cloakbrowser_wait_strategy'] = WaitStrategy.NETWORK_IDLE
@@ -514,7 +514,7 @@ async def test_wait_meta_override():
 async def test_wait_custom():
     from crawlo.downloader.cloakbrowser_downloader import CloakBrowserDownloader
     from crawlo.downloader.wait_strategies import WaitStrategy
-    from crawlo.network.request import Request
+    from crawlo.http.request import Request
     dl = CloakBrowserDownloader(make_mock_crawler())
     req = Request(url="https://example.com")
     req.meta['cloakbrowser_wait_strategy'] = WaitStrategy.CUSTOM
@@ -530,7 +530,7 @@ async def test_wait_custom():
 @test_case("6.1 默认资源屏蔽")
 async def test_block_resources_default():
     from crawlo.downloader.cloakbrowser_downloader import CloakBrowserDownloader
-    from crawlo.network.request import Request
+    from crawlo.http.request import Request
     dl = CloakBrowserDownloader(make_mock_crawler())
     req = Request(url="https://example.com")
 
@@ -559,7 +559,7 @@ async def test_block_resources_default():
 @test_case("6.2 请求级资源屏蔽覆盖")
 async def test_block_resources_meta():
     from crawlo.downloader.cloakbrowser_downloader import CloakBrowserDownloader
-    from crawlo.network.request import Request
+    from crawlo.http.request import Request
     dl = CloakBrowserDownloader(make_mock_crawler())
     req = Request(url="https://example.com")
     req.meta['cloakbrowser_block_resources'] = {'script'}  # 仅屏蔽 script
@@ -577,7 +577,7 @@ async def test_block_resources_meta():
 @test_case("6.3 空资源屏蔽 - 不设置路由")
 async def test_block_resources_empty():
     from crawlo.downloader.cloakbrowser_downloader import CloakBrowserDownloader
-    from crawlo.network.request import Request
+    from crawlo.http.request import Request
     dl = CloakBrowserDownloader(make_mock_crawler({'CLOAKBROWSER_BLOCK_RESOURCES': []}))
     req = Request(url="https://example.com")
 
@@ -596,7 +596,7 @@ async def test_block_resources_empty():
 @test_case("7.1 自动滚动 - 全局配置")
 async def test_auto_scroll_config():
     from crawlo.downloader.cloakbrowser_downloader import CloakBrowserDownloader
-    from crawlo.network.request import Request
+    from crawlo.http.request import Request
     dl = CloakBrowserDownloader(make_mock_crawler({'CLOAKBROWSER_AUTO_SCROLL': True}))
     req = Request(url="https://example.com")
     assert dl._should_auto_scroll(req) is True
@@ -605,7 +605,7 @@ async def test_auto_scroll_config():
 @test_case("7.2 自动滚动 - meta 覆盖关闭")
 async def test_auto_scroll_meta_disable():
     from crawlo.downloader.cloakbrowser_downloader import CloakBrowserDownloader
-    from crawlo.network.request import Request
+    from crawlo.http.request import Request
     dl = CloakBrowserDownloader(make_mock_crawler({'CLOAKBROWSER_AUTO_SCROLL': True}))
     req = Request(url="https://example.com")
     req.meta['cloakbrowser_auto_scroll'] = False
@@ -692,7 +692,7 @@ async def test_scroll_humanize():
 @test_case("8.1 click 操作")
 async def test_custom_action_click():
     from crawlo.downloader.cloakbrowser_downloader import CloakBrowserDownloader
-    from crawlo.network.request import Request
+    from crawlo.http.request import Request
     dl = CloakBrowserDownloader(make_mock_crawler())
     dl.humanize = False
 
@@ -709,7 +709,7 @@ async def test_custom_action_click():
 @test_case("8.2 click_and_wait 操作")
 async def test_custom_action_click_and_wait():
     from crawlo.downloader.cloakbrowser_downloader import CloakBrowserDownloader
-    from crawlo.network.request import Request
+    from crawlo.http.request import Request
     dl = CloakBrowserDownloader(make_mock_crawler())
     dl.humanize = False
 
@@ -727,7 +727,7 @@ async def test_custom_action_click_and_wait():
 @test_case("8.3 fill 操作")
 async def test_custom_action_fill():
     from crawlo.downloader.cloakbrowser_downloader import CloakBrowserDownloader
-    from crawlo.network.request import Request
+    from crawlo.http.request import Request
     dl = CloakBrowserDownloader(make_mock_crawler())
 
     req = Request(url="https://example.com")
@@ -743,7 +743,7 @@ async def test_custom_action_fill():
 @test_case("8.4 evaluate 操作")
 async def test_custom_action_evaluate():
     from crawlo.downloader.cloakbrowser_downloader import CloakBrowserDownloader
-    from crawlo.network.request import Request
+    from crawlo.http.request import Request
     dl = CloakBrowserDownloader(make_mock_crawler())
 
     req = Request(url="https://example.com")
@@ -759,7 +759,7 @@ async def test_custom_action_evaluate():
 @test_case("8.5 scroll 操作 - top/bottom")
 async def test_custom_action_scroll():
     from crawlo.downloader.cloakbrowser_downloader import CloakBrowserDownloader
-    from crawlo.network.request import Request
+    from crawlo.http.request import Request
     dl = CloakBrowserDownloader(make_mock_crawler())
 
     req = Request(url="https://example.com")
@@ -776,7 +776,7 @@ async def test_custom_action_scroll():
 @test_case("8.6 wait 操作 - humanize 模式")
 async def test_custom_action_wait_humanize():
     from crawlo.downloader.cloakbrowser_downloader import CloakBrowserDownloader
-    from crawlo.network.request import Request
+    from crawlo.http.request import Request
     dl = CloakBrowserDownloader(make_mock_crawler())
     dl.humanize = True
 
@@ -794,7 +794,7 @@ async def test_custom_action_wait_humanize():
 @test_case("8.7 XPath 选择器自动识别")
 async def test_xpath_selector():
     from crawlo.downloader.cloakbrowser_downloader import CloakBrowserDownloader
-    from crawlo.network.request import Request
+    from crawlo.http.request import Request
     dl = CloakBrowserDownloader(make_mock_crawler())
 
     req = Request(url="https://example.com")
@@ -812,7 +812,7 @@ async def test_xpath_selector():
 @test_case("8.8 操作异常不中断后续操作")
 async def test_custom_action_error_continues():
     from crawlo.downloader.cloakbrowser_downloader import CloakBrowserDownloader
-    from crawlo.network.request import Request
+    from crawlo.http.request import Request
     dl = CloakBrowserDownloader(make_mock_crawler())
 
     req = Request(url="https://example.com")
@@ -833,7 +833,7 @@ async def test_custom_action_error_continues():
 @test_case("9.1 请求头设置")
 async def test_request_headers():
     from crawlo.downloader.cloakbrowser_downloader import CloakBrowserDownloader
-    from crawlo.network.request import Request
+    from crawlo.http.request import Request
     dl = CloakBrowserDownloader(make_mock_crawler())
 
     req = Request(url="https://example.com", headers={"X-Custom": "value"})
@@ -845,7 +845,7 @@ async def test_request_headers():
 @test_case("9.2 Cookie 设置")
 async def test_request_cookies():
     from crawlo.downloader.cloakbrowser_downloader import CloakBrowserDownloader
-    from crawlo.network.request import Request
+    from crawlo.http.request import Request
     dl = CloakBrowserDownloader(make_mock_crawler())
 
     req = Request(url="https://example.com", cookies={"session": "abc123"})
@@ -1047,7 +1047,7 @@ async def test_close_uninitialized():
 @test_case("12.1 翻页 - scroll 操作")
 async def test_pagination_scroll():
     from crawlo.downloader.cloakbrowser_downloader import CloakBrowserDownloader
-    from crawlo.network.request import Request
+    from crawlo.http.request import Request
     dl = CloakBrowserDownloader(make_mock_crawler())
     dl.humanize = False
 
@@ -1064,7 +1064,7 @@ async def test_pagination_scroll():
 @test_case("12.2 翻页 - click 操作")
 async def test_pagination_click():
     from crawlo.downloader.cloakbrowser_downloader import CloakBrowserDownloader
-    from crawlo.network.request import Request
+    from crawlo.http.request import Request
     dl = CloakBrowserDownloader(make_mock_crawler())
     dl.humanize = False
 
@@ -1081,7 +1081,7 @@ async def test_pagination_click():
 @test_case("12.3 翻页 - evaluate 操作")
 async def test_pagination_evaluate():
     from crawlo.downloader.cloakbrowser_downloader import CloakBrowserDownloader
-    from crawlo.network.request import Request
+    from crawlo.http.request import Request
     dl = CloakBrowserDownloader(make_mock_crawler())
 
     req = Request(url="https://example.com")
@@ -1177,7 +1177,7 @@ async def test_real_browser_lifecycle():
 
 @test_case("13.2 真实浏览器 - 下载静态页面")
 async def test_real_download_static():
-    from crawlo.network.request import Request
+    from crawlo.http.request import Request
     dl = await _create_real_downloader()
     try:
         req = Request(url="https://example.com")
@@ -1191,7 +1191,7 @@ async def test_real_download_static():
 
 @test_case("13.3 真实浏览器 - 下载 HTTPS 页面")
 async def test_real_download_https():
-    from crawlo.network.request import Request
+    from crawlo.http.request import Request
     dl = await _create_real_downloader()
     try:
         req = Request(url="https://httpbin.org/get")
@@ -1204,7 +1204,7 @@ async def test_real_download_https():
 
 @test_case("13.4 真实浏览器 - 404 页面处理")
 async def test_real_download_404():
-    from crawlo.network.request import Request
+    from crawlo.http.request import Request
     dl = await _create_real_downloader()
     try:
         req = Request(url="https://httpbin.org/status/404")
@@ -1223,7 +1223,7 @@ async def test_real_download_404():
 
 @test_case("13.5 真实浏览器 - 资源屏蔽验证")
 async def test_real_resource_blocking():
-    from crawlo.network.request import Request
+    from crawlo.http.request import Request
     dl = await _create_real_downloader()
     try:
         req = Request(url="https://example.com")
@@ -1260,7 +1260,7 @@ async def test_boundary_short_timeout():
 @test_case("14.2 大页面内容下载")
 async def test_boundary_large_page():
     """验证大页面不会导致内存溢出"""
-    from crawlo.network.request import Request
+    from crawlo.http.request import Request
     dl = await _create_real_downloader()
     try:
         # httpbin 的 HTML 页面
@@ -1276,8 +1276,8 @@ async def test_boundary_large_page():
 @test_case("14.3 并发达到上限 - 页面池")
 async def test_boundary_max_pages():
     """验证并发请求不超过 max_pages 限制"""
-    from crawlo.network.request import Request
-    from crawlo.network.response import Response
+    from crawlo.http.request import Request
+    from crawlo.http.response import Response
     max_pages = 2
     dl = await _create_real_downloader({'CLOAKBROWSER_MAX_PAGES': max_pages})
     try:
@@ -1309,7 +1309,7 @@ async def test_boundary_max_pages():
 @test_case("14.4 连续快速下载 - 页面复用")
 async def test_boundary_rapid_sequential():
     """验证快速连续下载时页面正确复用"""
-    from crawlo.network.request import Request
+    from crawlo.http.request import Request
     dl = await _create_real_downloader()
     try:
         urls = ["https://example.com", "https://example.com", "https://example.com"]
@@ -1328,7 +1328,7 @@ async def test_boundary_rapid_sequential():
 @test_case("14.5 无效 URL - 异常处理")
 async def test_boundary_invalid_url():
     """验证无效 URL 的异常处理"""
-    from crawlo.network.request import Request
+    from crawlo.http.request import Request
     dl = await _create_real_downloader()
     try:
         # 使用一个不可达的地址
@@ -1347,7 +1347,7 @@ async def test_boundary_invalid_url():
 @test_case("15.1 压力测试 - 10次快速连续下载")
 async def test_stress_10_sequential():
     """10次快速连续下载"""
-    from crawlo.network.request import Request
+    from crawlo.http.request import Request
     dl = await _create_real_downloader()
     try:
         start = time.time()
@@ -1367,7 +1367,7 @@ async def test_stress_10_sequential():
 @test_case("15.2 压力测试 - 5个并发下载")
 async def test_stress_5_concurrent():
     """5个并发下载"""
-    from crawlo.network.request import Request
+    from crawlo.http.request import Request
     dl = await _create_real_downloader({'CLOAKBROWSER_MAX_PAGES': 5})
     try:
         urls = ["https://example.com"] * 5
@@ -1390,7 +1390,7 @@ async def test_stress_5_concurrent():
 @test_case("15.3 压力测试 - 混合 URL 并发")
 async def test_stress_mixed_urls():
     """混合不同 URL 并发下载"""
-    from crawlo.network.request import Request
+    from crawlo.http.request import Request
     dl = await _create_real_downloader({'CLOAKBROWSER_MAX_PAGES': 5})
     try:
         urls = [
@@ -1417,7 +1417,7 @@ async def test_stress_mixed_urls():
 async def test_stress_pool_exhaustion():
     """页面池耗尽后恢复"""
     from crawlo.downloader.cloakbrowser_downloader import CloakBrowserDownloader
-    from crawlo.network.request import Request
+    from crawlo.http.request import Request
     max_pages = 2
     dl = await _create_real_downloader({'CLOAKBROWSER_MAX_PAGES': max_pages})
     try:
@@ -1439,7 +1439,7 @@ async def test_stress_pool_exhaustion():
 @test_case("15.5 长时间运行 - 30次下载稳定性")
 async def test_stress_long_run():
     """30次下载的稳定性测试"""
-    from crawlo.network.request import Request
+    from crawlo.http.request import Request
     dl = await _create_real_downloader({'CLOAKBROWSER_MAX_PAGES': 3})
     try:
         success_count = 0
@@ -1474,7 +1474,7 @@ async def test_stress_long_run():
 @test_case("16.1 HybridDownloader 动态下载器选择")
 async def test_hybrid_dynamic_selection():
     from crawlo.downloader.hybrid_downloader import HybridDownloader
-    from crawlo.network.request import Request
+    from crawlo.http.request import Request
     crawler = make_mock_crawler({
         'HYBRID_DEFAULT_PROTOCOL_DOWNLOADER': 'aiohttp',
         'HYBRID_DEFAULT_DYNAMIC_DOWNLOADER': 'cloakbrowser',
@@ -1495,7 +1495,7 @@ async def test_hybrid_dynamic_selection():
 @test_case("16.2 HybridDownloader 协议下载器选择")
 async def test_hybrid_protocol_selection():
     from crawlo.downloader.hybrid_downloader import HybridDownloader
-    from crawlo.network.request import Request
+    from crawlo.http.request import Request
     crawler = make_mock_crawler()
     crawler.settings.get = Mock(return_value='aiohttp')
 
@@ -1510,7 +1510,7 @@ async def test_hybrid_protocol_selection():
 @test_case("16.3 HybridDownloader URL 模式匹配")
 async def test_hybrid_url_pattern():
     from crawlo.downloader.hybrid_downloader import HybridDownloader
-    from crawlo.network.request import Request
+    from crawlo.http.request import Request
     crawler = make_mock_crawler()
     crawler.settings.get = Mock(return_value='aiohttp')
     crawler.settings.get_list = Mock(side_effect=lambda key, default: {

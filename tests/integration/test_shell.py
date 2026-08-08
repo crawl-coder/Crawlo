@@ -28,8 +28,8 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 from crawlo.shell.core import (
     CrawloShell, _MockCrawler, _MockSpider, _DownloaderAdapter, _SimpleFetcher
 )
-from crawlo.network.request import Request
-from crawlo.network.response import Response
+from crawlo.http.request import Request
+from crawlo.http.response import Response
 
 
 # ==================== 1. _MockCrawler / _MockSpider ====================

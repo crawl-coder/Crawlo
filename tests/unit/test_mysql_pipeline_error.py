@@ -35,68 +35,51 @@ class TestMySQLPipelineError(unittest.TestCase):
         self.mock_crawler.spider = self.mock_spider
 
     def test_asyncmy_process_item_with_connection_error(self):
-        """测试MySQLPipeline处理连接错误"""
+        """测试MySQLPipeline处理连接错误（通过 mock _helper 模拟异常）"""
+        from unittest.mock import patch
+
         pipeline = MySQLPipeline(self.mock_crawler)
-        
-        # 模拟连接池和数据库操作
-        mock_pool = AsyncMock()
-        mock_conn = AsyncMock()
-        mock_cursor = AsyncMock()
-        
-        # 模拟acquire方法返回连接
-        mock_pool.acquire.return_value = mock_conn
-        
-        # 模拟cursor方法返回游标
-        mock_conn.cursor.return_value = mock_cursor
-        
-        # 模拟execute方法抛出异常
-        mock_cursor.execute.side_effect = Exception("测试异常")
-        
-        # 设置管道的连接池
-        pipeline.pool = mock_pool
-        pipeline._pool_initialized = True
-        
+
+        # 跳过真实连接池初始化
+        pipeline._initialized = True
+        pipeline.pool = AsyncMock()
+
+        # mock _helper.insert 抛出异常，避免真实 MySQL 连接
+        mock_helper = AsyncMock()
+        mock_helper.insert = AsyncMock(side_effect=Exception("测试异常"))
+        pipeline._helper = mock_helper
+
         # 测试数据
         test_item = {"id": 1, "name": "test"}
-        
+
         async def test_async():
-            with self.assertRaises(ItemDiscard) as context:
-                await pipeline.process_item(test_item, self.mock_spider)
-            
-            # 验证错误信息
-            self.assertIn("MySQL插入失败", str(context.exception))
-            
+            # mock is_pool_active 返回 True，避免触发真实连接池初始化
+            with patch('crawlo.pipelines.sql.mysql.is_pool_active', return_value=True):
+                with self.assertRaises(ItemDiscard) as context:
+                    await pipeline.process_item(test_item, self.mock_spider)
+
+                # process_item 层包装为 ItemDiscard("Insert failed: ...")
+                self.assertIn("Insert failed", str(context.exception))
+
         asyncio.run(test_async())
 
     def test_execute_sql_with_exception(self):
-        """测试_execute_sql方法处理异常"""
+        """测试_do_insert方法处理异常（_execute_sql 已重构为 _do_insert）"""
         pipeline = MySQLPipeline(self.mock_crawler)
-        
-        # 模拟连接池和数据库操作
-        mock_pool = AsyncMock()
-        mock_conn = AsyncMock()
-        mock_cursor = AsyncMock()
-        
-        # 模拟acquire方法返回连接
-        mock_pool.acquire.return_value = mock_conn
-        
-        # 模拟cursor方法返回游标
-        mock_conn.cursor.return_value = mock_cursor
-        
-        # 模拟execute方法抛出异常
-        mock_cursor.execute.side_effect = Exception("测试异常")
-        
-        # 设置管道的连接池
-        pipeline.pool = mock_pool
-        pipeline._pool_initialized = True
-        
+
+        # _do_insert 委托给 _helper.insert，需要 mock _helper
+        mock_helper = AsyncMock()
+        mock_helper.insert = AsyncMock(side_effect=Exception("测试异常"))
+        pipeline._helper = mock_helper
+
         async def test_async():
-            with self.assertRaises(ItemDiscard) as context:
-                await pipeline._execute_sql("SELECT 1")
-            
-            # 验证错误信息
-            self.assertIn("MySQL插入失败", str(context.exception))
-            
+            with self.assertRaises(Exception) as context:
+                await pipeline._do_insert({"id": 1, "name": "test"})
+
+            # _do_insert 直接委托 _helper.insert，异常向上传播
+            # process_item 层会包装为 ItemDiscard("Insert failed: ...")
+            self.assertIn("测试异常", str(context.exception))
+
         asyncio.run(test_async())
 
 

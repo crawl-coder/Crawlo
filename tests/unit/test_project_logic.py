@@ -292,7 +292,7 @@ class TestUpdateQueueRelatedSettings:
         
         assert 'FILTER_CLASS' in mode_settings
         assert 'DEFAULT_DEDUP_PIPELINE' in mode_settings
-        assert 'aioredis_filter' in mode_settings['FILTER_CLASS']
+        assert 'AioRedisFilter' in mode_settings['FILTER_CLASS']
 
     def test_update_for_auto_queue(self):
         """Test updating settings for auto queue"""
@@ -373,20 +373,20 @@ class TestGetSettings:
         """Test that get_settings calls initialize_framework"""
         from crawlo.project import get_settings
         
-        with patch('crawlo.initialization.initialize_framework') as mock_init:
+        with patch('crawlo.core.application.initialize_framework') as mock_init:
             mock_settings = MagicMock()
             mock_init.return_value = mock_settings
-            
+
             result = get_settings()
-            
+
             mock_init.assert_called_once()
             assert result is mock_settings
 
     def test_get_settings_passes_custom_settings(self):
         """Test that custom_settings are passed through"""
         from crawlo.project import get_settings
-        
-        with patch('crawlo.initialization.initialize_framework') as mock_init:
+
+        with patch('crawlo.core.application.initialize_framework') as mock_init:
             mock_settings = MagicMock()
             mock_init.return_value = mock_settings
             

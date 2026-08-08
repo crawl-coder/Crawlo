@@ -1,38 +1,18 @@
-# -*- coding: utf-8 -*-
-"""
-===================================
-模板系统
-===================================
+#!/usr/bin/python
+# -*- coding: UTF-8 -*-
+"""兼容存根：已合并入 crawlo.extensions.notifications.templates。"""
+import sys
+import warnings
+import importlib
 
-消息模板管理和渲染功能
-"""
+_NEW = 'crawlo.extensions.notifications.templates'
 
-from crawlo.bot.templates.manager import (
-    MessageTemplateManager,
-    get_template_manager,
-    render_message,
-    list_available_templates,
-    get_template_parameters,
-    COMMON_VARIABLES,
-)
-from crawlo.bot.templates.enums import (
-    TemplateVariable,
-    TemplateVar,
-    TemplateName,
-    Template,
-)
-
-__all__ = [
-    # 模板管理器
-    'MessageTemplateManager',
-    'get_template_manager',
-    'render_message',
-    'list_available_templates',
-    'get_template_parameters',
-    'COMMON_VARIABLES',
-    # 模板枚举
-    'TemplateVariable',
-    'TemplateVar',
-    'TemplateName',
-    'Template',
-]
+if __name__ != _NEW:
+    if _NEW not in sys.modules:
+        sys.modules[_NEW] = importlib.import_module(_NEW)
+    sys.modules[__name__] = sys.modules[_NEW]
+    warnings.warn(
+        f"{__name__} is deprecated, use {_NEW} instead",
+        DeprecationWarning,
+        stacklevel=2,
+    )

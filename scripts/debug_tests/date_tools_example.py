@@ -147,7 +147,7 @@ def demo_in_spider():
     print("在爬虫项目中，您可以这样使用日期工具:")
     print("""
 from crawlo import Spider
-from crawlo.helpers import parse_time, format_time
+from crawlo.utils.time_utils import parse_time, format_time
 
 class NewsSpider(Spider):
     def parse(self, response):

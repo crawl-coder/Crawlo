@@ -13,7 +13,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
 from crawlo.spider import Spider
 from crawlo import Request
-from crawlo.network.response import Response
+from crawlo.http.response import Response
 
 
 class TestSpider(Spider):

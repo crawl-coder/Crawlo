@@ -16,10 +16,10 @@ import unittest
 
 from lxml.html import fromstring as parse_html, HtmlElement
 
-from crawlo.helpers.adaptive_selector import (
+from crawlo.utils.adaptive_selector import (
     ElementFingerprint, SimilarityMatcher, FingerprintStorage
 )
-from crawlo.helpers.adaptive_selector.element_fingerprint import extract_domain_from_url
+from crawlo.utils.adaptive_selector.element_fingerprint import extract_domain_from_url
 
 
 def make_fp(**kw):

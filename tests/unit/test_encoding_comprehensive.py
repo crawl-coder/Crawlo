@@ -641,19 +641,19 @@ class TestResponseIntegration(unittest.TestCase):
 
     def test_response_text_gbk(self):
         """GBK body → Response.text 正确解码"""
-        from crawlo.network.response import Response
+        from crawlo.http.response import Response
         resp = Response(url='https://ee.ofweek.com/test.html', body=GBK_HTML)
         self.assertIn('\u4e2d\u6587', resp.text)
 
     def test_response_text_utf8(self):
-        from crawlo.network.response import Response
+        from crawlo.http.response import Response
         resp = Response(url='https://example.com', body=UTF8_HTML)
         self.assertIn('\u4e2d\u6587', resp.text)
         self.assertEqual(resp.encoding, 'utf-8')
 
     def test_response_with_request_encoding(self):
         """Request 指定编码 → Response.encoding 应使用该编码"""
-        from crawlo.network.response import Response
+        from crawlo.http.response import Response
 
         class MockRequest:
             encoding = 'gbk'
@@ -666,26 +666,26 @@ class TestResponseIntegration(unittest.TestCase):
         self.assertEqual(resp.encoding, 'gbk')
 
     def test_response_encode_body_with_gbk(self):
-        from crawlo.network.response import Response
+        from crawlo.http.response import Response
         resp = Response(url='https://example.com', body=GBK_HTML)
         self.assertIn('\u4e2d\u6587', resp.text)
         self.assertEqual(resp.encoding, 'gb18030')
 
     def test_response_text_cached(self):
-        from crawlo.network.response import Response
+        from crawlo.http.response import Response
         resp = Response(url='https://example.com', body=UTF8_HTML)
         t1 = resp.text
         t2 = resp.text
         self.assertEqual(t1, t2)
 
     def test_response_empty(self):
-        from crawlo.network.response import Response
+        from crawlo.http.response import Response
         resp = Response(url='https://example.com', body=b'')
         self.assertEqual(resp.text, "")
 
     def test_response_xpath_gbk(self):
         """GBK 页面 XPath 查询正常"""
-        from crawlo.network.response import Response
+        from crawlo.http.response import Response
         body = "<html><body><div class=\"content\">中文内容</div></body></html>".encode('utf-8')
         resp = Response(url='https://example.com', body=body)
         result = resp.xpath('//div[@class="content"]/text()').get()

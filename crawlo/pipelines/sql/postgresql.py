@@ -19,7 +19,7 @@ import asyncio
 from typing import List, Dict
 
 from crawlo.utils.db.dialect import PostgreSQLDialect
-from crawlo.core.exceptions import PipelineInitError
+from crawlo.core.errors import PipelineInitError
 from crawlo.pipelines.generic_sql import GenericSQLPipeline
 
 # 尝试导入 asyncpg

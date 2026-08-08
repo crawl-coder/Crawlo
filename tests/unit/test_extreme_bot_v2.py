@@ -239,10 +239,11 @@ class TestBotNotificationExtremeScenarios:
 
             # 验证签名生成
             call_args = mock_post.call_args
-            url = call_args[1].get('url', '') or call_args[0][0]
-            # 如果带 secret,URL 应包含 timestamp 和 sign
+            # 如果带 secret,params 应包含 timestamp 和 sign
             if channel.secret:
-                assert 'timestamp' in url or 'sign' in url
+                params = call_args[1].get('params', {})
+                assert 'timestamp' in params
+                assert 'sign' in params
 
     def test_email_channel_invalid_recipients(self):
         """测试: 邮件渠道非法收件人"""
@@ -405,9 +406,9 @@ class TestNotificationHandler:
 
     def test_send_status_notification(self):
         """测试: 发送状态通知"""
-        from crawlo.bot.core.handlers import NotificationHandler
+        from crawlo.bot.core.handlers import CrawlerNotificationHandler
 
-        handler = NotificationHandler()
+        handler = CrawlerNotificationHandler()
 
         # 禁用通知(避免实际发送)
         try:
@@ -425,9 +426,9 @@ class TestNotificationHandler:
 
     def test_send_alert_notification(self):
         """测试: 发送告警通知"""
-        from crawlo.bot.core.handlers import NotificationHandler
+        from crawlo.bot.core.handlers import CrawlerNotificationHandler
 
-        handler = NotificationHandler()
+        handler = CrawlerNotificationHandler()
 
         try:
             from crawlo.settings.default_settings import ENABLE_NOTIFICATION

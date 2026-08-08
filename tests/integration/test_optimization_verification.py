@@ -20,10 +20,10 @@ import pytest
 from crawlo.filters.aioredis_filter import AioRedisFilter
 from crawlo.core.engine import Engine
 from crawlo.core.processor import Processor
-from crawlo.core.task_scheduler import Scheduler
+from crawlo.core.scheduling.task_scheduler import Scheduler
 from crawlo.crawler import Crawler
 from crawlo.middleware.middleware_manager import MiddlewareManager
-from crawlo.network.request import Request
+from crawlo.http.request import Request
 from crawlo.event import CrawlerEvent
 
 
@@ -379,7 +379,7 @@ class TestSchedulerConditionVariable:
     def test_has_get_setting_helper(self, scheduler):
         """Scheduler 应有 _get_setting 辅助方法"""
         # 检查实际的 Scheduler 类
-        from crawlo.core.task_scheduler import Scheduler
+        from crawlo.core.scheduling.task_scheduler import Scheduler
         import inspect
 
         assert hasattr(Scheduler, '_get_setting'), \

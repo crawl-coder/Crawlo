@@ -19,7 +19,7 @@ from typing import Optional, Dict, Any, Union, TYPE_CHECKING
 if TYPE_CHECKING:
     from crawlo import Request
 
-from crawlo.queue.memory_queue import SpiderPriorityQueue
+from crawlo.queue.backends.memory import SpiderPriorityQueue
 from crawlo.queue.queue_types import QueueType
 from crawlo.queue.config import QueueConfig
 from crawlo.queue.priority_calculator import PriorityCalculator
@@ -30,8 +30,8 @@ from crawlo.queue.exceptions import QueueFullTimeout
 
 try:
     # 使用完整版Redis队列
-    from crawlo.queue.redis_priority_queue import RedisPriorityQueue
-    from crawlo.queue.redis_stream_queue import RedisStreamQueue
+    from crawlo.queue.backends.redis_priority import RedisPriorityQueue
+    from crawlo.queue.backends.redis_stream import RedisStreamQueue
 
     REDIS_AVAILABLE = True
 except ImportError:
@@ -458,34 +458,32 @@ class QueueManager(QueueStatusMixin, QueueBackpressureMixin):
         return self._pending_enqueue_count
 
     async def async_empty(self) -> bool:
-        """Check if queue is empty (asynchronous version, more accurate)"""
+        """Check if queue is empty (asynchronous version, more accurate)
+        
+        对于 Redis Stream：消费后消息不会被删除（由 maxlen 控制淘汰），
+        因此必须使用后端的 empty() 方法，而不是 size()==0（xinfo_stream.length 返回历史总数）。
+        """
         try:
+            # 优先使用后端自带 empty() 实现（尤其是 Stream 需要特殊语义判断）
+            if self._queue and hasattr(self._queue, 'empty') and callable(self._queue.empty):
+                try:
+                    res = self._queue.empty()
+                    if hasattr(res, '__await__'):
+                        return await res
+                    return bool(res)
+                except Exception:
+                    pass  # 后端 empty() 出错，fallback 到 size 判断
+
             # 对于内存队列
             if self._queue and self._queue_type == QueueType.MEMORY:
-                # 确保正确检查队列大小
                 if hasattr(self._queue, 'size'):
                     size = await self._queue.size()
                     return size == 0
-                else:
-                    # 如果没有size方法，假设队列为空
-                    return True
-            # 对于 Redis 队列（包括 ZSET 和 Stream），使用异步检查
+                return True
+            # 对于 Redis 队列（ZSET），大小即未消费数；Stream 已在上方 empty() 分支处理
             elif self._queue and self._queue_type in (QueueType.REDIS, QueueType.REDIS_STREAM):
-                # 使用统一的 size() API
-                if isinstance(self._queue, (RedisPriorityQueue, RedisStreamQueue)):
-                    try:
-                        size = await self._queue.size()
-                        is_empty = size == 0
-                        return is_empty
-                    except Exception:
-                        # 检查失败，回退到只检查主队列大小
-                        size = await self.size()
-                        is_empty = size == 0
-                        return is_empty
-                else:
-                    size = await self.size()
-                    is_empty = size == 0
-                    return is_empty
+                size = await self.size()
+                return size == 0
             return True
         except Exception as e:
             self.logger.error(f"检查队列是否为空时出错: {e}")
@@ -519,14 +517,16 @@ class QueueManager(QueueStatusMixin, QueueBackpressureMixin):
     async def _determine_queue_type(self) -> QueueType:
         """Determine queue type"""
         if self.config.queue_type == QueueType.AUTO:
-            # 自动选择：优先使用 Redis Stream（若可用），避免 Redis ZSET 队列崩溃时任务丢失
+            # 自动选择：Redis 可用时使用 Redis ZSET 队列（与 master 分支行为一致）
+            # ZSET 语义：消费完消息立即从集合移除 → empty 即空队列 → 完美匹配 auto 单机退出判断
+            # Redis Stream 仅用于 distributed 模式（需要 Consumer Group / Pending / Claim 多 Worker 机制）
             if REDIS_AVAILABLE and self.config.redis_url:
                 if await self._test_redis_connection():
                     self.logger.info(
-                        "Queue type: redis_stream (auto-detected, Redis available)"
+                        "Queue type: redis (auto-detected, Redis available, ZSET queue)"
                     )
                     self._apply_redis_backpressure_config()
-                    return QueueType.REDIS_STREAM
+                    return QueueType.REDIS
                 else:
                     self.logger.info("Queue type: memory (auto-detected, Redis unavailable)")
                     self._apply_memory_backpressure_config()
@@ -538,6 +538,12 @@ class QueueManager(QueueStatusMixin, QueueBackpressureMixin):
 
         elif self.config.queue_type == QueueType.REDIS:
             if self.config.run_mode == 'distributed':
+                # distributed 模式：用户显式 QUEUE_TYPE=redis，但 distributed 语义必须用 Stream
+                # （因为 ZSET 无法做 pending 消息回收和多消费者分配）
+                self.logger.info(
+                    "Distributed mode: upgrading QUEUE_TYPE=redis → redis_stream "
+                    "(Stream is required for multi-worker coordination & pending claim)"
+                )
                 if not REDIS_AVAILABLE:
                     error_msg = (
                         "Distributed 模式要求 Redis 可用，但 Redis 客户端库未安装。\n"
@@ -564,11 +570,11 @@ class QueueManager(QueueStatusMixin, QueueBackpressureMixin):
                     self.logger.error(error_msg)
                     raise RuntimeError(error_msg)
                 self.logger.debug("Distributed mode: Redis connection verified")
-                return QueueType.REDIS
+                return QueueType.REDIS_STREAM
             else:
                 if REDIS_AVAILABLE and self.config.redis_url:
                     if await self._test_redis_connection():
-                        self.logger.debug("Redis mode: Redis available, using distributed queue")
+                        self.logger.debug("Redis mode: Redis available, using ZSET queue")
                         return QueueType.REDIS
                     else:
                         self.logger.warning("Redis mode: Redis unavailable, falling back to memory queue")

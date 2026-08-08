@@ -34,13 +34,13 @@ def test_priority_module():
     # 测试内置中间件优先级
     print('\n✓ BUILTIN_MIDDLEWARE_PRIORITIES:')
     expected_middleware = {
-        'crawlo.middleware.request_ignore.RequestIgnoreMiddleware': 100,
-        'crawlo.middleware.throttle.ThrottleMiddleware': 200,
-        'crawlo.middleware.default_header.DefaultHeaderMiddleware': 300,
-        'crawlo.middleware.offsite.OffsiteMiddleware': 400,
-        'crawlo.middleware.retry.RetryMiddleware': 600,
-        'crawlo.middleware.response_code.ResponseCodeMiddleware': 650,
-        'crawlo.middleware.response_filter.ResponseFilterMiddleware': 700,
+        'crawlo.middleware.RequestIgnoreMiddleware': 100,
+        'crawlo.middleware.DownloadDelayMiddleware': 200,
+        'crawlo.middleware.DefaultHeaderMiddleware': 300,
+        'crawlo.middleware.OffsiteMiddleware': 400,
+        'crawlo.middleware.RetryMiddleware': 600,
+        'crawlo.middleware.ResponseCodeMiddleware': 650,
+        'crawlo.middleware.ResponseFilterMiddleware': 700,
     }
     
     for mw_path, expected_priority in expected_middleware.items():
@@ -127,21 +127,17 @@ def test_throttle_module():
     print('[测试4] throttle 模块分层验证')
     print('=' * 60)
     
-    # 测试 utils/throttle.py (工具类)
-    from crawlo.utils.throttle import DomainThrottler
-    print('\n✓ crawlo.utils.throttle.DomainThrottler 导入成功')
-    
-    # 测试 middleware/throttle.py (中间件)
-    from crawlo.middleware.throttle import ThrottleMiddleware
-    print('✓ crawlo.middleware.throttle.ThrottleMiddleware 导入成功')
-    
-    # 验证中间件未被默认启用
+    # 测试 middleware/download_delay.py (中间件)
+    from crawlo.middleware.download_delay import DownloadDelayMiddleware
+    print('\n✓ crawlo.middleware.download_delay.DownloadDelayMiddleware 导入成功')
+
+    # 验证中间件默认启用
     from crawlo.settings.default_settings import MIDDLEWARES
-    throttle_middleware = 'crawlo.middleware.throttle.ThrottleMiddleware'
-    if throttle_middleware not in MIDDLEWARES:
-        print(f'✓ ThrottleMiddleware 未默认启用（可选中间件）')
+    delay_middleware = 'crawlo.middleware.DownloadDelayMiddleware'
+    if delay_middleware in MIDDLEWARES:
+        print(f'✓ DownloadDelayMiddleware 默认启用')
     else:
-        print(f'✗ ThrottleMiddleware 不应在默认配置中')
+        print(f'✗ DownloadDelayMiddleware 应在默认配置中')
         return False
     
     print('\n✅ 测试4通过\n')
@@ -223,18 +219,18 @@ def test_log_format():
     print('[测试7] 日志格式验证')
     print('=' * 60)
     
-    # 检查 scheduler.py 中的日志格式
-    scheduler_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'crawlo', 'core', 'scheduler.py')
+    # 检查 task_scheduler.py 中的日志格式
+    scheduler_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'crawlo', 'core', 'scheduling', 'task_scheduler.py')
     with open(scheduler_path, 'r', encoding='utf-8') as f:
         content = f.read()
         if "enabled filters:" in content and "\n  " not in content.split("enabled filters:")[1][:10]:
-            print('✓ scheduler.py: enabled filters 日志格式正确（无异常换行）')
+            print('✓ task_scheduler.py: enabled filters 日志格式正确（无异常换行）')
         else:
-            print('✗ scheduler.py: enabled filters 日志格式有问题')
+            print('✗ task_scheduler.py: enabled filters 日志格式有问题')
             return False
     
     # 检查 downloader/__init__.py 中的日志格式
-    downloader_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'crawlo', 'downloader', '__init__.py')
+    downloader_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'crawlo', 'downloader', '__init__.py')
     with open(downloader_path, 'r', encoding='utf-8') as f:
         content = f.read()
         if "enabled downloader:" in content and "\n  " not in content.split("enabled downloader:")[1][:10]:

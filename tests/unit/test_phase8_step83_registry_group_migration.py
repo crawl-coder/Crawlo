@@ -102,7 +102,7 @@ def test_factories_ensure_components_registered_writes_to_registry_context():
     """
     from crawlo.container import default_container
     from crawlo.core.application import ApplicationContext
-    from crawlo.factories import _ensure_components_registered
+    from crawlo.core.factories import _ensure_components_registered
 
     ctx = ApplicationContext()
     # Phase 8.2 已在 __post_init__ 把 ctx.registries 注册进 default_container
@@ -161,8 +161,8 @@ def test_template_manager_and_resource_monitor_lazy_rebind():
 def test_notification_handler_and_deduplicator_lazy_dcl_and_rebind():
     """handlers.get_notification_handler + deduplicator.get_deduplicator 懒创建 + rebind。"""
     from crawlo.container import default_container
-    from crawlo.bot.core.handlers import CrawlerNotificationHandler, get_notification_handler
-    from crawlo.bot.utils.deduplicator import MessageDeduplicator, get_deduplicator
+    from crawlo.extensions.notifications.core.handlers import CrawlerNotificationHandler, get_notification_handler
+    from crawlo.extensions.notifications.utils.deduplicator import MessageDeduplicator, get_deduplicator
 
     h = get_notification_handler()
     assert isinstance(h, CrawlerNotificationHandler)

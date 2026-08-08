@@ -171,7 +171,7 @@ def test_curl_parser_empty():
 def test_curl_parser_to_request():
     """测试 to_request 直接生成 Request"""
     from crawlo.utils.parsing import CurlParser
-    from crawlo.network.request import Request
+    from crawlo.http.request import Request
     
     req = CurlParser.to_request('curl https://example.com -H "Accept: text/html"')
     assert isinstance(req, Request)

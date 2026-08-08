@@ -438,7 +438,7 @@ class TestCheckpointManager(unittest.TestCase):
 
     def test_serialize_request(self):
         """测试请求序列化"""
-        from crawlo.network.request import Request
+        from crawlo.http.request import Request
 
         request = Request(
             url='http://example.com',
@@ -539,6 +539,7 @@ class TestCheckpointStorageSelection(unittest.TestCase):
         """测试选择 JSON 存储"""
         settings = Mock()
         settings.get = Mock(side_effect=lambda key, default=None: {
+            'CHECKPOINT_ENABLED': True,
             'CHECKPOINT_STORAGE': 'json',
             'CHECKPOINT_DIR': self.test_dir,
             'PROJECT_NAME': 'test',
@@ -551,6 +552,7 @@ class TestCheckpointStorageSelection(unittest.TestCase):
         """测试选择 SQLite 存储"""
         settings = Mock()
         settings.get = Mock(side_effect=lambda key, default=None: {
+            'CHECKPOINT_ENABLED': True,
             'CHECKPOINT_STORAGE': 'sqlite',
             'CHECKPOINT_DIR': self.test_dir,
             'PROJECT_NAME': 'test',
@@ -563,6 +565,7 @@ class TestCheckpointStorageSelection(unittest.TestCase):
         """测试默认存储（JSON）"""
         settings = Mock()
         settings.get = Mock(side_effect=lambda key, default=None: {
+            'CHECKPOINT_ENABLED': True,
             'CHECKPOINT_DIR': self.test_dir,
             'PROJECT_NAME': 'test',
         }.get(key, default))

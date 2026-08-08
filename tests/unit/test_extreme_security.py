@@ -5,7 +5,7 @@
 """
 import pytest
 from unittest.mock import Mock
-from crawlo.network.request import Request
+from crawlo.http.request import Request
 from crawlo.items.item import Item
 
 
@@ -89,7 +89,7 @@ class TestXSSProtection:
     
     def test_response_body_xss(self):
         """测试响应体中的 XSS 处理"""
-        from crawlo.network.response import Response
+        from crawlo.http.response import Response
         
         xss_html = '''
         <html>
@@ -125,11 +125,12 @@ class TestPathTraversalProtection:
             'C:\\Windows\\System32\\config\\SAM',
         ]
         
+        from urllib.parse import unquote
         for path in traversal_paths:
             request = Request(f'http://example.com/download?file={path}')
-            
-            # Request 应该能安全存储路径
-            assert path in request.url
+
+            # Request 应该能安全存储路径（URL 可能被编码，原始或解码后应包含路径）
+            assert path in request.url or path in unquote(request.url)
     
     def test_item_file_path_traversal(self):
         """测试 Item 中的文件路径遍历"""
@@ -161,11 +162,12 @@ class TestCommandInjectionProtection:
             'http://example.com/page?cmd=%0Aid',
         ]
         
+        from urllib.parse import unquote
         for url in command_payloads:
             request = Request(url)
-            
-            # Request 应该能安全存储，不执行命令
-            assert request.url == url
+
+            # Request 应该能安全存储，不执行命令（URL 可能被编码，原始或解码后应与原始一致）
+            assert request.url == url or unquote(request.url) == url
     
     def test_item_data_command_injection(self):
         """测试 Item 数据中的命令注入"""

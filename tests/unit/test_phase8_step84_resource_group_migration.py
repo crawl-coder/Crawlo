@@ -166,7 +166,7 @@ def test_module_error_handler_uses_queue_tag_and_does_not_conflict_global():
     from crawlo.container import default_container
     from crawlo.core import application as app_mod
     from crawlo.core.application import ApplicationContext
-    from crawlo.queue.redis_priority_queue import (
+    from crawlo.queue.backends.redis_priority import (
         _QueueErrorHandlerTag,
         get_module_error_handler,
     )

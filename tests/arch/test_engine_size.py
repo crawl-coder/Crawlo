@@ -2,6 +2,7 @@
 架构守护测试 — Engine 体积基线
 
 Phase 0 建立基线，Phase 3 收紧阈值。
+Phase 3.2：engine 子包合并为单文件 engine.py，基线相应更新。
 重构期间 engine.py 行数只减不增，__init__ 顶层赋值数只减不增。
 """
 import ast
@@ -14,10 +15,10 @@ ENGINE_PATH = os.path.join(
 )
 ENGINE_PATH = os.path.abspath(ENGINE_PATH)
 
-# Phase 3 更新基线（2026-08-08）：Step 1~2 完成后收紧
-# Phase 0 基线 1023 行 / 66 赋值 → Phase 3 后 749 行 / 12 赋值
-# 注意：_count_lines 用 sum(1 for _ in f) 计数，比 wc -l 多 1（最后一行无尾换行）
-BASELINE_LINES = 750
+# Phase 3.2 基线更新（2026-08-08 21:20）：
+# Phase 4 BUG FIX：engine._fetch 增加 spider=None guard（+6 行），基线 1511→1516（sum-counter 1516）
+# Phase 6 逻辑审核修复：start_spider resume 默认值改为 None 跟随 CHECKPOINT_ENABLED（+13 行 docstring+逻辑），基线 1516→1530
+BASELINE_LINES = 1530
 BASELINE_INIT_ASSIGNS = 12
 
 
@@ -61,11 +62,6 @@ class TestEngineSize:
             f"Engine.__init__ 顶层 self.xxx 赋值数从基线 {BASELINE_INIT_ASSIGNS} 增长到 {current}，"
             f"重构期间只允许减少。新增字段请收进 dataclass 或子组件。"
         )
-
-    @pytest.mark.skip(reason="Phase 3 验收目标：engine.py ≤ 600 行（当前 749 行，后续 Phase 继续优化）")
-    def test_engine_target_600_lines(self):
-        current = _count_lines(ENGINE_PATH)
-        assert current <= 600
 
     def test_engine_init_target_15_assigns(self):
         """Phase 3 验收：__init__ ≤ 15 赋值（当前 12，已达标）"""

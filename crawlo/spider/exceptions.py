@@ -8,7 +8,7 @@ Spider 注册、实例化、解析相关异常。
 from typing import List
 import warnings
 
-from crawlo.core.exceptions import CrawloException
+from crawlo.core.errors import CrawloException
 
 
 # ============= 爬虫相关异常 =============

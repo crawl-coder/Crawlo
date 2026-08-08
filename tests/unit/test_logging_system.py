@@ -66,8 +66,6 @@ def test_file_logging():
         
         config = LogManager().config
         print(f"   日志文件: {config.file_path}")
-        print(f"   轮转大小: {config.max_bytes}")
-        print(f"   备份数量: {config.backup_count}")
         
         # 2. 获取logger并测试输出
         logger = get_logger('test.file')
@@ -186,8 +184,6 @@ def test_log_config_from_settings():
     
     print(f"   级别: {config.level}")
     print(f"   文件: {config.file_path}")
-    print(f"   轮转大小: {config.max_bytes}")
-    print(f"   备份数量: {config.backup_count}")
     print(f"   编码: {config.encoding}")
     print(f"   控制台启用: {config.console_enabled}")
     print(f"   文件启用: {config.file_enabled}")

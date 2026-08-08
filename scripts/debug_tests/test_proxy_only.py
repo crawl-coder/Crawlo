@@ -19,7 +19,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
 from crawlo.settings.setting_manager import SettingManager
 from crawlo.middleware.proxy import ProxyMiddleware
-from crawlo.network import Request
+from crawlo.http import Request
 
 
 async def test_proxy_middleware():

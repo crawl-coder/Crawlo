@@ -7,7 +7,7 @@ import asyncio
 import pytest
 import time
 from unittest.mock import Mock, patch, AsyncMock
-from crawlo.network.request import Request
+from crawlo.http.request import Request
 from crawlo.spider.spider import Spider
 
 
@@ -137,7 +137,7 @@ class TestExtremeConcurrencyScenarios:
     @pytest.mark.asyncio
     async def test_concurrent_queue_operations(self):
         """测试并发队列操作"""
-        from crawlo.queue.memory_queue import SpiderPriorityQueue
+        from crawlo.queue.backends.memory import SpiderPriorityQueue
         
         queue = SpiderPriorityQueue()
         
@@ -199,7 +199,7 @@ class TestExtremeMemoryLeakScenarios:
     @pytest.mark.asyncio
     async def test_queue_operations_no_leak(self):
         """测试队列操作无泄漏"""
-        from crawlo.queue.memory_queue import SpiderPriorityQueue
+        from crawlo.queue.backends.memory import SpiderPriorityQueue
         import gc
         
         queue = SpiderPriorityQueue()
@@ -445,7 +445,7 @@ class TestExtremeFrameworkIntegration:
     @pytest.mark.asyncio
     async def test_full_pipeline_with_exceptions(self):
         """测试完整流程中包含异常"""
-        from crawlo.queue.memory_queue import SpiderPriorityQueue
+        from crawlo.queue.backends.memory import SpiderPriorityQueue
         from crawlo.items.item import Item
         
         # 创建队列
@@ -481,7 +481,7 @@ class TestExtremeFrameworkIntegration:
     @pytest.mark.asyncio
     async def test_resource_cleanup_on_crash(self):
         """测试崩溃时资源清理"""
-        from crawlo.queue.memory_queue import SpiderPriorityQueue
+        from crawlo.queue.backends.memory import SpiderPriorityQueue
         
         queue = SpiderPriorityQueue()
         

@@ -26,7 +26,7 @@ from crawlo.logging import get_logger
 from crawlo.event import CrawlerEvent
 from crawlo.utils.misc import load_object
 from crawlo.project import common_call
-from crawlo.core.exceptions import PipelineInitError, InvalidOutputError
+from crawlo.core.errors import PipelineInitError, InvalidOutputError
 from crawlo.items.exceptions import ItemDiscard
 
 

@@ -17,7 +17,7 @@ def main(args):
     
     # 启动定时任务调度器
     try:
-        from crawlo.scheduling import start_scheduler
+        from crawlo.commands.scheduler import start_scheduler
         start_scheduler()
     except KeyboardInterrupt:
         print("\n接收到中断信号，正在停止调度器...")

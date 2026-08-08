@@ -21,26 +21,44 @@ import pytest
 
 
 # ============================================================================
-# 第 1 条：crawlo.crawler.__getattr__('CrawlerProcess') 已物理删除
+# 第 1 条（Phase 3.1 更新）：CrawlerProcess 已合并入 crawlo.crawler
 # ============================================================================
-class TestCrawlerProcessFacadeRemoved:
-    """v2.0: crawlo.crawler 不再反向导出 CrawlerProcess"""
+class TestCrawlerProcessInCrawlerModule:
+    """Phase 3.1 后：CrawlerProcess 类直接定义在 crawlo.crawler（不再通过 __getattr__ 反向导出）"""
 
-    def test_crawler_process_not_in_crawler_module(self):
-        """from crawlo.crawler import CrawlerProcess 抛 AttributeError"""
+    def test_crawler_process_defined_directly_in_crawler_module(self):
+        """CrawlerProcess 是 crawlo.crawler 的真实成员（dir() 可见，不是 __getattr__ 转发）"""
         import crawlo.crawler
-        with pytest.raises(AttributeError, match="CrawlerProcess"):
-            crawlo.crawler.CrawlerProcess
+        assert 'CrawlerProcess' in dir(crawlo.crawler), (
+            "Phase 3.1 后 CrawlerProcess 应直接定义在 crawlo.crawler，"
+            "不再需要通过 crawlo.crawler_process 间接访问"
+        )
+        # 直接属性访问应成功
+        assert crawlo.crawler.CrawlerProcess is not None
 
-    def test_crawler_process_importable_from_crawler_process(self):
-        """from crawlo.crawler_process import CrawlerProcess 正常导入"""
-        from crawlo.crawler_process import CrawlerProcess
-        assert CrawlerProcess is not None
+    def test_crawler_process_same_object_through_stub(self):
+        """兼容存根 crawlo.crawler_process.CrawlerProcess 与 crawlo.crawler.CrawlerProcess 是同一个类"""
+        import warnings
+        with warnings.catch_warnings():
+            warnings.simplefilter('ignore', DeprecationWarning)
+            from crawlo.crawler_process import CrawlerProcess as FromStub
+        from crawlo.crawler import CrawlerProcess as FromCrawler
+        # sys.modules 存根机制应返回同一对象
+        assert FromStub is FromCrawler
 
     def test_crawler_process_importable_from_top_level(self):
         """from crawlo import CrawlerProcess 正常导入（PEP 562 顶层转发）"""
         from crawlo import CrawlerProcess
         assert CrawlerProcess is not None
+
+    def test_crawlerprocess_class_is_real_implementation(self):
+        """CrawlerProcess 应具备核心公开方法（crawl/get_metrics/get_spider_names 等）"""
+        from crawlo.crawler import CrawlerProcess
+        expected = ('crawl', 'get_metrics', 'get_spider_class', 'get_spider_names', 'is_spider_registered')
+        for method in expected:
+            assert hasattr(CrawlerProcess, method), (
+                f"CrawlerProcess 应具备 {method}() 方法，合并操作不应丢失 API"
+            )
 
 
 # ============================================================================
@@ -184,7 +202,7 @@ class TestSyncIdleEmptyRemoved:
 
     def test_scheduler_idle_removed(self):
         """Scheduler.idle 不存在"""
-        from crawlo.core.task_scheduler import Scheduler
+        from crawlo.core.scheduling.task_scheduler import Scheduler
         assert not hasattr(Scheduler, 'idle')
 
     def test_processor_idle_removed(self):
@@ -199,7 +217,7 @@ class TestSyncIdleEmptyRemoved:
 
     def test_async_versions_exist(self):
         """异步版本仍然存在"""
-        from crawlo.core.task_scheduler import Scheduler
+        from crawlo.core.scheduling.task_scheduler import Scheduler
         from crawlo.core.processor import Processor
         from crawlo.queue.queue_manager import QueueManager
         assert hasattr(Scheduler, 'async_idle')
@@ -215,12 +233,12 @@ class TestSchedulerLenRemoved:
 
     def test_scheduler_len_removed(self):
         """Scheduler.__len__ 不存在"""
-        from crawlo.core.task_scheduler import Scheduler
+        from crawlo.core.scheduling.task_scheduler import Scheduler
         assert not hasattr(Scheduler, '__len__')
 
     def test_async_size_exists(self):
         """async_size() 仍然存在"""
-        from crawlo.core.task_scheduler import Scheduler
+        from crawlo.core.scheduling.task_scheduler import Scheduler
         assert hasattr(Scheduler, 'async_size')
 
 
@@ -238,3 +256,115 @@ class TestFrameworkInitializerFallbackRemoved:
         source = inspect.getsource(get_framework_initializer)
         assert 'DeprecationWarning' not in source
         assert 'RuntimeError' in source
+
+
+# ============================================================================
+# 第 14 条：helpers / network / db / shell / backpressure 顶层兼容包已物理删除
+# ============================================================================
+class TestTopLevelCompatPackagesRemoved:
+    """v2.0: Phase 3 清理 — 5 个顶层兼容包目录 + 子模块 sys.modules 存根已物理删除"""
+
+    @pytest.mark.parametrize("path", [
+        'crawlo.helpers',
+        'crawlo.helpers.time_utils',
+        'crawlo.helpers.text_cleaner',
+        'crawlo.helpers.file_downloader',
+        'crawlo.helpers.mysql_exists_checker',
+        'crawlo.helpers.adaptive_selector',
+        'crawlo.network',
+        'crawlo.network.request',
+        'crawlo.network.response',
+        'crawlo.network.response_adaptive',
+        'crawlo.network.exceptions',
+        'crawlo.db',
+        'crawlo.shell',
+        'crawlo.backpressure',
+        'crawlo.backpressure.strategies',
+        'crawlo.backpressure.interfaces',
+        'crawlo.backpressure.metrics_collector',
+        'crawlo.backpressure.monitor',
+        'crawlo.backpressure.intelligent_calculator',
+    ])
+    def test_old_compat_packages_unimportable(self, path):
+        """5 个顶层兼容包 + 子模块 import 抛 ModuleNotFoundError"""
+        import importlib
+        with pytest.raises(ModuleNotFoundError):
+            importlib.import_module(path)
+
+    def test_equivalent_new_paths_still_work(self):
+        """新路径（utils / http / queue.backpressure）仍然可用"""
+        from crawlo.utils.time_utils import now, time_diff  # noqa: F401
+        from crawlo.utils.text.cleaner import TextCleaner  # noqa: F401
+        from crawlo.utils.db.mysql_exists_checker import MySQLExistsChecker  # noqa: F401
+        from crawlo.utils.adaptive_selector import ElementFingerprint  # noqa: F401
+        from crawlo.http.request import Request  # noqa: F401
+        from crawlo.http.response import Response  # noqa: F401
+        from crawlo.http.exceptions import DownloadError  # noqa: F401
+        from crawlo.queue.backpressure import BackpressureController  # noqa: F401
+        from crawlo.queue.backpressure.strategies import QueueSizeStrategy  # noqa: F401
+
+
+# ============================================================================
+# 第 15 条：core/ 下 13 个扁平兼容存根文件已物理删除
+# ============================================================================
+class TestCoreFlatCompatStubsRemoved:
+    """v2.0: Phase 3 清理 — core/ 下 13 个 sys.modules 兼容存根已物理删除"""
+
+    @pytest.mark.parametrize("path", [
+        'crawlo.core.config_base',
+        'crawlo.core.config_compat',
+        'crawlo.core.config_factories',
+        'crawlo.core.config_validator',
+        'crawlo.core.engine_generation',
+        'crawlo.core.engine_helpers',
+        'crawlo.core.engine_cluster',
+        'crawlo.core.error_types',
+        'crawlo.core.exceptions',
+        'crawlo.core.failure',
+        'crawlo.core.task_manager',
+        'crawlo.core.task_scheduler',
+        # core/engine.py 存根文件已删除
+        # Phase 3.2：engine 子包已合并为单文件 core/engine.py（含 Engine + Mixin + helpers）
+    ])
+    def test_old_core_flat_stubs_unimportable(self, path):
+        """旧 core 扁平兼容 stub import 抛 ModuleNotFoundError"""
+        import importlib
+        with pytest.raises(ModuleNotFoundError):
+            importlib.import_module(path)
+
+    def test_equivalent_new_subpackages_still_work(self):
+        """新路径（core/config、core/scheduling、core/engine 单文件、core.errors）仍然可用"""
+        from crawlo.core.config.base import RunMode  # noqa: F401
+        from crawlo.core.config.compat import validate_config  # noqa: F401
+        from crawlo.core.scheduling.task_manager import TaskManager  # noqa: F401
+        from crawlo.core.scheduling.task_scheduler import Scheduler  # noqa: F401
+        from crawlo.core.engine import Engine  # noqa: F401
+        from crawlo.core.errors import (  # noqa: F401
+            CrawloException, Failure, ErrorClassifier, NotConfiguredError, PipelineInitError
+        )
+
+
+# ============================================================================
+# 第 16 条：queue/ 下 4 个扁平后端兼容存根已物理删除
+# ============================================================================
+class TestQueueFlatBackendStubsRemoved:
+    """v2.0: Phase 3 清理 — queue/ 下 4 个扁平 sys.modules 存根已物理删除"""
+
+    @pytest.mark.parametrize("path", [
+        'crawlo.queue.memory_queue',
+        'crawlo.queue.disk_queue',
+        'crawlo.queue.redis_priority_queue',
+        'crawlo.queue.redis_stream_queue',
+    ])
+    def test_old_queue_flat_stubs_unimportable(self, path):
+        """旧 queue 扁平后端 stub import 抛 ModuleNotFoundError"""
+        import importlib
+        with pytest.raises(ModuleNotFoundError):
+            importlib.import_module(path)
+
+    def test_equivalent_new_backends_still_work(self):
+        """新路径 queue/backends/ 仍然可用"""
+        from crawlo.queue.backends.memory import MemoryQueue, SpiderPriorityQueue  # noqa: F401
+        from crawlo.queue.backends.disk import DiskQueue, DiskQueueConfig  # noqa: F401
+        from crawlo.queue.backends.redis_priority import RedisPriorityQueue  # noqa: F401
+        from crawlo.queue.backends.redis_stream import RedisStreamQueue  # noqa: F401

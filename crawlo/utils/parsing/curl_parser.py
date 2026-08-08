@@ -10,7 +10,7 @@ from typing import Any, Dict, Optional, Tuple
 from urllib.parse import parse_qs, unquote_plus
 
 from crawlo.logging import get_logger
-from crawlo.network.request import Request
+from crawlo.http.request import Request
 
 
 class CurlParser:

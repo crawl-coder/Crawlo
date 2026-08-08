@@ -12,8 +12,8 @@ from typing import (
 
 if TYPE_CHECKING:
     from crawlo.spider import Spider
-    from crawlo.network.request import Request
-    from crawlo.network.response import Response
+    from crawlo.http.request import Request
+    from crawlo.http.response import Response
     from crawlo.items import Item
     from crawlo.crawler import Crawler
 

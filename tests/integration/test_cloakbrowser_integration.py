@@ -34,7 +34,7 @@ class TestCloakBrowserIntegration:
     async def test_cloakbrowser_with_mock_browser(self):
         """测试使用 mock 浏览器的完整下载流程"""
         from crawlo.downloader.cloakbrowser_downloader import CloakBrowserDownloader
-        from crawlo.network.request import Request
+        from crawlo.http.request import Request
         
         # 创建 mock crawler
         mock_crawler = Mock()
@@ -113,7 +113,7 @@ class TestCloakBrowserIntegration:
     async def test_cloakbrowser_with_custom_actions(self):
         """测试带自定义操作的下载"""
         from crawlo.downloader.cloakbrowser_downloader import CloakBrowserDownloader
-        from crawlo.network.request import Request
+        from crawlo.http.request import Request
         
         # 创建 mock crawler
         mock_crawler = Mock()
@@ -181,7 +181,7 @@ class TestCloakBrowserIntegration:
     async def test_hybrid_downloader_with_cloakbrowser(self):
         """测试 HybridDownloader 使用 CloakBrowser"""
         from crawlo.downloader.hybrid_downloader import HybridDownloader
-        from crawlo.network.request import Request
+        from crawlo.http.request import Request
         
         # 创建混合下载器
         mock_crawler = Mock()
@@ -246,7 +246,7 @@ class TestCloakBrowserEdgeCases:
         except ImportError:
             pytest.skip("cloakbrowser 未安装")
         from crawlo.downloader.cloakbrowser_downloader import CloakBrowserDownloader
-        from crawlo.network.request import Request
+        from crawlo.http.request import Request
         
         # 创建 mock crawler
         mock_crawler = Mock()

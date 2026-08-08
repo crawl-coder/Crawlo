@@ -23,7 +23,7 @@ from crawlo.downloader.aiohttp_downloader import AioHttpDownloader
 from crawlo.downloader.httpx_downloader import HttpXDownloader
 from crawlo.downloader.cffi_downloader import CurlCffiDownloader
 from crawlo.middleware.proxy import ProxyMiddleware
-from crawlo.network.request import Request
+from crawlo.http.request import Request
 from crawlo.settings.setting_manager import SettingManager
 
 

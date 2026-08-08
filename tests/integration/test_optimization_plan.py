@@ -27,7 +27,7 @@ from unittest.mock import Mock, MagicMock, patch, AsyncMock, PropertyMock
 
 import pytest
 
-from crawlo.core.engine_cluster import ClusterState
+from crawlo.cluster import ClusterState
 
 
 # ============================================================
@@ -601,18 +601,18 @@ class TestOptimization_4_1_SchedulerHelperMethods:
 
     def test_has_get_setting_method(self):
         """Scheduler 应有 _get_setting 方法"""
-        from crawlo.core.task_scheduler import Scheduler
+        from crawlo.core.scheduling.task_scheduler import Scheduler
         assert hasattr(Scheduler, '_get_setting')
 
     def test_has_set_setting_method(self):
         """Scheduler 应有 _set_setting 方法"""
-        from crawlo.core.task_scheduler import Scheduler
+        from crawlo.core.scheduling.task_scheduler import Scheduler
         assert hasattr(Scheduler, '_set_setting')
 
     @pytest.mark.asyncio
     async def test_get_setting_returns_default_when_no_crawler(self):
         """无 crawler 时返回默认值"""
-        from crawlo.core.task_scheduler import Scheduler
+        from crawlo.core.scheduling.task_scheduler import Scheduler
 
         scheduler = Scheduler.__new__(Scheduler)
         scheduler.crawler = None
@@ -625,7 +625,7 @@ class TestOptimization_4_1_SchedulerHelperMethods:
     @pytest.mark.asyncio
     async def test_get_setting_returns_default_when_no_settings(self):
         """settings 为 None 时返回默认值"""
-        from crawlo.core.task_scheduler import Scheduler
+        from crawlo.core.scheduling.task_scheduler import Scheduler
 
         scheduler = Scheduler.__new__(Scheduler)
         scheduler.crawler = Mock()
@@ -639,7 +639,7 @@ class TestOptimization_4_1_SchedulerHelperMethods:
     @pytest.mark.asyncio
     async def test_get_setting_returns_value(self):
         """正常情况返回配置值"""
-        from crawlo.core.task_scheduler import Scheduler
+        from crawlo.core.scheduling.task_scheduler import Scheduler
         from crawlo.settings.setting_manager import SettingManager
 
         settings = SettingManager()
@@ -657,7 +657,7 @@ class TestOptimization_4_1_SchedulerHelperMethods:
     @pytest.mark.asyncio
     async def test_get_setting_handles_exception(self):
         """settings.get 抛异常时返回默认值"""
-        from crawlo.core.task_scheduler import Scheduler
+        from crawlo.core.scheduling.task_scheduler import Scheduler
 
         bad_settings = Mock()
         bad_settings.get = Mock(side_effect=RuntimeError("boom"))
@@ -674,7 +674,7 @@ class TestOptimization_4_1_SchedulerHelperMethods:
     @pytest.mark.asyncio
     async def test_set_setting_handles_exception_silently(self):
         """_set_setting 异常时不应抛出"""
-        from crawlo.core.task_scheduler import Scheduler
+        from crawlo.core.scheduling.task_scheduler import Scheduler
 
         bad_settings = Mock()
         bad_settings.set = Mock(side_effect=RuntimeError("boom"))
@@ -712,7 +712,7 @@ class TestOptimization_3_2_SchedulerConditionWait:
         source = inspect.getsource(QueueManager.put)
         assert '_wait_for_space' in source, "QueueManager.put 应调用 _wait_for_space"
         # Phase 2：Scheduler.enqueue_request 不再含 retry 循环
-        from crawlo.core.task_scheduler import Scheduler
+        from crawlo.core.scheduling.task_scheduler import Scheduler
         sched_source = inspect.getsource(Scheduler.enqueue_request)
         assert '_queue_not_full' not in sched_source, \
             "Phase 2：Scheduler.enqueue_request 不应再含 _queue_not_full（已下沉）"

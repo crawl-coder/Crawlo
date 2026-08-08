@@ -25,11 +25,11 @@ from collections import deque
 # 添加项目根目录到路径
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from crawlo.backpressure.metrics_collector import BackpressureMetricsCollector, BackpressureMetrics
-from crawlo.backpressure.intelligent_calculator import IntelligentBackpressureCalculator
-from crawlo.backpressure.monitor import BackpressureMonitor
-from crawlo.queue.memory_queue import MemoryQueue
-from crawlo.network.request import Request
+from crawlo.queue.backpressure.metrics_collector import BackpressureMetricsCollector, BackpressureMetrics
+from crawlo.queue.backpressure.intelligent_calculator import IntelligentBackpressureCalculator
+from crawlo.queue.backpressure.monitor import BackpressureMonitor
+from crawlo.queue.backends.memory import MemoryQueue
+from crawlo.http.request import Request
 
 
 class Colors:

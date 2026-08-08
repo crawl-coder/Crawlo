@@ -28,8 +28,8 @@ import re
 from urllib.parse import urlparse
 
 from crawlo.downloader import DownloaderBase
-from crawlo.network.request import Request
-from crawlo.network.response import Response
+from crawlo.http.request import Request
+from crawlo.http.response import Response
 from crawlo.logging import get_logger
 
 

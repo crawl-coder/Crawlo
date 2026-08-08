@@ -35,7 +35,7 @@ project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
 from crawlo import Spider
-from crawlo.network.request import Request
+from crawlo.http.request import Request
 from crawlo.crawler import Crawler
 from crawlo.settings.setting_manager import SettingManager as Settings
 

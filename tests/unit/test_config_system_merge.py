@@ -394,7 +394,7 @@ class TestSettingManagerIntegration(unittest.TestCase):
         }
         settings = SettingManager(user_config)
         middlewares = settings.get('MIDDLEWARES')
-        self.assertIn('crawlo.middleware.request_ignore.RequestIgnoreMiddleware', middlewares)
+        self.assertIn('crawlo.middleware.RequestIgnoreMiddleware', middlewares)
         self.assertIn('myproject.middlewares.CustomMiddleware', middlewares)
 
     def test_pipeline_merge_with_dedup_first(self):

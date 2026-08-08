@@ -442,5 +442,5 @@ def get_settings(custom_settings: Optional[dict] = None) -> SettingManager:
         SettingManager: 已加载配置的实例
     """
     # 使用新的统一初始化管理器
-    from crawlo.initialization import initialize_framework
+    from crawlo.core.application import initialize_framework
     return initialize_framework(custom_settings)

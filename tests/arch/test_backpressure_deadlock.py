@@ -23,8 +23,8 @@ import pytest
 from crawlo.queue.queue_manager import QueueManager
 from crawlo.queue.config import QueueConfig
 from crawlo.queue.queue_types import QueueType
-from crawlo.core.engine_helpers import has_pending_enqueues
-from crawlo.network.request import Request
+from crawlo.core.engine import has_pending_enqueues
+from crawlo.http.request import Request
 
 
 def _make_memory_qm(max_size=2):

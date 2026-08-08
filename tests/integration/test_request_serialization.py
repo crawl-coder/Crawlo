@@ -12,8 +12,8 @@ import pickle
 import sys
 sys.path.insert(0, "..")
 
-from crawlo.network.request import Request
-from crawlo.core.task_scheduler import Scheduler
+from crawlo.http.request import Request
+from crawlo.core.scheduling.task_scheduler import Scheduler
 from unittest.mock import Mock
 
 # 模拟一个带 logger 的 Request

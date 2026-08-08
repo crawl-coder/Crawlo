@@ -667,12 +667,12 @@ REDIS_MONITOR_INTERVAL = 300                            # Redis 监控检查间�
 # #############################################################################
 
 EXTENSIONS = [
-    'crawlo.extension.LogIntervalExtension',       # 定时日志
-    'crawlo.extension.LogStats',                   # 统计信息
-    'crawlo.extension.CustomLoggerExtension',       # 自定义日志
-    'crawlo.extension.MemoryMonitorExtension',      # 内存监控
-    'crawlo.extension.MySQLMonitorExtension',       # MySQL 监控
-    'crawlo.extension.RedisMonitorExtension',       # Redis 监控
+    'crawlo.extensions.LogIntervalExtension',       # 定时日志
+    'crawlo.extensions.LogStats',                   # 统计信息
+    'crawlo.extensions.CustomLoggerExtension',       # 自定义日志
+    'crawlo.extensions.MemoryMonitorExtension',      # 内存监控
+    'crawlo.extensions.MySQLMonitorExtension',       # MySQL 监控
+    'crawlo.extensions.RedisMonitorExtension',       # Redis 监控
 ]
 
 
@@ -782,12 +782,14 @@ ADAPTIVE_MAX_FINGERPRINT_ELEMENTS = 10                  # 每个选择器最多�
 
 # 支持 Ctrl+C 优雅关闭后从断点续爬
 # 保存内容：待处理请求 + 去重指纹 + 统计信息
-# 检查点默认始终启用，通过 CLI 参数控制行为：
-#   crawlo run myspider                  # 自动恢复检查点
-#   crawlo run myspider --fresh           # 忽略检查点，从头开始
+# 检查点默认关闭，按需在 settings.py 显式开启：
+#   CHECKPOINT_ENABLED = True              # 启用检查点（断点续爬 / Ctrl+C保存）
+# 命令行控制：
+#   crawlo run myspider                    # 若 CHECKPOINT_ENABLED=True，自动恢复检查点
+#   crawlo run myspider --fresh            # 忽略检查点，从头开始
 #   crawlo run myspider --clean-checkpoint # 清除检查点并从头开始
 
 CHECKPOINT_ENABLED = False                              # 是否启用检查点功能（默认关闭）
 CHECKPOINT_STORAGE = 'json'                             # 存储后端：json | sqlite
 CHECKPOINT_DIR = None                             # 存储目录（默认 .checkpoints/{project}/{spider}）
-CHECKPOINT_SAVE_ON_SIGNAL = True                        # Ctrl+C 时是否自动保存检查点
+CHECKPOINT_SAVE_ON_SIGNAL = False                       # Ctrl+C 时是否自动保存检查点（默认关闭，跟随 CHECKPOINT_ENABLED 显式开启）

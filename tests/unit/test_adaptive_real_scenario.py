@@ -22,7 +22,7 @@ from pathlib import Path
 # 添加 Crawlo 到路径
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 
-from crawlo.network.response import Response
+from crawlo.http.response import Response
 from parsel import Selector
 
 

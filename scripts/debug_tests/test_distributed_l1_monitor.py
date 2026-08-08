@@ -3,7 +3,7 @@ import pytest, pytest_asyncio, redis.asyncio as aioredis
 from crawlo.cluster.registry import WorkerRegistry
 from crawlo.cluster.progress import ProgressAggregator
 from crawlo.cluster.monitor import ClusterMonitor
-from crawlo.queue.redis_stream_queue import RedisStreamQueue
+from crawlo.queue.backends.redis_stream import RedisStreamQueue
 from crawlo.utils.redis.keys import RedisKeyManager
 
 R = "redis://127.0.0.1:6379/0"

@@ -10,13 +10,14 @@ OffsiteMiddleware 测试文件
 用于测试站点过滤中间件的功能，特别是多个域名的情况
 """
 
+import asyncio
 import unittest
 from unittest.mock import Mock, patch
 
 from crawlo.middleware.offsite import OffsiteMiddleware
 from crawlo.settings.setting_manager import SettingManager
-from crawlo.network.exceptions import IgnoreRequestError
-from crawlo.core.exceptions import NotConfiguredError
+from crawlo.http.exceptions import IgnoreRequestError
+from crawlo.core.errors import NotConfiguredError
 
 
 class MockStats:
@@ -63,6 +64,7 @@ class TestOffsiteMiddleware(unittest.TestCase):
         self.crawler = Mock()
         self.crawler.settings = self.settings
         self.crawler.stats = MockStats()
+        self.crawler.spider = None
 
     def test_middleware_initialization_without_domains(self):
         """测试没有设置ALLOWED_DOMAINS时中间件初始化"""
@@ -73,7 +75,7 @@ class TestOffsiteMiddleware(unittest.TestCase):
             with self.assertRaises(NotConfiguredError) as context:
                 OffsiteMiddleware.create_instance(self.crawler)
             
-            self.assertIn("未配置ALLOWED_DOMAINS，OffsiteMiddleware已禁用", str(context.exception))
+            self.assertIn("ALLOWED_DOMAINS not configured", str(context.exception))
 
     def test_middleware_initialization_with_global_domains(self):
         """测试使用全局ALLOWED_DOMAINS设置时中间件初始化"""
@@ -187,7 +189,7 @@ class TestOffsiteMiddleware(unittest.TestCase):
             spider = Mock()
             
             # 处理请求，应该不抛出异常
-            result = middleware.process_request(request, spider)
+            result = asyncio.run(middleware.process_request(request, spider))
             self.assertIsNone(result)  # 应该返回None，表示请求被允许
             
             # 检查没有增加统计计数
@@ -210,10 +212,10 @@ class TestOffsiteMiddleware(unittest.TestCase):
             
             # 处理请求，应该抛出IgnoreRequestError异常
             with self.assertRaises(IgnoreRequestError) as context:
-                middleware.process_request(request, spider)
-            
-            self.assertIn("站外请求被过滤", str(context.exception))
-            
+                asyncio.run(middleware.process_request(request, spider))
+
+            self.assertIn("Offsite request filtered", str(context.exception))
+
             # 检查增加了统计计数
             self.assertIn('offsite_request_count', self.crawler.stats.stats)
             self.assertEqual(self.crawler.stats.stats['offsite_request_count'], 1)
@@ -236,14 +238,14 @@ class TestOffsiteMiddleware(unittest.TestCase):
             
             # 处理请求，应该抛出IgnoreRequestError异常
             with self.assertRaises(IgnoreRequestError) as context:
-                middleware.process_request(request, spider)
-            
-            self.assertIn("站外请求被过滤", str(context.exception))
-            
+                asyncio.run(middleware.process_request(request, spider))
+
+            self.assertIn("Offsite request filtered", str(context.exception))
+
             # 检查增加了统计计数
             self.assertIn('offsite_request_count', self.crawler.stats.stats)
             self.assertEqual(self.crawler.stats.stats['offsite_request_count'], 1)
-            self.assertIn('offsite_request_count/invalid_url', self.crawler.stats.stats)
+            self.assertIn('offsite_request_count/unknown', self.crawler.stats.stats)
 
 
 if __name__ == '__main__':

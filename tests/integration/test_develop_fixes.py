@@ -99,7 +99,7 @@ def test_default_serialization_is_json():
 async def test_ack_message_logs_on_failure():
     """_ack_message 失败时应记录日志而非静默吞错"""
     import pytest  # noqa: F401  pytest.mark.asyncio 装饰器需要
-    from crawlo.core.engine_cluster import _ack_message
+    from crawlo.cluster import _ack_message
 
     class FakeStats:
         def __init__(self):
@@ -113,7 +113,7 @@ async def test_ack_message_logs_on_failure():
 
     class FakeEngine:
         def __init__(self):
-            from crawlo.core.engine_cluster import ClusterState
+            from crawlo.cluster import ClusterState
             self._cluster_state = ClusterState(worker_id='worker_1')
             self.scheduler = None  # 触发早期返回路径
             self.crawler = FakeCrawler()

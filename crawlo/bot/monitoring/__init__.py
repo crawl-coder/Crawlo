@@ -1,48 +1,18 @@
-# -*- coding: utf-8 -*-
-"""
-===================================
-资源监控
-===================================
+#!/usr/bin/python
+# -*- coding: UTF-8 -*-
+"""兼容存根：已合并入 crawlo.extensions.notifications.monitoring。"""
+import sys
+import warnings
+import importlib
 
-资源监控模板和枚举
-"""
+_NEW = 'crawlo.extensions.notifications.monitoring'
 
-from crawlo.bot.monitoring.templates import (
-    ResourceMonitorTemplateManager,
-    get_resource_monitor_manager,
-    render_resource_monitor_template,
-    list_resource_monitor_templates,
-    get_mysql_monitor_templates,
-    get_redis_monitor_templates,
-    get_mongodb_monitor_templates,
-    get_resource_leak_monitor_templates,
-)
-from crawlo.bot.monitoring.enums import (
-    ResourceTemplate,
-    ResourceMonitorVariable,
-    ResourceMonitorCategory,
-    get_mysql_resource_templates,
-    get_redis_resource_templates,
-    get_mongodb_resource_templates,
-    get_resource_leak_templates,
-)
-
-__all__ = [
-    # 监控模板
-    'ResourceMonitorTemplateManager',
-    'get_resource_monitor_manager',
-    'render_resource_monitor_template',
-    'list_resource_monitor_templates',
-    'get_mysql_monitor_templates',
-    'get_redis_monitor_templates',
-    'get_mongodb_monitor_templates',
-    'get_resource_leak_monitor_templates',
-    # 监控枚举
-    'ResourceTemplate',
-    'ResourceMonitorVariable',
-    'ResourceMonitorCategory',
-    'get_mysql_resource_templates',
-    'get_redis_resource_templates',
-    'get_mongodb_resource_templates',
-    'get_resource_leak_templates',
-]
+if __name__ != _NEW:
+    if _NEW not in sys.modules:
+        sys.modules[_NEW] = importlib.import_module(_NEW)
+    sys.modules[__name__] = sys.modules[_NEW]
+    warnings.warn(
+        f"{__name__} is deprecated, use {_NEW} instead",
+        DeprecationWarning,
+        stacklevel=2,
+    )

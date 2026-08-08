@@ -57,11 +57,7 @@ class OfWeekDistributedSpider(Spider):
         # 生产环境：网站约 1851 页列表，每页约 10 个详情
         # 10 个 worker 可真正领到任务，验证 Redis Stream Consumer Group + ACK + 负载均衡
         # OFWEEK_TEST_MAX_PAGE 环境变量可临时覆盖页数做 smoke test
-        _env_max = os.environ.get('OFWEEK_TEST_MAX_PAGE')
-        try:
-            max_page = int(_env_max) if _env_max else 1851
-        except (TypeError, ValueError):
-            max_page = 1851
+        max_page = 100
         start_urls = []
         for page in range(1, max_page + 1):
             url = f'https://ee.ofweek.com/CATList-2800-8100-ee-{page}.html'

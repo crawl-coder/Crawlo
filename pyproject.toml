@@ -10,6 +10,50 @@ asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
 # collect_ignore_glob 已迁移至 tests/conftest.py（路径相对于 conftest.py 所在目录更可靠）
 
+# ====================
+# Phase 4: Coverage 基础设施
+# ====================
+# 运行时：pytest --cov 即启用。日常本地不加 --cov 保持速度。
+# CI 中：pytest --cov --cov-report=xml --cov-report=term-missing
+addopts = ""
+
+[tool.coverage.run]
+# 只测 crawlo 核心包，examples/scripts/tests/docs 不入覆盖率
+source = ["crawlo"]
+branch = true
+omit = [
+    "crawlo/__main__.py",
+    "crawlo/_version*.py",
+    "crawlo/**/__pycache__/*",
+    # 以下是纯模板/脚手架代码，不计入覆盖率
+    "crawlo/templates/**",
+    # CLI 入口（主功能由 commands/ 层保障），可选先放轻量门槛
+    "crawlo/cli.py",
+]
+dynamic_context = "test_function"
+concurrency = ["thread", "greenlet", "multiprocessing"]
+
+[tool.coverage.report]
+# 百分号整数 + 未覆盖行号，便于从终端日志看到缺口
+show_missing = true
+skip_covered = false
+skip_empty = false
+precision = 2
+exclude_lines = [
+    # 典型覆盖率排除
+    "pragma: no cover",
+    "if TYPE_CHECKING:",
+    "except ImportError:",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+    "def __repr__",
+    "pass",
+    "\\.\\.\\.",
+    # 框架内部的 Deprecation 存根重定向，不计覆盖
+    "sys\\.modules\\[__name__\\] = ",
+    "warnings\\.warn\\(.*DeprecationWarning",
+]
+
 [tool.importlinter]
 root_package = "crawlo"
 
@@ -107,13 +151,9 @@ ignore_imports = [
     "crawlo.queue.queue_backpressure -> crawlo.backpressure",
     "crawlo.queue.queue_manager -> crawlo.backpressure",
     "crawlo.queue.redis_priority_queue -> crawlo.core.application",
-    "crawlo.scheduling.daemon.cleanup -> crawlo.extension.monitor.monitor_manager",
-    # Phase 7：L4 scheduling 调 L1 commands.job_executor（合法架构例外：daemon 是命令入口壳）。
-    # 两条路径分别：
-    #   - scheduler.py: SchedulerDaemon 构造 JobExecutor（真依赖）
-    #   - executor.py: v2.0 已物理删除
-    "crawlo.scheduling.daemon.scheduler -> crawlo.commands.job_executor",
-    "crawlo.scheduling.registry -> crawlo.core.application",
+    # Phase 3.6：scheduling/ 业务代码已迁移到 commands/（L1），原 L4→L1/L3 反向依赖白名单失效。
+    # commands.cleanup → extensions.monitor、commands.scheduler → commands.job_executor、
+    # commands.registry → core.application 均为 L1→L4/L1/L3 合法向下依赖，无需白名单。
     # Phase 9.5: spider.loader 已切到 crawlo.spider.interfaces，原旧路径白名单失效
     # "crawlo.spider.loader -> crawlo.interfaces",
     "crawlo.spider.loader -> crawlo.spider.interfaces",

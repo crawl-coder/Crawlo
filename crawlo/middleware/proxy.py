@@ -17,7 +17,7 @@ import aiohttp
 from typing import Optional, List
 
 from crawlo.logging import get_logger
-from crawlo.network import Request, Response
+from crawlo.http import Request, Response
 
 
 class ProxyMiddleware:

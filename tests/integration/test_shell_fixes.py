@@ -74,7 +74,7 @@ class TestSimpleFetcherHTTPMethods:
     async def test_simple_fetcher_get_method(self):
         """测试 GET 方法"""
         from crawlo.shell.core import _SimpleFetcher
-        from crawlo.network.request import Request
+        from crawlo.http.request import Request
         
         fetcher = _SimpleFetcher()
         request = Request(url="https://httpbin.org/get", method="GET")
@@ -103,7 +103,7 @@ class TestSimpleFetcherHTTPMethods:
     async def test_simple_fetcher_post_method(self):
         """测试 POST 方法"""
         from crawlo.shell.core import _SimpleFetcher
-        from crawlo.network.request import Request
+        from crawlo.http.request import Request
         
         fetcher = _SimpleFetcher()
         request = Request(
@@ -137,7 +137,7 @@ class TestSimpleFetcherHTTPMethods:
     async def test_simple_fetcher_with_headers(self):
         """测试传递 headers"""
         from crawlo.shell.core import _SimpleFetcher
-        from crawlo.network.request import Request
+        from crawlo.http.request import Request
         
         fetcher = _SimpleFetcher()
         request = Request(

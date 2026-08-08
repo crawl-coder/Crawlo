@@ -333,7 +333,7 @@ class TestDependencyConstraints(unittest.TestCase):
     def test_mcp_version_locked_upper_bound(self):
         """setup.cfg 中 mcp 必须有 <2.0 上限"""
         setup_cfg = os.path.join(
-            os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+            os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
             "setup.cfg",
         )
         with open(setup_cfg) as f:

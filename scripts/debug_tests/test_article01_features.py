@@ -244,7 +244,7 @@ async def test_distributed():
     print("=" * 60)
 
     from crawlo.core.config import CrawloConfig
-    from crawlo.core.config_base import RunMode
+    from crawlo.core.config.base import RunMode
 
     config = CrawloConfig.distributed(
         redis_host='127.0.0.1',

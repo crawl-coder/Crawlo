@@ -1,28 +1,18 @@
-# -*- coding: utf-8 -*-
-"""
-===================================
-工具模块
-===================================
+#!/usr/bin/python
+# -*- coding: UTF-8 -*-
+"""兼容存根：已合并入 crawlo.extensions.notifications.utils。"""
+import sys
+import warnings
+import importlib
 
-配置加载和消息去重功能
-"""
+_NEW = 'crawlo.extensions.notifications.utils'
 
-from crawlo.bot.utils.config_loader import (
-    apply_settings_config,
-    ensure_config_loaded,
-)
-from crawlo.bot.utils.deduplicator import (
-    MessageDeduplicator,
-    get_deduplicator,
-    reset_deduplicator,
-)
-
-__all__ = [
-    # 配置加载
-    'apply_settings_config',
-    'ensure_config_loaded',
-    # 消息去重
-    'MessageDeduplicator',
-    'get_deduplicator',
-    'reset_deduplicator',
-]
+if __name__ != _NEW:
+    if _NEW not in sys.modules:
+        sys.modules[_NEW] = importlib.import_module(_NEW)
+    sys.modules[__name__] = sys.modules[_NEW]
+    warnings.warn(
+        f"{__name__} is deprecated, use {_NEW} instead",
+        DeprecationWarning,
+        stacklevel=2,
+    )

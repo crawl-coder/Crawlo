@@ -23,7 +23,7 @@ from crawlo.commands.stats import record_stats
 from crawlo.crawler_process import CrawlerProcess
 from crawlo.project import get_settings, _find_project_root
 # 使用新的统一初始化系统
-from crawlo.initialization import initialize_framework
+from crawlo.core.application import initialize_framework
 from crawlo.core import get_framework_initializer
 from crawlo.logging import get_logger
 from crawlo.utils.concurrency import run_with_cleanup
@@ -115,7 +115,7 @@ def main(args):
     # 如果指定的是 schedule，启动定时任务调度器
     if spider_arg == 'schedule':
         try:
-            from crawlo.scheduling import start_scheduler
+            from crawlo.commands.scheduler import start_scheduler
             project_root = _find_project_root()
             if not project_root:
                 console.print("[bold red]找不到 'crawlo.cfg'[/bold red]，请在项目目录中运行此命令。")

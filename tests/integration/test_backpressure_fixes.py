@@ -1,10 +1,10 @@
 """Backpressure fixes verification tests"""
 import asyncio
 
-from crawlo.backpressure.strategies import QueueSizeStrategy, AdaptiveStrategy, CompositeStrategy
-from crawlo.backpressure.interfaces import BackpressureStrategyConfig, BackpressureMetrics, PressureLevel
-from crawlo.backpressure.metrics_collector import QueueMetrics
-from crawlo.backpressure import BackpressureController
+from crawlo.queue.backpressure.strategies import QueueSizeStrategy, AdaptiveStrategy, CompositeStrategy
+from crawlo.queue.backpressure.interfaces import BackpressureStrategyConfig, BackpressureMetrics, PressureLevel
+from crawlo.queue.backpressure.metrics_collector import QueueMetrics
+from crawlo.queue.backpressure import BackpressureController
 
 
 class _MockQueue:
@@ -40,7 +40,7 @@ async def _run_all_tests():
     passed += 1
 
     # 3. Engine EngineBackpressureAdapter delegates to unified module
-    from crawlo.core.engine_helpers import EngineBackpressureAdapter as EngineBC
+    from crawlo.core.engine import EngineBackpressureAdapter as EngineBC
     ebc = EngineBC(max_queue_size=200, backpressure_ratio=0.9)
     assert hasattr(ebc, "_unified")
     stats = ebc.get_stats()

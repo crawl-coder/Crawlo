@@ -20,8 +20,8 @@ from unittest.mock import Mock
 # 添加项目根目录到Python路径
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
-from crawlo.queue.redis_priority_queue import RedisPriorityQueue
-from crawlo.network.request import Request
+from crawlo.queue.backends.redis_priority import RedisPriorityQueue
+from crawlo.http.request import Request
 from crawlo.utils.redis import get_redis_pool, close_all_pools
 from crawlo.utils.batch import RedisBatchProcessor
 from crawlo.extension.memory_monitor import MemoryMonitorExtension

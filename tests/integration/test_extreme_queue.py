@@ -6,7 +6,7 @@
 import asyncio
 import pytest
 from unittest.mock import Mock, patch, AsyncMock
-from crawlo.network.request import Request
+from crawlo.http.request import Request
 
 
 class TestExtremeMemoryQueueScenarios:
@@ -15,7 +15,7 @@ class TestExtremeMemoryQueueScenarios:
     @pytest.mark.asyncio
     async def test_queue_massive_enqueue(self):
         """测试海量请求入队（10000 个）"""
-        from crawlo.queue.memory_queue import SpiderPriorityQueue
+        from crawlo.queue.backends.memory import SpiderPriorityQueue
         
         queue = SpiderPriorityQueue()
         
@@ -40,7 +40,7 @@ class TestExtremeMemoryQueueScenarios:
     @pytest.mark.asyncio
     async def test_queue_empty_get_timeout(self):
         """测试空队列 get 超时"""
-        from crawlo.queue.memory_queue import SpiderPriorityQueue
+        from crawlo.queue.backends.memory import SpiderPriorityQueue
         
         queue = SpiderPriorityQueue()
         
@@ -51,7 +51,7 @@ class TestExtremeMemoryQueueScenarios:
     @pytest.mark.asyncio
     async def test_queue_rapid_enqueue_dequeue(self):
         """测试快速入队/出队（压力测试）"""
-        from crawlo.queue.memory_queue import SpiderPriorityQueue
+        from crawlo.queue.backends.memory import SpiderPriorityQueue
         
         queue = SpiderPriorityQueue()
         
@@ -71,7 +71,7 @@ class TestExtremeMemoryQueueScenarios:
     @pytest.mark.asyncio
     async def test_queue_priority_inversion(self):
         """测试优先级反转（小值应该先出队）"""
-        from crawlo.queue.memory_queue import SpiderPriorityQueue
+        from crawlo.queue.backends.memory import SpiderPriorityQueue
         
         queue = SpiderPriorityQueue()
         
@@ -92,7 +92,7 @@ class TestExtremeMemoryQueueScenarios:
     @pytest.mark.asyncio
     async def test_queue_duplicate_urls(self):
         """测试重复 URL 入队"""
-        from crawlo.queue.memory_queue import SpiderPriorityQueue
+        from crawlo.queue.backends.memory import SpiderPriorityQueue
         
         queue = SpiderPriorityQueue()
         
@@ -107,7 +107,7 @@ class TestExtremeMemoryQueueScenarios:
     @pytest.mark.asyncio
     async def test_queue_concurrent_access(self):
         """测试并发访问队列"""
-        from crawlo.queue.memory_queue import SpiderPriorityQueue
+        from crawlo.queue.backends.memory import SpiderPriorityQueue
         
         queue = SpiderPriorityQueue()
         
@@ -131,7 +131,7 @@ class TestExtremeRedisQueueScenarios:
     @pytest.mark.asyncio
     async def test_redis_queue_without_redis(self):
         """测试无 Redis 时的优雅降级"""
-        from crawlo.queue.redis_priority_queue import RedisPriorityQueue
+        from crawlo.queue.backends.redis_priority import RedisPriorityQueue
         
         # 尝试连接不存在的 Redis
         try:
@@ -152,7 +152,7 @@ class TestExtremeRedisQueueScenarios:
     @pytest.mark.asyncio
     async def test_redis_queue_put_batch_empty(self):
         """测试 put_batch 空列表"""
-        from crawlo.queue.redis_priority_queue import RedisPriorityQueue
+        from crawlo.queue.backends.redis_priority import RedisPriorityQueue
         
         queue = RedisPriorityQueue(
             redis_url='redis://localhost:6379/0',
@@ -168,7 +168,7 @@ class TestExtremeRedisQueueScenarios:
     @pytest.mark.asyncio
     async def test_redis_queue_put_batch_massive(self):
         """测试 put_batch 大量请求"""
-        from crawlo.queue.redis_priority_queue import RedisPriorityQueue
+        from crawlo.queue.backends.redis_priority import RedisPriorityQueue
         
         queue = RedisPriorityQueue(
             redis_url='redis://localhost:6379/0',
@@ -197,7 +197,7 @@ class TestExtremeRedisQueueScenarios:
     @pytest.mark.asyncio
     async def test_redis_queue_put_batch_huge_batch_size(self):
         """测试 put_batch 超大 batch_size"""
-        from crawlo.queue.redis_priority_queue import RedisPriorityQueue
+        from crawlo.queue.backends.redis_priority import RedisPriorityQueue
         
         queue = RedisPriorityQueue(
             redis_url='redis://localhost:6379/0',
@@ -224,7 +224,7 @@ class TestExtremeRedisQueueScenarios:
     @pytest.mark.asyncio
     async def test_redis_queue_dirty_data_cleanup(self):
         """测试脏数据自动清理"""
-        from crawlo.queue.redis_priority_queue import RedisPriorityQueue
+        from crawlo.queue.backends.redis_priority import RedisPriorityQueue
         import pickle
         
         queue = RedisPriorityQueue(
@@ -266,7 +266,7 @@ class TestExtremeRedisQueueScenarios:
     @pytest.mark.asyncio
     async def test_redis_queue_serialization_formats(self):
         """测试不同序列化格式"""
-        from crawlo.queue.redis_priority_queue import RedisPriorityQueue
+        from crawlo.queue.backends.redis_priority import RedisPriorityQueue
         
         # 测试 pickle 格式
         queue_pickle = RedisPriorityQueue(
@@ -326,7 +326,7 @@ class TestExtremeBackpressureScenarios:
     @pytest.mark.asyncio
     async def test_backpressure_threshold_trigger(self):
         """测试背压阈值触发"""
-        from crawlo.queue.memory_queue import SpiderPriorityQueue
+        from crawlo.queue.backends.memory import SpiderPriorityQueue
         
         queue = SpiderPriorityQueue()
         
@@ -349,7 +349,7 @@ class TestExtremeQueueEdgeCases:
     @pytest.mark.asyncio
     async def test_queue_priority_negative_values(self):
         """测试负数优先级"""
-        from crawlo.queue.memory_queue import SpiderPriorityQueue
+        from crawlo.queue.backends.memory import SpiderPriorityQueue
         
         queue = SpiderPriorityQueue()
         
@@ -367,7 +367,7 @@ class TestExtremeQueueEdgeCases:
     @pytest.mark.asyncio
     async def test_queue_priority_extreme_values(self):
         """测试极端优先级值"""
-        from crawlo.queue.memory_queue import SpiderPriorityQueue
+        from crawlo.queue.backends.memory import SpiderPriorityQueue
         
         queue = SpiderPriorityQueue()
         
@@ -383,7 +383,7 @@ class TestExtremeQueueEdgeCases:
     @pytest.mark.asyncio
     async def test_queue_close_reopen(self):
         """测试队列关闭后重新打开"""
-        from crawlo.queue.memory_queue import SpiderPriorityQueue
+        from crawlo.queue.backends.memory import SpiderPriorityQueue
         
         queue = SpiderPriorityQueue()
         

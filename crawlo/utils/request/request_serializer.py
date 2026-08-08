@@ -17,7 +17,7 @@ except ImportError:
 if TYPE_CHECKING:
     from crawlo.spider import Spider
 
-from crawlo.network.request import Request
+from crawlo.http.request import Request
 from crawlo.logging import get_logger
 
 

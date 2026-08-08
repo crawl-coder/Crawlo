@@ -31,7 +31,7 @@ import asyncio
 from typing import Optional, Dict, List, Set
 
 from crawlo.logging import get_logger
-from crawlo.network.response import Response
+from crawlo.http.response import Response
 from crawlo.downloader import DownloaderBase
 from crawlo.downloader.wait_strategies import SmartWaitMixin, WaitStrategy
 from crawlo.utils.parsing import PageActionHandler, SelectorConverter

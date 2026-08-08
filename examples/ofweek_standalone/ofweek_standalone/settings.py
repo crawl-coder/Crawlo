@@ -25,6 +25,7 @@ locals().update(config.to_dict())
 # 启用检查点（断点续爬）
 CHECKPOINT_ENABLED = True
 CHECKPOINT_DIR = '.checkpoints'  # 检查点存储目录
+CHECKPOINT_SAVE_ON_SIGNAL = True  # Ctrl+C 时保存检查点（用于演示中断续爬）
 
 # 启用完整背压控制（1800 页测试，受控请求生成模式）
 ENABLE_CONTROLLED_REQUEST_GENERATION = True

@@ -10,8 +10,8 @@ sys.path.insert(0, "/Users/oscar/projects/Crawlo")
 """
 import asyncio
 from unittest.mock import Mock
-from crawlo.core.task_scheduler import Scheduler
-from crawlo.network.request import Request
+from crawlo.core.scheduling.task_scheduler import Scheduler
+from crawlo.http.request import Request
 from crawlo.utils.log import get_logger
 
 

@@ -24,7 +24,7 @@ import time
 from typing import Optional, Dict, Any, List
 from dataclasses import dataclass, field
 from urllib.parse import urlparse
-from crawlo.network.response import Response
+from crawlo.http.response import Response
 
 import aiohttp
 from aiohttp import ClientSession, TCPConnector, ClientTimeout

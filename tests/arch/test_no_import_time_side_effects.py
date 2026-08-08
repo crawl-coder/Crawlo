@@ -47,7 +47,7 @@ import crawlo.spider
 import crawlo.spider.spider
 import crawlo.core.application
 import crawlo.core.engine
-import crawlo.core.task_scheduler
+import crawlo.core.scheduling.task_scheduler
 import crawlo.core.processor
 import crawlo.queue.queue_manager
 import crawlo.crawler

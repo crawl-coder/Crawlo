@@ -1,39 +1,18 @@
-# -*- coding: utf-8 -*-
-"""
-===================================
-通知渠道模块
-===================================
+#!/usr/bin/python
+# -*- coding: UTF-8 -*-
+"""兼容存根：已合并入 crawlo.extensions.notifications.channels。"""
+import sys
+import warnings
+import importlib
 
-包含各通知渠道的适配器实现。
-"""
+_NEW = 'crawlo.extensions.notifications.channels'
 
-from crawlo.bot.channels.base import NotificationChannel
-from crawlo.bot.channels.dingtalk import DingTalkChannel, get_dingtalk_channel
-from crawlo.bot.channels.feishu import FeishuChannel, get_feishu_channel
-from crawlo.bot.channels.wecom import WeComChannel, get_wecom_channel
-from crawlo.bot.channels.email import EmailChannel, get_email_channel
-from crawlo.bot.channels.sms import SmsChannel, get_sms_channel
-
-# 所有通知渠道类
-ALL_CHANNELS = [
-    DingTalkChannel,
-    FeishuChannel,
-    WeComChannel,
-    EmailChannel,
-    SmsChannel,
-]
-
-__all__ = [
-    'NotificationChannel',
-    'DingTalkChannel',
-    'FeishuChannel', 
-    'WeComChannel',
-    'EmailChannel',
-    'SmsChannel',
-    'get_dingtalk_channel',
-    'get_feishu_channel',
-    'get_wecom_channel',
-    'get_email_channel',
-    'get_sms_channel',
-    'ALL_CHANNELS',
-]
+if __name__ != _NEW:
+    if _NEW not in sys.modules:
+        sys.modules[_NEW] = importlib.import_module(_NEW)
+    sys.modules[__name__] = sys.modules[_NEW]
+    warnings.warn(
+        f"{__name__} is deprecated, use {_NEW} instead",
+        DeprecationWarning,
+        stacklevel=2,
+    )

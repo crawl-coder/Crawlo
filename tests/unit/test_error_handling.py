@@ -12,10 +12,10 @@ import pytest
 import asyncio
 from unittest.mock import MagicMock, AsyncMock
 
-from crawlo.core.exceptions import CrawloException
-from crawlo.network.exceptions import DownloadError, IgnoreRequestError
+from crawlo.core.errors import CrawloException
+from crawlo.http.exceptions import DownloadError, IgnoreRequestError
 from crawlo.items.exceptions import ItemDiscard
-from crawlo.core.error_types import ErrorClassifier
+from crawlo.core.errors import ErrorClassifier
 
 
 class TestErrorClassifier:

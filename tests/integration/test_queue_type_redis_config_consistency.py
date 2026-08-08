@@ -19,7 +19,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
 from crawlo.core.config import CrawloConfig
 from crawlo.crawler_process import CrawlerProcess
-from crawlo.core.task_scheduler import Scheduler
+from crawlo.core.scheduling.task_scheduler import Scheduler
 from crawlo.queue.queue_manager import QueueType
 
 

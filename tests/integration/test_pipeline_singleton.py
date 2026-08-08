@@ -592,7 +592,7 @@ class TestPostgreSQLPipeline:
 
     def test_from_crawler_without_conflict_cols_raises(self):
         from crawlo.pipelines.sql.postgresql import PostgreSQLPipeline
-        from crawlo.core.exceptions import PipelineInitError
+        from crawlo.core.errors import PipelineInitError
 
         crawler = make_crawler()
         crawler.settings.get = Mock(return_value=None)

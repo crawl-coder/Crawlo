@@ -8,7 +8,7 @@
 import asyncio
 import pytest
 from unittest.mock import MagicMock, AsyncMock, patch
-from crawlo.core.task_scheduler import Scheduler
+from crawlo.core.scheduling.task_scheduler import Scheduler
 from crawlo import Request
 
 

@@ -124,7 +124,7 @@ def demo_in_spider():
     print("在爬虫项目中，您可以这样使用数据清洗工具:")
     print("""
 from crawlo import Spider, Request, Item, Field
-from crawlo.helpers import clean_text, format_currency, extract_numbers
+from crawlo.utils.text.cleaner import clean_text, format_currency, extract_numbers
 
 class ProductItem(Item):
     name = Field()

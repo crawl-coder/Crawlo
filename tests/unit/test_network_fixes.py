@@ -23,7 +23,7 @@ class TestResponseAdaptiveCacheCleanup:
     
     def test_cleanup_registered_on_init(self):
         """测试初始化时注册清理函数"""
-        from crawlo.network.response import Response
+        from crawlo.http.response import Response
         
         # 重置状态
         Response._cleanup_registered = False
@@ -39,7 +39,7 @@ class TestResponseAdaptiveCacheCleanup:
     
     def test_cleanup_method_releases_resources(self):
         """测试清理方法释放资源"""
-        from crawlo.network.response import Response
+        from crawlo.http.response import Response
         
         # 模拟已初始化
         Response._adaptive_storage = Mock()
@@ -58,7 +58,7 @@ class TestResponseAdaptiveCacheCleanup:
     
     def test_cleanup_handles_exception_gracefully(self):
         """测试清理方法优雅处理异常"""
-        from crawlo.network.response import Response
+        from crawlo.http.response import Response
         
         # 模拟有问题的存储对象
         Response._adaptive_storage = Mock()
@@ -80,7 +80,7 @@ class TestRequestMetaRecursionLimit:
     
     def test_deep_nesting_raises_error(self):
         """测试深度嵌套时抛出错误"""
-        from crawlo.network.request import Request
+        from crawlo.http.request import Request
         
         # 创建深度嵌套的 meta（超过 50 层）
         meta = {'data': 'value'}
@@ -95,7 +95,7 @@ class TestRequestMetaRecursionLimit:
     
     def test_normal_nesting_works(self):
         """测试正常嵌套深度可以工作"""
-        from crawlo.network.request import Request
+        from crawlo.http.request import Request
         
         # 创建合理嵌套的 meta
         meta = {
@@ -112,7 +112,7 @@ class TestRequestMetaRecursionLimit:
     
     def test_logger_removed_before_copy(self):
         """测试 logger 在复制前被移除"""
-        from crawlo.network.request import Request
+        from crawlo.http.request import Request
         
         logger = logging.getLogger('test')
         meta = {
@@ -136,7 +136,7 @@ class TestUjsonFallback:
     
     def test_json_module_available(self):
         """测试 JSON 模块可用"""
-        from crawlo.network.response import json_module, USE_UJSON
+        from crawlo.http.response import json_module, USE_UJSON
         
         # 应该至少有一个模块可用
         assert json_module is not None
@@ -145,7 +145,7 @@ class TestUjsonFallback:
     
     def test_json_parsing_works(self):
         """测试 JSON 解析工作正常"""
-        from crawlo.network.response import Response
+        from crawlo.http.response import Response
         
         # 创建响应
         response = Response(
@@ -161,7 +161,7 @@ class TestUjsonFallback:
     
     def test_json_parse_error_with_default(self):
         """测试 JSON 解析错误时返回默认值"""
-        from crawlo.network.response import Response
+        from crawlo.http.response import Response
         
         response = Response(
             url='http://example.com/api',
@@ -179,7 +179,7 @@ class TestRequestPriorityDocs:
     
     def test_positive_priority_negated(self):
         """测试正数优先级被取反"""
-        from crawlo.network.request import Request, RequestPriority
+        from crawlo.http.request import Request, RequestPriority
         
         # 创建请求
         request = Request(url='http://example.com', priority=RequestPriority.HIGH)
@@ -189,7 +189,7 @@ class TestRequestPriorityDocs:
     
     def test_urgent_priority(self):
         """测试紧急优先级"""
-        from crawlo.network.request import Request, RequestPriority
+        from crawlo.http.request import Request, RequestPriority
         
         request = Request(url='http://example.com', priority=RequestPriority.URGENT)
         
@@ -202,7 +202,7 @@ class TestSelectorErrorHandling:
     
     def test_get_strict_mode_raises(self):
         """测试严格模式下抛出异常"""
-        from crawlo.network.response import Response
+        from crawlo.http.response import Response
         
         response = Response(
             url='http://example.com',
@@ -215,7 +215,7 @@ class TestSelectorErrorHandling:
     
     def test_get_non_strict_returns_default(self):
         """测试非严格模式下返回默认值"""
-        from crawlo.network.response import Response
+        from crawlo.http.response import Response
         
         response = Response(
             url='http://example.com',
@@ -228,7 +228,7 @@ class TestSelectorErrorHandling:
     
     def test_getall_strict_mode_raises(self):
         """测试 getall 严格模式"""
-        from crawlo.network.response import Response
+        from crawlo.http.response import Response
         
         response = Response(
             url='http://example.com',
@@ -240,7 +240,7 @@ class TestSelectorErrorHandling:
     
     def test_getall_non_strict_returns_empty(self):
         """测试 getall 非严格模式返回空列表"""
-        from crawlo.network.response import Response
+        from crawlo.http.response import Response
         
         response = Response(
             url='http://example.com',
@@ -256,7 +256,7 @@ class TestAddParamsToUrl:
     
     def test_replace_mode_overwrites(self):
         """测试覆盖模式替换已有参数"""
-        from crawlo.network.request import Request
+        from crawlo.http.request import Request
         
         url = 'http://example.com?page=1'
         params = {'page': 2, 'sort': 'desc'}
@@ -269,7 +269,7 @@ class TestAddParamsToUrl:
     
     def test_append_mode_keeps_existing(self):
         """测试追加模式保留已有参数"""
-        from crawlo.network.request import Request
+        from crawlo.http.request import Request
         
         url = 'http://example.com?page=1'
         params = {'page': 2, 'sort': 'desc'}
@@ -282,7 +282,7 @@ class TestAddParamsToUrl:
     
     def test_default_is_replace(self):
         """测试默认是覆盖模式"""
-        from crawlo.network.request import Request
+        from crawlo.http.request import Request
         
         url = 'http://example.com?page=1'
         params = {'page': 2}
@@ -296,7 +296,7 @@ class TestAdaptiveDynamicConfig:
     
     def test_can_initialize_with_defaults(self):
         """测试可以使用默认配置初始化"""
-        from crawlo.network.response import Response
+        from crawlo.http.response import Response
         
         # 重置状态
         Response._cleanup_registered = False
@@ -317,7 +317,7 @@ class IntegrationTest:
     
     def test_request_copy_with_deep_meta(self):
         """测试 Request copy 与深度 meta 处理"""
-        from crawlo.network.request import Request
+        from crawlo.http.request import Request
         
         meta = {
             'data': {'key': 'value'},
@@ -336,7 +336,7 @@ class IntegrationTest:
     
     def test_response_json_with_various_content_types(self):
         """测试 Response JSON 解析不同内容类型"""
-        from crawlo.network.response import Response
+        from crawlo.http.response import Response
         
         # JSON 内容
         response1 = Response(

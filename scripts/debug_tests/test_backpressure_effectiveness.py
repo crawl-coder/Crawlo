@@ -16,9 +16,9 @@ import time
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from crawlo.queue.memory_queue import MemoryQueue
-from crawlo.backpressure import BackpressureController, QueueSizeStrategy
-from crawlo.network.request import Request
+from crawlo.queue.backends.memory import MemoryQueue
+from crawlo.queue.backpressure import BackpressureController, QueueSizeStrategy
+from crawlo.http.request import Request
 
 
 class Colors:

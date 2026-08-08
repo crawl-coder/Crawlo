@@ -52,7 +52,7 @@ import pytest
 
 from crawlo.core.engine import Engine
 from crawlo.core.application import ApplicationContext
-from crawlo.core.task_scheduler import Scheduler
+from crawlo.core.scheduling.task_scheduler import Scheduler
 from crawlo.queue.queue_manager import QueueManager
 from crawlo.core.processor import Processor
 
@@ -63,7 +63,7 @@ BASELINE = {
     "Engine": {
         "__init__": "e84ddfdd330611281f9f36e93203bf7aa149f54923f0fd34da1a62bac70b9700",
         "engine_start": "15f9ce84574fa0b8112c4594967cc7716e6e51d4cd9f35e7bf6fc62530eaf115",
-        "start_spider": "9f4e836eaff526d9e0bace2b773e258059459d562800126cdde7697d986d5bd8",
+        "start_spider": "9bf9656e0782b28a3ce7a24ba2718d104457274116c05387278fc561750223d9",
         "crawl": "8806d5b8e61d8a7d9cfa31fcab42a5907d4b3b9a779bac6147fa1b5afda6cb49",
         "enqueue_request": "1a16a2d9c6f555933639163a7e115437502439fb3d093f2a39259fb07694370f",
         "close_spider": "1ea8edf49ff42b4c44d2a86002509d46ce49dca8390dff40e17c44b94855ec9c",
@@ -113,7 +113,7 @@ BASELINE = {
         "open": "12a7f11d963dc370a43bd7300dc7140d78778bee4acde7b0d1da2645d5d7c8cb",
         "start": "aa9e6e106bed8dc7f871eacbb6a6c05e1655800ef3ed6c0efcfeed6b548b4d9b",
         "stop": "0758f078d0b203b36a71b8d8f7166f8565be646df459eb472e9d62e9878c4856",
-        "enqueue": "8ffc19bbdef16cee6ebbbea662d5782648d46c488f3c861554d5c06fc9bfc50d",
+        "enqueue": "bd2519b022549d8a513b4ea1785f52c0097324b91e02fe9756a6b441e8eca7cb",  # Phase 2: network→http renamed, type hints updated
         "process_once": "cac1364919a927d757ae892153d2af33f341ac5dd92e8e34c9735929f11219c3",
         "idle_async": "adfe4d9dd4ef79a5b63a1d00a3d9017bc26db81e4d343776fb9b9764481fcfff",
         "close": "57595719c388c9e1859af92ca830a3a26f611820a328e6428de2fae25de39280",

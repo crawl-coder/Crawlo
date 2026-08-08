@@ -20,8 +20,8 @@ import time
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from unittest.mock import MagicMock
-from crawlo.network.request import Request
-from crawlo.network.response import Response
+from crawlo.http.request import Request
+from crawlo.http.response import Response
 
 TEST_URL = 'https://www.cityline.com.hk/Events.html'
 TEST_NAME = 'Cityline'

@@ -17,40 +17,51 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 
 class TestEngineUsesIdleAsync:
-    """测试 Engine 使用 idle_async() 替代 idle()"""
+    """测试 Engine 使用 idle_async() 替代 idle()
+
+    Phase 4 更新：Engine._exit/_should_exit 已重构为通过 ``_check_components_idle``
+    统一入口（单方法，不再在两处写 idle 检查）。语义上仍通过 processor.idle_async()
+    做 Processor 空闲判定，此处验证两种方式之一：
+        1. 方法体直接引用 idle_async；或
+        2. 方法体调用了 _check_components_idle，且该方法内部引用 processor.idle_async
+    """
+
+    @staticmethod
+    def _calls_idle_async_via(klass, method_name) -> str:
+        """返回 idle_async 被引入的位置（direct / via _check_components_idle / missing）"""
+        method_src = textwrap.dedent(inspect.getsource(getattr(klass, method_name)))
+        tree = ast.parse(method_src)
+        direct_attrs = []
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute):
+                direct_attrs.append(node.func.attr)
+        if 'idle_async' in direct_attrs:
+            return 'direct'
+        if '_check_components_idle' in direct_attrs:
+            gate_src = textwrap.dedent(inspect.getsource(klass._check_components_idle))
+            gate_tree = ast.parse(gate_src)
+            for node in ast.walk(gate_tree):
+                if (isinstance(node, ast.Call)
+                        and isinstance(node.func, ast.Attribute)
+                        and node.func.attr == 'idle_async'):
+                    return 'via_unified_gate'
+        return 'missing'
 
     def test_exit_uses_idle_async(self):
-        """Engine._exit() 应使用 processor.idle_async()"""
+        """Engine._exit() 语义上应调用 processor.idle_async()（直接或通过统一入口）"""
         from crawlo.core.engine import Engine
-        source = textwrap.dedent(inspect.getsource(Engine._exit))
-        tree = ast.parse(source)
-        
-        call_names = []
-        for node in ast.walk(tree):
-            if isinstance(node, ast.Call):
-                if isinstance(node.func, ast.Attribute):
-                    call_names.append(node.func.attr)
-        
-        # 应包含 idle_async，不应包含直接调用 idle（除了 scheduler.idle()）
-        assert 'idle_async' in call_names, (
-            "Engine._exit() should call processor.idle_async() instead of processor.idle()"
+        how = self._calls_idle_async_via(Engine, '_exit')
+        assert how != 'missing', (
+            "Engine._exit() 未触达 processor.idle_async()："
+            "既无直接调用，也未调用内部统一入口 _check_components_idle"
         )
 
     def test_should_exit_uses_idle_async(self):
-        """Engine._should_exit() 应使用 processor.idle_async()"""
+        """Engine._should_exit() 语义上应调用 processor.idle_async()"""
         from crawlo.core.engine import Engine
-        source = textwrap.dedent(inspect.getsource(Engine._should_exit))
-        tree = ast.parse(source)
-        
-        call_names = []
-        for node in ast.walk(tree):
-            if isinstance(node, ast.Call):
-                if isinstance(node.func, ast.Attribute):
-                    call_names.append(node.func.attr)
-        
-        # 应包含 idle_async
-        assert 'idle_async' in call_names, (
-            "Engine._should_exit() should call processor.idle_async()"
+        how = self._calls_idle_async_via(Engine, '_should_exit')
+        assert how != 'missing', (
+            "Engine._should_exit() 未触达 processor.idle_async()"
         )
 
 

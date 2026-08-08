@@ -3,9 +3,9 @@ import asyncio
 import time
 from typing import List
 
-from crawlo.backpressure.strategies import QueueSizeStrategy, AdaptiveStrategy, CompositeStrategy
-from crawlo.backpressure.interfaces import BackpressureStrategyConfig, PressureLevel
-from crawlo.backpressure import BackpressureController
+from crawlo.queue.backpressure.strategies import QueueSizeStrategy, AdaptiveStrategy, CompositeStrategy
+from crawlo.queue.backpressure.interfaces import BackpressureStrategyConfig, PressureLevel
+from crawlo.queue.backpressure import BackpressureController
 
 
 class ExtremeMockQueue:

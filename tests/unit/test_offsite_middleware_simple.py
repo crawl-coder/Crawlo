@@ -16,7 +16,7 @@ from unittest.mock import Mock, patch
 
 from crawlo.middleware.offsite import OffsiteMiddleware
 from crawlo.settings.setting_manager import SettingManager
-from crawlo.network.exceptions import IgnoreRequestError
+from crawlo.http.exceptions import IgnoreRequestError
 
 
 class MockStats:
@@ -65,7 +65,6 @@ class TestOffsiteMiddleware(unittest.TestCase):
             # 直接创建实例，传入多个域名
             middleware = OffsiteMiddleware(
                 stats=self.stats,
-                log_level='DEBUG',
                 allowed_domains=['ee.ofweek.com', 'www.baidu.com']
             )
             
@@ -85,7 +84,6 @@ class TestOffsiteMiddleware(unittest.TestCase):
         with patch('crawlo.middleware.offsite.get_logger', return_value=self.logger):
             middleware = OffsiteMiddleware(
                 stats=self.stats,
-                log_level='DEBUG',
                 allowed_domains=['ee.ofweek.com', 'www.baidu.com']
             )
             
@@ -108,7 +106,6 @@ class TestOffsiteMiddleware(unittest.TestCase):
         with patch('crawlo.middleware.offsite.get_logger', return_value=self.logger):
             middleware = OffsiteMiddleware(
                 stats=self.stats,
-                log_level='DEBUG',
                 allowed_domains=['ee.ofweek.com', 'www.baidu.com']
             )
             
@@ -132,7 +129,6 @@ class TestOffsiteMiddleware(unittest.TestCase):
             # 使用根域名，应该允许子域名
             middleware = OffsiteMiddleware(
                 stats=self.stats,
-                log_level='DEBUG',
                 allowed_domains=['ofweek.com', 'baidu.com']
             )
             
@@ -155,7 +151,6 @@ class TestOffsiteMiddleware(unittest.TestCase):
         with patch('crawlo.middleware.offsite.get_logger', return_value=self.logger):
             middleware = OffsiteMiddleware(
                 stats=self.stats,
-                log_level='DEBUG',
                 allowed_domains=['ee.ofweek.com', 'www.baidu.com']
             )
             
@@ -180,7 +175,6 @@ class TestOffsiteMiddleware(unittest.TestCase):
         with patch('crawlo.middleware.offsite.get_logger', return_value=self.logger):
             middleware = OffsiteMiddleware(
                 stats=self.stats,
-                log_level='DEBUG',
                 allowed_domains=['ee.ofweek.com', 'www.baidu.com']
             )
             
@@ -197,7 +191,7 @@ class TestOffsiteMiddleware(unittest.TestCase):
             with self.assertRaises(IgnoreRequestError) as context:
                 asyncio.run(middleware.process_request(request, spider))
             
-            self.assertIn("站外请求被过滤", str(context.exception))
+            self.assertIn("Offsite request filtered", str(context.exception))
             
             # 检查增加了统计计数
             self.assertIn('offsite_request_count', self.stats.stats)

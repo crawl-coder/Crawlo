@@ -18,8 +18,8 @@ import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
 from crawlo.middleware.response_code import ResponseCodeMiddleware
-from crawlo.network.request import Request
-from crawlo.network.response import Response
+from crawlo.http.request import Request
+from crawlo.http.response import Response
 from crawlo.settings.setting_manager import SettingManager
 
 

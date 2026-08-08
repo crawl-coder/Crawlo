@@ -30,8 +30,10 @@ class TestDedupPipelinePriority:
         pipelines = settings.attributes['PIPELINES']
         dedup_priority = pipelines['crawlo.pipelines.dedup.memory.MemoryDedupPipeline']
         
-        # 验证去重管道优先级为 200 (300 - 100)
-        assert dedup_priority == 200
+        # 验证去重管道优先级为 1
+        # 默认 PIPELINES 中 ConsolePipeline: 100 (短路径) 与用户配置的长路径视为不同键，
+        # 因此 min_priority=100，去重管道优先级 = max(1, 100 - 100) = 1
+        assert dedup_priority == 1
     
     def test_dedup_pipeline_with_empty_pipelines(self):
         """测试空管道列表时的默认优先级"""

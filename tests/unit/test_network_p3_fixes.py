@@ -18,7 +18,7 @@ class TestRequestSerialization:
     
     def test_to_dict_basic(self):
         """测试基本序列化"""
-        from crawlo.network.request import Request
+        from crawlo.http.request import Request
         
         request = Request(
             url='http://example.com',
@@ -36,7 +36,7 @@ class TestRequestSerialization:
     
     def test_from_dict_basic(self):
         """测试基本反序列化"""
-        from crawlo.network.request import Request
+        from crawlo.http.request import Request
         
         data = {
             'url': 'http://example.com',
@@ -52,7 +52,7 @@ class TestRequestSerialization:
     
     def test_serialization_roundtrip(self):
         """测试序列化往返一致性"""
-        from crawlo.network.request import Request, RequestPriority
+        from crawlo.http.request import Request, RequestPriority
         
         original = Request(
             url='http://example.com/api',
@@ -76,7 +76,7 @@ class TestRequestSerialization:
     
     def test_to_dict_preserves_priority(self):
         """测试序列化保留优先级"""
-        from crawlo.network.request import Request, RequestPriority
+        from crawlo.http.request import Request, RequestPriority
         
         request = Request(url='http://example.com', priority=RequestPriority.URGENT)
         
@@ -95,7 +95,7 @@ class TestResponseBodyLimit:
     
     def test_normal_body_accepted(self):
         """测试正常大小的响应体被接受"""
-        from crawlo.network.response import Response
+        from crawlo.http.response import Response
         
         body = b'x' * (1024 * 1024)  # 1MB
         
@@ -108,7 +108,7 @@ class TestResponseBodyLimit:
     
     def test_oversized_body_rejected(self):
         """测试超大响应体被拒绝"""
-        from crawlo.network.response import Response
+        from crawlo.http.response import Response
         
         # 超过 100MB 限制
         body = b'x' * (Response.MAX_BODY_SIZE + 1)
@@ -121,7 +121,7 @@ class TestResponseBodyLimit:
     
     def test_max_body_size_constant(self):
         """测试 MAX_BODY_SIZE 常量存在"""
-        from crawlo.network.response import Response
+        from crawlo.http.response import Response
         
         assert hasattr(Response, 'MAX_BODY_SIZE')
         assert Response.MAX_BODY_SIZE == 100 * 1024 * 1024  # 100MB
@@ -132,7 +132,7 @@ class TestFactoryMethods:
     
     def test_request_get_factory(self):
         """测试 Request.get() 工厂方法"""
-        from crawlo.network.request import Request
+        from crawlo.http.request import Request
         
         request = Request.get('http://example.com', params={'page': 1})
         
@@ -141,7 +141,7 @@ class TestFactoryMethods:
     
     def test_request_post_factory(self):
         """测试 Request.post() 工厂方法"""
-        from crawlo.network.request import Request
+        from crawlo.http.request import Request
         
         request = Request.post(
             'http://example.com/api',
@@ -153,7 +153,7 @@ class TestFactoryMethods:
     
     def test_response_from_text_factory(self):
         """测试 Response.from_text() 工厂方法"""
-        from crawlo.network.response import Response
+        from crawlo.http.response import Response
         
         response = Response.from_text(
             'http://example.com',
@@ -166,7 +166,7 @@ class TestFactoryMethods:
     
     def test_response_from_json_factory(self):
         """测试 Response.from_json() 工厂方法"""
-        from crawlo.network.response import Response
+        from crawlo.http.response import Response
         
         data = {'name': 'test', 'value': 123}
         response = Response.from_json('http://api.example.com', data)
@@ -185,7 +185,7 @@ class TestCopyOptimization:
     
     def test_shallow_copy_exists(self):
         """测试 __copy__ 方法存在"""
-        from crawlo.network.request import Request
+        from crawlo.http.request import Request
         
         request = Request(url='http://example.com')
         
@@ -197,7 +197,7 @@ class TestCopyOptimization:
     
     def test_shallow_vs_deep_copy(self):
         """测试浅拷贝与深拷贝的区别"""
-        from crawlo.network.request import Request
+        from crawlo.http.request import Request
         
         original = Request(
             url='http://example.com',
@@ -223,7 +223,7 @@ class TestXpathTimeout:
     
     def test_xpath_has_timeout_parameter(self):
         """测试 xpath() 方法有 timeout 参数"""
-        from crawlo.network.response import Response
+        from crawlo.http.response import Response
         import inspect
         
         sig = inspect.signature(Response.xpath)
@@ -234,7 +234,7 @@ class TestXpathTimeout:
     
     def test_css_has_timeout_parameter(self):
         """测试 css() 方法有 timeout 参数"""
-        from crawlo.network.response import Response
+        from crawlo.http.response import Response
         import inspect
         
         sig = inspect.signature(Response.css)
@@ -245,7 +245,7 @@ class TestXpathTimeout:
     
     def test_xpath_timeout_works(self):
         """测试 xpath 超时机制工作正常"""
-        from crawlo.network.response import Response
+        from crawlo.http.response import Response
         
         response = Response(
             url='http://example.com',
@@ -258,7 +258,7 @@ class TestXpathTimeout:
     
     def test_css_timeout_propagates(self):
         """测试 css 超时传递给 xpath"""
-        from crawlo.network.response import Response
+        from crawlo.http.response import Response
         
         response = Response(
             url='http://example.com',
@@ -275,7 +275,7 @@ class IntegrationTest:
     
     def test_request_serialization_with_factory(self):
         """测试序列化与工厂方法结合"""
-        from crawlo.network.request import Request
+        from crawlo.http.request import Request
         
         # 使用工厂方法创建
         original = Request.post(
@@ -297,7 +297,7 @@ class IntegrationTest:
     
     def test_response_factory_with_body_limit(self):
         """测试 Response 工厂方法与大小限制结合"""
-        from crawlo.network.response import Response
+        from crawlo.http.response import Response
         
         # 正常大小的 JSON 响应
         data = {'key': 'value'}

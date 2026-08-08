@@ -28,8 +28,8 @@ from pathlib import Path
 # 添加项目根目录到路径
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from crawlo.network.request import Request
-from crawlo.queue.memory_queue import SpiderPriorityQueue
+from crawlo.http.request import Request
+from crawlo.queue.backends.memory import SpiderPriorityQueue
 from crawlo.items import Item
 from crawlo.logging import get_logger
 

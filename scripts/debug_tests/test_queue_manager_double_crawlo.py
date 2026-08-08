@@ -141,7 +141,7 @@ async def test_queue_manager_create_queue():
                 print(f"  提取的项目名称: {project_name}")
                 
                 # 创建 Redis 队列实例
-                from crawlo.queue.redis_priority_queue import RedisPriorityQueue
+                from crawlo.queue.backends.redis_priority import RedisPriorityQueue
                 queue = RedisPriorityQueue(
                     redis_url=config.redis_url,
                     queue_name=config.queue_name,

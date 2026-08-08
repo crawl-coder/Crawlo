@@ -18,9 +18,9 @@ from unittest.mock import Mock, patch
 # 添加项目根目录到路径
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
-from crawlo.network.request import Request
-from crawlo.queue.memory_queue import SpiderPriorityQueue
-from crawlo.queue.redis_priority_queue import RedisPriorityQueue
+from crawlo.http.request import Request
+from crawlo.queue.backends.memory import SpiderPriorityQueue
+from crawlo.queue.backends.redis_priority import RedisPriorityQueue
 
 
 async def test_memory_queue_priority():
@@ -116,7 +116,7 @@ async def test_priority_values():
     """测试优先级常量值"""
     print("\n=== 测试优先级常量值 ===")
     
-    from crawlo.network.request import RequestPriority
+    from crawlo.http.request import RequestPriority
     
     # 检查优先级常量值
     print(f"  URGENT: {RequestPriority.URGENT}")

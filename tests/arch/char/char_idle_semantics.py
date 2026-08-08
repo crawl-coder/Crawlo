@@ -14,7 +14,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from crawlo.core.task_scheduler import Scheduler
+from crawlo.core.scheduling.task_scheduler import Scheduler
 from crawlo.queue.queue_types import QueueType
 
 

@@ -13,8 +13,8 @@ import asyncio
 import sys
 import traceback
 import time
-from crawlo.queue.redis_priority_queue import RedisPriorityQueue
-from crawlo.network.request import Request
+from crawlo.queue.backends.redis_priority import RedisPriorityQueue
+from crawlo.http.request import Request
 
 
 async def test_redis_connection():
@@ -99,7 +99,7 @@ async def test_serialization():
     
     try:
         import pickle
-        from crawlo.network.request import Request
+        from crawlo.http.request import Request
         
         # 创建测试请求
         request = Request(

@@ -20,7 +20,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
 from crawlo.middleware.default_header import DefaultHeaderMiddleware
 from crawlo.settings.setting_manager import SettingManager
-from crawlo.core.exceptions import NotConfiguredError
+from crawlo.core.errors import NotConfiguredError
 
 
 class MockLogger:

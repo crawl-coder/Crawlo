@@ -18,17 +18,17 @@ import time
 # 添加项目根目录到路径
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from crawlo.queue.memory_queue import MemoryQueue
-from crawlo.queue.disk_queue import DiskQueue, DiskQueueConfig
+from crawlo.queue.backends.memory import MemoryQueue
+from crawlo.queue.backends.disk import DiskQueue, DiskQueueConfig
 from crawlo.queue.queue_types import QueueType
-from crawlo.backpressure import (
+from crawlo.queue.backpressure import (
     BackpressureController,
     QueueSizeStrategy,
     AdaptiveStrategy,
     CompositeStrategy,
     PressureLevel,
 )
-from crawlo.network.request import Request
+from crawlo.http.request import Request
 
 
 class Colors:
@@ -228,7 +228,7 @@ async def test_redis_queue():
     print_header("测试 3: Redis队列 (RedisPriorityQueue)")
     
     try:
-        from crawlo.queue.redis_priority_queue import RedisPriorityQueue
+        from crawlo.queue.backends.redis_priority import RedisPriorityQueue
         print_info("Redis队列模块可用")
         
         # 尝试连接Redis

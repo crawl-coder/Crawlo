@@ -18,7 +18,7 @@ import traceback
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
 # 导入相关模块
-from crawlo.queue.redis_priority_queue import RedisPriorityQueue
+from crawlo.queue.backends.redis_priority import RedisPriorityQueue
 
 
 def test_redis_queue_naming():

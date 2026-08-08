@@ -6,7 +6,7 @@ MySQLExistsChecker 独立测试脚本
 """
 import asyncio
 import time
-from crawlo.helpers.mysql_exists_checker import MySQLExistsChecker
+from crawlo.utils.db.mysql_exists_checker import MySQLExistsChecker
 
 
 async def test_basic_functionality():

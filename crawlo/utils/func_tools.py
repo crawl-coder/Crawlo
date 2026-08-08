@@ -3,7 +3,7 @@ import asyncio
 from typing import Union, AsyncGenerator, Generator
 from inspect import isgenerator, isasyncgen
 from crawlo import Response, Request, Item
-from crawlo.core.exceptions import TransformTypeError
+from crawlo.core.errors import TransformTypeError
 
 T = Union[Request, Item]
 

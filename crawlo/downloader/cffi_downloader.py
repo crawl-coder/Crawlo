@@ -5,11 +5,11 @@ import time
 from typing import Optional, Dict, Any
 from curl_cffi.requests import AsyncSession
 
-from crawlo.network.response import Response
+from crawlo.http.response import Response
 from crawlo.downloader import DownloaderBase
 from crawlo.logging import get_logger
 from crawlo.utils.misc import safe_get_config
-from crawlo.network.exceptions import DownloadError
+from crawlo.http.exceptions import DownloadError
 from crawlo.constants import ABSOLUTE_TIMEOUT_MULTIPLIER_NORMAL, ABSOLUTE_TIMEOUT_MULTIPLIER_EXTENDED
 
 

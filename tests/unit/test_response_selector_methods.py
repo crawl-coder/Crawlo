@@ -12,7 +12,7 @@ import sys
 import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
-from crawlo.network.response import Response
+from crawlo.http.response import Response
 
 
 def test_response_selector_methods():
@@ -49,45 +49,45 @@ def test_response_selector_methods():
         headers={"content-type": "text/html; charset=utf-8"}
     )
     
-    # 测试 extract_text (CSS选择器)
-    print("1. 测试 extract_text (CSS选择器):")
-    title_text = response.extract_text('title')
+    # 测试 get (CSS选择器)
+    print("1. 测试 get (CSS选择器):")
+    title_text = response.get('title')
     print(f"   标题文本: {title_text}")
-    
-    h1_text = response.extract_text('.content h1')
+
+    h1_text = response.get('.content h1')
     print(f"   H1文本: {h1_text}")
     print()
-    
-    # 测试 extract_text (XPath选择器)
-    print("2. 测试 extract_text (XPath选择器):")
-    title_text_xpath = response.extract_text('//title')
+
+    # 测试 get (XPath选择器)
+    print("2. 测试 get (XPath选择器):")
+    title_text_xpath = response.get('//title')
     print(f"   标题文本: {title_text_xpath}")
-    
-    h1_text_xpath = response.extract_text('//div[@class="content"]/h1')
+
+    h1_text_xpath = response.get('//div[@class="content"]/h1')
     print(f"   H1文本: {h1_text_xpath}")
     print()
-    
-    # 测试 extract_texts
-    print("3. 测试 extract_texts:")
-    li_texts = response.extract_texts('.list li')
+
+    # 测试 getall
+    print("3. 测试 getall:")
+    li_texts = response.getall('.list li')
     print(f"   列表项文本: {li_texts}")
     print()
-    
-    # 测试 extract_attr
-    print("4. 测试 extract_attr:")
-    link_href = response.extract_attr('.link', 'href')
+
+    # 测试 attr
+    print("4. 测试 attr:")
+    link_href = response.attr('.link', 'href')
     print(f"   链接href: {link_href}")
-    
-    img_alt = response.extract_attr('.image', 'alt')
+
+    img_alt = response.attr('.image', 'alt')
     print(f"   图片alt: {img_alt}")
     print()
-    
-    # 测试 extract_attrs
-    print("5. 测试 extract_attrs:")
-    all_links = response.extract_attrs('a', 'href')
+
+    # 测试 attrs
+    print("5. 测试 attrs:")
+    all_links = response.attrs('a', 'href')
     print(f"   所有链接href: {all_links}")
-    
-    all_images = response.extract_attrs('img', 'src')
+
+    all_images = response.attrs('img', 'src')
     print(f"   所有图片src: {all_images}")
     print()
     

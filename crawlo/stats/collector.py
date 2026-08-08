@@ -141,30 +141,33 @@ class StatsCollector:
         if self._closed:
             return
         self._closed = True
-        
+
+        stats: dict = {}
+        spider_name: str = 'unknown'
+
         if self._dump:
-            stats = self.backend.get_stats()
+            stats = self.backend.get_stats() or {}
             spider_name = stats.get('spider_name', 'unknown')
-            
+
             # 尝试从 crawler 获取爬虫名称
             if spider_name == 'unknown' and hasattr(self, 'crawler') and self.crawler:
                 spider = getattr(self.crawler, 'spider', None)
                 if spider and hasattr(spider, 'name'):
                     spider_name = spider.name
                     self.backend.set_value('spider_name', spider_name)
-            
+
             # 计算并添加性能指标
             self._calculate_performance_metrics(stats)
-        
-        # 格式化浮点数
-        formatted_stats = {}
-        for key, value in stats.items():
-            formatted_stats[key] = round(value, 2) if isinstance(value, float) else value
-        
-        # 聚合相似统计项
-        optimized_stats = self._aggregate_similar_stats(formatted_stats)
-        self.logger.info(f'{spider_name} stats: \n{pformat(optimized_stats)}')
-        
+
+            # 格式化浮点数
+            formatted_stats = {}
+            for key, value in stats.items():
+                formatted_stats[key] = round(value, 2) if isinstance(value, float) else value
+
+            # 聚合相似统计项
+            optimized_stats = self._aggregate_similar_stats(formatted_stats)
+            self.logger.info(f'{spider_name} stats: \n{pformat(optimized_stats)}')
+
         self.backend.close()
     
     def _calculate_rate_metrics(self, end_time: datetime) -> None:

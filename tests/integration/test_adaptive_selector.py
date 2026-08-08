@@ -41,7 +41,7 @@ class TestElementFingerprint(unittest.TestCase):
 
     def test_from_element(self):
         """测试从元素生成指纹"""
-        from crawlo.helpers.adaptive_selector import ElementFingerprint
+        from crawlo.utils.adaptive_selector import ElementFingerprint
 
         p_element = self.html.xpath('//p[@class="intro"]')[0]
         fp = ElementFingerprint.from_element(p_element)
@@ -55,7 +55,7 @@ class TestElementFingerprint(unittest.TestCase):
 
     def test_serialization_roundtrip(self):
         """测试序列化/反序列化的一致性"""
-        from crawlo.helpers.adaptive_selector import ElementFingerprint
+        from crawlo.utils.adaptive_selector import ElementFingerprint
 
         p_element = self.html.xpath('//p[@class="intro"]')[0]
         fp = ElementFingerprint.from_element(p_element)
@@ -85,7 +85,7 @@ class TestElementFingerprint(unittest.TestCase):
 
     def test_fingerprint_path(self):
         """测试 DOM 路径提取"""
-        from crawlo.helpers.adaptive_selector import ElementFingerprint
+        from crawlo.utils.adaptive_selector import ElementFingerprint
 
         p_element = self.html.xpath('//p[@class="intro"]')[0]
         fp = ElementFingerprint.from_element(p_element)
@@ -98,7 +98,7 @@ class TestElementFingerprint(unittest.TestCase):
 
     def test_fingerprint_children(self):
         """测试子节点信息"""
-        from crawlo.helpers.adaptive_selector import ElementFingerprint
+        from crawlo.utils.adaptive_selector import ElementFingerprint
 
         div_element = self.html.xpath('//div[@id="main"]')[0]
         fp = ElementFingerprint.from_element(div_element)
@@ -111,7 +111,7 @@ class TestElementFingerprint(unittest.TestCase):
 
     def test_fingerprint_link_element(self):
         """测试链接元素的指纹（包含 href）"""
-        from crawlo.helpers.adaptive_selector import ElementFingerprint
+        from crawlo.utils.adaptive_selector import ElementFingerprint
 
         a_element = self.html.xpath('//a')[0]
         fp = ElementFingerprint.from_element(a_element)
@@ -146,7 +146,7 @@ class TestElementFingerprint(unittest.TestCase):
 
     def test_fingerprint_repr(self):
         """测试指纹 repr 输出"""
-        from crawlo.helpers.adaptive_selector import ElementFingerprint
+        from crawlo.utils.adaptive_selector import ElementFingerprint
 
         p_element = self.html.xpath('//p[@class="intro"]')[0]
         fp = ElementFingerprint.from_element(p_element)
@@ -157,7 +157,7 @@ class TestElementFingerprint(unittest.TestCase):
 
     def test_no_parent_element(self):
         """测试根元素没有父节点的情况"""
-        from crawlo.helpers.adaptive_selector import ElementFingerprint
+        from crawlo.utils.adaptive_selector import ElementFingerprint
         from lxml.html import fromstring
 
         # fromstring 会自动补全 html/body，所以 html 标签本身才是根
@@ -173,7 +173,7 @@ class TestSimilarityMatcher(unittest.TestCase):
 
     def setUp(self):
         from lxml.html import fromstring
-        from crawlo.helpers.adaptive_selector import ElementFingerprint, SimilarityMatcher
+        from crawlo.utils.adaptive_selector import ElementFingerprint, SimilarityMatcher
 
         self.matcher = SimilarityMatcher(threshold=0.0)
 
@@ -215,7 +215,7 @@ class TestSimilarityMatcher(unittest.TestCase):
 
     def test_same_element_high_score(self):
         """同一元素应该得到高分"""
-        from crawlo.helpers.adaptive_selector import ElementFingerprint
+        from crawlo.utils.adaptive_selector import ElementFingerprint
 
         element = self.original_html.xpath('//div[@class="product"]')[0]
         fp = ElementFingerprint.from_element(element)
@@ -226,7 +226,7 @@ class TestSimilarityMatcher(unittest.TestCase):
 
     def test_same_element_score_value(self):
         """同一元素应该得到接近 100% 的分数"""
-        from crawlo.helpers.adaptive_selector import ElementFingerprint
+        from crawlo.utils.adaptive_selector import ElementFingerprint
 
         element = self.original_html.xpath('//div[@class="product"]')[0]
         fp = ElementFingerprint.from_element(element)
@@ -237,7 +237,7 @@ class TestSimilarityMatcher(unittest.TestCase):
 
     def test_changed_page_can_match(self):
         """改版页面应该能匹配到相似元素"""
-        from crawlo.helpers.adaptive_selector import ElementFingerprint
+        from crawlo.utils.adaptive_selector import ElementFingerprint
 
         # 保存原始元素指纹
         original_element = self.original_html.xpath('//div[@class="product"]')[0]
@@ -254,7 +254,7 @@ class TestSimilarityMatcher(unittest.TestCase):
 
     def test_changed_page_score_drop(self):
         """改版后的匹配分数应该低于同页匹配"""
-        from crawlo.helpers.adaptive_selector import ElementFingerprint
+        from crawlo.utils.adaptive_selector import ElementFingerprint
 
         original_element = self.original_html.xpath('//div[@class="product"]')[0]
         fp = ElementFingerprint.from_element(original_element)
@@ -272,7 +272,7 @@ class TestSimilarityMatcher(unittest.TestCase):
 
     def test_tag_mismatch_filtered(self):
         """不同标签的元素应该被预过滤掉"""
-        from crawlo.helpers.adaptive_selector import ElementFingerprint
+        from crawlo.utils.adaptive_selector import ElementFingerprint
 
         element = self.original_html.xpath('//div[@class="product"]')[0]
         fp = ElementFingerprint.from_element(element)
@@ -285,7 +285,7 @@ class TestSimilarityMatcher(unittest.TestCase):
 
     def test_threshold_filtering(self):
         """阈值过滤测试"""
-        from crawlo.helpers.adaptive_selector import ElementFingerprint, SimilarityMatcher
+        from crawlo.utils.adaptive_selector import ElementFingerprint, SimilarityMatcher
 
         element = self.original_html.xpath('//div[@class="product"]')[0]
         fp = ElementFingerprint.from_element(element)
@@ -298,7 +298,7 @@ class TestSimilarityMatcher(unittest.TestCase):
 
     def test_text_similarity(self):
         """文本相似度对匹配的影响"""
-        from crawlo.helpers.adaptive_selector import ElementFingerprint
+        from crawlo.utils.adaptive_selector import ElementFingerprint
 
         # 文本完全相同的情况
         el_same = self.original_html.xpath('//h2[text()="产品A"]')[0]
@@ -318,7 +318,7 @@ class TestSimilarityMatcher(unittest.TestCase):
 
     def test_path_similarity(self):
         """DOM 路径相似度测试"""
-        from crawlo.helpers.adaptive_selector import ElementFingerprint
+        from crawlo.utils.adaptive_selector import ElementFingerprint
         from lxml.html import fromstring
 
         # 同结构但不同位置的元素
@@ -342,7 +342,7 @@ class TestSimilarityMatcher(unittest.TestCase):
 
     def test_percentage_param_override(self):
         """find_best_matches 的 percentage 参数应覆盖全局阈值"""
-        from crawlo.helpers.adaptive_selector import ElementFingerprint, SimilarityMatcher
+        from crawlo.utils.adaptive_selector import ElementFingerprint, SimilarityMatcher
 
         # 全局低阈值，但调用时指定高阈值
         matcher = SimilarityMatcher(threshold=0.0)
@@ -383,7 +383,7 @@ class TestSqliteStorage(unittest.TestCase):
 
     def test_save_and_retrieve(self):
         """测试保存和加载"""
-        from crawlo.helpers.adaptive_selector import FingerprintStorage, ElementFingerprint
+        from crawlo.utils.adaptive_selector import FingerprintStorage, ElementFingerprint
         from lxml.html import fromstring
 
         storage = FingerprintStorage(backend='sqlite', storage_file=self.db_path)
@@ -409,7 +409,7 @@ class TestSqliteStorage(unittest.TestCase):
 
     def test_overwrite(self):
         """测试覆盖更新"""
-        from crawlo.helpers.adaptive_selector import FingerprintStorage, ElementFingerprint
+        from crawlo.utils.adaptive_selector import FingerprintStorage, ElementFingerprint
         from lxml.html import fromstring
 
         storage = FingerprintStorage(backend='sqlite', storage_file=self.db_path)
@@ -432,7 +432,7 @@ class TestSqliteStorage(unittest.TestCase):
 
     def test_domain_isolation(self):
         """测试不同域名的数据隔离"""
-        from crawlo.helpers.adaptive_selector import FingerprintStorage, ElementFingerprint
+        from crawlo.utils.adaptive_selector import FingerprintStorage, ElementFingerprint
         from lxml.html import fromstring
 
         storage = FingerprintStorage(backend='sqlite', storage_file=self.db_path)
@@ -452,7 +452,7 @@ class TestSqliteStorage(unittest.TestCase):
 
     def test_multiple_selectors_same_domain(self):
         """测试同一域名下多个选择器指纹"""
-        from crawlo.helpers.adaptive_selector import FingerprintStorage, ElementFingerprint
+        from crawlo.utils.adaptive_selector import FingerprintStorage, ElementFingerprint
         from lxml.html import fromstring
 
         storage = FingerprintStorage(backend='sqlite', storage_file=self.db_path)
@@ -476,7 +476,7 @@ class TestSqliteStorage(unittest.TestCase):
 
     def test_retrieve_nonexistent(self):
         """测试查询不存在的数据返回 None"""
-        from crawlo.helpers.adaptive_selector import FingerprintStorage
+        from crawlo.utils.adaptive_selector import FingerprintStorage
 
         storage = FingerprintStorage(backend='sqlite', storage_file=self.db_path)
         self.assertIsNone(storage.retrieve('https://no-site.com', '.missing'))
@@ -512,13 +512,13 @@ class TestResponseAdaptive(unittest.TestCase):
 
     def setUp(self):
         # 重置 Response 类级别的缓存
-        from crawlo.network.response import Response
+        from crawlo.http.response import Response
         Response._adaptive_storage = None
         Response._adaptive_matcher = None
         Response._adaptive_enabled_global = None
 
     def tearDown(self):
-        from crawlo.network.response import Response
+        from crawlo.http.response import Response
         if Response._adaptive_storage is not None:
             try:
                 Response._adaptive_storage.close()
@@ -530,7 +530,7 @@ class TestResponseAdaptive(unittest.TestCase):
 
     def test_manual_configure(self):
         """测试手动配置自适应选择器"""
-        from crawlo.network.response import Response
+        from crawlo.http.response import Response
 
         Response.configure_adaptive()
 
@@ -540,7 +540,7 @@ class TestResponseAdaptive(unittest.TestCase):
 
     def test_adaptive_full_flow(self):
         """测试 adaptive 完整流程：命中时保存指纹，失效时自动匹配"""
-        from crawlo.network.response import Response
+        from crawlo.http.response import Response
 
         # 手动启用自适应
         temp_dir = tempfile.mkdtemp()
@@ -600,7 +600,7 @@ class TestResponseAdaptive(unittest.TestCase):
 
     def test_adaptive_disabled_warning(self):
         """测试未启用时使用 adaptive 的警告"""
-        from crawlo.network.response import Response
+        from crawlo.http.response import Response
 
         # 确保未启用
         Response._adaptive_enabled_global = False
@@ -616,7 +616,7 @@ class TestResponseAdaptive(unittest.TestCase):
 
     def test_xpath_adaptive(self):
         """测试 XPath 的 adaptive 流程"""
-        from crawlo.network.response import Response
+        from crawlo.http.response import Response
 
         temp_dir = tempfile.mkdtemp()
         db_path = os.path.join(temp_dir, 'test_xpath.db')
@@ -666,7 +666,7 @@ class TestResponseAdaptive(unittest.TestCase):
 
     def test_adaptive_with_identifier(self):
         """测试使用自定义 identifier 的自适应流程"""
-        from crawlo.network.response import Response
+        from crawlo.http.response import Response
 
         temp_dir = tempfile.mkdtemp()
         db_path = os.path.join(temp_dir, 'test_id.db')
@@ -706,7 +706,7 @@ class TestResponseAdaptive(unittest.TestCase):
 
     def test_adaptive_with_percentage(self):
         """测试 percentage 阈值过滤"""
-        from crawlo.network.response import Response
+        from crawlo.http.response import Response
 
         temp_dir = tempfile.mkdtemp()
         db_path = os.path.join(temp_dir, 'test_pct.db')
@@ -743,7 +743,7 @@ class TestResponseAdaptive(unittest.TestCase):
 
     def test_normal_selector_unaffected(self):
         """测试普通选择器调用不受自适应影响"""
-        from crawlo.network.response import Response
+        from crawlo.http.response import Response
 
         html = "<html><body><div class='test'>hello</div></body></html>"
         response = Response(url="https://example.com", body=html.encode('utf-8'))
@@ -757,7 +757,7 @@ class TestResponseAdaptive(unittest.TestCase):
 
     def test_configure_adaptive_disable(self):
         """测试禁用自适应选择器"""
-        from crawlo.network.response import Response
+        from crawlo.http.response import Response
 
         Response.configure_adaptive()
         self.assertTrue(Response._is_adaptive_enabled())

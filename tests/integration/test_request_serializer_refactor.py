@@ -13,7 +13,7 @@ class TestRequestSerializerBasic:
     
     def test_serialize_simple_request(self):
         """Test serializing a simple request"""
-        from crawlo.network import Request
+        from crawlo.http import Request
         from crawlo.utils.request.request_serializer import RequestSerializer
         
         serializer = RequestSerializer()
@@ -28,7 +28,7 @@ class TestRequestSerializerBasic:
     
     def test_deserialize_simple_request(self):
         """Test deserializing a simple request"""
-        from crawlo.network import Request
+        from crawlo.http import Request
         from crawlo.utils.request.request_serializer import RequestSerializer
         
         serializer = RequestSerializer()
@@ -46,7 +46,7 @@ class TestRequestSerializerBasic:
     
     def test_roundtrip(self):
         """Test serialization roundtrip"""
-        from crawlo.network import Request, RequestPriority
+        from crawlo.http import Request, RequestPriority
         from crawlo.utils.request.request_serializer import RequestSerializer
         
         serializer = RequestSerializer()
@@ -77,7 +77,7 @@ class TestRequestSerializerCallback:
     
     def test_callback_saved_and_restored(self):
         """Test that callback info is saved and restored"""
-        from crawlo.network import Request
+        from crawlo.http import Request
         from crawlo.utils.request.request_serializer import RequestSerializer
         
         # Create mock spider with proper method
@@ -114,7 +114,7 @@ class TestRequestSerializerComplex:
     
     def test_serialize_with_params(self):
         """Test request with GET params"""
-        from crawlo.network import Request
+        from crawlo.http import Request
         from crawlo.utils.request.request_serializer import RequestSerializer
         
         serializer = RequestSerializer()
@@ -130,7 +130,7 @@ class TestRequestSerializerComplex:
     
     def test_serialize_with_form_data(self):
         """Test request with form data"""
-        from crawlo.network import Request
+        from crawlo.http import Request
         from crawlo.utils.request.request_serializer import RequestSerializer
         
         serializer = RequestSerializer()
@@ -145,7 +145,7 @@ class TestRequestSerializerComplex:
     
     def test_serialize_with_meta(self):
         """Test request with meta data"""
-        from crawlo.network import Request
+        from crawlo.http import Request
         from crawlo.utils.request.request_serializer import RequestSerializer
         
         serializer = RequestSerializer()
@@ -188,7 +188,7 @@ class TestRequestSerializerEdgeCases:
     
     def test_empty_request(self):
         """Test serializing minimal request"""
-        from crawlo.network import Request
+        from crawlo.http import Request
         from crawlo.utils.request.request_serializer import RequestSerializer
         
         serializer = RequestSerializer()
@@ -201,7 +201,7 @@ class TestRequestSerializerEdgeCases:
     
     def test_request_with_none_values(self):
         """Test request with None values"""
-        from crawlo.network import Request
+        from crawlo.http import Request
         from crawlo.utils.request.request_serializer import RequestSerializer
         
         serializer = RequestSerializer()
@@ -218,7 +218,7 @@ class TestRequestSerializerEdgeCases:
     
     def test_preserves_priority(self):
         """Test that priority is preserved"""
-        from crawlo.network import Request, RequestPriority
+        from crawlo.http import Request, RequestPriority
         from crawlo.utils.request.request_serializer import RequestSerializer
         
         serializer = RequestSerializer()
@@ -232,7 +232,7 @@ class TestRequestSerializerEdgeCases:
     
     def test_restore_with_request_object(self):
         """Test restoring when input is already a Request object"""
-        from crawlo.network import Request
+        from crawlo.http import Request
         from crawlo.utils.request.request_serializer import RequestSerializer
         
         # Create mock spider

@@ -14,7 +14,7 @@ import os
 # 添加项目根目录到路径
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
-from crawlo.network.response import Response
+from crawlo.http.response import Response
 
 
 def test_basic_functionality():
@@ -44,20 +44,20 @@ def test_basic_functionality():
     
     # 测试基本属性
     print(f"URL: {response.url}")
-    print(f"状态码: {response.status_code}")
-    
+    print(f"状态码: {response.status}")
+
     # 测试文本提取（使用新方法）
-    title = response.extract_text('title')
+    title = response.get('title')
     print(f"标题: {title}")
-    
-    h1_text = response.extract_text('.content h1')
+
+    h1_text = response.get('.content h1')
     print(f"H1文本: {h1_text}")
-    
-    intro_text = response.extract_text('.intro')
+
+    intro_text = response.get('.intro')
     print(f"介绍文本: {intro_text}")
-    
+
     # 测试XPath（使用新方法）
-    title_xpath = response.extract_text('//title')
+    title_xpath = response.get('//title')
     print(f"XPath标题: {title_xpath}")
     
     print("基本功能测试完成")

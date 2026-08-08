@@ -18,9 +18,9 @@ from unittest.mock import Mock, AsyncMock, MagicMock, patch
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
 from crawlo import Request, Item
-from crawlo.network.request import RequestPriority
+from crawlo.http.request import RequestPriority
 from crawlo.utils.request.request import set_request
-from crawlo.core.exceptions import OutputError
+from crawlo.core.errors import OutputError
 
 
 # ============================================================

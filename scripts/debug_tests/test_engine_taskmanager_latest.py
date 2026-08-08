@@ -16,7 +16,7 @@ if project_root not in sys.path:
 
 from unittest.mock import Mock, AsyncMock
 from crawlo.core.engine import Engine
-from crawlo.core.task_manager import TaskManager, DynamicSemaphore
+from crawlo.core.scheduling.task_manager import TaskManager, DynamicSemaphore
 from crawlo import Request, Response
 
 

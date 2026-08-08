@@ -13,8 +13,8 @@ class TestDiskQueuePriority:
     
     def test_disk_queue_priority_sql_order(self):
         """验证 DiskQueue SQL 查询使用 ASC 排序"""
-        # 读取 disk_queue.py 文件验证
-        with open('crawlo/queue/disk_queue.py', 'r', encoding='utf-8') as f:
+        # 读取 disk.py 文件验证
+        with open('crawlo/queue/backends/disk.py', 'r', encoding='utf-8') as f:
             content = f.read()
         
         # 验证注释已更新
@@ -47,7 +47,7 @@ class TestRedisPriorityQueueTimeAPI:
     
     def test_uses_time_time_not_deprecated_api(self):
         """验证使用 time.time() 而非废弃的 asyncio.get_event_loop().time()"""
-        with open('crawlo/queue/redis_priority_queue.py', 'r', encoding='utf-8') as f:
+        with open('crawlo/queue/backends/redis_priority.py', 'r', encoding='utf-8') as f:
             content = f.read()
         
         # 验证使用 time.time()
@@ -62,7 +62,7 @@ class TestIntelligentBackpressureImport:
     
     def test_import_failure_logs_debug_message(self):
         """验证导入失败时有 debug 日志"""
-        with open('crawlo/queue/memory_queue.py', 'r', encoding='utf-8') as f:
+        with open('crawlo/queue/backends/memory.py', 'r', encoding='utf-8') as f:
             content = f.read()
         
         # 验证有 debug 日志
@@ -109,7 +109,7 @@ class TestBackpressureConfigRefactor:
 async def test_disk_queue_priority_semantic_integration():
     """集成测试：DiskQueue 优先级语义"""
     try:
-        from crawlo.queue.disk_queue import DiskQueue, DiskQueueConfig
+        from crawlo.queue.backends.disk import DiskQueue, DiskQueueConfig
         import tempfile
         import os
         

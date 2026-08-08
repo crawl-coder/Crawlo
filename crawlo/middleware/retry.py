@@ -5,7 +5,7 @@ from typing import List, Type
 
 from crawlo.logging import get_logger
 from crawlo.stats import StatsCollector
-from crawlo.network.exceptions import DownloadError
+from crawlo.http.exceptions import DownloadError
 
 # ---- 收集可用的库异常类型（仅导入成功时才加入重试列表） ----
 

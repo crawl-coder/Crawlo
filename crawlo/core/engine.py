@@ -1,35 +1,795 @@
 #!/usr/bin/python
 # -*- coding:UTF-8 -*-
+"""
+Engine 模块 — 爬虫引擎核心
+
+Scrapy 设计原则：引擎只有一个 engine.py，不需要拆 4 个文件。
+Phase 3.2：将 engine_main.py / generation.py / helpers.py 合并为单文件。
+
+Core Components:
+- Engine: 爬虫引擎主类（继承 RequestGenerationMixin + ClusterMixin）
+- RequestGenerationMixin: 请求生成 Mixin（传统/受控两种流式生成模式）
+- resolve_start_requests / process_callback_output: 请求生成工具函数
+- GenerationStats: 生成统计
+- EngineBackpressureAdapter: 背压适配器
+- safe_queue_size / has_pending_enqueues: 队列工具函数
+"""
 import asyncio
 import sys
 import time
-from inspect import iscoroutine, isasyncgen, isgenerator
-from typing import Optional, Callable, Any, Union, Dict, Iterator
+from dataclasses import dataclass, field
+from inspect import isasyncgen, iscoroutine, isgenerator
+from typing import Any, Callable, Dict, Iterator, Optional, Tuple, Union
 
 from crawlo import Request, Item
 from crawlo.spider import Spider
 from crawlo.event import CrawlerEvent
 from crawlo.project import common_call
-from crawlo.core.failure import Failure
+from crawlo.core.errors import Failure, OutputError, ErrorClassifier
 from crawlo.logging import get_logger
-from crawlo.core.error_types import ErrorClassifier
-from crawlo.core.task_manager import TaskManager
+from crawlo.core.scheduling.task_manager import TaskManager
 from crawlo.downloader import DownloaderBase
 from crawlo.core.processor import Processor
-from crawlo.core.task_scheduler import Scheduler
+from crawlo.core.scheduling.task_scheduler import Scheduler
 from crawlo.core.checkpoint_coordinator import CheckpointCoordinator
-from crawlo.core.engine_helpers import GenerationStats, EngineBackpressureAdapter, safe_queue_size, has_pending_enqueues
-from crawlo.core.engine_generation import RequestGenerationMixin
-from crawlo.core.engine_generation import resolve_start_requests, process_callback_output
-from crawlo.utils.misc import load_object
-from crawlo.utils.misc import safe_get_config
+from crawlo.utils.misc import load_object, safe_get_config
+from crawlo.utils.func_tools import transform
 from crawlo.__version__ import __version__
 from crawlo.queue.task_tracker import TaskTracker, TaskResult
-from crawlo.core.engine_cluster import ClusterMixin, ClusterState, _ack_message
+from crawlo.cluster.coordinator import ClusterMixin, ClusterState, _ack_message
+from crawlo.queue.backpressure.interfaces import BackpressureStrategyConfig, IBackpressureStrategy
+from crawlo.queue.backpressure.strategies import QueueSizeStrategy, AdaptiveStrategy
+from crawlo.queue.backpressure import BackpressureController as _UnifiedController
+
+__all__ = [
+    'Engine',
+    'RequestGenerationMixin',
+    'resolve_start_requests',
+    'process_callback_output',
+    'GenerationStats',
+    'EngineBackpressureAdapter',
+    'safe_queue_size',
+    'has_pending_enqueues',
+]
+
+
+def safe_queue_size(scheduler) -> int:
+    """同步获取队列大小（仅内存队列有效，非内存队列返回 -1）。
+
+    v2.0：Scheduler.__len__ 已删除，内存队列大小通过 queue_manager 内部 qsize() 获取。
+    """
+    if scheduler is None:
+        return 0
+    try:
+        if not scheduler._is_memory_queue():
+            return -1
+        inner = getattr(scheduler.queue_manager, '_queue', None)
+        if inner and hasattr(inner, 'qsize'):
+            return inner.qsize()
+        return 0
+    except Exception:
+        return -1
+
+
+def has_pending_enqueues(scheduler) -> bool:
+    """Phase 2：检查 scheduler 是否有阻塞等待中的入队请求。
+
+    用于 Engine idle 判定：若 > 0 表示有 put 在 block 等待，
+    Engine 不应提前退出（否则消费者停了 → 入队永远等不到消费 → 死锁）。
+
+    Returns:
+        True 表示有 pending enqueue（不应退出）；False 表示无（可以退出）。
+    """
+    if scheduler is None:
+        return False
+    return getattr(scheduler, 'pending_enqueue_count', 0) > 0
+
+
+@dataclass
+class GenerationStats:
+    """
+    Request generation statistics tracker
+
+    Tracks statistics for request generation.
+
+    Attributes:
+        total_generated: Total number of requests generated
+        backpressure_events: Number of backpressure trigger events
+        batches_processed: Number of batches processed
+        start_time: Start time
+        end_time: End time
+    """
+    total_generated: int = 0
+    backpressure_events: int = 0
+    batches_processed: int = 0
+    start_time: Optional[float] = None
+    end_time: Optional[float] = None
+
+    def increment_generated(self, count: int = 1) -> None:
+        """Increment generation count"""
+        self.total_generated += count
+
+    def increment_backpressure(self) -> None:
+        """Increment backpressure event count"""
+        self.backpressure_events += 1
+
+    def increment_batch(self) -> None:
+        """Increment batch count"""
+        self.batches_processed += 1
+
+    def mark_start(self) -> None:
+        """Mark generation start time"""
+        self.start_time = time.time()
+
+    def mark_end(self) -> None:
+        """Mark generation end time"""
+        self.end_time = time.time()
+
+    @property
+    def duration(self) -> float:
+        """Calculate duration in seconds"""
+        if self.start_time and self.end_time:
+            return self.end_time - self.start_time
+        return 0.0
+
+    @property
+    def generation_rate(self) -> float:
+        """Calculate generation rate (requests/second)"""
+        duration = self.duration
+        if duration > 0:
+            return self.total_generated / duration
+        return 0.0
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert to dictionary for logging"""
+        return {
+            'total_generated': self.total_generated,
+            'backpressure_events': self.backpressure_events,
+            'batches_processed': self.batches_processed,
+            'duration': round(self.duration, 2),
+            'generation_rate': round(self.generation_rate, 2),
+        }
+
+    def reset(self) -> None:
+        """Reset statistics"""
+        self.total_generated = 0
+        self.backpressure_events = 0
+        self.batches_processed = 0
+        self.start_time = None
+        self.end_time = None
+
+    def __repr__(self) -> str:
+        return (
+            f"<GenerationStats: generated={self.total_generated}, "
+            f"backpressure={self.backpressure_events}, "
+            f"rate={self.generation_rate:.1f}/s>"
+        )
+
+
+class EngineBackpressureAdapter:
+    """
+    Engine-level backpressure adapter — bridges Engine primitives (scheduler,
+    task_manager) to the generic backpressure strategy module.
+
+    Controls request generation speed by checking both queue capacity
+    and task concurrency. Internally delegates to crawlo.backpressure module
+    for unified strategy management.
+
+    Example:
+        adapter = EngineBackpressureAdapter(
+            max_queue_size=200,
+            backpressure_ratio=0.9,
+            strategy='queue_size'
+        )
+
+        if adapter.should_pause(scheduler, task_manager):
+            await adapter.wait_for_capacity(scheduler, task_manager)
+    """
+
+    def __init__(
+        self,
+        max_queue_size: int = 200,
+        backpressure_ratio: float = 0.9,
+        initial_wait: float = 0.01,
+        max_wait: float = 1.0,
+        strategy: str = 'queue_size',
+    ):
+        """
+        Initialize backpressure adapter
+
+        Args:
+            max_queue_size: Maximum queue size
+            backpressure_ratio: Backpressure trigger ratio
+            initial_wait: Initial wait time in seconds
+            max_wait: Maximum wait time in seconds
+            strategy: Strategy name ('queue_size' | 'adaptive')
+        """
+        self.max_queue_size = max_queue_size
+        self.backpressure_ratio = backpressure_ratio
+        self.initial_wait = initial_wait
+        self.max_wait = max_wait
+        self.strategy_name = strategy
+
+        # Statistics
+        self._pause_count = 0
+        self._total_wait_time = 0.0
+
+        # Internal: create backpressure strategy from config
+        config = BackpressureStrategyConfig(
+            threshold=backpressure_ratio,
+            base_delay=initial_wait,
+            max_delay=max_wait,
+        )
+        strategy_cls = self._resolve_strategy(strategy)(config=config)
+        self._unified = _UnifiedController(strategy=strategy_cls)
+
+    @staticmethod
+    def _resolve_strategy(name: str) -> type:
+        """Resolve strategy class from name"""
+        _map = {
+            'queue_size': QueueSizeStrategy,
+            'adaptive': AdaptiveStrategy,
+        }
+        return _map.get(name, QueueSizeStrategy)
+
+    @property
+    def pause_count(self) -> int:
+        """Number of pauses"""
+        return self._pause_count
+
+    @property
+    def total_wait_time(self) -> float:
+        """Total wait time"""
+        return self._total_wait_time
+
+    def is_queue_full(self, scheduler) -> bool:
+        """
+        Check if queue is full (delegates to unified backpressure strategy)
+
+        Args:
+            scheduler: Scheduler instance
+
+        Returns:
+            bool: True if queue utilization >= strategy threshold
+        """
+        if scheduler is None:
+            return False
+
+        try:
+            queue_size = safe_queue_size(scheduler)
+            if queue_size < 0:
+                # 非内存队列无法同步获取大小，背压由 QueueManager 层处理
+                return False
+        except Exception:
+            return False
+        # Use unified controller's strategy threshold for consistency with QueueManager
+        threshold = self.max_queue_size * self._unified.strategy._config.threshold
+        return queue_size >= threshold
+
+    def is_overloaded(self, task_manager) -> bool:
+        """
+        Check if task manager is overloaded
+
+        Args:
+            task_manager: Task manager instance
+
+        Returns:
+            bool: True if overloaded
+        """
+        if not task_manager:
+            return False
+
+        current_tasks = len(task_manager.current_task)
+        semaphore = getattr(task_manager, 'semaphore', None)
+
+        if semaphore:
+            max_concurrency = getattr(semaphore, '_initial_value', 8)
+            return current_tasks >= max_concurrency * self.backpressure_ratio
+
+        return False
+
+    def should_pause(self, scheduler, task_manager=None) -> bool:
+        """
+        Check if should pause
+
+        Args:
+            scheduler: Scheduler instance
+            task_manager: Task manager instance (optional)
+
+        Returns:
+            bool: True if should pause
+        """
+        # Check if queue is full
+        if self.is_queue_full(scheduler):
+            return True
+
+        # Check if task manager is overloaded
+        if task_manager and self.is_overloaded(task_manager):
+            return True
+
+        return False
+
+    async def wait_for_capacity(
+        self,
+        scheduler,
+        task_manager=None,
+        running_check: callable = None
+    ) -> bool:
+        """
+        Wait for system to have enough capacity
+
+        Args:
+            scheduler: Scheduler instance
+            task_manager: Task manager instance
+            running_check: Callback to check if still running
+
+        Returns:
+            bool: True if capacity was successfully waited for (False if interrupted)
+        """
+        import asyncio
+
+        self._pause_count += 1
+        start_wait = time.time()
+
+        wait_time = self.initial_wait
+
+        while self.should_pause(scheduler, task_manager):
+            # Check if still running
+            if running_check and not running_check():
+                return False
+
+            await asyncio.sleep(wait_time)
+            wait_time = min(wait_time * 1.1, self.max_wait)
+
+        self._total_wait_time += time.time() - start_wait
+        return True
+
+    def get_stats(self) -> Dict[str, Any]:
+        """Get statistics"""
+        return {
+            'pause_count': self._pause_count,
+            'total_wait_time': round(self._total_wait_time, 3),
+            'max_queue_size': self.max_queue_size,
+            'backpressure_ratio': self.backpressure_ratio,
+        }
+
+    def reset(self) -> None:
+        """Reset statistics"""
+        self._pause_count = 0
+        self._total_wait_time = 0.0
+
+    def __repr__(self) -> str:
+        return (
+            f"<EngineBackpressureAdapter: max_queue={self.max_queue_size}, "
+            f"ratio={self.backpressure_ratio}, "
+            f"strategy={self.strategy_name}, "
+            f"pauses={self._pause_count}>"
+        )
+
+
+async def resolve_start_requests(spider, logger) -> Tuple[Optional[Any], bool]:
+    """
+    通用 start_requests 返回值解析器
+
+    统一处理同步生成器、异步生成器、协程、列表/元组、
+    单个 Request/Item 等多种返回类型，返回 (source, is_async)。
+
+    Returns:
+        (source, is_async): source 为可迭代对象或 None，is_async 标识是否为异步
+    """
+    logger.debug("开始解析 start_requests")
+    result = spider.start_requests()
+
+    if isasyncgen(result):
+        logger.debug("start_requests 类型: 异步生成器（流式）")
+        return result, True
+
+    if iscoroutine(result):
+        awaited = await result
+        if isasyncgen(awaited):
+            logger.debug("start_requests 类型: 协程→异步生成器（流式）")
+            return awaited, True
+        if isgenerator(awaited):
+            logger.debug("start_requests 类型: 协程→同步生成器（流式）")
+            return awaited, False
+        if awaited is None:
+            return None, False
+        if isinstance(awaited, (Request, Item)):
+            logger.debug("start_requests 类型: 协程→单个值")
+            return iter([awaited]), False
+        if isinstance(awaited, (list, tuple)):
+            logger.debug(f"start_requests 类型: 协程→列表({len(awaited)}个)")
+            return iter(awaited), False
+        logger.warning(
+            f"start_requests 协程返回了未知类型 {type(awaited).__name__}，已作为单元素包装"
+        )
+        return iter([awaited]), False
+
+    # 同步返回值
+    if isgenerator(result):
+        logger.debug("start_requests 类型: 同步生成器（流式）")
+        return result, False
+    if isinstance(result, (list, tuple)):
+        logger.debug(f"start_requests 类型: 同步列表({len(result)}个)")
+        return iter(result), False
+    if isinstance(result, (Request, Item)):
+        logger.debug("start_requests 类型: 同步单值")
+        return iter([result]), False
+    if result is None:
+        return None, False
+    # 未知可迭代类型
+    try:
+        source = iter(result)
+        logger.debug("start_requests 类型: 同步可迭代对象（流式）")
+        return source, False
+    except TypeError:
+        logger.warning(f"start_requests 返回了不可迭代的类型 {type(result).__name__}")
+        return None, False
+
+
+async def process_callback_output(spider, callback, cb_kwargs, response, logger):
+    """
+    通用 callback 返回值处理器
+
+    将 callback(response, **cb_kwargs) 的返回值标准化为
+    transform() 可消费的异步生成器。
+
+    Returns:
+        异步生成器对象或 None
+    """
+    if spider is None:
+        return None
+
+    _outputs = callback(response, **cb_kwargs)
+    if _outputs is None:
+        return None
+
+    if isasyncgen(_outputs):
+        return transform(_outputs, response)
+
+    if isgenerator(_outputs):
+        return transform(_outputs, response)
+
+    if iscoroutine(_outputs):
+        result = await _outputs
+        if result is None:
+            return None
+        if isasyncgen(result):
+            return transform(result, response)
+        if isgenerator(result):
+            return transform(result, response)
+        if isinstance(result, (Request, Item)):
+            async def _single_output():
+                yield result
+            return transform(_single_output(), response)
+        if isinstance(result, (list, tuple)):
+            async def _list_output():
+                for item in result:
+                    if isinstance(item, (Request, Item)):
+                        yield item
+            return transform(_list_output(), response)
+        logger.warning(
+            f"Callback {callback.__name__} returned unexpected type "
+            f"{type(result).__name__} from coroutine. "
+            f"Use 'yield' instead of 'return' for producing output."
+        )
+        return None
+
+    if isinstance(_outputs, (Request, Item)):
+        async def _sync_single_output():
+            yield _outputs
+        return transform(_sync_single_output(), response)
+
+    if isinstance(_outputs, (list, tuple)):
+        async def _sync_list_output():
+            for item in _outputs:
+                if isinstance(item, (Request, Item)):
+                    yield item
+        return transform(_sync_list_output(), response)
+
+    logger.warning(
+        f"Callback {callback.__name__} returned unexpected type "
+        f"{type(_outputs).__name__}. Expected generator, async generator, "
+        f"Request, Item, or list/tuple of them."
+    )
+    return None
+
+
+class RequestGenerationMixin:
+    """请求生成 Mixin，提供传统/受控两种流式生成模式"""
+
+    async def _traditional_request_generation(self):
+        """流式请求生成方法（支持 sync/async 生成器，带背压控制）
+
+        背压策略：当调度器队列积压超过阈值时暂停生成，
+        让下载器先消费已有请求（包括列表页产出的详情页），
+        避免大量列表页全部入队后才处理详情页的"先列后详"问题。
+        """
+        self.logger.debug("开始流式请求生成（带背压控制）")
+        processed_count = 0
+
+        # 背压阈值：响应 BACKPRESSURE_RATIO 配置
+        # ratio 越低 → 阈值越低 → 更积极暂停生成
+        concurrency = self.task_manager._concurrency_limit if self.task_manager else 8
+        ratio = getattr(self, 'backpressure_ratio', 0.9)
+        backpressure_high = max(int(concurrency * 3 * ratio), 20)
+        backpressure_low = max(int(concurrency * 1 * ratio), 10)
+
+        try:
+            while self.running and self._start_requests_source is not None:
+                try:
+                    # 背压检查：队列积压过多时暂停生成，让下载器消费
+                    if self.scheduler is not None:
+                        queue_size = await self.scheduler.async_size()
+                        if queue_size >= backpressure_high:
+                            self.logger.debug(
+                                f"背压暂停生成: 队列 {queue_size} >= {backpressure_high}，"
+                                f"等待下载器消费"
+                            )
+                            self._generation_stats.increment_backpressure()
+                            # 等待队列降到低水位
+                            while self.running and await self.scheduler.async_size() > backpressure_low:
+                                await asyncio.sleep(0.1)
+                            queue_size = await self.scheduler.async_size()
+                            self.logger.debug(f"背压恢复生成: 队列降至 {queue_size}")
+
+                    if self._start_requests_is_async:
+                        start_request = await self._start_requests_source.__anext__()
+                    else:
+                        start_request = next(self._start_requests_source)
+
+                    # 请求入队
+                    await self.enqueue_request(start_request)
+                    processed_count += 1
+                except (StopIteration, StopAsyncIteration):
+                    self.logger.debug(f"所有起始请求处理完成，共 {processed_count} 个")
+                    break
+                except Exception as exp:
+                    self.logger.error(f"处理请求时发生异常: {exp}")
+                    import traceback
+                    self.logger.error(traceback.format_exc())
+                    if not await self._exit():
+                        continue
+                    self.running = False
+                    if self._start_requests_source is not None:
+                        self.logger.error(f"Error occurred while starting request: {str(exp)}")
+                # 短暂让出控制权
+                await asyncio.sleep(0.00001)
+        finally:
+            # 确保异步生成器被正确关闭，避免资源泄露
+            if self._start_requests_is_async and self._start_requests_source is not None:
+                try:
+                    await self._start_requests_source.aclose()
+                except Exception:
+                    pass
+            self._start_requests_source = None
+        self.logger.debug(f"流式请求生成完成，总共处理了 {processed_count} 个请求")
+
+    async def _controlled_request_generation(self):
+        """受控流式请求生成（支持 sync/async 生成器，背压控制生效）"""
+        self.logger.debug("开始受控流式请求生成")
+
+        if self._start_requests_source is None:
+            return
+
+        batch = []
+        total_generated = 0
+
+        try:
+            if self._start_requests_is_async:
+                async for request in self._start_requests_source:
+                    batch.append(request)
+                    if len(batch) >= self.generation_batch_size:
+                        generated = await self._process_generation_batch(batch)
+                        total_generated += generated
+                        batch = []
+                    if await self._should_pause_generation():
+                        await self._wait_for_capacity()
+            else:
+                for request in self._start_requests_source:
+                    batch.append(request)
+                    if len(batch) >= self.generation_batch_size:
+                        generated = await self._process_generation_batch(batch)
+                        total_generated += generated
+                        batch = []
+                    if await self._should_pause_generation():
+                        await self._wait_for_capacity()
+
+            # 处理剩余请求
+            if batch:
+                generated = await self._process_generation_batch(batch)
+                total_generated += generated
+
+        except Exception as e:
+            self.logger.error(f"受控请求生成失败: {e}")
+
+        finally:
+            # 确保异步生成器被正确关闭，避免资源泄露
+            if self._start_requests_is_async and self._start_requests_source is not None:
+                try:
+                    await self._start_requests_source.aclose()
+                except Exception:
+                    pass
+            self._start_requests_source = None
+            self.logger.debug(f"受控请求生成完成，总计: {total_generated}")
+
+    async def _process_generation_batch(self, batch) -> int:
+        """
+        处理一批请求
+
+        优化点：
+        - 使用 asyncio.gather 并发入队，减少串行等待
+        - 动态调整生成间隔，避免过度限流
+        - 添加批量统计信息
+        """
+        generated = 0
+
+        # 优化：如果队列有足够空间，批量并发入队
+        queue_size = await self.scheduler.async_size() if self.scheduler else 0
+        available_space = self.max_queue_size - queue_size
+
+        if available_space >= len(batch):
+            # 队列有足够空间，并发入队
+            tasks = []
+            for request in batch:
+                if not self.running:
+                    break
+                tasks.append(self._enqueue_single_request(request))
+
+            if tasks:
+                results = await asyncio.gather(*tasks, return_exceptions=True)
+                for result in results:
+                    if isinstance(result, bool) and result:
+                        generated += 1
+                        self._generation_stats.increment_generated()
+        else:
+            # 队列空间不足，逐个入队并等待
+            for request in batch:
+                if not self.running:
+                    break
+
+                # 等待队列有空间
+                wait_count = 0
+                while await self._is_queue_full() and self.running:
+                    await asyncio.sleep(0.005)  # 减少等待间隔
+                    wait_count += 1
+                    if wait_count > 200:  # 最多等待1秒
+                        self.logger.warning("Queue full timeout, skipping remaining requests")
+                        break
+
+                if self.running:
+                    success = await self._enqueue_single_request(request)
+                    if success:
+                        generated += 1
+                        self._generation_stats.increment_generated()
+
+                # 动态调整生成间隔：根据队列使用率调整
+                if self.generation_interval > 0:
+                    queue_usage = queue_size / max(1, self.max_queue_size)
+                    # 队列使用率高时增加间隔，低时减少间隔
+                    adaptive_interval = self.generation_interval * (0.5 + queue_usage)
+                    await asyncio.sleep(adaptive_interval)
+
+        return generated
+
+    async def _enqueue_single_request(self, request) -> bool:
+        """
+        单个请求入队
+
+        Returns:
+            bool: 是否成功入队
+        """
+        try:
+            await self.enqueue_request(request)
+            return True
+        except Exception as e:
+            self.logger.debug(f"Failed to enqueue request {request.url}: {e}")
+            return False
+
+    async def _should_pause_generation(self) -> bool:
+        """Determine whether generation should be paused"""
+        # 使用背压控制器检查
+        return self._backpressure_ctrl.should_pause(
+            self.scheduler,
+            self.task_manager
+        )
+
+    async def _is_queue_full(self) -> bool:
+        """Check if queue is full"""
+        return self._backpressure_ctrl.is_queue_full(self.scheduler)
+
+    async def _wait_for_capacity(self):
+        """Wait for system to have sufficient capacity"""
+        self._generation_stats.increment_backpressure()
+        self.logger.debug("Backpressure triggered, pausing request generation")
+        await self._backpressure_ctrl.wait_for_capacity(
+            self.scheduler,
+            self.task_manager,
+            running_check=lambda: self.running
+        )
+
+    # ========================================================================
+    # Spider 输出处理（Phase 3 从 Engine 迁入，属于请求生成/输出处理职责）
+    # ========================================================================
+
+    async def _handle_spider_output(self, outputs, parent_request=None):
+        """处理 spider 回调输出，自动为子 Request 传播 depth
+
+        框架级 depth 传播机制：
+        - 从 parent_request 获取当前 depth（默认 0）
+        - 子 Request 的 depth 自动设为 parent_depth + 1
+        - 配合 DEPTH_PRIORITY 配置，实现广度优先或深度优先策略
+
+        Args:
+            outputs: spider 回调的输出（异步生成器）
+            parent_request: 产生此输出的原始请求（用于获取 depth）
+        """
+        # 获取父请求的 depth
+        parent_depth = 0
+        if parent_request is not None and hasattr(parent_request, 'meta'):
+            parent_depth = parent_request.meta.get('depth', 0)
+
+        if self.processor is None:
+            return
+        async for spider_output in outputs:
+            if isinstance(spider_output, Request):
+                # 框架级 depth 传播：子请求 depth = 父请求 depth + 1
+                # 仅在子请求未手动设置 depth 时自动注入
+                if 'depth' not in spider_output.meta:
+                    spider_output.meta['depth'] = parent_depth + 1
+                await self.processor.enqueue(spider_output)
+            elif isinstance(spider_output, Item):
+                await self.processor.enqueue(spider_output)
+            elif isinstance(spider_output, Exception):
+                if self.crawler is not None and self.spider is not None:
+                    self._create_background_task(
+                        self.crawler.subscriber.notify(CrawlerEvent.SPIDER_ERROR, spider_output, self.spider)
+                    )
+                raise spider_output
+            else:
+                raise OutputError(f'{type(self.spider)} must return `Request` or `Item`.')
+
+    async def _handle_errback_output(self, result, parent_request=None):
+        """
+        处理 errback 的返回值，包装后委托给 _handle_spider_output。
+
+        支持与 callback 相同的返回类型：
+        - 单个 Request / Item
+        - 列表 / 元组
+        - 异步生成器
+        - 同步生成器
+        - 协程
+        """
+        if isinstance(result, (Request, Item)):
+            async def _gen():
+                yield result
+            await self._handle_spider_output(_gen(), parent_request)
+        elif isinstance(result, (list, tuple)):
+            async def _gen():
+                for item in result:
+                    if isinstance(item, (Request, Item)):
+                        yield item
+            await self._handle_spider_output(_gen(), parent_request)
+        elif isasyncgen(result):
+            await self._handle_spider_output(result, parent_request)
+        elif isgenerator(result):
+            async def _wrap_sync_gen():
+                for item in result:
+                    if isinstance(item, (Request, Item)):
+                        yield item
+            await self._handle_spider_output(_wrap_sync_gen(), parent_request)
+        elif iscoroutine(result):
+            awaited = await result
+            if awaited is not None:
+                await self._handle_errback_output(awaited, parent_request)
+        else:
+            self.logger.warning(
+                f"errback returned unexpected type {type(result).__name__}, ignored"
+            )
 
 
 class Engine(RequestGenerationMixin, ClusterMixin):
-    
+
     # 关键错误类型配置，从 error_types 模块导入
     CRITICAL_EXCEPTIONS = ErrorClassifier.CRITICAL_EXCEPTIONS
 
@@ -65,24 +825,24 @@ class Engine(RequestGenerationMixin, ClusterMixin):
         )
 
         self.logger = get_logger(name=self.__class__.__name__)
-    
+
     def _create_background_task(self, coro):
         """创建带引用追踪的后台任务，防止 fire-and-forget 任务泄漏"""
         task = asyncio.create_task(coro)
         self._background_tasks.add(task)
         task.add_done_callback(self._background_tasks.discard)
         return task
-    
+
     def _init_configs(self) -> None:
         """
         Initialize all configurations from settings
-        
+
         Centralized configuration extraction for better maintainability
         """
         # Concurrency control configuration
         concurrency = safe_get_config(self.settings, 'CONCURRENCY', 8, int)
         self.task_manager: Optional[TaskManager] = TaskManager(concurrency)
-        
+
         # Request generation configuration
         self.days = safe_get_config(self.settings, 'LOG_RETENTION_DAYS', 1, int)
         self.max_queue_size = safe_get_config(self.settings, 'SCHEDULER_MAX_QUEUE_SIZE', 10000, int)
@@ -95,15 +855,15 @@ class Engine(RequestGenerationMixin, ClusterMixin):
         self.enable_controlled_generation = safe_get_config(
             self.settings, 'ENABLE_CONTROLLED_REQUEST_GENERATION', False, bool
         )
-        
+
         # Version configuration (directly from __version__.py, not from config file)
         self.version = __version__
-        
+
         # Checkpoint configuration
         self.checkpoint_save_on_signal = safe_get_config(
-            self.settings, 'CHECKPOINT_SAVE_ON_SIGNAL', True, bool
+            self.settings, 'CHECKPOINT_SAVE_ON_SIGNAL', False, bool
         )
-        
+
         # Distributed worker configuration
         self._worker_idle_timeout = safe_get_config(
             self.settings, 'DISTRIBUTED_WORKER_IDLE_TIMEOUT', 300, int
@@ -125,7 +885,7 @@ class Engine(RequestGenerationMixin, ClusterMixin):
     def _get_downloader_cls(self):
         """
         获取下载器类
-        
+
         Returns:
             Type[DownloaderBase]: 下载器类
         """
@@ -138,13 +898,13 @@ class Engine(RequestGenerationMixin, ClusterMixin):
                 return downloader_cls
             except (ImportError, ValueError) as e:
                 self.logger.warning(f"无法使用下载器类型 '{self.downloader_type}': {e}，回退到默认配置")
-        
+
         # 方式2: 使用 DOWNLOADER 完整类路径（兼容旧版本）
         # 如果没有配置下载器，使用默认下载器
         if not self.downloader_path:
             from crawlo.downloader import HttpXDownloader
             return HttpXDownloader
-            
+
         downloader_cls = load_object(self.downloader_path)
         if not issubclass(downloader_cls, DownloaderBase):
             raise TypeError(f'下载器 {downloader_cls.__name__} 不是 DownloaderBase 的子类。')
@@ -155,8 +915,21 @@ class Engine(RequestGenerationMixin, ClusterMixin):
         # 使用初始化时获取的版本配置
         self.logger.debug(f"Crawlo框架已启动 {self.version}")
 
-    async def start_spider(self, spider, resume=True):
+    async def start_spider(self, spider, resume=None):
+        """启动单个 Spider。
+
+        Args:
+            spider: Spider 实例
+            resume: 检查点恢复策略
+                - ``None``（默认）：跟随 settings 的 ``CHECKPOINT_ENABLED`` 配置
+                - ``True``：强制尝试恢复检查点（即使 CHECKPOINT_ENABLED=False）
+                - ``False``：强制不从检查点恢复，忽略已有检查点文件
+        """
         self.spider = spider
+
+        # 解析 resume 默认值：跟随 CHECKPOINT_ENABLED，只有显式 True/False 才覆盖
+        if resume is None:
+            resume = bool(safe_get_config(self.settings, 'CHECKPOINT_ENABLED', False, bool))
 
         self.scheduler = Scheduler.create_instance(self.crawler)
         if hasattr(self.scheduler, 'open'):
@@ -173,7 +946,7 @@ class Engine(RequestGenerationMixin, ClusterMixin):
         self.downloader = downloader_cls(self.crawler)
         if hasattr(self.downloader, 'open'):
             self.downloader.open()
-        
+
         # 注册下载器到资源管理器
         if hasattr(self.crawler, '_resource_manager') and self.downloader is not None:
             from crawlo.utils.resource_manager import ResourceType
@@ -246,7 +1019,7 @@ class Engine(RequestGenerationMixin, ClusterMixin):
                     self.logger.error(f"解析 start_requests 失败: {e}")
                     import traceback
                     self.logger.error(traceback.format_exc())
-        
+
         await self._open_spider()
 
     async def crawl(self):
@@ -520,6 +1293,12 @@ class Engine(RequestGenerationMixin, ClusterMixin):
                 coro.close()
 
     async def _fetch(self, request):
+        if self.spider is None:
+            self.logger.warning(
+                f"_fetch called but engine.spider is None ({request.url if request else 'n/a'}), "
+                "skip callback processing, return None"
+            )
+            return None
         if self.downloader is None:
             self.logger.error("Downloader is not initialized, cannot fetch request")
             return Failure(request, RuntimeError("Downloader not available"))
@@ -561,7 +1340,7 @@ class Engine(RequestGenerationMixin, ClusterMixin):
 
     async def _check_components_idle(self, include_background: bool = False) -> tuple[bool, bool, bool, bool, bool]:
         """统一检查各组件是否空闲（消除 _exit / _should_exit 代码重复）
-        
+
         Returns:
             (scheduler_idle, downloader_idle, task_manager_done, processor_idle, background_tasks_done)
         """
@@ -570,7 +1349,7 @@ class Engine(RequestGenerationMixin, ClusterMixin):
         task_manager_done = False
         processor_idle = False
         background_tasks_done = False
-        
+
         if self.scheduler is not None:
             scheduler_idle = await self.scheduler.async_idle()
         if self.downloader is not None:
@@ -581,7 +1360,7 @@ class Engine(RequestGenerationMixin, ClusterMixin):
             processor_idle = await self.processor.idle_async()
         if include_background:
             background_tasks_done = len(self._background_tasks) == 0
-        
+
         return scheduler_idle, downloader_idle, task_manager_done, processor_idle, background_tasks_done
 
     async def _exit(self):
@@ -595,16 +1374,16 @@ class Engine(RequestGenerationMixin, ClusterMixin):
 
     async def _should_exit(self, last_component_states=None) -> tuple[bool, tuple]:
         """检查是否应该退出（5 组件 + start_requests 判断）
-        
+
         standalone / auto 模式：队列空 + 所有组件空闲 → 正常退出
         distributed 模式：不因队列空退出，由 BZPOPMIN 超时 + idle_timeout 决定
-        
+
         注意：auto 模式即使检测到 Redis 并切换为 Redis 队列，
              仍然按单机逻辑退出（auto 只是根据环境自动选队列类型，不是常驻 Worker）
 
         Args:
             last_component_states: 上次的组件状态元组，用于减少冗余日志
-            
+
         Returns:
             tuple: (should_exit, current_states)
         """
@@ -617,21 +1396,21 @@ class Engine(RequestGenerationMixin, ClusterMixin):
         if self._start_requests_source is None:
             s, d, t, p, bg = await self._check_components_idle(include_background=True)
             current_states = (s, d, t, p, bg)
-            
+
             if current_states != last_component_states:
                 self.logger.debug(
                     f"组件状态变化 - Scheduler: {s}, "
                     f"Downloader: {d}, TaskManager: {t}, "
                     f"Processor: {p}, BackgroundTasks: {bg}"
                 )
-            
+
             if s and d and t and p and bg and not has_pending_enqueues(self.scheduler):
                 self.logger.info("All components are idle, preparing to exit")
                 return True, current_states
         else:
             self.logger.debug("start_requests 不为 None，不退出")
             current_states = None
-        
+
         return False, current_states
 
     async def close_spider(self, reason='finished'):
@@ -652,7 +1431,7 @@ class Engine(RequestGenerationMixin, ClusterMixin):
                     self.logger.debug("Task manager gather cancelled")
                 except Exception as e:
                     self.logger.debug(f"Task manager gather completed with errors: {e}")
-            
+
             # 检查点保存：Ctrl+C 触发的关闭时保存状态
             if reason == 'shutdown':
                 await self._checkpoint.save_checkpoint(
@@ -675,7 +1454,7 @@ class Engine(RequestGenerationMixin, ClusterMixin):
                 LogManager().cleanup_old_logs(days=self.days)
             except Exception as e:
                 self.logger.error(f"Failed to clean up expired log files: {e}")
-            
+
             # 关闭下载器（带超时保护，超时后取消内部协程防止资源泄漏）
             if self.downloader is not None and hasattr(self.downloader, 'close'):
                 try:
@@ -696,7 +1475,7 @@ class Engine(RequestGenerationMixin, ClusterMixin):
                     self.logger.warning("下载器关闭超时，强制清理资源")
                 except Exception as e:
                     self.logger.debug(f"下载器关闭时发生错误: {e}")
-            
+
             # 关闭集群组件（heartbeat + failover + deregister）
             await self._shutdown_cluster()
 

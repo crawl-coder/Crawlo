@@ -9,7 +9,7 @@ import unittest
 
 from lxml.html import fromstring as parse_html
 
-from crawlo.helpers.adaptive_selector import (
+from crawlo.utils.adaptive_selector import (
     ElementFingerprint, SimilarityMatcher, FingerprintStorage
 )
 

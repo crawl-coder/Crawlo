@@ -27,8 +27,6 @@ def test_correct_configuration():
     config_dict = {
         'level': 'DEBUG',
         'file_path': 'fix_test.log',
-        'max_bytes': 2048,
-        'backup_count': 2,
         'console_enabled': True,
         'file_enabled': True,
         'encoding': 'utf-8'
@@ -54,8 +52,6 @@ def test_correct_configuration():
     log_config = LogConfig(
         level='INFO',
         file_path='object_test.log',
-        max_bytes=1024,
-        backup_count=1,
         console_enabled=True,
         file_enabled=True
     )
@@ -82,22 +78,18 @@ def create_settings_class():
         def __init__(self):
             self.LOG_LEVEL = 'DEBUG'
             self.LOG_FILE = 'settings_test.log'
-            self.LOG_MAX_BYTES = 1024
-            self.LOG_BACKUP_COUNT = 2
             self.LOG_ENCODING = 'utf-8'
             self.LOG_CONSOLE_ENABLED = True
             self.LOG_FILE_ENABLED = True
             self.LOG_LEVELS = {}
-    
+
     # 测试from_settings方法
     settings = MockSettings()
     config = LogConfig.from_settings(settings)
-    
+
     print(f"   从settings创建的配置:")
     print(f"     级别: {config.level}")
     print(f"     文件路径: {config.file_path}")
-    print(f"     轮转大小: {config.max_bytes}")
-    print(f"     备份数量: {config.backup_count}")
     print(f"     控制台启用: {config.console_enabled}")
     print(f"     文件启用: {config.file_enabled}")
     

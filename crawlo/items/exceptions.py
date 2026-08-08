@@ -7,7 +7,7 @@ Item 数据处理、验证、丢弃相关异常。
 """
 from typing import Optional, Any
 
-from crawlo.core.exceptions import CrawloException
+from crawlo.core.errors import CrawloException
 
 
 # ============= 数据处理异常 =============

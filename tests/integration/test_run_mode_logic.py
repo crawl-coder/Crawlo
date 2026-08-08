@@ -6,7 +6,7 @@ Deep validation tests for RUN_MODE logic
 import pytest
 from unittest.mock import patch, MagicMock
 from crawlo.core.config import CrawloConfig
-from crawlo.core.config_base import BASE_CONFIG, MODE_CONFIG_MAP
+from crawlo.core.config.base import BASE_CONFIG, MODE_CONFIG_MAP
 from crawlo.settings.setting_manager import SettingManager
 
 

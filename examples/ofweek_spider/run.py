@@ -27,7 +27,7 @@ def main():
             start_scheduler(project_root)
         else:
             # TODO: 请将 'spider_name' 替换为实际要运行的爬虫名称
-            asyncio.run(CrawlerProcess().crawl('spider_name'))
+            asyncio.run(CrawlerProcess().crawl('of_week'))
 
     except Exception as e:
         print(f"❌ 运行失败: {e}")

@@ -43,22 +43,22 @@ def test_default_header_middleware_with_random_ua():
     # 创建设置管理器
     settings = SettingManager()
     settings.set("LOG_LEVEL", "INFO")
-    settings.set("RANDOM_USER_AGENT_ENABLED", True)
-    settings.set("USER_AGENT_DEVICE_TYPE", "all")
+    settings.set("USER_AGENT_ROTATION", True)
+    settings.set("USER_AGENT_TYPE", "all")
     # 添加一个默认请求头以启用中间件
     settings.set("DEFAULT_REQUEST_HEADERS", {"Accept": "text/html"})
-    
+
     # 创建中间件实例
-    middleware = DefaultHeaderMiddleware(settings, "INFO")
-    
-    print(f"随机User-Agent功能已启用: {middleware.random_user_agent_enabled}")
-    print(f"User-Agent设备类型: {middleware.user_agent_device_type}")
+    middleware = DefaultHeaderMiddleware(settings)
+
+    print(f"随机User-Agent功能已启用: {middleware.rotation_enabled}")
+    print(f"User-Agent设备类型: {middleware.rotation_type}")
     print(f"内置User-Agent列表数量: {len(middleware.user_agents)}")
-    
+
     # 测试获取随机User-Agent
     print("\n随机User-Agent测试:")
     for i in range(5):
-        random_ua = middleware._get_random_user_agent()
+        random_ua = middleware._get_rotated_user_agent()
         print(f"  {i+1}. {random_ua}")
     
     print()

@@ -11,7 +11,7 @@ import asyncio
 import time
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
-from crawlo.network.request import Request
+from crawlo.http.request import Request
 from crawlo.queue.queue_manager import QueueConfig, QueueManager
 
 

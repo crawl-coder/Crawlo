@@ -24,14 +24,14 @@ from threading import Thread, Barrier
 
 from lxml.html import fromstring as parse_html
 
-from crawlo.helpers.adaptive_selector import (
+from crawlo.utils.adaptive_selector import (
     ElementFingerprint, SimilarityMatcher, FingerprintStorage,
     SqliteStorage,
 )
-from crawlo.helpers.adaptive_selector.element_fingerprint import (
+from crawlo.utils.adaptive_selector.element_fingerprint import (
     _clean_attributes, extract_domain_from_url,
 )
-from crawlo.helpers.adaptive_selector.similarity_matcher import SimilarityMatcher
+from crawlo.utils.adaptive_selector.similarity_matcher import SimilarityMatcher
 
 # ---------- 辅助 ----------
 
@@ -108,12 +108,12 @@ class TestMaxFingerprintElements(unittest.TestCase):
 
     def test_class_attribute_default(self):
         """默认 _adaptive_max_fingerprint_elements = 10"""
-        from crawlo.network.response_adaptive import ResponseAdaptiveMixin
+        from crawlo.http.response_adaptive import ResponseAdaptiveMixin
         self.assertEqual(ResponseAdaptiveMixin._adaptive_max_fingerprint_elements, 10)
 
     def test_settings_parses_max_elements(self):
         """_is_adaptive_enabled 应从 settings 解析 max_elements"""
-        from crawlo.network.response_adaptive import ResponseAdaptiveMixin
+        from crawlo.http.response_adaptive import ResponseAdaptiveMixin
         settings = {
             'ADAPTIVE_STORAGE_BACKEND': 'sqlite',
             'ADAPTIVE_SQLITE_PATH': ':memory:',
@@ -140,7 +140,7 @@ class TestMaxFingerprintElements(unittest.TestCase):
 
     def test_cleanup_resets_max_elements(self):
         """_cleanup_adaptive 应重置 max_elements 为 10"""
-        from crawlo.network.response_adaptive import ResponseAdaptiveMixin
+        from crawlo.http.response_adaptive import ResponseAdaptiveMixin
         ResponseAdaptiveMixin._adaptive_max_fingerprint_elements = 5
         ResponseAdaptiveMixin._cleanup_adaptive()
         self.assertEqual(
@@ -265,7 +265,7 @@ class TestFingerprintLockRobustness(unittest.TestCase):
 
     def test_response_adaptive_lock(self):
         """验证 _save_element_fingerprint 层面的锁定"""
-        from crawlo.network.response_adaptive import ResponseAdaptiveMixin
+        from crawlo.http.response_adaptive import ResponseAdaptiveMixin
 
         # 模拟一个 response 对象
         class MockResponse(ResponseAdaptiveMixin):
@@ -459,7 +459,7 @@ class TestElementFingerprintCleanAttributes(unittest.TestCase):
     def test_only_forbidden(self):
         """仅有禁用属性的元素"""
         from lxml.html import fromstring
-        from crawlo.helpers.adaptive_selector.element_fingerprint import _FORBIDDEN_ATTRS
+        from crawlo.utils.adaptive_selector.element_fingerprint import _FORBIDDEN_ATTRS
         el = fromstring('<div data-reactid="abc"></div>')
         result = _clean_attributes(el, _FORBIDDEN_ATTRS)
         self.assertEqual(result, {})

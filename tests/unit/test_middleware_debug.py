@@ -54,7 +54,7 @@ def debug_middleware_initialization():
     settings.set('DEFAULT_REQUEST_HEADERS', {
         'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
     })
-    settings.set('RANDOM_USER_AGENT_ENABLED', True)
+    settings.set('USER_AGENT_ROTATION', True)
     settings.set('LOG_LEVEL', 'DEBUG')
     settings.set('RANDOMNESS', True)
     
@@ -74,10 +74,10 @@ def debug_middleware_initialization():
         for i, ua in enumerate(middleware.user_agents[:5]):
             print(f"  {i+1}. {ua[:50]}...")
         
-        # 测试_get_random_user_agent方法
-        print("\n测试_get_random_user_agent方法:")
+        # 测试_get_rotated_user_agent方法
+        print("\n测试_get_rotated_user_agent方法:")
         for i in range(10):
-            ua = middleware._get_random_user_agent()
+            ua = middleware._get_rotated_user_agent()
             print(f"  {i+1}. {ua[:50]}...")
 
 
@@ -92,7 +92,7 @@ def test_multiple_middleware_instances():
         settings.set('DEFAULT_REQUEST_HEADERS', {
             'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
         })
-        settings.set('RANDOM_USER_AGENT_ENABLED', True)
+        settings.set('USER_AGENT_ROTATION', True)
         settings.set('LOG_LEVEL', 'DEBUG')
         settings.set('RANDOMNESS', True)
         
@@ -104,7 +104,7 @@ def test_multiple_middleware_instances():
             middleware = DefaultHeaderMiddleware.create_instance(crawler)
             
             # 获取随机User-Agent
-            ua = middleware._get_random_user_agent()
+            ua = middleware._get_rotated_user_agent()
             if ua:
                 ua_values.append(ua)
                 print(f"  实例{i+1}: {ua[:50]}...")

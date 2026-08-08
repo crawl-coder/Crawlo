@@ -118,25 +118,30 @@ class TestEngineSpiderClosed(unittest.TestCase):
         import asyncio
 
         # 构造 engine 实例，mock 掉所有前置方法
-        from crawlo.core.engine_cluster import ClusterState
+        from crawlo.cluster import ClusterState
         engine = Engine.__new__(Engine)
         engine._spider_closed = False
         engine._close_reason = 'finished'
         engine.task_manager = None
         engine.processor = None
         engine.scheduler = None
+        engine.spider = None
         engine._cluster_state = ClusterState(
             registry=None, failover=None, heartbeat=None,
             coordinated_shutdown_enabled=False,
         )
         engine.days = 1
+        engine.checkpoint_save_on_signal = False
 
         engine.downloader = None  # 跳过 downloader.close (有独立 try-except)
+
+        # 组合对象：检查点协调器（await save_checkpoint / clear_checkpoint）
+        engine._checkpoint = AsyncMock()
 
         # 关闭集群时抛出未预期异常（无独立 try-except，触发外层 except）
         engine._shutdown_cluster = AsyncMock(side_effect=RuntimeError("集群关闭失败"))
 
-        # 跳过其他清理方法
+        # 跳过其他清理方法（Phase 3 前已删除，保留的 fixture 仅用于兼容测试）
         engine._cleanup_old_logs = AsyncMock(return_value=None)
         engine._save_checkpoint = AsyncMock(return_value=None)
         engine._clear_checkpoint = AsyncMock(return_value=None)

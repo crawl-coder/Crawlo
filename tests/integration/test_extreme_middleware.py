@@ -6,8 +6,8 @@
 import asyncio
 import pytest
 from unittest.mock import Mock, patch, AsyncMock
-from crawlo.network.request import Request
-from crawlo.network.response import Response
+from crawlo.http.request import Request
+from crawlo.http.response import Response
 from crawlo.spider.spider import Spider
 
 
@@ -67,7 +67,7 @@ class TestRetryMiddlewareExtreme:
         request = Request('http://example.com')
         
         # 404 错误不应重试
-        from crawlo.network.exceptions import IgnoreRequestError
+        from crawlo.http.exceptions import IgnoreRequestError
         result = await middleware.process_exception(
             request,
             IgnoreRequestError("404 Not Found"),

@@ -35,7 +35,7 @@ from crawlo.downloader.constants import (
     DEFAULT_ARGS, STEALTH_ARGS, HARMFUL_ARGS,
     WEBRTC_PROTECTION_ARGS, WEBGL_DISABLE_ARGS, CANVAS_NOISE_ARG
 )
-from crawlo.network.response import Response
+from crawlo.http.response import Response
 from crawlo.logging import get_logger
 from crawlo.utils.misc import (
     get_browser_config,

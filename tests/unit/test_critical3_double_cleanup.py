@@ -40,6 +40,10 @@ class TestEngineCloseSpiderIdempotent:
             eng._spider_closed = False
             eng.logger = MagicMock()
             eng.task_manager = None
+            eng.days = 1
+            eng.checkpoint_save_on_signal = False
+            eng._checkpoint = AsyncMock()  # Phase 3 组合对象（clear_checkpoint / save_checkpoint）
+            eng._shutdown_cluster = AsyncMock(return_value=None)
             return eng
 
     @pytest.mark.asyncio

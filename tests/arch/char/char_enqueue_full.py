@@ -18,9 +18,9 @@ Phase 2 背压双层合并后，``enqueue_request`` 的行为变为：
 import pytest
 from unittest.mock import AsyncMock, MagicMock
 
-from crawlo.core.task_scheduler import Scheduler
+from crawlo.core.scheduling.task_scheduler import Scheduler
 from crawlo.queue.exceptions import QueueFullTimeout
-from crawlo.network.request import Request
+from crawlo.http.request import Request
 
 
 def _make_scheduler(policy='drop_with_counter', block_timeout=None, drop_timeout=50.0):

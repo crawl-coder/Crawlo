@@ -29,15 +29,11 @@ def test_log_config_creation():
     print("1. 测试通过关键字参数创建配置...")
     config = configure(
         LOG_LEVEL='DEBUG',
-        LOG_FILE='test.log',
-        LOG_MAX_BYTES=1024,
-        LOG_BACKUP_COUNT=3
+        LOG_FILE='test.log'
     )
     
     print(f"   配置级别: {config.level}")
     print(f"   配置文件路径: {config.file_path}")
-    print(f"   轮转大小: {config.max_bytes}")
-    print(f"   备份数量: {config.backup_count}")
     
     # 2. 测试通过字典创建配置
     print("2. 测试通过字典创建配置...")
