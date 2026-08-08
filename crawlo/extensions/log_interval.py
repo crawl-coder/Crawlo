@@ -97,6 +97,27 @@ class LogIntervalExtension:
             self.logger.debug(f"Failed to get queue size: {e}")
             return 0
 
+    async def _get_pending_count(self) -> int:
+        """获取分布式 Stream 队列的 pending 消息数（已读未 ACK）。
+
+        用于观测主动 XCLAIM 扫描的回收效果：pending 持续 > 0 且不减少，
+        说明有 Worker 崩溃且回收尚未触发或失败。非 Stream 队列返回 0。
+        """
+        try:
+            qm = self._resolve_queue_manager()
+            if qm is None:
+                return 0
+            inner = getattr(qm, '_queue', None)
+            if inner is None or not hasattr(inner, 'pending_info'):
+                return 0
+            if not asyncio.iscoroutinefunction(inner.pending_info):
+                return 0
+            info = await inner.pending_info()
+            return info.get('pending', 0) if info else 0
+        except Exception as e:
+            self.logger.debug(f"Failed to get pending count: {e}")
+            return 0
+
     async def _get_backpressure_info(self) -> Tuple[bool, float, float, float, str]:
         """获取背压信息 → (is_active, delay, utilization, score, level)"""
         try:
@@ -272,12 +293,13 @@ class LogIntervalExtension:
                     continue
 
                 bp_active, bp_delay, bp_util, bp_score, bp_level = await self._get_backpressure_info()
+                pending_count = await self._get_pending_count()
                 self.item_count, self.response_count = last_item_count, last_response_count
 
                 self._log_interval_stats(last_item_count, last_response_count,
                                          item_rate, response_rate, queue_size,
                                          bp_active, bp_delay, bp_util, bp_score, bp_level,
-                                         iteration)
+                                         iteration, pending_count)
                 await asyncio.sleep(self.seconds)
             except asyncio.CancelledError:
                 break
@@ -288,7 +310,7 @@ class LogIntervalExtension:
     def _log_interval_stats(self, last_item_count, last_response_count,
                             item_rate, response_rate, queue_size,
                             bp_active, bp_delay, bp_util, bp_score, bp_level,
-                            iteration) -> None:
+                            iteration, pending_count: int = 0) -> None:
         """格式化并输出间隔统计日志"""
         if bp_active:
             bp_info = (f"BP: ON ({bp_delay:.2f}s, {bp_util:.0%}, score:{bp_score:.0f}, {bp_level})"
@@ -296,19 +318,22 @@ class LogIntervalExtension:
         else:
             bp_info = f"BP: off ({bp_util:.0%})"
 
+        # 分布式 Stream 队列的 pending 观测字段（仅 pending > 0 时显示）
+        pending_info = f", Pending: {pending_count}" if pending_count > 0 else ""
+
         if self.unit == 'min' and self.seconds > 0:
             pages_per_min = response_rate * 60 / self.seconds
             items_per_min = item_rate * 60 / self.seconds
             self.logger.info(
                 f'Crawled {last_response_count} pages (at {pages_per_min:.0f} pages/min),'
                 f' Got {last_item_count} items (at {items_per_min:.0f} items/min),'
-                f' Queue: {queue_size} pending, {bp_info}'
+                f' Queue: {queue_size} pending, {bp_info}{pending_info}'
             )
         else:
             self.logger.info(
                 f'Crawled {last_response_count} pages (at {response_rate} pages/{self.interval_display}{self.unit}),'
                 f' Got {last_item_count} items (at {item_rate} items/{self.interval_display}{self.unit}),'
-                f' Queue: {queue_size} pending, {bp_info}'
+                f' Queue: {queue_size} pending, {bp_info}{pending_info}'
             )
 
         # Debug 日志
@@ -320,5 +345,7 @@ class LogIntervalExtension:
         )
         if bp_score > 0:
             debug_info += f", score={bp_score:.1f}, level={bp_level}"
+        if pending_count > 0:
+            debug_info += f", pending={pending_count}"
         debug_info += f", next_log_in={self.seconds}s"
         self.logger.debug(debug_info)

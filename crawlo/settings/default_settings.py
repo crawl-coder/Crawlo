@@ -145,6 +145,13 @@ DISTRIBUTED_WORKER_IDLE_TIMEOUT = 120                   # 连续空闲 N 秒后�
 DISTRIBUTED_COORDINATED_SHUTDOWN_ENABLED = True         # 是否启用 Leader 协调退出（在所有 Worker 空闲时自动广播 shutdown）
 CLUSTER_CLEANUP_ON_SHUTDOWN = True                       # 任务完成后是否清理 Redis 运行数据（control:state、leader、无 pending 的 stream；dedup、registry 保留）
 
+# 分布式 idle 主动 XCLAIM 扫描配置（双层回收的主动层）
+# 被动层：FailoverManager 心跳检测崩溃 Worker → 批量回收（30s+ 延迟）
+# 主动层：idle Worker 累计 idle 时间达到阈值后扫描 stale pending → 重新入队
+DISTRIBUTED_IDLE_XCLAIM_SCAN_INTERVAL = 15              # 累计 idle 多少秒后触发一次扫描（秒）
+DISTRIBUTED_IDLE_XCLAIM_MIN_IDLE = 120                  # pending 消息 idle 超过多少秒视为 stale（秒）
+DISTRIBUTED_IDLE_XCLAIM_BATCH = 200                     # 每次扫描每个 Stream 最多回收的消息数
+
 # 集群配置
 CLUSTER_HEARTBEAT_INTERVAL = 15                         # 心跳间隔（秒）
 CLUSTER_WORKER_TIMEOUT = 90                             # Worker 超时（秒）

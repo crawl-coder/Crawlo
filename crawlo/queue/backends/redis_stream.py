@@ -317,8 +317,78 @@ class RedisStreamQueue:
         for stream in streams:
             await self._recover_stream_orphans(stream)
 
+    async def _reenqueue_claimed_message(
+        self, stream_key: str, msg_id: str, reason: str = "orphan"
+    ) -> int:
+        """
+        将已 claim 的消息重新入队（XACK + XDEL + XADD）。
+
+        通过 Lua 脚本原子执行：
+        1. XRANGE 读取原始 fields
+        2. XACK + XDEL 移除原消息
+        3. retry_count +1，超限则返回死信字段
+        4. 否则 XADD 重新入队，任何 Worker 可通过 XREADGROUP 消费
+
+        Args:
+            stream_key: Stream key
+            msg_id: 消息 ID
+            reason: 回收原因（orphan / stale），写入死信日志字段
+
+        Returns:
+            1: 重新入队成功
+            0: 超过投递上限，进死信
+            -2: 消息已不存在（被其他 Worker 处理）
+            -1: 异常
+        """
+        try:
+            result = await self._redis.eval(
+                (
+                    "local msgs = redis.call('XRANGE', KEYS[1], ARGV[1], ARGV[1], 'COUNT', 1) "
+                    "if #msgs == 0 then redis.call('XACK', KEYS[1], ARGV[2], ARGV[1]); return {-2, 0} end "
+                    "local flat = msgs[1][2]; local fields = {} "
+                    "for i = 1, #flat, 2 do fields[flat[i]] = flat[i + 1] end "
+                    "local rc = 1; if fields['retry_count'] then rc = tonumber(fields['retry_count']) + 1 end "
+                    "redis.call('XACK', KEYS[1], ARGV[2], ARGV[1]) "
+                    "redis.call('XDEL', KEYS[1], ARGV[1]) "
+                    "if rc >= tonumber(ARGV[5]) then return {0, rc, flat} end "
+                    "fields['retry_count'] = tostring(rc) "
+                    "fields['reenqueued_at'] = ARGV[3] "
+                    "fields['recovered_orphan'] = ARGV[4] "
+                    "local nf = {}; for k, v in pairs(fields) do nf[#nf+1]=k; nf[#nf+1]=v end "
+                    "redis.call('XADD', KEYS[1], 'MAXLEN', '~', tonumber(ARGV[6]), '*', unpack(nf)) "
+                    "return {1, rc}"
+                ),
+                1, stream_key, msg_id, self._group_name,
+                str(time.time()), "true",
+                str(self._delivery_count_limit), str(self._max_length)
+            )
+            if result and len(result) >= 2:
+                action = int(result[0])
+                if action == 0:
+                    # 超限进死信
+                    flat = result[2]
+                    dead_fields = {}
+                    it = iter(flat)
+                    for k in it:
+                        v = next(it)
+                        k_str = k.decode() if isinstance(k, bytes) else str(k)
+                        dead_fields[k_str.encode()] = v if isinstance(v, bytes) else str(v).encode()
+                    dead_fields[b'original_message_id'] = msg_id.encode() if isinstance(msg_id, str) else msg_id
+                    dead_fields[b'dead_at'] = str(time.time()).encode()
+                    dead_fields[b'dead_reason'] = f"{reason} pending, max retries exceeded".encode()
+                    dead_fields[b'retry_count'] = str(int(result[1])).encode()
+                    await self._redis.xadd(
+                        self._failed_stream, dead_fields,
+                        maxlen=self._max_length // 10, approximate=True
+                    )
+                return action
+            return -1
+        except Exception as e:
+            self.logger.warning(f"Failed to reenqueue message {msg_id}: {e}")
+            return -1
+
     async def _recover_stream_orphans(self, stream_key: str):
-        """回收单个 Stream 的孤儿 pending 消息"""
+        """回收单个 Stream 的孤儿 pending 消息（启动时一次性全量回收）"""
         try:
             pending_count = await get_pending_count(self._redis, stream_key, self._group_name)
             if pending_count == 0:
@@ -341,51 +411,9 @@ class RedisStreamQueue:
                     break
 
                 for msg_id, request, retry_count in claimed_messages:
-                    try:
-                        result = await self._redis.eval(
-                            (
-                                "local msgs = redis.call('XRANGE', KEYS[1], ARGV[1], ARGV[1], 'COUNT', 1) "
-                                "if #msgs == 0 then redis.call('XACK', KEYS[1], ARGV[2], ARGV[1]); return {-2, 0} end "
-                                "local flat = msgs[1][2]; local fields = {} "
-                                "for i = 1, #flat, 2 do fields[flat[i]] = flat[i + 1] end "
-                                "local rc = 1; if fields['retry_count'] then rc = tonumber(fields['retry_count']) + 1 end "
-                                "redis.call('XACK', KEYS[1], ARGV[2], ARGV[1]) "
-                                "redis.call('XDEL', KEYS[1], ARGV[1]) "
-                                "if rc >= tonumber(ARGV[5]) then return {0, rc, flat} end "
-                                "fields['retry_count'] = tostring(rc) "
-                                "fields['reenqueued_at'] = ARGV[3] "
-                                "fields['recovered_orphan'] = ARGV[4] "
-                                "local nf = {}; for k, v in pairs(fields) do nf[#nf+1]=k; nf[#nf+1]=v end "
-                                "redis.call('XADD', KEYS[1], 'MAXLEN', '~', tonumber(ARGV[6]), '*', unpack(nf)) "
-                                "return {1, rc}"
-                            ),
-                            1, stream_key, msg_id, self._group_name,
-                            str(time.time()), "true",
-                            str(self._delivery_count_limit), str(self._max_length)
-                        )
-                        if result and len(result) >= 2:
-                            action = int(result[0])
-                            if action == 0:
-                                # 超限进死信
-                                flat = result[2]
-                                dead_fields = {}
-                                it = iter(flat)
-                                for k in it:
-                                    v = next(it)
-                                    k_str = k.decode() if isinstance(k, bytes) else str(k)
-                                    dead_fields[k_str.encode()] = v if isinstance(v, bytes) else str(v).encode()
-                                dead_fields[b'original_message_id'] = msg_id.encode() if isinstance(msg_id, str) else msg_id
-                                dead_fields[b'dead_at'] = str(time.time()).encode()
-                                dead_fields[b'dead_reason'] = b"orphan pending on startup, max retries exceeded"
-                                dead_fields[b'retry_count'] = str(int(result[1])).encode()
-                                await self._redis.xadd(
-                                    self._failed_stream, dead_fields,
-                                    maxlen=self._max_length // 10, approximate=True
-                                )
-
+                    action = await self._reenqueue_claimed_message(stream_key, msg_id, reason="orphan")
+                    if action >= 0:
                         total_recovered += 1
-                    except Exception as e:
-                        self.logger.warning(f"Failed to recover orphan message {msg_id}: {e}")
 
             if total_recovered > 0:
                 self.logger.info(
@@ -584,6 +612,53 @@ class RedisStreamQueue:
             return await self._claim_with_xautoclaim(idle_ms, count, target_stream)
         else:
             return await self._claim_manual(idle_ms, count, target_stream)
+
+    async def claim_stale_pending(self, min_idle_sec: int, count: int = 100) -> int:
+        """
+        主动扫描并回收所有 Stream 的 stale pending 消息（分布式 idle 期间调用）。
+
+        双层回收策略的「主动扫描」层：
+        - 被动层：FailoverManager 心跳检测崩溃 Worker → 批量回收（30s 延迟）
+        - 主动层（本方法）：idle Worker 定期扫描 stale 消息 → 重新入队
+
+        与 claim_pending 的区别：
+        - claim_pending: 仅 XCLAIM 转移所有权到当前 consumer，不重新入队
+        - claim_stale_pending: claim + 重新入队（XACK+XDEL+XADD），
+          重新入队后任何 Worker 可通过 XREADGROUP 消费
+
+        与 _recover_stream_orphans 的区别：
+        - _recover_stream_orphans: 启动时一次性全量回收（min_idle_ms=1）
+        - claim_stale_pending: 运行期间定期扫描（按 min_idle_sec 阈值，仅 stale）
+
+        Args:
+            min_idle_sec: 消息 idle 时间阈值（秒），超过此值视为 stale
+            count: 每次扫描每个 Stream 最多回收的消息数
+
+        Returns:
+            成功重新入队的消息总数（含进死信的）
+        """
+        self._ensure_connected()
+        min_idle_ms = max(min_idle_sec * 1000, 1)
+        total_recovered = 0
+
+        for stream in {self._stream, self._high_stream}:  # 去重：priority 关闭时两者相同
+            try:
+                claimed_messages = await self.claim_pending(
+                    min_idle_ms=min_idle_ms,
+                    count=count,
+                    stream=stream,
+                )
+                if not claimed_messages:
+                    continue
+
+                for msg_id, request, retry_count in claimed_messages:
+                    action = await self._reenqueue_claimed_message(stream, msg_id, reason="stale")
+                    if action >= 0:
+                        total_recovered += 1
+            except Exception as e:
+                self.logger.warning(f"Failed to claim stale pending on {stream}: {e}")
+
+        return total_recovered
 
     async def pending_info(self) -> Dict[str, Any]:
         """查询 Pending 状态"""

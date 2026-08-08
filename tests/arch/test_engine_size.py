@@ -18,7 +18,9 @@ ENGINE_PATH = os.path.abspath(ENGINE_PATH)
 # Phase 3.2 基线更新（2026-08-08 21:20）：
 # Phase 4 BUG FIX：engine._fetch 增加 spider=None guard（+6 行），基线 1511→1516（sum-counter 1516）
 # Phase 6 逻辑审核修复：start_spider resume 默认值改为 None 跟随 CHECKPOINT_ENABLED（+13 行 docstring+逻辑），基线 1516→1530
-BASELINE_LINES = 1530
+# P0 主动 XCLAIM 扫描：_handle_distributed_idle 集成扫描 + _try_claim_stale_pending + 配置读取（+62 行），基线 1530→1592
+# P1 A1：辅助组件拆分到 engine_helpers.py（-440 行），基线 1592→1152
+BASELINE_LINES = 1152
 BASELINE_INIT_ASSIGNS = 12
 
 

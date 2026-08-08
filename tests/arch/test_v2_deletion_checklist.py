@@ -315,8 +315,6 @@ class TestCoreFlatCompatStubsRemoved:
         'crawlo.core.config_compat',
         'crawlo.core.config_factories',
         'crawlo.core.config_validator',
-        'crawlo.core.engine_generation',
-        'crawlo.core.engine_helpers',
         'crawlo.core.engine_cluster',
         'crawlo.core.error_types',
         'crawlo.core.exceptions',
@@ -324,7 +322,9 @@ class TestCoreFlatCompatStubsRemoved:
         'crawlo.core.task_manager',
         'crawlo.core.task_scheduler',
         # core/engine.py 存根文件已删除
-        # Phase 3.2：engine 子包已合并为单文件 core/engine.py（含 Engine + Mixin + helpers）
+        # Phase 3.2：engine 子包已合并为单文件 core/engine.py
+        # P1 A1：engine_helpers.py 重新拆出为独立辅助模块（非存根），不再断言 ModuleNotFoundError
+        # P1 A2：engine_generation.py 重新拆出为请求生成 Mixin 模块（非存根），不再断言 ModuleNotFoundError
     ])
     def test_old_core_flat_stubs_unimportable(self, path):
         """旧 core 扁平兼容 stub import 抛 ModuleNotFoundError"""
