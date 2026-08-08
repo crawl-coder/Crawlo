@@ -8,7 +8,7 @@ import time
 import asyncio
 from typing import TYPE_CHECKING, Dict, Optional, List
 
-from crawlo.backpressure.interfaces import (
+from .interfaces import (
     IBackpressureStrategy,
     BackpressureStrategyConfig,
     BackpressureMetrics,

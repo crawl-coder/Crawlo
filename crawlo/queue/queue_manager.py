@@ -65,7 +65,7 @@ class QueueManager(QueueStatusMixin, QueueBackpressureMixin):
         self._pending_enqueue_count = 0
         
         # 初始化新的背压策略系统
-        from crawlo.backpressure import (
+        from crawlo.queue.backpressure import (
             BackpressureController,
             QueueSizeStrategy,
             BackpressureStrategyConfig
@@ -87,10 +87,10 @@ class QueueManager(QueueStatusMixin, QueueBackpressureMixin):
         
         # 根据配置创建对应策略
         if strategy_type == 'adaptive':
-            from crawlo.backpressure import AdaptiveStrategy
+            from crawlo.queue.backpressure import AdaptiveStrategy
             strategy = AdaptiveStrategy(config=bp_config)
         elif strategy_type == 'composite':
-            from crawlo.backpressure import CompositeStrategy
+            from crawlo.queue.backpressure import CompositeStrategy
             strategy = CompositeStrategy([
                 QueueSizeStrategy(config=bp_config)
             ])
@@ -101,7 +101,7 @@ class QueueManager(QueueStatusMixin, QueueBackpressureMixin):
         intelligent_calc = None
         if safe_get_config(self.config.settings, 'MEMORY_MONITOR_ENABLED', False, bool):
             try:
-                from crawlo.backpressure import IntelligentBackpressureCalculator
+                from crawlo.queue.backpressure import IntelligentBackpressureCalculator
                 intelligent_calc = IntelligentBackpressureCalculator(base_delay=0.5)
             except ImportError:
                 pass

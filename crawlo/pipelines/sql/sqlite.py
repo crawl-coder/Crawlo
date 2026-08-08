@@ -21,7 +21,7 @@ from typing import List, Dict
 
 import aiosqlite
 
-from crawlo.db.dialect import SQLiteDialect
+from crawlo.utils.db.dialect import SQLiteDialect
 from crawlo.pipelines.generic_sql import GenericSQLPipeline
 
 

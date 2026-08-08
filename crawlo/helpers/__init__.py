@@ -1,16 +1,37 @@
 #!/usr/bin/python
 # -*- coding: UTF-8 -*-
 """
-# @Time    : 2025-09-10 22:00
-# @Author  : crawl-coder
-# @Desc    : Crawlo 框架通用辅助工具包（供用户使用）
+Crawlo 框架通用辅助工具包（已迁移至 crawlo.utils）
 
-注意：此模块包含预制的通用工具，供用户在编写爬虫时使用。
-框架本身并不使用这些工具，它们完全独立于框架核心逻辑。
+此模块为向后兼容层，所有代码已迁移至 crawlo.utils 子包：
+- time_utils → crawlo.utils.time_utils
+- text_cleaner → crawlo.utils.text.cleaner
+- file_downloader → crawlo.utils.file_downloader
+- mysql_exists_checker → crawlo.utils.db.mysql_exists_checker
+- adaptive_selector → crawlo.utils.adaptive_selector
 """
 
+import sys
+import warnings
+import importlib
+
+# 注册旧子模块路径到新位置，使 from crawlo.helpers.xxx import Yyy 仍可用
+_MODULE_MAP = {
+    'crawlo.helpers.time_utils': 'crawlo.utils.time_utils',
+    'crawlo.helpers.text_cleaner': 'crawlo.utils.text.cleaner',
+    'crawlo.helpers.file_downloader': 'crawlo.utils.file_downloader',
+    'crawlo.helpers.mysql_exists_checker': 'crawlo.utils.db.mysql_exists_checker',
+    'crawlo.helpers.adaptive_selector': 'crawlo.utils.adaptive_selector',
+    'crawlo.helpers.adaptive_selector.element_fingerprint': 'crawlo.utils.adaptive_selector.element_fingerprint',
+    'crawlo.helpers.adaptive_selector.similarity_matcher': 'crawlo.utils.adaptive_selector.similarity_matcher',
+    'crawlo.helpers.adaptive_selector.storage': 'crawlo.utils.adaptive_selector.storage',
+}
+for _old, _new in _MODULE_MAP.items():
+    if _old not in sys.modules:
+        sys.modules[_old] = importlib.import_module(_new)
+
 # 日期工具 — 无 logging 依赖，可立即导入
-from .time_utils import (
+from crawlo.utils.time_utils import (
     TimeUtils,
     parse_time,
     format_time,
@@ -25,7 +46,7 @@ from .time_utils import (
 )
 
 # 数据清洗工具 — 无 logging 依赖
-from .text_cleaner import (
+from crawlo.utils.text.cleaner import (
     TextCleaner,
     remove_html_tags,
     decode_html_entities,
@@ -41,22 +62,31 @@ from .text_cleaner import (
     truncate,
 )
 
+warnings.warn(
+    "crawlo.helpers is deprecated, use crawlo.utils instead",
+    DeprecationWarning,
+    stacklevel=2,
+)
+
 
 def __getattr__(name):
-    """延迟导入 file_downloader 和 adaptive_selector，避免循环导入。
-    
-    这两个模块依赖 crawlo.logging，但 helpers 包被 __init__.py 较早导入，
-    此时 logging 模块可能尚未完成初始化，导致循环 ImportError。
-    """
+    """延迟导入 file_downloader 和 adaptive_selector，避免循环导入。"""
     if name in ('MySQLExistsChecker', 'check_exists'):
-        from .mysql_exists_checker import MySQLExistsChecker, check_exists
+        from crawlo.utils.db.mysql_exists_checker import MySQLExistsChecker, check_exists
         return globals().get(name) or (MySQLExistsChecker if name == 'MySQLExistsChecker' else check_exists)
     elif name == 'FileDownloader':
-        from .file_downloader import FileDownloader
+        from crawlo.utils.file_downloader import FileDownloader
         return FileDownloader
     elif name in ('ElementFingerprint', 'SimilarityMatcher',
                   'FingerprintStorage', 'SqliteStorage', 'RedisStorage'):
-        from .adaptive_selector import (
+        # 注册 adaptive_selector 子模块路径
+        import importlib
+        for sub in ('__init__', 'element_fingerprint', 'similarity_matcher', 'storage'):
+            old_path = f'crawlo.helpers.adaptive_selector.{sub}' if sub != '__init__' else 'crawlo.helpers.adaptive_selector'
+            new_path = f'crawlo.utils.adaptive_selector.{sub}' if sub != '__init__' else 'crawlo.utils.adaptive_selector'
+            if old_path not in sys.modules:
+                sys.modules[old_path] = importlib.import_module(new_path)
+        from crawlo.utils.adaptive_selector import (
             ElementFingerprint, SimilarityMatcher,
             FingerprintStorage, SqliteStorage, RedisStorage,
         )
@@ -77,7 +107,6 @@ __all__ = [
     "to_utc",
     "to_local",
     "from_timestamp_with_tz",
-    
     # 数据清洗工具
     "TextCleaner",
     "remove_html_tags",
@@ -92,17 +121,14 @@ __all__ = [
     "extract_phones",
     "strip_control_chars",
     "truncate",
-    
     # 文件下载工具
     "FileDownloader",
-    
     # 自适应元素选择器
     "ElementFingerprint",
     "SimilarityMatcher",
     "FingerprintStorage",
     "SqliteStorage",
     "RedisStorage",
-    
     # MySQL 数据存在性检查工具
     "MySQLExistsChecker",
     "check_exists",

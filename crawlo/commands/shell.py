@@ -12,7 +12,7 @@ import asyncio
 import sys
 
 from crawlo.logging import get_logger
-from crawlo.shell.core import CrawloShell
+from crawlo.commands.shell_core import CrawloShell
 
 _logger = None
 

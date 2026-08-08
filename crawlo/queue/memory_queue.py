@@ -18,13 +18,13 @@ from crawlo.queue.interfaces import IQueue, BackpressureableQueueMixin
 
 # 智能背压组件（可选导入）
 try:
-    from crawlo.backpressure.metrics_collector import BackpressureMetricsCollector
-    from crawlo.backpressure.intelligent_calculator import IntelligentBackpressureCalculator
-    from crawlo.backpressure.monitor import BackpressureMonitor
+    from crawlo.queue.backpressure.metrics_collector import BackpressureMetricsCollector
+    from crawlo.queue.backpressure.intelligent_calculator import IntelligentBackpressureCalculator
+    from crawlo.queue.backpressure.monitor import BackpressureMonitor
     INTELLIGENT_BP_AVAILABLE = True
 except ImportError:
     INTELLIGENT_BP_AVAILABLE = False
-    logger.debug("Intelligent backpressure not available: crawlo.backpressure module not found")
+    logger.debug("Intelligent backpressure not available: crawlo.queue.backpressure module not found")
 
 logger = logging.getLogger(__name__)
 

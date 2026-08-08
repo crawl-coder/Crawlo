@@ -18,7 +18,7 @@ PostgreSQL Pipeline — 异步 PostgreSQL 数据管道
 import asyncio
 from typing import List, Dict
 
-from crawlo.db.dialect import PostgreSQLDialect
+from crawlo.utils.db.dialect import PostgreSQLDialect
 from crawlo.core.exceptions import PipelineInitError
 from crawlo.pipelines.generic_sql import GenericSQLPipeline
 

@@ -111,7 +111,7 @@ class QueueBackpressureMixin:
         当AUTO模式检测到Redis可用或不可用时，会更新self.config的背压参数，
         需要重新创建背压控制器才能使新配置生效。
         """
-        from crawlo.backpressure import (
+        from crawlo.queue.backpressure import (
             BackpressureController,
             QueueSizeStrategy,
             BackpressureStrategyConfig
@@ -134,10 +134,10 @@ class QueueBackpressureMixin:
 
         # 根据配置创建对应策略
         if strategy_type == 'adaptive':
-            from crawlo.backpressure import AdaptiveStrategy
+            from crawlo.queue.backpressure import AdaptiveStrategy
             strategy = AdaptiveStrategy(config=bp_config)
         elif strategy_type == 'composite':
-            from crawlo.backpressure import CompositeStrategy
+            from crawlo.queue.backpressure import CompositeStrategy
             strategy = CompositeStrategy([
                 QueueSizeStrategy(config=bp_config)
             ])

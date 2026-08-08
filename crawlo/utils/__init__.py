@@ -4,8 +4,7 @@
 # @Author  :   oscar
 # @Desc    :   Crawlo 框架核心工具模块
 
-此模块包含框架内部使用的核心工具，不推荐用户直接使用。
-用户应该使用 crawlo.helpers 中的通用工具。
+此模块包含框架内部使用的核心工具，也包含原 helpers 包的通用工具。
 """
 
 from .request.response_helper import (

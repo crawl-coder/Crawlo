@@ -44,14 +44,14 @@ def __getattr__(name):
     elif name == 'Failure':
         return _lazy_import('crawlo.core.failure', 'Failure')
     elif name in ('cleaners', 'helpers'):
-        import crawlo.helpers
-        return crawlo.helpers
+        import crawlo.utils
+        return crawlo.utils
     # 时间工具 — 原 from crawlo.helpers.time_utils import ...
     elif name in ('TimeUtils', 'parse_time', 'format_time', 'time_diff',
                   'to_timestamp', 'to_datetime', 'now',
                   'to_timezone', 'to_utc', 'to_local',
                   'from_timestamp_with_tz'):
-        from crawlo.helpers.time_utils import (
+        from crawlo.utils.time_utils import (
             TimeUtils, parse_time, format_time, time_diff,
             to_timestamp, to_datetime, now,
             to_timezone, to_utc, to_local,

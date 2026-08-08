@@ -1,21 +1,26 @@
 #!/usr/bin/python
 # -*- coding: UTF-8 -*-
 """
-Crawlo Shell - 交互式终端
-========================
-提供实时交互环境，用于调试选择器、测试动态渲染和验证逻辑。
+交互式终端（已迁移至 crawlo.commands.shell_core）
 
-核心功能：
-- fetch(url): 快速抓取页面
-- response.css() / response.xpath(): 实时测试选择器
-- view(response): 在浏览器中预览页面
-- 支持 IPython（await 异步代码）和原生 Console 降级
-
-使用方式：
-    crawlo shell                    # 启动空 Shell
-    crawlo shell https://example.com # 启动并预抓取 URL
+此模块为向后兼容层，CrawloShell 已迁移至 crawlo.commands.shell_core。
 """
 
-from crawlo.shell.core import CrawloShell
+import sys
+import warnings
+import importlib
+
+# 注册旧子模块路径，使 from crawlo.shell.core import X 仍可用
+_old = 'crawlo.shell.core'
+if _old not in sys.modules:
+    sys.modules[_old] = importlib.import_module('crawlo.commands.shell_core')
+
+from crawlo.commands.shell_core import CrawloShell
+
+warnings.warn(
+    "crawlo.shell is deprecated, use crawlo.commands.shell_core instead",
+    DeprecationWarning,
+    stacklevel=2,
+)
 
 __all__ = ['CrawloShell']

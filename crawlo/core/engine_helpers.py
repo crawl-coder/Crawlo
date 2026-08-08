@@ -5,9 +5,9 @@ import time
 from dataclasses import dataclass, field
 from typing import Any, Optional, Dict
 
-from crawlo.backpressure.interfaces import BackpressureStrategyConfig, IBackpressureStrategy
-from crawlo.backpressure.strategies import QueueSizeStrategy, AdaptiveStrategy
-from crawlo.backpressure import BackpressureController as _UnifiedController
+from crawlo.queue.backpressure.interfaces import BackpressureStrategyConfig, IBackpressureStrategy
+from crawlo.queue.backpressure.strategies import QueueSizeStrategy, AdaptiveStrategy
+from crawlo.queue.backpressure import BackpressureController as _UnifiedController
 
 
 def safe_queue_size(scheduler) -> int:
