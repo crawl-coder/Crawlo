@@ -10,6 +10,38 @@ from crawlo.backpressure.strategies import QueueSizeStrategy, AdaptiveStrategy
 from crawlo.backpressure import BackpressureController as _UnifiedController
 
 
+def safe_queue_size(scheduler) -> int:
+    """同步获取队列大小（仅内存队列有效，非内存队列返回 -1）。
+
+    v2.0：Scheduler.__len__ 已删除，内存队列大小通过 queue_manager 内部 qsize() 获取。
+    """
+    if scheduler is None:
+        return 0
+    try:
+        if not scheduler._is_memory_queue():
+            return -1
+        inner = getattr(scheduler.queue_manager, '_queue', None)
+        if inner and hasattr(inner, 'qsize'):
+            return inner.qsize()
+        return 0
+    except Exception:
+        return -1
+
+
+def has_pending_enqueues(scheduler) -> bool:
+    """Phase 2：检查 scheduler 是否有阻塞等待中的入队请求。
+
+    用于 Engine idle 判定：若 > 0 表示有 put 在 block 等待，
+    Engine 不应提前退出（否则消费者停了 → 入队永远等不到消费 → 死锁）。
+
+    Returns:
+        True 表示有 pending enqueue（不应退出）；False 表示无（可以退出）。
+    """
+    if scheduler is None:
+        return False
+    return getattr(scheduler, 'pending_enqueue_count', 0) > 0
+
+
 @dataclass
 class GenerationStats:
     """
@@ -177,10 +209,16 @@ class EngineBackpressureAdapter:
         Returns:
             bool: True if queue utilization >= strategy threshold
         """
-        if not scheduler:
+        if scheduler is None:
             return False
-        
-        queue_size = len(scheduler)
+
+        try:
+            queue_size = safe_queue_size(scheduler)
+            if queue_size < 0:
+                # 非内存队列无法同步获取大小，背压由 QueueManager 层处理
+                return False
+        except Exception:
+            return False
         # Use unified controller's strategy threshold for consistency with QueueManager
         threshold = self.max_queue_size * self._unified.strategy._config.threshold
         return queue_size >= threshold
@@ -289,4 +327,6 @@ class EngineBackpressureAdapter:
 __all__ = [
     'GenerationStats',
     'EngineBackpressureAdapter',
+    'safe_queue_size',
+    'has_pending_enqueues',
 ]

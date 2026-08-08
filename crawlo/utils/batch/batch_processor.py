@@ -8,7 +8,7 @@ import asyncio
 from functools import wraps
 from typing import List, Callable, Any, Optional, Dict
 
-from crawlo.utils.error_handler import ErrorHandler
+from crawlo.utils.errors import ErrorHandler
 from crawlo.logging import get_logger
 from crawlo.utils.batch.batch_manager import (
     BatchProcessor as NewBatchProcessor,

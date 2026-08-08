@@ -19,7 +19,7 @@ from typing import Set, TextIO, Optional, Dict, Any
 from crawlo.filters import BaseFilter
 from crawlo.logging import get_logger
 from crawlo.utils.misc import safe_get_config
-from crawlo.utils.async_lock import AsyncRLock
+from crawlo.utils.concurrency import AsyncRLock
 
 
 class MemoryFilter(BaseFilter):

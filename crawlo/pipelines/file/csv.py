@@ -12,7 +12,7 @@ import asyncio
 from typing import Optional, List
 
 from crawlo.items import Item
-from crawlo.exceptions import ItemDiscard
+from crawlo.items.exceptions import ItemDiscard
 from crawlo.pipelines.base_pipeline import FileBasedPipeline
 
 # csv.writer 依赖同步文件对象，始终使用同步 I/O

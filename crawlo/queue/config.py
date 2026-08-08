@@ -34,6 +34,10 @@ class QueueConfig:
             backpressure_ratio: float = 0.8,
             backpressure_delay_base: float = 0.5,
             backpressure_delay_max: float = 5.0,
+            enqueue_full_policy: str = 'drop_with_counter',
+            enqueue_block_timeout: Optional[float] = None,
+            enqueue_drop_timeout: float = 50.0,
+            enqueue_block_stall_alert_seconds: float = 120.0,
             **kwargs
     ):
         self.queue_type = QueueType(queue_type) if isinstance(queue_type, str) else queue_type
@@ -59,6 +63,11 @@ class QueueConfig:
         self.backpressure_ratio = backpressure_ratio
         self.backpressure_delay_base = backpressure_delay_base
         self.backpressure_delay_max = backpressure_delay_max
+        # Phase 2：入队阻塞策略配置
+        self.enqueue_full_policy = enqueue_full_policy
+        self.enqueue_block_timeout = enqueue_block_timeout
+        self.enqueue_drop_timeout = enqueue_drop_timeout
+        self.enqueue_block_stall_alert_seconds = enqueue_block_stall_alert_seconds
         self.extra_config = kwargs
 
     @classmethod
@@ -122,7 +131,15 @@ class QueueConfig:
             )
         
         backpressure_check_interval = safe_get_config(settings, 'BACKPRESSURE_CHECK_INTERVAL', 0.1)
-        
+
+        # Phase 2：入队阻塞策略配置
+        enqueue_full_policy = safe_get_config(settings, 'ENQUEUE_FULL_POLICY', 'drop_with_counter', str)
+        enqueue_block_timeout = safe_get_config(settings, 'ENQUEUE_BLOCK_TIMEOUT', None)
+        enqueue_drop_timeout = safe_get_config(settings, 'ENQUEUE_DROP_TIMEOUT', 50.0, float)
+        enqueue_block_stall_alert_seconds = safe_get_config(
+            settings, 'ENQUEUE_BLOCK_STALL_ALERT_SECONDS', 120.0, float
+        )
+
         return cls(
             queue_type=queue_type,
             redis_url=redis_url,
@@ -141,6 +158,10 @@ class QueueConfig:
             backpressure_ratio=backpressure_config['backpressure_ratio'],
             backpressure_delay_base=backpressure_config['backpressure_delay_base'],
             backpressure_delay_max=backpressure_config['backpressure_delay_max'],
+            enqueue_full_policy=enqueue_full_policy,
+            enqueue_block_timeout=enqueue_block_timeout,
+            enqueue_drop_timeout=enqueue_drop_timeout,
+            enqueue_block_stall_alert_seconds=enqueue_block_stall_alert_seconds,
             extra_config={
                 'backpressure_check_interval': backpressure_check_interval,
                 'backpressure_warning_threshold': backpressure_config['backpressure_warning_threshold'],

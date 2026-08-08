@@ -5,7 +5,7 @@ ResponseFilterMiddleware 中间件
 用于过滤不符合要求的HTTP响应，支持自定义允许的状态码
 """
 from crawlo.logging import get_logger
-from crawlo.exceptions import IgnoreRequestError
+from crawlo.network.exceptions import IgnoreRequestError
 
 
 class ResponseFilterMiddleware:

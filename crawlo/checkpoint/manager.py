@@ -16,13 +16,13 @@ import time
 from typing import Any, Dict, List, Optional, Set, TYPE_CHECKING
 
 from crawlo.logging import get_logger
+from crawlo.network.request import Request
 from crawlo.utils.misc import safe_get_config
 from crawlo.checkpoint.storage import BaseStorage, JsonStorage, SqliteStorage
 
 if TYPE_CHECKING:
     from crawlo.scheduling.scheduler import Scheduler
     from crawlo.stats import StatsCollector
-    from crawlo.network.request import Request  # 用于类型注解
 
 
 class CheckpointManager:
@@ -121,9 +121,9 @@ class CheckpointManager:
             success = self.storage.save(data)
 
             if success:
-                self.logger.debug(
+                self.logger.info(
                     f"Checkpoint saved: {len(requests_data)} pending requests, "
-                    f"{len(fingerprints)} fingerprints"
+                    f"{len(fingerprints)} fingerprints -> {self.storage.filepath}"
                 )
             return success
 
@@ -169,7 +169,7 @@ class CheckpointManager:
         try:
             success = self.storage.clear()
             if success:
-                self.logger.debug("Checkpoint cleared")
+                self.logger.info(f"Checkpoint cleared -> {self.storage.filepath} (normal finish)")
             return success
         except Exception as e:
             self.logger.error(f"Failed to clear checkpoint: {e}")
@@ -409,9 +409,6 @@ class CheckpointManager:
             self.logger.debug(f"request_from_dict failed: {e}, falling back to manual restore")
 
         # 手动恢复
-        # Request 已在 TYPE_CHECKING 中导入，但运行时需要实际类
-        from crawlo.network.request import Request as RequestClass
-
         url = request_data.get('url', '')
         if not url:
             raise ValueError("No URL in request data")
@@ -440,7 +437,7 @@ class CheckpointManager:
         # 移除 None 值
         request_kwargs = {k: v for k, v in request_kwargs.items() if v is not None}
 
-        request = RequestClass(**request_kwargs)
+        request = Request(**request_kwargs)
 
         # 恢复 callback 和 errback（回退路径）
         for attr_name in ('callback', 'errback'):

@@ -35,7 +35,7 @@ class RequestRecorderExtension:
     def create_instance(cls, crawler: Any) -> 'RequestRecorderExtension':
         # 只有当配置启用时才创建实例
         if not crawler.settings.get_bool('REQUEST_RECORDER_ENABLED', False):
-            from crawlo.exceptions import NotConfigured
+            from crawlo.core.exceptions import NotConfigured
             raise NotConfigured("RequestRecorderExtension: REQUEST_RECORDER_ENABLED is False")
         
         o = cls(crawler)

@@ -216,10 +216,34 @@ class FeishuChannel(NotificationChannel):
             }
 
 
-def get_feishu_channel() -> FeishuChannel:
-    """获取飞书通知渠道实例（存储于 ApplicationContext）"""
+def _resolve_notification_context():
+    """Phase 8 Step 8.5：优先从容器拿 NotificationContext，否则 fallback ctx.notifications。"""
+    try:
+        from crawlo.container import default_container
+        from crawlo.core.application import NotificationContext
+        if default_container.is_registered(NotificationContext):
+            return default_container.resolve(NotificationContext)
+    except Exception:  # noqa: S110
+        pass
     from crawlo.core.application import get_global_context
-    ctx = get_global_context()
-    if ctx.feishu_channel is None:
-        ctx.feishu_channel = FeishuChannel()
-    return ctx.feishu_channel
+    return get_global_context().notifications
+
+
+def get_feishu_channel() -> FeishuChannel:
+    """获取飞书通知渠道实例（Phase 8 Step 8.5：DI 容器优先 + NotificationContext fallback）。"""
+    try:
+        from crawlo.container import default_container
+        if default_container.is_registered(FeishuChannel):
+            return default_container.resolve(FeishuChannel)
+    except Exception:  # pragma: no cover
+        pass
+    nctx = _resolve_notification_context()
+    if nctx.feishu_channel is None:
+        inst = FeishuChannel()
+        nctx.feishu_channel = inst
+        try:
+            from crawlo.container import default_container
+            default_container.register_instance(FeishuChannel, inst)
+        except Exception:  # pragma: no cover
+            pass
+    return nctx.feishu_channel

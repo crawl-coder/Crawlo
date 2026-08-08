@@ -175,7 +175,7 @@ class CrawloShell:
             from_curl('curl https://api.example.com -H "Authorization: Bearer xxx"')
         """
         try:
-            from crawlo.utils.curl_parser import CurlParser
+            from crawlo.utils.parsing import CurlParser
         except ImportError:
             self.logger.error(
                 "CurlParser not available. Install: pip install crawlo[curl]"

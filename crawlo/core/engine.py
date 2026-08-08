@@ -12,21 +12,20 @@ from crawlo.event import CrawlerEvent
 from crawlo.project import common_call
 from crawlo.core.failure import Failure
 from crawlo.logging import get_logger
-from crawlo.exceptions import OutputError
 from crawlo.core.error_types import ErrorClassifier
 from crawlo.core.task_manager import TaskManager
 from crawlo.downloader import DownloaderBase
 from crawlo.core.processor import Processor
-from crawlo.core.scheduler import Scheduler
-from crawlo.checkpoint import CheckpointManager
-from crawlo.core.engine_helpers import GenerationStats, EngineBackpressureAdapter
+from crawlo.core.task_scheduler import Scheduler
+from crawlo.core.checkpoint_coordinator import CheckpointCoordinator
+from crawlo.core.engine_helpers import GenerationStats, EngineBackpressureAdapter, safe_queue_size, has_pending_enqueues
 from crawlo.core.engine_generation import RequestGenerationMixin
 from crawlo.core.engine_generation import resolve_start_requests, process_callback_output
 from crawlo.utils.misc import load_object
 from crawlo.utils.misc import safe_get_config
 from crawlo.__version__ import __version__
 from crawlo.queue.task_tracker import TaskTracker, TaskResult
-from crawlo.core.engine_cluster import ClusterMixin, _ack_message
+from crawlo.core.engine_cluster import ClusterMixin, ClusterState, _ack_message
 
 
 class Engine(RequestGenerationMixin, ClusterMixin):
@@ -52,10 +51,11 @@ class Engine(RequestGenerationMixin, ClusterMixin):
         self._background_tasks: set = set()  # Track fire-and-forget tasks to prevent leaks
         self._request_available = asyncio.Event()  # 事件驱动：新请求可用时唤醒主循环
         self._idle_since: Optional[float] = None  # 空闲起始时间（使用 time.monotonic()，分布式模式用）
-        
+        self._cluster_state = ClusterState()  # Phase 3 Step 2：集群组件状态容器
+
         # Initialize configurations
         self._init_configs()
-        
+
         # Initialize helper utilities
         self._generation_stats = GenerationStats()
         self._backpressure_ctrl = EngineBackpressureAdapter(
@@ -63,28 +63,6 @@ class Engine(RequestGenerationMixin, ClusterMixin):
             backpressure_ratio=self.backpressure_ratio,
             strategy=self.backpressure_strategy,
         )
-
-        # Cluster components (distributed only)
-        self._cluster_registry = None       # WorkerRegistry
-        self._cluster_heartbeat = None      # HeartbeatDaemon
-        self._cluster_failover = None       # FailoverManager
-        self._cluster_lock = None           # DistributedLock (for failover)
-        self._cluster_progress = None       # ProgressAggregator
-        self._cluster_monitor = None        # ClusterMonitor
-        self._cluster_rate_limiter = None   # DistributedRateLimiter
-        self._cluster_messenger = None      # ClusterMessenger
-        self._cluster_dynamic_config = None # DynamicConfig
-        self._cluster_worker_id = None      # Worker ID
-        self._cluster_heartbeat_task = None # asyncio.Task
-        self._cluster_failover_task = None  # asyncio.Task
-        self._cluster_paused = False        # pause flag from control channel
-        self._task_tracker = None           # TaskTracker (for ACK)
-
-        # Leader coordinated shutdown
-        self._cluster_redis = None              # Redis client (shared across cluster components)
-        self._leader_lock = None                # DistributedLock for leader election (atomic SET NX EX + Lua release)
-        self._leader_shutdown_task = None       # asyncio.Task for leader shutdown loop
-        self._coordinated_shutdown_enabled = True  # Default from settings (overridden by _init_configs)
 
         self.logger = get_logger(name=self.__class__.__name__)
     
@@ -132,13 +110,17 @@ class Engine(RequestGenerationMixin, ClusterMixin):
         )
 
         # Coordinated shutdown via leader election
-        self._coordinated_shutdown_enabled = safe_get_config(
+        self._cluster_state.coordinated_shutdown_enabled = safe_get_config(
             self.settings, 'DISTRIBUTED_COORDINATED_SHUTDOWN_ENABLED', True, bool
         )
 
         # Downloader configuration
         self.downloader_type = safe_get_config(self.settings, 'DOWNLOADER_TYPE')
         self.downloader_path = safe_get_config(self.settings, 'DOWNLOADER')
+
+        # Phase 3：检查点协调器（组合，替代原 Engine 内三个检查点方法）
+        # 放在 _init_configs 末尾以兼容 Engine.__new__ + _init_configs 的测试模式
+        self._checkpoint = CheckpointCoordinator(self.settings)
 
     def _get_downloader_cls(self):
         """
@@ -220,14 +202,17 @@ class Engine(RequestGenerationMixin, ClusterMixin):
         # 检查点恢复：如果存在检查点且 resume=True，从检查点恢复
         checkpoint_resumed = False
         if resume:
-            checkpoint_resumed = await self._try_resume_from_checkpoint(spider)
+            checkpoint_resumed = await self._checkpoint.resume_from_checkpoint(spider, self.scheduler)
+            if checkpoint_resumed:
+                # 跳过 start_requests（检查点中已包含未完成的请求）
+                self._start_requests_source = None
 
         if not checkpoint_resumed:
             # 正常流程：从 start_requests 开始（流式，不物化）
             # 分布式模式：SETNX 选举种子生成器 + 锁续期 + 崩溃恢复
             is_seed_generator = True
             run_mode = safe_get_config(self.settings, 'RUN_MODE', 'standalone')
-            if run_mode == 'distributed' and self._cluster_redis:
+            if run_mode == 'distributed' and self._cluster_state.redis:
                 project = safe_get_config(self.settings, 'PROJECT_NAME', 'crawlo')
                 spider_name = safe_get_config(self.settings, 'SPIDER_NAME', 'default')
                 seed_lock_key = f"crawlo:{project}:{spider_name}:seed:generator"
@@ -243,7 +228,7 @@ class Engine(RequestGenerationMixin, ClusterMixin):
                     is_seed_generator = False
                     self._start_requests_source = None
                     self.logger.info(
-                        f"Worker {self._cluster_worker_id}: another Worker is generating "
+                        f"Worker {self._cluster_state.worker_id}: another Worker is generating "
                         f"seed URLs, skipping start_requests"
                     )
                 else:
@@ -296,10 +281,10 @@ class Engine(RequestGenerationMixin, ClusterMixin):
         while self.running:
             loop_count += 1
 
-            if self._cluster_messenger and self._cluster_dynamic_config:
+            if self._cluster_state.messenger and self._cluster_state.dynamic_config:
                 if not await self._check_control_state():
                     break
-                if self._cluster_paused:
+                if self._cluster_state.paused:
                     await asyncio.sleep(0.5)
                     continue
 
@@ -355,11 +340,11 @@ class Engine(RequestGenerationMixin, ClusterMixin):
     async def _check_control_state(self) -> bool:
         """检查集群控制状态，返回 True 继续运行"""
         try:
-            state = await self._cluster_dynamic_config.get_control_state()
+            state = await self._cluster_state.dynamic_config.get_control_state()
             if state == "paused":
-                self._cluster_paused = True
+                self._cluster_state.paused = True
             elif state == "running":
-                self._cluster_paused = False
+                self._cluster_state.paused = False
             elif state == "shutdown":
                 self.logger.warning("Persistent shutdown state detected, exiting")
                 self.running = False
@@ -413,107 +398,6 @@ class Engine(RequestGenerationMixin, ClusterMixin):
                     )
                     return True
         return False
-
-    async def _renew_seed_lock(self):
-        """种子锁续期任务：每 60 秒延长锁 TTL，防止长时种子生成期间锁过期"""
-        try:
-            while self.running and self._seed_lock_key:
-                await asyncio.sleep(60)
-                if self._cluster_redis and self._seed_lock_key:
-                    await self._cluster_redis.expire(self._seed_lock_key, 120)
-        except asyncio.CancelledError:
-            pass
-
-    # 种子锁原子获取的 Lua 脚本
-    # KEYS[1] = seed_lock_key
-    # ARGV[1] = worker_id
-    # ARGV[2] = ttl (120)
-    # ARGV[3..] = 已知的活跃 worker_id 列表（registry 中存活的）
-    # 逻辑：
-    #   1. 若 key 不存在 -> SETNX 成功，返回 1
-    #   2. 若 key 存在且 owner 在活跃列表中 -> 锁有效，返回 0
-    #   3. 若 key 存在但 owner 不在活跃列表中（死锁）-> 删除并重新 SETNX，返回 1
-    _SEED_LOCK_LUA = """
-local key = KEYS[1]
-local worker_id = ARGV[1]
-local ttl = tonumber(ARGV[2])
-local active_count = tonumber(ARGV[3])
-local current = redis.call('GET', key)
-if current == false then
-    redis.call('SET', key, worker_id, 'EX', ttl)
-    return 1
-end
-if current == worker_id then
-    redis.call('EXPIRE', key, ttl)
-    return 1
-end
-for i = 1, active_count do
-    if ARGV[3 + i] == current then
-        return 0
-    end
-end
--- owner 不在活跃列表中，死锁，清理并抢占
-redis.call('DEL', key)
-redis.call('SET', key, worker_id, 'EX', ttl)
-return 2
-"""
-
-    async def _try_acquire_seed_lock_atomic(
-        self, seed_lock_key: str, project: str, spider_name: str
-    ) -> bool:
-        """
-        原子地获取种子锁（含死锁清理）。
-
-        使用 Lua 脚本保证 get-check-delete-set 的原子性，
-        避免原实现多 Worker 同时清锁的竞态。
-
-        Returns:
-            bool: 是否成功获取锁
-        """
-        try:
-            # 收集活跃 worker 列表
-            active_workers = []
-            if self._cluster_registry:
-                try:
-                    workers = await self._cluster_registry.list_workers()
-                    active_workers = [
-                        w.get('worker_id') if isinstance(w, dict) else str(w)
-                        for w in (workers or [])
-                    ]
-                    active_workers = [w for w in active_workers if w]
-                except Exception as e:
-                    self.logger.debug(f"Failed to list active workers for seed lock: {e}")
-
-            args = [self._cluster_worker_id, 120, len(active_workers)] + active_workers
-            result = await self._cluster_redis.eval(
-                self._SEED_LOCK_LUA, 1, seed_lock_key, *args
-            )
-            result_int = int(result) if result is not None else 0
-            if result_int == 1:
-                self.logger.debug(f"Acquired seed lock (fresh): {seed_lock_key}")
-                return True
-            elif result_int == 2:
-                # 清理了死锁并抢占
-                self.logger.info(
-                    f"Cleared stale seed lock and acquired: {seed_lock_key}"
-                )
-                return True
-            else:
-                # 锁被活跃 worker 持有
-                return False
-        except Exception as e:
-            # Lua 脚本失败时回退到简单 SETNX（保底，不阻塞启动）
-            self.logger.warning(
-                f"Atomic seed lock acquisition failed ({e}), falling back to SETNX"
-            )
-            try:
-                acquired = await self._cluster_redis.set(
-                    seed_lock_key, self._cluster_worker_id, nx=True, ex=120
-                )
-                return bool(acquired)
-            except Exception as fallback_err:
-                self.logger.error(f"Seed lock fallback SETNX failed: {fallback_err}")
-                return False
 
     async def _cleanup_crawl(self, generation_task):
         """crawl() 退出后的清理工作"""
@@ -675,81 +559,6 @@ return 2
             return await self.scheduler.next_request()
         return None
 
-    async def _handle_spider_output(self, outputs, parent_request=None):
-        """处理 spider 回调输出，自动为子 Request 传播 depth
-        
-        框架级 depth 传播机制：
-        - 从 parent_request 获取当前 depth（默认 0）
-        - 子 Request 的 depth 自动设为 parent_depth + 1
-        - 配合 DEPTH_PRIORITY 配置，实现广度优先或深度优先策略
-        
-        Args:
-            outputs: spider 回调的输出（异步生成器）
-            parent_request: 产生此输出的原始请求（用于获取 depth）
-        """
-        # 获取父请求的 depth
-        parent_depth = 0
-        if parent_request is not None and hasattr(parent_request, 'meta'):
-            parent_depth = parent_request.meta.get('depth', 0)
-        
-        if self.processor is None:
-            return
-        async for spider_output in outputs:
-            if isinstance(spider_output, Request):
-                # 框架级 depth 传播：子请求 depth = 父请求 depth + 1
-                # 仅在子请求未手动设置 depth 时自动注入
-                if 'depth' not in spider_output.meta:
-                    spider_output.meta['depth'] = parent_depth + 1
-                await self.processor.enqueue(spider_output)
-            elif isinstance(spider_output, Item):
-                await self.processor.enqueue(spider_output)
-            elif isinstance(spider_output, Exception):
-                if self.crawler is not None and self.spider is not None:
-                    self._create_background_task(
-                        self.crawler.subscriber.notify(CrawlerEvent.SPIDER_ERROR, spider_output, self.spider)
-                    )
-                raise spider_output
-            else:
-                raise OutputError(f'{type(self.spider)} must return `Request` or `Item`.')
-
-    async def _handle_errback_output(self, result, parent_request=None):
-        """
-        处理 errback 的返回值，包装后委托给 _handle_spider_output。
-
-        支持与 callback 相同的返回类型：
-        - 单个 Request / Item
-        - 列表 / 元组
-        - 异步生成器
-        - 同步生成器
-        - 协程
-        """
-        if isinstance(result, (Request, Item)):
-            async def _gen():
-                yield result
-            await self._handle_spider_output(_gen(), parent_request)
-        elif isinstance(result, (list, tuple)):
-            async def _gen():
-                for item in result:
-                    if isinstance(item, (Request, Item)):
-                        yield item
-            await self._handle_spider_output(_gen(), parent_request)
-        elif isasyncgen(result):
-            await self._handle_spider_output(result, parent_request)
-        elif isgenerator(result):
-            async def _wrap_sync_gen():
-                for item in result:
-                    if isinstance(item, (Request, Item)):
-                        yield item
-            await self._handle_spider_output(_wrap_sync_gen(), parent_request)
-        elif iscoroutine(result):
-            awaited = await result
-            if awaited is not None:
-                await self._handle_errback_output(awaited, parent_request)
-        else:
-            self.logger.warning(
-                f"errback returned unexpected type {type(result).__name__}, ignored"
-            )
-
     async def _check_components_idle(self, include_background: bool = False) -> tuple[bool, bool, bool, bool, bool]:
         """统一检查各组件是否空闲（消除 _exit / _should_exit 代码重复）
         
@@ -763,7 +572,7 @@ return 2
         background_tasks_done = False
         
         if self.scheduler is not None:
-            scheduler_idle = await self.scheduler.async_idle() if hasattr(self.scheduler, 'async_idle') else self.scheduler.idle()
+            scheduler_idle = await self.scheduler.async_idle()
         if self.downloader is not None:
             downloader_idle = self.downloader.idle()
         if self.task_manager is not None:
@@ -776,9 +585,9 @@ return 2
         return scheduler_idle, downloader_idle, task_manager_done, processor_idle, background_tasks_done
 
     async def _exit(self):
-        """快速退出检查（4 组件，不含 background_tasks）"""
+        """快速退出检查（4 组件，不含 background_tasks，有 pending enqueue 时不退出）"""
         s, d, t, p, _ = await self._check_components_idle(include_background=False)
-        return s and d and t and p
+        return s and d and t and p and not has_pending_enqueues(self.scheduler)
 
     async def _check_all_idle(self) -> bool:
         """二次确认所有组件是否仍然空闲（用于瞬时空闲误判）"""
@@ -816,7 +625,7 @@ return 2
                     f"Processor: {p}, BackgroundTasks: {bg}"
                 )
             
-            if s and d and t and p and bg:
+            if s and d and t and p and bg and not has_pending_enqueues(self.scheduler):
                 self.logger.info("All components are idle, preparing to exit")
                 return True, current_states
         else:
@@ -846,18 +655,26 @@ return 2
             
             # 检查点保存：Ctrl+C 触发的关闭时保存状态
             if reason == 'shutdown':
-                await self._save_checkpoint()
-            
+                await self._checkpoint.save_checkpoint(
+                    self.scheduler, self.spider,
+                    getattr(self.crawler, 'stats', None),
+                    self.checkpoint_save_on_signal,
+                )
+
             # 正常完成时清除检查点
             if reason == 'finished':
-                await self._clear_checkpoint()
-            
+                await self._checkpoint.clear_checkpoint(self.spider)
+
             # 关闭 pipeline（刷新批量数据、清理资源）
             if self.processor is not None and hasattr(self.processor, 'pipelines'):
                 await self.processor.pipelines.close()
-            
-            # 清理过期日志文件（默认 3 天）
-            await self._cleanup_old_logs()
+
+            # 清理过期日志文件（Phase 3：直接调用 LogManager，不再经过 Engine 包装方法）
+            try:
+                from crawlo.logging import LogManager
+                LogManager().cleanup_old_logs(days=self.days)
+            except Exception as e:
+                self.logger.error(f"Failed to clean up expired log files: {e}")
             
             # 关闭下载器（带超时保护，超时后取消内部协程防止资源泄漏）
             if self.downloader is not None and hasattr(self.downloader, 'close'):
@@ -915,109 +732,19 @@ return 2
             except Exception:
                 pass
             raise
-    
-    async def _cleanup_old_logs(self):
-        """清理过期日志文件"""
-        try:
-            from crawlo.logging import LogManager
-            
-            log_manager = LogManager()
-            deleted = log_manager.cleanup_old_logs(days=self.days)
-            
-            if deleted > 0:
-                self.logger.info(f"Cleaned up {deleted} expired log files (>{self.days} days)")
-        except Exception as e:
-            self.logger.error(f"Failed to clean up expired log files: {e}")
-    
-    async def _try_resume_from_checkpoint(self, spider) -> bool:
-        """尝试从检查点恢复爬取状态
-        
-        Args:
-            spider: 爬虫实例
-            
-        Returns:
-            bool: 是否成功从检查点恢复
-        """
-        try:
-            # CheckpointManager 已在顶部导入
-            checkpoint_mgr = CheckpointManager(spider.name, self.settings)
-            if not checkpoint_mgr.enabled or not await checkpoint_mgr.has_checkpoint():
-                return False
-            
-            checkpoint = await checkpoint_mgr.load()
-            if checkpoint is None:
-                return False
-            
-            # 恢复请求到调度器
-            requests_data = checkpoint.get('requests', [])
-            restored_count = 0
-            for req_data in requests_data:
-                try:
-                    request = checkpoint_mgr.restore_request(req_data, spider)
-                    if request and self.scheduler is not None:
-                        # 设置 dont_filter=True 避免被过滤器拦截
-                        request.dont_filter = True
-                        await self.scheduler.enqueue_request(request)
-                        restored_count += 1
-                except Exception as e:
-                    self.logger.debug(f"Failed to restore request: {e}")
-            
-            # 恢复去重指纹
-            fingerprints = checkpoint.get('fingerprints', set())
-            if fingerprints and self.scheduler is not None:
-                checkpoint_mgr.restore_fingerprints(fingerprints, self.scheduler)
-            
-            # 跳过 start_requests（检查点中已包含未完成的请求）
-            self._start_requests_source = None
-            
-            self.logger.info(
-                f"Resumed from checkpoint: {restored_count}/{len(requests_data)} requests restored, "
-                f"{len(fingerprints)} fingerprints recovered"
-            )
-            return True
-            
-        except Exception as e:
-            self.logger.warning(f"Failed to resume from checkpoint: {e}")
-            return False
-    
-    async def _save_checkpoint(self):
-        """保存检查点"""
-        try:
-            # CheckpointManager 已在顶部导入
-            spider_name = self.spider.name if self.spider else 'unknown'
-            checkpoint_mgr = CheckpointManager(spider_name, self.settings)
-            
-            if not checkpoint_mgr.enabled:
-                return
-            
-            # 使用初始化时获取的检查点配置
-            if not self.checkpoint_save_on_signal:
-                return
-            
-            stats = getattr(self.crawler, 'stats', None)
-            await checkpoint_mgr.save(self.scheduler, stats)
-            
-        except Exception as e:
-            self.logger.warning(f"Failed to save checkpoint on shutdown: {e}")
-    
-    async def _clear_checkpoint(self):
-        """清除检查点"""
-        try:
-            # CheckpointManager 已在顶部导入
-            spider_name = self.spider.name if self.spider else 'unknown'
-            checkpoint_mgr = CheckpointManager(spider_name, self.settings)
-            
-            if checkpoint_mgr.enabled:
-                await checkpoint_mgr.clear()
-                
-        except Exception as e:
-            self.logger.debug(f"Failed to clear checkpoint: {e}")
-    
+
+    # Phase 3：检查点三方法（_try_resume_from_checkpoint / _save_checkpoint /
+    # _clear_checkpoint）与日志清理（_cleanup_old_logs）已迁出：
+    #   - 检查点 → CheckpointCoordinator（组合，self._checkpoint）
+    #   - 日志清理 → LogManager.cleanup_old_logs（直接调用）
+    #   - 种子锁 → ClusterMixin（_SEED_LOCK_LUA / _renew_seed_lock /
+    #     _try_acquire_seed_lock_atomic，本就属于分布式协调职责）
+
     def get_generation_stats(self) -> dict:
         """获取生成统计"""
         return {
             **self._generation_stats.to_dict(),
-            'queue_size': len(self.scheduler) if self.scheduler else 0,
+            'queue_size': safe_queue_size(self.scheduler),
             'active_tasks': len(self.task_manager.current_task) if self.task_manager else 0,
             'backpressure_stats': self._backpressure_ctrl.get_stats(),
         }

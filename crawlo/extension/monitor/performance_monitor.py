@@ -11,7 +11,7 @@ from typing import Dict, Any
 
 import psutil
 
-from crawlo.utils.error_handler import ErrorHandler
+from crawlo.utils.errors import ErrorHandler
 from crawlo.logging import get_logger
 
 
@@ -264,13 +264,37 @@ def performance_monitor_decorator(name: str = None, log_level: str = "INFO"):
     return decorator
 
 
-def _get_performance_monitor() -> PerformanceMonitor:
-    """获取全局 PerformanceMonitor 单例（存储于 ApplicationContext）"""
+def _resolve_runtime_context():
+    """Phase 8 Step 8.6：优先从容器拿 RuntimeContext，否则 fallback ctx.runtime。"""
+    try:
+        from crawlo.container import default_container
+        from crawlo.core.application import RuntimeContext
+        if default_container.is_registered(RuntimeContext):
+            return default_container.resolve(RuntimeContext)
+    except Exception:  # noqa: S110
+        pass
     from crawlo.core.application import get_global_context
-    ctx = get_global_context()
-    if ctx.performance_monitor is None:
-        ctx.performance_monitor = PerformanceMonitor()
-    return ctx.performance_monitor
+    return get_global_context().runtime
+
+
+def _get_performance_monitor() -> PerformanceMonitor:
+    """获取全局 PerformanceMonitor 单例（Phase 8 Step 8.6：DI 容器优先 + RuntimeContext fallback）。"""
+    try:
+        from crawlo.container import default_container
+        if default_container.is_registered(PerformanceMonitor):
+            return default_container.resolve(PerformanceMonitor)
+    except Exception:  # pragma: no cover
+        pass
+    rctx = _resolve_runtime_context()
+    if rctx.performance_monitor is None:
+        inst = PerformanceMonitor()
+        rctx.performance_monitor = inst
+        try:
+            from crawlo.container import default_container as _c
+            _c.register_instance(PerformanceMonitor, inst)
+        except Exception:  # pragma: no cover
+            pass
+    return rctx.performance_monitor
 
 
 def monitor_performance(interval: int = 60, detailed: bool = False):

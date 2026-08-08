@@ -41,11 +41,13 @@ Pipeline体系说明：
             return item
 """
 
+from __future__ import annotations
+
 import asyncio
 import time
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import Optional, Any, Callable
+from typing import Optional, Any, Callable, TYPE_CHECKING
 
 # 检查是否安装了aiofiles
 try:
@@ -55,11 +57,13 @@ except ImportError:
     AIOFILES_AVAILABLE = False
 
 from crawlo.items import Item
-from crawlo.spider import Spider
-from crawlo.exceptions import ItemDiscard
+from crawlo.items.exceptions import ItemDiscard
 from crawlo.logging import get_logger
 from crawlo.utils.resource_manager import ResourceManager, ResourceType
 from crawlo.utils.request.fingerprint import FingerprintGenerator
+
+if TYPE_CHECKING:
+    from crawlo.spider import Spider
 
 
 class BasePipeline(ABC):

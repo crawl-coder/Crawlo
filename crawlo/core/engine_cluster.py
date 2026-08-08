@@ -17,7 +17,8 @@ Engine 集群功能 Mixin
 """
 import asyncio
 import time
-from typing import Optional
+from dataclasses import dataclass
+from typing import Any, Optional
 
 from crawlo.logging import get_logger
 from crawlo.utils.misc import safe_get_config
@@ -43,7 +44,7 @@ async def _ack_message(request, engine, success: bool, error: Exception = None):
     Sends XACK on success, NACK on failure (with error classification).
     Called from crawl_task() to confirm task completion in distributed mode.
     """
-    if not engine._cluster_worker_id:
+    if not engine._cluster_state.worker_id:
         return
     meta = getattr(request, 'meta', None) if request else None
     if not meta:
@@ -60,8 +61,8 @@ async def _ack_message(request, engine, success: bool, error: Exception = None):
         else:
             from crawlo.queue.task_tracker import TaskResult
             result = TaskResult.RETRY
-            if engine._task_tracker and error:
-                result = engine._task_tracker.classify_error(error)
+            if engine._cluster_state.task_tracker and error:
+                result = engine._cluster_state.task_tracker.classify_error(error)
             await engine.scheduler.nack_request(message_id, result=result)
     except Exception as ack_err:
         # 修复：原实现 except Exception: pass 静默吞错
@@ -78,13 +79,200 @@ async def _ack_message(request, engine, success: bool, error: Exception = None):
                 pass
 
 
+@dataclass
+class ClusterState:
+    """Engine 集群组件状态容器（Phase 3 Step 2）。
+
+    将 Engine 的 18 个 _cluster_*/_leader_*/_task_tracker 字段收入此 dataclass，
+    减少 Engine.__init__ 顶层赋值数。
+    """
+    registry: Optional[Any] = None              # WorkerRegistry
+    heartbeat: Optional[Any] = None             # HeartbeatDaemon
+    failover: Optional[Any] = None              # FailoverManager
+    lock: Optional[Any] = None                  # DistributedLock (for failover)
+    progress: Optional[Any] = None              # ProgressAggregator
+    monitor: Optional[Any] = None               # ClusterMonitor
+    rate_limiter: Optional[Any] = None          # DistributedRateLimiter
+    messenger: Optional[Any] = None             # ClusterMessenger
+    dynamic_config: Optional[Any] = None        # DynamicConfig
+    worker_id: Optional[str] = None             # Worker ID
+    heartbeat_task: Optional[Any] = None        # asyncio.Task
+    failover_task: Optional[Any] = None         # asyncio.Task
+    paused: bool = False                        # pause flag from control channel
+    redis: Optional[Any] = None                 # Redis client
+    leader_lock: Optional[Any] = None           # DistributedLock for leader election
+    leader_shutdown_task: Optional[Any] = None  # asyncio.Task
+    task_tracker: Optional[Any] = None          # TaskTracker
+    coordinated_shutdown_enabled: bool = True
+
+
 class ClusterMixin:
     """
     Engine 集群功能 Mixin。
 
     提供分布式模式下的所有集群协调逻辑：
-    组件初始化、后台任务启停、故障检测、Leader 选举、协调退出。
+    组件初始化、后台任务启停、故障检测、Leader 选举、协调退出、种子锁。
     """
+
+    # ========================================================================
+    # 种子锁（Phase 3 从 Engine 迁入，本就属于分布式协调）
+    # ========================================================================
+
+    # 种子锁原子获取的 Lua 脚本
+    # KEYS[1] = seed_lock_key
+    # ARGV[1] = worker_id
+    # ARGV[2] = ttl (120)
+    # ARGV[3..] = 已知的活跃 worker_id 列表（registry 中存活的）
+    # 逻辑：
+    #   1. 若 key 不存在 -> SETNX 成功，返回 1
+    #   2. 若 key 存在且 owner == worker_id -> 续期，返回 1
+    #   3. 若 key 存在且 owner 在活跃列表中 -> 锁有效，返回 0
+    #   4. 若 key 存在但 owner 不在活跃列表中：
+    #        4a. active_count == 0 -> 注册信息还没写好，禁止清死锁，返回 0（等下一轮）
+    #        4b. active_count >= 1 -> 判定为死锁，DEL 后重新 SETNX，返回 2
+    _SEED_LOCK_LUA = """
+local key = KEYS[1]
+local worker_id = ARGV[1]
+local ttl = tonumber(ARGV[2])
+local active_count = tonumber(ARGV[3])
+local current = redis.call('GET', key)
+if current == false then
+    redis.call('SET', key, worker_id, 'EX', ttl)
+    return 1
+end
+if current == worker_id then
+    redis.call('EXPIRE', key, ttl)
+    return 1
+end
+for i = 1, active_count do
+    if ARGV[3 + i] == current then
+        return 0
+    end
+end
+-- 活跃列表为空：说明 registry 尚未完成写入 / 心跳未同步，禁止清死锁
+if active_count == 0 then
+    return 0
+end
+-- owner 不在非空的活跃列表中，安全地判定为死锁，清理并抢占
+redis.call('DEL', key)
+redis.call('SET', key, worker_id, 'EX', ttl)
+return 2
+"""
+
+    async def _renew_seed_lock(self):
+        """种子锁续期任务：每 60 秒延长锁 TTL，防止长时种子生成期间锁过期"""
+        try:
+            while self.running and self._seed_lock_key:
+                await asyncio.sleep(60)
+                if self._cluster_state.redis and self._seed_lock_key:
+                    await self._cluster_state.redis.expire(self._seed_lock_key, 120)
+        except asyncio.CancelledError:
+            pass
+
+    async def _try_acquire_seed_lock_atomic(
+        self, seed_lock_key: str, project: str, spider_name: str
+    ) -> bool:
+        """
+        原子地获取种子锁（含死锁清理 + 启动期协调）。
+
+        修复分布式种子锁的关键竞态：
+        - 抢锁前确认自己已写入 registry（避免 registry 读取空列表导致误判死锁）
+        - 抢锁前短 sleep，让其他 worker 完成注册写入
+        - Lua 已保证 active_count=0 时不清死锁；此处对 "暂无法判定" 的结果做重试
+        """
+        my_id = self._cluster_state.worker_id
+        registry = self._cluster_state.registry
+        redis = self._cluster_state.redis
+        if redis is None:
+            return False
+
+        # 1. 等待自身注册可见（保证 list_workers 至少能看到自己，避免 active=[]）
+        if registry is not None:
+            for _ in range(20):  # 最多 2.0s
+                try:
+                    workers = await registry.list_workers() or []
+                except Exception:
+                    workers = []
+                ids = [
+                    w.get('worker_id') if isinstance(w, dict) else str(w)
+                    for w in workers
+                ]
+                if my_id in ids:
+                    break
+                await asyncio.sleep(0.1)
+            # 额外等待 0.3s，给其他刚启动的 worker 一个写入窗口（run_10_workers 间隔 1s）
+            await asyncio.sleep(0.3)
+
+        # 2. 带重试的抢锁：最多 5 次，每次间隔递增，覆盖活跃列表还没同步的情况
+        max_attempts = 5
+        for attempt in range(1, max_attempts + 1):
+            try:
+                active_workers = []
+                if registry is not None:
+                    try:
+                        workers = await registry.list_workers()
+                        active_workers = [
+                            w.get('worker_id') if isinstance(w, dict) else str(w)
+                            for w in (workers or [])
+                        ]
+                        active_workers = [w for w in active_workers if w]
+                    except Exception as e:
+                        self.logger.debug(
+                            f"Failed to list active workers for seed lock: {e}"
+                        )
+
+                args = [my_id, 120, len(active_workers)] + active_workers
+                result = await redis.eval(self._SEED_LOCK_LUA, 1, seed_lock_key, *args)
+                result_int = int(result) if result is not None else 0
+
+                if result_int == 1:
+                    self.logger.debug(
+                        f"Acquired seed lock (fresh, attempt={attempt}): {seed_lock_key}"
+                    )
+                    return True
+                if result_int == 2:
+                    self.logger.info(
+                        f"Cleared stale seed lock and acquired (attempt={attempt}): {seed_lock_key}"
+                    )
+                    return True
+                # result_int == 0
+                # 要么锁被活跃 worker 持有（正常情况，seed 由另一个 worker 生成）
+                # 要么 active_count=0 时 Lua 拒绝清死锁（注册信息还没完整同步）
+                # 做区分：如果锁 holder 就在活跃列表里 -> 直接放弃；否则重试
+                if registry is not None and active_workers:
+                    try:
+                        holder = await redis.get(seed_lock_key)
+                        if holder and holder in active_workers and holder != my_id:
+                            self.logger.debug(
+                                f"Seed lock held by active worker {holder}, skipping"
+                            )
+                            return False
+                    except Exception:
+                        pass
+                if attempt < max_attempts:
+                    await asyncio.sleep(0.25 * attempt)
+                    continue
+                return False
+            except Exception as e:
+                self.logger.warning(
+                    f"Atomic seed lock acquisition (attempt={attempt}/{max_attempts}) "
+                    f"failed: {e}"
+                )
+                if attempt < max_attempts:
+                    await asyncio.sleep(0.25 * attempt)
+                    continue
+                # 最后一轮失败时使用 SETNX 保底
+                try:
+                    acquired = await redis.set(
+                        seed_lock_key, my_id, nx=True, ex=120
+                    )
+                    return bool(acquired)
+                except Exception as fallback_err:
+                    self.logger.error(
+                        f"Seed lock fallback SETNX failed: {fallback_err}"
+                    )
+                    return False
+        return False
 
     # ========================================================================
     # 组件初始化
@@ -164,11 +352,11 @@ class ClusterMixin:
             spider_name = safe_get_config(self.settings, 'SPIDER_NAME', 'default')
             key_manager = RedisKeyManager(project, spider_name)
 
-            self._cluster_redis = redis_client
+            self._cluster_state.redis = redis_client
             leader_lock_ttl = safe_get_config(
                 self.settings, 'CLUSTER_HEARTBEAT_INTERVAL', 15, int
             ) * 2
-            self._leader_lock = DistributedLock(
+            self._cluster_state.leader_lock = DistributedLock(
                 redis_client,
                 f"{project}:{spider_name}:lock:leader",
                 default_timeout=leader_lock_ttl,
@@ -181,7 +369,7 @@ class ClusterMixin:
             failover_interval = safe_get_config(self.settings, 'CLUSTER_FAILOVER_CHECK_INTERVAL', 30)
 
             # 1. WorkerRegistry
-            self._cluster_registry = WorkerRegistry(
+            self._cluster_state.registry = WorkerRegistry(
                 redis_client, key_manager,
                 worker_timeout=worker_timeout,
             )
@@ -190,22 +378,22 @@ class ClusterMixin:
                 'pid': __import__('os').getpid(),
                 'concurrency': self.task_manager._concurrency_limit if self.task_manager else 0,
             }
-            self._cluster_worker_id = await self._cluster_registry.register(worker_info)
+            self._cluster_state.worker_id = await self._cluster_state.registry.register(worker_info)
 
             # 2. HeartbeatDaemon
-            self._cluster_heartbeat = HeartbeatDaemon(
-                self._cluster_registry,
-                self._cluster_worker_id,
+            self._cluster_state.heartbeat = HeartbeatDaemon(
+                self._cluster_state.registry,
+                self._cluster_state.worker_id,
                 interval=heartbeat_interval,
             )
-            self._task_tracker = TaskTracker(self._cluster_worker_id)
-            self._cluster_heartbeat.set_stats_provider(self._task_tracker)
+            self._cluster_state.task_tracker = TaskTracker(self._cluster_state.worker_id)
+            self._cluster_state.heartbeat.set_stats_provider(self._cluster_state.task_tracker)
 
             # 3. DistributedLock (failover)
             lock_timeout = safe_get_config(self.settings, 'CLUSTER_FAILOVER_LOCK_TIMEOUT', 30)
             lock_retry = safe_get_config(self.settings, 'DISTRIBUTED_LOCK_RETRY_COUNT', 3)
             lock_retry_delay = safe_get_config(self.settings, 'DISTRIBUTED_LOCK_RETRY_DELAY', 0.5)
-            self._cluster_lock = DistributedLock(
+            self._cluster_state.lock = DistributedLock(
                 redis_client,
                 f"{project}:{spider_name}:lock:failover",
                 default_timeout=lock_timeout,
@@ -214,10 +402,10 @@ class ClusterMixin:
             )
 
             # 4. FailoverManager
-            self._cluster_failover = FailoverManager(
-                self._cluster_registry,
+            self._cluster_state.failover = FailoverManager(
+                self._cluster_state.registry,
                 queue,
-                self._cluster_lock,
+                self._cluster_state.lock,
                 redis_client,
                 suspect_timeout=30,
                 failover_interval=failover_interval,
@@ -225,7 +413,7 @@ class ClusterMixin:
 
             # 5. ProgressAggregator
             report_interval = safe_get_config(self.settings, 'PROGRESS_REPORT_INTERVAL', 10)
-            self._cluster_progress = ProgressAggregator(
+            self._cluster_state.progress = ProgressAggregator(
                 redis_client, key_manager,
                 report_interval=report_interval,
             )
@@ -234,7 +422,7 @@ class ClusterMixin:
             rate_limit_enabled = safe_get_config(self.settings, 'DISTRIBUTED_RATE_LIMIT_ENABLED', False)
             rate_limit_rate = safe_get_config(self.settings, 'DISTRIBUTED_RATE_LIMIT_DEFAULT_RATE', 0)
             rate_limit_capacity = safe_get_config(self.settings, 'DISTRIBUTED_RATE_LIMIT_CAPACITY', 10)
-            self._cluster_rate_limiter = DistributedRateLimiter(
+            self._cluster_state.rate_limiter = DistributedRateLimiter(
                 redis_client, f"crawlo:{project}:{spider_name}",
                 enabled=rate_limit_enabled,
                 default_rate=rate_limit_rate,
@@ -242,30 +430,30 @@ class ClusterMixin:
             )
 
             # 7. ClusterMonitor
-            self._cluster_monitor = ClusterMonitor(
-                self._cluster_registry,
-                self._cluster_progress,
+            self._cluster_state.monitor = ClusterMonitor(
+                self._cluster_state.registry,
+                self._cluster_state.progress,
                 stream_queue=queue,
-                failover_manager=self._cluster_failover,
+                failover_manager=self._cluster_state.failover,
             )
 
             # 8. ClusterMessenger
-            self._cluster_messenger = ClusterMessenger(
+            self._cluster_state.messenger = ClusterMessenger(
                 redis_client, f"crawlo:{project}:{spider_name}"
             )
 
             # 9. DynamicConfig
             dynamic_config_enabled = safe_get_config(self.settings, 'DYNAMIC_CONFIG_ENABLED', False)
-            self._cluster_dynamic_config = DynamicConfig(
+            self._cluster_state.dynamic_config = DynamicConfig(
                 redis_client,
-                messenger=self._cluster_messenger,
+                messenger=self._cluster_state.messenger,
                 namespace=f"crawlo:{project}:{spider_name}",
-                rate_limiter=self._cluster_rate_limiter,
+                rate_limiter=self._cluster_state.rate_limiter,
                 enabled=dynamic_config_enabled,
             )
 
             self.logger.info(
-                f"Cluster initialized: worker={self._cluster_worker_id}, "
+                f"Cluster initialized: worker={self._cluster_state.worker_id}, "
                 f"heartbeat={heartbeat_interval}s, failover={failover_interval}s, "
                 f"rate_limit={'on' if rate_limit_enabled else 'off'}, "
                 f"dynamic_config={'on' if dynamic_config_enabled else 'off'}"
@@ -276,12 +464,12 @@ class ClusterMixin:
             import traceback
             self.logger.debug(traceback.format_exc())
             # 清理已初始化的部分资源
-            if self._cluster_redis:
+            if self._cluster_state.redis:
                 try:
-                    await self._cluster_redis.close()
+                    await self._cluster_state.redis.close()
                 except Exception:
                     pass
-                self._cluster_redis = None
+                self._cluster_state.redis = None
 
     # ========================================================================
     # 后台任务
@@ -289,22 +477,22 @@ class ClusterMixin:
 
     async def _start_cluster_tasks(self):
         """启动集群后台任务（心跳 + 故障检测 + 消息监听）"""
-        if not self._cluster_worker_id:
+        if not self._cluster_state.worker_id:
             return
 
-        if self._cluster_heartbeat:
-            self._cluster_heartbeat_task = await self._cluster_heartbeat.start()
+        if self._cluster_state.heartbeat:
+            self._cluster_state.heartbeat_task = await self._cluster_state.heartbeat.start()
 
-        if self._cluster_messenger:
-            await self._cluster_messenger.start()
-            await self._cluster_messenger.subscribe("control", self._on_control_message)
-            await self._cluster_messenger.subscribe("config", self._on_config_message)
+        if self._cluster_state.messenger:
+            await self._cluster_state.messenger.start()
+            await self._cluster_state.messenger.subscribe("control", self._on_control_message)
+            await self._cluster_state.messenger.subscribe("config", self._on_config_message)
 
-        if self._cluster_failover:
-            self._cluster_failover_task = asyncio.create_task(self._failover_loop())
+        if self._cluster_state.failover:
+            self._cluster_state.failover_task = asyncio.create_task(self._failover_loop())
 
-        if self._coordinated_shutdown_enabled and self._cluster_dynamic_config:
-            self._leader_shutdown_task = asyncio.create_task(self._leader_shutdown_loop())
+        if self._cluster_state.coordinated_shutdown_enabled and self._cluster_state.dynamic_config:
+            self._cluster_state.leader_shutdown_task = asyncio.create_task(self._leader_shutdown_loop())
 
         self.logger.debug("Cluster background tasks started")
 
@@ -316,10 +504,10 @@ class ClusterMixin:
         """处理控制消息（暂停/恢复/停止）"""
         action = message.get("action", "")
         if action == "pause":
-            self._cluster_paused = True
+            self._cluster_state.paused = True
             self.logger.info("Cluster control: PAUSED")
         elif action == "resume":
-            self._cluster_paused = False
+            self._cluster_state.paused = False
             self.logger.info("Cluster control: RESUMED")
         elif action == "shutdown":
             self.logger.warning("Cluster control: SHUTDOWN received")
@@ -328,12 +516,12 @@ class ClusterMixin:
     async def _on_config_message(self, message: dict):
         """处理配置变更消息"""
         action = message.get("action", "")
-        if action == "rate_limit" and self._cluster_rate_limiter:
+        if action == "rate_limit" and self._cluster_state.rate_limiter:
             domain = message.get("domain", "")
             rate = message.get("rate", 0)
-            await self._cluster_rate_limiter.set_rate(domain, rate)
-        elif action == "seed_urls" and self._cluster_dynamic_config:
-            urls = await self._cluster_dynamic_config.pop_seed_urls(count=100)
+            await self._cluster_state.rate_limiter.set_rate(domain, rate)
+        elif action == "seed_urls" and self._cluster_state.dynamic_config:
+            urls = await self._cluster_state.dynamic_config.pop_seed_urls(count=100)
             for url in urls:
                 from crawlo.network.request import Request
                 await self.scheduler.enqueue_request(Request(url=url))
@@ -346,8 +534,8 @@ class ClusterMixin:
         """故障检测后台循环"""
         while self.running:
             try:
-                await self._cluster_failover.check_and_recover()
-                await asyncio.sleep(self._cluster_failover.failover_interval)
+                await self._cluster_state.failover.check_and_recover()
+                await asyncio.sleep(self._cluster_state.failover.failover_interval)
             except asyncio.CancelledError:
                 break
             except Exception:
@@ -355,7 +543,7 @@ class ClusterMixin:
 
     async def _leader_shutdown_loop(self):
         """Leader Worker 协调退出后台循环"""
-        if not self._cluster_dynamic_config or not self._leader_lock:
+        if not self._cluster_state.dynamic_config or not self._cluster_state.leader_lock:
             return
 
         leader_lock_ttl = safe_get_config(
@@ -370,7 +558,7 @@ class ClusterMixin:
                     continue
 
                 # 已由其他 Leader 触发退出，直接停止
-                control_state = await self._cluster_dynamic_config.get_control_state()
+                control_state = await self._cluster_state.dynamic_config.get_control_state()
                 if control_state == "shutdown":
                     self.running = False
                     break
@@ -383,7 +571,7 @@ class ClusterMixin:
                     "Coordinated shutdown: all tasks complete, all workers idle, "
                     "broadcasting shutdown signal"
                 )
-                await self._cluster_dynamic_config.shutdown_cluster(cleanup=False)
+                await self._cluster_state.dynamic_config.shutdown_cluster(cleanup=False)
                 self.running = False
                 break
 
@@ -405,23 +593,23 @@ class ClusterMixin:
         - acquire() → SET NX PX（原子获取 + 自动过期）
         - extend()  → Lua 脚本检查持有者身份后 PEXPIRE（原子续期，防误续他人锁）
         """
-        if not self._leader_lock:
+        if not self._cluster_state.leader_lock:
             return False
         try:
-            if self._leader_lock.acquired and self._leader_lock.holder_id:
-                if await self._leader_lock.extend(ttl):
+            if self._cluster_state.leader_lock.acquired and self._cluster_state.leader_lock.holder_id:
+                if await self._cluster_state.leader_lock.extend(ttl):
                     return True
-            result = await self._leader_lock.acquire(timeout=ttl, retry=1)
+            result = await self._cluster_state.leader_lock.acquire(timeout=ttl, retry=1)
             return result is not None
         except Exception:
             return False
 
     async def _release_leader_lock(self):
         """释放 Leader 锁（Lua 脚本原子释放，防误删他人持有的锁）"""
-        if not self._leader_lock:
+        if not self._cluster_state.leader_lock:
             return
         try:
-            await self._leader_lock.release()
+            await self._cluster_state.leader_lock.release()
         except Exception:
             pass
 
@@ -458,12 +646,12 @@ class ClusterMixin:
                 self.logger.debug("Coordinated shutdown re-check: queue not empty, postponing")
                 return False
 
-        if self._cluster_registry:
+        if self._cluster_state.registry:
             try:
-                active_workers = await self._cluster_registry.get_active_workers()
+                active_workers = await self._cluster_state.registry.get_active_workers()
                 for worker in active_workers:
                     wid = worker.get("id", "")
-                    if wid == self._cluster_worker_id:
+                    if wid == self._cluster_state.worker_id:
                         continue
                     processing = worker.get("tasks_processing", 1)
                     if processing > 0:
@@ -493,34 +681,34 @@ class ClusterMixin:
         5. 等待在途任务 drain（超时保护）
         6. 注销 Worker
         """
-        if not self._cluster_worker_id:
+        if not self._cluster_state.worker_id:
             return
 
         try:
-            if self._cluster_registry:
-                await self._cluster_registry.update_status(
-                    self._cluster_worker_id,
-                    self._cluster_registry.STATUS_STOPPING,
+            if self._cluster_state.registry:
+                await self._cluster_state.registry.update_status(
+                    self._cluster_state.worker_id,
+                    self._cluster_state.registry.STATUS_STOPPING,
                 )
-                self.logger.debug(f"Worker {self._cluster_worker_id} marked as stopping")
+                self.logger.debug(f"Worker {self._cluster_state.worker_id} marked as stopping")
 
-            if self._cluster_messenger:
-                await self._cluster_messenger.stop()
+            if self._cluster_state.messenger:
+                await self._cluster_state.messenger.stop()
 
-            if self._cluster_heartbeat:
-                await self._cluster_heartbeat.stop()
+            if self._cluster_state.heartbeat:
+                await self._cluster_state.heartbeat.stop()
             cancelled_tasks = []
-            if self._cluster_heartbeat_task and not self._cluster_heartbeat_task.done():
-                self._cluster_heartbeat_task.cancel()
-                cancelled_tasks.append(self._cluster_heartbeat_task)
+            if self._cluster_state.heartbeat_task and not self._cluster_state.heartbeat_task.done():
+                self._cluster_state.heartbeat_task.cancel()
+                cancelled_tasks.append(self._cluster_state.heartbeat_task)
 
-            if self._cluster_failover_task and not self._cluster_failover_task.done():
-                self._cluster_failover_task.cancel()
-                cancelled_tasks.append(self._cluster_failover_task)
+            if self._cluster_state.failover_task and not self._cluster_state.failover_task.done():
+                self._cluster_state.failover_task.cancel()
+                cancelled_tasks.append(self._cluster_state.failover_task)
 
-            if self._leader_shutdown_task and not self._leader_shutdown_task.done():
-                self._leader_shutdown_task.cancel()
-                cancelled_tasks.append(self._leader_shutdown_task)
+            if self._cluster_state.leader_shutdown_task and not self._cluster_state.leader_shutdown_task.done():
+                self._cluster_state.leader_shutdown_task.cancel()
+                cancelled_tasks.append(self._cluster_state.leader_shutdown_task)
 
             if cancelled_tasks:
                 await asyncio.gather(*cancelled_tasks, return_exceptions=True)
@@ -528,10 +716,10 @@ class ClusterMixin:
 
             await self._drain_inflight_tasks()
 
-            if self._cluster_registry:
-                await self._cluster_registry.deregister(self._cluster_worker_id)
+            if self._cluster_state.registry:
+                await self._cluster_state.registry.deregister(self._cluster_state.worker_id)
 
-            self.logger.info(f"Cluster shutdown complete: {self._cluster_worker_id}")
+            self.logger.info(f"Cluster shutdown complete: {self._cluster_state.worker_id}")
 
         except Exception as e:
             self.logger.debug(f"Cluster shutdown error: {e}")

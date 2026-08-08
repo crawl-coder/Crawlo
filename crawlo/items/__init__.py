@@ -9,7 +9,7 @@ from .item import Item
 from .fields import Field
 from .base import ItemMeta
 
-from crawlo.exceptions import ItemInitError, ItemAttributeError
+from crawlo.items.exceptions import ItemInitError, ItemAttributeError  # noqa: F401
 
 __all__ = [
     'Item',

@@ -19,14 +19,20 @@ if project_root not in sys.path:
 # 导入 Spider 模块（必须，否则 Spider 不会被注册）
 from infoq_dynamic_test.spiders.infoq_spider import InfoqSpider
 
-from crawlo.crawler import CrawlerProcess
+from crawlo.crawler_process import CrawlerProcess
 
 
 def main():
     """运行爬虫"""
+    # 检查是否启动定时任务模式
+    if len(sys.argv) > 1 and sys.argv[1] == '--schedule':
+        from crawlo.scheduling import start_scheduler
+        start_scheduler(project_root)
+        return
+
     # 获取命令行参数
     test_mode = sys.argv[1] if len(sys.argv) > 1 else 'protocol'
-    
+
     # 设置环境变量来控制测试模式
     os.environ['TEST_MODE'] = test_mode
     

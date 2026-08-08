@@ -28,7 +28,7 @@ from typing import Optional, Dict, List, Set
 from urllib.parse import urlparse
 
 from crawlo.downloader import DownloaderBase
-from crawlo.utils.page_utils import PageActionHandler, SelectorConverter
+from crawlo.utils.parsing import PageActionHandler, SelectorConverter
 from crawlo.network.response import Response
 from crawlo.logging import get_logger
 from crawlo.constants import BROWSER_ELEMENT_WAIT_TIMEOUT_MS

@@ -8,10 +8,10 @@ ofweek_standalone 项目配置文件
 框架会自动检测Redis可用性，可用则使用分布式模式，否则使用单机模式。
 """
 
-from crawlo.config import CrawloConfig
+from crawlo.core.config import CrawloConfig
 
 # 使用自动检测模式配置工厂创建配置
-config = CrawloConfig.standalone(
+config = CrawloConfig.auto(
     project_name='ofweek_standalone',
     concurrency=12,  # 降低并发以便测试中断
     download_delay=1.0,  # 增加延时，方便测试检查点
@@ -32,7 +32,6 @@ BACKPRESSURE_RATIO = 0.5              # 队列利用率达 50% 时触发背压
 BACKPRESSURE_STRATEGY = 'queue_size'  # 队列大小策略
 SCHEDULER_MAX_QUEUE_SIZE = 200         # 小队列让背压更明显
 CONCURRENCY = 4                        # 低并发，让队列容易满
-LOG_LEVEL = 'DEBUG'                    # 显示背压日志
 
 DOWNLOADER = "crawlo.downloader.aiohttp_downloader.AioHttpDownloader"
 
@@ -66,7 +65,8 @@ PIPELINES = [
 #     'ofweek_standalone.middlewares.OfweekStandaloneMiddleware': 40,  # 用户自定义中间件示例
 # }
 
-# 日志配置
+# 日志配置（单一定义，避免多处覆盖）
+# 如需 DEBUG 级背压 / 检查点日志，把 LOG_LEVEL 改成 'DEBUG'
 LOG_LEVEL = 'INFO'
 # 日志文件路径（带时间戳，每次运行创建新文件）
 from datetime import datetime

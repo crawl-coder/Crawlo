@@ -8,7 +8,7 @@ import asyncio
 from typing import Dict, List, Type, Any, Optional
 
 from .base import ComponentFactory, ComponentSpec, DefaultComponentFactory
-from crawlo.utils.async_lock import AsyncRLock
+from crawlo.utils.concurrency import AsyncRLock
 
 
 class ComponentRegistry:
@@ -114,10 +114,45 @@ class ComponentRegistry:
         self._default_factory.clear_singletons()
 
 
-def get_component_registry() -> ComponentRegistry:
-    """Get the global component registry (stored in ApplicationContext)"""
+def _resolve_registry_context():
+    """Phase 8 Step 8.8 收尾：优先从容器拿 RegistryContext，否则 fallback ctx.registries。"""
+    try:
+        from crawlo.container import default_container
+        from crawlo.core.application import RegistryContext
+        if default_container.is_registered(RegistryContext):
+            return default_container.resolve(RegistryContext)
+    except Exception:  # noqa: S110
+        pass
     from crawlo.core.application import get_global_context
-    ctx = get_global_context()
-    if ctx.component_registry is None:
-        ctx.component_registry = ComponentRegistry()
-    return ctx.component_registry
+    return get_global_context().registries
+
+
+def get_component_registry() -> ComponentRegistry:
+    """Get the global component registry（Phase 8 Step 8.8：DI 容器优先 + RegistryContext fallback）。
+
+    迁移策略（与 InitializerRegistry / JobRegistry 保持三模块一致）：
+    1. 先从 :data:`default_container` 解析（Phase 8.2 已在 ApplicationContext.__post_init__
+       把非 None 的注册表单例 register 进来）——@inject 类会走这条，依赖显式。
+    2. 若容器未注册则 fallback 到 ``RegistryContext.component_registry``：None 时就地构造
+       并 ``register_instance`` 补充注册，确保后续 resolve 也能拿到同一引用。
+
+    行为兼容：首次调用懒创建 → 存进子上下文 + 同步注册进容器；无行为变化。
+    """
+    try:
+        from crawlo.container import default_container
+        if default_container.is_registered(ComponentRegistry):
+            return default_container.resolve(ComponentRegistry)
+    except Exception:  # pragma: no cover - 容器初始化异常不应破坏调用链
+        pass
+
+    # Fallback：通过 RegistryContext 写位（ApplicationContext 顶层 property 会同步到子对象）
+    rctx = _resolve_registry_context()
+    if rctx.component_registry is None:
+        inst = ComponentRegistry()
+        rctx.component_registry = inst
+        try:
+            from crawlo.container import default_container as _c
+            _c.register_instance(ComponentRegistry, inst)
+        except Exception:  # pragma: no cover
+            pass
+    return rctx.component_registry

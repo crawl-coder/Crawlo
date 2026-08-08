@@ -19,8 +19,8 @@ from crawlo.middleware import BaseMiddleware
 from crawlo.project import common_call
 from crawlo.event import CrawlerEvent
 from crawlo.utils.misc import safe_get_config
-from crawlo.exceptions import MiddlewareInitError, InvalidOutputError, RequestMethodError, IgnoreRequestError, \
-    NotConfiguredError
+from crawlo.core.exceptions import MiddlewareInitError, InvalidOutputError, NotConfiguredError
+from crawlo.network.exceptions import RequestMethodError, IgnoreRequestError
 
 
 class MiddlewareManager:

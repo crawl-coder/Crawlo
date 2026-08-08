@@ -34,7 +34,7 @@ from crawlo.logging import get_logger
 from crawlo.network.response import Response
 from crawlo.downloader import DownloaderBase
 from crawlo.downloader.wait_strategies import SmartWaitMixin, WaitStrategy
-from crawlo.utils.page_utils import PageActionHandler, SelectorConverter
+from crawlo.utils.parsing import PageActionHandler, SelectorConverter
 from crawlo.constants import BROWSER_PAGE_GOTO_BLANK_TIMEOUT_MS
 from crawlo.utils.misc import (
     get_browser_config,

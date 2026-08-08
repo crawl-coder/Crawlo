@@ -14,7 +14,7 @@ from .phases import InitializationPhase, PhaseResult, get_execution_order, get_p
 from .registry import get_global_registry
 
 
-from crawlo.utils.singleton import SingletonMeta
+from crawlo.core.singleton import SingletonMeta
 
 
 class CoreInitializer(metaclass=SingletonMeta):

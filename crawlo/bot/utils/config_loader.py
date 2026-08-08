@@ -19,29 +19,41 @@ from crawlo.bot.channels.sms import get_sms_channel
 logger = get_logger(__name__)
 
 
+def _resolve_notification_context():
+    """Phase 8 Step 8.5：优先从容器拿 NotificationContext，否则 fallback ctx.notifications。"""
+    try:
+        from crawlo.container import default_container
+        from crawlo.core.application import NotificationContext
+        if default_container.is_registered(NotificationContext):
+            return default_container.resolve(NotificationContext)
+    except Exception:  # noqa: S110
+        pass
+    from crawlo.core.application import get_global_context
+    return get_global_context().notifications
+
+
 def ensure_config_loaded():
     """
-    确保配置已加载，如果未加载则立即加载（状态存储于 ApplicationContext）
+    确保配置已加载，如果未加载则立即加载（Phase 8 Step 8.5：统一走 _resolve_notification_context()）。
     """
-    from crawlo.core.application import get_global_context
-    ctx = get_global_context()
-    
-    if ctx.bot_config_loaded:
+    notif_ctx = _resolve_notification_context()
+
+    if notif_ctx.bot_config_loaded:
         logger.debug("[ConfigLoader] 配置已加载，跳过")
         return
-    
+
     try:
         dingtalk_channel = get_dingtalk_channel()
         if dingtalk_channel.webhook_url:
             logger.debug("[ConfigLoader] 钉钉渠道已有配置，标记为已加载")
-            ctx.bot_config_loaded = True
+            notif_ctx.bot_config_loaded = True
             return
     except Exception as e:
         logger.debug(f"[ConfigLoader] 检查渠道配置时出错: {e}")
-    
+
     logger.debug("[ConfigLoader] 开始加载配置")
     apply_settings_config()
-    ctx.bot_config_loaded = True
+    notif_ctx.bot_config_loaded = True
 
 
 def load_notification_config(settings: Optional[dict] = None):
@@ -55,10 +67,10 @@ def load_notification_config(settings: Optional[dict] = None):
         # 如果没有传入settings，尝试从框架获取
         if settings is None:
             try:
-                from crawlo.config import get_config
-                config = get_config()
-                settings = config.to_dict() if hasattr(config, 'to_dict') else {}
-            except ImportError:
+                from crawlo.core.config import CrawloConfig
+                config = CrawloConfig.from_env()
+                settings = config.to_dict()
+            except Exception:
                 logger.warning("[ConfigLoader] 无法导入框架配置，使用默认配置")
                 settings = {}
         

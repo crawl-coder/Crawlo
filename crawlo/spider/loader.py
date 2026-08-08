@@ -5,7 +5,7 @@ from collections import defaultdict
 from pathlib import Path
 from typing import List, Type, Dict, Any
 
-from crawlo.interfaces import ISpiderLoader
+from crawlo.spider.interfaces import ISpiderLoader
 from crawlo.settings.setting_manager import SettingManager
 from crawlo.spider import Spider
 from crawlo.network.request import Request

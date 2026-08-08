@@ -8,7 +8,7 @@ import re
 from urllib.parse import urlparse
 
 from crawlo.logging import get_logger
-from crawlo.exceptions import IgnoreRequestError
+from crawlo.network.exceptions import IgnoreRequestError
 
 
 class OffsiteMiddleware:
@@ -41,7 +41,7 @@ class OffsiteMiddleware:
         
         # Disable middleware if no allowed domains configured
         if not allowed_domains:
-            from crawlo.exceptions import NotConfiguredError
+            from crawlo.core.exceptions import NotConfiguredError
             raise NotConfiguredError("ALLOWED_DOMAINS not configured, OffsiteMiddleware disabled")
             
         o = cls(

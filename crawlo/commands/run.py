@@ -20,13 +20,13 @@ from rich.table import Table
 from rich.text import Text
 
 from crawlo.commands.stats import record_stats
-from crawlo.crawler import CrawlerProcess
+from crawlo.crawler_process import CrawlerProcess
 from crawlo.project import get_settings, _find_project_root
 # 使用新的统一初始化系统
 from crawlo.initialization import initialize_framework
 from crawlo.core import get_framework_initializer
 from crawlo.logging import get_logger
-from crawlo.utils.asyncio_utils import run_with_cleanup
+from crawlo.utils.concurrency import run_with_cleanup
 
 # 延迟获取logger，确保在日志系统配置之后获取
 _logger = None

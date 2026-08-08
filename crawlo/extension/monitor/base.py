@@ -8,7 +8,7 @@ import logging
 from typing import Any, Optional, List, Tuple
 
 from crawlo.event import CrawlerEvent
-from crawlo.exceptions import NotConfigured
+from crawlo.core.exceptions import NotConfigured
 from crawlo.logging import get_logger
 from .monitor_manager import get_monitor_manager
 

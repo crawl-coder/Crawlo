@@ -8,17 +8,26 @@ ofweek_spider 项目运行脚本
 框架会自动处理爬虫模块的导入和注册，用户无需手动导入。
 框架会自动从settings.py中读取SPIDER_MODULES配置。
 """
+import os
 import sys
 import asyncio
 
-from crawlo.crawler import CrawlerProcess
+project_root = os.path.dirname(os.path.abspath(__file__))
+if project_root not in sys.path:
+    sys.path.insert(0, project_root)
+
+from crawlo.crawler_process import CrawlerProcess
 
 
 def main():
     """主函数：运行爬虫"""
     try:
-        # TODO: 请将 'spider_name' 替换为实际要运行的爬虫名称
-        asyncio.run(CrawlerProcess().crawl('spider_name'))
+        if len(sys.argv) > 1 and sys.argv[1] == '--schedule':
+            from crawlo.scheduling import start_scheduler
+            start_scheduler(project_root)
+        else:
+            # TODO: 请将 'spider_name' 替换为实际要运行的爬虫名称
+            asyncio.run(CrawlerProcess().crawl('spider_name'))
 
     except Exception as e:
         print(f"❌ 运行失败: {e}")

@@ -32,19 +32,43 @@ from crawlo.mcp.quick_fetcher import QuickFetcher, FetchResult
 # 创建 FastMCP 实例
 mcp = FastMCP("Crawlo", json_response=True)
 
-async def _get_fetcher() -> QuickFetcher:
-    """获取全局 Fetcher 实例（mcp_fetcher 与 quick_fetcher 共享同一实例）"""
+def _resolve_runtime_context():
+    """Phase 8 Step 8.7：优先从容器拿 RuntimeContext，否则 fallback ctx.runtime。"""
+    try:
+        from crawlo.container import default_container
+        from crawlo.core.application import RuntimeContext
+        if default_container.is_registered(RuntimeContext):
+            return default_container.resolve(RuntimeContext)
+    except Exception:  # noqa: S110
+        pass
     from crawlo.core.application import get_global_context
-    ctx = get_global_context()
-    if ctx.mcp_fetcher is not None:
-        return ctx.mcp_fetcher
-    with ctx.mcp_fetcher_lock:
-        if ctx.mcp_fetcher is None:
-            ctx.mcp_fetcher = QuickFetcher()
-        # 共享同一实例，避免启动两个浏览器池
-        if ctx.quick_fetcher is None:
-            ctx.quick_fetcher = ctx.mcp_fetcher
-    return ctx.mcp_fetcher
+    return get_global_context().runtime
+
+
+async def _get_fetcher() -> QuickFetcher:
+    """获取全局 Fetcher 实例（Phase 8 Step 8.7：DI 容器优先 + RuntimeContext fallback；实例在 mcp_fetcher 与 quick_fetcher 间共享）。"""
+    try:
+        from crawlo.container import default_container
+        if default_container.is_registered(QuickFetcher):
+            return default_container.resolve(QuickFetcher)
+    except Exception:  # pragma: no cover
+        pass
+    rctx = _resolve_runtime_context()
+    if rctx.mcp_fetcher is not None:
+        return rctx.mcp_fetcher
+    with rctx.mcp_fetcher_lock:
+        if rctx.mcp_fetcher is None:
+            inst = QuickFetcher()
+            rctx.mcp_fetcher = inst
+            # 共享同一实例，避免启动两个浏览器池
+            if rctx.quick_fetcher is None:
+                rctx.quick_fetcher = inst
+            try:
+                from crawlo.container import default_container as _c
+                _c.register_instance(QuickFetcher, inst)
+            except Exception:  # pragma: no cover
+                pass
+    return rctx.mcp_fetcher
 
 
 # 错误分类映射（帮助 AI 理解错误类型并决策下一步操作）

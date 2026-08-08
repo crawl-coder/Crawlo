@@ -5,7 +5,7 @@ ofweek_distributed.pipelines
 数据管道示例
 """
 
-from crawlo.exceptions import DropItem
+from crawlo.items.exceptions import DropItem
 from crawlo.logging import get_logger
 
 

@@ -25,7 +25,7 @@ class CrawlerComponentFactory(ComponentFactory):
         """Check if the specified type is supported"""
         # 延迟导入以避免启动时的性能开销
         from crawlo.core.engine import Engine
-        from crawlo.core.scheduler import Scheduler
+        from crawlo.core.task_scheduler import Scheduler
         from crawlo.stats.collector import StatsCollector
         from crawlo.event import Subscriber
         from crawlo.extension import ExtensionManager
@@ -44,7 +44,7 @@ def create_engine(crawler, **kwargs):
 
 # Scheduler component
 def create_scheduler(crawler, **kwargs):
-    from crawlo.core.scheduler import Scheduler
+    from crawlo.core.task_scheduler import Scheduler
     return Scheduler.create_instance(crawler)
 
 # StatsCollector component

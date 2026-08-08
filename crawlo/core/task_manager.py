@@ -33,7 +33,7 @@ from collections import deque
 from asyncio import Task, Future, Semaphore
 from dataclasses import dataclass, field
 
-from crawlo.utils.py314_compat import get_task_info
+from crawlo.utils._compat import get_task_info
 from crawlo.logging import get_logger
 
 

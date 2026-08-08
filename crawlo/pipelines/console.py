@@ -5,12 +5,16 @@
 ================
 将 Item 内容输出到控制台日志，用于调试和监控。
 """
-from typing import Dict, Any
+from __future__ import annotations
+
+from typing import Dict, Any, TYPE_CHECKING
 
 from crawlo.items import Item
-from crawlo.spider import Spider
 from crawlo.logging import get_logger
 from crawlo.pipelines.base_pipeline import BasePipeline
+
+if TYPE_CHECKING:
+    from crawlo.spider import Spider
 
 
 class ConsolePipeline(BasePipeline):

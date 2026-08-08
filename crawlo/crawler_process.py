@@ -16,7 +16,7 @@ from typing import Optional, Type, Dict, Any, List, Union, TYPE_CHECKING, cast
 from crawlo.crawler import Crawler
 from crawlo.initialization import initialize_framework
 from crawlo.logging import get_logger
-from crawlo.utils.process_utils import ProcessSignalHandler, SpiderDiscoveryUtils, SettingsUtils
+from crawlo.utils.concurrency import ProcessSignalHandler, SpiderDiscoveryUtils, SettingsUtils
 from crawlo.spider import get_global_spider_registry, SpiderResolver
 
 if TYPE_CHECKING:

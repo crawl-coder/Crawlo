@@ -95,6 +95,19 @@ BACKPRESSURE_DELAY_MAX = 3.0
 BACKPRESSURE_WARNING_THRESHOLD = 0.7
 BACKPRESSURE_CRITICAL_THRESHOLD = 0.9
 
+# ---------------------------------------------------------------------------#
+# 2.2.1 入队阻塞策略（Phase 2：背压双层合并）
+#   QueueManager.put 队列满时阻塞等待，超时抛 QueueFullTimeout。
+#   Scheduler.enqueue_request 按 ENQUEUE_FULL_POLICY 决策：
+#     - block            : 无限等待直到有空位（受 ENQUEUE_BLOCK_TIMEOUT 上限约束）
+#     - drop_with_counter: 超时丢弃并递增 scheduler/enqueue_dropped_count（默认，与旧行为一致）
+#     - raise            : 超时抛 QueueFullTimeout 给上层
+# ---------------------------------------------------------------------------#
+ENQUEUE_FULL_POLICY = 'drop_with_counter'              # 入队满策略
+ENQUEUE_BLOCK_TIMEOUT = None                            # 阻塞等待上限（秒），None=无限（仅 block 策略读取）
+ENQUEUE_DROP_TIMEOUT = 50.0                             # drop_with_counter/raise 策略的等待超时（秒，默认 50s 匹配旧行为 100×0.5s）
+ENQUEUE_BLOCK_STALL_ALERT_SECONDS = 120                 # block 模式下既无入队也无出队的停滞告警阈值（秒）
+
 # 请求生成控制
 REQUEST_GENERATION_BATCH_SIZE = 10                      # 请求生成批处理大小
 REQUEST_GENERATION_INTERVAL = 0.01               # 请求生成间隔（秒）

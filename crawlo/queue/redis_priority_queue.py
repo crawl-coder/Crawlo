@@ -20,7 +20,7 @@ except ImportError:
 
 from crawlo import Request
 from crawlo.logging import get_logger
-from crawlo.utils.error_handler import ErrorHandler, ErrorContext
+from crawlo.utils.errors import ErrorHandler, ErrorContext
 from crawlo.utils.request.request_serializer import RequestSerializer
 from crawlo.utils.redis import get_redis_pool, RedisConnectionPool, RedisKeyManager
 
@@ -28,13 +28,34 @@ from crawlo.utils.redis import get_redis_pool, RedisConnectionPool, RedisKeyMana
 # 创建logger实例
 logger = get_logger(__name__)
 
+
+class _QueueErrorHandlerTag:
+    """队列模块 ErrorHandler 的 DI 绑定键（区别于全局 ErrorHandler 单例，模块级 tag）。"""
+
+
 def get_module_error_handler() -> ErrorHandler:
-    """获取模块级 ErrorHandler 单例（存储于 ApplicationContext）"""
+    """获取模块级 ErrorHandler 单例（Phase 8 Step 8.4：容器优先 + ctx fallback 懒创建 + rebind）。
+
+    注意：该函数返回的实例固定 ``module_tag == __name__``，因此不与 Phase 8.2
+    绑定的「全局 ErrorHandler 无参构造」混淆。这里使用 ``_QueueErrorHandlerTag``
+    作为单独的容器注册键来维护模块级实例。
+    """
+    try:
+        from crawlo.container import default_container
+        if default_container.is_registered(_QueueErrorHandlerTag):
+            return default_container.resolve(_QueueErrorHandlerTag)
+    except Exception:  # pragma: no cover
+        pass
     from crawlo.core.application import get_global_context
     ctx = get_global_context()
-    if ctx.queue_error_handler is None:
-        ctx.queue_error_handler = ErrorHandler(__name__)
-    return ctx.queue_error_handler
+    if ctx.runtime.queue_error_handler is None:
+        ctx.runtime.queue_error_handler = ErrorHandler(__name__)
+        try:
+            from crawlo.container import default_container
+            default_container.register_instance(_QueueErrorHandlerTag, ctx.runtime.queue_error_handler)
+        except Exception:  # pragma: no cover
+            pass
+    return ctx.runtime.queue_error_handler
 
 
 class RedisPriorityQueue:

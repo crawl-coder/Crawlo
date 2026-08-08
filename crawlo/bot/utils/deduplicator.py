@@ -149,23 +149,46 @@ class MessageDeduplicator:
             self._seen_messages.clear()
 
 
+def _resolve_notification_context():
+    """Phase 8 Step 8.5：优先从容器拿 NotificationContext，否则 fallback ctx.notifications。"""
+    try:
+        from crawlo.container import default_container
+        from crawlo.core.application import NotificationContext
+        if default_container.is_registered(NotificationContext):
+            return default_container.resolve(NotificationContext)
+    except Exception:  # noqa: S110
+        pass
+    from crawlo.core.application import get_global_context
+    return get_global_context().notifications
+
+
 def get_deduplicator(time_window: int = 300) -> MessageDeduplicator:
     """
-    获取全局去重器实例（存储于 ApplicationContext，DCL 线程安全）
+    获取全局去重器实例（Phase 8 Step 8.5：DI 容器优先 + DCL NotificationContext fallback）。
     """
-    from crawlo.core.application import get_global_context
-    ctx = get_global_context()
-    
-    if ctx.deduplicator is None:
-        with ctx.deduplicator_lock:
-            if ctx.deduplicator is None:
-                ctx.deduplicator = MessageDeduplicator(time_window)
-    
-    return ctx.deduplicator
+    try:
+        from crawlo.container import default_container
+        if default_container.is_registered(MessageDeduplicator):
+            return default_container.resolve(MessageDeduplicator)
+    except Exception:  # pragma: no cover
+        pass
+    nctx = _resolve_notification_context()
+
+    if nctx.deduplicator is None:
+        with nctx.deduplicator_lock:
+            if nctx.deduplicator is None:
+                inst = MessageDeduplicator(time_window)
+                nctx.deduplicator = inst
+                try:
+                    from crawlo.container import default_container as _c
+                    _c.register_instance(MessageDeduplicator, inst)
+                except Exception:  # pragma: no cover
+                    pass
+
+    return nctx.deduplicator
 
 
 def reset_deduplicator() -> None:
-    """重置全局去重器（主要用于测试）"""
-    from crawlo.core.application import get_global_context
-    ctx = get_global_context()
-    ctx.deduplicator = None
+    """重置全局去重器（Phase 8 Step 8.5：通过 NotificationContext 属性操作）。"""
+    nctx = _resolve_notification_context()
+    nctx.deduplicator = None

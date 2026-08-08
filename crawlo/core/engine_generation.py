@@ -11,6 +11,8 @@ from inspect import isasyncgen, iscoroutine, isgenerator
 from typing import Tuple, Optional, Any
 
 from crawlo import Request, Item
+from crawlo.event import CrawlerEvent
+from crawlo.core.exceptions import OutputError
 from crawlo.utils.func_tools import transform
 
 
@@ -354,3 +356,82 @@ class RequestGenerationMixin:
             self.task_manager,
             running_check=lambda: self.running
         )
+
+    # ========================================================================
+    # Spider 输出处理（Phase 3 从 Engine 迁入，属于请求生成/输出处理职责）
+    # ========================================================================
+
+    async def _handle_spider_output(self, outputs, parent_request=None):
+        """处理 spider 回调输出，自动为子 Request 传播 depth
+
+        框架级 depth 传播机制：
+        - 从 parent_request 获取当前 depth（默认 0）
+        - 子 Request 的 depth 自动设为 parent_depth + 1
+        - 配合 DEPTH_PRIORITY 配置，实现广度优先或深度优先策略
+
+        Args:
+            outputs: spider 回调的输出（异步生成器）
+            parent_request: 产生此输出的原始请求（用于获取 depth）
+        """
+        # 获取父请求的 depth
+        parent_depth = 0
+        if parent_request is not None and hasattr(parent_request, 'meta'):
+            parent_depth = parent_request.meta.get('depth', 0)
+
+        if self.processor is None:
+            return
+        async for spider_output in outputs:
+            if isinstance(spider_output, Request):
+                # 框架级 depth 传播：子请求 depth = 父请求 depth + 1
+                # 仅在子请求未手动设置 depth 时自动注入
+                if 'depth' not in spider_output.meta:
+                    spider_output.meta['depth'] = parent_depth + 1
+                await self.processor.enqueue(spider_output)
+            elif isinstance(spider_output, Item):
+                await self.processor.enqueue(spider_output)
+            elif isinstance(spider_output, Exception):
+                if self.crawler is not None and self.spider is not None:
+                    self._create_background_task(
+                        self.crawler.subscriber.notify(CrawlerEvent.SPIDER_ERROR, spider_output, self.spider)
+                    )
+                raise spider_output
+            else:
+                raise OutputError(f'{type(self.spider)} must return `Request` or `Item`.')
+
+    async def _handle_errback_output(self, result, parent_request=None):
+        """
+        处理 errback 的返回值，包装后委托给 _handle_spider_output。
+
+        支持与 callback 相同的返回类型：
+        - 单个 Request / Item
+        - 列表 / 元组
+        - 异步生成器
+        - 同步生成器
+        - 协程
+        """
+        if isinstance(result, (Request, Item)):
+            async def _gen():
+                yield result
+            await self._handle_spider_output(_gen(), parent_request)
+        elif isinstance(result, (list, tuple)):
+            async def _gen():
+                for item in result:
+                    if isinstance(item, (Request, Item)):
+                        yield item
+            await self._handle_spider_output(_gen(), parent_request)
+        elif isasyncgen(result):
+            await self._handle_spider_output(result, parent_request)
+        elif isgenerator(result):
+            async def _wrap_sync_gen():
+                for item in result:
+                    if isinstance(item, (Request, Item)):
+                        yield item
+            await self._handle_spider_output(_wrap_sync_gen(), parent_request)
+        elif iscoroutine(result):
+            awaited = await result
+            if awaited is not None:
+                await self._handle_errback_output(awaited, parent_request)
+        else:
+            self.logger.warning(
+                f"errback returned unexpected type {type(result).__name__}, ignored"
+            )

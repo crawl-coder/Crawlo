@@ -31,7 +31,7 @@ from typing import List, Dict, Optional, Any
 
 from crawlo.items import Item
 from crawlo.logging import get_logger
-from crawlo.exceptions import ItemDiscard
+from crawlo.items.exceptions import ItemDiscard
 from crawlo.utils.db.pipeline_utils import ErrorClassifier
 from . import ResourceManagedPipeline
 

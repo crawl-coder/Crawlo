@@ -5,7 +5,7 @@ from pprint import pformat
 
 from crawlo.logging import get_logger
 from crawlo.utils.misc import load_object
-from crawlo.exceptions import ExtensionInitError
+from crawlo.core.exceptions import ExtensionInitError
 
 
 class ExtensionManager:
@@ -23,7 +23,7 @@ class ExtensionManager:
         return cls(*args, **kwargs)
 
     def _add_extensions(self, extensions: List[str]) -> None:
-        from crawlo.exceptions import NotConfigured
+        from crawlo.core.exceptions import NotConfigured
         enabled_extensions = []
         
         for extension_path in extensions:

@@ -25,14 +25,18 @@ project_root = os.path.dirname(os.path.abspath(__file__))
 if project_root not in sys.path:
     sys.path.insert(0, project_root)
 
-from crawlo.crawler import CrawlerProcess
+from crawlo.crawler_process import CrawlerProcess
 
 
 def main():
     """运行分布式爬虫"""
     try:
-        process = CrawlerProcess()
-        asyncio.run(process.crawl('of_week_distributed'))
+        if len(sys.argv) > 1 and sys.argv[1] == '--schedule':
+            from crawlo.scheduling import start_scheduler
+            start_scheduler(project_root)
+        else:
+            process = CrawlerProcess()
+            asyncio.run(process.crawl('of_week_distributed'))
 
     except KeyboardInterrupt:
         print("\n收到中断信号，已停止")

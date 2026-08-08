@@ -6,10 +6,16 @@
 提供持久化去重功能，适用于需要长期运行或断点续爬的场景。
 """
 
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
 import asyncmy
 
 from crawlo.pipelines.base_pipeline import DedupPipeline
-from crawlo.spider import Spider
+
+if TYPE_CHECKING:
+    from crawlo.spider import Spider
 
 
 class MySQLDedupPipeline(DedupPipeline):

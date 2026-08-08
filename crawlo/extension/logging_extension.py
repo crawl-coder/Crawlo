@@ -1,7 +1,7 @@
 #!/usr/bin/python
 # -*- coding:UTF-8 -*-
 from typing import Any
-from crawlo.exceptions import NotConfigured
+from crawlo.core.exceptions import NotConfigured
 from crawlo.logging import get_logger
 
 # Get logger instance

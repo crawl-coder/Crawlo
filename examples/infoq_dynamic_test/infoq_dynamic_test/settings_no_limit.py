@@ -9,7 +9,7 @@
 """
 
 from datetime import datetime
-from crawlo.config import CrawloConfig
+from crawlo.core.config import CrawloConfig
 
 config = CrawloConfig.standalone(
     project_name='infoq_dynamic_test',

@@ -25,7 +25,7 @@ class OfWeekSpider(Spider):
     
     def start_requests(self):
         """生成初始请求"""
-        max_pages = 10
+        max_pages = 2
         start_urls = []
         for page in range(1, max_pages + 1):
             url = f'https://ee.ofweek.com/CATList-2800-8100-ee-{page}.html'
@@ -86,7 +86,7 @@ class OfWeekSpider(Spider):
 
                     # 检查数据是否已存在
                     sql = "SELECT 1 FROM ofweek_news WHERE url = %s LIMIT 1"
-                    exists = await self.db_checker.exists(sql, (absolute_url,))
+                    exists = None#await self.db_checker.exists(sql, (absolute_url,))
 
                     if exists:
                         self.skip_count += 1

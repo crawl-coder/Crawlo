@@ -18,7 +18,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 from .config import LogConfig
-from crawlo.utils.singleton import SingletonMeta
+from crawlo.core.singleton import SingletonMeta
 
 
 class LogManager(metaclass=SingletonMeta):

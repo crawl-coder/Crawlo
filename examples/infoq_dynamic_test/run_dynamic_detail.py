@@ -17,7 +17,7 @@ if project_root not in sys.path:
 # 导入 Spider 模块（必须，否则 Spider 不会被注册）
 from infoq_dynamic_test.spiders.infoq_dynamic_detail_spider import InfoqDynamicDetailSpider
 
-from crawlo.crawler import CrawlerProcess
+from crawlo.crawler_process import CrawlerProcess
 
 
 def main():

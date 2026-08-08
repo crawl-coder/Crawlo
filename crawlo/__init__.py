@@ -8,7 +8,7 @@ Crawlo - 一个异步爬虫框架
 # 必须在所有其他导入之前执行，确保补丁在任何 asyncio transport 创建之前生效
 import sys
 if sys.platform == 'win32':
-    from crawlo.utils.asyncio_utils import apply_windows_patches
+    from crawlo.utils.concurrency import apply_windows_patches
     apply_windows_patches()
 
 
@@ -74,21 +74,19 @@ def __getattr__(name):
 
 
 def get_framework_initializer():
-    """延迟导入CoreInitializer以避免循环依赖"""
-    from crawlo.initialization import CoreInitializer
-    return CoreInitializer()
+    """延迟导入 CoreInitializer（Phase 4 Step 3：转发到 crawlo.core 的 lazy facade）。
+
+    保持此处为薄转发层，真正的 lazy 解析逻辑在 ``crawlo.core.get_framework_initializer``，
+    避免重复实现。
+    """
+    from crawlo.core import get_framework_initializer as _get
+    return _get()
 
 
 def initialize_framework(custom_settings=None):
     """延迟导入initialize_framework以避免循环依赖"""
     from crawlo.initialization import initialize_framework as _initialize_framework
     return _initialize_framework(custom_settings)
-
-
-# 向后兼容的别名
-def get_bootstrap_manager():
-    """向后兼容的别名"""
-    return get_framework_initializer()
 
 
 # 版本号：优先从 __version__.py 读取
@@ -110,5 +108,5 @@ __all__ = [
     'to_timezone', 'to_utc', 'to_local', 'from_timestamp_with_tz',
     'cleaners', 'helpers',
     'Crawler', 'CrawlerProcess',
-    'get_framework_initializer', 'get_bootstrap_manager', '__version__',
+    'get_framework_initializer', '__version__',  # type: ignore
 ]

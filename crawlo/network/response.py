@@ -11,7 +11,7 @@ HTTP Response 封装模块
 - Cookie 处理
 """
 import re
-from typing import Dict, Any, List, Optional, Union, Pattern, Match, TYPE_CHECKING
+from typing import Dict, Any, List, Optional, Union, Pattern, Match
 from urllib.parse import urljoin as _urljoin
 from parsel import Selector, SelectorList
 from lxml.html import HtmlElement
@@ -24,12 +24,10 @@ except ImportError:
     import json as json_module
     USE_UJSON = False
 
-if TYPE_CHECKING:
-    from crawlo.network.request import Request
-
-from crawlo.exceptions import DecodeError
+from crawlo.network.request import Request
+from crawlo.network.exceptions import DecodeError
 from crawlo.logging import get_logger
-from crawlo.utils.encoding_detector import EncodingDetector
+from crawlo.utils.encoding import EncodingDetector
 from crawlo.utils.request.response_helper import (
     parse_cookies,
     regex_search,
@@ -690,9 +688,6 @@ class Response(ResponseAdaptiveMixin):
         Returns:
             Request: 新的请求对象
         """
-        # 延迟导入Request以避免循环导入
-        from crawlo.network.request import Request
-        
         # 使用urljoin处理相对URL
         absolute_url = self.urljoin(url)
         

@@ -4,17 +4,22 @@
 统一的队列接口定义
 
 提供所有队列实现的抽象基类，确保不同队列类型有一致的接口。
+
+包含两套接口：
+  - IQueue (ABC)：通用队列抽象基类（完整接口，含背压、close、wait 等）
+  - IRequestQueue (Protocol)：请求队列 Protocol 接口（结构类型，最小化接口）
 """
 import asyncio
 import time
 from abc import ABC, abstractmethod
-from typing import Optional, Any, AsyncIterator, TYPE_CHECKING
-
-if TYPE_CHECKING:
-    from crawlo.network.request import Request
+from typing import Optional, Any, AsyncIterator, Protocol, runtime_checkable, TYPE_CHECKING
 
 from crawlo.queue.queue_types import QueueType, QueueStats
-from crawlo.exceptions import QueueClosedError, QueueFullError, QueueEmptyError
+from crawlo.queue.exceptions import QueueClosedError, QueueFullError, QueueEmptyError
+
+# 注意：所有 IRequestQueue 签名使用 ``'Request'`` 字符串注解。
+# 不在 TYPE_CHECKING 中 ``from crawlo.network.request import Request``，
+# 避免 lint-imports 计为 crawlo.queue -> crawlo.network 违规。
 
 
 class IQueue(ABC):
@@ -340,4 +345,61 @@ __all__ = [
     'QueueFullError',
     'QueueEmptyError',
     'BackpressureableQueueMixin',
+    # Protocol 版最小化请求队列接口（原 crawlo.interfaces.IQueue）
+    'IRequestQueue',
 ]
+
+
+# ==================== 请求队列 Protocol 接口 ====================
+# （原 crawlo.interfaces.IQueue，结构类型，最小化 4 方法契约）
+
+@runtime_checkable
+class IRequestQueue(Protocol):
+    """
+    请求队列接口（Protocol 版本，结构类型）
+
+    负责请求的存储和获取，支持多种后端实现。
+
+    实现示例：
+        class RedisQueue(IRequestQueue):
+            async def put(self, request: "Request") -> None:
+                await self.redis.lpush(self.key, serialize(request))
+
+            async def get(self) -> "Optional[Request]":
+                data = await self.redis.rpop(self.key)
+                return deserialize(data) if data else None
+    """
+
+    async def put(self, request: 'Request') -> None:
+        """
+        将请求加入队列
+
+        Args:
+            request: 请求对象
+        """
+        ...
+
+    async def get(self) -> 'Optional[Request]':
+        """
+        从队列获取请求
+
+        Returns:
+            Optional[Request]: 请求对象，队列为空时返回 None
+        """
+        ...
+
+    def qsize(self) -> int:
+        """
+        获取队列大小
+
+        Returns:
+            int: 队列中请求数量
+        """
+        ...
+
+    async def clear(self) -> None:
+        """
+        清空队列
+        """
+        ...
+

@@ -12,7 +12,7 @@ from ..items import NewsItem
 class OfWeekDistributedSpider(Spider):
     """
     爬虫：of_week_distributed
-    
+
     分布式爬虫配置
     """
     name = 'of_week_distributed'
@@ -20,7 +20,8 @@ class OfWeekDistributedSpider(Spider):
     start_urls = ['https://ee.ofweek.com/']
 
     def start_requests(self):
-        """生成初始请求"""
+        """生成初始请求。支持环境变量 OFWEEK_TEST_MAX_PAGE 临时覆盖页数做 smoke test。"""
+        import os
         headers = {
             "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
             "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8",
@@ -53,9 +54,14 @@ class OfWeekDistributedSpider(Spider):
             "index_burying_point": "c64d6c31e69d560efe319cc9f8be279f"
         }
 
-        # 测试分布式：1 页列表 + 每页 ~10 个详情 = ~10 个任务
-        # 生产环境可改为更大页数（当前网站约 1851 页）
-        max_page = 1851
+        # 生产环境：网站约 1851 页列表，每页约 10 个详情
+        # 10 个 worker 可真正领到任务，验证 Redis Stream Consumer Group + ACK + 负载均衡
+        # OFWEEK_TEST_MAX_PAGE 环境变量可临时覆盖页数做 smoke test
+        _env_max = os.environ.get('OFWEEK_TEST_MAX_PAGE')
+        try:
+            max_page = int(_env_max) if _env_max else 1851
+        except (TypeError, ValueError):
+            max_page = 1851
         start_urls = []
         for page in range(1, max_page + 1):
             url = f'https://ee.ofweek.com/CATList-2800-8100-ee-{page}.html'
@@ -64,7 +70,6 @@ class OfWeekDistributedSpider(Spider):
         self.logger.info(f"生成了 {len(start_urls)} 个起始URL")
 
         for url in start_urls:
-            self.logger.info(f"添加起始URL: {url}")
             try:
                 yield Request(
                     url=url,

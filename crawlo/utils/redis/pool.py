@@ -25,7 +25,7 @@ except ImportError:
 if TYPE_CHECKING:
     pass
 
-from crawlo.utils.error_handler import ErrorHandler, ErrorContext
+from crawlo.utils.errors import ErrorHandler, ErrorContext
 
 
 class RedisConnectionPool:
@@ -272,11 +272,24 @@ class RedisConnectionPool:
         yield connection
 
 
+def _resolve_runtime_context():
+    """Phase 8 Step 8.4：优先从 default_container 拿 RuntimeContext，否则 fallback ctx。"""
+    try:
+        from crawlo.container import default_container
+        from crawlo.core.application import RuntimeContext
+        if default_container.is_registered(RuntimeContext):
+            return default_container.resolve(RuntimeContext)
+    except Exception:  # noqa: S110
+        pass
+    from crawlo.core.application import get_global_context
+    return get_global_context().runtime
+
+
 def get_redis_pool(redis_url: str, is_cluster: bool = False, cluster_nodes: Optional[List[str]] = None, shared: bool = True, **kwargs) -> RedisConnectionPool:
-    """获取Redis连接池实例（存储于 ApplicationContext）"""
+    """获取Redis连接池实例（Phase 8 Step 8.4：通过 RuntimeContext.connection_pools 管理）"""
     if shared:
-        from crawlo.core.application import get_global_context
-        pools = get_global_context().connection_pools
+        runtime_ctx = _resolve_runtime_context()
+        pools = runtime_ctx.connection_pools
         pool_key = f"{redis_url}:{is_cluster}:{cluster_nodes}" if cluster_nodes else f"{redis_url}:{is_cluster}"
         if pool_key not in pools:
             pools[pool_key] = RedisConnectionPool(redis_url, is_cluster=is_cluster, cluster_nodes=cluster_nodes, **kwargs)
@@ -287,9 +300,9 @@ def get_redis_pool(redis_url: str, is_cluster: bool = False, cluster_nodes: Opti
 
 
 async def close_all_pools():
-    """关闭所有共享连接池"""
-    from crawlo.core.application import get_global_context
-    pools = get_global_context().connection_pools
+    """关闭所有共享连接池（Phase 8 Step 8.4：通过 RuntimeContext.connection_pools 清理）"""
+    runtime_ctx = _resolve_runtime_context()
+    pools = runtime_ctx.connection_pools
     for pool in list(pools.values()):
         await pool.close()
     pools.clear()
@@ -395,9 +408,20 @@ class GlobalRedisManager:
 
 
 def get_redis_manager() -> GlobalRedisManager:
-    """获取全局 Redis 管理器单例（存储于 ApplicationContext）"""
-    from crawlo.core.application import get_global_context
-    ctx = get_global_context()
-    if ctx.redis_manager is None:
-        ctx.redis_manager = GlobalRedisManager()
-    return ctx.redis_manager
+    """获取全局 Redis 管理器单例（Phase 8 Step 8.8：DI 容器优先 + RuntimeContext fallback）。"""
+    try:
+        from crawlo.container import default_container
+        if default_container.is_registered(GlobalRedisManager):
+            return default_container.resolve(GlobalRedisManager)
+    except Exception:  # pragma: no cover
+        pass
+    rctx = _resolve_runtime_context()
+    if rctx.redis_manager is None:
+        inst = GlobalRedisManager()
+        rctx.redis_manager = inst
+        try:
+            from crawlo.container import default_container as _c
+            _c.register_instance(GlobalRedisManager, inst)
+        except Exception:  # pragma: no cover
+            pass
+    return rctx.redis_manager

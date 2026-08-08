@@ -14,14 +14,15 @@ Core improvements:
 - Added graceful shutdown mechanism
 """
 import asyncio
+import warnings
 from asyncio import Queue
 from typing import Union, Optional, List, Any
 from enum import Enum, auto
 
 from crawlo import Request, Item
-from crawlo.exceptions import ItemDiscard
+from crawlo.items.exceptions import ItemDiscard
 from crawlo.logging import get_logger
-from crawlo.utils.async_lock import AsyncRLock
+from crawlo.utils.concurrency import AsyncRLock
 
 
 class ProcessorState(Enum):
@@ -305,16 +306,7 @@ class Processor:
                 self.logger.warning(f"Error closing middleware manager: {e}")
         
         self.logger.debug("Processor closed")
-    
-    def idle(self) -> bool:
-        """
-        检查处理器是否空闲（简化版本，可能不够精确）
-        
-        Returns:
-            bool: 是否空闲（队列为空且无正在处理的项）
-        """
-        return len(self) == 0 and len(self._processing) == 0
-    
+
     def get_stats(self) -> dict:
         """
         获取统计信息

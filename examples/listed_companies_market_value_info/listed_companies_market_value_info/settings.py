@@ -9,7 +9,7 @@ listed_companies_market_value_info 项目配置文件
 """
 
 import os
-from crawlo.config import CrawloConfig
+from crawlo.core.config import CrawloConfig
 
 # 获取示例项目的根目录（上一级目录，即run.py所在的位置）
 # 当前文件路径: .../examples/listed_companies_market_value_info/listed_companies_market_value_info/settings.py
@@ -77,9 +77,9 @@ REDIS_DB = 0
 # MySQL配置
 MYSQL_HOST = '127.0.0.1'
 MYSQL_PORT = 3306
-MYSQL_USER = 'root'
-MYSQL_PASSWORD = 'oscar&0503'
-MYSQL_DB = 'crawlo_db'
+MYSQL_USER = 'crawlo'
+MYSQL_PASSWORD = 'crawlo123'
+MYSQL_DB = 'crawlo_deployer'
 MYSQL_TABLE = 'listed_companies_market_value_info'
 
 # MySQL 冲突处理策略（三者互斥，按优先级生效）

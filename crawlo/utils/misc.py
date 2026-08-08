@@ -1,3 +1,11 @@
+"""
+通用杂项工具模块
+================
+
+Phase 9.3 标记：本模块为 v2.0 重构候选。
+- walk_modules / iter_spider_classes / load_object：真正的杂项，保留原位
+- safe_get_config / get_browser_config* / ConfigUtils：配置主题，v2.0 迁入 settings/ 或 config/
+"""
 import importlib
 import pkgutil
 from typing import Iterator, Any, List, Type, Union, Dict, TypeVar, overload

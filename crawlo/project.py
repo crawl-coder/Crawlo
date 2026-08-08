@@ -232,7 +232,7 @@ def _get_mode_settings(settings: SettingManager, run_mode: str) -> dict:
     Returns:
         模式配置字典
     """
-    from crawlo.config import CrawloConfig
+    from crawlo.core.config import CrawloConfig
     
     # 获取模式配置
     project_name = settings.get('PROJECT_NAME', 'crawlo')

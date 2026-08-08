@@ -99,10 +99,34 @@ class SmsChannel(NotificationChannel):
             return NotificationResponse.error_response(error_msg)
 
 
-def get_sms_channel() -> SmsChannel:
-    """获取短信通知渠道实例（存储于 ApplicationContext）"""
+def _resolve_notification_context():
+    """Phase 8 Step 8.5：优先从容器拿 NotificationContext，否则 fallback ctx.notifications。"""
+    try:
+        from crawlo.container import default_container
+        from crawlo.core.application import NotificationContext
+        if default_container.is_registered(NotificationContext):
+            return default_container.resolve(NotificationContext)
+    except Exception:  # noqa: S110
+        pass
     from crawlo.core.application import get_global_context
-    ctx = get_global_context()
-    if ctx.sms_channel is None:
-        ctx.sms_channel = SmsChannel()
-    return ctx.sms_channel
+    return get_global_context().notifications
+
+
+def get_sms_channel() -> SmsChannel:
+    """获取短信通知渠道实例（Phase 8 Step 8.5：DI 容器优先 + NotificationContext fallback）。"""
+    try:
+        from crawlo.container import default_container
+        if default_container.is_registered(SmsChannel):
+            return default_container.resolve(SmsChannel)
+    except Exception:  # pragma: no cover
+        pass
+    nctx = _resolve_notification_context()
+    if nctx.sms_channel is None:
+        inst = SmsChannel()
+        nctx.sms_channel = inst
+        try:
+            from crawlo.container import default_container
+            default_container.register_instance(SmsChannel, inst)
+        except Exception:  # pragma: no cover
+            pass
+    return nctx.sms_channel

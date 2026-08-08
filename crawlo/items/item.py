@@ -10,7 +10,7 @@ from collections.abc import MutableMapping
 
 from .base import ItemMeta
 from .fields import Field
-from crawlo.exceptions import ItemInitError, ItemAttributeError
+from crawlo.items.exceptions import ItemInitError, ItemAttributeError
 
 
 class Item(MutableMapping, metaclass=ItemMeta):

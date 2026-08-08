@@ -280,19 +280,43 @@ class CrawlerNotificationHandler:
         logger.info(f"[Handler] 添加自定义模板: {name}")
 
 
+def _resolve_notification_context():
+    """Phase 8 Step 8.5：优先从容器拿 NotificationContext，否则 fallback ctx.notifications。"""
+    try:
+        from crawlo.container import default_container
+        from crawlo.core.application import NotificationContext
+        if default_container.is_registered(NotificationContext):
+            return default_container.resolve(NotificationContext)
+    except Exception:  # noqa: S110
+        pass
+    from crawlo.core.application import get_global_context
+    return get_global_context().notifications
+
+
 def get_notification_handler() -> CrawlerNotificationHandler:
     """
-    获取全局通知处理器实例（存储于 ApplicationContext，DCL 线程安全）
+    获取全局通知处理器实例（Phase 8 Step 8.5：DI 容器优先 + DCL NotificationContext fallback）
     """
-    from crawlo.core.application import get_global_context
-    ctx = get_global_context()
-    
-    if ctx.notification_handler is None:
-        with ctx.notification_handler_lock:
-            if ctx.notification_handler is None:
-                ctx.notification_handler = CrawlerNotificationHandler()
-    
-    return ctx.notification_handler
+    try:
+        from crawlo.container import default_container
+        if default_container.is_registered(CrawlerNotificationHandler):
+            return default_container.resolve(CrawlerNotificationHandler)
+    except Exception:  # pragma: no cover
+        pass
+    nctx = _resolve_notification_context()
+
+    if nctx.notification_handler is None:
+        with nctx.notification_handler_lock:
+            if nctx.notification_handler is None:
+                inst = CrawlerNotificationHandler()
+                nctx.notification_handler = inst
+                try:
+                    from crawlo.container import default_container as _c
+                    _c.register_instance(CrawlerNotificationHandler, inst)
+                except Exception:  # pragma: no cover
+                    pass
+
+    return nctx.notification_handler
 
 
 def send_crawler_status(title: str, content: str, channel: ChannelType = ChannelType.DINGTALK) -> NotificationResponse:

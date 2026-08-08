@@ -188,10 +188,34 @@ class WeComChannel(NotificationChannel):
             }
 
 
-def get_wecom_channel() -> WeComChannel:
-    """获取企业微信通知渠道实例（存储于 ApplicationContext）"""
+def _resolve_notification_context():
+    """Phase 8 Step 8.5：优先从容器拿 NotificationContext，否则 fallback ctx.notifications。"""
+    try:
+        from crawlo.container import default_container
+        from crawlo.core.application import NotificationContext
+        if default_container.is_registered(NotificationContext):
+            return default_container.resolve(NotificationContext)
+    except Exception:  # noqa: S110
+        pass
     from crawlo.core.application import get_global_context
-    ctx = get_global_context()
-    if ctx.wecom_channel is None:
-        ctx.wecom_channel = WeComChannel()
-    return ctx.wecom_channel
+    return get_global_context().notifications
+
+
+def get_wecom_channel() -> WeComChannel:
+    """获取企业微信通知渠道实例（Phase 8 Step 8.5：DI 容器优先 + NotificationContext fallback）。"""
+    try:
+        from crawlo.container import default_container
+        if default_container.is_registered(WeComChannel):
+            return default_container.resolve(WeComChannel)
+    except Exception:  # pragma: no cover
+        pass
+    nctx = _resolve_notification_context()
+    if nctx.wecom_channel is None:
+        inst = WeComChannel()
+        nctx.wecom_channel = inst
+        try:
+            from crawlo.container import default_container
+            default_container.register_instance(WeComChannel, inst)
+        except Exception:  # pragma: no cover
+            pass
+    return nctx.wecom_channel

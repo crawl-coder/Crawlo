@@ -8,3 +8,149 @@ build-backend = "setuptools.build_meta"
 # 设为 auto 以兼容旧写法，保持兼容。
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
+# collect_ignore_glob 已迁移至 tests/conftest.py（路径相对于 conftest.py 所在目录更可靠）
+
+[tool.importlinter]
+root_package = "crawlo"
+
+# 分层契约：上层可导入下层，下层禁止反向导入上层。
+# 当前存在大量违规（延迟导入），先全部列入 ignore_imports 白名单，
+# Phase 5 逐条清零后删除白名单条目。
+[[tool.importlinter.contracts]]
+name = "Layered architecture"
+type = "layers"
+layers = [
+    "crawlo.commands | crawlo.shell | crawlo.mcp | crawlo.cli",
+    "crawlo.crawler_process | crawlo.crawler | crawlo.framework",
+    "crawlo.core",
+    "crawlo.downloader | crawlo.middleware | crawlo.pipelines | crawlo.spider | crawlo.extension | crawlo.checkpoint | crawlo.scheduling | crawlo.factories",
+    "crawlo.queue | crawlo.network | crawlo.filters | crawlo.items | crawlo.backpressure | crawlo.cluster | crawlo.bot | crawlo.stats | crawlo.helpers | crawlo.initialization",
+    "crawlo.settings | crawlo.utils | crawlo.logging",
+]
+# Phase 0 白名单：当前所有违规导入（含同层互相导入 + 反向依赖）。
+# Phase 5 逐条清零，每修一处删一条。
+ignore_imports = [
+    "crawlo.backpressure.interfaces -> crawlo.queue.interfaces",
+    "crawlo.backpressure.strategies -> crawlo.queue.interfaces",
+    # Phase 9.5: 各领域子模块继承 core.exceptions 中的基础异常（合法的异常共享，非领域耦合），
+    # v2.0 前不会删除 crawlo.core.exceptions，条目保留到 v2.0 后再评估是否上移/拆分。
+    "crawlo.middleware.offsite -> crawlo.core.exceptions",
+    "crawlo.utils.func_tools -> crawlo.core.exceptions",
+    "crawlo.utils.errors -> crawlo.core.exceptions",
+    "crawlo.utils.errors.error_handler -> crawlo.core.exceptions",
+    "crawlo.queue.exceptions -> crawlo.core.exceptions",
+    "crawlo.network.exceptions -> crawlo.core.exceptions",
+    "crawlo.spider.exceptions -> crawlo.core.exceptions",
+    "crawlo.items.exceptions -> crawlo.core.exceptions",
+    # Phase 9.5: middleware 延迟使用 core 异常与 crawlo.config（应用编排层的合法共享）。
+    # 这些延迟导入仅在 ``MiddlewareManager`` 初始化时触发，不影响架构分层。
+    "crawlo.middleware.middleware_manager -> crawlo.core.exceptions",
+    "crawlo.bot.channels.dingtalk -> crawlo.core.application",
+    "crawlo.bot.channels.email -> crawlo.core.application",
+    "crawlo.bot.channels.feishu -> crawlo.core.application",
+    "crawlo.bot.channels.sms -> crawlo.core.application",
+    "crawlo.bot.channels.wecom -> crawlo.core.application",
+    "crawlo.bot.core.handlers -> crawlo.core.application",
+    "crawlo.bot.core.notifier -> crawlo.core.application",
+    "crawlo.bot.monitoring.templates -> crawlo.core.application",
+    "crawlo.bot.templates.manager -> crawlo.core.application",
+    "crawlo.bot.utils.config_loader -> crawlo.core.application",
+    "crawlo.bot.utils.config_loader -> crawlo.project",
+    "crawlo.bot.utils.deduplicator -> crawlo.core.application",
+    "crawlo.cli -> crawlo.commands",
+    "crawlo.commands.shell -> crawlo.shell.core",
+    "crawlo.crawler_process -> crawlo.crawler",
+    "crawlo.downloader -> crawlo.middleware.middleware_manager",
+    "crawlo.downloader.aiohttp_downloader -> crawlo.crawler",
+    "crawlo.extension.monitor.monitor_manager -> crawlo.core.application",
+    "crawlo.extension.monitor.performance_monitor -> crawlo.core.application",
+    "crawlo.factories -> crawlo.core.application",
+    "crawlo.factories.crawler -> crawlo.core.engine",
+    "crawlo.factories.crawler -> crawlo.core.task_scheduler",
+    "crawlo.factories.crawler -> crawlo.extension",
+    "crawlo.factories.registry -> crawlo.core.application",
+    "crawlo.filters.aioredis_filter -> crawlo.crawler",
+    "crawlo.filters.aioredis_filter -> crawlo.network.request",
+    "crawlo.framework -> crawlo.crawler",
+    "crawlo.initialization.registry -> crawlo.core.application",
+    "crawlo.network.response_adaptive -> crawlo.helpers.adaptive_selector",
+    # v2.0: CrawloConfig 迁移到 crawlo.core.config 后的跨层引用
+    #（project / bot 延迟使用配置类，合法的编排层 → core 依赖）
+    "crawlo.project -> crawlo.core.config",
+    "crawlo.bot.utils.config_loader -> crawlo.core.config",
+    # v2.0: SingletonMeta 迁移到 crawlo.core.singleton 后的跨层引用
+    #（logging / initialization 使用单例元类，合法的工具依赖）
+    "crawlo.logging.manager -> crawlo.core.singleton",
+    "crawlo.initialization.core -> crawlo.core.singleton",
+    # Phase 5: pipelines 仅类型注解用 Spider（TYPE_CHECKING 块 + from __future__ import annotations）
+    "crawlo.pipelines.base_pipeline -> crawlo.spider",
+    "crawlo.pipelines.console -> crawlo.spider",
+    "crawlo.pipelines.dedup.mysql -> crawlo.spider",
+    # Phase 9.5: 领域子模块 import core.exceptions（异常继承/使用，合法共享）与
+    #            interfaces 在 TYPE_CHECKING/体内 引用 crawler（仅注解用途）。
+    # v2.0 后再评估异常是否上移 / crawler 类型标注是否继续保留。
+    "crawlo.core.interfaces -> crawlo.crawler",
+    "crawlo.middleware.interfaces -> crawlo.crawler",
+    "crawlo.middleware.default_header -> crawlo.core.exceptions",
+    "crawlo.downloader.interfaces -> crawlo.crawler",
+    "crawlo.extension.interfaces -> crawlo.crawler",
+    "crawlo.extension -> crawlo.core.exceptions",
+    "crawlo.extension.logging_extension -> crawlo.core.exceptions",
+    "crawlo.extension.request_recorder -> crawlo.core.exceptions",
+    "crawlo.extension.monitor.base -> crawlo.core.exceptions",
+    "crawlo.pipelines.sql.postgresql -> crawlo.core.exceptions",
+    "crawlo.pipelines.manager -> crawlo.core.exceptions",
+    "crawlo.project -> crawlo.initialization",
+    "crawlo.queue.memory_queue -> crawlo.backpressure.intelligent_calculator",
+    "crawlo.queue.memory_queue -> crawlo.backpressure.metrics_collector",
+    "crawlo.queue.memory_queue -> crawlo.backpressure.monitor",
+    "crawlo.queue.queue_backpressure -> crawlo.backpressure",
+    "crawlo.queue.queue_manager -> crawlo.backpressure",
+    "crawlo.queue.redis_priority_queue -> crawlo.core.application",
+    "crawlo.scheduling.daemon.cleanup -> crawlo.extension.monitor.monitor_manager",
+    # Phase 7：L4 scheduling 调 L1 commands.job_executor（合法架构例外：daemon 是命令入口壳）。
+    # 两条路径分别：
+    #   - scheduler.py: SchedulerDaemon 构造 JobExecutor（真依赖）
+    #   - executor.py: v2.0 已物理删除
+    "crawlo.scheduling.daemon.scheduler -> crawlo.commands.job_executor",
+    "crawlo.scheduling.registry -> crawlo.core.application",
+    # Phase 9.5: spider.loader 已切到 crawlo.spider.interfaces，原旧路径白名单失效
+    # "crawlo.spider.loader -> crawlo.interfaces",
+    "crawlo.spider.loader -> crawlo.spider.interfaces",
+    "crawlo.spider.spider -> crawlo.core.application",
+    "crawlo.spider.spider -> crawlo.crawler",
+    "crawlo.utils -> crawlo.middleware.priority",
+    "crawlo.utils.batch.batch_manager -> crawlo.logging",
+    "crawlo.utils.batch.batch_processor -> crawlo.logging",
+    "crawlo.utils.parsing.curl_parser -> crawlo.logging",
+    "crawlo.utils.parsing.curl_parser -> crawlo.network.request",
+    "crawlo.utils.db.database_connection_pool -> crawlo.logging",
+    "crawlo.utils.db.mongo_connection_pool -> crawlo.logging",
+    "crawlo.utils.db.mysql_connection_pool -> crawlo.logging",
+    "crawlo.utils.db.mysql_helper -> crawlo.logging",
+    "crawlo.utils.db.mysql_helper -> crawlo.settings.setting_manager",
+    "crawlo.utils.db.sql_builder -> crawlo.logging",
+    "crawlo.utils.errors.error_handler -> crawlo.core.application",
+    "crawlo.utils.errors.error_handler -> crawlo.logging",
+    "crawlo.utils.misc -> crawlo.spider",
+    "crawlo.utils.concurrency.process_utils -> crawlo.crawler",
+    "crawlo.utils.concurrency.process_utils -> crawlo.settings.setting_manager",
+    "crawlo.utils.concurrency.process_utils -> crawlo.spider",
+    "crawlo.utils.redis.keys -> crawlo.logging",
+    "crawlo.utils.redis.pool -> crawlo.core.application",
+    "crawlo.utils.redis.pool -> crawlo.logging",
+    "crawlo.utils.request.request_serializer -> crawlo.logging",
+    "crawlo.utils.request.request_serializer -> crawlo.network.request",
+    "crawlo.utils.request.request_serializer -> crawlo.spider",
+    "crawlo.utils.resource_manager -> crawlo.core.application",
+    "crawlo.utils.resource_manager -> crawlo.logging",
+    # 根包 __getattr__ 惰性导入导致的间接依赖
+    "crawlo -> crawlo.helpers",
+    "crawlo -> crawlo.helpers.time_utils",
+    "crawlo -> crawlo.initialization",
+    # Phase 4 Step 3：get_framework_initializer() facade 转发到 crawlo.core（lazy）
+    "crawlo -> crawlo.core",
+    "crawlo.utils.func_tools -> crawlo",
+    "crawlo.utils.request.request -> crawlo",
+    "crawlo.queue.redis_stream_queue -> crawlo",
+]

@@ -452,29 +452,42 @@ class ResourceManager:
         return False
 
 
+def _resolve_runtime_context():
+    """Phase 8 Step 8.4：优先从 default_container 拿 RuntimeContext，否则 fallback ctx。"""
+    try:
+        from crawlo.container import default_container
+        from crawlo.core.application import RuntimeContext
+        if default_container.is_registered(RuntimeContext):
+            return default_container.resolve(RuntimeContext)
+    except Exception:  # noqa: S110
+        pass
+    from crawlo.core.application import get_global_context
+    return get_global_context().runtime
+
+
 def get_resource_manager(name: str = "default") -> ResourceManager:
     """
-    获取资源管理器实例（单例，存储于 ApplicationContext）
-    
+    获取资源管理器实例（单例，Phase 8 Step 8.4：存储于 RuntimeContext.resource_managers）
+
     Args:
         name: 管理器名称
-    
+
     Returns:
         资源管理器实例
     """
-    from crawlo.core.application import get_global_context
-    managers = get_global_context().resource_managers
+    runtime_ctx = _resolve_runtime_context()
+    managers = runtime_ctx.resource_managers
     if name not in managers:
         managers[name] = ResourceManager(name)
     return managers[name]
 
 
 async def cleanup_all_managers():
-    """清理所有资源管理器"""
-    from crawlo.core.application import get_global_context
+    """清理所有资源管理器（Phase 8 Step 8.4：读 RuntimeContext.resource_managers）"""
     logger = get_logger("ResourceManager")
-    managers = get_global_context().resource_managers
-    
+    runtime_ctx = _resolve_runtime_context()
+    managers = runtime_ctx.resource_managers
+
     for name, manager in list(managers.items()):
         try:
             logger.info(f"Cleaning up resource manager: {name}")

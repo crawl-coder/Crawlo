@@ -14,7 +14,7 @@ from typing import Optional, List
 from datetime import datetime
 
 from crawlo.items import Item
-from crawlo.exceptions import ItemDiscard
+from crawlo.items.exceptions import ItemDiscard
 from crawlo.pipelines.base_pipeline import FileBasedPipeline
 
 # 尝试导入 aiofiles

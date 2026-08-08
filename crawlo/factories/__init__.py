@@ -11,13 +11,29 @@ from .registry import ComponentRegistry, get_component_registry as _get_componen
 from .base import ComponentFactory, ComponentSpec
 
 def _ensure_components_registered():
-    """确保 Crawler 相关组件已注册（首次使用时才触发，状态存储于 ApplicationContext）"""
-    from crawlo.core.application import get_global_context
-    ctx = get_global_context()
-    if not ctx.components_registered:
+    """确保 Crawler 相关组件已注册（Phase 8 Step 8.3：容器优先 + RegistryContext 兜底）。
+
+    ``components_registered`` 属于 RegistryContext；Phase 8.2 已把 RegistryContext 整体
+    注册进 default_container，因此这里优先从容器拿到 RegistryContext，避免直接 import
+    ApplicationContext。若容器未就绪（import 期/测试期），再 fallback 到 ctx。
+    """
+    reg_ctx = None
+    try:
+        from crawlo.container import default_container
+        from crawlo.core.application import RegistryContext
+        if default_container.is_registered(RegistryContext):
+            reg_ctx = default_container.resolve(RegistryContext)
+    except Exception:  # noqa: S110
+        reg_ctx = None
+
+    if reg_ctx is None:
+        from crawlo.core.application import get_global_context
+        reg_ctx = get_global_context().registries
+
+    if not reg_ctx.components_registered:
         from .crawler import register_crawler_components
         register_crawler_components()
-        ctx.components_registered = True
+        reg_ctx.components_registered = True
 
 
 def get_component_registry():

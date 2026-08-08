@@ -11,7 +11,7 @@ InfoQ AI 快讯动态下载器测试项目配置文件
 """
 import os
 from datetime import datetime
-from crawlo.config import CrawloConfig
+from crawlo.core.config import CrawloConfig
 
 # 使用单机模式配置
 config = CrawloConfig.standalone(

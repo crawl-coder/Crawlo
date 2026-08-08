@@ -11,9 +11,9 @@ from typing import Any, Dict, Optional
 from crawlo.logging import get_logger
 from crawlo.scheduling.job import ScheduledJob
 from crawlo.scheduling.registry import JobRegistry
-from crawlo.scheduling.daemon.executor import JobExecutor
+from crawlo.commands.job_executor import JobExecutor  # Phase 7：L1 commands 层上提，消除 L4→L2 反向依赖
 from crawlo.scheduling.daemon.cleanup import ResourceCleanup
-from crawlo.utils.time_format import format_duration
+from crawlo.utils.parsing import format_duration
 
 
 class SchedulerDaemon:
@@ -118,6 +118,10 @@ class SchedulerDaemon:
         # 初始化执行器
         self._executor = JobExecutor(self.settings, self._stats, self.logger)
         self._executor.init_concurrency()
+        # 兼容：若 start() 之前已通过 daemon._semaphore = … 显式覆盖，则覆盖到 executor
+        _shadow = getattr(self, '_semaphore_override_shadow', None)
+        if _shadow is not None:
+            self._executor._semaphore = _shadow
         
         # 设置信号处理器
         self._pending_stop_tasks: set = set()
@@ -145,6 +149,7 @@ class SchedulerDaemon:
         """调度主循环 — 按最近任务时间智能 sleep，避免忙轮询"""
         check_interval = self.settings.get_int('SCHEDULER_CHECK_INTERVAL', 1)
         
+        self._ensure_executor_ready()
         self.logger.debug(f"调度器主循环启动，最大检查间隔: {check_interval} 秒")
         
         while self.running:
@@ -172,6 +177,7 @@ class SchedulerDaemon:
     
     async def _check_and_execute_jobs(self):
         """检查并执行定时任务"""
+        self._ensure_executor_ready()
         current_time = time.time()
         
         for job in self._sorted_jobs:
@@ -265,11 +271,46 @@ class SchedulerDaemon:
         """获取运行中的任务集合"""
         return self._executor.running_tasks if self._executor else set()
     
+    def _ensure_executor_ready(self):
+        """懒初始化 executor（兼容旧调用方不调用 start()，直接 running=True + _run_scheduler()）。
+
+        Phase 7 将 semaphore/executor 的构造从 __init__ 下沉到 start()，本方法补上非 start() 路径。
+        如果调用方之前用 setter 显式设置了 ``daemon._semaphore = Semaphore(n)``，这里会把 shadow 值
+        覆盖到新建 executor 的 _semaphore（跳过 init_concurrency 的默认值）。
+        """
+        if self._executor is None:
+            self._executor = JobExecutor(self.settings, self._stats, self.logger)
+            _shadow = getattr(self, '_semaphore_override_shadow', None)
+            if _shadow is None:
+                self._executor.init_concurrency()
+            else:
+                self._executor._semaphore = _shadow
+
     @property
     def _semaphore(self):
-        """获取信号量（兼容性属性）"""
-        return self._executor._semaphore if self._executor else None
-    
+        """获取信号量（兼容性属性，Phase 7 后实际存储于 JobExecutor._semaphore）。
+
+        行为：
+        - 若 executor 已构造（start() 或 _ensure_executor_ready() 后）→ 返回 executor._semaphore
+        - 若显式 set 过 override → 返回 shadow semaphore
+        - 否则返回 None（保持旧 ``__init__`` 之后还未启动阶段 == None 的语义）
+        """
+        if self._executor is not None:
+            return self._executor._semaphore
+        return getattr(self, '_semaphore_override_shadow', None)
+
+    @_semaphore.setter
+    def _semaphore(self, value: asyncio.Semaphore):
+        """设置信号量（兼容旧测试在 daemon.start() 之前直接赋值的场景）。
+
+        - 若 executor 已构造 → 直接写入 executor._semaphore，替换其 init_concurrency 默认值
+        - 若 executor 尚未构造 → 暂存于 shadow 字段，start() 构造 executor 后同步覆盖
+        """
+        if self._executor is not None:
+            self._executor._semaphore = value
+        else:
+            self._semaphore_override_shadow = value
+
     def get_stats(self) -> Dict[str, Any]:
         """获取统计信息"""
         return self._stats.copy()

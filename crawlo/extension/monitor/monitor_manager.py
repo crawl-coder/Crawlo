@@ -107,13 +107,37 @@ class MonitorManager:
                     pass
 
 
-def get_monitor_manager() -> MonitorManager:
-    """获取全局 MonitorManager 单例（存储于 ApplicationContext）"""
+def _resolve_runtime_context():
+    """Phase 8 Step 8.6：优先从容器拿 RuntimeContext，否则 fallback ctx.runtime。"""
+    try:
+        from crawlo.container import default_container
+        from crawlo.core.application import RuntimeContext
+        if default_container.is_registered(RuntimeContext):
+            return default_container.resolve(RuntimeContext)
+    except Exception:  # noqa: S110
+        pass
     from crawlo.core.application import get_global_context
-    ctx = get_global_context()
-    if ctx._monitor_manager is None:
-        ctx._monitor_manager = MonitorManager()
-    return ctx._monitor_manager
+    return get_global_context().runtime
+
+
+def get_monitor_manager() -> MonitorManager:
+    """获取全局 MonitorManager 单例（Phase 8 Step 8.6：DI 容器优先 + RuntimeContext fallback）。"""
+    try:
+        from crawlo.container import default_container
+        if default_container.is_registered(MonitorManager):
+            return default_container.resolve(MonitorManager)
+    except Exception:  # pragma: no cover
+        pass
+    rctx = _resolve_runtime_context()
+    if rctx._monitor_manager is None:
+        inst = MonitorManager()
+        rctx._monitor_manager = inst
+        try:
+            from crawlo.container import default_container as _c
+            _c.register_instance(MonitorManager, inst)
+        except Exception:  # pragma: no cover
+            pass
+    return rctx._monitor_manager
 
 
 # 向后兼容：模块级 monitor_manager 别名（惰性初始化）

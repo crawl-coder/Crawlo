@@ -11,7 +11,8 @@ import os
 import sys
 from typing import Type, Optional, List, Union
 
-from .crawler import Crawler, CrawlerProcess
+from .crawler import Crawler
+from .crawler_process import CrawlerProcess
 from .initialization import initialize_framework
 from .logging import get_logger
 from .project import read_crawlo_cfg
@@ -257,18 +258,42 @@ def get_framework(settings=None, **kwargs) -> CrawloFramework:
     Returns:
         CrawloFramework 实例
     """
+    try:
+        from crawlo.container import default_container
+        if default_container.is_registered(CrawloFramework):
+            return default_container.resolve(CrawloFramework)
+    except Exception:  # pragma: no cover
+        pass
+    # Fallback：RegistryContext.framework（ApplicationContext 通过委托同步）
+    reg_ctx = _resolve_registry_context()
+    if reg_ctx.framework is None:
+        inst = CrawloFramework(settings, **kwargs)
+        reg_ctx.framework = inst
+        try:
+            from crawlo.container import default_container as _c
+            _c.register_instance(CrawloFramework, inst)
+        except Exception:  # pragma: no cover
+            pass
+    return reg_ctx.framework
+
+
+def _resolve_registry_context():
+    """Phase 8 Step 8.5：优先从容器拿 RegistryContext，否则 fallback ctx.registries。"""
+    try:
+        from crawlo.container import default_container
+        from crawlo.core.application import RegistryContext
+        if default_container.is_registered(RegistryContext):
+            return default_container.resolve(RegistryContext)
+    except Exception:  # noqa: S110
+        pass
     from crawlo.core.application import get_global_context
-    ctx = get_global_context()
-    if ctx.framework is None:
-        ctx.framework = CrawloFramework(settings, **kwargs)
-    return ctx.framework
+    return get_global_context().registries
 
 
 def reset_framework():
-    """重置全局框架实例（主要用于测试）"""
-    from crawlo.core.application import get_global_context
-    ctx = get_global_context()
-    ctx.framework = None
+    """重置全局框架实例（Phase 8 Step 8.5：通过 RegistryContext.framework 写位）。"""
+    reg_ctx = _resolve_registry_context()
+    reg_ctx.framework = None
 
 
 # 便捷函数

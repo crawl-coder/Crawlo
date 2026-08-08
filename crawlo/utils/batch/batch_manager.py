@@ -9,7 +9,7 @@ import concurrent.futures
 from functools import wraps
 from typing import List, Callable, Any, Optional, Dict
 
-from crawlo.utils.error_handler import ErrorHandler, ErrorContext
+from crawlo.utils.errors import ErrorHandler, ErrorContext
 from crawlo.logging import get_logger
 
 # 尝试导入Redis支持

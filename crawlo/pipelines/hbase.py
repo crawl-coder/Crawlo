@@ -21,7 +21,7 @@ from pathlib import Path
 
 from crawlo.logging import get_logger
 from crawlo.items import Item
-from crawlo.exceptions import ItemDiscard
+from crawlo.items.exceptions import ItemDiscard
 from . import ResourceManagedPipeline
 
 # 尝试导入 happybase

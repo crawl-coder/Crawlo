@@ -123,13 +123,42 @@ class InitializerRegistry:
             )
 
 
-def get_global_registry() -> InitializerRegistry:
-    """获取全局初始化器注册表（存储于 ApplicationContext）"""
+def _resolve_registry_context():
+    """Phase 8 Step 8.8 收尾：优先从容器拿 RegistryContext，否则 fallback ctx.registries。"""
+    try:
+        from crawlo.container import default_container
+        from crawlo.core.application import RegistryContext
+        if default_container.is_registered(RegistryContext):
+            return default_container.resolve(RegistryContext)
+    except Exception:  # noqa: S110
+        pass
     from crawlo.core.application import get_global_context
-    ctx = get_global_context()
-    if ctx.initializer_registry is None:
-        ctx.initializer_registry = InitializerRegistry()
-    return ctx.initializer_registry
+    return get_global_context().registries
+
+
+def get_global_registry() -> InitializerRegistry:
+    """获取全局初始化器注册表（Phase 8 Step 8.8：DI 容器优先 + RegistryContext fallback）。
+
+    与 ComponentRegistry / JobRegistry 保持统一策略：容器已注册则直接 resolve，
+    否则 fallback 到 RegistryContext 懒创建并 ``register_instance`` 补充注册。
+    """
+    try:
+        from crawlo.container import default_container
+        if default_container.is_registered(InitializerRegistry):
+            return default_container.resolve(InitializerRegistry)
+    except Exception:  # pragma: no cover
+        pass
+
+    rctx = _resolve_registry_context()
+    if rctx.initializer_registry is None:
+        inst = InitializerRegistry()
+        rctx.initializer_registry = inst
+        try:
+            from crawlo.container import default_container as _c
+            _c.register_instance(InitializerRegistry, inst)
+        except Exception:  # pragma: no cover
+            pass
+    return rctx.initializer_registry
 
 
 def register_initializer(initializer: Initializer):

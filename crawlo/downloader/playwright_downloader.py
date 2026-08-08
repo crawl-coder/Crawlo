@@ -28,7 +28,7 @@ from playwright.async_api import async_playwright, Playwright, Browser, Page, Br
 
 from crawlo.downloader import DownloaderBase
 from crawlo.constants import BROWSER_PAGE_GOTO_BLANK_TIMEOUT_MS
-from crawlo.utils.page_utils import PageActionHandler, SelectorConverter
+from crawlo.utils.parsing import PageActionHandler, SelectorConverter
 from crawlo.downloader.stealth import StealthMixin
 from crawlo.downloader.wait_strategies import SmartWaitMixin, WaitStrategy, ResourceType
 from crawlo.downloader.constants import (

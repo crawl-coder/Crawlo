@@ -6,7 +6,6 @@ Crawler System
 
 Core Components:
 - Crawler: Core controller for individual spider lifecycle management
-- CrawlerProcess: Process manager supporting single/multiple spider execution
 
 Design Principles:
 1. Single Responsibility - Each class has one clear purpose
@@ -22,6 +21,12 @@ from contextlib import asynccontextmanager
 from typing import Optional, Type, Dict, Any, List, Union, TYPE_CHECKING, cast
 
 from crawlo.factories import get_component_registry  # 已优化为延迟注册，import 轻量
+from crawlo.logging import get_logger as _get_logger
+from crawlo.core.exceptions import NotConfigured
+from crawlo.event import CrawlerEvent
+from crawlo.initialization import initialize_framework, is_framework_ready
+from crawlo.settings.setting_manager import SettingManager
+from crawlo.utils.resource_manager import ResourceManager, ResourceType
 from dataclasses import dataclass
 from enum import Enum
 
@@ -105,24 +110,19 @@ class Crawler:
         # Metrics
         self._metrics: CrawlerMetrics = CrawlerMetrics()
         
-        # Resource manager (延迟导入)
-        from crawlo.utils.resource_manager import ResourceManager, ResourceType
+        # Resource manager
         self._resource_manager: ResourceManager = ResourceManager(name=f"crawler.{spider_cls.__name__ if spider_cls else 'unknown'}")
-        
+
         # Ensure framework is initialized
         self._ensure_framework_ready()
-        
+
         # Logging: Use global logger, do not create spider-specific log files
         # Reason: Separate log files cause log confusion and duplicate configuration in multi-spider scenarios
         # All spider logs are written to the global log file, distinguished by logger name
-        from crawlo.logging import get_logger as _get_logger
         self._logger = _get_logger(f'crawler.{spider_cls.__name__ if spider_cls else "unknown"}')
     
     def _ensure_framework_ready(self) -> None:
         """Ensure framework is ready"""
-        from crawlo.initialization import initialize_framework, is_framework_ready
-        from crawlo.settings.setting_manager import SettingManager
-        
         if not is_framework_ready():
             try:
                 self._settings = initialize_framework(self._settings)
@@ -232,7 +232,6 @@ class Crawler:
                 registry = get_component_registry()
                 self._extension = registry.create('extension_manager', crawler=self)
             except Exception as e:
-                from crawlo.exceptions import NotConfigured
                 if isinstance(e, NotConfigured):
                     # For extensions that are not configured/enabled, log as info only, not error
                     self._logger.info(f"Extension manager not created (disabled): {e}")
@@ -305,7 +304,6 @@ class Crawler:
             self._engine = registry.create('engine', crawler=self)
             # Register Engine to resource manager
             if self._engine and hasattr(self._engine, 'close'):
-                from crawlo.utils.resource_manager import ResourceType
                 self._resource_manager.register(
                     self._engine,
                     lambda e: e.close() if hasattr(e, 'close') else None,
@@ -429,7 +427,6 @@ class Crawler:
             
             # Trigger spider_closed event to notify all subscribers (including extensions)
             if self.subscriber:
-                from crawlo.event import CrawlerEvent
                 await self.subscriber.notify(CrawlerEvent.SPIDER_CLOSED, reason=reason)
             
             async with self._state_lock:
@@ -501,14 +498,4 @@ class Crawler:
                 # No longer close root logger handlers to avoid affecting other components
         except Exception:
             pass
-
-
-
-
-def __getattr__(name):
-    """模块级延迟导入（PEP 562），避免 import 时加载 crawler_process 的重量级依赖"""
-    if name == 'CrawlerProcess':
-        from crawlo.crawler_process import CrawlerProcess
-        return CrawlerProcess
-    raise AttributeError(f"module 'crawlo.crawler' has no attribute '{name}'")
 

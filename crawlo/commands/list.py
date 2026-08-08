@@ -14,7 +14,7 @@ from rich.panel import Panel
 from rich.text import Text
 from rich import box
 
-from crawlo.crawler import CrawlerProcess
+from crawlo.crawler_process import CrawlerProcess
 from crawlo.logging import get_logger
 from .utils import validate_project_environment, show_error_panel
 

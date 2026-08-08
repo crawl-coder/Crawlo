@@ -36,7 +36,7 @@ def _supports_happy_eyeballs() -> bool:
 
 
 _HAPPY_EYEBALLS_SUPPORTED = _supports_happy_eyeballs()
-from crawlo.exceptions import DownloadError
+from crawlo.network.exceptions import DownloadError
 
 
 class AioHttpDownloader(DownloaderBase):

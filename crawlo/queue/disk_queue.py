@@ -16,15 +16,12 @@ import sqlite3
 import tempfile
 import shutil
 from pathlib import Path
-from typing import Optional, Any, Dict, List, TYPE_CHECKING
+from typing import Optional, Any, Dict, List
 from contextlib import contextmanager
 from dataclasses import dataclass
 
 from crawlo.queue.interfaces import IQueue, BackpressureableQueueMixin
 from crawlo.queue.queue_types import QueueType
-
-if TYPE_CHECKING:
-    from crawlo.network.request import Request
 
 logger = logging.getLogger(__name__)
 

@@ -6,7 +6,7 @@ import sys
 import asyncio
 
 
-from crawlo.crawler import CrawlerProcess
+from crawlo.crawler_process import CrawlerProcess
 
 
 def main():

@@ -123,18 +123,36 @@ class NotificationDispatcher:
         return await loop.run_in_executor(None, self.send_notification, message)
 
 
+def _resolve_notification_context():
+    """Phase 8 Step 8.5：优先从容器拿 NotificationContext，否则 fallback ctx.notifications。"""
+    try:
+        from crawlo.container import default_container
+        from crawlo.core.application import NotificationContext
+        if default_container.is_registered(NotificationContext):
+            return default_container.resolve(NotificationContext)
+    except Exception:  # noqa: S110
+        pass
+    from crawlo.core.application import get_global_context
+    return get_global_context().notifications
+
+
 def get_notifier() -> NotificationDispatcher:
     """
-    获取全局通知器实例（存储于 ApplicationContext，DCL 线程安全）
+    获取全局通知器实例（Phase 8 Step 8.5：DI 容器优先 + DCL NotificationContext fallback）。
     """
-    from crawlo.core.application import get_global_context
-    ctx = get_global_context()
-    
-    if ctx.notifier is None:
-        with ctx.notifier_lock:
-            if ctx.notifier is None:
-                ctx.notifier = NotificationDispatcher()
-                
+    try:
+        from crawlo.container import default_container
+        if default_container.is_registered(NotificationDispatcher):
+            return default_container.resolve(NotificationDispatcher)
+    except Exception:  # pragma: no cover
+        pass
+    nctx = _resolve_notification_context()
+
+    if nctx.notifier is None:
+        with nctx.notifier_lock:
+            if nctx.notifier is None:
+                inst = NotificationDispatcher()
+
                 from crawlo.bot.channels import (
                     get_dingtalk_channel,
                     get_feishu_channel,
@@ -142,20 +160,25 @@ def get_notifier() -> NotificationDispatcher:
                     get_email_channel,
                     get_sms_channel,
                 )
-                
-                ctx.notifier.register_channel(get_dingtalk_channel())
-                ctx.notifier.register_channel(get_feishu_channel())
-                ctx.notifier.register_channel(get_wecom_channel())
-                ctx.notifier.register_channel(get_email_channel())
-                ctx.notifier.register_channel(get_sms_channel())
-    
-    return ctx.notifier
+
+                inst.register_channel(get_dingtalk_channel())
+                inst.register_channel(get_feishu_channel())
+                inst.register_channel(get_wecom_channel())
+                inst.register_channel(get_email_channel())
+                inst.register_channel(get_sms_channel())
+                nctx.notifier = inst
+                try:
+                    from crawlo.container import default_container as _c
+                    _c.register_instance(NotificationDispatcher, inst)
+                except Exception:  # pragma: no cover
+                    pass
+
+    return nctx.notifier
 
 
 def reset_notifier() -> None:
-    """重置全局通知器（主要用于测试）"""
-    from crawlo.core.application import get_global_context
-    ctx = get_global_context()
-    ctx.notifier = None
+    """重置全局通知器（Phase 8 Step 8.5：通过 NotificationContext 属性操作）。"""
+    nctx = _resolve_notification_context()
+    nctx.notifier = None
 
 

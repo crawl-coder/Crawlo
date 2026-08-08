@@ -602,11 +602,23 @@ class QuickFetcher:
         self._cookies.clear()
 
 
-def _cleanup_fetcher():
-    """清理全局 Fetcher 实例（程序退出时调用）"""
+def _resolve_runtime_context():
+    """Phase 8 Step 8.7：优先从容器拿 RuntimeContext，否则 fallback ctx.runtime。"""
+    try:
+        from crawlo.container import default_container
+        from crawlo.core.application import RuntimeContext
+        if default_container.is_registered(RuntimeContext):
+            return default_container.resolve(RuntimeContext)
+    except Exception:  # noqa: S110
+        pass
     from crawlo.core.application import get_global_context
-    ctx = get_global_context()
-    fetcher = ctx.mcp_fetcher or ctx.quick_fetcher  # 共用时只需关一次
+    return get_global_context().runtime
+
+
+def _cleanup_fetcher():
+    """清理全局 Fetcher 实例（Phase 8 Step 8.7：通过 RuntimeContext 写位）。"""
+    rctx = _resolve_runtime_context()
+    fetcher = rctx.mcp_fetcher or rctx.quick_fetcher  # 共用时只需关一次
     if fetcher is not None:
         try:
             loop = asyncio.get_event_loop()
@@ -616,8 +628,8 @@ def _cleanup_fetcher():
                 loop.run_until_complete(fetcher.close())
         except Exception:
             pass
-        ctx.mcp_fetcher = None
-        ctx.quick_fetcher = None
+        rctx.mcp_fetcher = None
+        rctx.quick_fetcher = None
 
 
 # 注册退出清理
@@ -625,12 +637,23 @@ atexit.register(_cleanup_fetcher)
 
 
 async def get_fetcher(custom_settings: Optional[Dict[str, Any]] = None) -> QuickFetcher:
-    """获取全局 QuickFetcher 实例（存储于 ApplicationContext）"""
-    from crawlo.core.application import get_global_context
-    ctx = get_global_context()
-    if ctx.quick_fetcher is None:
-        ctx.quick_fetcher = QuickFetcher(custom_settings)
-    return ctx.quick_fetcher
+    """获取全局 QuickFetcher 实例（Phase 8 Step 8.7：DI 容器优先 + RuntimeContext fallback）。"""
+    try:
+        from crawlo.container import default_container
+        if default_container.is_registered(QuickFetcher):
+            return default_container.resolve(QuickFetcher)
+    except Exception:  # pragma: no cover
+        pass
+    rctx = _resolve_runtime_context()
+    if rctx.quick_fetcher is None:
+        inst = QuickFetcher(custom_settings)
+        rctx.quick_fetcher = inst
+        try:
+            from crawlo.container import default_container as _c
+            _c.register_instance(QuickFetcher, inst)
+        except Exception:  # pragma: no cover
+            pass
+    return rctx.quick_fetcher
 
 
 async def quick_fetch(

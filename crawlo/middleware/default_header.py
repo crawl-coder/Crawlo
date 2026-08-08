@@ -17,7 +17,7 @@ Configuration:
 
 import random
 from crawlo.logging import get_logger
-from crawlo.exceptions import NotConfiguredError
+from crawlo.core.exceptions import NotConfiguredError
 from crawlo.middleware.user_agents import get_user_agents
 
 

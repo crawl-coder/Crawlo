@@ -92,7 +92,7 @@ class SpiderResolver:
     def _auto_discover_spiders(modules: List[str], registry: dict) -> None:
         """自动发现爬虫"""
         # SpiderDiscoveryState 已在顶部导入
-        from crawlo.utils.process_utils import SpiderDiscoveryUtils
+        from crawlo.utils.concurrency import SpiderDiscoveryUtils
         from crawlo.logging import get_logger
         
         undiscovered_modules = [

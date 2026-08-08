@@ -19,7 +19,7 @@ from .request.response_helper import (
 from .request.fingerprint import FingerprintGenerator
 
 # 编码检测
-from .encoding_detector import (
+from .encoding.encoding_detector import (
     EncodingDetector,
     detect_encoding,
     decode_body,
@@ -38,8 +38,8 @@ def __getattr__(name):
     """延迟导入 request_serializer 和 batch，避免循环导入。
     
     这两个模块间接依赖 crawlo.logging（通过 crawlo.network → response），
-    而 logging/manager.py 通过 from crawlo.utils.singleton import SingletonMeta
-    触发本包的导入，此时 logging 尚未完成初始化，直接导入会形成循环。
+    而 logging/manager.py 通过 from crawlo.core.singleton import SingletonMeta
+    间接触发本包的导入，此时 logging 尚未完成初始化，直接导入会形成循环。
     """
     if name == 'RequestSerializer':
         from .request.request_serializer import RequestSerializer

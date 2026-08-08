@@ -26,7 +26,7 @@ from typing import List, Dict, Optional
 
 from pymongo.errors import PyMongoError, BulkWriteError
 
-from crawlo.exceptions import ItemDiscard
+from crawlo.items.exceptions import ItemDiscard
 from crawlo.utils.db.mongo_connection_pool import MongoConnectionPoolManager
 from crawlo.pipelines.generic_doc import GenericDocumentPipeline
 

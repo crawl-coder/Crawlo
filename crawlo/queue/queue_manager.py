@@ -13,6 +13,7 @@
 import asyncio
 import time
 import traceback
+import warnings
 from typing import Optional, Dict, Any, Union, TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -22,9 +23,10 @@ from crawlo.queue.memory_queue import SpiderPriorityQueue
 from crawlo.queue.queue_types import QueueType
 from crawlo.queue.config import QueueConfig
 from crawlo.queue.priority_calculator import PriorityCalculator
-from crawlo.utils.error_handler import ErrorHandler
+from crawlo.utils.errors import ErrorHandler
 from crawlo.logging import get_logger
 from crawlo.utils.misc import safe_get_config
+from crawlo.queue.exceptions import QueueFullTimeout
 
 try:
     # 使用完整版Redis队列
@@ -55,6 +57,12 @@ class QueueManager(QueueStatusMixin, QueueBackpressureMixin):
         self._queue_type = None
         self._health_status = "unknown"
         self._priority_calculator = PriorityCalculator()  # 优先级计算器
+        # Phase 2：队列不满的条件变量，put 阻塞等待 / get 唤醒
+        # 替代原 Scheduler 层的 _queue_not_full，统一由 QueueManager 管理
+        self._queue_not_full = asyncio.Condition()
+        # Phase 2：正在阻塞等待入队的请求数（防死锁：idle 判定需检查此值）
+        # 若 > 0 表示有 put 在 block 等待，Engine 不应提前退出
+        self._pending_enqueue_count = 0
         
         # 初始化新的背压策略系统
         from crawlo.backpressure import (
@@ -160,8 +168,25 @@ class QueueManager(QueueStatusMixin, QueueBackpressureMixin):
             self._health_status = "error"
             return False
 
-    async def put(self, request: "Request", priority: int = 0) -> bool:
-        """Unified enqueue interface"""
+    async def put(self, request: "Request", priority: int = 0, *, timeout: Optional[float] = None) -> bool:
+        """Unified enqueue interface
+
+        Phase 2：队列满时阻塞等待，超时抛 ``QueueFullTimeout``。
+        把"丢弃"从隐式 ``return False`` 变成显式异常，由调用方（Scheduler）按
+        ``ENQUEUE_FULL_POLICY`` 决策。
+
+        Args:
+            request: 请求对象
+            priority: 优先级
+            timeout: 阻塞等待超时（秒）。``None`` = 无限等待；超时抛 ``QueueFullTimeout``。
+
+        Returns:
+            True 表示入队成功
+
+        Raises:
+            QueueFullTimeout: 队列满且等待超时
+            RuntimeError: 队列未初始化
+        """
         if not self._queue:
             raise RuntimeError("队列未初始化")
 
@@ -182,25 +207,41 @@ class QueueManager(QueueStatusMixin, QueueBackpressureMixin):
 
             # 获取当前队列大小用于背压控制
             current_queue_size = await self.size() if self._queue else 0
-            
+
             # 获取配置的最大队列大小
             max_size = self.config.max_queue_size if hasattr(self, 'config') else 1000
-            
-            # ===== 硬限制：队列满时拒绝请求 =====
+
+            # ===== Phase 2：硬限制改为阻塞等待（替代原 return False）=====
+            # 队列满时用 Condition 等待消费者腾出空间，超时抛 QueueFullTimeout
             if current_queue_size >= max_size:
-                self.logger.warning(
-                    f"Queue full ({current_queue_size}/{max_size}), "
-                    f"rejecting request: {request.url}"
-                )
-                return False
-            
-            # ===== 软限制：队列超过阈值时延迟入队 =====
+                if not self._backpressure_controller.active:
+                    self.logger.info(
+                        f"Queue full ({current_queue_size}/{max_size}), "
+                        f"blocking enqueue (timeout={timeout}): {request.url}"
+                    )
+                # Phase 2：标记有 put 在阻塞等待，防止 Engine 误判 idle 提前退出
+                self._pending_enqueue_count += 1
+                try:
+                    waited = await self._wait_for_space(max_size, timeout)
+                finally:
+                    self._pending_enqueue_count -= 1
+                if not waited:
+                    raise QueueFullTimeout(
+                        queue_name=self.config.queue_name,
+                        waited_seconds=timeout if timeout is not None else 0.0,
+                        queue_size=await self.size(),
+                        max_size=max_size,
+                    )
+                # 重新获取队列大小（腾出空间后）
+                current_queue_size = await self.size()
+
+            # ===== 软限制：队列超过阈值时延迟入队（流量整形，非阻塞）=====
             if hasattr(self, '_backpressure_controller') and self._backpressure_controller.enabled:
                 # 使用新的背压策略系统检查是否需要应用背压
                 if await self._backpressure_controller.should_apply(self):
                     # 计算背压延迟
                     delay = await self._backpressure_controller.calculate_delay(self)
-                    
+
                     if delay > 0:
                         # 记录背压激活日志（仅在状态变更时）
                         if not self._backpressure_controller.active:
@@ -210,7 +251,7 @@ class QueueManager(QueueStatusMixin, QueueBackpressureMixin):
                                 f"(utilization: {metrics.utilization:.0%}, delay: {delay:.2f}s, "
                                 f"level: {metrics.level.value})"
                             )
-                        
+
                         # 应用背压延迟
                         self.logger.debug(
                             f"Backpressure delay: {delay:.2f}s "
@@ -255,6 +296,9 @@ class QueueManager(QueueStatusMixin, QueueBackpressureMixin):
 
             return success
 
+        except QueueFullTimeout:
+            # 队列满超时：不在此处理，向上抛给 Scheduler 按 policy 决策
+            raise
         except Exception as e:
             self.logger.error(f"Failed to enqueue request: {e}")
             # 只在已获取信号量时才释放
@@ -264,6 +308,44 @@ class QueueManager(QueueStatusMixin, QueueBackpressureMixin):
                 except ValueError:
                     pass
             return False
+
+    async def _wait_for_space(self, max_size: int, timeout: Optional[float]) -> bool:
+        """等待队列腾出空间。
+
+        Phase 2：队列满时阻塞等待，由 ``get`` 成功取出后通过
+        ``_notify_space_available`` 唤醒。
+
+        Args:
+            max_size: 队列最大容量
+            timeout: 等待超时（秒）。``None`` = 无限等待。
+
+        Returns:
+            True 表示队列已有空位；False 表示超时。
+        """
+        start = time.monotonic()
+        async with self._queue_not_full:
+            while await self.size() >= max_size:
+                if timeout is None:
+                    await self._queue_not_full.wait()
+                else:
+                    elapsed = time.monotonic() - start
+                    remaining = timeout - elapsed
+                    if remaining <= 0:
+                        return False
+                    try:
+                        await asyncio.wait_for(self._queue_not_full.wait(), timeout=remaining)
+                    except asyncio.TimeoutError:
+                        # 超时后继续循环检查，可能刚好有空位
+                        pass
+            return True
+
+    async def _notify_space_available(self) -> None:
+        """通知所有等待入队的协程：队列有空间了。
+
+        在 ``get`` / ``get_blocking`` 成功取出元素后调用，唤醒阻塞的 ``put``。
+        """
+        async with self._queue_not_full:
+            self._queue_not_full.notify_all()
 
     async def get(self) -> Optional["Request"]:
         """Unified dequeue interface"""
@@ -285,6 +367,10 @@ class QueueManager(QueueStatusMixin, QueueBackpressureMixin):
                 except ValueError:
                     # 信号量可能已被其他路径释放，忽略下溢
                     pass
+
+            # Phase 2：成功取出元素后通知等待入队的 put（队列腾出了空间）
+            if result is not None:
+                await self._notify_space_available()
 
             # 反序列化处理（仅对 Redis 队列）
             if result and self._queue_type in (QueueType.REDIS, QueueType.REDIS_STREAM):
@@ -322,10 +408,12 @@ class QueueManager(QueueStatusMixin, QueueBackpressureMixin):
         if self._queue_type in (QueueType.REDIS, QueueType.REDIS_STREAM) and hasattr(self._queue, 'get_blocking'):
             result = await self._queue.get_blocking(timeout=timeout)
             if result and hasattr(result, 'url'):
+                # Phase 2：成功取出后通知等待入队的 put
+                await self._notify_space_available()
                 return result
             return None
 
-        # 内存队列 fallback
+        # 内存队列 fallback（get 内部已处理 notify）
         return await self.get()
 
     async def size(self) -> int:
@@ -360,26 +448,14 @@ class QueueManager(QueueStatusMixin, QueueBackpressureMixin):
         """返回最大队列大小（IQueue接口）"""
         return self.config.max_queue_size
 
-    def empty(self) -> bool:
-        """Check if queue is empty (synchronous version, for compatibility)
-        
-        对于 Redis 队列使用保守策略返回 False，避免 Engine 过早退出。
-        上层应通过 async_empty() 获取精确结果。
+    @property
+    def pending_enqueue_count(self) -> int:
+        """Phase 2：正在阻塞等待入队的请求数。
+
+        Engine 的 idle 判定需检查此值：若 > 0 表示有 put 在 block 等待，
+        Engine 不应提前退出（否则消费者停了 → 入队永远等不到消费 → 死锁）。
         """
-        try:
-            # 对于内存队列，同步检查（asyncio.PriorityQueue.qsize() 是同步的）
-            if self._queue and self._queue_type == QueueType.MEMORY:
-                # SpiderPriorityQueue 继承自 asyncio.PriorityQueue，有 qsize() 方法
-                if hasattr(self._queue, 'qsize'):
-                    return self._queue.qsize() == 0
-                else:
-                    # 如果没有qsize方法，假设队列为空
-                    return True
-            # 对于 Redis 队列：无法同步确定，使用保守策略返回 False
-            # 防止 Engine._exit() 同步检查时误判为空闲而过早退出
-            return False
-        except Exception:
-            return False
+        return self._pending_enqueue_count
 
     async def async_empty(self) -> bool:
         """Check if queue is empty (asynchronous version, more accurate)"""
@@ -443,12 +519,14 @@ class QueueManager(QueueStatusMixin, QueueBackpressureMixin):
     async def _determine_queue_type(self) -> QueueType:
         """Determine queue type"""
         if self.config.queue_type == QueueType.AUTO:
-            # 自动选择：优先使用 Redis（如果可用）
+            # 自动选择：优先使用 Redis Stream（若可用），避免 Redis ZSET 队列崩溃时任务丢失
             if REDIS_AVAILABLE and self.config.redis_url:
                 if await self._test_redis_connection():
-                    self.logger.info("Queue type: redis (auto-detected, Redis available)")
+                    self.logger.info(
+                        "Queue type: redis_stream (auto-detected, Redis available)"
+                    )
                     self._apply_redis_backpressure_config()
-                    return QueueType.REDIS
+                    return QueueType.REDIS_STREAM
                 else:
                     self.logger.info("Queue type: memory (auto-detected, Redis unavailable)")
                     self._apply_memory_backpressure_config()
@@ -690,9 +768,12 @@ class QueueManager(QueueStatusMixin, QueueBackpressureMixin):
                 self.logger.error(error_msg)
                 raise RuntimeError(error_msg) from e
             
-            # 非 Distributed 模式：如果是Redis队列且健康检查失败，尝试切换到内存队列
-            # 对于 AUTO 模式允许回退
-            if self._queue_type == QueueType.REDIS and self.config.queue_type == QueueType.AUTO:
+            # 非 Distributed 模式：如果是 Redis（REDIS 或 REDIS_STREAM）队列且健康检查失败，
+            # 尝试切换到内存队列；AUTO 模式允许回退
+            if (
+                self._queue_type in (QueueType.REDIS, QueueType.REDIS_STREAM)
+                and self.config.queue_type == QueueType.AUTO
+            ):
                 self.logger.info("Redis queue unavailable, attempting to switch to memory queue...")
                 try:
                     if self._queue:

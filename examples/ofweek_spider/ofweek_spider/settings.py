@@ -8,7 +8,7 @@ ofweek_spider 项目配置文件
 框架会自动检测Redis可用性，可用则使用分布式模式，否则使用单机模式。
 """
 
-from crawlo.config import CrawloConfig
+from crawlo.core.config import CrawloConfig
 
 # 使用自动检测模式配置工厂创建配置
 config = CrawloConfig.auto(
@@ -76,9 +76,9 @@ REDIS_DB = 0
 # MySQL配置
 MYSQL_HOST = '127.0.0.1'
 MYSQL_PORT = 3306
-MYSQL_USER = 'root'
-MYSQL_PASSWORD = '123456'
-MYSQL_DB = 'ofweek_spider'
+MYSQL_USER = 'crawlo'
+MYSQL_PASSWORD = 'crawlo123'
+MYSQL_DB = 'crawlo_deployer'
 MYSQL_TABLE = 'ofweek_spider_data'
 MYSQL_BATCH_SIZE = 100
 MYSQL_USE_BATCH = False  # 是否启用批量插入

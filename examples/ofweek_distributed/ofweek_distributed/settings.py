@@ -9,7 +9,7 @@ ofweek_distributed 项目配置文件（分布式版）
 支持多节点协同工作，适用于大规模数据采集任务。
 """
 
-from crawlo.config import CrawloConfig
+from crawlo.core.config import CrawloConfig
 
 # ---------------------------------------------------------------------------#
 # Redis（分布式模式依赖）
