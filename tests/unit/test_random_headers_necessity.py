@@ -56,9 +56,8 @@ def test_current_user_agent_functionality():
     settings.set('DEFAULT_REQUEST_HEADERS', {
         'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
     })
-    settings.set('RANDOM_USER_AGENT_ENABLED', True)  # 启用随机User-Agent
+    settings.set('USER_AGENT_ROTATION', True)  # 启用随机User-Agent
     settings.set('LOG_LEVEL', 'DEBUG')
-    settings.set('RANDOMNESS', True)  # 启用随机功能
     
     # 创建一个模拟的crawler对象
     crawler = Mock()
@@ -72,9 +71,9 @@ def test_current_user_agent_functionality():
             print("  ✅ 启用随机User-Agent时中间件创建成功")
             
             # 检查配置
-            print(f"     随机User-Agent启用: {middleware.random_user_agent_enabled}")
+            print(f"     随机User-Agent启用: {middleware.rotation_enabled}")
             print(f"     User-Agent列表数量: {len(middleware.user_agents)}")
-            print(f"     User-Agent设备类型: {middleware.user_agent_device_type}")
+            print(f"     User-Agent设备类型: {middleware.rotation_type}")
             
             # 测试处理请求
             request = Mock()
@@ -88,107 +87,61 @@ def test_current_user_agent_functionality():
             if 'User-Agent' in request.headers:
                 print("  ✅ 随机User-Agent正确添加到请求中")
                 print(f"     User-Agent: {request.headers['User-Agent'][:50]}...")
-                return True
             else:
                 print("  ❌ 随机User-Agent未添加")
-                return False
-            
+            assert 'User-Agent' in request.headers, "随机User-Agent未添加"
+
         except Exception as e:
             print(f"  ❌ 测试失败: {e}")
-            return False
+            raise
 
 
 def test_random_headers_vs_user_agent():
     """比较RANDOM_HEADERS和User-Agent功能的差异"""
     print("\n=== 比较RANDOM_HEADERS和User-Agent功能的差异 ===")
     
-    # 测试RANDOM_HEADERS功能
-    print("  RANDOM_HEADERS功能:")
-    settings1 = SettingManager()
-    settings1.set('DEFAULT_REQUEST_HEADERS', {
+    # 仅演示 UA 轮换 VS 自定义 headers 两种思路：
+    # RANDOM_HEADERS 字典随机化当前版本未实现，本测试不再依赖该功能。
+    print("  UA 轮换方案（推荐）：")
+    settings = SettingManager()
+    settings.set('DEFAULT_REQUEST_HEADERS', {
         'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
     })
-    settings1.set('RANDOM_HEADERS', {
-        'X-Custom-Header': ['Value1', 'Value2', 'Value3'],
-        'X-Another-Header': 'FixedValue',
-        'X-Random-Header': ['A', 'B', 'C', 'D']
-    })
-    settings1.set('RANDOMNESS', True)
-    settings1.set('LOG_LEVEL', 'DEBUG')
-    
-    # 测试User-Agent功能
-    print("  User-Agent功能:")
-    settings2 = SettingManager()
-    settings2.set('DEFAULT_REQUEST_HEADERS', {
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-    })
-    settings2.set('RANDOM_USER_AGENT_ENABLED', True)
-    settings2.set('LOG_LEVEL', 'DEBUG')
-    settings2.set('RANDOMNESS', True)
-    
+    settings.set('USER_AGENT_ROTATION', True)
+    settings.set('LOG_LEVEL', 'DEBUG')
+
     # 创建crawler对象
-    crawler1 = Mock()
-    crawler1.settings = settings1
     crawler2 = Mock()
-    crawler2.settings = settings2
-    
+    crawler2.settings = settings
+
     logger = MockLogger('DefaultHeaderMiddleware')
-    
-    # 测试RANDOM_HEADERS
-    with patch('crawlo.middleware.default_header.get_logger', return_value=logger):
-        try:
-            middleware1 = DefaultHeaderMiddleware.create_instance(crawler1)
-            
-            # 测试多次请求的随机性
-            print("    RANDOM_HEADERS随机性测试:")
-            header_values = {}
-            for i in range(20):
-                test_request = Mock()
-                test_request.headers = {}
-                test_request.url = f'https://example.com/test{i}'
-                
-                middleware1.process_request(test_request, Mock())
-                
-                # 收集各种随机头部的值
-                for header in ['X-Custom-Header', 'X-Another-Header', 'X-Random-Header']:
-                    if header in test_request.headers:
-                        if header not in header_values:
-                            header_values[header] = []
-                        header_values[header].append(test_request.headers[header])
-            
-            # 分析随机性
-            for header, values in header_values.items():
-                unique_values = set(values)
-                print(f"      {header}: {len(unique_values)} 个不同值 ({list(unique_values)[:3]}...)")
-            
-        except Exception as e:
-            print(f"    RANDOM_HEADERS测试失败: {e}")
-    
-    # 测试User-Agent
+
+    # 测试User-Agent 轮换
     with patch('crawlo.middleware.default_header.get_logger', return_value=logger):
         try:
             middleware2 = DefaultHeaderMiddleware.create_instance(crawler2)
-            
+
             # 测试多次请求的随机性
-            print("    User-Agent随机性测试:")
+            print("    User-Agent 随机性测试:")
             ua_values = []
             for i in range(20):
                 test_request = Mock()
                 test_request.headers = {}
                 test_request.url = f'https://example.com/test{i}'
-                
+
                 middleware2.process_request(test_request, Mock())
-                
+
                 if 'User-Agent' in test_request.headers:
                     ua_values.append(test_request.headers['User-Agent'])
-            
+
             # 分析随机性
             unique_uas = set(ua_values)
             print(f"      User-Agent: {len(unique_uas)} 个不同值")
             print(f"      示例: {list(unique_uas)[:3]}")
-            
+
         except Exception as e:
-            print(f"    User-Agent测试失败: {e}")
+            print(f"    User-Agent 测试失败: {e}")
+            raise
 
 
 def test_direct_user_agent_usage():
@@ -225,8 +178,8 @@ def test_alternative_approach():
     settings.set('DEFAULT_REQUEST_HEADERS', {
         'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
     })
-    settings.set('RANDOM_USER_AGENT_ENABLED', True)
-    settings.set('USER_AGENT_DEVICE_TYPE', 'desktop')
+    settings.set('USER_AGENT_ROTATION', True)
+    settings.set('USER_AGENT_TYPE', 'desktop')
     settings.set('LOG_LEVEL', 'DEBUG')
     
     crawler = Mock()
@@ -248,11 +201,11 @@ def test_alternative_approach():
             
             if 'User-Agent' in request.headers:
                 print(f"     User-Agent: {request.headers['User-Agent'][:50]}...")
-            
-            return True
+            assert 'User-Agent' in request.headers, "推荐配置下 User-Agent 未添加到请求头"
+
         except Exception as e:
             print(f"  ❌ 推荐配置失败: {e}")
-            return False
+            raise
 
 
 def analyze_necessity():
@@ -260,27 +213,25 @@ def analyze_necessity():
     print("\n=== 分析RANDOM_HEADERS参数的必要性 ===")
     
     print("功能对比:")
-    print("  User-Agent功能:")
-    print("    ✓ 专门用于User-Agent随机化")
-    print("    ✓ 内置大量真实User-Agent")
-    print("    ✓ 支持按设备类型分类")
+    print("  USER_AGENT_ROTATION 方案（推荐）:")
+    print("    ✓ 专门用于 User-Agent 随机化")
+    print("    ✓ 内置大量真实 User-Agent")
+    print("    ✓ 支持 USER_AGENT_TYPE 按设备类型分类")
     print("    ✓ 易于使用和配置")
-    
-    print("  RANDOM_HEADERS功能:")
-    print("    ✓ 可以为任意头部添加随机值")
+
+    print("  自定义 DEFAULT_REQUEST_HEADERS 方案（进阶）:")
+    print("    ✓ 可以自行包装随机逻辑放入 DEFAULT_REQUEST_HEADERS")
     print("    ✓ 更加灵活，支持自定义头部")
-    print("    ✓ 适用于需要随机化其他头部的场景")
-    print("    ✗ 需要用户自己提供头部值列表")
-    
+    print("    ✗ 需要用户自己提供随机值生成")
+
     print("\n使用建议:")
-    print("  1. 对于User-Agent随机化：使用RANDOM_USER_AGENT_ENABLED")
-    print("  2. 对于其他头部随机化：使用RANDOM_HEADERS")
-    print("  3. 大多数场景下，User-Agent功能已足够")
-    print("  4. RANDOM_HEADERS适用于特殊需求场景")
-    
+    print("  1. 对 User-Agent 随机化：USER_AGENT_ROTATION=True + USER_AGENT_TYPE")
+    print("  2. 大多数场景下，User-Agent 轮换已足够")
+    print("  3. 要做复杂 header 随机化可自行写中间件或在 process_request 中扩展")
+
     print("\n结论:")
-    print("  RANDOM_HEADERS参数不是必需的，但对于需要随机化其他头部的场景很有用")
-    print("  现有的User-Agent功能已经可以满足大多数反爬虫需求")
+    print("  多数场景只需要 User-Agent 轮换就能解决反爬问题；")
+    print("  需要更复杂随机值时可以写自定义中间件或扩展 DefaultHeaderMiddleware。")
 
 
 def main():

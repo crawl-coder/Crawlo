@@ -22,82 +22,63 @@ from crawlo.utils.errors import ErrorHandler, ErrorContext, DetailedException, h
 def test_basic_error_handling():
     """测试基本错误处理"""
     print("1. 测试基本错误处理...")
-    
+
+    handler = ErrorHandler("test_logger")
+
+    def failing_function():
+        raise ValueError("测试错误")
+
+    context = ErrorContext(context="测试同步函数", module="test_module", function="failing_function")
     try:
-        handler = ErrorHandler("test_logger")
-        
-        # 测试同步函数错误处理
-        def failing_function():
-            raise ValueError("测试错误")
-        
-        context = ErrorContext(context="测试同步函数", module="test_module", function="failing_function")
-        
-        try:
-            handler.safe_call(failing_function, context=context)
-            print("   同步函数错误处理成功")
-        except Exception as e:
-            print(f"   同步函数错误处理失败: {e}")
-            return False
-            
-        # 测试普通函数的错误处理（不是异步函数）
-        def normal_function():
-            return "正常返回值"
-        
-        context = ErrorContext(context="测试普通函数", module="test_module", function="normal_function")
-        
-        result = handler.safe_call(normal_function, context=context)
-        if result == "正常返回值":
-            print("   普通函数处理成功")
-        else:
-            print("   普通函数处理失败")
-            return False
-            
-        return True
-        
+        handler.safe_call(failing_function, context=context)
+        print("   同步函数错误处理成功")
     except Exception as e:
-        print(f"   基本错误处理测试失败: {e}")
-        traceback.print_exc()
-        return False
+        print(f"   同步函数错误处理失败: {e}")
+        raise AssertionError(f"同步函数错误处理失败: {e}")
+
+    def normal_function():
+        return "正常返回值"
+
+    context = ErrorContext(context="测试普通函数", module="test_module", function="normal_function")
+    result = handler.safe_call(normal_function, context=context)
+    if result == "正常返回值":
+        print("   普通函数处理成功")
+    else:
+        print("   普通函数处理失败")
+    assert result == "正常返回值", f"普通函数处理失败，期望 '正常返回值'，实际 {result!r}"
 
 
 def test_detailed_exception():
     """测试详细异常"""
     print("2. 测试详细异常...")
-    
-    try:
-        # 创建错误上下文
-        context = ErrorContext(
-            context="数据库连接失败",
-            module="database_module",
-            function="connect_to_db"
-        )
-        
-        # 创建详细异常
-        exception = DetailedException(
-            "无法连接到数据库",
-            context=context,
-            error_code="DB_CONN_001",
-            host="localhost",
-            port=5432,
-            database="test_db"
-        )
-        
-        # 验证异常信息
-        assert "无法连接到数据库" in str(exception)
-        assert "数据库连接失败" in str(exception)
-        
-        # 获取完整详情
-        details = exception.get_full_details()
-        assert details["error_code"] == "DB_CONN_001"
-        assert details["exception_type"] == "DetailedException"
-        
-        print("   详细异常测试成功")
-        return True
-        
-    except Exception as e:
-        print(f"   详细异常测试失败: {e}")
-        traceback.print_exc()
-        return False
+
+    # 创建错误上下文
+    context = ErrorContext(
+        context="数据库连接失败",
+        module="database_module",
+        function="connect_to_db"
+    )
+
+    # 创建详细异常
+    exception = DetailedException(
+        "无法连接到数据库",
+        context=context,
+        error_code="DB_CONN_001",
+        host="localhost",
+        port=5432,
+        database="test_db"
+    )
+
+    # 验证异常信息
+    assert "无法连接到数据库" in str(exception)
+    assert "数据库连接失败" in str(exception)
+
+    # 获取完整详情
+    details = exception.get_full_details()
+    assert details["error_code"] == "DB_CONN_001"
+    assert details["exception_type"] == "DetailedException"
+
+    print("   详细异常测试成功")
 
 
 async def test_retry_decorator():
@@ -142,12 +123,11 @@ async def test_retry_decorator():
         assert async_attempt_count == 3
         
         print("   异步函数重试测试成功")
-        return True
-        
+
     except Exception as e:
         print(f"   重试装饰器测试失败: {e}")
         traceback.print_exc()
-        return False
+        raise
 
 
 async def test_exception_decorator():
@@ -166,27 +146,25 @@ async def test_exception_decorator():
             print("   同步函数装饰器测试成功")
         except Exception:
             print("   同步函数装饰器测试失败：异常未被捕获")
-            return False
-            
+            raise AssertionError("同步函数装饰器失败：异常未被捕获")
+
         # 测试异步函数装饰器
         @handle_exception(context="异步测试装饰器", module="test_module", function="async_decorated_function", raise_error=False)
         async def async_decorated_function():
             raise RuntimeError("异步装饰器测试错误")
-        
+
         # 异步调用
         try:
             await async_decorated_function()
             print("   异步函数装饰器测试成功")
         except Exception:
             print("   异步函数装饰器测试失败：异常未被捕获")
-            return False
-            
-        return True
-        
+            raise AssertionError("异步函数装饰器失败：异常未被捕获")
+
     except Exception as e:
         print(f"   异常装饰器测试失败: {e}")
         traceback.print_exc()
-        return False
+        raise
 
 
 def test_error_history():
@@ -217,14 +195,13 @@ def test_error_history():
         for record in history:
             assert "历史记录测试错误" in record["message"]
             assert record["exception_type"] == "ValueError"
-        
+
         print("   错误历史记录测试成功")
-        return True
-        
+
     except Exception as e:
         print(f"   错误历史记录测试失败: {e}")
         traceback.print_exc()
-        return False
+        raise
 
 
 async def main():

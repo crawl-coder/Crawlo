@@ -55,26 +55,30 @@ def test_default_configuration():
     # 不设置任何RANDOM相关的配置，使用默认值
     # 但需要移除默认的DEFAULT_REQUEST_HEADERS和USER_AGENT来测试禁用情况
     settings.set('DEFAULT_REQUEST_HEADERS', {})
+    # SettingManager 有 DEFAULT_REQUEST_HEADERS + USER_AGENT 默认值；
+    # 测试"完全无配置时禁用"必须把这两项都清空，并关闭 rotation
+    settings.set('DEFAULT_REQUEST_HEADERS', {})
     settings.set('USER_AGENT', None)
-    
+    settings.set('USER_AGENT_ROTATION', False)
+    settings.set('USER_AGENT_TYPE', None)
+
     # 创建一个模拟的crawler对象
     crawler = Mock()
     crawler.settings = settings
-    
+
     logger = MockLogger('DefaultHeaderMiddleware')
     with patch('crawlo.middleware.default_header.get_logger', return_value=logger):
         try:
             # 尝试创建中间件实例
-            middleware = DefaultHeaderMiddleware.create_instance(crawler)
+            DefaultHeaderMiddleware.create_instance(crawler)
             print("  ❌ 中间件创建成功，但应该在默认配置下被禁用")
-            return False
+            raise AssertionError("中间件在默认配置下应被禁用并抛 NotConfiguredError")
         except NotConfiguredError as e:
             print("  ✅ 中间件正确地在默认配置下被禁用")
             print(f"     错误信息: {e}")
-            return True
         except Exception as e:
             print(f"  ❌ 发生意外错误: {e}")
-            return False
+            raise
 
 
 def test_default_headers_only():
@@ -88,8 +92,8 @@ def test_default_headers_only():
         'Accept-Language': 'en-US,en;q=0.5',
     })
     settings.set('LOG_LEVEL', 'DEBUG')
-    # 确保随机功能禁用
-    settings.set('RANDOMNESS', False)
+    # 确保随机 UA 功能禁用
+    settings.set('USER_AGENT_ROTATION', False)
     
     # 创建一个模拟的crawler对象
     crawler = Mock()
@@ -105,30 +109,26 @@ def test_default_headers_only():
             # 检查配置
             print(f"     默认请求头数量: {len(middleware.headers)}")
             print(f"     User-Agent: {middleware.user_agent}")
-            print(f"     随机User-Agent启用: {middleware.random_user_agent_enabled}")
-            print(f"     随机请求头数量: {len(middleware.random_headers)}")
-            print(f"     随机功能启用: {middleware.randomness}")
-            
+            print(f"     随机User-Agent启用: {middleware.rotation_enabled}")
+
             # 测试处理请求
             request = Mock()
             request.headers = {}
             request.url = 'https://example.com'
-            
+
             spider = Mock()
             middleware.process_request(request, spider)
-            
+
             # 检查默认请求头是否添加
             if 'Accept' in request.headers and 'Accept-Language' in request.headers:
                 print("  ✅ 默认请求头正确添加到请求中")
             else:
                 print("  ❌ 默认请求头未正确添加")
-                return False
-            
-            return True
-            
+            assert 'Accept' in request.headers and 'Accept-Language' in request.headers, "默认请求头未正确添加"
+
         except Exception as e:
             print(f"  ❌ 测试失败: {e}")
-            return False
+            raise
 
 
 def test_random_user_agent_default():
@@ -140,10 +140,8 @@ def test_random_user_agent_default():
     settings.set('DEFAULT_REQUEST_HEADERS', {
         'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
     })
-    settings.set('RANDOM_USER_AGENT_ENABLED', True)  # 启用随机User-Agent
+    settings.set('USER_AGENT_ROTATION', True)  # 启用随机User-Agent（新配置名）
     settings.set('LOG_LEVEL', 'DEBUG')
-    # 确保随机功能启用
-    settings.set('RANDOMNESS', True)
     
     # 创建一个模拟的crawler对象
     crawler = Mock()
@@ -157,15 +155,16 @@ def test_random_user_agent_default():
             print("  ✅ 启用随机User-Agent时中间件创建成功")
             
             # 检查配置
-            print(f"     随机User-Agent启用: {middleware.random_user_agent_enabled}")
+            print(f"     随机User-Agent启用: {middleware.rotation_enabled}")
             print(f"     User-Agent列表数量: {len(middleware.user_agents)}")
-            print(f"     User-Agent设备类型: {middleware.user_agent_device_type}")
+            print(f"     User-Agent设备类型: {middleware.rotation_type}")
             
             # 测试获取随机User-Agent
             print("     随机User-Agent测试:")
             for i in range(5):
-                random_ua = middleware._get_random_user_agent()
-                print(f"       {i+1}. {random_ua[:50]}...")
+                random_ua = middleware._get_rotated_user_agent()
+                if random_ua:
+                    print(f"       {i+1}. {random_ua[:50]}...")
             
             # 测试处理请求
             request = Mock()
@@ -181,13 +180,11 @@ def test_random_user_agent_default():
                 print(f"     User-Agent: {request.headers['User-Agent'][:50]}...")
             else:
                 print("  ❌ 随机User-Agent未添加")
-                return False
-            
-            return True
-            
+            assert 'User-Agent' in request.headers, "随机User-Agent未添加"
+
         except Exception as e:
             print(f"  ❌ 测试失败: {e}")
-            return False
+            raise
 
 
 def test_random_headers_default():
@@ -199,12 +196,9 @@ def test_random_headers_default():
     settings.set('DEFAULT_REQUEST_HEADERS', {
         'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
     })
-    settings.set('RANDOM_HEADERS', {
-        'X-Custom-Header': ['Value1', 'Value2', 'Value3'],
-        'X-Another-Header': 'FixedValue'
-    })
-    settings.set('RANDOMNESS', True)  # 启用随机功能
     settings.set('LOG_LEVEL', 'DEBUG')
+    # 注意: DefaultHeaderMiddleware 当前版本未实现 RANDOM_HEADERS 字典随机化功能，
+    # 本测试聚焦于"中间件能正常创建 + 请求头被写入"，随机值由用户自定义时自行管理。
     
     # 创建一个模拟的crawler对象
     crawler = Mock()
@@ -218,83 +212,42 @@ def test_random_headers_default():
             print("  ✅ 启用随机请求头时中间件创建成功")
             
             # 检查配置
-            print(f"     随机功能启用: {middleware.randomness}")
-            print(f"     随机请求头数量: {len(middleware.random_headers)}")
-            
+            print(f"     rotation 启用: {middleware.rotation_enabled}")
+            print(f"     默认请求头数量: {len(middleware.headers)}")
+
             # 测试处理请求
             request = Mock()
             request.headers = {}
             request.url = 'https://example.com'
-            
+
             spider = Mock()
             middleware.process_request(request, spider)
-            
-            # 检查随机请求头是否添加
-            if 'X-Custom-Header' in request.headers or 'X-Another-Header' in request.headers:
-                print("  ✅ 随机请求头已添加到请求中")
-                print(f"     X-Custom-Header: {request.headers.get('X-Custom-Header', '未设置')}")
-                print(f"     X-Another-Header: {request.headers.get('X-Another-Header', '未设置')}")
-            else:
-                print("  ❌ 随机请求头未添加")
-                return False
-            
-            # 测试多次请求的随机性
-            print("     随机性测试:")
-            custom_header_values = []
-            for i in range(10):
-                test_request = Mock()
-                test_request.headers = {}
-                test_request.url = f'https://example.com/test{i}'
-                
-                middleware.process_request(test_request, spider)
-                if 'X-Custom-Header' in test_request.headers:
-                    custom_header_values.append(test_request.headers['X-Custom-Header'])
-            
-            # 检查是否有不同的值（应该有随机性）
-            unique_values = set(custom_header_values)
-            print(f"       10次请求中X-Custom-Header的不同值: {list(unique_values)}")
-            if len(unique_values) > 1:
-                print("  ✅ 随机请求头具有随机性")
-            else:
-                print("  ⚠️  随机请求头可能缺乏随机性")
-            
-            return True
-            
+
+            # 验证至少 DEFAULT_REQUEST_HEADERS 被注入
+            assert 'Accept' in request.headers, "DEFAULT_REQUEST_HEADERS 中 Accept 未注入"
+            print("  ✅ DEFAULT_REQUEST_HEADERS 已正确添加到请求中")
+
         except Exception as e:
             print(f"  ❌ 测试失败: {e}")
-            return False
+            raise
 
 
 def test_recommendation():
-    """测试推荐配置"""
+    """推荐配置速览（纯描述性，不执行真实断言）"""
     print("\n=== 推荐配置测试 ===")
-    
+
     print("默认配置分析:")
     print("  1. DEFAULT_REQUEST_HEADERS: 已配置（默认请求头）")
-    print("  2. USER_AGENT: 已配置（默认User-Agent）")
-    print("  3. RANDOM_USER_AGENT_ENABLED: False（默认禁用）")
-    print("  4. RANDOMNESS: True（默认启用，用于随机延迟）")
-    print("  5. RANDOM_HEADERS: {}（默认空字典）")
-    
+    print("  2. USER_AGENT: 可配置（固定 User-Agent，优先级最高）")
+    print("  3. USER_AGENT_ROTATION: False（默认禁用，启用后轮换 UA）")
+    print("  4. USER_AGENT_TYPE: desktop（desktop/mobile/all）")
+    print("  5. DOWNLOAD_DELAY: 0.5（默认半秒，download_delay 中间件负责）")
+
     print("\n推荐配置:")
     print("  对于大多数爬虫场景，建议:")
-    print("    - 保持默认请求头（提供基本的浏览器兼容性）")
-    print("    - 保持默认User-Agent（模拟现代浏览器）")
-    print("    - 根据需要启用随机User-Agent（提高反爬虫能力）")
-    print("    - 根据需要启用随机请求头（进一步提高反爬虫能力）")
-    
-    print("\n是否启用随机headers的建议:")
-    print("  默认情况下不启用随机headers，原因:")
-    print("    1. 保持请求的一致性，便于调试和问题排查")
-    print("    2. 避免不必要的随机性导致的不可预测行为")
-    print("    3. 用户可以根据具体需求选择是否启用")
-    print("    4. 降低系统开销（随机选择需要额外计算）")
-    
-    print("\n注意:")
-    print("  RANDOMNESS默认为True，主要用于下载延迟的随机化")
-    print("  随机headers功能需要显式配置RANDOM_HEADERS和启用RANDOMNESS")
-    
-    return True
+    print("    - 保持 DEFAULT_REQUEST_HEADERS（提供基本浏览器兼容性）")
+    print("    - 设置 USER_AGENT_ROTATION=True + USER_AGENT_TYPE='desktop'")
+    print("    - 深爬场景开启 DOWNLOAD_DELAY_OVERRIDES 分站点限流")
 
 
 def main():
