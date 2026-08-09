@@ -1,7 +1,6 @@
 #!/usr/bin/python
 # -*- coding:UTF-8 -*-
-from typing import TYPE_CHECKING, Optional, Union, Awaitable
-import asyncio
+from typing import TYPE_CHECKING, Optional, Union
 
 if TYPE_CHECKING:
     from crawlo import Request, Response

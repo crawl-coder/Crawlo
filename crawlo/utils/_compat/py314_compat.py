@@ -50,14 +50,14 @@ def get_task_info(task: asyncio.Task) -> dict:
 
     try:
         info['stack'] = task.get_stack(limit=5)
-    except Exception as e:
+    except Exception:
         info['stack'] = []
     try:
         coro = task.get_coro()
         if coro:
             info['coroutine'] = str(coro)
             info['cr_frame'] = str(getattr(coro, 'cr_frame', None))
-    except Exception as e:
+    except Exception:
         pass
 
     return info

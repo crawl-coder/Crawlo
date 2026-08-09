@@ -15,6 +15,7 @@
 """
 import json
 import os
+import time
 from abc import ABC, abstractmethod
 from hashlib import sha256
 from threading import RLock
@@ -86,9 +87,23 @@ class SqliteStorage(StorageBackend):
 
     def _create_connection(self):
         """创建 SQLite 连接"""
-        from sqlite3 import connect as db_connect
-        conn = db_connect(self.storage_file, check_same_thread=False)
-        conn.execute("PRAGMA journal_mode=WAL")
+        from sqlite3 import connect as db_connect, OperationalError
+        # timeout=30 + busy_timeout：多线程/多连接并发写同一文件时等待锁，
+        # 避免偶发 "database is locked"。busy_timeout 必须先于 journal_mode 设置，
+        # 因为 WAL 切换本身需要写锁。
+        conn = db_connect(self.storage_file, check_same_thread=False, timeout=30)
+        conn.execute("PRAGMA busy_timeout=30000")
+        # WAL 切换需要独占锁，多连接首次并发打开时可能瞬时返回 "database is locked"，
+        # busy_timeout 对这类瞬时忙不生效，需短重试。
+        for attempt in range(100):
+            try:
+                conn.execute("PRAGMA journal_mode=WAL")
+                break
+            except OperationalError as e:
+                if 'locked' in str(e).lower() and attempt < 99:
+                    time.sleep(0.01)
+                    continue
+                raise
         return conn
 
     def _setup_database(self) -> None:

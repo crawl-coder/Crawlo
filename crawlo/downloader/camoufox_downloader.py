@@ -155,12 +155,58 @@ class CamoufoxDownloader(DownloaderBase):
                         self.logger.error(f"Failed to initialize Camoufox for {request.url}: {e}")
                         return None
 
+        # 代理切换检测（浏览器重启式：Camoufox 代理在浏览器实例级，变更需重启）
+        await self._check_proxy_change(request)
+
         # 后台线程执行同步下载
         try:
             return await asyncio.to_thread(self._sync_download, request)
         except Exception as e:
             self.logger.debug(f"Download error for {request.url}: {type(e).__name__}: {e}")
             raise
+
+    async def _check_proxy_change(self, request):
+        """检测代理变化，必要时重启浏览器（浏览器重启式代理切换）
+
+        代理来源优先级：
+        1. request.proxy（由 ProxyMiddleware 设置，支持中途切换）
+        2. request.meta['proxy_downgraded']（代理降级为直连）
+        3. CAMOUFOX_PROXY 配置（静态代理，仅在初始化时使用）
+        4. 无代理（直连）
+
+        代理切换触发条件：
+        - request.proxy 有值且与当前代理不同 → 重启浏览器并切换到新代理
+        - request.meta['proxy_downgraded'] 为 True → 降级为直连
+
+        注意：request.proxy 为 None 且无 proxy_downgraded 标记时，
+        视为"未指定代理"，保持当前浏览器不变（兼容无 ProxyMiddleware 的场景）。
+        """
+        request_proxy = getattr(request, 'proxy', None)
+        proxy_downgraded = request.meta.get('proxy_downgraded', False)
+
+        if not self._browser:
+            return
+
+        # 确定目标代理
+        if proxy_downgraded:
+            target_proxy = None
+        elif request_proxy:
+            target_proxy = request_proxy
+        else:
+            return
+
+        if target_proxy != self._current_proxy:
+            old_proxy = self._current_proxy
+            self.logger.info(
+                f"Proxy changed: {old_proxy or 'direct'} → {target_proxy or 'direct'}, "
+                f"restarting browser..."
+            )
+            await self._restart_browser(target_proxy)
+
+    async def _restart_browser(self, proxy=None):
+        """重启浏览器：关闭旧实例，用新代理重新初始化"""
+        await self.close()
+        await self._initialize_browser(proxy=proxy)
 
     async def close(self) -> None:
         """关闭浏览器资源"""

@@ -16,12 +16,13 @@ Configuration:
 """
 
 import random
+from crawlo.middleware import BaseMiddleware
 from crawlo.logging import get_logger
 from crawlo.core.errors import NotConfiguredError
 from crawlo.middleware.user_agents import get_user_agents
 
 
-class DefaultHeaderMiddleware(object):
+class DefaultHeaderMiddleware(BaseMiddleware):
     """
     DefaultHeaderMiddleware - Simple and practical header management
     

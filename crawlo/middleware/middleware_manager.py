@@ -357,7 +357,7 @@ class MiddlewareManager:
         middleware_cls = load_object(middleware)
         if not hasattr(middleware_cls, 'create_instance'):
             raise MiddlewareInitError(
-                f"Middleware init failed, must inherit from `BaseMiddleware` or have a `create_instance` method"
+                "Middleware init failed, must inherit from `BaseMiddleware` or have a `create_instance` method"
             )
         try:
             instance = middleware_cls.create_instance(self.crawler)

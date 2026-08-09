@@ -129,8 +129,8 @@ class FailoverManager:
             await self._redis.zremrangebyscore(
                 self._registry.heartbeats_key, 0, deadline
             )
-        except Exception:
-            pass
+        except Exception as e:
+            self.logger.debug(f"Failed to clean up stale heartbeats: {e}")
 
     async def _handle_suspected_worker(self, worker_id: str, stats: dict):
         """
@@ -260,8 +260,8 @@ class FailoverManager:
         try:
             info = await self._redis.xinfo_stream(self._stream_queue.failed_stream)
             stats["total"] = info.get("length", 0)
-        except Exception:
-            pass
+        except Exception as e:
+            self.logger.debug(f"Failed to read dead letter stats: {e}")
         return stats
 
     async def retry_dead_letters(self, count: int = 10) -> int:

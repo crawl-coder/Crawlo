@@ -35,7 +35,10 @@ class MessageDeduplicator:
         self.time_window = time_window
         self.max_size = max_size
         self._seen_messages: Dict[str, float] = {}  # 存储消息哈希和时间戳
-        self._lock = Lock()  # 线程锁
+        # 使用 threading.Lock 而非 asyncio.Lock：通知栈（channel.send / notifier /
+        # handler）为同步 API，异步路径通过 run_in_executor 调用；asyncio.Lock
+        # 在同步上下文无法使用。
+        self._lock = Lock()
         self.logger = get_logger(__name__)
     
     def _generate_message_hash(self, title: str, content: str, channel: str) -> str:

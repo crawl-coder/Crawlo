@@ -12,7 +12,7 @@ import hmac
 import base64
 import time
 from typing import Dict, Any, Optional
-import requests
+import httpx
 
 from crawlo.logging import get_logger
 from crawlo.extensions.notifications.channels.base import NotificationChannel
@@ -20,6 +20,9 @@ from crawlo.extensions.notifications.core.models import NotificationMessage, Not
 
 
 logger = get_logger(__name__)
+
+# 共享 HTTP 客户端（连接复用；httpx 为框架核心依赖）
+_HTTP_CLIENT = httpx.Client(timeout=10)
 
 
 class DingTalkChannel(NotificationChannel):
@@ -113,7 +116,7 @@ class DingTalkChannel(NotificationChannel):
             url = self._get_signed_url()
             
             # 发送请求
-            response = requests.post(
+            response = _HTTP_CLIENT.post(
                 url=url,
                 json=dingtalk_message,
                 headers={'Content-Type': 'application/json'},
@@ -158,13 +161,6 @@ class DingTalkChannel(NotificationChannel):
             keyword_prefix = f"{self.keywords[0]} "  # 使用第一个关键词
         
         # 根据通知类型选择消息格式
-        type_emoji = {
-            "alert": "🚨",
-            "progress": "📊",
-            "status": "🚀",
-            "data": "📦",
-        }.get(message.notification_type.value, "📢")
-        
         message.notification_type.value.title()
         
         if message.notification_type.value == "alert":

@@ -3,6 +3,7 @@
 import asyncio
 from typing import List, Type
 
+from crawlo.middleware import BaseMiddleware
 from crawlo.logging import get_logger
 from crawlo.stats import StatsCollector
 from crawlo.http.exceptions import DownloadError
@@ -46,7 +47,7 @@ except ImportError:
     pass
 
 
-class RetryMiddleware:
+class RetryMiddleware(BaseMiddleware):
 
     def __init__(
             self,

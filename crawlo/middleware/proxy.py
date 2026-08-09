@@ -16,11 +16,12 @@ import random
 import aiohttp
 from typing import Optional, List
 
+from crawlo.middleware import BaseMiddleware
 from crawlo.logging import get_logger
 from crawlo.http import Request, Response
 
 
-class ProxyMiddleware:
+class ProxyMiddleware(BaseMiddleware):
     """Generic proxy middleware for managing proxy assignment and health tracking"""
 
     def __init__(self, settings):

@@ -10,7 +10,10 @@ HTTP Response 封装模块
 - 正则表达式支持
 - Cookie 处理
 """
+import atexit
 import re
+import threading
+from concurrent.futures import ThreadPoolExecutor, TimeoutError as _FuturesTimeoutError
 from typing import Dict, Any, List, Optional, Union, Pattern, Match
 from urllib.parse import urljoin as _urljoin
 from parsel import Selector, SelectorList
@@ -34,6 +37,29 @@ from crawlo.utils.request.response_helper import (
     regex_findone,
     get_header_value
 )
+
+# 共享选择器执行器：替代"每次查询新建 daemon 线程"的做法，消除高并发下的
+# 线程创建开销；超时语义保持不变（超时后调用方返回空结果，任务在池内继续）。
+_SELECTOR_EXECUTOR: Optional[ThreadPoolExecutor] = None
+_SELECTOR_EXECUTOR_LOCK = threading.Lock()
+
+
+def _get_selector_executor() -> ThreadPoolExecutor:
+    global _SELECTOR_EXECUTOR
+    if _SELECTOR_EXECUTOR is None:
+        with _SELECTOR_EXECUTOR_LOCK:
+            if _SELECTOR_EXECUTOR is None:
+                _SELECTOR_EXECUTOR = ThreadPoolExecutor(
+                    max_workers=4,
+                    thread_name_prefix='crawlo-selector',
+                )
+    return _SELECTOR_EXECUTOR
+
+
+@atexit.register
+def _shutdown_selector_executor() -> None:
+    if _SELECTOR_EXECUTOR is not None:
+        _SELECTOR_EXECUTOR.shutdown(wait=False)
 from crawlo.http.response_adaptive import ResponseAdaptiveMixin
 
 
@@ -337,35 +363,15 @@ class Response(ResponseAdaptiveMixin):
         Returns:
             SelectorList: 查询结果
         """
-        import threading
-        
-        result_holder = [None]
-        exception_holder = [None]
-        
-        def _execute_xpath():
-            try:
-                result_holder[0] = self._selector.xpath(query)
-            except Exception as e:
-                exception_holder[0] = e
-        
-        # 执行 XPath 查询（带超时）
-        thread = threading.Thread(target=_execute_xpath)
-        thread.daemon = True
-        thread.start()
-        thread.join(timeout)
-        
-        # 检查超时
-        if thread.is_alive():
+        # 共享线程池执行 XPath 查询（带超时），避免每次查询新建线程的开销
+        future = _get_selector_executor().submit(self._selector.xpath, query)
+        try:
+            result = future.result(timeout=timeout)
+        except (TimeoutError, _FuturesTimeoutError):
             get_logger('Response').warning(
                 f"XPath query timeout after {timeout}s: {query[:50]}..."
             )
             return SelectorList([])
-        
-        # 检查异常
-        if exception_holder[0]:
-            raise exception_holder[0]
-        
-        result = result_holder[0]
 
         # 自适应处理委托给 Mixin
         if adaptive:

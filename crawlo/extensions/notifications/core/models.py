@@ -10,7 +10,7 @@
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any, List, Optional
 
 
 class NotificationType(str, Enum):
@@ -112,7 +112,7 @@ class ChannelResponse:
     success: bool = True
     
     @classmethod
-    def success(cls, body: Optional[Dict] = None) -> 'ChannelResponse':
+    def success(cls, body: Optional[Dict] = None) -> 'ChannelResponse':  # noqa: F811  # 类工厂与实例字段同名（实例值来自 __init__）
         """创建成功响应"""
         return cls(status_code=200, body=body or {}, success=True)
     

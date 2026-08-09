@@ -173,6 +173,7 @@ class EngineBackpressureAdapter:
         initial_wait: float = 0.01,
         max_wait: float = 1.0,
         strategy: str = 'queue_size',
+        enabled: bool = True,
     ):
         """
         Initialize backpressure adapter
@@ -189,6 +190,7 @@ class EngineBackpressureAdapter:
         self.initial_wait = initial_wait
         self.max_wait = max_wait
         self.strategy_name = strategy
+        self.enabled = enabled
 
         # Statistics
         self._pause_count = 0
@@ -279,6 +281,9 @@ class EngineBackpressureAdapter:
         Returns:
             bool: True if should pause
         """
+        if not self.enabled:
+            return False
+
         # Check if queue is full
         if self.is_queue_full(scheduler):
             return True
@@ -306,6 +311,9 @@ class EngineBackpressureAdapter:
         Returns:
             bool: True if capacity was successfully waited for (False if interrupted)
         """
+        if not self.enabled:
+            return True
+
         import asyncio
 
         self._pause_count += 1

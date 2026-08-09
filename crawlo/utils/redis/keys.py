@@ -257,7 +257,7 @@ class RedisKeyValidator:
             'framework': parts[0]
         }
 
-        if len(parts) >= 4 and parts[3] in ['filter', 'queue', 'item']:
+        if len(parts) >= 4 and parts[3] in ['filter', 'queue', 'item', 'dedup']:
             info['project'] = parts[1]
             info['spider'] = parts[2]
             info['component'] = parts[3]
