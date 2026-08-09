@@ -1,9 +1,9 @@
 include README.md
 include LICENSE
 
-# Package non-Python files
+# Package non-Python files shipped as package_data
 recursive-include crawlo/templates *
-recursive-include crawlo/utils/js *
+recursive-include crawlo/downloader/stealth_scripts *
 
 # Example projects
 recursive-include examples *
@@ -11,3 +11,6 @@ recursive-include examples *
 # Exclusions
 global-exclude __pycache__ *.py[cod] *.so
 global-exclude .DS_Store *.bak *.swp *.orig *.rej
+prune tests
+prune docs
+prune .import_linter_cache

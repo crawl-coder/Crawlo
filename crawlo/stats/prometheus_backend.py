@@ -230,14 +230,14 @@ class PrometheusStatsBackend(StatsBackend):
                 if metric is not None:
                     try:
                         self._registry.unregister(metric)
-                    except Exception:
-                        pass
+                    except Exception as e:
+                        logger.debug(f"unregister counter failed: {e}")
             for metric in list(self._gauges.values()):
                 if metric is not None:
                     try:
                         self._registry.unregister(metric)
-                    except Exception:
-                        pass
+                    except Exception as e:
+                        logger.debug(f"unregister gauge failed: {e}")
             self._counters.clear()
             self._gauges.clear()
             self._counter_values.clear()
@@ -286,7 +286,7 @@ class PrometheusStatsBackend(StatsBackend):
             if callable(shutdown):
                 try:
                     shutdown()
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.debug(f"Prometheus HTTP server shutdown failed: {e}")
             self._httpd = None
         logger.debug("PrometheusStatsBackend closed (port=%s).", self._port)

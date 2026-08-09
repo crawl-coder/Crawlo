@@ -127,8 +127,8 @@ async def _show_state(project, spider, redis_url):
                 pending = await r.xpending(skey)
                 if pending and pending.get("pending"):
                     print(f"  pending[{sname}] total={pending['pending']}  consumers={list(pending.get('consumers', {}).keys())[:3]}")
-    except Exception:
-        pass
+    except Exception as e:
+        logger.debug(f"XPENDING overview failed: {e}")
 
     await r.aclose()
 
@@ -170,8 +170,8 @@ async def _reset(project, spider, redis_url):
     finally:
         try:
             await r.aclose()
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug(f"Redis client close failed: {e}")
     print()
     print("reset 完成：Worker 下次启动将正常进入 running 状态。")
 

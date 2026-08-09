@@ -182,8 +182,8 @@ class DistributedCoordinator:
             if stats is None:
                 return
             stats.inc_value(key, count=count)
-        except Exception:
-            pass
+        except Exception as e:
+            self._logger.debug(f"_inc_stats_counter('{key}') failed: {e}")
 
     def _set_stats_gauge(self, key: str, value: float) -> None:
         try:
@@ -194,8 +194,8 @@ class DistributedCoordinator:
             if stats is None:
                 return
             stats.set_value(key, value)
-        except Exception:
-            pass
+        except Exception as e:
+            self._logger.debug(f"_set_stats_gauge('{key}') failed: {e}")
 
     # ------------------------------------------------------------------
     # XCLAIM 主动扫描（对应旧 _try_claim_stale_pending）

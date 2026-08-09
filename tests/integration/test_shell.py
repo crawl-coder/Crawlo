@@ -25,7 +25,7 @@ from unittest.mock import patch, MagicMock, AsyncMock
 # 添加项目根目录到Python路径
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
-from crawlo.shell.core import (
+from crawlo.commands.shell_core import (
     CrawloShell, _MockCrawler, _MockSpider, _DownloaderAdapter, _SimpleFetcher
 )
 from crawlo.http.request import Request

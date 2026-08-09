@@ -490,7 +490,7 @@ class TestCrossModuleImportVerification(unittest.TestCase):
 
     def test_built_in_imports_configutils_from_misc(self):
         """built_in.py 从 crawlo.utils.misc 导入 ConfigUtils"""
-        import crawlo.core.application as bu
+        import crawlo.core.initialization.built_in as bu
         # 检查模块源码中的 import 语句（不实际运行，避免上下文依赖）
         source = open(bu.__file__, encoding='utf-8').read()
         self.assertNotIn('from crawlo.utils.config_manager import ConfigUtils', source)

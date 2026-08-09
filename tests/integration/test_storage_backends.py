@@ -24,12 +24,12 @@ from threading import Thread, Lock
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 
-from crawlo.helpers.adaptive_selector.storage import (
+from crawlo.utils.adaptive_selector.storage import (
     SqliteStorage,
     RedisStorage,
     FingerprintStorage,
 )
-from crawlo.helpers.adaptive_selector.element_fingerprint import ElementFingerprint
+from crawlo.utils.adaptive_selector.element_fingerprint import ElementFingerprint
 
 
 # 测试用指纹数据

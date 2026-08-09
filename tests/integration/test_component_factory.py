@@ -20,6 +20,11 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
 from crawlo.core.component_registry import (
     ComponentRegistry,
+)
+# 用 factories 层提供的顶层 API：首次调用会自动触发 register_crawler_components()，
+# 确保全局注册表中包含 engine / scheduler / stats / subscriber / extension_manager。
+from crawlo.core.factories import (
+    CrawlerComponentFactory,
     get_component_registry,
 )
 from crawlo.core.component_base import (
@@ -27,7 +32,6 @@ from crawlo.core.component_base import (
     ComponentSpec,
     DefaultComponentFactory,
 )
-from crawlo.core.factories import CrawlerComponentFactory
 
 
 class TestComponent:

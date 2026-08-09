@@ -24,15 +24,24 @@ class SpiderLoaderProtocol:
     
     def load(self, spider_name: str) -> Type[Spider]:
         """Load a spider by name"""
-        raise NotImplementedError
-    
+        raise NotImplementedError(
+            f"{self.__class__.__name__}.load() not implemented. "
+            f"Use crawlo.spider.loader.SpiderLoader or subclass and implement load()."
+        )
+
     def list(self) -> List[str]:
         """List all available spider names"""
-        raise NotImplementedError
-    
+        raise NotImplementedError(
+            f"{self.__class__.__name__}.list() not implemented. "
+            f"Use crawlo.spider.loader.SpiderLoader or subclass and implement list()."
+        )
+
     def find_by_request(self, request: 'Request') -> List[str]:
         """Find spider names that can handle the given request"""
-        raise NotImplementedError
+        raise NotImplementedError(
+            f"{self.__class__.__name__}.find_by_request() not implemented. "
+            f"Use crawlo.spider.loader.SpiderLoader or subclass and implement find_by_request()."
+        )
 
 
 class SpiderLoader(ISpiderLoader):

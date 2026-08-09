@@ -455,6 +455,14 @@ class ResourceScope:
 # ------------------------------------------------------------------
 
 
+class _MissingSettings:
+    """settings 缺失/不可弱引用时的哨兵（可弱引用，用于 weakref.ref）。"""
+    __slots__ = ('__weakref__',)
+
+
+_REF_MISSING = _MissingSettings()
+
+
 class WeakBound:
     """
     弱引用包装 crawler/settings，避免「MonitorExtension 禁用副本」「暂停中 monitor」
@@ -476,7 +484,16 @@ class WeakBound:
 
     def __init__(self, crawler: Any) -> None:
         self._crawler_ref = weakref.ref(crawler, self._finalize)
-        self._settings_ref = weakref.ref(getattr(crawler, 'settings', None) or (lambda: None))
+        _settings = getattr(crawler, 'settings', None)
+        if _settings is None:
+            # 无 settings → 哨兵兜底（弱引用 referent 为 _REF_MISSING）
+            self._settings_ref = weakref.ref(_REF_MISSING)
+        else:
+            try:
+                self._settings_ref = weakref.ref(_settings)
+            except TypeError:
+                # settings 不可弱引用（普通 dict/int 等）→ 哨兵兜底
+                self._settings_ref = weakref.ref(_REF_MISSING)
 
     @staticmethod
     def _finalize(_ref: weakref.ReferenceType) -> None:
@@ -491,7 +508,11 @@ class WeakBound:
     @property
     def settings(self) -> Any:
         s = self._settings_ref()
-        return s() if callable(s) else s
+        if s is _REF_MISSING:
+            return None
+        # settings 本身可能是 callable（如 MagicMock），不能凭 callable(s) 判断，
+        # 否则会把真实 settings 误调用。仅哨兵表示"缺失"。
+        return s
 
 
 # ------------------------------------------------------------------

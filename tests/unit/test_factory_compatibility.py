@@ -44,12 +44,11 @@ def test_standalone_factory():
         assert config.get('DOWNLOAD_DELAY') == 1.0
         
         print("✅ 单机模式工厂函数测试通过")
-        return True
-        
+
     except Exception as e:
         print(f"❌ 单机模式工厂函数测试失败: {e}")
         traceback.print_exc()
-        return False
+        raise
 
 
 def test_distributed_factory():
@@ -77,7 +76,7 @@ def test_distributed_factory():
         
         # 验证配置是否正确
         assert config.get('RUN_MODE') == 'distributed'
-        assert config.get('QUEUE_TYPE') == 'redis'
+        assert config.get('QUEUE_TYPE') == 'redis_stream'
         assert config.get('PROJECT_NAME') == 'ofweek_distributed'
         assert config.get('CONCURRENCY') == 16
         assert config.get('DOWNLOAD_DELAY') == 0.5
@@ -85,12 +84,11 @@ def test_distributed_factory():
         assert config.get('REDIS_PORT') == 6379
         
         print("✅ 分布式模式工厂函数测试通过")
-        return True
-        
+
     except Exception as e:
         print(f"❌ 分布式模式工厂函数测试失败: {e}")
         traceback.print_exc()
-        return False
+        raise
 
 
 def test_auto_factory():
@@ -120,12 +118,11 @@ def test_auto_factory():
         assert config.get('DOWNLOAD_DELAY') == 0.8
         
         print("✅ 自动模式工厂函数测试通过")
-        return True
-        
+
     except Exception as e:
         print(f"❌ 自动模式工厂函数测试失败: {e}")
         traceback.print_exc()
-        return False
+        raise
 
 
 def test_config_to_dict():
@@ -152,12 +149,11 @@ def test_config_to_dict():
         assert 'CONCURRENCY' in config_dict
         
         print("✅ 配置转换为字典测试通过")
-        return True
-        
+
     except Exception as e:
         print(f"❌ 配置转换为字典测试失败: {e}")
         traceback.print_exc()
-        return False
+        raise
 
 
 def main():

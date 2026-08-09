@@ -121,45 +121,71 @@ class TestFactories(unittest.TestCase):
         """测试组件注册表创建功能"""
         def factory_func(**kwargs):
             return TestComponent(**kwargs)
-            
+
         spec = ComponentSpec(
             name="creatable_component",
             component_type=TestComponent,
             factory_func=factory_func
         )
-        
+
         # 注册组件规范
         self.registry.register(spec)
-        
-        # 创建组件时应该出现错误，因为没有传递name参数
-        with self.assertRaises(TypeError):
-            component = self.registry.create("creatable_component", name="created", value=500)
+
+        # 正常创建：registry.create(组件注册名, **构造器 kwargs)
+        # 首个参数是组件在 registry 里的 key，不是 TestComponent.__init__ 的 name；
+        # ComponentRegistry.create 的首参已重命名为 component_name，不与 name= 冲突。
+        component = self.registry.create("creatable_component", name="created", value=500)
+        self.assertEqual(component.name, "created")
+        self.assertEqual(component.value, 500)
+
+        # 未注册的 key 应当抛 ValueError
+        with self.assertRaises(ValueError):
+            self.registry.create("nonexistent_component", name="x", value=1)
         
     def test_global_component_registry(self):
-        """测试全局组件注册表"""
-        registry = get_component_registry()
+        """测试全局组件注册表。
+
+        兼容层 ``crawlo.core.factories.get_component_registry`` 在首次调用
+        时会预注册内置 Crawler 组件（Engine / Scheduler / stats / subscriber 等），
+        因此拿到的 registry 一定非空。新的 ``component_registry.get_component_registry``
+        返回的是 DI 容器/RouterContext 中的裸实例，不一定有预注册项。
+        """
+        from crawlo.core.factories import get_component_registry as compat_get
+
+        registry = compat_get()
         self.assertIsInstance(registry, ComponentRegistry)
-        
-        # 测试注册表是否包含预注册的组件
+
+        # 预注册至少包含 crawler 相关组件名
         components = registry.list_components()
-        # 应该至少包含crawler组件
         self.assertGreater(len(components), 0)
         
     def test_crawler_component_factory_supports(self):
-        """测试Crawler组件工厂支持检查"""
+        """测试Crawler组件工厂支持检查。
+
+        CrawlerComponentFactory 是专用工厂，仅白名单类型（Engine/Scheduler/
+        StatsCollector/Subscriber/ExtensionManager）被 supports() 判定为 True；
+        任意同名但并非真正 crawlo 实现的本地类应返回 False。
+        """
         factory = CrawlerComponentFactory()
-        
-        # 测试支持检查（CrawlerComponentFactory只支持特定类型）
+
+        # 导入 Crawlo 真正的白名单类型做正向断言
+        from crawlo.core.engine import Engine as CrawloEngine
+        from crawlo.core.scheduling.task_scheduler import Scheduler as CrawloScheduler
+        from crawlo.stats.collector import StatsCollector
+        from crawlo.event import Subscriber
+        from crawlo.extensions import ExtensionManager
+
+        for t in (CrawloEngine, CrawloScheduler, StatsCollector, Subscriber, ExtensionManager):
+            self.assertTrue(factory.supports(t))
+
+        # 自定义同名类不被支持（白名单使用 issubclass 做类型比对）
         class Engine:
             pass
-            
+
         class MockEngine:
             pass
-            
-        # Engine应该被支持
-        self.assertTrue(factory.supports(Engine))
-        
-        # MockEngine不应该被支持
+
+        self.assertFalse(factory.supports(Engine))
         self.assertFalse(factory.supports(MockEngine))
         
     def test_crawler_component_factory_create_without_crawler(self):
