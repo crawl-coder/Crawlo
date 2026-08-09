@@ -68,6 +68,7 @@ class DistributedLock:
         self._retry_delay = retry_delay
         self._holder_id: Optional[str] = None
         self._acquired = False
+        self._fence_token: Optional[int] = None
 
         self.logger = get_logger(self.__class__.__name__)
 
@@ -101,6 +102,14 @@ class DistributedLock:
                 )
                 if result:
                     self._acquired = True
+                    # Fencing token：每次成功获取锁都取一个单调递增的 token，
+                    # 陈旧 Leader 的 is_holder() 校验会因 token 变化而失败。
+                    try:
+                        fence = await self._redis.incr(f"{self._lock_key}:fence")
+                        self._fence_token = int(fence)
+                    except Exception as e:
+                        self.logger.warning(f"Failed to get fencing token: {e}")
+                        self._fence_token = None
                     self.logger.debug(
                         f"Lock acquired: {self._lock_key} (holder={self._holder_id[:8]})"
                     )
@@ -132,6 +141,7 @@ class DistributedLock:
                 self.logger.debug(f"Lock released: {self._lock_key}")
             self._acquired = False
             self._holder_id = None
+            self._fence_token = None
         except Exception as e:
             self.logger.warning(f"Lock release failed: {e}")
 
@@ -168,6 +178,26 @@ class DistributedLock:
         try:
             return await self._redis.exists(self._lock_key) > 0
         except Exception:
+            return False
+
+    async def is_holder(self) -> bool:
+        """校验本实例当前是否仍是锁持有者（含 fencing token 校验）。
+
+        若锁已被新 Leader 获取（token 变化）或已过期释放，返回 False，
+        防止陈旧 Leader 继续执行关键写入（P3-3）。
+        """
+        if not self._acquired or not self._holder_id:
+            return False
+        try:
+            value = await self._redis.get(self._lock_key)
+            if value != self._holder_id:
+                return False
+            if self._fence_token is None:
+                return True  # token 获取失败时退化为仅校验持有者
+            fence = await self._redis.get(f"{self._lock_key}:fence")
+            return fence is not None and int(fence) == self._fence_token
+        except Exception as e:
+            self.logger.warning(f"Fencing check failed: {e}")
             return False
 
     @property

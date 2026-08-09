@@ -36,6 +36,14 @@ class ClusterLeaderMixin:
                     await asyncio.sleep(check_interval)
                     continue
 
+                # Fencing 校验：确认我们仍是 Leader（防陈旧 Leader 写入）
+                if not await self._cluster_state.leader_lock.is_holder():
+                    self.logger.debug(
+                        "Coordinated shutdown: leader lock lost (fenced), aborting shutdown"
+                    )
+                    self.running = False
+                    break
+
                 self.logger.warning(
                     "Coordinated shutdown: all tasks complete, all workers idle, "
                     "broadcasting shutdown signal"
