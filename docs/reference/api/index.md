@@ -10,6 +10,12 @@
 - [TaskManager 任务管理](#taskmanager-任务管理)
 - [MiddlewareManager 中间件管理](#middlewaremanager-中间件管理)
 - [StatsCollector 统计收集](#statscollector-统计收集)
+- [下载器（Downloaders）](#下载器downloaders)
+- [队列（Queues）](#队列queues)
+- [管道（Pipelines）](#管道pipelines)
+- [扩展（Extensions）](#扩展extensions)
+- [配置（Configuration）](#配置configuration)
+- [通知（Notifications）](#通知notifications)
 
 ---
 
@@ -498,10 +504,165 @@ class CustomMiddleware(BaseMiddleware):
 
 ---
 
+## 下载器（Downloaders）
+
+下载器负责把 `Request` 转成 `Response`。框架内置多协议 + 多浏览器引擎，统一通过 `DOWNLOADER` 配置或 `HybridDownloader` 自动路由。
+
+**基类**：`crawlo.downloader.DownloaderBase`
+
+```python
+from crawlo.downloader import DownloaderBase
+```
+
+下载器核心方法：
+
+| 方法 | 说明 |
+|---|---|
+| `open()` | 打开下载器（可选） |
+| `download(request)` | 下载请求，返回 `Response` 或 `None` |
+| `close()` | 关闭下载器、释放浏览器/连接资源 |
+
+**内置下载器**：
+
+| 下载器 | 定位 |
+|---|---|
+| `AioHttpDownloader` | 默认 aiohttp 下载器，RingBuffer 统计 p99 响应时间 |
+| `HttpXDownloader` | httpx 下载器，支持 HTTP/2 + 分层超时 |
+| `CurlCffiDownloader` | curl-cffi 下载器，JA3/TLS 指纹模拟 |
+| `PlaywrightDownloader` | Playwright 浏览器引擎，单浏览器多标签页池 |
+| `CloakBrowserDownloader` / `CamoufoxDownloader` / `DrissionPageDownloader` | 隐身浏览器引擎 |
+| `HybridDownloader` | 5 级检测路由（meta → URL 正则 → 域名 → 扩展名 → 默认） |
+
+**扩展点（P3-2）**：
+
+```python
+from crawlo.downloader import register_downloader, unregister_downloader
+
+register_downloader('my_downloader', MyDownloader)
+# settings: DOWNLOADER = 'my_downloader'
+```
+
+---
+
+## 队列（Queues）
+
+统一入口 `crawlo.queue.QueueManager`，按 `QUEUE_TYPE` 自动选择后端；支持内存 / Redis 优先级队列 / Redis Stream 三种后端，外加背压控制。
+
+```python
+from crawlo.queue import QueueManager, QueueConfig, QueueType
+
+config = QueueConfig(queue_type='memory', max_queue_size=1000)
+manager = QueueManager(config)
+await manager.initialize()
+await manager.put(request)
+request = await manager.get_blocking(timeout=30)
+```
+
+**后端**：
+
+| 后端 | 类 | 说明 |
+|---|---|---|
+| 内存 | `SpiderPriorityQueue` | asyncio 优先级队列，`maxsize=0` 无限制 |
+| Redis | `RedisPriorityQueue` | ZSET 排序，支持集群连接池 |
+| Redis Stream | `RedisStreamQueue` | 消费组 + ACK/NACK + 心跳 + 故障转移 + DLQ |
+| 磁盘 | `DiskQueue` | 磁盘持久化队列 |
+
+**扩展点（P3-2）**：
+
+```python
+from crawlo.queue import register_queue_backend
+
+async def build_my_queue(manager):
+    return MyQueue(manager)
+
+register_queue_backend(QueueType.MEMORY, build_my_queue)  # 覆盖内置后端
+```
+
+**任务追踪**：`crawlo.queue.task_tracker.TaskTracker` / `TaskResult`（RETRY / DEAD_LETTER / ACK）。
+
+---
+
+## 管道（Pipelines）
+
+统一入口 `crawlo.pipelines.PipelineManager`；单条管道继承 `BasePipeline`，推荐基于 `ResourceManagedPipeline` 实现。
+
+```python
+from crawlo.pipelines.base_pipeline import BasePipeline, ResourceManagedPipeline
+```
+
+**通用模板**：
+
+| 类 | 说明 |
+|---|---|
+| `GenericSQLPipeline` | 数据库无关的 SQL 管道基类（子类实现 `_initialize_pool`/`_do_insert` 等） |
+| `GenericDocumentPipeline` | 文档型存储管道基类 |
+| `MemoryDedupPipeline` / `RedisDedupPipeline` / `BloomDedupPipeline` | 去重管道 |
+
+**错误分类**：`crawlo.utils.db.pipeline_utils.ErrorClassifier`（`is_skipable` / `is_retryable` / `extract_error_code`）。
+
+---
+
+## 扩展（Extensions）
+
+扩展通过事件驱动（声明方法即订阅）接入引擎生命周期。监控类扩展继承 `BaseMonitorExtension`（`crawlo.extensions.monitor.base`），自带注册到 `MonitorManager` 的能力。
+
+```python
+from crawlo.extensions.health_check import HealthCheckExtension
+from crawlo.extensions.monitor.performance_monitor import PerformanceMonitor
+from crawlo.extensions.monitor.monitor_manager import get_monitor_manager
+```
+
+内置扩展：事件循环延迟探针（`PerformanceMonitor`）、健康检查（`HealthCheckExtension`）、背压监控、告警去重、请求录制（`RequestRecorder`，JSONL + 文件轮转）。
+
+---
+
+## 配置（Configuration）
+
+**SettingManager**（`crawlo.settings.setting_manager`）：`MutableMapping` 风格配置容器，支持类型安全读取。
+
+```python
+from crawlo.settings.setting_manager import SettingManager
+
+s = SettingManager()
+s.set('CONCURRENCY', 8)
+s.get_int('CONCURRENCY')
+```
+
+**CrawloConfig**（`crawlo.core.config.CrawloConfig`）：配置工厂，提供 `standalone()` / `auto()` / `distributed()` 三种运行模式与链式 `set()`。
+
+```python
+from crawlo.core.config import CrawloConfig
+
+config = CrawloConfig.distributed(project_name='my_project', concurrency=16)
+settings = config.to_dict()
+```
+
+**安全读取**：`crawlo.utils.misc.safe_get_config(settings, key, default, value_type)`。
+
+---
+
+## 通知（Notifications）
+
+统一入口 `NotificationDispatcher`（`crawlo.extensions.notifications.core.notifier`），支持钉钉 / 飞书 / 企业微信 / 邮件 / 短信 5 个渠道，内置消息去重与 30+ 模板。
+
+```python
+from crawlo.extensions.notifications import get_notifier
+from crawlo.extensions.notifications.core.models import NotificationMessage
+
+notifier = get_notifier()
+resp = notifier.send_notification(
+    NotificationMessage(title='爬虫完成', content='抓取 100 条数据')
+)
+```
+
+渠道类：`crawlo.extensions.notifications.channels.{dingtalk,feishu,wecom,email,sms}`。注意：短信渠道当前为文档化模拟实现，接入真实服务商需自行实现（见 P3 跟踪项）。
+
+---
+
 ## 版本信息
 
-- **当前版本**: v0.2.0
-- **发布日期**: 2026-04-19
+- **当前版本**: v1.7.3
+- **发布日期**: 2026-08-10
 - **Python 版本**: >= 3.8
 
 ## 更多信息
