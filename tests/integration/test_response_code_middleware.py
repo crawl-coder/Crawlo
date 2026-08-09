@@ -80,7 +80,7 @@ class TestResponseCodeMiddleware(ResponseCodeMiddleware):
             TestResponseCodeMiddleware: 中间件实例
         """
         # 创建实例但不调用get_logger
-        o = cls(stats=crawler.stats, log_level=crawler.settings.get('LOG_LEVEL'))
+        o = cls(stats=crawler.stats)
         # 使用MockLogger替换真实Logger
         o.logger = crawler.logger
         return o

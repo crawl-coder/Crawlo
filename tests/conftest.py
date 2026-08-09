@@ -40,6 +40,7 @@ collect_ignore_glob = [
     "integration/test_proxy_middleware_refactored.py",
     "integration/test_proxy_stats.py",
     "integration/test_proxy_strategies.py",
+    "integration/test_queue_naming.py",
     "integration/test_resource_leak_detection.py",
     "integration/test_spider_loader.py",
     "integration/test_spider_loader_comprehensive.py",

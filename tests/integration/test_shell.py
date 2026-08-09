@@ -116,7 +116,7 @@ def test_update_namespace():
     
     # 模拟 fetch 后更新
     shell.request = Request(url="https://example.com")
-    resp = Response(url="https://example.com", body=b"<h1>Hello</h1>", status_code=200)
+    resp = Response(url="https://example.com", body=b"<h1>Hello</h1>", status=200)
     shell.response = resp
     
     updated = shell.update_namespace()
@@ -163,7 +163,7 @@ def test_view_with_response():
     """测试带 response 的 view（Mock webbrowser）"""
     shell = CrawloShell()
     html = "<html><body><h1>Test Page</h1></body></html>"
-    resp = Response(url="https://example.com", body=html.encode('utf-8'), status_code=200)
+    resp = Response(url="https://example.com", body=html.encode('utf-8'), status=200)
     
     with patch('webbrowser.open') as mock_open:
         shell.view(response=resp)
@@ -181,7 +181,7 @@ def test_view_uses_self_response():
     """测试 view 默认使用 self.response"""
     shell = CrawloShell()
     html = "<html><body>Default</body></html>"
-    shell.response = Response(url="https://example.com", body=html.encode('utf-8'), status_code=200)
+    shell.response = Response(url="https://example.com", body=html.encode('utf-8'), status=200)
     
     with patch('webbrowser.open') as mock_open:
         shell.view()  # 不传 response 参数
@@ -226,7 +226,7 @@ def test_downloader_adapter_success():
     """测试 _DownloaderAdapter 成功调用 download"""
     mock_dl = MagicMock()
     mock_dl.download = AsyncMock(return_value=Response(
-        url="https://example.com", body=b"content", status_code=200
+        url="https://example.com", body=b"content", status=200
     ))
     
     adapter = _DownloaderAdapter(mock_dl)
@@ -234,7 +234,7 @@ def test_downloader_adapter_success():
     
     result = asyncio.run(adapter.fetch(request))
     assert result is not None
-    assert result.status_code == 200
+    assert result.status == 200
     mock_dl.download.assert_called_once_with(request)
     print("✅ _DownloaderAdapter 成功调用测试通过")
 
@@ -304,7 +304,7 @@ def test_fetch_success():
     mock_response = Response(
         url="https://example.com",
         body=b"<html><body>Hello</body></html>",
-        status_code=200
+        status=200
     )
     
     mock_downloader = MagicMock()
@@ -316,7 +316,7 @@ def test_fetch_success():
     result = asyncio.run(shell.fetch("https://example.com"))
     
     assert result is not None
-    assert result.status_code == 200
+    assert result.status == 200
     assert shell.request is not None
     assert shell.request.url == "https://example.com"
     assert shell.response is mock_response
@@ -359,7 +359,7 @@ def test_sync_fetch():
     mock_response = Response(
         url="https://example.com",
         body=b"<html><body>Sync Test</body></html>",
-        status_code=200
+        status=200
     )
     
     mock_downloader = MagicMock()
@@ -368,7 +368,7 @@ def test_sync_fetch():
     
     result = shell.sync_fetch("https://example.com")
     assert result is not None
-    assert result.status_code == 200
+    assert result.status == 200
     print("✅ sync_fetch 测试通过")
 
 
@@ -487,7 +487,7 @@ def test_e2e_fetch_and_view():
     mock_response = Response(
         url="https://example.com",
         body=b"<html><body><h1>E2E Test</h1></body></html>",
-        status_code=200,
+        status=200,
         headers={"content-type": "text/html; charset=utf-8"}
     )
     
@@ -500,7 +500,7 @@ def test_e2e_fetch_and_view():
     assert result is not None
     assert shell.request is not None
     assert shell.response is not None
-    assert shell.response.status_code == 200
+    assert shell.response.status == 200
     
     # Step 2: 测试 response 选择器
     text = shell.response.css("h1::text").get()
@@ -524,7 +524,7 @@ def test_e2e_namespace_after_fetch():
     mock_response = Response(
         url="https://example.com",
         body=b"<html><body>Content</body></html>",
-        status_code=200
+        status=200
     )
     
     mock_dl = MagicMock()
@@ -552,7 +552,7 @@ def test_e2e_multiple_fetch():
     shell = CrawloShell()
     
     # 第一次 fetch
-    resp1 = Response(url="https://example.com/1", body=b"Page 1", status_code=200)
+    resp1 = Response(url="https://example.com/1", body=b"Page 1", status=200)
     mock_dl = MagicMock()
     mock_dl.fetch = AsyncMock(return_value=resp1)
     shell._downloader = mock_dl
@@ -561,7 +561,7 @@ def test_e2e_multiple_fetch():
     assert shell.response.url == "https://example.com/1"
     
     # 第二次 fetch
-    resp2 = Response(url="https://example.com/2", body=b"Page 2", status_code=200)
+    resp2 = Response(url="https://example.com/2", body=b"Page 2", status=200)
     mock_dl.fetch = AsyncMock(return_value=resp2)
     
     asyncio.run(shell.fetch("https://example.com/2"))
@@ -592,7 +592,7 @@ def test_e2e_fetch_with_adaptive_selector():
     resp = Response(
         url="https://shop.example.com",
         body=html.encode('utf-8'),
-        status_code=200,
+        status=200,
         headers={"content-type": "text/html; charset=utf-8"}
     )
     
@@ -627,7 +627,7 @@ def test_view_bytes_body():
     resp = Response(
         url="https://example.com",
         body="<html><body>中文内容</body></html>".encode('gbk'),
-        status_code=200
+        status=200
     )
     # Response 会自动检测编码，这里测试 view 能处理 bytes
     
@@ -645,7 +645,7 @@ def test_fetch_with_meta():
     
     mock_dl = MagicMock()
     mock_dl.fetch = AsyncMock(return_value=Response(
-        url="https://example.com", body=b"content", status_code=200
+        url="https://example.com", body=b"content", status=200
     ))
     shell._downloader = mock_dl
     

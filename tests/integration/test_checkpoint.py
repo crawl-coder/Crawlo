@@ -14,12 +14,21 @@ import tempfile
 import shutil
 import time
 import sqlite3
+import asyncio
 from unittest.mock import Mock, patch, MagicMock, AsyncMock
 from typing import Set
 
 # 导入被测试模块
 from crawlo.checkpoint.manager import CheckpointManager
 from crawlo.checkpoint.storage import BaseStorage, JsonStorage, SqliteStorage
+
+# 确保主线程有可用事件循环：
+# 其他测试（如 test_backpressure_fixes 的 asyncio.run）可能在 pytest 进程内清空
+# 主线程循环，而本模块用 get_event_loop()，无 loop 时在 Python 3.10+ 会抛 RuntimeError。
+try:
+    asyncio.get_event_loop()
+except RuntimeError:
+    asyncio.set_event_loop(asyncio.new_event_loop())
 
 
 class TestJsonStorage(unittest.TestCase):
@@ -290,6 +299,11 @@ class TestCheckpointManager(unittest.TestCase):
             spider_name='test_spider',
             settings=self.settings
         )
+        # 确保本测试有可用事件循环（前面测试可能用 asyncio.run 清空主线程循环）
+        try:
+            asyncio.get_event_loop()
+        except RuntimeError:
+            asyncio.set_event_loop(asyncio.new_event_loop())
 
     def tearDown(self):
         """测试后清理临时目录"""

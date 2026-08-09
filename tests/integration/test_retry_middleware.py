@@ -27,7 +27,14 @@ class MockRequest:
         self.url = url
         self.meta = meta or {}
         self.priority = 0
-        
+        self.proxy = None
+
+    def copy(self):
+        new = MockRequest(url=self.url, meta=dict(self.meta))
+        new.priority = self.priority
+        new.proxy = self.proxy
+        return new
+
     def __str__(self):
         return f"<Request {self.url}>"
 
@@ -35,6 +42,7 @@ class MockRequest:
 class MockResponse:
     def __init__(self, status_code=200):
         self.status_code = status_code
+        self.status = status_code
 
 
 class MockSpider:
@@ -129,10 +137,10 @@ def test_retry_http_codes():
         
         # 应该返回重试的请求
         assert result is not None
-        # 由于中间件直接修改并返回原始请求对象，所以result和test_request是同一个对象
-        assert result is test_request
+        # 重构后中间件通过 request.copy() 返回新对象
+        assert result is not test_request
         assert result.meta.get('retry_times', 0) == original_retry_times + 1
-        assert result.meta.get('dont_retry', False) is True
+        assert result.meta.get('is_retry', False) is True
         print(f"  ✅ 状态码 {status_code} 重试测试通过")
     
     # 测试忽略的状态码
@@ -191,28 +199,24 @@ def test_retry_max_times():
     result = middleware.process_response(request, response, spider)
     print(f"  第一次重试结果: {result}, 类型: {type(result)}")
     assert result is not None
-    # 由于中间件直接修改并返回原始请求对象，所以result和request是同一个对象
-    assert result is request
+    # 重构后中间件通过 request.copy() 返回新对象
+    assert result is not request
     assert result.meta.get('retry_times', 0) == 1
     print("  ✅ 第一次重试测试通过")
     
-    # 第二次重试（这是最后一次重试，之后应该放弃）
-    result = middleware.process_response(request, response, spider)
-    print(f"  第二次重试结果: {result}, 类型: {type(result)}")
-    # 当达到最大重试次数时，中间件会返回原始响应而不是重试请求
-    assert result is response
-    print("  ✅ 第二次重试测试通过（达到最大重试次数）")
+    # 链式重试：第二次用第一次的返回值，累计 retry_times
+    result2 = middleware.process_response(result, response, spider)
+    print(f"  第二次重试结果: {result2}, 类型: {type(result2)}")
+    assert result2 is not None
+    assert result2 is not result
+    assert result2.meta.get('retry_times', 0) == 2
+    print("  ✅ 第二次重试测试通过")
     
-    # 第三次重试（应该放弃，返回原始响应）
-    # 为确保测试准确性，我们创建一个新的请求
-    new_request = MockRequest()
-    result = middleware.process_response(new_request, response, spider)
-    print(f"  第三次重试结果: {result}, 类型: {type(result)}")
-    # 新请求没有重试历史，所以会被重试一次
-    assert result is not None
-    assert result is new_request
-    assert result.meta.get('retry_times', 0) == 1
-    print("  ✅ 第三次重试测试通过")
+    # 当达到最大重试次数（2）时，继续重试应放弃，返回原始响应
+    result3 = middleware.process_response(result2, response, spider)
+    print(f"  第三次重试结果: {result3}, 类型: {type(result3)}")
+    assert result3 is response
+    print("  ✅ 达到最大重试次数测试通过")
 
 
 def test_retry_exceptions():
@@ -259,7 +263,7 @@ def test_retry_exceptions():
         # 应该返回重试的请求
         assert result is not None
         assert result.meta.get('retry_times', 0) == 1
-        assert result.meta.get('dont_retry', False) is True
+        assert result.meta.get('is_retry', False) is True
         print("  ✅ ClientConnectorError 异常重试测试通过")
     except ImportError:
         print("  ⚠️  ClientConnectorError 未安装，跳过测试")
@@ -275,7 +279,7 @@ def test_retry_exceptions():
     # 应该返回重试的请求
     assert result is not None
     assert result.meta.get('retry_times', 0) == 1
-    assert result.meta.get('dont_retry', False) is True
+    assert result.meta.get('is_retry', False) is True
     print("  ✅ TimeoutError 异常重试测试通过")
 
 

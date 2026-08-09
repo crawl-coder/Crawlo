@@ -27,7 +27,7 @@ from crawlo.pipelines.manager import PipelineManager
 from crawlo.items.exceptions import ItemDiscard
 
 
-class TestDedupFix(unittest.TestCase):
+class TestDedupFix(unittest.IsolatedAsyncioTestCase):
     """去重管道异常处理修复测试"""
 
     def setUp(self):
@@ -40,6 +40,8 @@ class TestDedupFix(unittest.TestCase):
         self.mock_crawler.settings.get_bool = Mock(return_value=False)
         self.mock_crawler.subscriber = Mock()
         self.mock_crawler.subscriber.subscribe = Mock()
+        self.mock_crawler.stats = Mock()
+        self.mock_crawler.stats.inc_value = Mock()
         
         # 创建简单的测试数据项（使用namedtuple模拟Item）
         self.TestItem = namedtuple('TestItem', ['title', 'url', 'content'])
@@ -49,7 +51,7 @@ class TestDedupFix(unittest.TestCase):
             content="Test content"
         )
 
-    def test_redis_dedup_pipeline_exception_type(self):
+    async def test_redis_dedup_pipeline_exception_type(self):
         """测试Redis去重管道抛出正确的异常类型"""
         # 创建Redis去重管道实例
         with patch('redis.Redis') as mock_redis:
@@ -58,25 +60,25 @@ class TestDedupFix(unittest.TestCase):
             mock_redis.return_value = mock_redis_instance
             
             pipeline = RedisDedupPipeline(
+                crawler=self.mock_crawler,
                 redis_host='localhost',
                 redis_port=6379,
                 redis_db=0,
                 redis_password=None,
-                redis_key='test:key',
-                log_level='INFO'
+                redis_key='test:key'
             )
             
             # 验证抛出的是ItemDiscard异常
             with self.assertRaises(ItemDiscard) as context:
-                pipeline.process_item(self.test_item, Mock())
+                await pipeline.process_item(self.test_item, Mock())
             
             # 验证异常消息
             self.assertIn("Duplicate item:", str(context.exception))
 
-    def test_memory_dedup_pipeline_exception_type(self):
+    async def test_memory_dedup_pipeline_exception_type(self):
         """测试内存去重管道抛出正确的异常类型"""
         # 创建内存去重管道实例
-        pipeline = MemoryDedupPipeline(log_level='INFO')
+        pipeline = MemoryDedupPipeline(crawler=self.mock_crawler)
         
         # 添加一个指纹到已见过的集合中
         fingerprint = pipeline._generate_item_fingerprint(self.test_item)
@@ -84,15 +86,15 @@ class TestDedupFix(unittest.TestCase):
         
         # 验证抛出的是ItemDiscard异常
         with self.assertRaises(ItemDiscard) as context:
-            pipeline.process_item(self.test_item, Mock())
+            await pipeline.process_item(self.test_item, Mock())
         
         # 验证异常消息
-        self.assertIn("重复的数据项:", str(context.exception))
+        self.assertIn("Duplicate item:", str(context.exception))
 
-    def test_bloom_dedup_pipeline_exception_type(self):
+    async def test_bloom_dedup_pipeline_exception_type(self):
         """测试Bloom去重管道抛出正确的异常类型"""
         # 创建Bloom去重管道实例
-        pipeline = BloomDedupPipeline(log_level='INFO')
+        pipeline = BloomDedupPipeline(crawler=self.mock_crawler, log_level='INFO')
         
         # 添加一个指纹到Bloom过滤器中
         fingerprint = pipeline._generate_item_fingerprint(self.test_item)
@@ -100,10 +102,10 @@ class TestDedupFix(unittest.TestCase):
         
         # 验证抛出的是ItemDiscard异常
         with self.assertRaises(ItemDiscard) as context:
-            pipeline.process_item(self.test_item, Mock())
+            await pipeline.process_item(self.test_item, Mock())
         
         # 验证异常消息
-        self.assertIn("可能重复的数据项:", str(context.exception))
+        self.assertIn("Duplicate item:", str(context.exception))
 
     async def test_pipeline_manager_exception_handling(self):
         """测试管道管理器能正确处理ItemDiscard异常"""
@@ -142,8 +144,9 @@ class TestDedupFix(unittest.TestCase):
                 
             mock_common_call.side_effect = mock_common_call_func
             
-            # 调用处理方法
-            await pipeline_manager.process_item(test_item)
+            # 调用处理方法：重构后 ItemDiscard 会被通知并重新抛出
+            with self.assertRaises(ItemDiscard):
+                await pipeline_manager.process_item(test_item)
             
             # 验证ItemDiscard异常被正确处理
             # 验证create_task被调用了一次（item_discard事件）
@@ -189,8 +192,9 @@ class TestDedupFix(unittest.TestCase):
                 
             mock_common_call.side_effect = mock_common_call_func
             
-            # 调用处理方法
-            await pipeline_manager.process_item(test_item)
+            # 调用处理方法：重构后 ItemDiscard 会被通知并重新抛出
+            with self.assertRaises(ItemDiscard):
+                await pipeline_manager.process_item(test_item)
             
             # 验证ItemDiscard异常被正确处理
             # 验证create_task被调用了一次（item_discard事件）
