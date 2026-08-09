@@ -547,6 +547,8 @@ class FileBasedPipeline(ResourceManagedPipeline):
         self.file_handle: Optional[Any] = None
         self.file_path: Optional[Path] = None
         self._file_lock = asyncio.Lock()
+        # 子类（如 CsvPipeline 依赖同步 csv.writer）可置 True 强制使用同步文件对象
+        self._use_sync_io: bool = False
     
     def _get_file_path(self, config_key: str, default_prefix: str, extension: str) -> Path:
         """
@@ -583,13 +585,15 @@ class FileBasedPipeline(ResourceManagedPipeline):
         if self.file_handle is not None:
             return
         
-        async with self._file_lock:
+        # 使用独立的 _init_lock（而非 _file_lock）做 DCL，避免 process_item 已持有
+        # _file_lock 时再次进入 _open_file 造成不可重入锁死锁。
+        async with self._init_lock:
             if self.file_handle is None:
                 if self.file_path is None:
                     raise ValueError("文件路径未设置")
                 
-                # 如果安装了aiofiles，使用异步文件操作
-                if AIOFILES_AVAILABLE:
+                # 如果安装了aiofiles，使用异步文件操作（除非子类强制要求同步 I/O）
+                if AIOFILES_AVAILABLE and not self._use_sync_io:
                     self.file_handle = await aiofiles.open(
                         self.file_path, 
                         mode, 

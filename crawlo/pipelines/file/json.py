@@ -130,6 +130,10 @@ class JsonArrayPipeline(FileBasedPipeline):
 
     async def process_item(self, item: Item, spider, **kwargs) -> Optional[Item]:
         try:
+            # 先确保 file_path 已初始化（_initialize_resources 惰性设置路径）
+            await self._ensure_lazy_init(
+                '_initialized', '_init_lock', self._initialize_resources
+            )
             async with self._file_lock:
                 item_dict = dict(item)
                 self.items.append(item_dict)

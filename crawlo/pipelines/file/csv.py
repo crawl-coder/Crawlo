@@ -14,9 +14,8 @@ from crawlo.items import Item
 from crawlo.items.exceptions import ItemDiscard
 from crawlo.pipelines.base_pipeline import FileBasedPipeline
 
-# csv.writer 依赖同步文件对象，始终使用同步 I/O
+# csv.writer 依赖同步文件对象，始终使用同步 I/O（见 CsvPipeline._use_sync_io）
 # aiofiles 的 write() 是协程，与 csv.writer 不兼容
-AIOfiLES_AVAILABLE = False  # 强制禁用
 
 
 class CsvPipeline(FileBasedPipeline):
@@ -26,6 +25,8 @@ class CsvPipeline(FileBasedPipeline):
 
     def __init__(self, crawler):
         super().__init__(crawler)
+        # csv.writer 依赖同步文件对象，强制使用同步 I/O
+        self._use_sync_io = True
         self.csv_writer = None
         self.headers_written = False
 
@@ -67,8 +68,11 @@ class CsvPipeline(FileBasedPipeline):
         try:
             item_dict = dict(item)
 
+            # 先确保文件已打开（_open_file 内部会自行获取 _file_lock），
+            # 避免在下面 _file_lock 内再次进入 _ensure_open 造成不可重入锁死锁
+            await self._ensure_open()
+
             async with self._file_lock:
-                await self._ensure_open()
                 # 写入表头
                 if not self.headers_written and self.include_headers:
                     self.csv_writer.writerow(list(item_dict.keys()))
@@ -120,6 +124,8 @@ class CsvDictPipeline(FileBasedPipeline):
 
     def __init__(self, crawler):
         super().__init__(crawler)
+        # csv.DictWriter 依赖同步文件对象，强制使用同步 I/O
+        self._use_sync_io = True
         self.csv_writer = None
         self.fieldnames = None
 
@@ -185,8 +191,11 @@ class CsvDictPipeline(FileBasedPipeline):
         try:
             item_dict = dict(item)
 
+            # 先确保文件已打开（_initialize_resources/_open_file 内部自行获取 _file_lock），
+            # 避免在下面 _file_lock 内再次进入 _ensure_open_with_fields 造成不可重入锁死锁
+            await self._ensure_open_with_fields(item_dict)
+
             async with self._file_lock:
-                await self._ensure_open_with_fields(item_dict)
                 self.csv_writer.writerow(item_dict)
                 self.file_handle.flush()
 
