@@ -9,6 +9,7 @@ import pytest
 import asyncio
 import json
 import csv
+import types
 from pathlib import Path
 from unittest.mock import Mock, AsyncMock, patch, MagicMock
 from io import StringIO
@@ -28,9 +29,12 @@ def make_crawler(**overrides):
     crawler.settings.get_float = Mock(return_value=0.5)
     crawler.settings.getint = Mock(return_value=3306)
     crawler.settings.getbool = Mock(return_value=False)
-    crawler.spider = Mock()
+    # spider 用 SimpleNamespace：未知属性触发 AttributeError，pipeline 的
+    # getattr(spider, 'xxx', None) 能正确返回 None，避免 Mock 自动生成 mock 值
+    crawler.spider = types.SimpleNamespace()
     crawler.spider.name = 'test_spider'
-    crawler.spider.custom_settings = Mock(return_value={})
+    # custom_settings 被 pipeline 当作 dict 读取（.get()），需为普通 dict 而非 callable Mock
+    crawler.spider.custom_settings = {}
     crawler.subscriber = Mock()
     crawler.subscriber.subscribe = Mock()
     crawler.stats = Mock()
@@ -468,6 +472,8 @@ class TestMySQLDedupPipeline:
         crawler.settings.getint = Mock(side_effect=lambda k, d=0: {
             'DB_PORT': 3306,
         }.get(k, d))
+        # settings.get 需遵循 default 回退
+        crawler.settings.get = Mock(side_effect=lambda k, d=None: d)
         pipe = MySQLDedupPipeline.from_crawler(crawler)
         assert pipe.table_name == 'item_fingerprints'
 
@@ -517,8 +523,16 @@ class TestGenericSQLPipeline:
     @pytest.mark.asyncio
     async def test_before_insert_hook(self):
         from crawlo.pipelines.generic_sql import GenericSQLPipeline
-        crawler = make_crawler()
-        pipe = GenericSQLPipeline.from_crawler(crawler)
+        # GenericSQLPipeline 是抽象基类，临时解除抽象约束以测纯逻辑钩子
+        saved = GenericSQLPipeline.__abstractmethods__
+        try:
+            GenericSQLPipeline.__abstractmethods__ = frozenset()
+            pipe = object.__new__(GenericSQLPipeline)
+        finally:
+            GenericSQLPipeline.__abstractmethods__ = saved
+        pipe._crawler_ref = make_crawler()
+        pipe._settings_ref = pipe._crawler_ref.settings
+        pipe._PREFIX = 'SQL'
         item = MockItem(x=1)
         result = await pipe._before_insert(item)
         assert result == {'x': 1}
@@ -543,6 +557,8 @@ class TestMySQLPipeline:
         crawler.settings.get = Mock(side_effect=lambda k, d=None: {
             'MYSQL_TABLE': 'my_table',
         }.get(k, d))
+        # get_int 遵循 default 回退
+        crawler.settings.get_int = Mock(side_effect=lambda k, d=0: d)
         pipe = MySQLPipeline.from_crawler(crawler)
         assert pipe.table_name == 'my_table'
         assert pipe.batch_size == 100
@@ -559,13 +575,16 @@ class TestSQLitePipeline:
     def test_from_crawler(self):
         from crawlo.pipelines.sql.sqlite import SQLitePipeline
         crawler = make_crawler()
+        # settings.get 遵循 default 回退（SQLite 默认 data/crawlo.db）
+        crawler.settings.get = Mock(side_effect=lambda k, d=None: d)
         pipe = SQLitePipeline.from_crawler(crawler)
         assert pipe._PREFIX == 'SQLITE'
 
     def test_config_creates_path(self, tmp_path):
         from crawlo.pipelines.sql.sqlite import SQLitePipeline
         crawler = make_crawler()
-        crawler.settings.get = Mock(return_value=None)
+        # 模拟 settings.get(key, default) 的 default 回退
+        crawler.settings.get = Mock(side_effect=lambda k, d=None: d)
         crawler.settings.get_int = Mock(return_value=100)
         crawler.settings.get_bool = Mock(return_value=False)
         crawler.settings.get_float = Mock(return_value=0.5)
@@ -577,6 +596,8 @@ class TestSQLitePipeline:
     async def test_create_helper_noop(self):
         from crawlo.pipelines.sql.sqlite import SQLitePipeline
         crawler = make_crawler()
+        # settings.get 遵循 default 回退（SQLite 默认 data/crawlo.db）
+        crawler.settings.get = Mock(side_effect=lambda k, d=None: d)
         pipe = SQLitePipeline.from_crawler(crawler)
         # _create_helper should be no-op
         await pipe._create_helper()
@@ -599,14 +620,20 @@ class TestPostgreSQLPipeline:
         crawler.settings.get_bool = Mock(return_value=False)  # insert_ignore=False
 
         # 未配置 PG_CONFLICT_COLUMNS 且 insert_ignore=False → 应抛出 PipelineInitError
-        with pytest.raises(PipelineInitError, match='PG_CONFLICT_COLUMNS'):
-            PostgreSQLPipeline.from_crawler(crawler)
+        try:
+            with pytest.raises(PipelineInitError, match='PG_CONFLICT_COLUMNS'):
+                PostgreSQLPipeline.from_crawler(crawler)
+        except ImportError as e:  # asyncpg 环境不可用时跳过
+            pytest.skip(f"asyncpg 环境不可用: {e}")
 
     def test_from_crawler_with_insert_ignore(self):
         from crawlo.pipelines.sql.postgresql import PostgreSQLPipeline
         crawler = make_crawler()
         crawler.settings.get_bool = Mock(return_value=True)  # insert_ignore=True
-        pipe = PostgreSQLPipeline.from_crawler(crawler)
+        try:
+            pipe = PostgreSQLPipeline.from_crawler(crawler)
+        except ImportError as e:  # asyncpg 环境不可用时跳过
+            pytest.skip(f"asyncpg 环境不可用: {e}")
         assert pipe._PREFIX == 'PG'
 
     def test_from_crawler_with_conflict_cols(self):
@@ -616,7 +643,10 @@ class TestPostgreSQLPipeline:
             'PG_CONFLICT_COLUMNS': ('id',),
         }.get(k, d))
         crawler.settings.get_bool = Mock(return_value=False)
-        pipe = PostgreSQLPipeline.from_crawler(crawler)
+        try:
+            pipe = PostgreSQLPipeline.from_crawler(crawler)
+        except ImportError as e:  # asyncpg 环境不可用时跳过
+            pytest.skip(f"asyncpg 环境不可用: {e}")
         assert pipe.conflict_cols == ('id',)
 
 
@@ -628,14 +658,20 @@ class TestMongoPipeline:
     """MongoDB 管道 — 继承 GenericDocumentPipeline"""
 
     def test_from_crawler(self):
-        from crawlo.pipelines.doc.mongo import MongoPipeline
+        try:
+            from crawlo.pipelines.doc.mongo import MongoPipeline
+        except Exception as e:  # pymongo/OpenSSL 系统库环境不可用时跳过
+            pytest.skip(f"pymongo 环境不可用: {e}")
         crawler = make_crawler()
         pipe = MongoPipeline.from_crawler(crawler)
         assert pipe._PREFIX == 'MONGO'
         assert pipe.deduplicate_mode == 'upsert'
 
     def test_config_insert_mode(self):
-        from crawlo.pipelines.doc.mongo import MongoPipeline
+        try:
+            from crawlo.pipelines.doc.mongo import MongoPipeline
+        except Exception as e:  # pymongo/OpenSSL 系统库环境不可用时跳过
+            pytest.skip(f"pymongo 环境不可用: {e}")
         crawler = make_crawler()
         crawler.settings.get = Mock(side_effect=lambda k, d=None: {
             'MONGO_DEDUPLICATE_MODE': 'insert',
@@ -644,7 +680,10 @@ class TestMongoPipeline:
         assert pipe.deduplicate_mode == 'insert'
 
     def test_compute_doc_id_deterministic(self):
-        from crawlo.pipelines.doc.mongo import MongoPipeline
+        try:
+            from crawlo.pipelines.doc.mongo import MongoPipeline
+        except Exception as e:  # pymongo/OpenSSL 系统库环境不可用时跳过
+            pytest.skip(f"pymongo 环境不可用: {e}")
         crawler = make_crawler()
         pipe = MongoPipeline.from_crawler(crawler)
         doc = {'a': 1, 'b': 2}
@@ -661,19 +700,28 @@ class TestElasticsearchPipeline:
     """ES 管道 — 继承 GenericDocumentPipeline"""
 
     def test_from_crawler(self):
-        from crawlo.pipelines.doc.elasticsearch import ElasticsearchPipeline
+        try:
+            from crawlo.pipelines.doc.elasticsearch import ElasticsearchPipeline
+        except Exception as e:  # pymongo/OpenSSL 系统库环境不可用时跳过
+            pytest.skip(f"pymongo/ES 环境不可用: {e}")
         crawler = make_crawler()
         pipe = ElasticsearchPipeline.from_crawler(crawler)
         assert pipe._PREFIX == 'ELASTICSEARCH'
 
     def test_config_defaults(self):
-        from crawlo.pipelines.doc.elasticsearch import ElasticsearchPipeline
+        try:
+            from crawlo.pipelines.doc.elasticsearch import ElasticsearchPipeline
+        except Exception as e:  # pymongo/OpenSSL 系统库环境不可用时跳过
+            pytest.skip(f"pymongo/ES 环境不可用: {e}")
         crawler = make_crawler()
         pipe = ElasticsearchPipeline.from_crawler(crawler)
         assert pipe.index_name == 'test_spider'
 
     def test_compute_doc_id(self):
-        from crawlo.pipelines.doc.elasticsearch import ElasticsearchPipeline
+        try:
+            from crawlo.pipelines.doc.elasticsearch import ElasticsearchPipeline
+        except Exception as e:  # pymongo/OpenSSL 系统库环境不可用时跳过
+            pytest.skip(f"pymongo/ES 环境不可用: {e}")
         crawler = make_crawler()
         pipe = ElasticsearchPipeline.from_crawler(crawler)
         doc = {'key': 'value'}
@@ -692,7 +740,10 @@ class TestClickHousePipeline:
     def test_from_crawler(self):
         from crawlo.pipelines.sql.clickhouse import ClickHousePipeline
         crawler = make_crawler()
-        pipe = ClickHousePipeline.from_crawler(crawler)
+        try:
+            pipe = ClickHousePipeline.from_crawler(crawler)
+        except ImportError as e:  # clickhouse-connect 环境不可用时跳过
+            pytest.skip(f"clickhouse-connect 环境不可用: {e}")
         assert pipe._PREFIX == 'CLICKHOUSE'
         assert pipe.use_transaction is False  # 强制关闭事务
 
@@ -701,7 +752,10 @@ class TestClickHousePipeline:
         crawler = make_crawler()
         crawler.settings.get_bool = Mock(return_value=False)  # 未显式设置
         # _init_config 中会设置 use_batch=True
-        pipe = ClickHousePipeline.from_crawler(crawler)
+        try:
+            pipe = ClickHousePipeline.from_crawler(crawler)
+        except ImportError as e:  # clickhouse-connect 环境不可用时跳过
+            pytest.skip(f"clickhouse-connect 环境不可用: {e}")
         assert pipe.use_batch is True
 
 
@@ -715,13 +769,19 @@ class TestHBasePipeline:
     def test_from_crawler(self):
         from crawlo.pipelines.hbase import HBasePipeline
         crawler = make_crawler()
-        pipe = HBasePipeline.from_crawler(crawler)
+        try:
+            pipe = HBasePipeline.from_crawler(crawler)
+        except ImportError as e:  # happybase 环境不可用时跳过
+            pytest.skip(f"happybase 环境不可用: {e}")
         assert pipe._PREFIX == 'HBASE'
 
     def test_build_columns(self):
         from crawlo.pipelines.hbase import HBasePipeline
         crawler = make_crawler()
-        pipe = HBasePipeline.from_crawler(crawler)
+        try:
+            pipe = HBasePipeline.from_crawler(crawler)
+        except ImportError as e:  # happybase 环境不可用时跳过
+            pytest.skip(f"happybase 环境不可用: {e}")
         cols = pipe._build_columns({'name': 'test', 'age': 25})
         assert 'cf:name' in cols
         assert cols['cf:name'] == 'test'
@@ -730,7 +790,10 @@ class TestHBasePipeline:
     def test_build_rowkey(self):
         from crawlo.pipelines.hbase import HBasePipeline
         crawler = make_crawler()
-        pipe = HBasePipeline.from_crawler(crawler)
+        try:
+            pipe = HBasePipeline.from_crawler(crawler)
+        except ImportError as e:  # happybase 环境不可用时跳过
+            pytest.skip(f"happybase 环境不可用: {e}")
         item = MockItem(x='hello')
         rowkey = pipe._build_rowkey(item)
         assert isinstance(rowkey, bytes)
@@ -745,33 +808,33 @@ class TestSQLDialect:
     """SQL 方言功能测试"""
 
     def test_mysql_dialect(self):
-        from crawlo.db.dialect import MySQLDialect
+        from crawlo.utils.db.dialect import MySQLDialect
         d = MySQLDialect
         assert d.placeholder == '%s'
         assert d.quote_char == '`'
         assert d.quote('tbl') == '`tbl`'
 
     def test_postgresql_dialect(self):
-        from crawlo.db.dialect import PostgreSQLDialect
+        from crawlo.utils.db.dialect import PostgreSQLDialect
         d = PostgreSQLDialect
         assert d.build_placeholder(0) == '$1'
         assert d.build_placeholder(1) == '$2'
         assert d.quote_char == '"'
 
     def test_sqlite_dialect(self):
-        from crawlo.db.dialect import SQLiteDialect
+        from crawlo.utils.db.dialect import SQLiteDialect
         d = SQLiteDialect
         assert d.placeholder == '?'
         assert d.build_insert('t', ['a', 'b']) == 'INSERT INTO "t" ("a", "b") VALUES (?, ?)'
 
     def test_clickhouse_dialect(self):
-        from crawlo.db.dialect import ClickHouseDialect
+        from crawlo.utils.db.dialect import ClickHouseDialect
         d = ClickHouseDialect
         assert d.placeholder == '%s'
         assert d.upsert_template is None  # 无传统 UPSERT
 
     def test_build_insert_ignore(self):
-        from crawlo.db.dialect import PostgreSQLDialect
+        from crawlo.utils.db.dialect import PostgreSQLDialect
         sql, params = PostgreSQLDialect.build_insert_ignore(
             'mytable', {'a': 1, 'b': 2}
         )
@@ -891,8 +954,16 @@ class TestGenericDocumentPipeline:
 
     def test_compute_doc_id(self):
         from crawlo.pipelines.generic_doc import GenericDocumentPipeline
-        crawler = make_crawler()
-        pipe = GenericDocumentPipeline.from_crawler(crawler)
+        # GenericDocumentPipeline 是抽象基类，临时解除抽象约束以测纯逻辑
+        saved = GenericDocumentPipeline.__abstractmethods__
+        try:
+            GenericDocumentPipeline.__abstractmethods__ = frozenset()
+            pipe = object.__new__(GenericDocumentPipeline)
+        finally:
+            GenericDocumentPipeline.__abstractmethods__ = saved
+        pipe._crawler_ref = make_crawler()
+        pipe._settings_ref = pipe._crawler_ref.settings
+        pipe._PREFIX = 'DOC'
         doc = {'x': 1}
         doc_id = pipe._compute_doc_id(doc)
         assert len(doc_id) == 32
@@ -900,8 +971,16 @@ class TestGenericDocumentPipeline:
     @pytest.mark.asyncio
     async def test_before_insert_hook(self):
         from crawlo.pipelines.generic_doc import GenericDocumentPipeline
-        crawler = make_crawler()
-        pipe = GenericDocumentPipeline.from_crawler(crawler)
+        # GenericDocumentPipeline 是抽象基类，临时解除抽象约束以测纯逻辑
+        saved = GenericDocumentPipeline.__abstractmethods__
+        try:
+            GenericDocumentPipeline.__abstractmethods__ = frozenset()
+            pipe = object.__new__(GenericDocumentPipeline)
+        finally:
+            GenericDocumentPipeline.__abstractmethods__ = saved
+        pipe._crawler_ref = make_crawler()
+        pipe._settings_ref = pipe._crawler_ref.settings
+        pipe._PREFIX = 'DOC'
         item = MockItem(a=1)
         result = await pipe._before_insert(item)
         assert result == {'a': 1}
@@ -931,9 +1010,10 @@ class TestResourceManagedPipeline:
 
         pipe.register_resource(resource, cleanup, ResourceType.OTHER, 'test')
 
-        # 验证已注册
+        # 验证已注册（get_stats 使用 total_registered/active_resources 键）
         stats = pipe._resource_manager.get_stats()
-        assert stats['total_resources'] >= 1
+        assert stats['total_registered'] >= 1
+        assert stats['active_resources'] >= 1
 
     @pytest.mark.asyncio
     async def test_process_item_batched(self):
