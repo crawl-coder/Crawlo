@@ -16,6 +16,7 @@ import mimetypes
 
 from crawlo.middleware import BaseMiddleware
 from crawlo.logging import get_logger
+from crawlo.utils.misc import safe_get_path
 
 
 class FileMiddleware(BaseMiddleware):
@@ -30,7 +31,7 @@ class FileMiddleware(BaseMiddleware):
         self.logger = get_logger(self.__class__.__name__)
         
         # 从设置中获取默认配置
-        self.download_dir = self.settings.get('ATTACHMENT_DOWNLOAD_DIR', './attachments')
+        self.download_dir = safe_get_path(self.settings, 'ATTACHMENT_DOWNLOAD_DIR', './attachments')
         self.allowed_extensions = self.settings.get(
             'ATTACHMENT_ALLOWED_EXTENSIONS', 
             ['.pdf', '.doc', '.docx', '.xls', '.xlsx', '.zip', '.rar', '.txt', '.jpg', '.jpeg', '.png', '.gif']

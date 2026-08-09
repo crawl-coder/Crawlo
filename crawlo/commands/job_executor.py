@@ -16,6 +16,7 @@ from typing import Any, Dict, Optional, Set
 
 from crawlo.commands.job import ScheduledJob
 from crawlo.utils.parsing import format_datetime, format_duration
+from crawlo.utils.misc import safe_get_path
 
 
 class JobExecutor:
@@ -93,7 +94,7 @@ class JobExecutor:
         job_args['_INTERNAL_SCHEDULER_TASK'] = True
 
         # 确保使用爬虫的特定日志配置
-        project_log_file = self.settings.get('LOG_FILE', None)
+        project_log_file = safe_get_path(self.settings, 'LOG_FILE', None)
         if project_log_file:
             job_args['LOG_FILE'] = project_log_file
         elif not job_args.get('LOG_FILE'):

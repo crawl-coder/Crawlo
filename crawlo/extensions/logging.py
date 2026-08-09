@@ -3,6 +3,7 @@
 from typing import Any
 from crawlo.core.errors import NotConfigured
 from crawlo.logging import get_logger
+from crawlo.utils.misc import safe_get_path
 
 # Get logger instance
 _logger = get_logger(__name__)
@@ -35,9 +36,9 @@ class CustomLoggerExtension:
         Called by ExtensionManager
         """
         # Can control whether to enable via settings
-        log_file = crawler.settings.get('LOG_FILE')
+        log_file = safe_get_path(crawler.settings, 'LOG_FILE')
         log_enable_custom = crawler.settings.get('LOG_ENABLE_CUSTOM', False)
-        
+
         # Only disable when no log file configured and custom logging not enabled
         if not log_file and not log_enable_custom:
             raise NotConfigured("CustomLoggerExtension: LOG_FILE not set and LOG_ENABLE_CUSTOM=False")
@@ -48,7 +49,7 @@ class CustomLoggerExtension:
         try:
             _logger.info(
                 f"CustomLoggerExtension: Logging initialized. "
-                f"LOG_FILE={self.settings.get('LOG_FILE')}, "
+                f"LOG_FILE={safe_get_path(self.settings, 'LOG_FILE')}, "
                 f"LOG_LEVEL={self.settings.get('LOG_LEVEL')}"
             )
         except Exception:

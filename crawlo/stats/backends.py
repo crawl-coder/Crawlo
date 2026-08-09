@@ -18,6 +18,7 @@ from collections import defaultdict
 from typing import Any, Dict, Optional
 
 from crawlo.logging import get_logger
+from crawlo.utils.misc import safe_get_path
 
 
 # ==================== 统计后端抽象基类 ====================
@@ -301,7 +302,7 @@ class StatsBackendFactory:
                 return MemoryStatsBackend()
         
         elif backend_type == 'file':
-            return FileStatsBackend(file_path=settings.get('STATS_FILE', 'stats.json'))
+            return FileStatsBackend(file_path=safe_get_path(settings, 'STATS_FILE', 'stats.json'))
 
         elif backend_type == 'prometheus':
             try:

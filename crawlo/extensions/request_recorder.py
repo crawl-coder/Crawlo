@@ -7,6 +7,7 @@ from datetime import datetime
 
 from crawlo.event import CrawlerEvent
 from crawlo.logging import get_logger
+from crawlo.utils.misc import safe_get_path
 
 
 class RequestRecorderExtension:
@@ -21,7 +22,7 @@ class RequestRecorderExtension:
         
         # 获取配置参数
         self.enabled = self.settings.get_bool('REQUEST_RECORDER_ENABLED', False)
-        self.output_dir = self.settings.get('REQUEST_RECORDER_OUTPUT_DIR', 'requests_log')
+        self.output_dir = safe_get_path(self.settings, 'REQUEST_RECORDER_OUTPUT_DIR', 'requests_log')
         self.max_file_size = self.settings.get_int('REQUEST_RECORDER_MAX_FILE_SIZE', 10 * 1024 * 1024)  # 默认10MB
         
         # 创建输出目录

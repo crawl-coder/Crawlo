@@ -7,7 +7,7 @@
 """
 import importlib
 import pkgutil
-from typing import Iterator, Any, List, Type, Union, Dict, TypeVar, overload
+from typing import Iterator, Any, List, Type, Union, Dict, TypeVar, overload, Optional
 
 from crawlo.spider import Spider
 
@@ -152,6 +152,45 @@ def safe_get_config(settings, key, default=None, value_type=None):
                 else:
                     return bool(value)
         
+        return value
+    except Exception:
+        return default
+
+
+def safe_get_path(settings, key: str, default: Optional[str] = None) -> Optional[str]:
+    """安全读取路径类配置（*_FILE / *_DIR / *_PATH / *_DB）。
+
+    仅接受 ``str`` / ``bytes``（自动 decode）；``list / dict / 对象 / None``
+    一律回退到 ``default``，避免出现 ``str([{'spider': ...}])``
+    被当作文件名，在项目根目录下生成垃圾文件。
+
+    Args:
+        settings: 配置对象（支持 .get() 的 SettingManager、dict、或有同名属性的对象）
+        key: 配置键名
+        default: 读不到或类型不符时的返回值
+
+    Returns:
+        合法字符串路径，或 default
+    """
+    try:
+        if settings is None:
+            return default
+        if hasattr(settings, 'get') and callable(getattr(settings, 'get', None)):
+            value = settings.get(key, default)
+        elif isinstance(settings, dict):
+            value = settings.get(key, default)
+        else:
+            value = getattr(settings, key, default)
+
+        if value is None:
+            return default
+        if isinstance(value, bytes):
+            value = value.decode('utf-8', errors='replace')
+        if not isinstance(value, str):
+            # 严禁 list/dict/对象 被隐式 str() 成路径
+            return default
+        if not value:
+            return default
         return value
     except Exception:
         return default

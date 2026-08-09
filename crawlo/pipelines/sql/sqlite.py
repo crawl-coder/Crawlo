@@ -22,6 +22,7 @@ import aiosqlite
 
 from crawlo.utils.db.dialect import SQLiteDialect
 from crawlo.pipelines.generic_sql import GenericSQLPipeline
+from crawlo.utils.misc import safe_get_path
 
 
 class SQLitePipeline(GenericSQLPipeline):
@@ -35,8 +36,8 @@ class SQLitePipeline(GenericSQLPipeline):
         """扩展配置 — SQLite 特有：路径 + 文件"""
         super()._init_config()
         self.db_path = Path(
-            self.settings.get('SQLITE_PATH', 'data')
-        ) / f"{self.settings.get('SQLITE_DB', 'crawlo')}.db"
+            safe_get_path(self.settings, 'SQLITE_PATH', 'data')
+        ) / f"{safe_get_path(self.settings, 'SQLITE_DB', 'crawlo')}.db"
         # SQLite 默认关闭事务（单写锁限制）
         self.use_transaction = self.settings.get_bool('SQLITE_USE_TRANSACTION', False)
 
