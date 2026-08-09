@@ -289,3 +289,30 @@ def get_downloader_class(name: str):
     if name in DOWNLOADER_MAP:
         return DOWNLOADER_MAP[name]
     raise ValueError(f"未知的下载器类型: {name}。可用类型: {list(DOWNLOADER_MAP.keys())}")
+
+
+def register_downloader(name: str, cls) -> None:
+    """注册自定义下载器到全局映射（P3-2 统一扩展点）。
+
+    Args:
+        name: 下载器短名称（如 'my_downloader'），可在 settings 的
+            DOWNLOADER 中直接使用
+        cls: 下载器类（需继承 DownloaderBase）
+    """
+    if not name or not isinstance(name, str):
+        raise ValueError(f"下载器名称必须是非空字符串，got {name!r}")
+    if cls is None:
+        raise ValueError("下载器类不能为 None")
+    DOWNLOADER_MAP[name] = cls
+    get_logger(__name__).info(f"Registered downloader: {name} -> {cls.__module__}.{cls.__name__}")
+
+
+def unregister_downloader(name: str) -> bool:
+    """注销自定义下载器（内置下载器也可注销，谨慎使用）。"""
+    existed = name in DOWNLOADER_MAP
+    if existed:
+        del DOWNLOADER_MAP[name]
+    return existed
+
+
+__all__ += ['register_downloader', 'unregister_downloader']
