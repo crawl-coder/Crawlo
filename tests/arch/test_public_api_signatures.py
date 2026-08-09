@@ -61,7 +61,7 @@ from crawlo.core.processor import Processor
 # {class_name: {method_name: signature_hash}}
 BASELINE = {
     "Engine": {
-        "__init__": "e84ddfdd330611281f9f36e93203bf7aa149f54923f0fd34da1a62bac70b9700",
+        "__init__": "684f3b33c3f692609f36007db1a87018aa61c163a92926e882dfe295e971f620",  # P3-4: 组合组件可配置化（dispatcher/distributed 注入）
         "engine_start": "15f9ce84574fa0b8112c4594967cc7716e6e51d4cd9f35e7bf6fc62530eaf115",
         "start_spider": "9bf9656e0782b28a3ce7a24ba2718d104457274116c05387278fc561750223d9",
         "crawl": "8806d5b8e61d8a7d9cfa31fcab42a5907d4b3b9a779bac6147fa1b5afda6cb49",

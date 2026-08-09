@@ -352,6 +352,7 @@ class TestLeaderShutdownLoop:
         state.dynamic_config.get_control_state = AsyncMock(return_value='running')
         state.dynamic_config.shutdown_cluster = AsyncMock()
         state.leader_lock = Mock()
+        state.leader_lock.is_holder = AsyncMock(return_value=True)
 
         mixin._try_acquire_leader_lock = AsyncMock(return_value=True)
         mixin._check_leader_shutdown_conditions = AsyncMock(return_value=True)
@@ -368,8 +369,27 @@ class TestLeaderShutdownLoop:
         state.dynamic_config = AsyncMock()
         state.dynamic_config.get_control_state = AsyncMock(return_value='shutdown')
         state.leader_lock = Mock()
+        state.leader_lock.is_holder = AsyncMock(return_value=True)
         mixin._try_acquire_leader_lock = AsyncMock(return_value=True)
 
         await mixin._leader_shutdown_loop()
 
+        assert mixin.running is False
+
+    @pytest.mark.asyncio
+    async def test_fenced_leader_aborts_shutdown(self):
+        """fencing 校验失败（陈旧 Leader）时不得广播关闭"""
+        mixin = _make_mixin()
+        state = mixin._cluster_state
+        state.dynamic_config = AsyncMock()
+        state.dynamic_config.get_control_state = AsyncMock(return_value='running')
+        state.dynamic_config.shutdown_cluster = AsyncMock()
+        state.leader_lock = Mock()
+        state.leader_lock.is_holder = AsyncMock(return_value=False)
+        mixin._try_acquire_leader_lock = AsyncMock(return_value=True)
+        mixin._check_leader_shutdown_conditions = AsyncMock(return_value=True)
+
+        await mixin._leader_shutdown_loop()
+
+        state.dynamic_config.shutdown_cluster.assert_not_awaited()
         assert mixin.running is False

@@ -1035,8 +1035,6 @@ class RedisStreamQueue:
             "local retry_count = 1 "
             "if fields['retry_count'] then retry_count = tonumber(fields['retry_count']) + 1 end "
             "if retry_count >= tonumber(ARGV[5]) then "
-            "  redis.call('XACK', KEYS[1], ARGV[2], ARGV[1]) "
-            "  redis.call('XDEL', KEYS[1], ARGV[1]) "
             "  return {0, retry_count} "
             "end "
             "redis.call('XACK', KEYS[1], ARGV[2], ARGV[1]) "
