@@ -328,6 +328,7 @@ def main(args):
     主函数：检查所有爬虫定义的合规性
     用法:
         crawlo check
+        crawlo check <spider_name>
         crawlo check --fix
         crawlo check --ci
         crawlo check --json
@@ -339,9 +340,19 @@ def main(args):
     show_watch = "--watch" in args
 
     valid_args = {"--fix", "-f", "--ci", "--json", "--watch"}
-    if any(arg not in valid_args for arg in args):
-        console.print("[bold red]错误:[/bold red] 用法: [blue]crawlo check[/blue] [--fix] [--ci] [--json] [--watch]")
-        return 1
+    # 可选爬虫名位置参数（其余非选项参数视为非法）
+    spider_arg = None
+    for arg in args:
+        if arg in valid_args:
+            continue
+        if arg.startswith('-'):
+            console.print("[bold red]错误:[/bold red] 用法: [blue]crawlo check[/blue] [<爬虫名称>] [--fix] [--ci] [--json] [--watch]")
+            return 1
+        if spider_arg is None:
+            spider_arg = arg
+        else:
+            console.print("[bold red]错误:[/bold red] 用法: [blue]crawlo check[/blue] [<爬虫名称>] [--fix] [--ci] [--json] [--watch]")
+            return 1
 
     try:
         # 1. 查找项目根目录
@@ -440,6 +451,17 @@ def main(args):
 
         issues_found = False
         results = []
+
+        # 指定爬虫名时，校验其存在性并只检查该爬虫
+        if spider_arg is not None:
+            if spider_arg not in spider_names:
+                msg = f"爬虫 '[cyan]{spider_arg}[/cyan]' 未找到。可用爬虫: {', '.join(sorted(spider_names))}"
+                if show_json:
+                    console.print_json(data={"success": False, "error": msg})
+                    return 1
+                console.print(f"[bold red]{msg}[/bold red]")
+                return 1
+            spider_names = [spider_arg]
 
         for name in sorted(spider_names):
             cls = process.get_spider_class(name)

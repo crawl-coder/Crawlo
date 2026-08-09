@@ -21,7 +21,6 @@ from crawlo.crawler_process import CrawlerProcess
 from crawlo.project import _find_project_root
 # 使用新的统一初始化系统
 from crawlo.core.application import initialize_framework
-from crawlo.core import get_framework_initializer
 from crawlo.logging import get_logger
 from crawlo.utils.concurrency import run_with_cleanup
 
@@ -90,9 +89,8 @@ def main(args):
     用法:
         crawlo run <spider_name>|all|schedule [--json] [--no-stats] [--log-level LEVEL] [--config CONFIG] [--concurrency NUM]
     """
-    # 确保框架已初始化
-    get_framework_initializer()
-
+    # 注：v2.0 重构后 get_framework_initializer() 在 ApplicationContext 未就绪时会抛
+    # RuntimeError，不能在此处（初始化前）调用。框架初始化由下方 initialize_framework() 完成。
     # 添加调试信息
     logger().debug("DEBUG: 进入main函数")
 

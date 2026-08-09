@@ -14,6 +14,9 @@ wechat-articles/
 crawlo-promo/
 .import_linter_cache/
 
+# Local dev / scratch (eval reports, notes, experiments)
+dev/
+
 # Runtime logs
 examples/ofweek_distributed/logs/
 
