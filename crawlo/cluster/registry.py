@@ -94,7 +94,6 @@ class WorkerRegistry:
         """
         import socket
         import os
-        import uuid
 
         # 生成 worker_id（如果调用方未提供）
         worker_id = worker_info.get("id") or self._generate_worker_id()

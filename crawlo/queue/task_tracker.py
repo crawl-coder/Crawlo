@@ -7,7 +7,7 @@
 提供错误分类逻辑，区分可恢复错误与终态错误。
 """
 from enum import Enum
-from typing import Optional, Dict, Any
+from typing import Dict, Any
 
 
 class TaskResult(Enum):
@@ -82,7 +82,7 @@ class TaskTracker:
             result: 处理结果分类
         """
         task_info = self._processing.pop(message_id, {"request": None})
-        request = task_info.get("request")
+        task_info.get("request")
 
         if result == TaskResult.RETRY:
             self._stats["retried"] += 1

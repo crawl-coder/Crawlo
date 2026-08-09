@@ -53,7 +53,6 @@ class CrawlerEvent(str, Enum):
 
 class ReceiverTypeError(TypeError):
     """当订阅的接收者不是一个协程函数时抛出。"""
-    pass
 
 
 ReceiverCoroutine: TypeAlias = Callable[..., Coroutine[Any, Any, Any]]

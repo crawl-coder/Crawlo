@@ -59,6 +59,14 @@ class StatsCollector:
         """获取统计值"""
         return self.backend.get_value(key, default)
 
+    def set_value(self, key: str, value: Any) -> None:
+        """设置统计值（Gauge 语义）
+
+        与 get_value / inc_value 对称，方便从扩展中写入 gauge、p99 等非标指标。
+        直接代理到 backend.set_value，支持 Memory / Redis / Prometheus 等后端。
+        """
+        self.backend.set_value(key, value)
+
     def get_stats(self) -> Dict[str, Any]:
         """获取所有统计信息"""
         return self.backend.get_stats()

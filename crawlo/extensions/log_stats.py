@@ -4,7 +4,6 @@
 Log Statistics Extension
 Provides detailed crawler runtime statistics
 """
-import asyncio
 from typing import Any
 
 from crawlo.logging import get_logger
@@ -40,7 +39,7 @@ class LogStats:
     async def item_successful(self, _item: Any, _spider: Any) -> None:
         try:
             self._stats.inc_value('item_successful_count')
-        except Exception as e:
+        except Exception:
             # Silently handle to avoid affecting crawler
             pass
 
@@ -48,7 +47,7 @@ class LogStats:
         try:
             # Only increment total discard count, don't record details for each discarded item
             self._stats.inc_value('item_discard_count')
-        except Exception as e:
+        except Exception:
             # Silently handle to avoid affecting crawler
             pass
 
@@ -62,6 +61,6 @@ class LogStats:
             # Check if it's a retry request, if so don't count it
             if not _request.meta.get('is_retry', False):
                 self._stats.inc_value('request_scheduler_count')
-        except Exception as e:
+        except Exception:
             # Silently handle to avoid affecting crawler
             pass

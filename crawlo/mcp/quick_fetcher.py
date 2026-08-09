@@ -13,7 +13,6 @@ MCP 场景下的轻量级抓取器：
 
 import asyncio
 import atexit
-import base64
 import contextlib
 import io
 import json
@@ -291,7 +290,7 @@ class QuickFetcher:
     async def _fetch_stealth(self, url: str, timeout: float, cookies: Dict[str, str], headers: Optional[Dict[str, str]]):
         """stealth 模式：使用 DrissionPage（浏览器池复用）"""
         try:
-            from DrissionPage import ChromiumPage
+            pass
         except ImportError:
             return None
 
@@ -371,7 +370,7 @@ class QuickFetcher:
     async def _fetch_max_stealth(self, url: str, timeout: float, cookies: Dict[str, str], headers: Optional[Dict[str, str]]):
         """max-stealth 模式：使用 Camoufox（浏览器池复用）"""
         try:
-            from camoufox.async_api import AsyncCamoufox
+            pass
         except ImportError:
             return None
 
@@ -532,7 +531,7 @@ class QuickFetcher:
         """
         if mode == 'max-stealth':
             try:
-                from camoufox.async_api import AsyncCamoufox
+                pass
             except ImportError:
                 return "Error: camoufox not installed"
             try:

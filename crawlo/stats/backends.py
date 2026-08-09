@@ -71,7 +71,6 @@ class StatsBackend(ABC):
     
     def close(self) -> None:
         """关闭后端（可选实现）"""
-        pass
 
 
 # ==================== 内存后端 ====================

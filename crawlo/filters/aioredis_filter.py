@@ -277,7 +277,7 @@ class AioRedisFilter(BaseFilter):
             await self._add_fingerprint_async(fp)
             return False
 
-        except Exception as e:
+        except Exception:
             self.logger.warning(
                 f"Redis unavailable, allowing request without dedup: {getattr(request, 'url', 'Unknown URL')}. "
                 f"Duplicates possible but no data will be lost."
@@ -295,7 +295,6 @@ class AioRedisFilter(BaseFilter):
         """
         # This method requires sync implementation, but Redis operations are async
         # In practice, should call _add_fingerprint_async via async method
-        pass
 
 
     async def _add_fingerprint_async(self, fp: str) -> bool:
@@ -426,7 +425,7 @@ class AioRedisFilter(BaseFilter):
             exists = await self._execute_with_cluster_support(_check_contains_operation)
             
             return bool(exists)
-        except Exception as e:
+        except Exception:
             self.logger.warning(
                 f"Redis unavailable, skipping dedup check for fingerprint: {fp[:20]}... "
                 f"Duplicates possible but no data will be lost."

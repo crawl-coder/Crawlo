@@ -17,16 +17,16 @@ class RunMode(Enum):
     AUTO = "auto"               # 自动检测模式
 
 
-# 基础配置默认值
+# 基础配置默认值（保持与 crawlo.settings.default_settings 一致，避免两处产生不同默认值导致覆盖异常）
 BASE_CONFIG = {
     'PROJECT_NAME': 'crawlo',
     'CONCURRENCY': 8,
-    'MAX_RUNNING_SPIDERS': 1,
-    'DOWNLOAD_DELAY': 1.0,
-    'DOWNLOAD_TIMEOUT': 30,
+    'MAX_RUNNING_SPIDERS': 3,
+    'DOWNLOAD_DELAY': 0.5,
+    'DOWNLOAD_TIMEOUT': 15,
     'MAX_RETRY_TIMES': 3,
-    'CONNECTION_POOL_LIMIT': 50,
-    'LOG_LEVEL': 'INFO',
+    'CONNECTION_POOL_LIMIT': 100,
+    'LOG_LEVEL': 'INFO',   # 与 ConfigValidator 允许的枚举保持一致；项目 settings 可覆盖
 }
 
 # 运行模式配置映射
@@ -44,9 +44,11 @@ MODE_CONFIG_MAP = {
         'DEFAULT_DEDUP_PIPELINE': 'crawlo.pipelines.RedisDedupPipeline',
         'CONCURRENCY': 16,
         'MAX_RUNNING_SPIDERS': 10,
-        'DISTRIBUTED_WORKER_IDLE_TIMEOUT': 300,   # 连续空闲 N 秒后退出（0 = 永不退出）
-        'STREAM_DELIVERY_COUNT_LIMIT': 3,           # Stream 最大投递次数
-        'STREAM_CONSUMER_IDLE_TIMEOUT': 60000,      # ms，任务超时未 ACK 可回收
+        'DISTRIBUTED_WORKER_IDLE_TIMEOUT': 120,   # 与 default_settings.py 对齐（连续空闲 N 秒后退出，0 = 永不退出）
+        'STREAM_DELIVERY_COUNT_LIMIT': 5,           # Stream 最大投递次数（网络抖动时给重试留余量）
+        'STREAM_CONSUMER_IDLE_TIMEOUT': 90000,      # ms，任务超时未 ACK 可回收（1.5 min）
+        'CLUSTER_FAILOVER_CHECK_INTERVAL': 15,      # 故障检测间隔（秒）
+        'CLUSTER_AUTO_CLEAR_SHUTDOWN_ON_START': True,  # 空集群下自动清除残留的 shutdown 状态
     }
 }
 

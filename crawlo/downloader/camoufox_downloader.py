@@ -22,16 +22,12 @@ Camoufox 特性:
     CAMOUFOX_HEADLESS = True
     CAMOUFOX_HUMANIZE = True
 """
-import time
 import asyncio
-from typing import Optional, Dict, List, Set
-from urllib.parse import urlparse
+from typing import Optional, Set
 
 from crawlo.downloader import DownloaderBase
-from crawlo.utils.parsing import PageActionHandler, SelectorConverter
 from crawlo.http.response import Response
 from crawlo.logging import get_logger
-from crawlo.constants import BROWSER_ELEMENT_WAIT_TIMEOUT_MS
 from crawlo.utils.misc import (
     get_browser_config,
     get_browser_config_int,

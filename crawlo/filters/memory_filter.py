@@ -11,7 +11,6 @@ Supported Filters:
 """
 import os
 import random
-import asyncio
 import warnings
 from weakref import WeakSet
 from typing import Set, TextIO, Optional, Dict, Any

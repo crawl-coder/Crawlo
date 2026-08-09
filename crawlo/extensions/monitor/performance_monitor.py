@@ -238,7 +238,7 @@ def performance_monitor_decorator(name: str = None, log_level: str = "INFO"):
         @wraps(func)
         async def async_wrapper(*args, **kwargs):
             timer_name = name or f"{func.__module__}.{func.__name__}"
-            logger = get_logger(timer_name)
+            get_logger(timer_name)
             
             with PerformanceTimer(timer_name) as timer:
                 if asyncio.iscoroutinefunction(func):
@@ -249,7 +249,7 @@ def performance_monitor_decorator(name: str = None, log_level: str = "INFO"):
         @wraps(func)
         def sync_wrapper(*args, **kwargs):
             timer_name = name or f"{func.__module__}.{func.__name__}"
-            logger = get_logger(timer_name)
+            get_logger(timer_name)
             
             with PerformanceTimer(timer_name) as timer:
                 return func(*args, **kwargs)

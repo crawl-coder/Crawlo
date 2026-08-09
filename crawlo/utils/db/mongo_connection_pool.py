@@ -15,7 +15,7 @@ MongoDB连接池管理器
 """
 
 import asyncio
-from typing import Dict, Optional, Any
+from typing import Dict, Any
 from crawlo.logging import get_logger
 
 

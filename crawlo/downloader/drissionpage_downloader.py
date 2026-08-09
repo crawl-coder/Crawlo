@@ -342,7 +342,7 @@ class DrissionPageDownloader(DownloaderBase):
             consecutive_no_content = 0
             
             # 使用 JavaScript 获取初始高度
-            initial_height = self.page.run_js('return document.body.scrollHeight')
+            self.page.run_js('return document.body.scrollHeight')
             
             while True:
                 # 获取当前页面高度

@@ -9,7 +9,6 @@ Serialization support for Request objects
 from typing import Any, Dict, Optional, TYPE_CHECKING, Literal
 
 try:
-    import msgpack
     MSGPACK_AVAILABLE = True
 except ImportError:
     MSGPACK_AVAILABLE = False

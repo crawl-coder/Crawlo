@@ -15,7 +15,7 @@ MySQL 连接池管理器
 """
 
 import asyncio
-from typing import Dict, Optional, Any
+from typing import Dict, Any
 from crawlo.logging import get_logger
 
 
@@ -46,9 +46,19 @@ except ImportError:
 
 
 class MySQLConnectionPoolManager:
-    """MySQL 连接池管理器（支持单例模式和独立模式）"""
-    
+    """MySQL 连接池管理器（支持单例模式和独立模式）
+
+    共享模式（shared=True）下采用引用计数：
+      - get_pool() 每成功返回一个共享 pool，_ref_counts[pool_key] +1
+      - release_pool() 每被调用，_ref_counts[pool_key] -1；
+        归零后才真正执行 pool.close() 并从 _instances 移除
+      - 这样多爬虫 / 多 Pipeline 共用同配置 MySQL 时，先结束的爬虫不会把
+        兄弟爬虫还在用的共享 pool 提前关掉，避免 "Cannot acquire connection
+        after closing pool"。
+    """
+
     _instances: Dict[str, 'MySQLConnectionPoolManager'] = {}
+    _ref_counts: Dict[str, int] = {}
     _lock = asyncio.Lock()
     
     def __init__(self, pool_key: str, shared: bool = True):
@@ -126,10 +136,15 @@ class MySQLConnectionPoolManager:
                         f"创建新的 MySQL 连接池管理器：{pool_key} "
                         f"(minsize={minsize}, maxsize={maxsize}, echo={echo})"
                     )
-                
+
                 instance = cls._instances[pool_key]
-                await instance._ensure_pool()
-                return instance.pool
+                cls._ref_counts[pool_key] = cls._ref_counts.get(pool_key, 0) + 1
+                instance.logger.debug(
+                    f"Acquire shared pool [{pool_key}] ref_count={cls._ref_counts[pool_key]}"
+                )
+
+            await instance._ensure_pool()
+            return instance.pool
         else:
             instance = cls(pool_key, shared=False)
             instance._config = {
@@ -151,16 +166,32 @@ class MySQLConnectionPoolManager:
             return instance.pool, instance
     
     async def _ensure_pool(self):
-        """确保连接池已初始化（线程安全）"""
+        """确保连接池已初始化（线程安全）
+
+        修复 Bug：当 pool 被外部关闭后（_closed=True），外层快路径检测到
+        _pool_initialized=True 但 is_pool_active=False，进入内层 DCL 时因为
+        _pool_initialized 未被重置导致直接返回，从而无法重建 pool。
+        """
         if self._pool_initialized:
             if is_pool_active(self.pool):
                 return
             else:
                 self.logger.warning("MySQL 连接池已初始化但无效，重新初始化")
-        
+
         async with self._pool_lock:
-            if not self._pool_initialized:
+            # 内层二次检查（DCL）：同时考虑「未初始化」和「已初始化但 pool 失效」两种情况
+            need_recreate = (not self._pool_initialized) or (not is_pool_active(self.pool))
+            if need_recreate:
                 try:
+                    # 先清理旧 pool 残留（如果有），避免端口/连接泄漏
+                    if self.pool is not None:
+                        try:
+                            self.pool.close()
+                            await self.pool.wait_closed()
+                        except Exception:
+                            pass
+                        finally:
+                            self.pool = None
                     self.pool = await self._create_pool()
                     self._pool_initialized = True
                     self.logger.debug(
@@ -203,12 +234,52 @@ class MySQLConnectionPoolManager:
                 self._pool_initialized = False
     
     @classmethod
+    async def release_pool(
+        cls,
+        host: str = 'localhost',
+        port: int = 3306,
+        user: str = 'root',
+        password: str = '',
+        db: str = 'crawlo',
+        minsize: int = 3,
+        maxsize: int = 10,
+        echo: bool = False,
+        shared: bool = True,
+        **kwargs
+    ) -> None:
+        """释放共享 pool 引用，引用计数归零时真正关闭 pool"""
+        if not shared:
+            return
+        pool_key = f"asyncmy:{host}:{port}:{db}"
+        logger = get_logger('MySQLPool')
+
+        async with cls._lock:
+            if pool_key not in cls._instances:
+                return
+
+            cls._ref_counts[pool_key] = cls._ref_counts.get(pool_key, 1) - 1
+            logger.debug(f"Release pool [{pool_key}] ref_count={cls._ref_counts[pool_key]}")
+
+            if cls._ref_counts[pool_key] <= 0:
+                instance = cls._instances.pop(pool_key, None)
+                cls._ref_counts.pop(pool_key, None)
+                if instance and instance.pool:
+                    try:
+                        instance.pool.close()
+                        await instance.pool.wait_closed()
+                        logger.info(f"Closed pool [{pool_key}] (ref_count reached 0)")
+                    except Exception as e:
+                        logger.error(f"Close pool [{pool_key}] failed (ref=0): {e}")
+                instance.pool = None
+                instance._pool_initialized = False
+
+    @classmethod
     async def close_all_pools(cls):
         """关闭所有共享 MySQL 连接池"""
         logger = get_logger('MySQLPool')
         logger.debug(f"开始关闭所有 MySQL 连接池，共 {len(cls._instances)} 个")
-        
-        for pool_key, instance in cls._instances.items():
+
+        for pool_key, instance in list(cls._instances.items()):
             try:
                 if instance.pool:
                     logger.debug(f"关闭 MySQL 连接池：{pool_key}")
@@ -217,27 +288,33 @@ class MySQLConnectionPoolManager:
                     logger.debug(f"MySQL 连接池已关闭：{pool_key}")
             except Exception as e:
                 logger.error(f"关闭 MySQL 连接池 {pool_key} 时发生错误：{e}")
-        
+            instance.pool = None
+            instance._pool_initialized = False
+
         cls._instances.clear()
+        cls._ref_counts.clear()
         logger.debug("所有 MySQL 连接池已关闭")
-    
+
     @classmethod
     def get_pool_stats(cls) -> Dict[str, Any]:
-        """获取所有 MySQL 连接池的统计信息"""
+        """获取所有 MySQL 连接池的统计信息（含 ref_count）"""
         stats = {
             'total_pools': len(cls._instances),
             'pools': {}
         }
-        
+
         for pool_key, instance in cls._instances.items():
+            info: Dict[str, Any] = {
+                'ref_count': cls._ref_counts.get(pool_key, 0),
+            }
             if instance.pool:
                 pool = instance.pool
                 size = getattr(pool, 'size', 0)
                 freesize = getattr(pool, 'freesize', 0)
                 maxsize = getattr(pool, 'maxsize', 0)
                 minsize = getattr(pool, 'minsize', 0)
-                
-                stats['pools'][pool_key] = {
+
+                info.update({
                     'driver': 'asyncmy',
                     'size': size,
                     'freesize': freesize,
@@ -247,8 +324,9 @@ class MySQLConnectionPoolManager:
                     'usage_percent': (size - freesize) / maxsize * 100 if maxsize > 0 else 0,
                     'host': instance._config.get('host', 'unknown'),
                     'db': instance._config.get('db', 'unknown')
-                }
-        
+                })
+            stats['pools'][pool_key] = info
+
         return stats
 
 

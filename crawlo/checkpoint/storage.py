@@ -10,7 +10,7 @@ import sqlite3
 import tempfile
 import time
 from abc import ABC, abstractmethod
-from typing import Any, Dict, List, Optional, Set
+from typing import Any, Dict, Optional
 
 from crawlo.logging import get_logger
 

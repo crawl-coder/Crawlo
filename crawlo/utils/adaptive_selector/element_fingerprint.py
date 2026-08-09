@@ -19,7 +19,7 @@ Fingerprint includes:
 - siblings: Sibling tag list
 - children: Children tag list
 """
-from typing import Dict, Optional, Tuple, List, Any
+from typing import Dict, Optional, Tuple, Any
 
 from lxml.html import HtmlElement, HtmlComment
 

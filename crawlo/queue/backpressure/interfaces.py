@@ -6,7 +6,7 @@ Provides unified backpressure strategy interfaces and abstract base classes.
 """
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import Optional, TYPE_CHECKING, Dict, Any
+from typing import TYPE_CHECKING, Dict, Any
 from enum import Enum
 
 if TYPE_CHECKING:
@@ -62,7 +62,6 @@ class IBackpressureStrategy(ABC):
     @abstractmethod
     def name(self) -> str:
         """Get strategy name"""
-        pass
     
     @abstractmethod
     async def should_apply(self, queue: 'IQueue') -> bool:
@@ -75,7 +74,6 @@ class IBackpressureStrategy(ABC):
         Returns:
             bool: Whether backpressure should be applied
         """
-        pass
     
     @abstractmethod
     async def calculate_delay(self, queue: 'IQueue') -> float:
@@ -88,7 +86,6 @@ class IBackpressureStrategy(ABC):
         Returns:
             float: Delay time in seconds
         """
-        pass
     
     @abstractmethod
     async def get_level(self, queue: 'IQueue') -> PressureLevel:
@@ -101,7 +98,6 @@ class IBackpressureStrategy(ABC):
         Returns:
             PressureLevel: Current level
         """
-        pass
     
     @abstractmethod
     async def get_metrics(self, queue: 'IQueue') -> BackpressureMetrics:
@@ -114,12 +110,10 @@ class IBackpressureStrategy(ABC):
         Returns:
             BackpressureMetrics: Metric data
         """
-        pass
     
     @abstractmethod
     def reset(self) -> None:
         """Reset strategy state"""
-        pass
 
 
 class BackpressureStrategyConfig:

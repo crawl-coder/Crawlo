@@ -11,7 +11,6 @@
 import os
 import sys
 import asyncio
-import json
 
 # 项目根目录
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -167,7 +166,7 @@ async def run_spider_briefly(mode: str, max_requests: int = 5):
             process.crawl('of_week'),
             timeout=120
         )
-        stats = fw.settings.get('_stats', {})
+        fw.settings.get('_stats', {})
         print(f"  [{mode}] 爬虫完成")
         return result
     except asyncio.TimeoutError:

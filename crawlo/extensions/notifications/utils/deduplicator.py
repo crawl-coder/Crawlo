@@ -9,7 +9,7 @@
 
 import hashlib
 import time
-from typing import Dict, Set, Optional
+from typing import Dict
 from threading import Lock
 
 from crawlo.logging import get_logger

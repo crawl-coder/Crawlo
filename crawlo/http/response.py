@@ -14,7 +14,6 @@ import re
 from typing import Dict, Any, List, Optional, Union, Pattern, Match
 from urllib.parse import urljoin as _urljoin
 from parsel import Selector, SelectorList
-from lxml.html import HtmlElement
 
 # 尝试使用 ujson 提升性能，失败时降级到标准库 json
 try:
@@ -35,7 +34,6 @@ from crawlo.utils.request.response_helper import (
     regex_findone,
     get_header_value
 )
-from crawlo.utils.decorators import memoize_method_noargs
 from crawlo.http.response_adaptive import ResponseAdaptiveMixin
 
 

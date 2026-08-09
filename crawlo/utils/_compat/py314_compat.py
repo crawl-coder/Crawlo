@@ -40,8 +40,7 @@ def get_executor(max_workers: int = None):
 # 3.14 模板字符串支持（PEP 750）
 # ============================================================
 if sys.version_info >= (3, 14):
-    from string.templatelib import Template as _Py314Template
-    from string.templatelib import Interpolation
+    pass
 
     def render_template(template_str: str, **kwargs) -> str:
         """

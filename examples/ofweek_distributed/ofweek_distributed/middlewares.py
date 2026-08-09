@@ -5,7 +5,6 @@ ofweek_distributed.middlewares
 自定义中间件示例
 """
 
-from crawlo.http import Request, Response
 from crawlo.logging import get_logger
 
 

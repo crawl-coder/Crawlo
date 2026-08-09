@@ -7,7 +7,6 @@
 处理向飞书机器人发送通知消息。
 """
 
-import json
 import hashlib
 import time
 from typing import Dict, Any, Optional
@@ -178,7 +177,7 @@ class FeishuChannel(NotificationChannel):
             "data": "📦",
         }.get(message.notification_type.value, "📢")
         
-        type_label = message.notification_type.value.title()
+        message.notification_type.value.title()
         
         if message.notification_type.value in ("alert", "progress"):
             # 告警和进度类型使用富文本格式

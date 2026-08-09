@@ -15,7 +15,6 @@ import time
 from typing import Any, Dict, Optional, Set
 
 from crawlo.commands.job import ScheduledJob
-from crawlo.logging import get_logger
 from crawlo.utils.parsing import format_datetime, format_duration
 
 

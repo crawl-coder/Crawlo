@@ -13,17 +13,14 @@ from crawlo.core.errors import CrawloException
 # ============= 数据处理异常 =============
 class DataException(CrawloException):
     """数据处理异常基类"""
-    pass
 
 
 class ItemInitError(DataException):
     """Item初始化错误。当Item实例创建失败时抛出"""
-    pass
 
 
 class ItemAttributeError(DataException, AttributeError):
     """Item属性错误。当访问不存在的Item属性时抛出"""
-    pass
 
 
 class ItemValidationError(DataException):

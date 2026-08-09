@@ -13,12 +13,10 @@ from crawlo.core.errors import CrawloException
 # ============= 请求/响应异常 =============
 class RequestException(CrawloException):
     """请求异常基类"""
-    pass
 
 
 class RequestMethodError(RequestException):
     """请求方法错误。当使用不支持的HTTP方法时抛出"""
-    pass
 
 
 class IgnoreRequestError(RequestException):
@@ -41,7 +39,6 @@ class IgnoreRequestError(RequestException):
 
 class DecodeError(RequestException):
     """响应解码错误。当无法解码响应内容时抛出"""
-    pass
 
 
 class DownloadError(RequestException):

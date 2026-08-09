@@ -6,8 +6,6 @@
   python collect_distributed_summary.py [--snapshot]
     --snapshot  不等待主进程结束，直接打印当前快照
 """
-import os
-import sys
 import subprocess
 import time
 import argparse

@@ -127,8 +127,8 @@ QUEUE_SERIALIZATION_FORMAT = 'json'                     # 序列化格式：json
 
 # Stream 配置（仅 QUEUE_TYPE='redis_stream' 时生效）
 STREAM_MAX_LENGTH = 100000                              # Stream 最大长度（近似修剪）
-STREAM_CONSUMER_IDLE_TIMEOUT = 60000                    # ms，任务超时未 ACK 可被回收
-STREAM_DELIVERY_COUNT_LIMIT = 3                         # 最大投递次数（超过进死信）
+STREAM_CONSUMER_IDLE_TIMEOUT = 90000                    # ms，任务超时未 ACK 可被回收（1.5 min）
+STREAM_DELIVERY_COUNT_LIMIT = 5                         # 最大投递次数（超过进死信，网络抖动时避免过早判定失败）
 STREAM_BLOCK_TIMEOUT = 5000                             # ms，XREADGROUP 阻塞超时
 STREAM_COMPACT = True                                   # 精简序列化（仅存储非空字段，节省内存）
 STREAM_SERIALIZATION_FORMAT = 'json'                    # Stream 序列化格式（默认 json，使 redis-cli 可读）
@@ -144,6 +144,7 @@ REDIS_SENTINEL_SERVICE = "mymaster"    # Sentinel 监控的 Master 名称
 DISTRIBUTED_WORKER_IDLE_TIMEOUT = 120                   # 连续空闲 N 秒后退出（0 = 永不退出）
 DISTRIBUTED_COORDINATED_SHUTDOWN_ENABLED = True         # 是否启用 Leader 协调退出（在所有 Worker 空闲时自动广播 shutdown）
 CLUSTER_CLEANUP_ON_SHUTDOWN = True                       # 任务完成后是否清理 Redis 运行数据（control:state、leader、无 pending 的 stream；dedup、registry 保留）
+CLUSTER_AUTO_CLEAR_SHUTDOWN_ON_START = True              # 启动时若检测到 control:state = shutdown 且 registry 为空（集群已停止），自动重置为 running，避免上次异常退出导致 Worker 启动即退出
 
 # 分布式 idle 主动 XCLAIM 扫描配置（双层回收的主动层）
 # 被动层：FailoverManager 心跳检测崩溃 Worker → 批量回收（30s+ 延迟）
@@ -156,7 +157,7 @@ DISTRIBUTED_IDLE_XCLAIM_BATCH = 200                     # 每次扫描每个 Str
 CLUSTER_HEARTBEAT_INTERVAL = 15                         # 心跳间隔（秒）
 CLUSTER_WORKER_TIMEOUT = 90                             # Worker 超时（秒）
 CLUSTER_AUTO_DEREGISTER = True                          # 崩溃后自动注销
-CLUSTER_FAILOVER_CHECK_INTERVAL = 30                    # 故障检测间隔（秒）
+CLUSTER_FAILOVER_CHECK_INTERVAL = 15                    # 故障检测间隔（秒），更短间隔使死 Worker 更快被发现
 CLUSTER_FAILOVER_LOCK_TIMEOUT = 30                      # 故障检测锁超时（秒）
 CLUSTER_GRACEFUL_SHUTDOWN_TIMEOUT = 30                  # 优雅关闭等待在途任务 drain 超时（秒）
 
@@ -630,7 +631,7 @@ HEALTH_CHECK_INTERVAL = 60                              # 健康检查间隔（�
 # 9.2 日志
 # ---------------------------------------------------------------------------#
 
-LOG_LEVEL = None                                        # 日志级别：DEBUG | INFO | WARNING | ERROR
+LOG_LEVEL = 'INFO'                                        # 日志级别：DEBUG | INFO | WARNING | ERROR
 LOG_FILE = None                                         # 日志文件路径
 LOG_FORMAT = '%(asctime)s - [%(name)s] - %(levelname)s: %(message)s'
 LOG_ENCODING = 'utf-8'
@@ -668,6 +669,16 @@ MYSQL_MONITOR_INTERVAL = 300                            # MySQL 监控检查间�
 REDIS_MONITOR_ENABLED = False                           # 是否启用 Redis 监控
 REDIS_MONITOR_INTERVAL = 300                            # Redis 监控检查间隔（秒）
 
+# ---------------------------------------------------------------------------#
+# 9.6 Eventloop Lag 探针
+# ---------------------------------------------------------------------------#
+
+EVENTLOOP_LAG_PROBE_ENABLED = True                      # 是否启用事件循环 Lag 探针
+EVENTLOOP_LAG_SAMPLE_INTERVAL = 1.0                     # 采样间隔（秒）
+EVENTLOOP_LAG_PUBLISH_INTERVAL = 5.0                    # 指标发布/告警检查间隔（秒）
+EVENTLOOP_LAG_WARN_THRESHOLD_MS = 200                   # P99 Lag >= 此值（毫秒）时开始计数
+EVENTLOOP_LAG_WARN_CONSECUTIVE = 3                      # 连续 N 个发布周期都超阈值则打 WARN
+
 
 # #############################################################################
 # 10. 扩展配置
@@ -677,9 +688,11 @@ EXTENSIONS = [
     'crawlo.extensions.LogIntervalExtension',       # 定时日志
     'crawlo.extensions.LogStats',                   # 统计信息
     'crawlo.extensions.CustomLoggerExtension',       # 自定义日志
+    'crawlo.extensions.HealthCheckExtension',        # 健康检查 & dedup RPS 探针
     'crawlo.extensions.MemoryMonitorExtension',      # 内存监控
     'crawlo.extensions.MySQLMonitorExtension',       # MySQL 监控
     'crawlo.extensions.RedisMonitorExtension',       # Redis 监控
+    'crawlo.extensions.EventloopLagProbe',          # 事件循环 Lag 探针
 ]
 
 

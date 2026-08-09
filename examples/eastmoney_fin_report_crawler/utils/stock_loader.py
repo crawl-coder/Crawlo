@@ -5,7 +5,6 @@
 从codes.txt文件读取主板股票代码
 """
 
-import os
 from pathlib import Path
 
 

@@ -21,7 +21,6 @@ Claude Desktop 配置:
   }
 }
 """
-import asyncio
 import base64
 from typing import Optional, Dict, List
 

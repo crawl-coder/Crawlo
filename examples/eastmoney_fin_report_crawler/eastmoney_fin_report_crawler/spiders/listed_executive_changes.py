@@ -15,7 +15,7 @@ from crawlo import Request
 
 from utils.tools import round_if_numeric
 from ..items import ListedExecutiveChangesItem
-from ..settings import HEADERS, STOCKS, REPORT_DATE_FILTER
+from ..settings import HEADERS, STOCKS
 
 
 class ListedExecutiveChangesSpider(Spider):

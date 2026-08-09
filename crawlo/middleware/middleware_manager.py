@@ -1,6 +1,5 @@
 #!/usr/bin/python
 # -*- coding:UTF-8 -*-
-from pprint import pformat
 from types import MethodType
 from asyncio import create_task
 import asyncio

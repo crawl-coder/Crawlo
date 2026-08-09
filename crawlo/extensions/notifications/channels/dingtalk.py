@@ -165,7 +165,7 @@ class DingTalkChannel(NotificationChannel):
             "data": "📦",
         }.get(message.notification_type.value, "📢")
         
-        type_label = message.notification_type.value.title()
+        message.notification_type.value.title()
         
         if message.notification_type.value == "alert":
             # 告警类型使用 markdown 格式突出显示

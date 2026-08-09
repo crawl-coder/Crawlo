@@ -137,6 +137,34 @@ MEMORY_MONITOR_INTERVAL = 60
 > `queue_size` 由 `LogIntervalExtension` 每周期自动写入，该扩展默认启用，无需额外配置。
 > 注意：爬虫空闲（无请求、无产出、队列为空）时跳过写入，此时队列指标在 Prometheus 中保留上一周期值。
 
+### P4 D 方向新增指标（v1.7.3+）
+
+以下 11 个指标在 P4 Week2 D 方向补齐，覆盖队列、XCLAIM、集群心跳、去重 RPS、响应/管道 P99 延迟、事件循环 Lag：
+
+**Counter（累计型，`inc_value` 写入）：**
+
+| Prometheus 指标名 | 框架统计 key | 说明 | 写入位置 |
+|-------------------|-------------|------|---------|
+| `crawlo_queue_xclaim_recovered_total` | `queue/xclaim/recovered_total` | XCLAIM 主动回收的 stale pending 消息累计数 | `RedisStreamQueue.claim_stale_pending()` + `DistributedCoordinator.try_claim_stale_pending()` |
+| `crawlo_queue_xclaim_scan_runs_total` | `queue/xclaim/scan_runs` | XCLAIM 主动扫描触发次数 | `DistributedCoordinator.handle_distributed_idle()` |
+| `crawlo_cluster_worker_heartbeat_lost_total` | `cluster/worker/heartbeat_lost` | 心跳过期被移除的 Worker 累计数 | `FailoverManager.check_and_recover()` |
+
+**Gauge（瞬时值，`set_value` 写入）：**
+
+| Prometheus 指标名 | 框架统计 key | 说明 | 写入位置 |
+|-------------------|-------------|------|---------|
+| `crawlo_queue_backlog` | `queue/backlog` | 当前队列积压大小（每 tick 更新） | `LogIntervalExtension.interval_log()` |
+| `crawlo_filter_duplicate_rps` | `filter/duplicate_rps` | 最近 60s 窗口去重 RPS | `HealthCheckExtension._dedup_rps_loop()` |
+| `crawlo_downloader_p99_response_ms` | `downloader/p99_response_ms` | 下载器最近 1000 条响应 RT 的 P99 | `LogIntervalExtension._write_p99_metrics()` ← `AioHttpDownloader.p99_response_ms` |
+| `crawlo_pipeline_item_p99_latency_ms` | `pipeline/item/p99_latency_ms` | Pipeline 单 item 处理延迟 P99 | `LogIntervalExtension._write_p99_metrics()` ← `GenericSQLPipeline.p99_latency_ms` |
+| `crawlo_resource_eventloop_lag_ms_p50` | `resource/eventloop_lag_ms_p50` | 事件循环 Lag P50（60s 窗口） | `EventloopLagProbe._publish_loop()` |
+| `crawlo_resource_eventloop_lag_ms_p95` | `resource/eventloop_lag_ms_p95` | 事件循环 Lag P95 | 同上 |
+| `crawlo_resource_eventloop_lag_ms_p99` | `resource/eventloop_lag_ms_p99` | 事件循环 Lag P99 | 同上 |
+
+> **EventloopLagProbe** 默认启用（`EVENTLOOP_LAG_PROBE_ENABLED=True`），每 1s 采样事件循环延迟，每 5s 计算 P50/P95/P99 写入 stats。
+> 当 P99 >= `EVENTLOOP_LAG_WARN_THRESHOLD_MS`（默认 200ms）持续 `EVENTLOOP_LAG_WARN_CONSECUTIVE`（默认 3）个周期时打 WARN 日志。
+> **RingBuffer** 容量：Downloader/Pipeline = 1000 样本，EventloopLag = 60 样本（1 分钟窗口）。
+
 ---
 
 ## Docker Compose 完整部署
@@ -283,6 +311,33 @@ groups:
           severity: warning
         annotations:
           summary: "队列积压 {{ $value }} 条"
+
+      # P4 D 方向新增告警规则（v1.7.3+）
+      - alert: EventloopLagHigh
+        expr: crawlo_resource_eventloop_lag_ms_p99 > 200
+        for: 15s
+        labels:
+          severity: warning
+        annotations:
+          summary: "事件循环 Lag P99={{ $value }}ms (>200ms, 15s)"
+          description: "Worker {{ $labels.worker_id }} 事件循环卡顿，可能存在 GC 压力/阻塞 IO/大同步函数"
+
+      - alert: QueueBacklogHigh
+        expr: crawlo_queue_backlog > 8000
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "队列积压 {{ $value }} 条（>80% MaxQueueSize）"
+          description: "检查下游 Pipeline 是否阻塞或并发不足"
+
+      - alert: HeartbeatLost
+        expr: increase(crawlo_cluster_worker_heartbeat_lost_total[15m]) > 3
+        labels:
+          severity: critical
+        annotations:
+          summary: "15 分钟内 {{ $value }} 个 Worker 心跳丢失"
+          description: "集群可能存在 Worker 崩溃或网络分区，检查 FailoverManager 和 XCLAIM 回收"
 ```
 
 ### scrape interval 调优

@@ -128,10 +128,9 @@ class HttpXDownloader(DownloaderBase):
                 self._semaphore.release()
             return None
 
-        start_time = None
         if self.crawler.settings.get_bool("DOWNLOAD_STATS", True):
             # time 已在顶部导入
-            start_time = time.time()
+            time.time()
 
         # 初始化客户端变量
         effective_client = self._client  # 默认使用主客户端（直连）
@@ -271,7 +270,7 @@ class HttpXDownloader(DownloaderBase):
             )
             
             # 记录请求详情（用于诊断）
-            client_type = "代理客户端" if is_proxy_request else "主客户端(直连)"
+            "代理客户端" if is_proxy_request else "主客户端(直连)"
             
             # 基于 httpx 源码分析优化：
             # httpx 的 Timeout 在 httpcore 层应用，但代理连接可能在更底层阻塞

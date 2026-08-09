@@ -7,14 +7,11 @@ IScheduler（调度器接口）等引擎核心接口。
 """
 from abc import abstractmethod
 from typing import (
-    Type, List, Optional, Protocol, runtime_checkable, TYPE_CHECKING
+    Optional, Protocol, runtime_checkable, TYPE_CHECKING
 )
 
 if TYPE_CHECKING:
-    from crawlo.spider import Spider
     from crawlo.http.request import Request
-    from crawlo.http.response import Response
-    from crawlo.items import Item
     from crawlo.crawler import Crawler
 
 

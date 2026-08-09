@@ -6,12 +6,10 @@ CrawloShell 核心类
 交互式终端的核心实现，提供 fetch、view 等功能。
 """
 import os
-import sys
 import asyncio
 import tempfile
 import webbrowser
 import atexit
-import concurrent.futures
 import threading
 import aiohttp
 from typing import Optional, Any, Dict
@@ -580,4 +578,3 @@ class _SimpleFetcher:
     
     async def close(self):
         """无需清理"""
-        pass

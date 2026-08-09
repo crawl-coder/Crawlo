@@ -10,7 +10,7 @@
 import os
 import re
 import aiofiles
-from urllib.parse import urljoin, urlparse
+from urllib.parse import urlparse
 from typing import Optional, Dict, Any, List
 import mimetypes
 

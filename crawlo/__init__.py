@@ -26,7 +26,12 @@ def __getattr__(name):
     if name == 'Crawler':
         return _lazy_import('crawlo.crawler', 'Crawler')
     elif name == 'CrawlerProcess':
-        return _lazy_import('crawlo.crawler_process', 'CrawlerProcess')
+        return _lazy_import('crawlo.crawler', 'CrawlerProcess')
+    elif name == 'CrawloFramework':
+        return _lazy_import('crawlo.crawler', 'CrawloFramework')
+    elif name in ('run_spider', 'run_spiders', 'create_crawler',
+                  'configure_framework', 'get_framework', 'reset_framework'):
+        return _lazy_import('crawlo.crawler', name)
     elif name == 'DownloaderBase':
         return _lazy_import('crawlo.downloader', 'DownloaderBase')
     elif name == 'Item':
@@ -107,6 +112,8 @@ __all__ = [
     'to_timestamp', 'to_datetime', 'now',
     'to_timezone', 'to_utc', 'to_local', 'from_timestamp_with_tz',
     'cleaners', 'helpers',
-    'Crawler', 'CrawlerProcess',
+    'Crawler', 'CrawlerProcess', 'CrawloFramework',
+    'run_spider', 'run_spiders', 'create_crawler',
+    'configure_framework', 'get_framework', 'reset_framework',
     'get_framework_initializer', '__version__',  # type: ignore
 ]

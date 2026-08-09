@@ -75,7 +75,7 @@ def load_notification_config(settings: Optional[dict] = None):
                 settings = {}
         
         # 获取通知器实例
-        notifier = get_notifier()
+        get_notifier()
         
         # 加载各渠道配置（静默加载，不输出日志）
         

@@ -12,9 +12,9 @@
 import asyncio
 import time
 from abc import ABC, abstractmethod
-from typing import Optional, Any, AsyncIterator, Protocol, runtime_checkable, TYPE_CHECKING
+from typing import Optional, Any, AsyncIterator, Protocol, runtime_checkable
 
-from crawlo.queue.queue_types import QueueType, QueueStats
+from crawlo.queue.queue_types import QueueStats
 from crawlo.queue.exceptions import QueueClosedError, QueueFullError, QueueEmptyError
 
 # 注意：所有 IRequestQueue 签名使用 ``'Request'`` 字符串注解。
@@ -91,7 +91,6 @@ class IQueue(ABC):
         Raises:
             QueueClosedError: 队列已关闭时抛出
         """
-        pass
     
     @abstractmethod
     async def get(self, timeout: Optional[float] = None) -> Optional[Any]:
@@ -107,7 +106,6 @@ class IQueue(ABC):
         Raises:
             QueueClosedError: 队列已关闭时抛出
         """
-        pass
     
     @abstractmethod
     async def size(self) -> int:
@@ -117,7 +115,6 @@ class IQueue(ABC):
         Returns:
             int: 当前队列中的元素数量
         """
-        pass
     
     @abstractmethod
     async def empty(self) -> bool:
@@ -127,7 +124,6 @@ class IQueue(ABC):
         Returns:
             bool: 队列是否为空
         """
-        pass
     
     async def close(self) -> None:
         """
@@ -301,7 +297,6 @@ class BackpressureableQueueMixin(ABC):
         Args:
             active: 新的背压状态
         """
-        pass
     
     async def calculate_backpressure_delay(self) -> float:
         """

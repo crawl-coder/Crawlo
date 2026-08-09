@@ -7,7 +7,6 @@
 import os
 import sys
 import subprocess
-import re
 from datetime import datetime
 from pathlib import Path
 
@@ -24,16 +23,18 @@ def count_processes():
     """Step 1: 用 pgrep -f（不可用时用 psutil）检查 ofweek_distributed/run.py 进程数."""
     target = "ofweek_distributed/run.py"
     # Try pgrep first
+    import subprocess as sp
+    devnull = getattr(sp, "DEVNULL", open(os.devnull, "wb"))
     for pgrep in ["/usr/bin/pgrep", "/usr/local/bin/pgrep", "/opt/homebrew/bin/pgrep"]:
         if os.path.exists(pgrep):
             try:
-                out = subprocess.check_output(
-                    [pgrep, "-f", target], stderr=subprocess.DEVNULL
+                out = sp.check_output(
+                    [pgrep, "-f", target], stderr=devnull
                 ).decode().strip()
                 if out:
                     return len([l for l in out.splitlines() if l.strip()])
                 return 0
-            except subprocess.CalledProcessError as e:
+            except sp.CalledProcessError as e:
                 if e.returncode == 1:
                     return 0
                 # other errors, fall through to psutil
@@ -61,6 +62,10 @@ def get_stream_metrics(key):
         r = redis.Redis(host="127.0.0.1", port=6379, db=0, decode_responses=True)
     except Exception as e:
         return -1, -1, -1, f"redis import error: {e}"
+
+    # 如果 key 不存在，视为空 stream（xlen=0, pending=0, lag=0）
+    if not r.exists(key):
+        return 0, 0, 0, "key_not_found(empty_stream)"
 
     try:
         xlen = r.xlen(key)

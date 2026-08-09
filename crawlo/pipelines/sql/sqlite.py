@@ -15,7 +15,6 @@ SQLite Pipeline — 异步 SQLite 数据管道
 设计文档：docs/internal/db-pipelines-design.md §3.1
 """
 
-import asyncio
 from pathlib import Path
 from typing import List, Dict
 
@@ -68,7 +67,6 @@ class SQLitePipeline(GenericSQLPipeline):
 
     async def _create_helper(self):
         """SQLite 无需 Helper 层"""
-        pass
 
     # ═══════════════════════════════════════════════
     # 表存在性检查

@@ -5,7 +5,6 @@
 # @Author  : crawl-coder
 # @Desc    : 命令行入口：crawlo -h|--help，显示帮助信息。
 """
-import sys
 from rich.console import Console
 from rich.table import Table
 from rich.panel import Panel

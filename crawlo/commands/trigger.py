@@ -2,9 +2,8 @@
 时间触发器
 """
 
-import time
 import re
-from typing import Dict, Optional, Union
+from typing import Dict, Optional
 from datetime import datetime, timedelta
 
 
@@ -159,7 +158,6 @@ class TimeTrigger:
         dt = dt.replace(microsecond=0)
         dt += timedelta(seconds=1)
 
-        import calendar
 
         for day_offset in range(367):  # 最多扫描 367 天
             target_date = dt.replace(hour=0, minute=0, second=0) + timedelta(days=day_offset)

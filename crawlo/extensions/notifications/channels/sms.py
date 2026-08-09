@@ -7,7 +7,6 @@
 处理发送短信通知消息。
 """
 
-from typing import Dict, Any, Optional
 
 from crawlo.logging import get_logger
 from crawlo.extensions.notifications.channels.base import NotificationChannel

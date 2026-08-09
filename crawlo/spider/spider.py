@@ -387,7 +387,7 @@ class Spider(metaclass=SpiderMeta):
             Iterator[Request]: 请求迭代器
         """
         # 检测是否为分布式模式
-        is_distributed = self._is_distributed_mode()
+        self._is_distributed_mode()
         
         # 获取批量处理配置
         batch_size = self._get_batch_size()
@@ -554,7 +554,6 @@ class Spider(metaclass=SpiderMeta):
         """
         # 不再输出任何信息，避免与统计信息重复
         # 统计信息由StatsCollector负责输出
-        pass
 
     def __str__(self) -> str:
         return f"{self.__class__.__name__}(name='{self.name}')"

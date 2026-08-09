@@ -6,7 +6,6 @@
 
 import logging
 import os
-import sys
 import threading
 from weakref import WeakValueDictionary
 
@@ -76,7 +75,7 @@ class LoggerFactory:
         logger.handlers.clear()
         
         # Get module level
-        module_level = config.get_module_level(name)
+        config.get_module_level(name)
         
         # Create formatter
         formatter = logging.Formatter(config.get_format())

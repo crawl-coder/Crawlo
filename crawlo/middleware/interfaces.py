@@ -5,9 +5,8 @@
 ================
 IMiddleware（中间件接口）。
 """
-from abc import abstractmethod
 from typing import (
-    Type, Optional, Protocol, runtime_checkable, TYPE_CHECKING
+    Optional, Protocol, runtime_checkable, TYPE_CHECKING
 )
 
 if TYPE_CHECKING:

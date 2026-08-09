@@ -12,8 +12,6 @@
 测试URL：https://baike.baidu.com/item/小米科技有限责任公司
 """
 import os
-import re
-import json
 from datetime import datetime
 from urllib.parse import quote
 from crawlo import Spider, Request

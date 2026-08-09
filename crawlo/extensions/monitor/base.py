@@ -10,6 +10,7 @@ from typing import Any, Optional, List, Tuple
 from crawlo.event import CrawlerEvent
 from crawlo.core.errors import NotConfigured
 from crawlo.logging import get_logger
+from crawlo.core.resource_scope import WeakBound
 from .monitor_manager import get_monitor_manager
 
 
@@ -27,6 +28,11 @@ class BaseMonitorExtension:
     子类还需要实现：
         _monitor_loop()          – 监控主循环协程
         _on_spider_closed_cleanup() – 关闭时的子类定制清理（可选）
+
+    关键设计：crawler / settings 内部用 :class:`WeakBound` 弱引用包装，
+    保证：即便 MonitorManager 在调度器模式下长期持有 monitor 实例，
+    也不会因保留旧 Crawler 的强引用而导致内存泄漏。旧轮次的 Crawler
+    被正常销毁后，self.crawler / self.settings 会自动返回 None。
 
     使用示例::
 
@@ -49,11 +55,37 @@ class BaseMonitorExtension:
     extra_events: List[Tuple[str, CrawlerEvent]] = []
 
     def __init__(self, crawler: Any):
-        self.crawler = crawler
-        self.settings = crawler.settings
+        # crawler / settings 改走弱引用 property，禁止子类直接写同名实例属性
+        # （如果覆盖 property，要通过 self._bound = WeakBound(xxx) 重设）
+        self._bound: Optional[WeakBound] = WeakBound(crawler)
         self.logger: logging.Logger = get_logger(self.__class__.__name__)
         self.task: Optional[asyncio.Task] = None
         self.enabled: bool = True
+
+    # ---- crawler / settings 弱引用访问（property，referent GC 后自动返回 None） ----
+    @property  # type: ignore[override]
+    def crawler(self) -> Any:
+        return self._bound.crawler if self._bound else None
+
+    @crawler.setter
+    def crawler(self, value: Any) -> None:
+        if value is None:
+            self._bound = None
+        else:
+            self._bound = WeakBound(value)
+
+    @property
+    def settings(self) -> Any:
+        return self._bound.settings if self._bound else None
+
+    @settings.setter
+    def settings(self, value: Any) -> None:
+        # settings setter 兼容：若子类需要单独覆盖 settings，构造一个伪 weakref
+        # 这里保持极简：当且仅当已有 crawler 可推 settings 时忽略；否则直接构造一个
+        # 不会阻止 GC 的空 bound（调度器场景无意义，主要兼容旧外部代码写 None 的情况）。
+        if value is None:
+            # 主动释放 → 把 bound 整个释放
+            self._bound = None
 
     # ============================
     # 工厂方法
@@ -73,7 +105,8 @@ class BaseMonitorExtension:
         mm = get_monitor_manager()
         existing = mm.get_monitor(cls.monitor_id)
         if existing is not None:
-            # 已有实例运行中，返回一个禁用的副本，不重复启动监控
+            # 已有实例运行中，返回一个禁用的副本：
+            # WeakBound 天然不持有 crawler/settings 强引用，不需要手动置 None
             instance = cls(crawler)
             instance.enabled = False
             return instance
@@ -105,19 +138,28 @@ class BaseMonitorExtension:
         self.logger.info(f"{self.__class__.__name__} started (id={id(self)}).")
 
     async def spider_closed(self, **kwargs) -> None:
-        """爬虫关闭：取消任务 → 子类自定义清理 → (调度器模式下保持注册, 普通模式注销)"""
+        """爬虫关闭：取消任务 → 子类自定义清理 → (调度器模式下保持注册, 普通模式注销)。
+
+        WeakBound 已经保证 crawler/settings 不会阻 GC，这里仍主动释放 bound
+        作为显式破环的二次兜底 + 让 self.logger 引用也能释放（logging 也有
+        少量引用链）。
+        """
         mm = get_monitor_manager()
-        if mm.get_monitor(self.monitor_id) != self:
-            return
+        is_main_instance = (mm.get_monitor(self.monitor_id) == self)
 
-        self._cancel_task()
-        self._on_spider_closed_cleanup()
+        if is_main_instance:
+            self._cancel_task()
+            self._on_spider_closed_cleanup()
 
-        if self._unregister_on_spider_closed:
-            mm.unregister_monitor(self.monitor_id)
-            self.logger.info(f"{self.__class__.__name__} stopped and unregistered.")
-        else:
-            self.logger.info(f"{self.__class__.__name__} paused (scheduler mode, kept registered).")
+            if self._unregister_on_spider_closed:
+                mm.unregister_monitor(self.monitor_id)
+                self.logger.info(f"{self.__class__.__name__} stopped and unregistered.")
+            else:
+                self.logger.info(f"{self.__class__.__name__} paused (scheduler mode, kept registered).")
+
+        # 二次兜底破环
+        self._bound = None
+        self.logger = None  # type: ignore[assignment]
 
     def _cancel_task(self) -> None:
         """安全取消监控循环任务"""
@@ -131,7 +173,6 @@ class BaseMonitorExtension:
         子类定制清理钩子，在任务取消后、注销前调用。
         例如：清除趋势历史、重置基准线等。
         """
-        pass
 
     # ============================
     # 抽象监控循环
@@ -149,8 +190,9 @@ class BaseMonitorExtension:
 
     @property
     def is_scheduler_mode(self) -> bool:
-        """检测是否在调度器模式下运行"""
-        return self.settings.get_bool('_INTERNAL_SCHEDULER_TASK', False)
+        """检测是否在调度器模式下运行（设置不存在时返回 False）。"""
+        settings = self.settings
+        return bool(settings and settings.get_bool('_INTERNAL_SCHEDULER_TASK', False))
 
     @property
     def _unregister_on_spider_closed(self) -> bool:

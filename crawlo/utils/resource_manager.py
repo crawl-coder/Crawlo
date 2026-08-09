@@ -12,7 +12,6 @@
 """
 import asyncio
 import time
-import traceback
 from typing import Any, Callable, List, Tuple, Optional, Dict
 from enum import Enum
 
@@ -423,6 +422,27 @@ class ResourceManager:
             'cleanup_errors': len(self._cleanup_errors),
             'active_by_type': self._get_active_by_type(),
         }
+
+    def clear(self) -> None:
+        """彻底断开内部引用（辅助 GC 破环）
+
+        在 cleanup_all() 之后调用，清空所有表字段引用，避免
+        ManagedResource → cleanup_func（闭包 cell）→ 外层对象 →
+        ResourceManager 的引用链长期存活。
+        """
+        try:
+            self._resources.clear()
+        except Exception:
+            pass
+        try:
+            self._cleanup_errors.clear()
+        except Exception:
+            pass
+        try:
+            for k in list(self._stats.keys()):
+                self._stats[k] = 0
+        except Exception:
+            pass
     
     def _get_active_by_type(self) -> Dict[str, int]:
         """按类型统计活跃资源"""

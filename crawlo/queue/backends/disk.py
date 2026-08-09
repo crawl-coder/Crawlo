@@ -14,8 +14,6 @@ import logging
 import pickle
 import sqlite3
 import tempfile
-import shutil
-from pathlib import Path
 from typing import Optional, Any, Dict, List
 from contextlib import contextmanager
 from dataclasses import dataclass

@@ -10,7 +10,7 @@ JSON Pipeline — 重构后继承 FileBasedPipeline
 import json
 import asyncio
 from pathlib import Path
-from typing import Optional, List
+from typing import Optional
 from datetime import datetime
 
 from crawlo.items import Item

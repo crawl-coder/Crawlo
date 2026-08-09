@@ -6,7 +6,6 @@
 Spider 注册、实例化、解析相关异常。
 """
 from typing import List
-import warnings
 
 from crawlo.core.errors import CrawloException
 
@@ -14,17 +13,14 @@ from crawlo.core.errors import CrawloException
 # ============= 爬虫相关异常 =============
 class SpiderException(CrawloException):
     """爬虫相关异常基类"""
-    pass
 
 
 class SpiderTypeError(SpiderException, TypeError):
     """爬虫类型错误。当爬虫类型不符合预期时抛出"""
-    pass
 
 
 class SpiderCreationError(SpiderException):
     """爬虫实例化失败异常。当无法创建爬虫实例时抛出"""
-    pass
 
 
 class AmbiguousSpiderError(SpiderException):
@@ -56,7 +52,6 @@ class SpiderNameConflictWarning(UserWarning):
     用户可通过 warnings.filterwarnings('error', category=SpiderNameConflictWarning)
     将其升级为错误以在开发阶段严格检查。
     """
-    pass
 
 
 # ============= 导出 =============

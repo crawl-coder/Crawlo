@@ -12,16 +12,13 @@ from importlib import import_module
 
 from crawlo.project import read_crawlo_cfg
 
-from rich import box
 from rich.console import Console
 from rich.panel import Panel
 from rich.progress import Progress, SpinnerColumn, TextColumn
-from rich.table import Table
 from rich.text import Text
 
-from crawlo.commands.stats import record_stats
 from crawlo.crawler_process import CrawlerProcess
-from crawlo.project import get_settings, _find_project_root
+from crawlo.project import _find_project_root
 # 使用新的统一初始化系统
 from crawlo.core.application import initialize_framework
 from crawlo.core import get_framework_initializer
@@ -94,7 +91,7 @@ def main(args):
         crawlo run <spider_name>|all|schedule [--json] [--no-stats] [--log-level LEVEL] [--config CONFIG] [--concurrency NUM]
     """
     # 确保框架已初始化
-    init_manager = get_framework_initializer()
+    get_framework_initializer()
 
     # 添加调试信息
     logger().debug("DEBUG: 进入main函数")
@@ -127,7 +124,7 @@ def main(args):
             console.print(f"[bold red]调度器运行出错: {e}[/bold red]")
         return 0
     show_json = "--json" in args
-    no_stats = "--no-stats" in args
+    "--no-stats" in args
     
     # 解析日志级别参数
     log_level = None
@@ -140,12 +137,11 @@ def main(args):
             pass
     
     # 解析配置文件参数
-    config_file = None
     if "--config" in args:
         try:
             config_index = args.index("--config")
             if config_index + 1 < len(args):
-                config_file = args[config_index + 1]
+                args[config_index + 1]
         except (ValueError, IndexError):
             pass
     
@@ -333,7 +329,7 @@ def main(args):
                 ))
                 return 1
 
-        spider_class = process.get_spider_class(spider_name)
+        process.get_spider_class(spider_name)
 
         # 运行爬虫 (使用增强版的 run_with_cleanup)
         with Progress(

@@ -19,7 +19,6 @@ Playwright 下载器
 - 单浏览器多标签页模式
 """
 import time
-import re
 import asyncio
 from typing import Optional, Dict, List, Set
 from urllib.parse import urlparse
@@ -30,7 +29,7 @@ from crawlo.downloader import DownloaderBase
 from crawlo.constants import BROWSER_PAGE_GOTO_BLANK_TIMEOUT_MS
 from crawlo.utils.parsing import PageActionHandler, SelectorConverter
 from crawlo.downloader.stealth import StealthMixin
-from crawlo.downloader.wait_strategies import SmartWaitMixin, WaitStrategy, ResourceType
+from crawlo.downloader.wait_strategies import SmartWaitMixin, WaitStrategy
 from crawlo.downloader.constants import (
     DEFAULT_ARGS, STEALTH_ARGS, HARMFUL_ARGS,
     WEBRTC_PROTECTION_ARGS, WEBGL_DISABLE_ARGS, CANVAS_NOISE_ARG

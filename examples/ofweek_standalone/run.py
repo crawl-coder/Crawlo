@@ -5,23 +5,22 @@ import os
 import sys
 import asyncio
 
+from crawlo.crawler import CrawlerProcess
 
-from crawlo.crawler_process import CrawlerProcess
+
+async def _run() -> None:
+    cp = CrawlerProcess()
+    await cp.crawl('of_week')
 
 
-def main():
-    """运行爬虫"""
+def main() -> None:
     try:
-        # 检查是否启动定时任务模式
         if len(sys.argv) > 1 and sys.argv[1] == '--schedule':
-            # 启动定时任务模式
-            from crawlo.scheduling import start_scheduler
-            # 获取当前脚本所在目录作为项目根目录
+            from crawlo.commands.scheduler import start_scheduler
             project_root = os.path.dirname(os.path.abspath(__file__))
             start_scheduler(project_root)
         else:
-            # 正常爬虫运行模式
-            asyncio.run(CrawlerProcess().crawl('of_week'))
+            asyncio.run(_run())
     except Exception as e:
         print(f"❌ 运行失败: {e}")
         import traceback
@@ -31,10 +30,3 @@ def main():
 
 if __name__ == '__main__':
     main()
-
-    """
-    python -m build
-    twine upload dist/*
-    pip install -i https://pypi.org/simple/ crawlo
-    pip install -i https://pypi.org/simple/ --upgrade crawlo
-    """

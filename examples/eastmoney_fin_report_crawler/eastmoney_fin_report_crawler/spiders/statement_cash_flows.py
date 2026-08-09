@@ -145,4 +145,3 @@ class CashFlowStatementSpider(Spider):
         #     'publish_time': response.xpath('//time/@datetime').get(),
         # }
 
-        pass

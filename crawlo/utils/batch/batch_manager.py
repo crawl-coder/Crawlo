@@ -16,7 +16,7 @@ from crawlo.logging import get_logger
 try:
     import aioredis
     REDIS_AVAILABLE = True
-except (ImportError, TypeError) as e:
+except (ImportError, TypeError):
     # ImportError: 模块未安装
     # TypeError: aioredis 与 Python 3.12+ 不兼容（duplicate base class TimeoutError）
     aioredis = None

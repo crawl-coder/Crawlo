@@ -9,7 +9,6 @@
 
 import hashlib
 import hmac
-import time
 from typing import Dict, Any, Optional
 import requests
 
@@ -166,7 +165,7 @@ class WeComChannel(NotificationChannel):
             "data": "📦",
         }.get(message.notification_type.value, "📢")
         
-        type_label = message.notification_type.value.title()
+        message.notification_type.value.title()
         
         if message.notification_type.value in ("alert", "progress"):
             # 告警和进度类型使用 markdown 格式

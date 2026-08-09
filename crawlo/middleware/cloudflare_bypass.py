@@ -21,7 +21,7 @@ CLOUDFLARE_BYPASS_COOKIE_CACHE_ENABLED = True
 
 import re
 import time
-from typing import Optional, Union, Dict, List
+from typing import Optional, Union, Dict
 from urllib.parse import urlparse
 
 from crawlo.http.request import Request

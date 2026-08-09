@@ -19,6 +19,7 @@ from crawlo.http.response import Response
 from crawlo.logging import get_logger
 from crawlo.downloader import DownloaderBase
 from crawlo.utils.misc import safe_get_config
+from crawlo.utils.ring_buffer import RingBuffer
 from crawlo.constants import ABSOLUTE_TIMEOUT_MULTIPLIER_NORMAL, ABSOLUTE_TIMEOUT_MULTIPLIER_EXTENDED
 
 if TYPE_CHECKING:
@@ -68,6 +69,10 @@ class AioHttpDownloader(DownloaderBase):
         self._semaphore: Optional[asyncio.Semaphore] = None
         self._active_requests = 0  # 当前活跃请求数
 
+        # 响应时间 RingBuffer + p99 属性
+        # 容量 1000 = 约数分钟高并发的滑动窗口，足够稳定计算 p99
+        self._rt_ringbuf: "RingBuffer | None" = None
+
     def open(self) -> None:
         """
         打开下载器，创建 ClientSession
@@ -93,6 +98,9 @@ class AioHttpDownloader(DownloaderBase):
         self._concurrency = safe_get_config(self.crawler.settings, "CONCURRENCY", 12, int)
         self._semaphore = asyncio.Semaphore(self._concurrency)
         self.logger.debug(f"Concurrency control initialized: CONCURRENCY={self._concurrency}")
+
+        # 实例化 RingBuffer（延迟到 open，避免 unpickle 时副作用）
+        self._rt_ringbuf = RingBuffer(1000)
 
         # 创建连接器（优化配置，防止连接泄漏和死锁）
         # 关键优化说明：
@@ -230,10 +238,30 @@ class AioHttpDownloader(DownloaderBase):
             self.logger.debug(f"Download error for {request.url}: {type(e).__name__}: {e}")
             raise
         finally:
+            # 记录响应时间（成功/超时/ClientError 都算一次"完成事件"）
+            if start_time is not None and self._rt_ringbuf is not None:
+                try:
+                    elapsed_ms = (time.time() - start_time) * 1000.0
+                    self._rt_ringbuf.append(elapsed_ms)
+                except Exception:
+                    pass
             # 释放并发槽位
             if self._semaphore:
                 self._active_requests -= 1
                 self._semaphore.release()
+
+    # ------------------------------------------------------------------
+    # p99 响应时间属性（O(1) 查询）
+    # ------------------------------------------------------------------
+
+    @property
+    def p99_response_ms(self) -> float | None:
+        if self._rt_ringbuf is None or len(self._rt_ringbuf) == 0:
+            return None
+        try:
+            return self._rt_ringbuf.percentile(99)
+        except Exception:
+            return None
 
     async def _download_with_timeout(self, request: 'Request', timeout: Optional[ClientTimeout] = None) -> Response:
         """
@@ -246,8 +274,8 @@ class AioHttpDownloader(DownloaderBase):
         Returns:
             Response: 响应对象
         """
-        client_type = "临时session(重试)" if timeout is not None else "主session(正常)"
-        timeout_value = timeout.total if timeout and timeout.total else (self._timeout_secs * ABSOLUTE_TIMEOUT_MULTIPLIER_EXTENDED if request.meta.get('retry_times', 0) > 0 else self._timeout_secs * ABSOLUTE_TIMEOUT_MULTIPLIER_NORMAL)
+        "临时session(重试)" if timeout is not None else "主session(正常)"
+        timeout.total if timeout and timeout.total else (self._timeout_secs * ABSOLUTE_TIMEOUT_MULTIPLIER_EXTENDED if request.meta.get('retry_times', 0) > 0 else self._timeout_secs * ABSOLUTE_TIMEOUT_MULTIPLIER_NORMAL)
         
         # 如果有自定义超时，需要创建临时 session
         if timeout is not None:
@@ -417,7 +445,7 @@ class AioHttpDownloader(DownloaderBase):
             request: 请求对象
             error: 错误信息
         """
-        error_type = type(error).__name__
+        type(error).__name__
         
         # 不在此处重试，避免与中间件重试逻辑冲突
         # 框架的 RetryMiddleware 会处理重试
@@ -431,7 +459,7 @@ class AioHttpDownloader(DownloaderBase):
             self.logger.error(f"Unexpected error for {request.url}: {error}", exc_info=True)
 
     async def close(self) -> None:
-        """关闭会话资源"""
+        """关闭会话资源 + 破环"""
         if self.session and not self.session.closed:
             self.logger.debug("Closing AioHttpDownloader session...")
             try:
@@ -442,8 +470,22 @@ class AioHttpDownloader(DownloaderBase):
             finally:
                 self.session = None
             self.logger.debug("AioHttpDownloader session closed.")
-        
-        self.logger.debug("AioHttpDownloader closed.")
+
+        # 破环：断开 crawler / settings / middleware_manager / stats 引用链
+        self._active_requests = 0
+        try:
+            self._semaphore = None
+            self._tcp_connector = None
+        except Exception:
+            pass
+        for attr in ('crawler', '_crawler', 'settings', '_settings',
+                     'middleware_manager', '_stats', 'stats'):
+            try:
+                object.__setattr__(self, attr, None)
+            except Exception:
+                pass
+        self.logger = None  # type: ignore[assignment]
+        self._log_interval_ext = None  # 兼容引用
     
     def idle(self) -> bool:
         """检查下载器是否空闲（无活跃请求）"""

@@ -19,8 +19,6 @@
 - 去重过滤器 + 幂等下载作为最后防线
 """
 import time
-import asyncio
-from typing import Optional, List, Any
 
 from crawlo.logging import get_logger
 from crawlo.cluster.registry import WorkerRegistry

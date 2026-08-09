@@ -5,7 +5,7 @@
 用于解析爬虫类和名称
 """
 
-from typing import Union, TYPE_CHECKING, Type, cast, List
+from typing import Union, Type, cast, List
 
 # 导入 Spider 相关（避免重复导入）
 from crawlo.spider import Spider, get_global_spider_registry, SpiderDiscoveryState

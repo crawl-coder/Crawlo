@@ -5,10 +5,8 @@
 # @Author  : crawl-coder
 # @Desc    : 命令行入口：crawlo genspider baidu，创建爬虫。
 """
-import sys
 import re
 from pathlib import Path
-import configparser
 import importlib
 from rich.console import Console
 
@@ -16,7 +14,6 @@ from .utils import (
     get_project_root,
     validate_project_environment,
     show_error_panel,
-    show_success_panel,
     validate_spider_name,
     is_valid_domain
 )

@@ -16,13 +16,17 @@ Engine 集群功能 Mixin
 - _check_leader_shutdown_conditions: 退出条件检查
 """
 import asyncio
-import time
 from dataclasses import dataclass
 from typing import Any, Optional
 
-from crawlo.logging import get_logger
 from crawlo.utils.misc import safe_get_config
 from crawlo.queue.task_tracker import TaskTracker
+
+try:
+    from crawlo.extensions.notifications import async_send_crawler_alert, ChannelType
+    _NOTIFY_AVAILABLE = True
+except ImportError:
+    _NOTIFY_AVAILABLE = False
 
 # Cluster module (distributed only)
 try:
@@ -539,12 +543,50 @@ return 2
         """故障检测后台循环"""
         while self.running:
             try:
-                await self._cluster_state.failover.check_and_recover()
+                stats = await self._cluster_state.failover.check_and_recover()
+                # cluster/worker/heartbeat_lost Counter
+                dead_n = int(stats.get("dead_workers", 0)) if isinstance(stats, dict) else 0
+                if dead_n > 0:
+                    self._inc_stats_counter("cluster/worker/heartbeat_lost", dead_n)
+                    # P4 钉钉告警规则 #3：HeartbeatLost — Worker 心跳丢失触发故障转移
+                    if _NOTIFY_AVAILABLE:
+                        try:
+                            await async_send_crawler_alert(
+                                title="Worker 心跳丢失告警",
+                                content=(
+                                    f"检测到 {dead_n} 个 Worker 心跳丢失，已触发故障转移。"
+                                    f"请检查 Worker 是否崩溃或网络分区。"
+                                ),
+                                channel=ChannelType.DINGTALK,
+                            )
+                        except Exception as e:
+                            self._logger.debug(f"Failed to send heartbeat lost alert: {e}")
                 await asyncio.sleep(self._cluster_state.failover.failover_interval)
             except asyncio.CancelledError:
                 break
             except Exception:
                 await asyncio.sleep(5)
+
+    def _inc_stats_counter(self, key: str, count: int = 1) -> None:
+        """向 StatsCollector 写入 Counter（fail-safe：scheduler 不可用时静默跳过）。"""
+        try:
+            if count <= 0:
+                return
+            scheduler = getattr(self, 'scheduler', None)
+            if scheduler is None:
+                return
+            crawler = getattr(scheduler, '_crawler', None)
+            if crawler is None:
+                # Engine 继承 ClusterMixin 时 scheduler 持 crawler 引用
+                crawler = getattr(self, 'crawler', None)
+            if crawler is None:
+                return
+            stats = getattr(crawler, 'stats', None)
+            if stats is None:
+                return
+            stats.inc_value(key, count=count)
+        except Exception:
+            pass
 
     async def _leader_shutdown_loop(self):
         """Leader Worker 协调退出后台循环"""

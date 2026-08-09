@@ -20,8 +20,11 @@ ENGINE_PATH = os.path.abspath(ENGINE_PATH)
 # Phase 6 逻辑审核修复：start_spider resume 默认值改为 None 跟随 CHECKPOINT_ENABLED（+13 行 docstring+逻辑），基线 1516→1530
 # P0 主动 XCLAIM 扫描：_handle_distributed_idle 集成扫描 + _try_claim_stale_pending + 配置读取（+62 行），基线 1530→1592
 # P1 A1：辅助组件拆分到 engine_helpers.py（-440 行），基线 1592→1152
+# P4 Week1 A2+A3 组合模式拆分：DistributedCoordinator + RequestDispatcher（两个组合字段加入 __init__ 顶层 self.xxx），
+#         engine.py 从 898 行进一步瘦到 583 行，BASELINE_LINES 仍用 1152（583 << 1152，不触发行数阈值），
+#         BASELINE_INIT_ASSIGNS  12→14（+2 字段 = 两个组合组件句柄，属于拆分产物，不是膨胀）
 BASELINE_LINES = 1152
-BASELINE_INIT_ASSIGNS = 12
+BASELINE_INIT_ASSIGNS = 14
 
 
 def _count_lines(path):

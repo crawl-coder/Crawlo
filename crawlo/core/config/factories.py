@@ -87,6 +87,10 @@ def _make_distributed(cls: Type['CrawloConfig'],
 def _make_auto(cls: Type['CrawloConfig'],
                project_name: str = 'crawlo',
                **kwargs) -> 'CrawloConfig':
+    """Auto 模式配置工厂：
+    - Redis 可用：用 Redis ZSET 队列 + Redis 去重（AioRedisFilter + RedisDedupPipeline）
+    - Redis 不可用：fallback 到 Memory 队列 + Memory 去重
+    """
     from crawlo.core.config.base import BASE_CONFIG, MODE_CONFIG_MAP
     settings = BASE_CONFIG.copy()
     settings.update(MODE_CONFIG_MAP['standalone'])
@@ -96,6 +100,35 @@ def _make_auto(cls: Type['CrawloConfig'],
         'PROJECT_NAME': project_name,
     })
     settings.update({k.upper(): v for k, v in kwargs.items()})
+
+    # Redis 可用性探测 → 决定去重组件（队列在 QueueManager._determine_queue_type 中动态切换）
+    redis_host = settings.get('REDIS_HOST') or '127.0.0.1'
+    redis_port = settings.get('REDIS_PORT') or 6379
+    redis_password = settings.get('REDIS_PASSWORD') or None
+    redis_db = settings.get('REDIS_DB') or 0
+    try:
+        import redis as _sync_redis
+        _r = _sync_redis.Redis(
+            host=redis_host, port=int(redis_port),
+            password=redis_password, db=int(redis_db),
+            socket_connect_timeout=1.5, socket_timeout=1.5,
+        )
+        _ok = _r.ping()
+        _r.close()
+    except Exception:
+        _ok = False
+
+    if _ok:
+        settings.update({
+            'FILTER_CLASS': 'crawlo.filters.AioRedisFilter',
+            'DEFAULT_DEDUP_PIPELINE': 'crawlo.pipelines.RedisDedupPipeline',
+        })
+        from crawlo.utils.redis import RedisConfig
+        redis_cfg = RedisConfig(
+            host=redis_host, port=int(redis_port),
+            password=redis_password, db=int(redis_db),
+        )
+        settings.setdefault('REDIS_URL', redis_cfg.to_url())
     return cls(settings)
 
 

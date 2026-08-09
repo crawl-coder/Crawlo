@@ -5,8 +5,6 @@
 # @Author  : crawl-coder
 # @Desc    : 命令行入口：crawlo list，用于列出所有已注册的爬虫
 """
-import sys
-from pathlib import Path
 
 from rich.console import Console
 from rich.table import Table

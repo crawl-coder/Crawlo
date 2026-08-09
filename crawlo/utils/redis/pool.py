@@ -6,7 +6,6 @@ Redis 连接池管理
 提供 Redis 连接池、连接池管理器和全局连接池管理功能
 """
 
-import asyncio
 from contextlib import asynccontextmanager
 from typing import Dict, Any, Optional, List, TYPE_CHECKING
 
@@ -295,7 +294,6 @@ def get_redis_pool(redis_url: str, is_cluster: bool = False, cluster_nodes: Opti
             pools[pool_key] = RedisConnectionPool(redis_url, is_cluster=is_cluster, cluster_nodes=cluster_nodes, **kwargs)
         return pools[pool_key]
     else:
-        import uuid
         return RedisConnectionPool(redis_url, is_cluster=is_cluster, cluster_nodes=cluster_nodes, **kwargs)
 
 

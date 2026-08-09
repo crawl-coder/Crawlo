@@ -5,7 +5,7 @@
 
 import asyncio
 import logging
-from typing import Any, Optional
+from typing import Optional
 
 from crawlo.logging import get_logger
 

@@ -17,7 +17,7 @@ ClickHouse Pipeline — 异步 ClickHouse 数据管道
 """
 
 import asyncio
-from typing import List, Dict, Optional
+from typing import List, Dict
 
 from crawlo.pipelines.generic_sql import GenericSQLPipeline
 
@@ -104,7 +104,6 @@ class ClickHousePipeline(GenericSQLPipeline):
 
     async def _create_helper(self):
         """ClickHouse 无需 Helper 层"""
-        pass
 
     # ═══════════════════════════════════════════════
     # 表存在性检查

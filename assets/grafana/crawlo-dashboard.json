@@ -294,6 +294,119 @@
           "legendFormat": "{{ worker_id }}"
         }
       ]
+    },
+    {
+      "id": 13,
+      "title": "P4 D 方向：延迟与事件循环",
+      "type": "row",
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 27 },
+      "panels": []
+    },
+    {
+      "id": 14,
+      "title": "事件循环 Lag (P50/P95/P99)",
+      "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 28 },
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 2,
+          "min": 0,
+          "unit": "ms"
+        }
+      },
+      "targets": [
+        { "expr": "crawlo_resource_eventloop_lag_ms_p50{spider=~\"$spider\", worker_id=~\"$worker_id\"}", "legendFormat": "P50 {{ worker_id }}" },
+        { "expr": "crawlo_resource_eventloop_lag_ms_p95{spider=~\"$spider\", worker_id=~\"$worker_id\"}", "legendFormat": "P95 {{ worker_id }}" },
+        { "expr": "crawlo_resource_eventloop_lag_ms_p99{spider=~\"$spider\", worker_id=~\"$worker_id\"}", "legendFormat": "P99 {{ worker_id }}" }
+      ]
+    },
+    {
+      "id": 15,
+      "title": "下载器 P99 响应时间",
+      "type": "stat",
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "gridPos": { "h": 8, "w": 4, "x": 8, "y": 28 },
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 1,
+          "min": 0,
+          "unit": "ms"
+        }
+      },
+      "targets": [
+        { "expr": "max(crawlo_downloader_p99_response_ms{spider=~\"$spider\", worker_id=~\"$worker_id\"})", "legendFormat": "P99" }
+      ]
+    },
+    {
+      "id": 16,
+      "title": "Pipeline P99 延迟",
+      "type": "stat",
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "gridPos": { "h": 8, "w": 4, "x": 12, "y": 28 },
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 2,
+          "min": 0,
+          "unit": "ms"
+        }
+      },
+      "targets": [
+        { "expr": "max(crawlo_pipeline_item_p99_latency_ms{spider=~\"$spider\", worker_id=~\"$worker_id\"})", "legendFormat": "P99" }
+      ]
+    },
+    {
+      "id": 17,
+      "title": "去重 RPS",
+      "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 28 },
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 1,
+          "min": 0,
+          "unit": "ops"
+        }
+      },
+      "targets": [
+        { "expr": "crawlo_filter_duplicate_rps{spider=~\"$spider\", worker_id=~\"$worker_id\"}", "legendFormat": "{{ worker_id }}" }
+      ]
+    },
+    {
+      "id": 18,
+      "title": "XCLAIM 回收 & 心跳丢失",
+      "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 36 },
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 0,
+          "min": 0,
+          "unit": "none"
+        }
+      },
+      "targets": [
+        { "expr": "rate(crawlo_queue_xclaim_recovered_total[5m])", "legendFormat": "XCLAIM recovered/s" },
+        { "expr": "rate(crawlo_cluster_worker_heartbeat_lost_total[5m])", "legendFormat": "Heartbeat lost/s" }
+      ]
+    },
+    {
+      "id": 19,
+      "title": "队列积压 (queue/backlog)",
+      "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 36 },
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 0,
+          "min": 0,
+          "unit": "none"
+        }
+      },
+      "targets": [
+        { "expr": "crawlo_queue_backlog{spider=~\"$spider\", worker_id=~\"$worker_id\"}", "legendFormat": "{{ worker_id }}" }
+      ]
     }
   ],
   "templating": {

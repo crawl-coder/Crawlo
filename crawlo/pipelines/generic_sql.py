@@ -55,13 +55,14 @@ import asyncio
 import re
 import time
 from abc import abstractmethod
-from typing import List, Dict, Optional, Any, Tuple
+from typing import List, Dict, Any
 
 from crawlo.items import Item
 from crawlo.logging import get_logger
 from crawlo.items.exceptions import ItemDiscard
 from crawlo.utils.resource_manager import ResourceType
 from crawlo.utils.db.pipeline_utils import ErrorClassifier
+from crawlo.utils.ring_buffer import RingBuffer
 from . import ResourceManagedPipeline
 
 
@@ -85,9 +86,23 @@ class GenericSQLPipeline(ResourceManagedPipeline):
         self._helper: Any = None
         self._fallback_failures = 0
 
+        # 单 item 处理延迟 RingBuffer（滑动窗口 1000 样本）
+        self._latency_ringbuf = RingBuffer(1000)
+
     # ═══════════════════════════════════════════════
     # 配置解析
     # ═══════════════════════════════════════════════
+
+    # ── p99_latency_ms 属性（LogIntervalExt 读取写入 stats） ──
+
+    @property
+    def p99_latency_ms(self) -> float | None:
+        try:
+            if len(self._latency_ringbuf) == 0:
+                return None
+            return self._latency_ringbuf.percentile(99)
+        except Exception:
+            return None
 
     def _init_config(self):
         """初始化配置（子类可重写以扩展）"""
@@ -205,7 +220,6 @@ class GenericSQLPipeline(ResourceManagedPipeline):
     @abstractmethod
     async def _check_table_exists(self):
         """检查表是否存在（子类实现）"""
-        pass
 
     @abstractmethod
     async def _close_pool(self, pool):
@@ -217,14 +231,28 @@ class GenericSQLPipeline(ResourceManagedPipeline):
         await self._close_pool(pool)
 
     async def _cleanup_resources(self):
-        """清理资源"""
+        """清理资源 — flush remaining 前先确保连接池可用
+
+        定时任务模式下共享连接池可能被 ResourceManager.cleanup_all 先关闭，
+        此处先调用 _ensure_initialized 让子类（如 MySQLPipeline）检查 pool 活性并
+        在必要时重建，避免 "Cannot acquire connection after closing pool"。
+        """
         if self.use_batch and self.batch_buffer:
             spider = getattr(self.crawler, 'spider', None)
             spider_name = getattr(spider, 'name', 'unknown') if spider else 'unknown'
+            buf_len = len(self.batch_buffer)
             self.logger.info(
-                f"[{spider_name}] Spider closing, flushing remaining {len(self.batch_buffer)} items"
+                f"[{spider_name}] Spider closing, flushing remaining {buf_len} items"
             )
-            await self._flush_batch(spider)
+            try:
+                await self._ensure_initialized()
+                await self._flush_batch(spider)
+            except Exception as e:
+                self.logger.error(
+                    f"[{spider_name}] Flush {buf_len} remaining items FAILED: {e}"
+                )
+                # 失败时至少留存 buffer 以便 debug/手动恢复，不 clear
+                raise
         self.batch_buffer.clear()
         self._initialized = False
 
@@ -241,6 +269,11 @@ class GenericSQLPipeline(ResourceManagedPipeline):
                 start_time = time.time()
                 rowcount = await self._do_insert(processed_data)
                 elapsed = time.time() - start_time
+                # 单条成功记录单 item 延迟（毫秒）
+                try:
+                    self._latency_ringbuf.append(elapsed * 1000.0)
+                except Exception:
+                    pass
                 self._record_success(item, rowcount, elapsed)
                 await self._after_insert(item, rowcount)
                 return item
@@ -303,6 +336,16 @@ class GenericSQLPipeline(ResourceManagedPipeline):
             else:
                 rowcount = await self._do_batch_insert_no_tx(batch)
             elapsed = time.time() - start_time
+
+            # 批量成功按 item 维度拆分（每个 item 记平均分摊延迟）
+            try:
+                per_item_ms = (elapsed * 1000.0) / max(1, batch_size)
+                # 批量 <=50：每个 item 单独记一条样本；>50：按 50 条代表，保持精度&开销平衡
+                n_samples = min(batch_size, 50)
+                for _ in range(n_samples):
+                    self._latency_ringbuf.append(per_item_ms)
+            except Exception:
+                pass
 
             self.crawler.stats.inc_value(f'{self._PREFIX.lower()}/batch_success')
             self.crawler.stats.inc_value(f'{self._PREFIX.lower()}/batch_items', batch_size)
@@ -374,7 +417,6 @@ class GenericSQLPipeline(ResourceManagedPipeline):
 
     async def _after_insert(self, item: Item, rowcount: int):
         """插入后的处理钩子（子类可重写）"""
-        pass
 
     def _record_success(self, item: Item, rowcount: int, elapsed: float):
         """记录单条插入成功统计"""

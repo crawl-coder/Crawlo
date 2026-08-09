@@ -15,15 +15,11 @@ from crawlo.logging import get_logger
 
 # 导入已拆分的连接池管理器
 from .mysql_connection_pool import (
-    MySQLConnectionPoolManager,
-    get_mysql_pool,
     close_all_mysql_pools,
     get_mysql_pool_stats
 )
 
 from .mongo_connection_pool import (
-    MongoConnectionPoolManager,
-    get_mongo_client,
     close_all_mongo_clients,
     get_mongo_pool_stats
 )

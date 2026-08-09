@@ -124,7 +124,6 @@ class GenericDocumentPipeline(ResourceManagedPipeline):
     @abstractmethod
     async def _check_collection_exists(self):
         """检查集合/索引是否存在（子类实现）"""
-        pass
 
     @abstractmethod
     async def _close_client(self, client):
@@ -330,7 +329,6 @@ class GenericDocumentPipeline(ResourceManagedPipeline):
 
     async def _after_insert(self, item: Item, rowcount: int):
         """插入后的处理钩子（子类可重写）"""
-        pass
 
     def _record_success(self, item: Item, rowcount: int, elapsed: float):
         """记录单文档插入成功统计"""

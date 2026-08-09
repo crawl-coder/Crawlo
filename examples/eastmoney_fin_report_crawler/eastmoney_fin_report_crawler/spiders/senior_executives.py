@@ -118,7 +118,7 @@ class SeniorExecutivesSpider(Spider):
 
                 yield item
 
-        except Exception as e:
+        except Exception:
             pass
 
 

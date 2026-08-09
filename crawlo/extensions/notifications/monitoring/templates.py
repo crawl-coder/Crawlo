@@ -7,10 +7,8 @@
 提供 MySQL、Redis、MongoDB 资源监控和资源泄露检测的通知模板。
 """
 
-from enum import Enum
-from typing import Dict, List, Optional
-from crawlo.extensions.notifications.templates.manager import MessageTemplateManager, get_template_manager
-from crawlo.extensions.notifications.core.models import NotificationType
+from typing import Dict, Optional
+from crawlo.extensions.notifications.templates.manager import get_template_manager
 
 
 class ResourceMonitorTemplateManager:

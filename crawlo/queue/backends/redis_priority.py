@@ -2,7 +2,7 @@ import asyncio
 import pickle
 import time
 import traceback
-from typing import Optional, TYPE_CHECKING, List, Tuple, Any
+from typing import Optional, List, Tuple, Any
 
 # 尝试导入Redis集群支持
 try:
@@ -670,7 +670,6 @@ class RedisPriorityQueue:
         """
         # 由于我们不再使用处理队列，ack方法现在是一个空操作
         # 任务在从主队列取出时就已经被认为是完成的
-        pass
 
     async def fail(self, request: 'Request', reason: str = "") -> None:
         """

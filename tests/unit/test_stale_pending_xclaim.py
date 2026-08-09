@@ -18,6 +18,7 @@ from unittest.mock import Mock, AsyncMock, MagicMock, patch
 
 from crawlo.queue.backends.redis_stream import RedisStreamQueue
 from crawlo.core.engine import Engine
+from crawlo.core.engine_distributed import DistributedCoordinator
 from crawlo.cluster.coordinator import ClusterState
 
 
@@ -86,6 +87,10 @@ def _make_minimal_engine(settings=None):
     engine._distributed_idle_xclaim_scan_interval = 15
     engine._distributed_idle_xclaim_min_idle = 120
     engine._distributed_idle_xclaim_batch = 200
+    # P4 Week1 A2：组合组件字段。Engine 的薄代理（_try_claim_stale_pending 等）
+    # 都会访问 self._distributed；此处挂真 DistributedCoordinator，以便按真实逻辑测试 XCLAIM。
+    engine._distributed = DistributedCoordinator(engine)
+    engine._dispatcher = MagicMock()
     return engine
 
 
@@ -321,7 +326,9 @@ class TestHandleDistributedIdleScan:
         engine._worker_idle_timeout = 120
         engine.scheduler = Mock()
         engine.scheduler.next_request_blocking = AsyncMock(return_value=None)
-        engine._try_claim_stale_pending = AsyncMock(return_value=0)
+        # P4 Week1 A2：真 DistributedCoordinator 内部调用 self.try_claim_stale_pending()，需 mock 组合组件方法
+        engine._distributed.try_claim_stale_pending = AsyncMock(return_value=0)
+        engine._try_claim_stale_pending = engine._distributed.try_claim_stale_pending  # 兼容旧断言
 
         # 模拟 10s 等待（小于 15s 阈值）
         with patch("crawlo.core.engine.time.monotonic", side_effect=[0, 10, 10, 10]):
@@ -341,7 +348,8 @@ class TestHandleDistributedIdleScan:
         engine._idle_since = None
         engine.scheduler = Mock()
         engine.scheduler.next_request_blocking = AsyncMock(return_value=None)
-        engine._try_claim_stale_pending = AsyncMock(return_value=0)
+        engine._distributed.try_claim_stale_pending = AsyncMock(return_value=0)
+        engine._try_claim_stale_pending = engine._distributed.try_claim_stale_pending
 
         # 等待 2s（14 + 2 = 16 >= 15）
         with patch(
@@ -367,7 +375,8 @@ class TestHandleDistributedIdleScan:
         engine._idle_since = 100.0
         engine.scheduler = Mock()
         engine.scheduler.next_request_blocking = AsyncMock(return_value=None)
-        engine._try_claim_stale_pending = AsyncMock(return_value=3)
+        engine._distributed.try_claim_stale_pending = AsyncMock(return_value=3)
+        engine._try_claim_stale_pending = engine._distributed.try_claim_stale_pending
 
         with patch(
             "crawlo.core.engine.time.monotonic",
@@ -391,7 +400,8 @@ class TestHandleDistributedIdleScan:
         engine.scheduler = Mock()
         mock_request = Mock()
         engine.scheduler.next_request_blocking = AsyncMock(return_value=mock_request)
-        engine._try_claim_stale_pending = AsyncMock(return_value=0)
+        engine._distributed.try_claim_stale_pending = AsyncMock(return_value=0)
+        engine._try_claim_stale_pending = engine._distributed.try_claim_stale_pending
         # 关闭协程避免 "coroutine never awaited" warning，同时保留 assert 能力
         engine._create_background_task = Mock(side_effect=lambda coro: coro.close())
 
@@ -414,7 +424,8 @@ class TestHandleDistributedIdleScan:
         engine._distributed_idle_xclaim_scan_interval = 999  # 不触发扫描
         engine.scheduler = Mock()
         engine.scheduler.next_request_blocking = AsyncMock(return_value=None)
-        engine._try_claim_stale_pending = AsyncMock(return_value=0)
+        engine._distributed.try_claim_stale_pending = AsyncMock(return_value=0)
+        engine._try_claim_stale_pending = engine._distributed.try_claim_stale_pending
 
         # remaining = 5 - (106 - 100) = -1 <= 0 → 退出
         with patch("crawlo.core.engine.time.monotonic", side_effect=[106]):

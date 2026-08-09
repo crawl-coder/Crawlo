@@ -12,15 +12,14 @@ Components:
 - EngineBackpressureAdapter: Engine 级背压适配器
 - resolve_start_requests / process_callback_output: 请求生成工具函数
 """
-import asyncio
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from inspect import isasyncgen, iscoroutine, isgenerator
-from typing import Any, Callable, Dict, Iterator, Optional, Tuple, Union
+from typing import Any, Dict, Optional, Tuple
 
 from crawlo import Request, Item
 from crawlo.utils.func_tools import transform
-from crawlo.queue.backpressure.interfaces import BackpressureStrategyConfig, IBackpressureStrategy
+from crawlo.queue.backpressure.interfaces import BackpressureStrategyConfig
 from crawlo.queue.backpressure.strategies import QueueSizeStrategy, AdaptiveStrategy
 from crawlo.queue.backpressure import BackpressureController as _UnifiedController
 

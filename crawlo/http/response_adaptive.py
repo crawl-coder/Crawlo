@@ -12,7 +12,7 @@ Response 自适应选择器 Mixin
 - find_similar / _save / _retrieve / _relocate
 """
 import atexit
-from typing import Dict, Any, List, Optional
+from typing import Any, Optional
 
 from lxml.html import HtmlElement
 from parsel import Selector, SelectorList

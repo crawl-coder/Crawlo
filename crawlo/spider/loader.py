@@ -3,7 +3,7 @@ import traceback
 import warnings
 from collections import defaultdict
 from pathlib import Path
-from typing import List, Type, Dict, Any
+from typing import List, Type, Dict
 
 from crawlo.spider.interfaces import ISpiderLoader
 from crawlo.settings.setting_manager import SettingManager

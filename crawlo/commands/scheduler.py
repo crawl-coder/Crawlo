@@ -21,8 +21,7 @@ class SchedulerDaemon:
     """定时任务守护进程"""
 
     def __init__(self, settings):
-        from crawlo.settings.setting_manager import SettingManager as Settings
-        from crawlo.utils.resource_manager import ResourceManager, ResourceType
+        from crawlo.utils.resource_manager import ResourceManager
 
         self.settings = settings
         self.running = False
@@ -332,7 +331,6 @@ def start_scheduler(project_root: str = None):
     # 先配置日志系统
     from crawlo.project import get_settings
     from crawlo.logging import configure_logging, get_logger
-    from crawlo.utils.parsing import format_datetime, format_duration
 
     try:
         temp_settings = get_settings()

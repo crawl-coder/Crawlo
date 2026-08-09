@@ -21,7 +21,6 @@ class OfWeekDistributedSpider(Spider):
 
     def start_requests(self):
         """生成初始请求。支持环境变量 OFWEEK_TEST_MAX_PAGE 临时覆盖页数做 smoke test。"""
-        import os
         headers = {
             "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
             "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8",
@@ -57,7 +56,7 @@ class OfWeekDistributedSpider(Spider):
         # 生产环境：网站约 1851 页列表，每页约 10 个详情
         # 10 个 worker 可真正领到任务，验证 Redis Stream Consumer Group + ACK + 负载均衡
         # OFWEEK_TEST_MAX_PAGE 环境变量可临时覆盖页数做 smoke test
-        max_page = 100
+        max_page = 50
         start_urls = []
         for page in range(1, max_page + 1):
             url = f'https://ee.ofweek.com/CATList-2800-8100-ee-{page}.html'

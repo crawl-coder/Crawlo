@@ -13,8 +13,7 @@
 import asyncio
 import time
 import traceback
-import warnings
-from typing import Optional, Dict, Any, Union, TYPE_CHECKING
+from typing import Optional, TYPE_CHECKING
 
 if TYPE_CHECKING:
     from crawlo import Request
@@ -140,6 +139,9 @@ class QueueManager(QueueStatusMixin, QueueBackpressureMixin):
             self.logger.debug(f"Queue initialized successfully Type: {queue_type.value}")
             # Output detailed config in debug mode
             self.logger.debug(f"Queue configuration: {self._get_queue_info()}")
+
+            # B-08：打印 dedup filter + dedup pipeline 信息（排障 2 行就能确认三模式配置）
+            self._log_dedup_config()
             
             # Backpressure initialization log is already output in _recreate_backpressure_controller()
             # Skip duplicate log here to avoid redundancy
@@ -498,6 +500,44 @@ class QueueManager(QueueStatusMixin, QueueBackpressureMixin):
                 self.logger.debug("Queue closed")
             except Exception as e:
                 self.logger.warning(f"Error closing queue: {e}")
+
+    # ------------------------------------------------------------------
+    # 配置排障辅助：Dedup / Filter 信息打印（P3-B-08）
+    # ------------------------------------------------------------------
+
+    def _log_dedup_config(self) -> None:
+        """
+        打印当前生效的去重配置。
+        让排障时一眼确认三模式配置（例如 Auto 模式是否真的切到了 AioRedisFilter）。
+        """
+        try:
+            settings = self.config.settings or {}
+            filter_cls = settings.get('FILTER_CLASS') if isinstance(settings, dict) else getattr(settings, 'FILTER_CLASS', None)
+            dedup_pipe = settings.get('DEFAULT_DEDUP_PIPELINE') if isinstance(settings, dict) else getattr(settings, 'DEFAULT_DEDUP_PIPELINE', None)
+            # 兜底也从 safe_get_config 里读（部分旧路径 settings 是 dict-like 对象需 dict 访问）
+            if not filter_cls:
+                filter_cls = safe_get_config(self.config.settings, 'FILTER_CLASS', None)
+            if not dedup_pipe:
+                dedup_pipe = safe_get_config(self.config.settings, 'DEFAULT_DEDUP_PIPELINE', None)
+
+            # 判断是否跨运行持久化
+            persistence_tag = "OFF (memory-only)"
+            if filter_cls and ('Redis' in str(filter_cls) or 'redis' in str(filter_cls).lower()):
+                persistence_tag = "ON (Redis-backed, cross-run dedup)"
+            self.logger.info(
+                f"Dedup filter:  {filter_cls or '<not configured>'}   (persistence={persistence_tag})"
+            )
+
+            pipe_persistence = "OFF (memory-only)"
+            if dedup_pipe and ('Redis' in str(dedup_pipe) or 'redis' in str(dedup_pipe).lower()):
+                pipe_persistence = "ON (Redis-backed)"
+            self.logger.info(
+                f"Dedup pipeline: {dedup_pipe or '<not configured>'}   (persistence={pipe_persistence})"
+            )
+        except Exception as e:
+            # 日志辅助函数必须不影响主流程
+            self.logger.debug(f"Log dedup config skipped: {e}")
+
 
 
 

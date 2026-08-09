@@ -19,14 +19,10 @@ Breaking Change (v2.0):
 """
 
 import asyncio
-import json
-from datetime import datetime
-from pathlib import Path
-from typing import List, Dict, Optional
+from typing import List
 
-from pymongo.errors import PyMongoError, BulkWriteError
+from pymongo.errors import BulkWriteError
 
-from crawlo.items.exceptions import ItemDiscard
 from crawlo.utils.db.mongo_connection_pool import MongoConnectionPoolManager
 from crawlo.pipelines.generic_doc import GenericDocumentPipeline
 
@@ -117,7 +113,6 @@ class MongoPipeline(GenericDocumentPipeline):
 
     async def _close_client(self, client):
         """MongoDB 使用全局共享连接池，不在此处关闭"""
-        pass
 
     # ═══════════════════════════════════════════════
     # 单文档 upsert

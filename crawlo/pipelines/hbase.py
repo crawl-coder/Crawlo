@@ -16,8 +16,7 @@ HBase Pipeline — HBase 数据管道
 """
 
 import asyncio
-from typing import List, Dict, Optional, Any
-from pathlib import Path
+from typing import Optional, Any
 
 from crawlo.logging import get_logger
 from crawlo.items import Item

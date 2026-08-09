@@ -6,7 +6,6 @@ Scheduler — 请求调度器
 负责请求队列管理、去重过滤、Redis/Memory 双模式自动切换。
 """
 import traceback
-import warnings
 from typing import Optional, Callable
 
 from crawlo.logging import get_logger
@@ -295,7 +294,6 @@ class Scheduler:
 
     async def _process_filter_updates(self, needs_config_update, updated_configs):
         """[deprecated] no-op, logic merged into _resolve_and_apply_config"""
-        pass
 
     def _is_filter_matching_queue_type(self, current_filter_class):
         """[deprecated] use _detect_mode_mismatch instead"""
@@ -554,4 +552,3 @@ class Scheduler:
         if hasattr(self.queue_manager._queue, 'nack'):
             await self.queue_manager._queue.nack(receipt, error=reason, result=result)
         """确认请求处理完成（当前为空操作，任务出队时即认为完成）"""
-        pass

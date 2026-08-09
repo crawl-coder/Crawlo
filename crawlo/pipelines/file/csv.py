@@ -8,7 +8,6 @@ CSV Pipeline — 重构后继承 FileBasedPipeline
 设计文档：docs/internal/non-db-pipelines-design.md §3.1
 """
 import csv
-import asyncio
 from typing import Optional, List
 
 from crawlo.items import Item

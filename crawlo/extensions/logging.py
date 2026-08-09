@@ -51,6 +51,6 @@ class CustomLoggerExtension:
                 f"LOG_FILE={self.settings.get('LOG_FILE')}, "
                 f"LOG_LEVEL={self.settings.get('LOG_LEVEL')}"
             )
-        except Exception as e:
+        except Exception:
             # Even if logging initialization info cannot be printed, should not affect program execution
             pass

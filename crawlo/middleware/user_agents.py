@@ -14,7 +14,7 @@ User-Agent 数据库
 """
 
 import random
-from typing import List, Optional
+from typing import List
 
 
 # ============================================================================

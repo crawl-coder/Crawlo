@@ -5,11 +5,9 @@
 
 import hashlib
 import datetime
-import os
 from crawlo import Request
 from crawlo.spider import Spider
 
-from listed_companies_market_value_info.utils.stock_loader import load_a_stocks_market
 from ..items import ListedCompaniesMarketValueItem
 
 

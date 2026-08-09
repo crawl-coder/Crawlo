@@ -7,7 +7,7 @@ IDownloader（下载器接口）。
 """
 from abc import abstractmethod
 from typing import (
-    Type, Optional, Protocol, runtime_checkable, TYPE_CHECKING
+    Optional, Protocol, runtime_checkable, TYPE_CHECKING
 )
 
 if TYPE_CHECKING:

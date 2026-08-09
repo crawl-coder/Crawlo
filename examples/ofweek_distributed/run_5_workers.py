@@ -11,7 +11,6 @@ import os
 import sys
 import subprocess
 import time
-import signal
 
 example_root = os.path.dirname(os.path.abspath(__file__))
 # run.py 在 examples/ofweek_distributed/ 下，crawlo 包在 ../../ 下

@@ -8,9 +8,9 @@
 """
 
 from abc import ABC, abstractmethod
-from typing import Dict, Any, Optional
+from typing import Dict, Any
 
-from crawlo.extensions.notifications.core.models import NotificationMessage, NotificationResponse, ChannelType, ChannelResponse
+from crawlo.extensions.notifications.core.models import NotificationMessage, NotificationResponse, ChannelType
 
 
 class NotificationChannel(ABC):
@@ -41,7 +41,6 @@ class NotificationChannel(ABC):
         
         用于路由匹配和日志标识
         """
-        pass
     
     @abstractmethod
     def send(self, message: NotificationMessage) -> NotificationResponse:
@@ -54,7 +53,6 @@ class NotificationChannel(ABC):
         Returns:
             通知响应
         """
-        pass
     
     def format_message(self, message: NotificationMessage) -> Dict[str, Any]:
         """

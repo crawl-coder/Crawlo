@@ -30,7 +30,7 @@ import time
 import asyncio
 from typing import Set, Final, Optional, TypeVar, Generic, Dict, Any
 from collections import deque
-from asyncio import Task, Future, Semaphore
+from asyncio import Task, Future
 from dataclasses import dataclass, field
 
 from crawlo.utils._compat import get_task_info
@@ -261,7 +261,7 @@ class TaskManager(Generic[T]):
                 
                 # 获取任务结果或异常
                 try:
-                    result = _future.result()
+                    _future.result()
                 except asyncio.TimeoutError:
                     self._stats.timeout_count += 1
                     self.logger.warning(f"Task timed out after {timeout}s")

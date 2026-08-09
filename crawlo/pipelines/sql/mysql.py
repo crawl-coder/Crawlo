@@ -10,7 +10,6 @@ MySQL Pipeline - 异步 MySQL 数据管道
 
 GenericSQLPipeline 提供：批量缓冲、重试、降级、事务控制、错误分类、统计记录。
 """
-import asyncio
 from typing import List, Dict
 
 from crawlo.utils.db.mysql_helper import MySQLHelper
@@ -31,8 +30,8 @@ class MySQLPipeline(GenericSQLPipeline):
     # ═══════════════════════════════════════════════
 
     async def _initialize_pool(self):
-        """创建 asyncmy 连接池"""
-        self.pool = await MySQLConnectionPoolManager.get_pool(
+        """创建 asyncmy 连接池（共享，引用计数）"""
+        self._pool_config = dict(
             host=self.settings.get('MYSQL_HOST', 'localhost'),
             port=self.settings.get_int('MYSQL_PORT', 3306),
             user=self.settings.get('MYSQL_USER', 'root'),
@@ -41,17 +40,32 @@ class MySQLPipeline(GenericSQLPipeline):
             minsize=self.settings.get_int('MYSQL_POOL_MIN', 3),
             maxsize=self.settings.get_int('MYSQL_POOL_MAX', 10),
         )
-        self.logger.debug("MySQL connection pool initialized")
+        self.pool = await MySQLConnectionPoolManager.get_pool(**self._pool_config)
+        self.logger.debug("MySQL connection pool initialized (shared via ref_count)")
 
     async def _close_pool(self, pool):
-        """关闭连接池"""
+        """释放连接池共享引用（ref_count 归零才真正关闭）
+
+        直接 pool.close() 会在多爬虫 / 多 Pipeline 共享时把兄弟实例的 pool
+        也关掉导致 "Cannot acquire connection after closing pool"。这里改为
+        通过 BasePoolManager.release_pool 的引用计数机制：最后一个持有引用
+        者释放时才真正执行 pool.close() + wait_closed()。
+        """
+        cfg = getattr(self, '_pool_config', None)
+        if cfg is None:
+            # 回退兜底（极端未初始化路径）
+            try:
+                if pool:
+                    pool.close()
+                    await pool.wait_closed()
+            except Exception:
+                pass
+            return
         try:
-            if pool:
-                pool.close()
-                await pool.wait_closed()
-                self.logger.debug("MySQL pool closed")
+            await MySQLConnectionPoolManager.release_pool(**cfg)
+            self.logger.debug("MySQL pool release (shared ref_count)")
         except Exception as e:
-            self.logger.error(f"Close pool failed: {e}")
+            self.logger.error(f"Release MySQL pool failed: {e}")
 
     async def _ensure_initialized(self):
         """确保已初始化（含连接池活性检查）"""

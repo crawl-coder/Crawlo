@@ -11,7 +11,7 @@ import sys
 from typing import TYPE_CHECKING, List
 
 if TYPE_CHECKING:
-    from crawlo.crawler import Crawler, CrawlerState
+    pass
 
 
 class ProcessSignalHandler:

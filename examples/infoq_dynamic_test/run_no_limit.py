@@ -15,7 +15,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 settings_mod = importlib.import_module('infoq_dynamic_test.settings_no_limit')
 
 from crawlo.settings.setting_manager import SettingManager
-from crawlo.crawler_process import CrawlerProcess
+from crawlo.crawler import CrawlerProcess
 
 
 async def main():

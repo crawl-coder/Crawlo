@@ -21,9 +21,7 @@ Prometheus 统计后端
 """
 import atexit
 import logging
-import os
 import re
-import socket
 import threading
 from typing import Any, Dict, Optional
 

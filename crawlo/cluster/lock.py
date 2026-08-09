@@ -17,7 +17,6 @@
 """
 import asyncio
 import uuid
-import time
 from typing import Optional
 
 from crawlo.logging import get_logger

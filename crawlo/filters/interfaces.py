@@ -7,7 +7,7 @@ IFilter（请求去重过滤器接口）。
 """
 from abc import abstractmethod
 from typing import (
-    Protocol, runtime_checkable, TYPE_CHECKING
+    Protocol, runtime_checkable
 )
 
 # 注意：所有使用 Request 作签名的位置都使用 ``'Request'`` 字符串注解，

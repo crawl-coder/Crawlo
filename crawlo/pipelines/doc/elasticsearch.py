@@ -15,10 +15,8 @@ Elasticsearch Pipeline — 异步 Elasticsearch 数据管道
 设计文档：docs/internal/db-pipelines-design.md §3.6
 """
 
-import asyncio
-from typing import List, Dict, Optional
+from typing import List
 
-from crawlo.logging import get_logger
 from crawlo.pipelines.generic_doc import GenericDocumentPipeline
 
 # 尝试导入 elasticsearch

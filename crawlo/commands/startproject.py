@@ -8,9 +8,8 @@
 import shutil
 import re
 import sys
-import os
 from pathlib import Path
-from typing import Optional, List
+from typing import List
 
 try:
     from rich.console import Console
@@ -22,12 +21,12 @@ except ImportError:
     RICH_AVAILABLE = False
 
 try:
-    from .utils import show_error_panel, show_success_panel
+    from .utils import show_error_panel
     UTILS_AVAILABLE = True
 except ImportError:
     # 如果相对导入失败，尝试绝对导入
     try:
-        from crawlo.commands.utils import show_error_panel, show_success_panel
+        from crawlo.commands.utils import show_error_panel
         UTILS_AVAILABLE = True
     except ImportError:
         UTILS_AVAILABLE = False

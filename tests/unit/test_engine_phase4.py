@@ -18,6 +18,8 @@ import pytest
 from unittest.mock import Mock, AsyncMock, MagicMock, patch, PropertyMock
 
 from crawlo.core.engine import Engine, has_pending_enqueues, safe_queue_size
+from crawlo.core.engine_distributed import DistributedCoordinator
+from crawlo.core.engine_dispatch import RequestDispatcher
 from crawlo.cluster.coordinator import ClusterState
 from crawlo.core.errors import Failure
 
@@ -68,6 +70,12 @@ def _make_minimal_engine(settings=None):
     engine._checkpoint = Mock()
     engine._checkpoint.save_checkpoint = AsyncMock()
     engine._checkpoint.clear_checkpoint = AsyncMock()
+
+    # P4 Week1 A2+A3：组合组件字段。Engine 薄代理 _exit/_should_exit/_check_components_idle
+    # 都会访问 self._dispatcher；_check_control_state/_handle_distributed_idle 会访问 self._distributed。
+    # 挂真实的 RequestDispatcher / DistributedCoordinator 实例，用真实断言逻辑（属性已 mock）。
+    engine._distributed = DistributedCoordinator(engine)
+    engine._dispatcher = RequestDispatcher(engine)
 
     return engine
 
@@ -181,10 +189,11 @@ class TestEngineExit:
         """所有组件空闲 + has_pending_enqueues False → True"""
         engine = _make_minimal_engine()
 
-        # 模拟 _check_components_idle 返回全部空闲
-        engine._check_components_idle = AsyncMock(
-            return_value=(True, True, True, True, False)
-        )
+        # P4 Week1 A3：Engine._exit 薄代理 → self._dispatcher.exit_fast() → 走 self.check_components_idle()
+        # 所以 mock dispatcher.check_components_idle（而不是 engine 薄代理方法），同时同步设置 engine 薄代理方法（兼容断言）
+        idle_result = (True, True, True, True, False)
+        engine._dispatcher.check_components_idle = AsyncMock(return_value=idle_result)
+        engine._check_components_idle = engine._dispatcher.check_components_idle
         # scheduler=None → has_pending_enqueues 返回 False
         engine.scheduler = None
 
@@ -195,9 +204,9 @@ class TestEngineExit:
     async def test_exit_has_pending_enqueues(self):
         """has_pending_enqueues True → _exit 返回 False"""
         engine = _make_minimal_engine()
-        engine._check_components_idle = AsyncMock(
-            return_value=(True, True, True, True, False)
-        )
+        idle_result = (True, True, True, True, False)
+        engine._dispatcher.check_components_idle = AsyncMock(return_value=idle_result)
+        engine._check_components_idle = engine._dispatcher.check_components_idle
         # scheduler 有 pending_enqueue_count > 0
         engine.scheduler = Mock()
         engine.scheduler.pending_enqueue_count = 5
@@ -209,9 +218,9 @@ class TestEngineExit:
     async def test_exit_scheduler_not_idle(self):
         """scheduler 不空闲 → False"""
         engine = _make_minimal_engine()
-        engine._check_components_idle = AsyncMock(
-            return_value=(False, True, True, True, False)
-        )
+        idle_result = (False, True, True, True, False)
+        engine._dispatcher.check_components_idle = AsyncMock(return_value=idle_result)
+        engine._check_components_idle = engine._dispatcher.check_components_idle
         engine.scheduler = None
 
         result = await engine._exit()
@@ -230,9 +239,9 @@ class TestEngineShouldExit:
         """run_mode='standalone'：所有组件空闲 + start_requests=None + 无 pending → (True, states)"""
         engine = _make_minimal_engine(settings={'RUN_MODE': 'standalone'})
         engine._start_requests_source = None
-        engine._check_components_idle = AsyncMock(
-            return_value=(True, True, True, True, True)
-        )
+        idle_result = (True, True, True, True, True)
+        engine._dispatcher.check_components_idle = AsyncMock(return_value=idle_result)
+        engine._check_components_idle = engine._dispatcher.check_components_idle
         engine.scheduler = None  # pending_enqueues → False
 
         should, states = await engine._should_exit(last_component_states=None)

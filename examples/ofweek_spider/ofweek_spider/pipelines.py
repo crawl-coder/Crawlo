@@ -5,7 +5,6 @@ ofweek_spider.pipelines
 数据管道示例
 """
 
-from crawlo.items.exceptions import DropItem
 from crawlo.logging import get_logger
 
 

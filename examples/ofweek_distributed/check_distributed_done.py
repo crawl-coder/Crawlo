@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 """检测 ofweek 分布式测试是否结束并生成总结"""
-import os
 import sys
 import subprocess
 import time
@@ -23,7 +22,6 @@ def check_processes():
             timeout=5
         )
         # 这个方法不太可靠，我们改用 ps 命令
-        pass
     except:
         pass
 

@@ -13,7 +13,7 @@ HTTP Request 封装模块
 import json
 from copy import deepcopy
 from enum import IntEnum
-from typing import Dict, Optional, Callable, Union, Any, TypeVar, List, TYPE_CHECKING
+from typing import Dict, Optional, Callable, Union, Any, TypeVar, List
 from urllib.parse import urldefrag, urlencode, urlparse, urlunparse, parse_qsl
 
 from w3lib.url import safe_url_string, add_or_replace_parameter

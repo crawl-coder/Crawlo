@@ -63,7 +63,6 @@ class QueueEmptyError(ScheduleException):
 
 class QueueClosedError(ScheduleException):
     """队列已关闭异常"""
-    pass
 
 
 # ============= 导出 =============

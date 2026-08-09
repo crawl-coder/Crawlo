@@ -98,6 +98,7 @@ def __getattr__(name):
         'RedisMonitorExtension':     'crawlo.extensions.monitor.redis',
         'HealthCheckExtension':      'crawlo.extensions.health_check',
         'RequestRecorderExtension':  'crawlo.extensions.request_recorder',
+        'EventloopLagProbe':         'crawlo.extensions.eventloop_lag',
     }
     if name in _MAPPING:
         import importlib
@@ -117,4 +118,5 @@ __all__ = [
     'RedisMonitorExtension',
     'HealthCheckExtension',
     'RequestRecorderExtension',
+    'EventloopLagProbe',
 ]

@@ -15,7 +15,6 @@ PostgreSQL Pipeline — 异步 PostgreSQL 数据管道
 设计文档：docs/internal/db-pipelines-design.md §3.2
 """
 
-import asyncio
 from typing import List, Dict
 
 from crawlo.utils.db.dialect import PostgreSQLDialect
@@ -93,7 +92,6 @@ class PostgreSQLPipeline(GenericSQLPipeline):
 
     async def _create_helper(self):
         """PostgreSQL 直接使用连接池，无需 Helper 层"""
-        pass
 
     # ═══════════════════════════════════════════════
     # 表存在性检查
@@ -134,7 +132,7 @@ class PostgreSQLPipeline(GenericSQLPipeline):
             )
 
         async with self.pool.acquire() as conn:
-            result = await conn.execute(sql, *params)
+            await conn.execute(sql, *params)
             # asyncpg 的 execute 返回 "INSERT 0 1" 格式字符串
             return 1
 
@@ -143,7 +141,7 @@ class PostgreSQLPipeline(GenericSQLPipeline):
         if not batch:
             return 0
 
-        cols = list(batch[0].keys())
+        list(batch[0].keys())
         total = 0
 
         async with self.pool.acquire() as conn:
@@ -170,7 +168,7 @@ class PostgreSQLPipeline(GenericSQLPipeline):
         if not batch:
             return 0
 
-        cols = list(batch[0].keys())
+        list(batch[0].keys())
         total = 0
 
         async with self.pool.acquire() as conn:

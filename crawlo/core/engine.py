@@ -1,22 +1,27 @@
 #!/usr/bin/python
 # -*- coding:UTF-8 -*-
 """
-Engine 模块 — 爬虫引擎核心
+Engine 模块 — 爬虫引擎核心（拆分后主骨架）
 
-P1 A1：辅助组件拆分到 engine_helpers.py
-P1 A2：RequestGenerationMixin 拆分到 engine_generation.py
-本模块只保留 Engine 主类。
+拆分历史：
+- P1 A1：辅助组件拆分到 engine_helpers.py（GenerationStats / EngineBackpressureAdapter / …）
+- P1 A2：RequestGenerationMixin 拆分到 engine_generation.py
+- **P4 A-2**：分布式协调拆出 engine_distributed.py（DistributedCoordinator，组合持有）
+- **P4 A-3**：请求派发 / 主循环 / 退出判断 拆出 engine_dispatch.py（RequestDispatcher，组合持有）
 
-Core Components:
-- Engine: 爬虫引擎主类（继承 RequestGenerationMixin + ClusterMixin）
-- 请求生成（engine_generation.py）: RequestGenerationMixin
-- 辅助组件（engine_helpers.py）: GenerationStats / EngineBackpressureAdapter /
-  resolve_start_requests / process_callback_output / safe_queue_size / has_pending_enqueues
+本模块只保留 Engine 主类（骨架），负责：
+  1. __init__ / _init_configs：初始化所有组件并组合持有 _distributed / _dispatcher
+  2. start_spider / crawl：生命周期骨架，调用 generation / dispatch / distributed
+  3. close_spider：清理 & 检查点保存
+  4. 对外薄代理方法：_check_control_state / _handle_distributed_idle / _try_claim_stale_pending
+                      → 转给 self._distributed
+     _run_main_loop / _dispatch_requests / _check_components_idle / _exit /
+     _should_exit / _check_all_idle                           → 转给 self._dispatcher
+  5. _crawl / _fetch：请求级处理（与 Engine 生命周期深度耦合，不拆）
 """
 import asyncio
-import sys
 import time
-from typing import Any, Callable, Dict, Iterator, Optional, Tuple, Union
+from typing import Any, Dict, Optional, Union
 
 from crawlo.spider import Spider
 from crawlo.event import CrawlerEvent
@@ -30,13 +35,10 @@ from crawlo.core.scheduling.task_scheduler import Scheduler
 from crawlo.core.checkpoint_coordinator import CheckpointCoordinator
 from crawlo.utils.misc import load_object, safe_get_config
 from crawlo.__version__ import __version__
-from crawlo.queue.task_tracker import TaskTracker, TaskResult
 from crawlo.cluster.coordinator import ClusterMixin, ClusterState, _ack_message
 
-# P1 A2：RequestGenerationMixin 从 engine_generation 导入
+# P1：Mixin + 辅助组件
 from crawlo.core.engine_generation import RequestGenerationMixin
-
-# P1 A1：辅助组件从 engine_helpers re-export，保持向后兼容
 from crawlo.core.engine_helpers import (
     safe_queue_size,
     has_pending_enqueues,
@@ -46,9 +48,15 @@ from crawlo.core.engine_helpers import (
     process_callback_output,
 )
 
+# P4 A-2 / A-3：组合模式的 Coordinator / Dispatcher
+from crawlo.core.engine_distributed import DistributedCoordinator
+from crawlo.core.engine_dispatch import RequestDispatcher
+
 __all__ = [
     'Engine',
     'RequestGenerationMixin',
+    'DistributedCoordinator',
+    'RequestDispatcher',
     'resolve_start_requests',
     'process_callback_output',
     'GenerationStats',
@@ -60,7 +68,6 @@ __all__ = [
 
 class Engine(RequestGenerationMixin, ClusterMixin):
 
-    # 关键错误类型配置，从 error_types 模块导入
     CRITICAL_EXCEPTIONS = ErrorClassifier.CRITICAL_EXCEPTIONS
 
     def __init__(self, crawler):
@@ -72,22 +79,22 @@ class Engine(RequestGenerationMixin, ClusterMixin):
         self.downloader: Optional[DownloaderBase] = None
         self.scheduler: Optional[Scheduler] = None
         self.processor: Optional[Processor] = None
-        self._start_requests_source = None  # Original generator (sync gen / async gen / iter)
-        self._start_requests_is_async = False  # Whether it's an async generator
-        self._seed_lock_key = None  # 种子锁 key（分布式模式）
-        self._seed_renewal_task = None  # 种子锁续期任务
-        self._close_reason: str = 'finished'  # Close reason: finished / shutdown
-        self._spider_closed: bool = False  # Prevent duplicate close_spider calls
-        self._background_tasks: set = set()  # Track fire-and-forget tasks to prevent leaks
-        self._request_available = asyncio.Event()  # 事件驱动：新请求可用时唤醒主循环
-        self._idle_since: Optional[float] = None  # 空闲起始时间（使用 time.monotonic()，分布式模式用）
-        self._idle_scan_counter: float = 0.0  # 累计 idle 时长，达到阈值触发主动 XCLAIM 扫描
-        self._cluster_state = ClusterState()  # Phase 3 Step 2：集群组件状态容器
+        self._start_requests_source = None
+        self._start_requests_is_async = False
+        self._seed_lock_key = None
+        self._seed_renewal_task = None
+        self._close_reason: str = 'finished'
+        self._spider_closed: bool = False
+        self._background_tasks: set = set()
+        self._request_available = asyncio.Event()
+        self._idle_since: Optional[float] = None
+        self._idle_scan_counter: float = 0.0
+        self._cluster_state = ClusterState()
 
-        # Initialize configurations
+        # 初始化配置
         self._init_configs()
 
-        # Initialize helper utilities
+        # P1 辅助组件
         self._generation_stats = GenerationStats()
         self._backpressure_ctrl = EngineBackpressureAdapter(
             max_queue_size=self.max_queue_size,
@@ -95,8 +102,17 @@ class Engine(RequestGenerationMixin, ClusterMixin):
             strategy=self.backpressure_strategy,
         )
 
+        # Logger 必须先初始化，P4 组合对象（DistributedCoordinator / RequestDispatcher）
+        # __init__ 里会立即读取 self.logger
         self.logger = get_logger(name=self.__class__.__name__)
 
+        # P4 组合组件：Distributed 协调 + 请求派发
+        self._distributed = DistributedCoordinator(self)
+        self._dispatcher = RequestDispatcher(self)
+
+    # ======================================================================
+    # 工具方法 & 配置
+    # ======================================================================
     def _create_background_task(self, coro):
         """创建带引用追踪的后台任务，防止 fire-and-forget 任务泄漏"""
         task = asyncio.create_task(coro)
@@ -105,16 +121,9 @@ class Engine(RequestGenerationMixin, ClusterMixin):
         return task
 
     def _init_configs(self) -> None:
-        """
-        Initialize all configurations from settings
-
-        Centralized configuration extraction for better maintainability
-        """
-        # Concurrency control configuration
         concurrency = safe_get_config(self.settings, 'CONCURRENCY', 8, int)
         self.task_manager: Optional[TaskManager] = TaskManager(concurrency)
 
-        # Request generation configuration
         self.days = safe_get_config(self.settings, 'LOG_RETENTION_DAYS', 1, int)
         self.max_queue_size = safe_get_config(self.settings, 'SCHEDULER_MAX_QUEUE_SIZE', 10000, int)
         self.generation_batch_size = safe_get_config(self.settings, 'REQUEST_GENERATION_BATCH_SIZE', 10, int)
@@ -127,20 +136,16 @@ class Engine(RequestGenerationMixin, ClusterMixin):
             self.settings, 'ENABLE_CONTROLLED_REQUEST_GENERATION', False, bool
         )
 
-        # Version configuration (directly from __version__.py, not from config file)
         self.version = __version__
 
-        # Checkpoint configuration
         self.checkpoint_save_on_signal = safe_get_config(
             self.settings, 'CHECKPOINT_SAVE_ON_SIGNAL', False, bool
         )
 
-        # Distributed worker configuration
         self._worker_idle_timeout = safe_get_config(
             self.settings, 'DISTRIBUTED_WORKER_IDLE_TIMEOUT', 300, int
         )
 
-        # 分布式 idle 主动 XCLAIM 扫描配置（双层回收的主动层）
         self._distributed_idle_xclaim_scan_interval = safe_get_config(
             self.settings, 'DISTRIBUTED_IDLE_XCLAIM_SCAN_INTERVAL', 15, int
         )
@@ -151,27 +156,16 @@ class Engine(RequestGenerationMixin, ClusterMixin):
             self.settings, 'DISTRIBUTED_IDLE_XCLAIM_BATCH', 200, int
         )
 
-        # Coordinated shutdown via leader election
         self._cluster_state.coordinated_shutdown_enabled = safe_get_config(
             self.settings, 'DISTRIBUTED_COORDINATED_SHUTDOWN_ENABLED', True, bool
         )
 
-        # Downloader configuration
         self.downloader_type = safe_get_config(self.settings, 'DOWNLOADER_TYPE')
         self.downloader_path = safe_get_config(self.settings, 'DOWNLOADER')
 
-        # Phase 3：检查点协调器（组合，替代原 Engine 内三个检查点方法）
-        # 放在 _init_configs 末尾以兼容 Engine.__new__ + _init_configs 的测试模式
         self._checkpoint = CheckpointCoordinator(self.settings)
 
     def _get_downloader_cls(self):
-        """
-        获取下载器类
-
-        Returns:
-            Type[DownloaderBase]: 下载器类
-        """
-        # 方式1: 使用 DOWNLOADER_TYPE 配置（推荐）
         if self.downloader_type:
             try:
                 from crawlo.downloader import get_downloader_class
@@ -181,8 +175,6 @@ class Engine(RequestGenerationMixin, ClusterMixin):
             except (ImportError, ValueError) as e:
                 self.logger.warning(f"无法使用下载器类型 '{self.downloader_type}': {e}，回退到默认配置")
 
-        # 方式2: 使用 DOWNLOADER 完整类路径（兼容旧版本）
-        # 如果没有配置下载器，使用默认下载器
         if not self.downloader_path:
             from crawlo.downloader import HttpXDownloader
             return HttpXDownloader
@@ -194,22 +186,13 @@ class Engine(RequestGenerationMixin, ClusterMixin):
 
     def engine_start(self):
         self.running = True
-        # 使用初始化时获取的版本配置
         self.logger.debug(f"Crawlo框架已启动 {self.version}")
 
+    # ======================================================================
+    # 生命周期：start_spider / crawl / close_spider
+    # ======================================================================
     async def start_spider(self, spider, resume=None):
-        """启动单个 Spider。
-
-        Args:
-            spider: Spider 实例
-            resume: 检查点恢复策略
-                - ``None``（默认）：跟随 settings 的 ``CHECKPOINT_ENABLED`` 配置
-                - ``True``：强制尝试恢复检查点（即使 CHECKPOINT_ENABLED=False）
-                - ``False``：强制不从检查点恢复，忽略已有检查点文件
-        """
         self.spider = spider
-
-        # 解析 resume 默认值：跟随 CHECKPOINT_ENABLED，只有显式 True/False 才覆盖
         if resume is None:
             resume = bool(safe_get_config(self.settings, 'CHECKPOINT_ENABLED', False, bool))
 
@@ -218,9 +201,7 @@ class Engine(RequestGenerationMixin, ClusterMixin):
             if asyncio.iscoroutinefunction(self.scheduler.open):
                 await self.scheduler.open()
             else:
-                # 确保同步方法被正确调用
                 result = self.scheduler.open()
-                # 只有在result是协程时才await
                 if result is not None and asyncio.iscoroutine(result):
                     await result
 
@@ -229,7 +210,6 @@ class Engine(RequestGenerationMixin, ClusterMixin):
         if hasattr(self.downloader, 'open'):
             self.downloader.open()
 
-        # 注册下载器到资源管理器
         if hasattr(self.crawler, '_resource_manager') and self.downloader is not None:
             from crawlo.utils.resource_manager import ResourceType
             self.crawler._resource_manager.register(
@@ -243,28 +223,19 @@ class Engine(RequestGenerationMixin, ClusterMixin):
         self.processor = Processor(self.crawler)
         if hasattr(self.processor, 'open'):
             await self.processor.open()
-        # 在处理器初始化之后初始化扩展管理器，确保日志输出顺序正确
-        # 中间件 -> 管道 -> 扩展
         if not hasattr(self.crawler, 'extension') or not self.crawler.extension:
             self.crawler.extension = self.crawler._create_extension()
 
-        # 启动引擎
         self.engine_start()
-
-        # 初始化集群组件（distributed 模式）
         await self._init_cluster()
 
-        # 检查点恢复：如果存在检查点且 resume=True，从检查点恢复
         checkpoint_resumed = False
         if resume:
             checkpoint_resumed = await self._checkpoint.resume_from_checkpoint(spider, self.scheduler)
             if checkpoint_resumed:
-                # 跳过 start_requests（检查点中已包含未完成的请求）
                 self._start_requests_source = None
 
         if not checkpoint_resumed:
-            # 正常流程：从 start_requests 开始（流式，不物化）
-            # 分布式模式：SETNX 选举种子生成器 + 锁续期 + 崩溃恢复
             is_seed_generator = True
             run_mode = safe_get_config(self.settings, 'RUN_MODE', 'standalone')
             if run_mode == 'distributed' and self._cluster_state.redis:
@@ -272,9 +243,6 @@ class Engine(RequestGenerationMixin, ClusterMixin):
                 spider_name = safe_get_config(self.settings, 'SPIDER_NAME', 'default')
                 seed_lock_key = f"crawlo:{project}:{spider_name}:seed:generator"
 
-                # 修复：原实现 get-check-delete-set 三步非原子，两个 Worker 可能同时清锁同时抢锁
-                # 改用 Lua 脚本：若锁 owner 不在 registry 中（死锁），则删除并尝试 SETNX
-                # Lua 脚本在 Redis 单实例上是原子执行的，消除竞态窗口
                 acquired = await self._try_acquire_seed_lock_atomic(
                     seed_lock_key, project, spider_name
                 )
@@ -287,7 +255,6 @@ class Engine(RequestGenerationMixin, ClusterMixin):
                         f"seed URLs, skipping start_requests"
                     )
                 else:
-                    # 启动锁续期任务：每 60 秒延长 TTL
                     self._seed_lock_key = seed_lock_key
                     self._seed_renewal_task = asyncio.create_task(self._renew_seed_lock())
 
@@ -316,200 +283,16 @@ class Engine(RequestGenerationMixin, ClusterMixin):
             await self._cleanup_crawl(generation_task)
 
     def _setup_generation(self):
-        """创建请求生成后台任务"""
         if self._start_requests_source is not None and self.enable_controlled_generation:
             self.logger.debug("创建受控请求生成任务")
             return asyncio.create_task(self._controlled_request_generation())
         self.logger.debug("创建传统请求生成任务")
         return asyncio.create_task(self._traditional_request_generation())
 
-    async def _run_main_loop(self):
-        """主爬取循环：获取请求 → 流控 → 派发 → 空闲检测"""
-        loop_count = 0
-        last_exit_check = 0
-        last_component_states = None
-        batch_size = max(self.task_manager._concurrency_limit, 10)
-        idle_count = 0
-        max_inflight = self.task_manager._concurrency_limit + 3
-        exit_check_interval, min_ci, max_ci = 10, 5, 20
-
-        while self.running:
-            loop_count += 1
-
-            if self._cluster_state.messenger and self._cluster_state.dynamic_config:
-                if not await self._check_control_state():
-                    break
-                if self._cluster_state.paused:
-                    await asyncio.sleep(0.5)
-                    continue
-
-            # 批量获取请求
-            requests = []
-            for _ in range(batch_size):
-                if request := await self._get_next_request():
-                    requests.append(request)
-                else:
-                    break
-
-            if requests:
-                idle_count = 0
-                await self._dispatch_requests(requests, max_inflight)
-                exit_check_interval = min(exit_check_interval + 1, max_ci)
-            else:
-                idle_count += 1
-                run_mode = safe_get_config(self.settings, 'RUN_MODE', 'standalone')
-                if run_mode == 'distributed' and self._start_requests_source is None:
-                    if await self._handle_distributed_idle(idle_count):
-                        break
-                    continue
-
-                if idle_count == 1:
-                    should_exit, last_component_states = await self._should_exit(last_component_states)
-                    if should_exit:
-                        await asyncio.sleep(0.001)
-                        if await self._check_all_idle():
-                            break
-                    last_exit_check = loop_count
-                exit_check_interval = max(exit_check_interval - 1, min_ci)
-
-            if loop_count - last_exit_check >= exit_check_interval:
-                should_exit, last_component_states = await self._should_exit(last_component_states)
-                if should_exit:
-                    break
-                last_exit_check = loop_count
-
-            if requests:
-                await asyncio.sleep(0.000001)
-            else:
-                try:
-                    await asyncio.wait_for(
-                        self._request_available.wait(),
-                        timeout=0.5 if idle_count > 10 else 0.1
-                    )
-                    self._request_available.clear()
-                except asyncio.TimeoutError:
-                    pass
-
-        self.logger.debug(f"主爬取循环结束，总共执行了 {loop_count} 次")
-
-    async def _check_control_state(self) -> bool:
-        """检查集群控制状态，返回 True 继续运行"""
-        try:
-            state = await self._cluster_state.dynamic_config.get_control_state()
-            if state == "paused":
-                self._cluster_state.paused = True
-            elif state == "running":
-                self._cluster_state.paused = False
-            elif state == "shutdown":
-                self.logger.warning("Persistent shutdown state detected, exiting")
-                self.running = False
-                return False
-        except Exception:
-            pass
-        return True
-
-    async def _dispatch_requests(self, requests, max_inflight):
-        """派发请求，控制并发流控"""
-        self._request_available.clear()
-        for req in requests:
-            if len(self._background_tasks) >= max_inflight:
-                if not getattr(self, '_fc_logged', False):
-                    self.logger.debug(
-                        f"[流控] 在途={len(self._background_tasks)}/{max_inflight}，等待释放后派发"
-                    )
-                    self._fc_logged = True
-                while len(self._background_tasks) >= max_inflight:
-                    await asyncio.sleep(0.01)
-            else:
-                self._fc_logged = False
-            self._create_background_task(self._crawl(req))
-
-    async def _handle_distributed_idle(self, idle_count: int) -> bool:
-        """分布式模式下的空闲处理，返回 True 表示应退出
-
-        集成主动 XCLAIM 扫描（双层回收的主动层）：
-        - 累计 idle 时间达到阈值后，扫描 stale pending 消息并重新入队
-        - 回收到消息时重置 idle 计时器，避免在新任务消费前超时退出
-        """
-        if self._worker_idle_timeout > 0:
-            if self._idle_since is not None:
-                remaining = self._worker_idle_timeout - (time.monotonic() - self._idle_since)
-            else:
-                remaining = self._worker_idle_timeout
-            if remaining <= 0:
-                self.logger.info(f"Worker idle for {self._worker_idle_timeout}s, exiting")
-                return True
-        else:
-            remaining = 30.0
-
-        wait_timeout = min(30.0, max(1.0, remaining))
-        scan_start = time.monotonic()
-        request = await self.scheduler.next_request_blocking(timeout=wait_timeout)
-        actual_wait = time.monotonic() - scan_start
-
-        if request:
-            self._idle_since = None
-            self._idle_scan_counter = 0.0
-            self._create_background_task(self._crawl(request))
-        else:
-            if self._idle_since is None:
-                self._idle_since = time.monotonic()
-
-            # 主动 XCLAIM 扫描：累计 idle 时间达到阈值后触发一次扫描
-            self._idle_scan_counter += actual_wait
-            if self._idle_scan_counter >= self._distributed_idle_xclaim_scan_interval:
-                self._idle_scan_counter = 0.0
-                claimed = await self._try_claim_stale_pending()
-                if claimed > 0:
-                    # 回收到消息已重新入队，重置 idle 计时器等待消费
-                    self._idle_since = None
-
-            # idle 超时检查（_idle_since 可能被扫描回收重置为 None，此时跳过）
-            if self._worker_idle_timeout > 0 and self._idle_since is not None:
-                if time.monotonic() - self._idle_since >= self._worker_idle_timeout:
-                    self.logger.info(
-                        f"Distributed worker idle for {self._worker_idle_timeout}s, exiting"
-                    )
-                    return True
-        return False
-
-    async def _try_claim_stale_pending(self) -> int:
-        """主动扫描并回收 stale pending 消息（分布式 idle 期间调用）。
-
-        通过 scheduler.queue_manager._queue 访问底层 RedisStreamQueue，
-        调用其 claim_stale_pending 方法将 stale 消息重新入队。
-
-        Returns:
-            成功重新入队的消息数（0 表示无可回收或非 Stream 队列）
-        """
-        try:
-            queue_manager = getattr(self.scheduler, 'queue_manager', None)
-            if queue_manager is None:
-                return 0
-            inner = getattr(queue_manager, '_queue', None)
-            if inner is None or not hasattr(inner, 'claim_stale_pending'):
-                return 0
-            claimed = await inner.claim_stale_pending(
-                min_idle_sec=self._distributed_idle_xclaim_min_idle,
-                count=self._distributed_idle_xclaim_batch,
-            )
-            if claimed > 0:
-                self.logger.info(
-                    f"Actively claimed {claimed} stale pending tasks during idle, "
-                    f"re-enqueued for processing"
-                )
-                # 唤醒主循环以消费重新入队的任务
-                self._request_available.set()
-            return claimed
-        except Exception as e:
-            self.logger.debug(f"Stale pending scan failed: {e}")
-            return 0
-
     async def _cleanup_crawl(self, generation_task):
         """crawl() 退出后的清理工作"""
         self.running = False
 
-        # 停止种子锁续期
         if self._seed_renewal_task and not self._seed_renewal_task.done():
             self._seed_renewal_task.cancel()
             try:
@@ -543,13 +326,14 @@ class Engine(RequestGenerationMixin, ClusterMixin):
 
     async def _open_spider(self):
         self._create_background_task(self.crawler.subscriber.notify(CrawlerEvent.SPIDER_OPENED))
-        # 直接调用crawl方法而不是创建任务，确保等待完成
         await self.crawl()
 
+    # ======================================================================
+    # 请求级处理（_crawl / _fetch）
+    # ======================================================================
     async def _crawl(self, request):
         async def crawl_task():
             start_time = time.time()
-            _last_error = None  # Capture error for distributed NACK
             try:
                 outputs = await self._fetch(request)
                 response_time = time.time() - start_time
@@ -563,14 +347,12 @@ class Engine(RequestGenerationMixin, ClusterMixin):
                 if outputs and not isinstance(outputs, Failure):
                     await self._handle_spider_output(outputs, request)
 
-                # Distributed ACK: success
                 await _ack_message(request, self, success=True)
 
             except asyncio.CancelledError:
                 await _ack_message(request, self, success=False)
                 raise
             except Exception as e:
-                _last_error = e
                 self.logger.error(
                     f"处理请求失败: {getattr(request, 'url', 'Unknown URL')} - {type(e).__name__}: {e}",
                     exc_info=True
@@ -593,7 +375,6 @@ class Engine(RequestGenerationMixin, ClusterMixin):
                             f"{type(errback_error).__name__}: {errback_error}"
                         )
 
-                # Distributed NACK: failure
                 await _ack_message(request, self, success=False, error=e)
 
                 if ErrorClassifier.is_critical(e):
@@ -602,27 +383,18 @@ class Engine(RequestGenerationMixin, ClusterMixin):
 
                 return None
 
-        # 使用异步任务创建，遵守并发限制
         if self.task_manager:
             coro = crawl_task()
             try:
-                # 创建后台任务但不等待完成（fire-and-forget），
-                # 让多个浏览器请求真正并发执行。
-                # task_manager 的信号量控制并发上限，
-                # done_callback 负责释放信号量。
                 await self.task_manager.create_task_nowait(coro)
             except asyncio.CancelledError:
-                # 只在第一次取消时打印日志，避免重复
                 if not getattr(self, '_cancel_logged', False):
                     self.logger.info("爬取任务被取消")
                     self._cancel_logged = True
-                # 确保协程被正确关闭，避免 RuntimeWarning
                 coro.close()
-                # 重新抛出CancelledError以便调用者可以正确处理
                 raise
             except Exception as e:
                 self.logger.error(f"创建爬取任务时发生错误: {e}")
-                # 确保协程被正确关闭
                 coro.close()
 
     async def _fetch(self, request):
@@ -653,16 +425,18 @@ class Engine(RequestGenerationMixin, ClusterMixin):
         )
         return output
 
+    # ======================================================================
+    # Request 入队 / 获取（小工具，不移出）
+    # ======================================================================
     async def enqueue_request(self, start_request):
         if self.scheduler is not None:
             await self._schedule_request(start_request)
         else:
-            # 修复：移除 emoji，避免影响日志 grep/解析
             self.logger.warning("Scheduler 未初始化，无法入队请求")
 
     async def _schedule_request(self, request):
         if self.scheduler is not None and await self.scheduler.enqueue_request(request):
-            self._request_available.set()  # 唤醒主循环
+            self._request_available.set()
             if self.crawler is not None and self.crawler.spider is not None:
                 self._create_background_task(self.crawler.subscriber.notify(CrawlerEvent.REQUEST_SCHEDULED, request, self.crawler.spider))
 
@@ -671,83 +445,43 @@ class Engine(RequestGenerationMixin, ClusterMixin):
             return await self.scheduler.next_request()
         return None
 
-    async def _check_components_idle(self, include_background: bool = False) -> tuple[bool, bool, bool, bool, bool]:
-        """统一检查各组件是否空闲（消除 _exit / _should_exit 代码重复）
+    # ======================================================================
+    # 薄代理：DistributedCoordinator
+    # ======================================================================
+    async def _check_control_state(self) -> bool:
+        return await self._distributed.check_control_state()
 
-        Returns:
-            (scheduler_idle, downloader_idle, task_manager_done, processor_idle, background_tasks_done)
-        """
-        scheduler_idle = False
-        downloader_idle = False
-        task_manager_done = False
-        processor_idle = False
-        background_tasks_done = False
+    async def _handle_distributed_idle(self, idle_count: int) -> bool:
+        return await self._distributed.handle_distributed_idle(idle_count)
 
-        if self.scheduler is not None:
-            scheduler_idle = await self.scheduler.async_idle()
-        if self.downloader is not None:
-            downloader_idle = self.downloader.idle()
-        if self.task_manager is not None:
-            task_manager_done = self.task_manager.all_done()
-        if self.processor is not None:
-            processor_idle = await self.processor.idle_async()
-        if include_background:
-            background_tasks_done = len(self._background_tasks) == 0
+    async def _try_claim_stale_pending(self) -> int:
+        return await self._distributed.try_claim_stale_pending()
 
-        return scheduler_idle, downloader_idle, task_manager_done, processor_idle, background_tasks_done
+    # ======================================================================
+    # 薄代理：RequestDispatcher
+    # ======================================================================
+    async def _run_main_loop(self):
+        return await self._dispatcher.run_main_loop()
 
-    async def _exit(self):
-        """快速退出检查（4 组件，不含 background_tasks，有 pending enqueue 时不退出）"""
-        s, d, t, p, _ = await self._check_components_idle(include_background=False)
-        return s and d and t and p and not has_pending_enqueues(self.scheduler)
+    async def _dispatch_requests(self, requests, max_inflight):
+        return await self._dispatcher.dispatch_requests(requests, max_inflight)
+
+    async def _check_components_idle(self, include_background: bool = False):
+        return await self._dispatcher.check_components_idle(include_background)
+
+    async def _exit(self) -> bool:
+        return await self._dispatcher.exit_fast()
 
     async def _check_all_idle(self) -> bool:
-        """二次确认所有组件是否仍然空闲（用于瞬时空闲误判）"""
-        return await self._exit()
+        return await self._dispatcher.check_all_idle()
 
-    async def _should_exit(self, last_component_states=None) -> tuple[bool, tuple]:
-        """检查是否应该退出（5 组件 + start_requests 判断）
+    async def _should_exit(self, last_component_states=None):
+        return await self._dispatcher.should_exit(last_component_states)
 
-        standalone / auto 模式：队列空 + 所有组件空闲 → 正常退出
-        distributed 模式：不因队列空退出，由 BZPOPMIN 超时 + idle_timeout 决定
-
-        注意：auto 模式即使检测到 Redis 并切换为 Redis 队列，
-             仍然按单机逻辑退出（auto 只是根据环境自动选队列类型，不是常驻 Worker）
-
-        Args:
-            last_component_states: 上次的组件状态元组，用于减少冗余日志
-
-        Returns:
-            tuple: (should_exit, current_states)
-        """
-        # 分布式模式不因"组件空闲"退出，由 BZPOPMIN 超时 + idle_timeout 决定
-        # 如果将来 _should_exit 增加致命错误等退出条件，需要细化判断，仅跳过"队列空"相关条件
-        run_mode = safe_get_config(self.settings, 'RUN_MODE', 'standalone')
-        if run_mode == 'distributed':
-            return False, None
-
-        if self._start_requests_source is None:
-            s, d, t, p, bg = await self._check_components_idle(include_background=True)
-            current_states = (s, d, t, p, bg)
-
-            if current_states != last_component_states:
-                self.logger.debug(
-                    f"组件状态变化 - Scheduler: {s}, "
-                    f"Downloader: {d}, TaskManager: {t}, "
-                    f"Processor: {p}, BackgroundTasks: {bg}"
-                )
-
-            if s and d and t and p and bg and not has_pending_enqueues(self.scheduler):
-                self.logger.info("All components are idle, preparing to exit")
-                return True, current_states
-        else:
-            self.logger.debug("start_requests 不为 None，不退出")
-            current_states = None
-
-        return False, current_states
-
+    # ======================================================================
+    # close_spider（生命周期，保留）
+    # ======================================================================
     async def close_spider(self, reason='finished'):
-        # 幂等保护：防止 close_spider 被重复调用
         if self._spider_closed:
             self.logger.debug("close_spider already called, skipping")
             return
@@ -755,7 +489,6 @@ class Engine(RequestGenerationMixin, ClusterMixin):
         self._close_reason = reason
 
         try:
-            # 仅在非正常退出时等待活跃任务完成
             if reason != 'finished' and self.task_manager is not None and self.task_manager.current_task:
                 self.logger.debug(f"Waiting for {len(self.task_manager.current_task)} active tasks to complete...")
                 try:
@@ -765,7 +498,6 @@ class Engine(RequestGenerationMixin, ClusterMixin):
                 except Exception as e:
                     self.logger.debug(f"Task manager gather completed with errors: {e}")
 
-            # 检查点保存：Ctrl+C 触发的关闭时保存状态
             if reason == 'shutdown':
                 await self._checkpoint.save_checkpoint(
                     self.scheduler, self.spider,
@@ -773,26 +505,21 @@ class Engine(RequestGenerationMixin, ClusterMixin):
                     self.checkpoint_save_on_signal,
                 )
 
-            # 正常完成时清除检查点
             if reason == 'finished':
                 await self._checkpoint.clear_checkpoint(self.spider)
 
-            # 关闭 pipeline（刷新批量数据、清理资源）
             if self.processor is not None and hasattr(self.processor, 'pipelines'):
                 await self.processor.pipelines.close()
 
-            # 清理过期日志文件（Phase 3：直接调用 LogManager，不再经过 Engine 包装方法）
             try:
                 from crawlo.logging import LogManager
                 LogManager().cleanup_old_logs(days=self.days)
             except Exception as e:
                 self.logger.error(f"Failed to clean up expired log files: {e}")
 
-            # 关闭下载器（带超时保护，超时后取消内部协程防止资源泄漏）
             if self.downloader is not None and hasattr(self.downloader, 'close'):
                 try:
                     close_result = self.downloader.close()
-                    # 如果是协程，使用超时等待
                     if asyncio.iscoroutine(close_result):
                         close_task = asyncio.ensure_future(close_result)
                         try:
@@ -803,16 +530,14 @@ class Engine(RequestGenerationMixin, ClusterMixin):
                                 await close_task
                             except asyncio.CancelledError:
                                 pass
-                            raise  # 重新抛给外层 except 处理
+                            raise
                 except asyncio.TimeoutError:
                     self.logger.warning("下载器关闭超时，强制清理资源")
                 except Exception as e:
                     self.logger.debug(f"下载器关闭时发生错误: {e}")
 
-            # 关闭集群组件（heartbeat + failover + deregister）
             await self._shutdown_cluster()
 
-            # 关闭调度器（带超时保护，超时后取消内部协程防止资源泄漏）
             if self.scheduler is not None:
                 try:
                     close_task = asyncio.ensure_future(self.scheduler.close())
@@ -824,15 +549,13 @@ class Engine(RequestGenerationMixin, ClusterMixin):
                             await close_task
                         except asyncio.CancelledError:
                             pass
-                        raise  # 重新抛给外层 except 处理
+                        raise
                 except asyncio.TimeoutError:
                     self.logger.warning("调度器关闭超时")
                 except Exception as e:
                     self.logger.debug(f"调度器关闭时发生错误: {e}")
         except (Exception, asyncio.CancelledError):
-            # 清理失败，重置标志允许重试
             self._spider_closed = False
-            # 即使清理异常也尝试通知扩展（fire-and-forget，不计入 _background_tasks）
             try:
                 if self.crawler is not None and self.crawler.subscriber is not None:
                     from crawlo.event import CrawlerEvent
@@ -845,15 +568,10 @@ class Engine(RequestGenerationMixin, ClusterMixin):
                 pass
             raise
 
-    # Phase 3：检查点三方法（_try_resume_from_checkpoint / _save_checkpoint /
-    # _clear_checkpoint）与日志清理（_cleanup_old_logs）已迁出：
-    #   - 检查点 → CheckpointCoordinator（组合，self._checkpoint）
-    #   - 日志清理 → LogManager.cleanup_old_logs（直接调用）
-    #   - 种子锁 → ClusterMixin（_SEED_LOCK_LUA / _renew_seed_lock /
-    #     _try_acquire_seed_lock_atomic，本就属于分布式协调职责）
-
+    # ======================================================================
+    # Public API
+    # ======================================================================
     def get_generation_stats(self) -> dict:
-        """获取生成统计"""
         return {
             **self._generation_stats.to_dict(),
             'queue_size': safe_queue_size(self.scheduler),

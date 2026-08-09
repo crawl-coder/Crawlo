@@ -9,7 +9,6 @@ Author: Crawlo Framework Team
 """
 
 import time
-import asyncio
 from typing import Optional, Dict, Any
 from collections import deque
 from .metrics_collector import BackpressureMetricsCollector, QueueMetrics

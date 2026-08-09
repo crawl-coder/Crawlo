@@ -21,7 +21,7 @@
 """
 
 import asyncio
-from typing import Dict, Any, Optional
+from typing import Dict, Any
 from crawlo.logging import get_logger
 
 

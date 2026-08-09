@@ -5,9 +5,8 @@
 ==============
 IExtension（扩展接口）。
 """
-from abc import abstractmethod
 from typing import (
-    Type, Protocol, runtime_checkable, TYPE_CHECKING
+    Protocol, runtime_checkable, TYPE_CHECKING
 )
 
 if TYPE_CHECKING:

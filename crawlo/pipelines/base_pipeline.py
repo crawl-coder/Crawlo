@@ -91,51 +91,167 @@ class BasePipeline(ABC):
         return cls.from_crawler(crawler)
 
 
+class _StubStats:
+    """
+    空实现 Stats backend。
+
+    当 Pipeline 在 close / 重入 cleanup 破环阶段已失去对真实 Crawler 的引用后，
+    self.crawler.stats 会返回本 stub，保证所有 ``self.crawler.stats.inc_value(...)``
+    / ``set_value`` / ``get_value`` 调用静默 no-op，不抛 AttributeError。
+    """
+
+    __slots__ = ()
+
+    def inc_value(self, key: str, count: int = 1, *args, **kwargs) -> None:  # type: ignore[override]
+        return None
+
+    def set_value(self, key: str, value, *args, **kwargs) -> None:  # type: ignore[override]
+        return None
+
+    def get_value(self, key: str, default=None, *args, **kwargs):  # type: ignore[override]
+        return default
+
+    def get_stats(self, *args, **kwargs) -> dict:  # type: ignore[override]
+        return {}
+
+
+_STUB_STATS = _StubStats()
+
+
+class _StubSettings:
+    """
+    Settings 对象的空实现：get_* 全部返回用户传入的 default（get 返回 None，如未传）。
+
+    保证：破环阶段 self.settings 被释放后，代码里任何 self.settings.get_int(..., fallback)
+    仍能正常返回 fallback，不再出现 AttributeError / NoneType 访问。
+    """
+
+    __slots__ = ()
+
+    def get(self, key: str, default=None, *args, **kwargs):  # type: ignore[override]
+        return default
+
+    def get_int(self, key: str, default: int = 0, *args, **kwargs) -> int:  # type: ignore[override]
+        return default
+
+    def get_bool(self, key: str, default: bool = False, *args, **kwargs) -> bool:  # type: ignore[override]
+        return default
+
+    def get_float(self, key: str, default: float = 0.0, *args, **kwargs) -> float:  # type: ignore[override]
+        return default
+
+    def get_list(self, key: str, default=None, *args, **kwargs):  # type: ignore[override]
+        return default if default is not None else []
+
+    def get_dict(self, key: str, default=None, *args, **kwargs):  # type: ignore[override]
+        return default if default is not None else {}
+
+    def __contains__(self, key: str) -> bool:  # type: ignore[override]
+        return False
+
+    def __getitem__(self, key: str):  # type: ignore[override]
+        raise KeyError(key)
+
+
+_STUB_SETTINGS = _StubSettings()
+
+
+class _StubCrawler:
+    """
+    Crawler=None 时的 Stub，配合 self.crawler 属性返回。
+
+    保证 pipeline.crawler.stats → _STUB_STATS；pipeline.crawler.spider → None；
+    pipeline.crawler.settings → _STUB_SETTINGS。破环后再写 stats / 读 settings 不崩。
+    """
+
+    __slots__ = ()
+    stats = _STUB_STATS
+    spider = None
+    settings = _STUB_SETTINGS
+
+
+_STUB_CRAWLER = _StubCrawler()
+
+
 class ResourceManagedPipeline(BasePipeline):
     """
     资源管理Pipeline基类
-    
+
     提供统一的资源管理功能，自动注册到ResourceManager
-    
+
     特性：
     - 自动资源清理
     - LIFO清理顺序
     - 异常容错
     - 批量数据刷新
+    - 安全属性：破环阶段 self.crawler / self.settings / self.stats 自动切到
+      Stub 对象，不再抛 AttributeError（保证 close_spider / flush 收尾不崩）。
     """
-    
+
     def __init__(self, crawler):
         """
         初始化Pipeline
-        
+
         Args:
             crawler: Crawler实例
         """
-        self.crawler = crawler
-        self.settings = crawler.settings
+        self._crawler_ref = crawler
+        self._settings_ref = crawler.settings if crawler is not None else None
         self.logger = get_logger(
             self.__class__.__name__
         )
-        
         # 资源管理器
         self._resource_manager = ResourceManager(
             name=f"pipeline.{self.__class__.__name__}"
         )
-        
+
         # 初始化标志
         self._initialized = False
         self._init_lock = asyncio.Lock()
-        
+
         # 批量缓冲区（子类可选使用）
         self.batch_buffer = []
         self.batch_size = self.settings.get_int('PIPELINE_BATCH_SIZE', 100)
         self.use_batch = self.settings.get_bool('PIPELINE_USE_BATCH', False)
-        
+
         # 防重复清理标志（_on_spider_closed 和 PipelineManager.close 都会触发清理）
         self._cleaned_up = False
-        
+
         self.logger.debug(f"{self.__class__.__name__} 已初始化")
-    
+
+    # ---- 安全属性：crawler / settings / stats 在破环后切 Stub ----
+
+    @property
+    def crawler(self):
+        """返回 Crawler 引用；引用已释放时返回 _STUB_CRAWLER（不抛 AttributeError）。"""
+        return self._crawler_ref if self._crawler_ref is not None else _STUB_CRAWLER
+
+    @crawler.setter
+    def crawler(self, value):
+        # PipelineManager.close 破环阶段会写 self.crawler=None；这里同步释放 settings_ref
+        self._crawler_ref = value
+        if value is None:
+            self._settings_ref = None
+        else:
+            self._settings_ref = getattr(value, 'settings', self._settings_ref)
+
+    @property
+    def settings(self):
+        return self._settings_ref if self._settings_ref is not None else _STUB_SETTINGS
+
+    @settings.setter
+    def settings(self, value):
+        self._settings_ref = value
+
+    @property
+    def stats(self):
+        """便捷属性：self.stats 等价于 self.crawler.stats"""
+        crawler = self._crawler_ref
+        if crawler is None:
+            return _STUB_STATS
+        s = getattr(crawler, 'stats', None)
+        return s if s is not None else _STUB_STATS
+
     async def _ensure_initialized(self):
         """确保资源已初始化（DCL 模式）"""
         return await self._ensure_lazy_init('_initialized', '_init_lock', self._initialize_resources)
@@ -176,7 +292,6 @@ class ResourceManagedPipeline(BasePipeline):
                 name="db_pool"
             )
         """
-        pass
     
     @abstractmethod
     async def _cleanup_resources(self):
@@ -185,7 +300,6 @@ class ResourceManagedPipeline(BasePipeline):
         
         通常由ResourceManager自动调用，但也可以手动实现额外清理逻辑
         """
-        pass
     
     async def _flush_batch(self, spider: Spider):
         """
@@ -516,12 +630,10 @@ class FileBasedPipeline(ResourceManagedPipeline):
     async def _initialize_resources(self):
         """初始化文件资源"""
         # 子类应该调用 _open_file() 来打开文件
-        pass
     
     async def _cleanup_resources(self):
         """清理由ResourceManager管理的资源"""
         # 文件句柄由ResourceManager自动清理
-        pass
 
 
 class ConnectablePipeline(ResourceManagedPipeline):

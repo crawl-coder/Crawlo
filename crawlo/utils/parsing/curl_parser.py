@@ -6,8 +6,8 @@ curl 命令解析器
 """
 import json
 import shlex
-from typing import Any, Dict, Optional, Tuple
-from urllib.parse import parse_qs, unquote_plus
+from typing import Any, Dict
+from urllib.parse import unquote_plus
 
 from crawlo.logging import get_logger
 from crawlo.http.request import Request

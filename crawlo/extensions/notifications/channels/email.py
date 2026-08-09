@@ -11,7 +11,6 @@ import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from email.header import Header
-from typing import Dict, Any, Optional
 
 from crawlo.logging import get_logger
 from crawlo.extensions.notifications.channels.base import NotificationChannel

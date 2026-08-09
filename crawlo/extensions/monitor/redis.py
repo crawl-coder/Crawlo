@@ -7,7 +7,6 @@ Monitor Redis connection pool and performance
 import asyncio
 from typing import Any, Optional, Tuple
 
-from crawlo.event import CrawlerEvent
 from .base import BaseMonitorExtension
 
 

@@ -20,7 +20,7 @@ Optimizations:
 - Detailed match logging: Facilitate debugging and monitoring
 """
 from difflib import SequenceMatcher
-from typing import Dict, List, Optional, Tuple, Set
+from typing import Dict, List, Optional, Set
 
 from lxml.html import HtmlElement
 

@@ -22,7 +22,6 @@ class NotificationDemo:
     
     def __init__(self):
         """初始化通知演示"""
-        pass
     
     async def demo_basic_notifications(self):
         """演示基础通知功能"""

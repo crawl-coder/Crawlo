@@ -10,7 +10,7 @@
 3. 利用 flags 标记追踪请求状态
 4. 组合使用 errback + cb_kwargs 传递业务参数
 """
-from crawlo import Spider, Request, Item, Field
+from crawlo import Spider, Request
 
 
 class SmartRetrySpider(Spider):
@@ -69,7 +69,7 @@ class SmartRetrySpider(Spider):
 
         # 1. 提取原始上下文
         endpoint = req.meta.get('endpoint', '')
-        priority = req.meta.get('priority', 'normal')
+        req.meta.get('priority', 'normal')
         flags = getattr(req, 'flags', [])
         cb_kwargs = getattr(req, 'cb_kwargs', {}).copy()
 

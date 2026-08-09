@@ -11,10 +11,17 @@ from crawlo.logging import get_logger
 from crawlo.event import CrawlerEvent
 from .monitor.monitor_manager import get_monitor_manager
 
+try:
+    from crawlo.extensions.notifications import async_send_crawler_alert, ChannelType
+    _NOTIFY_AVAILABLE = True
+except ImportError:
+    _NOTIFY_AVAILABLE = False
+
 
 class LogIntervalExtension:
 
     def __init__(self, crawler: Any):
+        self.crawler = crawler
         self.enabled = True   # 始终启用，不受 SCHEDULER_ENABLED 影响
         self.task: Optional[asyncio.Task] = None
         self.stats = crawler.stats
@@ -36,6 +43,7 @@ class LogIntervalExtension:
             self.interval_display = str(self.interval)
 
         self.logger = get_logger(self.__class__.__name__)
+        self._backlog_alert_sent = False
         self.logger.info(f"LogIntervalExtension initialized: INTERVAL={self.seconds} seconds")
 
     @classmethod
@@ -285,8 +293,31 @@ class LogIntervalExtension:
                 # 写入 StatsCollector，供 Prometheus 等后端暴露
                 try:
                     self.stats.set_value('queue_size', queue_size)
-                except Exception:
-                    pass
+                    self.stats.set_value('queue/backlog', queue_size)
+                    self._write_p99_metrics()
+                except Exception as _e:
+                    self.logger.debug(f"write D-direction gauges skipped: {_e}")
+
+                # 队列积压告警：queue/backlog > 80% SCHEDULER_MAX_QUEUE_SIZE
+                if _NOTIFY_AVAILABLE and queue_size is not None:
+                    max_queue = self.crawler.settings.get_int('SCHEDULER_MAX_QUEUE_SIZE', 0)
+                    if max_queue > 0 and queue_size > max_queue * 0.8:
+                        if not self._backlog_alert_sent:
+                            self._backlog_alert_sent = True
+                            try:
+                                await async_send_crawler_alert(
+                                    title="队列积压告警",
+                                    content=(
+                                        f"队列积压 {queue_size} (>80% MaxQueueSize={max_queue}) "
+                                        f"— 检查下游 Pipeline 是否阻塞或并发不足"
+                                    ),
+                                    channel=ChannelType.DINGTALK,
+                                )
+                            except Exception as e:
+                                self.logger.debug(f"Failed to send backlog alert: {e}")
+                    else:
+                        self._backlog_alert_sent = False  # 积压缓解后重置
+
                 # 智能检测：爬虫闲置时静默跳过
                 if item_rate == 0 and response_rate == 0 and queue_size == 0:
                     await asyncio.sleep(self.seconds)
@@ -349,3 +380,53 @@ class LogIntervalExtension:
             debug_info += f", pending={pending_count}"
         debug_info += f", next_log_in={self.seconds}s"
         self.logger.debug(debug_info)
+
+    # ---- 组件属性 → Stats gauge 辅助方法 ----
+
+    def _find_engine(self, crawler):
+        """沿着 Crawler → engine 定位 Engine；找不到返回 None。"""
+        engine = getattr(crawler, 'engine', None)
+        if engine is None:
+            engine = getattr(crawler, '_engine', None)
+        return engine
+
+    def _write_p99_metrics(self) -> None:
+        """从 Engine.downloader / processor.pipelines 暴露的 p99 属性写入 stats。"""
+        crawler = getattr(self, 'crawler', None)
+        if crawler is None:
+            return
+        engine = self._find_engine(crawler)
+        if engine is None:
+            return
+        # downloader p99
+        dl = getattr(engine, 'downloader', None)
+        if dl is not None:
+            p99 = getattr(dl, 'p99_response_ms', None)
+            if isinstance(p99, (int, float)):
+                try:
+                    self.stats.set_value('downloader/p99_response_ms', float(p99))
+                except Exception:
+                    pass
+        # pipeline p99（取所有 pipeline 的最大值）
+        # 注意：Processor 有 __len__，必须用 is None 判断
+        proc = getattr(engine, 'processor', None)
+        if proc is None:
+            proc = getattr(engine, '_processor', None)
+        if proc is None:
+            return
+        pm = getattr(proc, 'pipelines', None)
+        if pm is None:
+            return
+        ps = getattr(pm, 'pipelines', None) or getattr(pm, '_pipelines', None)
+        if not ps:
+            return
+        try:
+            max_p99 = 0.0
+            for p in ps:
+                v = getattr(p, 'p99_latency_ms', None)
+                if isinstance(v, (int, float)) and v > max_p99:
+                    max_p99 = float(v)
+            if max_p99 > 0:
+                self.stats.set_value('pipeline/item/p99_latency_ms', max_p99)
+        except Exception:
+            pass

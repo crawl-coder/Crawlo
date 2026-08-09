@@ -135,6 +135,7 @@ class PipelineManager:
         self.crawler = crawler
         self.pipelines: List = []
         self.methods: List = []
+        self._closed = False  # PipelineManager.close 幂等标记：防重入时 crawler 属性提前被断
 
         self.logger = get_logger(self.__class__.__name__)
         # 支持字典和列表两种格式
@@ -226,7 +227,19 @@ class PipelineManager:
             create_task(self.crawler.subscriber.notify(CrawlerEvent.ITEM_SUCCESSFUL, item, self.crawler.spider))
 
     async def close(self):
-        """关闭所有 pipeline，清理资源（防重复清理）"""
+        """关闭所有 pipeline，清理资源（防重复清理 + 防重入 + 破环）。
+
+        注意：Crawler._cleanup → resource_manager.cleanup_all() 会触发本函数，同时
+        PipelineManager._cleanup_resources 里注册的 SPIDER_CLOSED 回调/自身注册的
+        resource action 有可能重入调用本函数。在第一次还没遍历完 pipeline 时若发生
+        重入，第二次的「破环阶段」会把 self.pipelines 里所有 pipeline 的 crawler 属性
+        置 None，导致第一次循环后续处理的 pipeline stats 访问失败（AttributeError:
+        'NoneType' has no attribute 'inc_value'）。所以本函数先检查 self._closed 做幂等。
+        """
+        if self._closed:
+            return
+        self._closed = True
+
         for pipeline in self.pipelines:
             try:
                 # 防重复清理（_on_spider_closed 可能已触发过）
@@ -242,7 +255,43 @@ class PipelineManager:
                 # 2. 触发 ResourceManager 清理注册的资源
                 if hasattr(pipeline, '_resource_manager'):
                     await pipeline._resource_manager.cleanup_all()
+                    if hasattr(pipeline._resource_manager, 'clear'):
+                        pipeline._resource_manager.clear()
 
                 pipeline._cleaned_up = True
             except Exception as e:
                 self.logger.error(f"Error closing pipeline {pipeline.__class__.__name__}: {e}")
+
+        # 3. 破环：断开 PipelineManager↔Crawler↔Pipeline↔method 引用。
+        #    只清「能形成对象环」的引用（crawler / spider / pool / resource_manager 等），
+        #    不要清纯数据引用（例如 _stats / _logger）——因为后续 cleanup_all 兜底或
+        #    pipeline 的 errback 可能还写 stats / log，一旦置 None 反而 AttributeError。
+        #    _stats 和 _logger 是 Crawler 的子对象，它们不会反向引用 Pipeline，所以不构成环。
+        self.methods.clear()
+        for p in self.pipelines:
+            # 断开 pipeline 对 crawler / spider 的反向引用
+            for attr in ('crawler', '_crawler', 'spider', '_spider'):
+                try:
+                    setattr(p, attr, None)
+                except Exception:
+                    pass
+            # 断开通向 ResourceManager / helper / pool 的显式引用（有则清）
+            for attr in ('_resource_manager', '_helper', 'pool', '_pool',
+                         '_redis_pool', 'redis', '_redis_client',
+                         '_batch_helper', 'batch_buffer', '_batch',
+                         '_bulk_queue', '_in_flight_tasks'):
+                try:
+                    val = getattr(p, attr, None)
+                    if val is None:
+                        continue
+                    # list / dict / set 就地清，其他置 None
+                    if isinstance(val, (list, dict, set)):
+                        val.clear()
+                    # 断开引用
+                    object.__setattr__(p, attr, None)
+                except Exception:
+                    pass
+        self.pipelines.clear()
+        self.crawler = None  # type: ignore[assignment]
+        # logger 最后清（如果此时还有后续 log 调用，不要报错）
+        self.logger = None  # type: ignore[assignment]

@@ -25,6 +25,7 @@ _commands = {
     'schedule': 'crawlo.commands.schedule',
     'shell': 'crawlo.commands.shell',
     'dead-letter': 'crawlo.commands.dead_letter',
+    'cluster': 'crawlo.commands.cluster',        # P3-B-02 分布式集群管理（state/reset/pause/resume/shutdown）
 }
 
 def get_commands():

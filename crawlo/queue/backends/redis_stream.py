@@ -17,7 +17,6 @@
 Redis 版本要求：基础功能 5.0+，XAUTOCLAIM 需要 6.2+。
 低版本自动降级为 XPENDING + XCLAIM 手动 fallback。
 """
-import asyncio
 import json
 import pickle
 import time
@@ -29,13 +28,11 @@ from crawlo.queue.task_tracker import TaskResult
 from crawlo.utils.redis.stream_utils import (
     detect_redis_version,
     supports_xautoclaim,
-    supports_xstream,
     create_consumer_group_safe,
     stream_read,
     claim_pending_manual,
     get_pending_count,
 )
-from crawlo.utils.redis.keys import RedisKeyManager
 
 
 class RedisStreamQueue:
@@ -658,7 +655,36 @@ class RedisStreamQueue:
             except Exception as e:
                 self.logger.warning(f"Failed to claim stale pending on {stream}: {e}")
 
+        # queue/xclaim/recovered_total Counter
+        if total_recovered > 0:
+            try:
+                stats = self._resolve_stats()
+                if stats is not None:
+                    stats.inc_value('queue/xclaim/recovered_total', count=total_recovered)
+            except Exception:  # 埋点异常不影响回收结果
+                pass
+
         return total_recovered
+
+    def _resolve_stats(self):
+        """尝试通过 queue_manager → scheduler → crawler 拿到 StatsCollector。
+
+        埋点只在需要时解析（fail-safe，任一环缺失都返回 None，不影响功能）。
+        """
+        try:
+            qm = getattr(self, '_queue_manager_ref', None)
+            if qm is None:
+                # 尝试从闭包/上下文里拿：redis_stream 通常被 QueueManager._queue 持有
+                return None
+            scheduler = getattr(qm, '_scheduler_ref', None)
+            if scheduler is None:
+                return None
+            crawler = getattr(scheduler, '_crawler', None)
+            if crawler is None:
+                return None
+            return getattr(crawler, 'stats', None)
+        except Exception:
+            return None
 
     async def pending_info(self) -> Dict[str, Any]:
         """查询 Pending 状态"""

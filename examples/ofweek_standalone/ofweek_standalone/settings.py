@@ -32,9 +32,17 @@ ENABLE_CONTROLLED_REQUEST_GENERATION = True
 BACKPRESSURE_RATIO = 0.5              # 队列利用率达 50% 时触发背压
 BACKPRESSURE_STRATEGY = 'queue_size'  # 队列大小策略
 SCHEDULER_MAX_QUEUE_SIZE = 200         # 小队列让背压更明显
-CONCURRENCY = 4                        # 低并发，让队列容易满
+# 并发数（⚠️ 请在上方 CrawloConfig.standalone(concurrency=N) 中设置，不要在这里重新赋值）
+# 如果需要临时改小，请修改上面 concurrency=12 的参数
 
 DOWNLOADER = "crawlo.downloader.aiohttp_downloader.AioHttpDownloader"
+
+# ===================================
+# 日志 & 监控指标发布周期
+# ===================================
+INTERVAL = 2                                             # 日志 & gauge 发布周期（秒）
+EVENTLOOP_LAG_SAMPLE_INTERVAL = 0.5
+EVENTLOOP_LAG_PUBLISH_INTERVAL = 2
 
 # 爬虫模块配置
 SPIDER_MODULES = ['ofweek_standalone.spiders']

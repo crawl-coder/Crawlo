@@ -143,4 +143,3 @@ class IncomeStatementSpider(Spider):
         #     'publish_time': response.xpath('//time/@datetime').get(),
         # }
 
-        pass

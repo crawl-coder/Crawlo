@@ -7,11 +7,10 @@
 负责分发通知到对应的渠道处理器。
 """
 
-from typing import Dict, List, Optional, Type, Callable
-import threading
+from typing import Dict, Optional
 
 from crawlo.logging import get_logger
-from crawlo.extensions.notifications.core.models import NotificationMessage, NotificationResponse, ChannelType
+from crawlo.extensions.notifications.core.models import NotificationMessage, NotificationResponse
 
 
 logger = get_logger(__name__)

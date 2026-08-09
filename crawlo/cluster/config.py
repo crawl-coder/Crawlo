@@ -14,7 +14,7 @@ Key 设计：
     crawlo:{project}:config:seed_urls      LIST     动态种子 URL
 """
 import json
-from typing import Dict, Any, Optional, List
+from typing import Dict, Optional, List
 
 from crawlo.logging import get_logger
 

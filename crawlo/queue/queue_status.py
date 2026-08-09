@@ -37,7 +37,6 @@ class QueueStatusMixin:
         Returns:
             dict: 队列性能统计信息
         """
-        import asyncio
 
         stats = {
             'queue_type': self._queue_type.value if self._queue_type else 'unknown',  # type: ignore

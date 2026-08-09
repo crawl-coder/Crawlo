@@ -18,7 +18,7 @@ import os
 from abc import ABC, abstractmethod
 from hashlib import sha256
 from threading import RLock
-from typing import Dict, Optional, Any
+from typing import Dict, Optional
 
 from crawlo.logging import get_logger
 from .element_fingerprint import ElementFingerprint, extract_domain_from_url
@@ -54,7 +54,6 @@ class StorageBackend(ABC):
     @abstractmethod
     def close(self) -> None:
         """关闭存储连接"""
-        pass
 
 
 class SqliteStorage(StorageBackend):
@@ -214,7 +213,6 @@ class RedisStorage(StorageBackend):
 
     def close(self) -> None:
         """Redis 连接通常由连接池管理，无需手动关闭"""
-        pass
 
 
 class FingerprintStorage:

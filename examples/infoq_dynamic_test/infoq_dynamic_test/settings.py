@@ -9,7 +9,6 @@ InfoQ AI 快讯动态下载器测试项目配置文件
 2. dynamic_actions 实现"加载更多"点击
 3. XPath 提取 Vue/Nuxt 动态渲染内容
 """
-import os
 from datetime import datetime
 from crawlo.core.config import CrawloConfig
 

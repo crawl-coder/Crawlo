@@ -1294,7 +1294,6 @@ class SettingsInitializer(BaseInitializer):
         start_time = _time_bi.time()
 
         try:
-            from crawlo.settings.setting_manager import SettingManager  # noqa: WPS433
             from crawlo.project import _load_project_settings  # noqa: WPS433
 
             if context.settings:

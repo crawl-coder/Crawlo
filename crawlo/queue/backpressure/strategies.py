@@ -5,8 +5,7 @@
 Provides multiple backpressure strategy implementations.
 """
 import time
-import asyncio
-from typing import TYPE_CHECKING, Dict, Optional, List
+from typing import TYPE_CHECKING, Optional, List
 
 from .interfaces import (
     IBackpressureStrategy,

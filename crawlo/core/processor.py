@@ -14,9 +14,8 @@ Core improvements:
 - Added graceful shutdown mechanism
 """
 import asyncio
-import warnings
 from asyncio import Queue
-from typing import Union, Optional, List, Any
+from typing import Union, Optional
 from enum import Enum, auto
 
 from crawlo import Request, Item

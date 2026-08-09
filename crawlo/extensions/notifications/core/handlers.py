@@ -7,13 +7,12 @@
 处理各种爬虫事件的通知需求。
 """
 
-from typing import Dict, Any, Optional, List
-import threading
+from typing import Dict, Optional, List
 
 from crawlo.logging import get_logger
 from crawlo.extensions.notifications.core.models import NotificationMessage, NotificationResponse, NotificationType, ChannelType
 from crawlo.extensions.notifications.core.notifier import get_notifier
-from crawlo.extensions.notifications.utils.config_loader import apply_settings_config, ensure_config_loaded
+from crawlo.extensions.notifications.utils.config_loader import ensure_config_loaded
 from crawlo.extensions.notifications.templates.manager import get_template_manager, render_message
 from crawlo.extensions.notifications.utils.deduplicator import get_deduplicator  # 导入去重管理器
 
