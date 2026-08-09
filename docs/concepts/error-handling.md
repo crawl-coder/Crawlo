@@ -36,6 +36,57 @@ Crawlo 中的错误主要分为三类：
 
 ---
 
+## 🧩 框架异常体系（类层次）
+
+所有框架异常继承自 `CrawloException`（`crawlo.core.errors`），可按基类统一捕获。
+
+```
+CrawloException (crawlo.core.errors)
+├── ComponentInitException
+│   ├── MiddlewareInitError      # 中间件初始化失败
+│   ├── PipelineInitError        # Pipeline 初始化失败
+│   └── ExtensionInitError       # 扩展初始化失败
+├── ConfigException              # 配置类异常
+│   ├── NotConfigured            # 组件未配置（跳过）
+│   ├── NotConfiguredError       # 组件配置缺失（硬失败）
+│   └── ConfigValidationError    # 配置校验失败
+├── ScheduleException            # 调度/队列类异常
+│   ├── QueueFullError           # 队列已满
+│   ├── QueueFullTimeout         # 入队阻塞超时
+│   ├── QueueEmptyError          # 队列为空
+│   └── QueueClosedError         # 队列已关闭
+├── OutputException
+│   ├── OutputError
+│   └── InvalidOutputError       # 中间件/管道返回值非法
+├── DataException (crawlo.items.exceptions)   # 数据项类异常
+│   ├── ItemInitError
+│   ├── ItemAttributeError
+│   ├── ItemValidationError
+│   └── ItemDiscard              # 数据项被丢弃（去重等，正常流程控制）
+├── RequestException (crawlo.http.exceptions) # 请求/响应类异常
+│   ├── RequestMethodError
+│   ├── IgnoreRequestError       # 请求被忽略（正常流程控制）
+│   ├── DecodeError
+│   ├── DownloadError
+│   └── RetryError
+├── SpiderException (crawlo.spider.exceptions)
+│   ├── SpiderTypeError
+│   ├── SpiderCreationError
+│   └── AmbiguousSpiderError     # 爬虫重名
+├── TransformTypeError / ReceiverTypeError    # 类型不匹配
+└── DetailedException            # 带上下文的详细错误
+```
+
+**流程控制异常**（不应视为故障，通常由框架内部捕获）：
+
+- `IgnoreRequestError`：请求被中间件忽略（如 offsite 过滤），直接终止该请求的处理链。
+- `ItemDiscard`：数据项被去重管道丢弃，不会进入后续存储管道。
+- `NotConfigured`：可选组件未配置时跳过加载（如未配置 UA 的中间件）。
+
+**捕获建议**：业务代码一般捕获具体子类；框架层统一捕获 `CrawloException` 可覆盖所有框架错误，`Exception` 兜底网络/第三方错误。
+
+---
+
 ## 1️⃣ 重试机制
 
 ### 1.1 配置重试
