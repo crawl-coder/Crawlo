@@ -23,6 +23,8 @@ import pytest
 import asyncio
 from unittest.mock import Mock, MagicMock, patch, AsyncMock, PropertyMock
 
+
+pytestmark = pytest.mark.browser  # noqa: E402  (heavy browser / live-network tests, skipped in CI)
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
 
@@ -587,7 +589,8 @@ class TestCamoufoxProxySwitching:
         await downloader.close()
 
         assert downloader._current_proxy is None
-        assert downloader._context is None
+        assert downloader._page is None
+        assert downloader._browser is None
 
 
 # ==============================================================================
@@ -624,6 +627,7 @@ class TestProxySwitchingConsistency:
 
         # Camoufox
         cf_dl = CamoufoxDownloader(make_camoufox_mock_crawler())
+        cf_dl._browser = AsyncMock()
         cf_dl._current_proxy = "http://existing:8080"
         cf_dl._restart_browser = AsyncMock()
         await cf_dl._check_proxy_change(request)
@@ -656,6 +660,7 @@ class TestProxySwitchingConsistency:
 
         # Camoufox
         cf_dl = CamoufoxDownloader(make_camoufox_mock_crawler())
+        cf_dl._browser = AsyncMock()
         cf_dl._current_proxy = "http://existing:8080"
         cf_dl._restart_browser = AsyncMock()
         await cf_dl._check_proxy_change(request)
@@ -688,6 +693,7 @@ class TestProxySwitchingConsistency:
 
         # Camoufox
         cf_dl = CamoufoxDownloader(make_camoufox_mock_crawler())
+        cf_dl._browser = AsyncMock()
         cf_dl._current_proxy = "http://old-proxy:8080"
         cf_dl._restart_browser = AsyncMock()
         await cf_dl._check_proxy_change(request)
@@ -721,6 +727,7 @@ class TestProxySwitchingConsistency:
 
         # Camoufox
         cf_dl = CamoufoxDownloader(make_camoufox_mock_crawler())
+        cf_dl._browser = AsyncMock()
         cf_dl._current_proxy = same_proxy
         cf_dl._restart_browser = AsyncMock()
         await cf_dl._check_proxy_change(request)

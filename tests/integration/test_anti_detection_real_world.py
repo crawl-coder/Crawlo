@@ -20,6 +20,9 @@ import unittest
 from unittest.mock import Mock, MagicMock, AsyncMock, patch
 
 # 添加项目根目录到路径
+import pytest
+
+pytestmark = pytest.mark.browser  # noqa: E402  (heavy browser / live-network tests, skipped in CI)
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 
@@ -188,6 +191,7 @@ class TestRealWorldScenarios(unittest.TestCase):
         # 模拟 Cloudflare 503 挑战
         cloudflare_response = Mock()
         cloudflare_response.status_code = 503
+        cloudflare_response.status = 503
         cloudflare_response.body = b'''
         <html>
         <head><title>Just a moment...</title></head>

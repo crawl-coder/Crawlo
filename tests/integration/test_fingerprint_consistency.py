@@ -22,8 +22,7 @@ from crawlo.pipelines.dedup.memory import MemoryDedupPipeline
 from crawlo.pipelines.dedup.redis import RedisDedupPipeline
 from crawlo.pipelines.dedup.bloom import BloomDedupPipeline
 from crawlo.pipelines.dedup.mysql import DatabaseDedupPipeline
-from crawlo.helpers.distributed_coordinator import DeduplicationTool
-from crawlo.utils.fingerprint import FingerprintGenerator
+from crawlo.utils.request.fingerprint import FingerprintGenerator
 
 
 class TestItem(Item):
@@ -32,18 +31,15 @@ class TestItem(Item):
     def __init__(self, **kwargs):
         super().__init__()
         for key, value in kwargs.items():
-            setattr(self, key, value)
+            self[key] = value
     
-    def to_dict(self):
-        """转换为字典"""
-        return {k: v for k, v in self.__dict__.items() if not k.startswith('_')}
-
-
 class FingerprintConsistencyTest(unittest.TestCase):
     """指纹一致性测试"""
     
     def setUp(self):
         """测试初始化"""
+        crawler = Mock()
+        
         # 创建测试数据项
         self.test_item = TestItem(
             title="Test Title",
@@ -53,19 +49,17 @@ class FingerprintConsistencyTest(unittest.TestCase):
         )
         
         # 创建各去重管道实例
-        self.memory_pipeline = MemoryDedupPipeline()
+        self.memory_pipeline = MemoryDedupPipeline(crawler)
         self.redis_pipeline = RedisDedupPipeline(
+            crawler,
             redis_host='localhost',
             redis_port=6379,
             redis_db=0,
             redis_key='test:fingerprints'
         )
-        self.bloom_pipeline = BloomDedupPipeline()
-        self.database_pipeline = DatabaseDedupPipeline()
+        self.bloom_pipeline = BloomDedupPipeline(crawler)
+        self.database_pipeline = DatabaseDedupPipeline(crawler)
         
-        # 创建去重工具实例
-        self.dedup_tool = DeduplicationTool()
-    
     def test_item_fingerprint_consistency(self):
         """测试数据项指纹一致性"""
         # 使用各管道生成指纹
@@ -77,11 +71,11 @@ class FingerprintConsistencyTest(unittest.TestCase):
         # 使用指纹生成器直接生成指纹
         direct_fingerprint = FingerprintGenerator.item_fingerprint(self.test_item)
         
-        # 验证所有指纹一致
+        # 验证所有管道指纹一致（管道带 v1: 版本前缀）
         self.assertEqual(memory_fingerprint, redis_fingerprint)
         self.assertEqual(memory_fingerprint, bloom_fingerprint)
         self.assertEqual(memory_fingerprint, database_fingerprint)
-        self.assertEqual(memory_fingerprint, direct_fingerprint)
+        self.assertEqual(memory_fingerprint, f"v1:{direct_fingerprint}")
         
         print(f"Memory Pipeline Fingerprint: {memory_fingerprint}")
         print(f"Redis Pipeline Fingerprint: {redis_fingerprint}")
@@ -100,17 +94,14 @@ class FingerprintConsistencyTest(unittest.TestCase):
             }
         }
         
-        # 使用去重工具生成指纹
-        tool_fingerprint = self.dedup_tool.generate_fingerprint(test_data)
+        # 使用指纹生成器生成指纹（DeduplicationTool 已在重构中移除）
+        fingerprint1 = FingerprintGenerator.data_fingerprint(test_data)
+        fingerprint2 = FingerprintGenerator.data_fingerprint(test_data)
         
-        # 使用指纹生成器生成指纹
-        generator_fingerprint = FingerprintGenerator.data_fingerprint(test_data)
+        # 验证指纹稳定一致
+        self.assertEqual(fingerprint1, fingerprint2)
         
-        # 验证指纹一致
-        self.assertEqual(tool_fingerprint, generator_fingerprint)
-        
-        print(f"DeduplicationTool Fingerprint: {tool_fingerprint}")
-        print(f"FingerprintGenerator Fingerprint: {generator_fingerprint}")
+        print(f"FingerprintGenerator Fingerprint: {fingerprint1}")
     
     def test_fingerprint_stability(self):
         """测试指纹稳定性"""

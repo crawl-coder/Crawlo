@@ -1,26 +1,16 @@
-# BROKEN: Phase 0.0 TEMPORARY EXCLUDED from pytest collection (pre-existing bug, NOT caused by refactor). Fix then remove top comment + pyproject.toml collect_ignore entry.
-# Reason (from last pytest collect): see git log / earlier test run for details
-
-#!/usr/bin/python
-# -*- coding: UTF-8 -*-
-import sys
-import os
-sys.path.insert(0, "/Users/oscar/projects/Crawlo")
 #!/usr/bin/python
 # -*- coding: UTF-8 -*-
 """
 数据清洗工具测试
 """
 import unittest
-from crawlo.helpers import (
-    TextCleaner,
-    DataFormatter,
+from crawlo.utils.text.cleaner import (
     remove_html_tags,
     decode_html_entities,
     clean_text,
-    format_number,
-    format_currency,
-    format_phone_number
+    extract_numbers,
+    extract_phones,
+    extract_emails
 )
 
 
@@ -37,26 +27,27 @@ class TestCleaners(unittest.TestCase):
         # 测试解码HTML实体
         entity_text = "这是一个&nbsp;测试&amp;文本"
         decoded_text = decode_html_entities(entity_text)
-        self.assertEqual(decoded_text, "这是一个 测试&文本")
+        # &nbsp; 解码为不换行空格（\xa0）
+        self.assertEqual(decoded_text, "这是一个\xa0测试&文本")
         
         # 测试综合清洗
         complex_text = "<p>这是一个&nbsp;<b>测试</b>&amp;文本</p>"
         cleaned = clean_text(complex_text)
         self.assertEqual(cleaned, "这是一个 测试&文本")
 
-    def test_data_formatter(self):
-        """测试数据格式化功能"""
-        # 测试数字格式化
-        formatted_num = format_number(1234.567, precision=2, thousand_separator=True)
-        self.assertEqual(formatted_num, "1,234.57")
+    def test_extract_tools(self):
+        """测试提取工具（替代已删除的 DataFormatter）"""
+        # 测试数字提取
+        numbers = extract_numbers("价格 12.5 元，共 34 件")
+        self.assertEqual(numbers, ["12.5", "34"])
         
-        # 测试货币格式化
-        formatted_currency = format_currency(1234.567, "¥", 2)
-        self.assertEqual(formatted_currency, "¥1,234.57")
+        # 测试电话号码提取
+        phones = extract_phones("联系 13812345678 或 010-12345678")
+        self.assertEqual(phones, ["13812345678", "010-12345678"])
         
-        # 测试电话号码格式化
-        formatted_phone = format_phone_number("13812345678", "+86", "international")
-        self.assertEqual(formatted_phone, "+86 138 1234 5678")
+        # 测试邮箱提取
+        emails = extract_emails("邮箱 a@b.com 和 c@d.cn")
+        self.assertEqual(emails, ["a@b.com", "c@d.cn"])
 
 
 if __name__ == '__main__':

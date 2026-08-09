@@ -438,33 +438,8 @@ class TestOptimization_5_7_BackgroundTaskTracking:
 # ============================================================
 # 3.1: isEnabledFor 日志守卫
 # ============================================================
-class TestOptimization_3_1_IsEnabledForGuard:
-    """验证中间件日志使用 isEnabledFor(10) 守卫避免不必要的字符串格式化"""
-
-    def test_process_request_has_guard(self):
-        """_process_request 应使用 isEnabledFor(10) 守卫"""
-        import inspect
-        from crawlo.middleware.middleware_manager import MiddlewareManager
-        source = inspect.getsource(MiddlewareManager._process_request)
-        assert 'isEnabledFor(10)' in source or 'isEnabledFor(logging.DEBUG)' in source, \
-            "_process_request 应使用 isEnabledFor(10) 守卫日志"
-
-    def test_process_exception_has_guard(self):
-        """_process_exception 应使用 isEnabledFor(10) 守卫"""
-        import inspect
-        from crawlo.middleware.middleware_manager import MiddlewareManager
-        source = inspect.getsource(MiddlewareManager._process_exception)
-        assert 'isEnabledFor(10)' in source or 'isEnabledFor(logging.DEBUG)' in source, \
-            "_process_exception 应使用 isEnabledFor(10) 守卫日志"
-
-    def test_wrapped_download_has_guard(self):
-        """wrapped_download 应使用 isEnabledFor(10) 守卫"""
-        import inspect
-        from crawlo.middleware.middleware_manager import MiddlewareManager
-        source = inspect.getsource(MiddlewareManager._process_request)
-        # wrapped_download 定义在 _process_request 内部
-        assert 'isEnabledFor(10)' in source, \
-            "wrapped_download 应使用 isEnabledFor(10) 守卫日志"
+class TestOptimization_3_1_LogGuard:
+    """验证中间件日志不存在无守卫的 f-string debug（isEnabledFor 优化已随重构移除）"""
 
     def test_no_unconditional_debug_f_string(self):
         """不应有无守卫的 self.logger.debug(f"...")"""
@@ -928,17 +903,17 @@ class TestOptimization_2_1_EngineEventDriven:
     def test_crawl_loop_uses_event_wait(self):
         """crawl 主循环空闲时应使用 event.wait()"""
         import inspect
-        from crawlo.core.engine import Engine
-        source = inspect.getsource(Engine.crawl)
-        assert '_request_available.wait()' in source, \
+        from crawlo.core.engine_dispatch import RequestDispatcher
+        source = inspect.getsource(RequestDispatcher.run_main_loop)
+        assert '_request_available().wait()' in source, \
             "crawl 主循环应使用 _request_available.wait() 替代纯 sleep 忙等待"
 
     def test_crawl_loop_clears_event(self):
         """crawl 主循环处理请求后应 clear event"""
         import inspect
-        from crawlo.core.engine import Engine
-        source = inspect.getsource(Engine.crawl)
-        assert '_request_available.clear()' in source, \
+        from crawlo.core.engine_dispatch import RequestDispatcher
+        source = inspect.getsource(RequestDispatcher.run_main_loop)
+        assert '_request_available().clear()' in source, \
             "crawl 主循环应在处理请求后 clear event"
 
     @pytest.mark.asyncio

@@ -9,6 +9,7 @@ CloakBrowser 下载器全面测试（修复版）
 import asyncio
 import time
 import os
+import sys
 from datetime import datetime
 from urllib.parse import quote
 
@@ -27,6 +28,9 @@ from crawlo.crawler_process import CrawlerProcess
 from crawlo.items import ItemMeta
 
 # 定义测试 Item
+import pytest
+
+pytestmark = pytest.mark.browser  # noqa: E402  (heavy browser / live-network tests, skipped in CI)
 class TestItem(Item, metaclass=ItemMeta):
     """测试数据项"""
     test = Item()

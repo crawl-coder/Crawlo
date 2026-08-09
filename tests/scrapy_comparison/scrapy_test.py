@@ -1,4 +1,11 @@
 # -*- coding: utf-8 -*-
+import pytest
+
+try:
+    import scrapy  # noqa: F401
+except Exception as _scrapy_import_error:  # 环境缺失/损坏时跳过（如 OpenSSL 不兼容）
+    pytest.skip(f"scrapy unavailable: {_scrapy_import_error}", allow_module_level=True)
+
 import scrapy
 from urllib.parse import urljoin
 

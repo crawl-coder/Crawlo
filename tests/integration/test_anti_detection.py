@@ -149,6 +149,7 @@ class TestCloudflareBypassMiddleware(unittest.TestCase):
         for page in challenge_pages:
             mock_response = Mock()
             mock_response.status_code = 503
+            mock_response.status = 503
             mock_response.body = page
             mock_response.headers = {}
             
@@ -314,31 +315,31 @@ class TestDefaultSettings(unittest.TestCase):
     """测试默认配置中的反反爬虫参数"""
     
     def test_playwright_stealth_settings(self):
-        """测试 Playwright 反检测配置"""
+        """测试 Playwright 反检测配置（已统一为 BROWSER_STEALTH_LEVEL）"""
         from crawlo.settings import default_settings
         
-        self.assertTrue(hasattr(default_settings, 'PLAYWRIGHT_STEALTH_LEVEL'))
-        self.assertEqual(default_settings.PLAYWRIGHT_STEALTH_LEVEL, 'basic')
-        print("✓ PLAYWRIGHT_STEALTH_LEVEL 配置存在")
+        self.assertTrue(hasattr(default_settings, 'BROWSER_STEALTH_LEVEL'))
+        self.assertEqual(default_settings.BROWSER_STEALTH_LEVEL, 'basic')
+        print("✓ BROWSER_STEALTH_LEVEL 配置存在")
     
     def test_drissionpage_stealth_settings(self):
-        """测试 DrissionPage 反检测配置"""
+        """测试 DrissionPage 反检测配置（已统一为 BROWSER_STEALTH_LEVEL）"""
         from crawlo.settings import default_settings
         
-        self.assertTrue(hasattr(default_settings, 'DRISSIONPAGE_STEALTH_LEVEL'))
-        self.assertEqual(default_settings.DRISSIONPAGE_STEALTH_LEVEL, 'basic')
-        print("✓ DRISSIONPAGE_STEALTH_LEVEL 配置存在")
+        self.assertTrue(hasattr(default_settings, 'BROWSER_STEALTH_LEVEL'))
+        self.assertEqual(default_settings.BROWSER_STEALTH_LEVEL, 'basic')
+        print("✓ BROWSER_STEALTH_LEVEL 配置存在")
     
     def test_camoufox_settings(self):
         """测试 Camoufox 配置"""
         from crawlo.settings import default_settings
         
         settings_to_check = [
-            'CAMOUFOX_HEADLESS',
-            'CAMOUFOX_TIMEOUT',
-            'CAMOUFOX_HUMANIZE',
             'CAMOUFOX_SOLVE_CLOUDFLARE',
-            'CAMOUFOX_MAX_PAGES',
+            'CAMOUFOX_HUMANIZE',
+            'BROWSER_HEADLESS',
+            'BROWSER_TIMEOUT',
+            'BROWSER_MAX_PAGES',
         ]
         
         for setting in settings_to_check:
@@ -354,7 +355,7 @@ class TestDefaultSettings(unittest.TestCase):
         from crawlo.settings import default_settings
         
         self.assertTrue(hasattr(default_settings, 'CLOUDFLARE_BYPASS_DOWNLOADER'))
-        self.assertEqual(default_settings.CLOUDFLARE_BYPASS_DOWNLOADER, 'camoufox')
+        self.assertEqual(default_settings.CLOUDFLARE_BYPASS_DOWNLOADER, 'cloakbrowser')
         print("✓ CLOUDFLARE_BYPASS_DOWNLOADER 配置正确")
 
 

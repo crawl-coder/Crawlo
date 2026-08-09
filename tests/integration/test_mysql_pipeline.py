@@ -13,7 +13,7 @@ import sys
 import os
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from scrapy.settings import Settings
+from crawlo.settings.setting_manager import SettingManager
 from crawlo.pipelines.sql.mysql import MySQLPipeline
 from crawlo.items import Item, Field
 import logging
@@ -34,7 +34,7 @@ class TestItem(Item):
 class MockCrawler:
     """模拟 Crawler 对象用于测试"""
     def __init__(self, settings_dict):
-        self.settings = Settings()
+        self.settings = SettingManager()
         for key, value in settings_dict.items():
             self.settings[key] = value
         
@@ -180,8 +180,7 @@ async def test_connection_pool_utils():
     print("=" * 60)
     print("测试连接池工具类...")
     
-    from crawlo.utils.mysql_connection_pool import MySQLConnectionPoolManager
-    from crawlo.utils.database_connection_pool import get_mysql_pool
+    from crawlo.utils.db.mysql_connection_pool import MySQLConnectionPoolManager, get_mysql_pool
     
     try:
         # 测试 asyncmy 连接池
@@ -215,7 +214,7 @@ async def test_connection_pool_utils():
         print(f"aiomysql 连接池获取成功: {pool2}")
         
         # 测试连接池统计
-        from crawlo.utils.database_connection_pool import get_database_pool_stats
+        from crawlo.utils.db.database_connection_pool import get_database_pool_stats
         stats = get_database_pool_stats()
         print(f"连接池统计信息: {stats}")
         

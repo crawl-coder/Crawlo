@@ -27,9 +27,9 @@ sys.path.insert(0, str(project_root))
 from crawlo.logging import (
     configure_logging, 
     get_logger, 
-    LogManager,
-    get_monitor
+    LogManager
 )
+from crawlo.extensions.monitor.performance_monitor import PerformanceMonitor
 from crawlo.logging.config import LogConfig
 
 
@@ -73,9 +73,9 @@ def test_real_world_scenario():
         print(f"   日志文件路径: {config.file_path}")
         print(f"   文件启用: {config.file_enabled}")
         
-        # 启用性能监控
-        monitor = get_monitor()
-        monitor.enable_monitoring()
+        # 启用性能监控（旧 get_monitor API 已迁移至 extensions.monitor）
+        monitor = PerformanceMonitor()
+        monitor.log_system_metrics()
         
         # 2. 模拟框架启动日志
         print("2. 模拟框架启动日志...")
@@ -139,8 +139,8 @@ def test_real_world_scenario():
             
         # 7. 获取性能报告
         print("7. 获取性能报告...")
-        report = monitor.get_performance_report()
-        print(f"   性能报告生成完成")
+        monitor.log_system_metrics(detailed=True)
+        print("   性能报告生成完成")
         
     finally:
         # 清理

@@ -16,6 +16,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from crawlo.commands.scheduler import SchedulerDaemon
 from crawlo.commands.job import ScheduledJob
 from crawlo.commands.trigger import TimeTrigger
+from crawlo.commands.job_executor import JobExecutor
 from crawlo.settings.setting_manager import SettingManager as Settings
 
 
@@ -62,15 +63,6 @@ def test_scenario_1_basic_scheduling():
         max_concurrent = settings.get_int('SCHEDULER_MAX_CONCURRENT', 3)
         daemon._semaphore = asyncio.Semaphore(max_concurrent)
         
-        # 模拟爬虫执行
-        async def mock_crawl(spider_name, settings=None):
-            print(f"模拟执行爬虫: {spider_name}")
-            await asyncio.sleep(2)  # 模拟爬虫运行时间
-            return {'status': 'success', 'items': 10}
-        
-        # 替换 _run_spider_job 方法
-        daemon._run_spider_job = mock_crawl
-        
         task = asyncio.create_task(daemon._run_scheduler())
         
         # 运行 15 秒
@@ -95,7 +87,14 @@ def test_scenario_1_basic_scheduling():
         
         return stats
     
-    stats = asyncio.run(run_test())
+    # 模拟爬虫执行（当前实现经由 JobExecutor._run_spider_job）
+    async def mock_run_spider_job(job):
+        print(f"模拟执行爬虫: {job.spider_name}")
+        await asyncio.sleep(2)  # 模拟爬虫运行时间
+        return {'status': 'success', 'items': 10}
+
+    with patch.object(JobExecutor, '_run_spider_job', new=staticmethod(mock_run_spider_job)):
+        stats = asyncio.run(run_test())
     
     # 验证结果
     assert stats['total_executions'] >= 2, "至少应该执行 2 次"

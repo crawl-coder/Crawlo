@@ -36,7 +36,7 @@ class TestBotNotificationExtremeScenarios:
         )
 
         # Mock 发送请求
-        with patch("crawlo.bot.channels.dingtalk.requests.post") as mock_post:
+        with patch("crawlo.extensions.notifications.channels.dingtalk._HTTP_CLIENT.post") as mock_post:
             mock_post.return_value.status_code = 200
             mock_post.return_value.json.return_value = {'errcode': 0}
 
@@ -81,7 +81,7 @@ class TestBotNotificationExtremeScenarios:
             content="Test message",
         )
 
-        with patch("crawlo.bot.channels.dingtalk.requests.post", side_effect=mock_response):
+        with patch("crawlo.extensions.notifications.channels.dingtalk._HTTP_CLIENT.post", side_effect=mock_response):
             response = channel.send(msg)
             # 钉钉渠道不重试,所以应该直接返回错误
             assert call_count == 1 or not response.success
@@ -101,7 +101,7 @@ class TestBotNotificationExtremeScenarios:
         )
 
         with patch(
-            "crawlo.bot.channels.dingtalk.requests.post",
+            "crawlo.extensions.notifications.channels.dingtalk._HTTP_CLIENT.post",
             side_effect=requests.exceptions.Timeout("Connection timed out"),
         ):
             response = channel.send(msg)
@@ -113,7 +113,7 @@ class TestBotNotificationExtremeScenarios:
         channel = DingTalkChannel()
         channel.webhook_url = "http://example.com/webhook"
 
-        with patch("crawlo.bot.channels.dingtalk.requests.post") as mock_post:
+        with patch("crawlo.extensions.notifications.channels.dingtalk._HTTP_CLIENT.post") as mock_post:
             mock_post.return_value.status_code = 200
             mock_post.return_value.json.return_value = {'errcode': 0}
 
@@ -168,7 +168,7 @@ class TestBotNotificationExtremeScenarios:
             content="Test message",
         )
 
-        with patch("crawlo.bot.channels.dingtalk.requests.post") as mock_post:
+        with patch("crawlo.extensions.notifications.channels.dingtalk._HTTP_CLIENT.post") as mock_post:
             mock_post.side_effect = requests.exceptions.SSLError(
                 "SSL: CERTIFICATE_VERIFY_FAILED"
             )
@@ -231,7 +231,7 @@ class TestBotNotificationExtremeScenarios:
             "'; DROP TABLE notifications; --",
         ]
 
-        with patch("crawlo.bot.channels.dingtalk.requests.post") as mock_post:
+        with patch("crawlo.extensions.notifications.channels.dingtalk._HTTP_CLIENT.post") as mock_post:
             mock_post.return_value.status_code = 200
             mock_post.return_value.json.return_value = {'errcode': 0}
 
@@ -270,7 +270,7 @@ class TestBotNotificationExtremeScenarios:
                     title="测试",
                     content=f"Notification from thread {thread_id}",
                 )
-                with patch("crawlo.bot.channels.dingtalk.requests.post") as mock_post:
+                with patch("crawlo.extensions.notifications.channels.dingtalk._HTTP_CLIENT.post") as mock_post:
                     mock_post.return_value.status_code = 200
                     mock_post.return_value.json.return_value = {'errcode': 0}
                     response = channel.send(msg)
@@ -318,7 +318,7 @@ class TestBotNotificationExtremeScenarios:
             content="Test message",
         )
 
-        with patch("crawlo.bot.channels.dingtalk.requests.post", side_effect=mock_always_fail):
+        with patch("crawlo.extensions.notifications.channels.dingtalk._HTTP_CLIENT.post", side_effect=mock_always_fail):
             response = channel.send(msg)
             # 渠道不重试,只调用一次,返回错误
             assert not response.success
@@ -331,7 +331,7 @@ class TestBotNotificationExtremeScenarios:
         channel = DingTalkChannel()
         channel.webhook_url = "http://example.com/webhook"
 
-        with patch("crawlo.bot.channels.dingtalk.requests.post") as mock_post:
+        with patch("crawlo.extensions.notifications.channels.dingtalk._HTTP_CLIENT.post") as mock_post:
             mock_post.side_effect = requests.exceptions.ConnectionError("Connection refused")
 
             # 连续发送 10 次
@@ -367,7 +367,7 @@ class TestBotNotificationExtremeScenarios:
             "Control chars: \x00\x01\x02\x03",
         ]
 
-        with patch("crawlo.bot.channels.dingtalk.requests.post") as mock_post:
+        with patch("crawlo.extensions.notifications.channels.dingtalk._HTTP_CLIENT.post") as mock_post:
             mock_post.return_value.status_code = 200
             mock_post.return_value.json.return_value = {'errcode': 0}
 
@@ -396,7 +396,7 @@ class TestBotNotificationExtremeScenarios:
             "\n\n\n",
         ]
 
-        with patch("crawlo.bot.channels.dingtalk.requests.post") as mock_post:
+        with patch("crawlo.extensions.notifications.channels.dingtalk._HTTP_CLIENT.post") as mock_post:
             mock_post.return_value.status_code = 200
             mock_post.return_value.json.return_value = {'errcode': 0}
 
@@ -423,7 +423,7 @@ class TestBotNotificationExtremeScenarios:
             content="Test",
         )
 
-        with patch("crawlo.bot.channels.dingtalk.requests.post") as mock_post:
+        with patch("crawlo.extensions.notifications.channels.dingtalk._HTTP_CLIENT.post") as mock_post:
             mock_post.return_value.status_code = 200
             mock_post.return_value.json.return_value = {'errcode': 0}
 
@@ -439,7 +439,7 @@ class TestBotNotificationExtremeScenarios:
         channel = DingTalkChannel()
         channel.webhook_url = "http://example.com/webhook"
 
-        with patch("crawlo.bot.channels.dingtalk.requests.post") as mock_post:
+        with patch("crawlo.extensions.notifications.channels.dingtalk._HTTP_CLIENT.post") as mock_post:
             mock_post.return_value.status_code = 200
             mock_post.return_value.json.return_value = {'errcode': 0}
 
@@ -474,7 +474,7 @@ class TestBotNotificationExtremeScenarios:
             content="Test message",
         )
 
-        with patch("crawlo.bot.channels.dingtalk.requests.post") as mock_post:
+        with patch("crawlo.extensions.notifications.channels.dingtalk._HTTP_CLIENT.post") as mock_post:
             mock_post.side_effect = requests.exceptions.ConnectionError(
                 "Name or service not known"
             )
@@ -498,7 +498,7 @@ class TestBotNotificationExtremeScenarios:
             content=large_message,
         )
 
-        with patch("crawlo.bot.channels.dingtalk.requests.post") as mock_post:
+        with patch("crawlo.extensions.notifications.channels.dingtalk._HTTP_CLIENT.post") as mock_post:
             mock_post.return_value.status_code = 200
             mock_post.return_value.json.return_value = {'errcode': 0}
 
@@ -533,7 +533,7 @@ class TestBotNotificationExtremeScenarios:
             content="Slow message",
         )
 
-        with patch("crawlo.bot.channels.dingtalk.requests.post", side_effect=slow_response):
+        with patch("crawlo.extensions.notifications.channels.dingtalk._HTTP_CLIENT.post", side_effect=slow_response):
             result = []
 
             def send_msg():

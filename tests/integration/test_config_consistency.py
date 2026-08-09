@@ -21,7 +21,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 from crawlo.project import get_settings
 from crawlo.crawler import Crawler
 from crawlo.spider import Spider
-from crawlo.utils.log import get_logger
+from crawlo.logging import get_logger
 from crawlo import Request
 
 

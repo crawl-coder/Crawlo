@@ -18,7 +18,7 @@ import asyncio
 # 添加项目根目录到 Python 路径
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
-from crawlo.pipelines.sql.mysql import BaseMySQLPipeline, MySQLPipeline
+from crawlo.pipelines.sql.mysql import MySQLPipeline
 
 
 # 创建一个简单的爬虫模拟类

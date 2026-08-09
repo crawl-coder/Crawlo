@@ -279,9 +279,10 @@ def test_checkpoint_manager_basic():
             from crawlo.settings.setting_manager import SettingManager
             settings = SettingManager()
             settings.attributes['CHECKPOINT_DIR'] = tmpdir
+            settings.attributes['CHECKPOINT_ENABLED'] = True
             settings.attributes['CHECKPOINT_STORAGE'] = 'json'
         except ImportError:
-            settings = {'CHECKPOINT_DIR': tmpdir, 'CHECKPOINT_STORAGE': 'json'}
+            settings = {'CHECKPOINT_DIR': tmpdir, 'CHECKPOINT_STORAGE': 'json', 'CHECKPOINT_ENABLED': True}
         
         mgr = CheckpointManager('test_spider', settings)
         assert mgr.enabled == True  # 始终启用
@@ -387,9 +388,10 @@ def test_checkpoint_manager_sqlite_backend():
             from crawlo.settings.setting_manager import SettingManager
             settings = SettingManager()
             settings.attributes['CHECKPOINT_DIR'] = tmpdir
+            settings.attributes['CHECKPOINT_ENABLED'] = True
             settings.attributes['CHECKPOINT_STORAGE'] = 'sqlite'
         except ImportError:
-            settings = {'CHECKPOINT_DIR': tmpdir, 'CHECKPOINT_STORAGE': 'sqlite'}
+            settings = {'CHECKPOINT_DIR': tmpdir, 'CHECKPOINT_STORAGE': 'sqlite', 'CHECKPOINT_ENABLED': True}
         
         mgr = CheckpointManager('test_spider', settings)
         
@@ -413,7 +415,7 @@ def test_checkpoint_manager_sqlite_backend():
 
 def test_shell_from_curl():
     """测试 Shell 的 from_curl 方法"""
-    from crawlo.shell.core import CrawloShell
+    from crawlo.commands.shell_core import CrawloShell
     
     shell = CrawloShell()
     
@@ -428,7 +430,7 @@ def test_shell_from_curl():
 
 def test_shell_namespace_has_from_curl():
     """测试 Shell 命名空间包含 from_curl"""
-    from crawlo.shell.core import CrawloShell
+    from crawlo.commands.shell_core import CrawloShell
     
     shell = CrawloShell()
     ns = shell.get_namespace()
@@ -675,9 +677,10 @@ def test_checkpoint_manager_save_with_scheduler():
             from crawlo.settings.setting_manager import SettingManager
             settings = SettingManager()
             settings.attributes['CHECKPOINT_DIR'] = tmpdir
+            settings.attributes['CHECKPOINT_ENABLED'] = True
             settings.attributes['PROJECT_NAME'] = 'test_project'
         except ImportError:
-            settings = {'CHECKPOINT_DIR': tmpdir, 'PROJECT_NAME': 'test_project'}
+            settings = {'CHECKPOINT_DIR': tmpdir, 'PROJECT_NAME': 'test_project', 'CHECKPOINT_ENABLED': True}
         
         mgr = CheckpointManager('test_spider', settings)
         
@@ -861,8 +864,9 @@ def test_engine_close_reason_finished():
             from crawlo.settings.setting_manager import SettingManager
             settings = SettingManager()
             settings.attributes['CHECKPOINT_DIR'] = tmpdir
+            settings.attributes['CHECKPOINT_ENABLED'] = True
         except ImportError:
-            settings = {'CHECKPOINT_DIR': tmpdir}
+            settings = {'CHECKPOINT_DIR': tmpdir, 'CHECKPOINT_ENABLED': True}
         
         # 先保存一个检查点
         mgr = CheckpointManager('test_spider', settings)
@@ -889,9 +893,10 @@ def test_engine_close_reason_shutdown():
             from crawlo.settings.setting_manager import SettingManager
             settings = SettingManager()
             settings.attributes['CHECKPOINT_DIR'] = tmpdir
+            settings.attributes['CHECKPOINT_ENABLED'] = True
             settings.attributes['CHECKPOINT_SAVE_ON_SIGNAL'] = True
         except ImportError:
-            settings = {'CHECKPOINT_DIR': tmpdir, 'CHECKPOINT_SAVE_ON_SIGNAL': True}
+            settings = {'CHECKPOINT_DIR': tmpdir, 'CHECKPOINT_SAVE_ON_SIGNAL': True, 'CHECKPOINT_ENABLED': True}
         
         # 模拟 shutdown 时的保存流程
         mgr = CheckpointManager('test_spider', settings)
@@ -932,7 +937,7 @@ def test_engine_save_on_signal_disabled():
 
 def test_shell_from_curl_invalid_command():
     """测试 Shell from_curl 无效 curl 命令"""
-    from crawlo.shell.core import CrawloShell
+    from crawlo.commands.shell_core import CrawloShell
     
     shell = CrawloShell()
     
@@ -949,7 +954,7 @@ def test_shell_from_curl_invalid_command():
 
 def test_shell_from_curl_sync():
     """测试 Shell sync_from_curl 方法"""
-    from crawlo.shell.core import CrawloShell
+    from crawlo.commands.shell_core import CrawloShell
     
     shell = CrawloShell()
     
@@ -966,7 +971,7 @@ def test_shell_from_curl_sync():
 
 def test_shell_from_curl_updates_namespace():
     """测试 from_curl 成功后更新命名空间"""
-    from crawlo.shell.core import CrawloShell
+    from crawlo.commands.shell_core import CrawloShell
     
     shell = CrawloShell()
     ns = shell.get_namespace()
@@ -981,7 +986,7 @@ def test_shell_from_curl_updates_namespace():
 
 def test_shell_from_curl_with_network():
     """测试 from_curl 真实网络请求"""
-    from crawlo.shell.core import CrawloShell
+    from crawlo.commands.shell_core import CrawloShell
     
     shell = CrawloShell()
     
@@ -1070,9 +1075,10 @@ def test_e2e_curl_to_request_to_checkpoint():
             from crawlo.settings.setting_manager import SettingManager
             settings = SettingManager()
             settings.attributes['CHECKPOINT_DIR'] = tmpdir
+            settings.attributes['CHECKPOINT_ENABLED'] = True
             settings.attributes['PROJECT_NAME'] = 'e2e_project'
         except ImportError:
-            settings = {'CHECKPOINT_DIR': tmpdir, 'PROJECT_NAME': 'e2e_project'}
+            settings = {'CHECKPOINT_DIR': tmpdir, 'PROJECT_NAME': 'e2e_project', 'CHECKPOINT_ENABLED': True}
         
         # 1. 从 curl 命令解析为 Request
         cmd = 'curl https://api.example.com/data -X POST -H "Content-Type: application/json" -d \'{"page":1}\' -H "Authorization: Bearer tok123"'
@@ -1119,7 +1125,7 @@ def test_e2e_curl_to_request_to_checkpoint():
 
 def test_e2e_curl_to_shell_fetch():
     """端到端：curl 命令 -> Shell from_curl -> 抓取 -> 选择器"""
-    from crawlo.shell.core import CrawloShell
+    from crawlo.commands.shell_core import CrawloShell
     
     shell = CrawloShell()
     
@@ -1146,7 +1152,7 @@ def test_e2e_curl_to_shell_fetch():
 
 def test_e2e_curl_post_json_to_shell():
     """端到端：POST JSON curl -> Shell from_curl"""
-    from crawlo.shell.core import CrawloShell
+    from crawlo.commands.shell_core import CrawloShell
     
     shell = CrawloShell()
     

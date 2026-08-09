@@ -298,25 +298,23 @@ class TestExtremeBackpressureScenarios:
     async def test_backpressure_queue_full(self):
         """测试队列满时的背压行为"""
         from crawlo.queue.queue_manager import QueueManager
-        from crawlo.core.config import CrawloConfig
+        from crawlo.queue.config import QueueConfig
 
-        config = CrawloConfig()
-        config.set('QUEUE_TYPE', 'memory')
-        config.set('QUEUE_MAXSIZE', 10)  # 很小的队列
+        config = QueueConfig(queue_type='memory', max_queue_size=10)
         
         manager = QueueManager(config=config)
         await manager.initialize()
-        
-        queue = manager.get_queue()
-        
+
         # 填满队列
         for i in range(10):
-            await queue.put(Request(f'http://example.com/{i}'), priority=0)
-        
+            await manager.put(Request(f'http://example.com/{i}'), priority=0)
+
         # 尝试继续入队，应该触发背压
-        # 不同队列类型行为不同，这里只测试不崩溃
+        # 不同队列类型行为不同（丢弃/报错/阻塞等待），这里只测试不崩溃
         try:
-            await queue.put(Request('http://example.com/overflow'), priority=0)
+            await manager.put(Request('http://example.com/overflow'), priority=0, timeout=2.0)
+        except asyncio.TimeoutError:
+            pass  # 队列满时阻塞等待空间属于合理的背压行为
         except Exception as e:
             # 如果有异常，应该是背压相关
             assert 'queue' in str(e).lower() or 'full' in str(e).lower() or 'backpressure' in str(e).lower()
@@ -328,11 +326,10 @@ class TestExtremeBackpressureScenarios:
         """测试背压阈值触发"""
         from crawlo.queue.backends.memory import SpiderPriorityQueue
         
-        queue = SpiderPriorityQueue()
+        queue = SpiderPriorityQueue(maxsize=100)
         
         # 设置背压阈值
         queue.backpressure_threshold = 0.8
-        queue.maxsize = 100
         
         # 填充到 80%
         for i in range(80):
@@ -340,7 +337,7 @@ class TestExtremeBackpressureScenarios:
         
         # 应该有背压警告（通过日志）
         # 这里只测试不崩溃
-        assert await queue.qsize() == 80
+        assert await queue.size() == 80
 
 
 class TestExtremeQueueEdgeCases:
@@ -378,7 +375,8 @@ class TestExtremeQueueEdgeCases:
         
         # 应该按顺序出队
         req1 = await queue.get(timeout=1.0)
-        assert req1.priority == -999999
+        # 队列按 (priority, item) 元组排序，最小优先级先出队
+        assert req1.url == 'http://example.com/min'
     
     @pytest.mark.asyncio
     async def test_queue_close_reopen(self):

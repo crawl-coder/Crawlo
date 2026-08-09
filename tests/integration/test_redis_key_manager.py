@@ -79,14 +79,14 @@ class TestRedisKeyManager(unittest.TestCase):
         """测试过滤器相关 Key 生成"""
         # 测试过滤器指纹 Key
         filter_key = self.key_manager.get_filter_fingerprint_key()
-        expected = f"crawlo:{self.project_name}:{self.spider_name}:filter:fingerprint"
+        expected = f"crawlo:{self.project_name}:{self.spider_name}:dedup:request"
         self.assertEqual(filter_key, expected)
     
     def test_item_keys(self):
         """测试数据项相关 Key 生成"""
         # 测试数据项指纹 Key
         item_key = self.key_manager.get_item_fingerprint_key()
-        expected = f"crawlo:{self.project_name}:{self.spider_name}:item:fingerprint"
+        expected = f"crawlo:{self.project_name}:{self.spider_name}:dedup:item"
         self.assertEqual(item_key, expected)
     
     def test_from_settings(self):

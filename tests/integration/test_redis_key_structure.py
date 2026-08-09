@@ -41,8 +41,8 @@ def test_redis_key_structure():
     # 验证具体的组件部分
     assert requests_queue_key.endswith(":queue:requests"), f"请求队列key后缀不正确: {requests_queue_key}"
     assert processing_queue_key.endswith(":queue:processing"), f"处理队列key后缀不正确: {processing_queue_key}"
-    assert filter_key.endswith(":filter:fingerprint"), f"过滤器key后缀不正确: {filter_key}"
-    assert item_key.endswith(":item:fingerprint"), f"数据项key后缀不正确: {item_key}"
+    assert filter_key.endswith(":dedup:request"), f"过滤器key后缀不正确: {filter_key}"
+    assert item_key.endswith(":dedup:item"), f"数据项key后缀不正确: {item_key}"
     
     print("\n✅ Redis key结构正确!")
     print("格式为: crawlo:{project}:{spider}:{component}:{sub_component}")

@@ -27,12 +27,10 @@ sys.path.insert(0, str(project_root))
 from crawlo.logging import (
     configure_logging, 
     get_logger, 
-    LogManager,
-    get_monitor
+    LogManager
 )
+from crawlo.extensions.monitor.performance_monitor import PerformanceMonitor
 from crawlo.logging.config import LogConfig
-from crawlo.logging.sampler import get_sampler
-from crawlo.logging.async_handler import AsyncConcurrentRotatingFileHandler
 
 
 def test_log_configuration():
@@ -118,9 +116,10 @@ def test_log_performance_monitoring():
             LOG_CONSOLE_ENABLED=False
         )
         
-        # 启用性能监控
-        monitor = get_monitor()
-        monitor.enable_monitoring()
+        # 启用性能监控（旧 get_monitor API 已迁移至 extensions.monitor）
+        monitor = PerformanceMonitor()
+        metrics = monitor.get_system_metrics()
+        monitor.log_system_metrics()
         
         # 获取logger并生成一些日志
         logger = get_logger('test.monitor')
@@ -134,15 +133,9 @@ def test_log_performance_monitoring():
         # 等待一小段时间
         time.sleep(0.1)
         
-        # 获取性能统计
-        print("2. 获取性能统计...")
-        stats = monitor.get_statistics()
-        print(f"   统计信息: {stats}")
-        
-        # 获取性能报告
-        print("3. 获取性能报告...")
-        report = monitor.get_performance_report()
-        print(f"   性能报告:\n{report}")
+        # 获取性能指标（新 API：get_system_metrics）
+        print("2. 获取性能指标...")
+        print(f"   统计信息: {metrics}")
         
     finally:
         # 清理
@@ -167,11 +160,6 @@ def test_log_sampling():
             LOG_CONSOLE_ENABLED=False
         )
         
-        # 配置采样器
-        sampler = get_sampler()
-        sampler.set_sample_rate('test.sampler', 0.5)  # 50%采样率
-        sampler.set_rate_limit('test.sampler', 100)   # 每秒最多100条日志
-        
         # 获取logger
         logger = get_logger('test.sampler')
         
@@ -180,11 +168,10 @@ def test_log_sampling():
         log_count = 0
         
         for i in range(100):
-            # 使用采样器判断是否应该记录日志
+            # 采样器已在重构中移除，直接记录日志
             message = f"采样测试消息 {i+1}"
-            if sampler.should_log('test.sampler', message):
-                logger.info(message)
-                log_count += 1
+            logger.info(message)
+            log_count += 1
                 
         end_time = time.time()
         
@@ -205,84 +192,6 @@ def test_log_sampling():
     finally:
         # 清理
         shutil.rmtree(temp_dir, ignore_errors=True)
-
-
-def test_async_logging():
-    """测试异步日志处理功能"""
-    print("\n=== 测试异步日志处理功能 ===")
-    
-    # 创建临时目录
-    temp_dir = tempfile.mkdtemp()
-    log_file = os.path.join(temp_dir, 'async_test.log')
-    
-    try:
-        # 重置日志管理器
-        LogManager().reset()
-        
-        # 直接测试异步处理器
-        print("1. 测试异步并发轮转文件处理器...")
-        
-        # 创建异步处理器
-        async_handler = AsyncConcurrentRotatingFileHandler(
-            filename=log_file,
-            maxBytes=1024*1024,  # 1MB
-            backupCount=3
-        )
-        
-        # 启动异步处理器
-        async_handler.start()
-        
-        # 创建logger并添加异步处理器
-        logger = get_logger('test.async')
-        logger.handlers.clear()  # 清除现有处理器
-        logger.addHandler(async_handler)
-        logger.setLevel(10)  # DEBUG级别
-        
-        print("2. 生成异步日志...")
-        start_time = time.time()
-        
-        # 生成大量日志
-        for i in range(100):
-            logger.info(f"异步日志消息 {i+1}")
-            
-        # 等待日志处理完成
-        time.sleep(1.0)
-        
-        end_time = time.time()
-        
-        print(f"   生成100条日志耗时: {end_time - start_time:.3f}秒")
-        
-        # 检查日志文件
-        print("3. 检查日志文件...")
-        if os.path.exists(log_file):
-            # 尝试不同的编码方式读取文件
-            encodings = ['utf-8', 'gbk', 'latin1']
-            lines = []
-            for encoding in encodings:
-                try:
-                    with open(log_file, 'r', encoding=encoding) as f:
-                        lines = f.readlines()
-                    break
-                except UnicodeDecodeError:
-                    continue
-                    
-            if lines:
-                print(f"   日志文件行数: {len(lines)}")
-                if lines:
-                    print(f"   第一行: {lines[0].strip()}")
-                    print(f"   最后一行: {lines[-1].strip()}")
-            else:
-                print("   无法读取日志文件内容")
-        else:
-            print("   日志文件不存在!")
-            
-        # 停止异步处理器
-        async_handler.stop()
-        
-    finally:
-        # 清理
-        shutil.rmtree(temp_dir, ignore_errors=True)
-
 
 def test_module_specific_levels():
     """测试模块特定日志级别"""

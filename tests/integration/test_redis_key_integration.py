@@ -72,8 +72,8 @@ class TestRedisKeyIntegration(unittest.TestCase):
         self.assertEqual(info['framework'], 'crawlo')
         self.assertEqual(info['project'], self.project_name)
         self.assertEqual(info['spider'], self.spider_name)
-        self.assertEqual(info['component'], 'filter')
-        self.assertEqual(info['sub_component'], 'fingerprint')
+        self.assertEqual(info['component'], 'dedup')
+        self.assertEqual(info['sub_component'], 'request')
         
         # 测试数据项指纹 Key 信息
         item_key = self.key_manager.get_item_fingerprint_key()
@@ -82,8 +82,8 @@ class TestRedisKeyIntegration(unittest.TestCase):
         self.assertEqual(info['framework'], 'crawlo')
         self.assertEqual(info['project'], self.project_name)
         self.assertEqual(info['spider'], self.spider_name)
-        self.assertEqual(info['component'], 'item')
-        self.assertEqual(info['sub_component'], 'fingerprint')
+        self.assertEqual(info['component'], 'dedup')
+        self.assertEqual(info['sub_component'], 'item')
     
     def test_without_spider_name(self):
         """测试不包含爬虫名称的 Key"""

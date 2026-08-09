@@ -13,7 +13,7 @@ import sys
 import os
 import asyncio
 import unittest
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import Mock, patch, MagicMock, AsyncMock
 from collections import namedtuple
 
 # 添加项目根目录到路径
@@ -53,27 +53,24 @@ class TestDedupFix(unittest.IsolatedAsyncioTestCase):
 
     async def test_redis_dedup_pipeline_exception_type(self):
         """测试Redis去重管道抛出正确的异常类型"""
-        # 创建Redis去重管道实例
-        with patch('redis.Redis') as mock_redis:
-            mock_redis_instance = Mock()
-            mock_redis_instance.sadd = Mock(return_value=0)  # 模拟已存在的指纹
-            mock_redis.return_value = mock_redis_instance
-            
-            pipeline = RedisDedupPipeline(
-                crawler=self.mock_crawler,
-                redis_host='localhost',
-                redis_port=6379,
-                redis_db=0,
-                redis_password=None,
-                redis_key='test:key'
-            )
-            
-            # 验证抛出的是ItemDiscard异常
-            with self.assertRaises(ItemDiscard) as context:
-                await pipeline.process_item(self.test_item, Mock())
-            
-            # 验证异常消息
-            self.assertIn("Duplicate item:", str(context.exception))
+        # 创建Redis去重管道实例，并注入 mock 客户端（当前实现走 redis.asyncio 连接池）
+        pipeline = RedisDedupPipeline(
+            crawler=self.mock_crawler,
+            redis_host='localhost',
+            redis_port=6379,
+            redis_db=0,
+            redis_password=None,
+            redis_key='test:key'
+        )
+        pipeline.redis_client = AsyncMock()
+        pipeline.redis_client.sismember = AsyncMock(return_value=1)  # 模拟指纹已存在
+
+        # 验证抛出的是ItemDiscard异常
+        with self.assertRaises(ItemDiscard) as context:
+            await pipeline.process_item(self.test_item, Mock())
+
+        # 验证异常消息
+        self.assertIn("Duplicate item:", str(context.exception))
 
     async def test_memory_dedup_pipeline_exception_type(self):
         """测试内存去重管道抛出正确的异常类型"""

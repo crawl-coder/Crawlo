@@ -18,6 +18,9 @@ import asyncio
 from unittest.mock import Mock
 
 # 添加项目根目录到路径
+import pytest
+
+pytestmark = pytest.mark.browser  # noqa: E402  (heavy browser / live-network tests, skipped in CI)
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 

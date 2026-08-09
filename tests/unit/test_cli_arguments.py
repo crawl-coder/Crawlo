@@ -34,7 +34,6 @@ class TestCLIArguments(unittest.TestCase):
         sys.path = self.original_path[:]
     
     @patch('crawlo.spider.get_global_spider_registry')
-    @patch('crawlo.commands.run.get_framework_initializer')
     @patch('crawlo.commands.run.read_crawlo_cfg')
     @patch('crawlo.commands.run.import_module')
     @patch('crawlo.commands.run.check_redis_connection')
@@ -42,10 +41,9 @@ class TestCLIArguments(unittest.TestCase):
     @patch('crawlo.commands.run._find_project_root')
     @patch('crawlo.commands.run.initialize_framework')
     @patch('crawlo.commands.run.CrawlerProcess')
-    def test_log_level_argument(self, mock_crawler_process, mock_initialize, mock_find_project, mock_run_cleanup, mock_check_redis, mock_import_module, mock_read_cfg, mock_get_init, mock_registry):
+    def test_log_level_argument(self, mock_crawler_process, mock_initialize, mock_find_project, mock_run_cleanup, mock_check_redis, mock_import_module, mock_read_cfg, mock_registry):
         """测试--log-level参数解析"""
         # 模拟项目环境
-        mock_get_init.return_value = MagicMock()
         mock_read_cfg.return_value = 'test_project.settings'
         mock_import_module.return_value = MagicMock()
         mock_check_redis.return_value = True
@@ -73,7 +71,6 @@ class TestCLIArguments(unittest.TestCase):
             self.assertEqual(settings.get('LOG_LEVEL'), 'DEBUG')
     
     @patch('crawlo.spider.get_global_spider_registry')
-    @patch('crawlo.commands.run.get_framework_initializer')
     @patch('crawlo.commands.run.read_crawlo_cfg')
     @patch('crawlo.commands.run.import_module')
     @patch('crawlo.commands.run.check_redis_connection')
@@ -81,10 +78,9 @@ class TestCLIArguments(unittest.TestCase):
     @patch('crawlo.commands.run._find_project_root')
     @patch('crawlo.commands.run.initialize_framework')
     @patch('crawlo.commands.run.CrawlerProcess')
-    def test_concurrency_argument(self, mock_crawler_process, mock_initialize, mock_find_project, mock_run_cleanup, mock_check_redis, mock_import_module, mock_read_cfg, mock_get_init, mock_registry):
+    def test_concurrency_argument(self, mock_crawler_process, mock_initialize, mock_find_project, mock_run_cleanup, mock_check_redis, mock_import_module, mock_read_cfg, mock_registry):
         """测试--concurrency参数解析"""
         # 模拟项目环境
-        mock_get_init.return_value = MagicMock()
         mock_read_cfg.return_value = 'test_project.settings'
         mock_import_module.return_value = MagicMock()
         mock_check_redis.return_value = True
@@ -112,7 +108,6 @@ class TestCLIArguments(unittest.TestCase):
             self.assertEqual(settings.get('CONCURRENCY'), 32)
     
     @patch('crawlo.spider.get_global_spider_registry')
-    @patch('crawlo.commands.run.get_framework_initializer')
     @patch('crawlo.commands.run.read_crawlo_cfg')
     @patch('crawlo.commands.run.import_module')
     @patch('crawlo.commands.run.check_redis_connection')
@@ -120,10 +115,9 @@ class TestCLIArguments(unittest.TestCase):
     @patch('crawlo.commands.run._find_project_root')
     @patch('crawlo.commands.run.initialize_framework')
     @patch('crawlo.commands.run.CrawlerProcess')
-    def test_combined_arguments(self, mock_crawler_process, mock_initialize, mock_find_project, mock_run_cleanup, mock_check_redis, mock_import_module, mock_read_cfg, mock_get_init, mock_registry):
+    def test_combined_arguments(self, mock_crawler_process, mock_initialize, mock_find_project, mock_run_cleanup, mock_check_redis, mock_import_module, mock_read_cfg, mock_registry):
         """测试组合参数解析"""
         # 模拟项目环境
-        mock_get_init.return_value = MagicMock()
         mock_read_cfg.return_value = 'test_project.settings'
         mock_import_module.return_value = MagicMock()
         mock_check_redis.return_value = True

@@ -20,7 +20,7 @@ from crawlo.http.request import Request
 from crawlo.spider import Spider
 from crawlo.core.scheduling.task_scheduler import Scheduler
 from crawlo.queue.backends.redis_priority import RedisPriorityQueue
-from crawlo.utils.log import get_logger
+from crawlo.logging import get_logger
 from unittest.mock import Mock
 
 
@@ -47,49 +47,38 @@ class TestSpider(Spider):
 
 
 def test_scheduler_cleaning():
-    """测试调度器的 logger 清理"""
+    """测试请求序列化的 logger 清理（旧 _deep_clean_loggers 已由 Request 构造期剥离 + RequestSerializer 取代）"""
     print("测试调度器 logger 清理...")
-    
+
     spider = TestSpider()
     request = Request(
         url="https://scheduler-test.com",
         callback=spider.parse,
         meta={"logger": get_logger("meta_logger")}
     )
-    
-    # Mock crawler 和 scheduler
-    class MockCrawler:
-        def __init__(self):
-            self.spider = spider
-    
-    class MockScheduler(Scheduler):
-        def __init__(self):
-            self.crawler = MockCrawler()
-            self.logger = get_logger("MockScheduler")
-    
-    scheduler = MockScheduler()
-    
-    # 清理前检查
-    print(f"   清理前 - spider.logger: {spider.logger is not None}")
-    print(f"   清理前 - spider.custom_logger: {spider.custom_logger is not None}")
-    print(f"   清理前 - request.callback: {request.callback is not None}")
-    
-    # 执行清理
-    cleaned_request = scheduler._deep_clean_loggers(request)
-    
-    # 清理后检查
-    print(f"   清理后 - spider.logger: {spider.logger is not None}")
-    print(f"   清理后 - spider.custom_logger: {spider.custom_logger is None}")
-    print(f"   清理后 - request.callback: {cleaned_request.callback is None}")
-    
-    # 序列化测试
+
+    # Request 构造时自动剥离 meta 中的 logger（不可序列化对象），只保留 _callback_info
+    assert 'logger' not in request.meta
+    assert '_callback_info' in request.meta
+
+    from crawlo.utils.request.request_serializer import RequestSerializer
+
+    serializer = RequestSerializer('pickle')
+    data = serializer.prepare_for_serialization(request)
+
+    # 序列化应成功（payload 中不包含 logger 引用）
     try:
-        serialized = pickle.dumps(cleaned_request)
+        serialized = pickle.dumps(data)
         print(f"   调度器清理后序列化成功，大小: {len(serialized)} bytes")
-        return True
     except Exception as e:
         print(f"   调度器清理后序列化失败: {e}")
-        return False
+        raise
+
+    # 反序列化后回调按 _callback_info 恢复
+    restored = serializer.restore_after_deserialization(pickle.loads(serialized), spider)
+    assert restored.callback is not None
+    assert restored.callback.__name__ == 'parse'
+    print(f"   反序列化后 callback 恢复: {restored.callback.__name__}")
 
 
 async def test_redis_queue_cleaning():

@@ -86,11 +86,9 @@ async def test_proxy_integration():
     process = CrawlerProcess(settings=config.to_dict())
     
     # 添加爬虫
-    process.crawl(ProxyTestSpider)
+    await process.crawl(ProxyTestSpider)
     
     # 运行测试
-    await process.start()
-    
     print("   代理集成测试完成")
 
 

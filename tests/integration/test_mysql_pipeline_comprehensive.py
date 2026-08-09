@@ -17,8 +17,8 @@ from typing import Dict, Any, Optional
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from crawlo.pipelines.sql.mysql import (
-    MySQLPipeline,
+from crawlo.pipelines.sql.mysql import MySQLPipeline
+from crawlo.utils.db.pipeline_utils import (
     ErrorClassifier,
     ErrorConfig,
     PerformanceStats

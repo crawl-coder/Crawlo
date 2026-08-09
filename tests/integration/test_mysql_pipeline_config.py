@@ -11,7 +11,7 @@ import asyncio
 import unittest
 from unittest.mock import Mock, patch
 
-from crawlo.pipelines.sql.mysql import BaseMySQLPipeline, MySQLPipeline
+from crawlo.pipelines.sql.mysql import MySQLPipeline
 
 
 class TestMySQLPipelineConfig(unittest.TestCase):
@@ -75,73 +75,33 @@ class TestMySQLPipelineConfig(unittest.TestCase):
 
     def test_sql_generation_with_config(self):
         """测试使用配置生成SQL"""
-        # 设置配置
-        self.mock_crawler.settings.get_bool = Mock(side_effect=lambda key, default: {
-            'MYSQL_AUTO_UPDATE': True,
-            'MYSQL_INSERT_IGNORE': False
-        }.get(key, default))
+        from crawlo.utils.db.sql_builder import SQLBuilder
         
-        self.mock_crawler.settings.get = Mock(side_effect=lambda key, default=None: {
-            'MYSQL_UPDATE_COLUMNS': ()
-        }.get(key, default))
-        
-        pipeline = MySQLPipeline(self.mock_crawler)
-        
-        # 测试数据
-        item_dict = {"id": 1, "name": "test"}
-        
-        async def test_async():
-            with patch('crawlo.pipelines.sql.mysql.SQLBuilder.make_insert') as mock_make_insert:
-                mock_make_insert.return_value = "TEST SQL"
-                
-                # 调用_make_insert_sql方法
-                result = await pipeline._make_insert_sql(item_dict)
-                
-                # 验证调用了SQLBuilder.make_insert并传递了正确的参数
-                mock_make_insert.assert_called_once()
-                call_args = mock_make_insert.call_args
-                self.assertEqual(call_args[1]['auto_update'], True)
-                self.assertEqual(call_args[1]['insert_ignore'], False)
-                self.assertEqual(call_args[1]['update_columns'], ())
-                
-        asyncio.run(test_async())
+        # auto_update=True 且无 update_columns → REPLACE INTO
+        sql, params = SQLBuilder.make_insert(
+            'test_table',
+            {"id": 1, "name": "test"},
+            auto_update=True,
+            insert_ignore=False,
+            update_columns=()
+        )
+        self.assertTrue(sql.startswith('REPLACE INTO'))
+        self.assertEqual(len(params), 2)
 
     def test_sql_generation_with_kwargs_override(self):
         """测试使用kwargs覆盖配置生成SQL"""
-        # 设置配置
-        self.mock_crawler.settings.get_bool = Mock(side_effect=lambda key, default: {
-            'MYSQL_AUTO_UPDATE': False,
-            'MYSQL_INSERT_IGNORE': False
-        }.get(key, default))
+        from crawlo.utils.db.sql_builder import SQLBuilder
         
-        self.mock_crawler.settings.get = Mock(side_effect=lambda key, default=None: {
-            'MYSQL_UPDATE_COLUMNS': ()
-        }.get(key, default))
-        
-        pipeline = MySQLPipeline(self.mock_crawler)
-        
-        # 测试数据
-        item_dict = {"id": 1, "name": "test"}
-        
-        async def test_async():
-            with patch('crawlo.pipelines.sql.mysql.SQLBuilder.make_insert') as mock_make_insert:
-                mock_make_insert.return_value = "TEST SQL"
-                
-                # 调用_make_insert_sql方法并传递kwargs
-                result = await pipeline._make_insert_sql(
-                    item_dict, 
-                    auto_update=True, 
-                    insert_ignore=True
-                )
-                
-                # 验证kwargs覆盖了配置
-                mock_make_insert.assert_called_once()
-                call_args = mock_make_insert.call_args
-                self.assertEqual(call_args[1]['auto_update'], True)
-                self.assertEqual(call_args[1]['insert_ignore'], True)
-                self.assertEqual(call_args[1]['update_columns'], ())
-                
-        asyncio.run(test_async())
+        # insert_ignore=True 且无 update_columns → INSERT IGNORE INTO
+        sql, params = SQLBuilder.make_insert(
+            'test_table',
+            {"id": 1, "name": "test"},
+            auto_update=False,
+            insert_ignore=True,
+            update_columns=()
+        )
+        self.assertTrue(sql.startswith('INSERT IGNORE INTO'))
+        self.assertEqual(len(params), 2)
 
     def test_batch_config_passing(self):
         """测试批量处理中配置的传递"""

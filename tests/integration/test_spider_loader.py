@@ -17,7 +17,7 @@ import sys
 import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
-from crawlo.utils.spider_loader import SpiderLoader
+from crawlo.spider.loader import SpiderLoader
 from crawlo.settings.setting_manager import SettingManager
 
 

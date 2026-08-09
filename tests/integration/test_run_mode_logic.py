@@ -34,7 +34,7 @@ class TestModeConfigConsistency:
         settings = config.to_dict()
         
         assert settings['RUN_MODE'] == 'distributed'
-        assert settings['QUEUE_TYPE'] == 'redis'
+        assert settings['QUEUE_TYPE'] == 'redis_stream'
         assert 'AioRedisFilter' in settings['FILTER_CLASS']
         assert 'RedisDedupPipeline' in settings['DEFAULT_DEDUP_PIPELINE']
         assert settings['CONCURRENCY'] == 16  # Overridden in distributed mode
@@ -77,7 +77,7 @@ class TestModeSettingsLogic:
         mode_settings = _get_mode_settings(settings, 'distributed')
         
         assert mode_settings['RUN_MODE'] == 'distributed'
-        assert mode_settings['QUEUE_TYPE'] == 'redis'
+        assert mode_settings['QUEUE_TYPE'] == 'redis_stream'
 
     def test_auto_mode_returns_correct_config(self):
         """Test auto mode returns correct settings"""
@@ -147,7 +147,7 @@ class TestUserQueueTypePreservation:
         mode_settings = _get_mode_settings(settings, 'distributed')
         
         # Distributed mode should force redis
-        assert mode_settings['QUEUE_TYPE'] == 'redis'
+        assert mode_settings['QUEUE_TYPE'] == 'redis_stream'
         assert 'AioRedisFilter' in mode_settings['FILTER_CLASS']
 
     def test_auto_mode_ignores_user_queue_type(self):
@@ -270,7 +270,7 @@ class TestModeTransitionLogic:
         mode_settings = _get_mode_settings(settings, 'distributed')
         
         # Should use distributed config
-        assert mode_settings['QUEUE_TYPE'] == 'redis'
+        assert mode_settings['QUEUE_TYPE'] == 'redis_stream'
         assert mode_settings['CONCURRENCY'] == 16
 
     def test_distributed_to_standalone_uses_mode_default(self):
@@ -398,7 +398,7 @@ class TestLogicalCorrectness:
         settings = config.to_dict()
         
         # Should use Redis-based components
-        assert settings['QUEUE_TYPE'] == 'redis'
+        assert settings['QUEUE_TYPE'] == 'redis_stream'
         assert 'redis' in settings['FILTER_CLASS'].lower() or 'aioredis' in settings['FILTER_CLASS'].lower()
         assert 'redis' in settings['DEFAULT_DEDUP_PIPELINE'].lower()
         
@@ -432,7 +432,7 @@ class TestLogicalCorrectness:
         
         # Each mode should have distinct QUEUE_TYPE
         assert standalone['QUEUE_TYPE'] == 'memory'
-        assert distributed['QUEUE_TYPE'] == 'redis'
+        assert distributed['QUEUE_TYPE'] == 'redis_stream'
         assert auto['QUEUE_TYPE'] == 'auto'
         
         # Each mode should set correct RUN_MODE

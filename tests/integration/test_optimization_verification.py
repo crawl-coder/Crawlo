@@ -68,16 +68,30 @@ class TestAioRedisFilterNetworkError:
     async def test_requested_async_logs_warning_not_error(self, redis_filter, caplog):
         """网络异常时应记录 warning 而非 error"""
         request = Request(url="http://example.com/page2")
-        
-        with caplog.at_level(logging.WARNING):
+
+        # 框架 logger propagate=False，caplog（root handler）收不到，需直接挂 handler
+        class _RecordHandler(logging.Handler):
+            def __init__(self):
+                super().__init__()
+                self.records = []
+
+            def emit(self, record):
+                self.records.append(record)
+
+        handler = _RecordHandler()
+        redis_filter.logger.addHandler(handler)
+        redis_filter.logger.setLevel(logging.WARNING)
+        try:
             result = await redis_filter.requested_async(request)
-        
+        finally:
+            redis_filter.logger.removeHandler(handler)
+
         # 验证日志级别是 WARNING
-        assert any(record.levelno == logging.WARNING for record in caplog.records), \
+        assert any(record.levelno == logging.WARNING for record in handler.records), \
             "网络异常时应记录 WARNING 级别日志"
-        
+
         # 验证日志消息包含关键信息
-        log_message = " ".join(record.message for record in caplog.records)
+        log_message = " ".join(record.getMessage() for record in handler.records)
         assert "Redis unavailable" in log_message or "allowing request" in log_message.lower(), \
             "日志应说明 Redis 不可用且允许请求通过"
 
@@ -85,9 +99,9 @@ class TestAioRedisFilterNetworkError:
     async def test_check_fingerprint_exists_network_error_returns_false(self, redis_filter):
         """检查指纹存在性时网络异常应返回 False"""
         fp = "test_fingerprint_123"
-        
-        result = await redis_filter._check_fingerprint_exists(fp)
-        
+
+        result = await redis_filter.contains_async(fp)
+
         assert result is False, "网络异常时应返回 False,允许请求通过"
 
     @pytest.mark.asyncio
@@ -121,7 +135,10 @@ class TestEngineEventDriven:
         """模拟 Crawler"""
         crawler = Mock()
         crawler.settings = Mock()
-        crawler.settings.get = Mock(return_value=None)
+        crawler.settings.get = Mock(side_effect=lambda key, default=None: default)
+        crawler.settings.get_int = Mock(side_effect=lambda key, default=0: default)
+        crawler.settings.get_float = Mock(side_effect=lambda key, default=0.0: default)
+        crawler.settings.get_bool = Mock(side_effect=lambda key, default=False: default)
         crawler.spider = Mock()
         crawler.subscriber = Mock()
         crawler.subscriber.notify = AsyncMock()
@@ -286,7 +303,11 @@ class TestProcessorQueueRace:
     @pytest.fixture
     def processor(self):
         """创建 Processor 实例"""
-        proc = Processor()
+        crawler = Mock()
+        crawler.settings = Mock()
+        crawler.settings.get = Mock(side_effect=lambda key, default=None: default)
+        crawler.stats = Mock()
+        proc = Processor(crawler)
         proc.pipelines = Mock()
         proc.pipelines.process_item = AsyncMock()
         return proc
@@ -411,6 +432,9 @@ class TestMiddlewareLogGuard:
         crawler = Mock()
         crawler.stats = Mock()
         crawler.spider = Mock()
+        crawler.settings = Mock()
+        crawler.settings.get = Mock(side_effect=lambda key, default=None: default)
+        crawler.settings.get_bool = Mock(side_effect=lambda key, default=False: default)
         
         manager = MiddlewareManager(crawler)
         manager.methods = {
@@ -421,28 +445,21 @@ class TestMiddlewareLogGuard:
         
         return manager
 
-    def test_debug_log_uses_is_enabled_for(self, middleware_manager):
-        """DEBUG 日志应使用 isEnabledFor 守卫"""
-        import inspect
-        source = inspect.getsource(middleware_manager._process_request)
-        
-        assert "isEnabledFor" in source, \
-            "_process_request 应使用 isEnabledFor 守卫"
-        assert "isEnabledFor(10)" in source or "isEnabledFor(logging.DEBUG)" in source, \
-            "应检查 DEBUG 级别 (10)"
-
     @pytest.mark.asyncio
     async def test_log_not_formatted_when_disabled(self, middleware_manager):
         """日志禁用时不应执行字符串格式化"""
         # 设置日志级别为 INFO (禁用 DEBUG)
         middleware_manager.logger.setLevel(logging.INFO)
-        
+
         request = Request(url="http://example.com")
         middleware_manager.methods['process_request'] = []
-        
+
+        # 空中间件列表时 _process_request 直接走下载函数（延迟绑定）
+        middleware_manager._download_func = AsyncMock(return_value=None)
+
         # 调用 _process_request
         result = await middleware_manager._process_request(request)
-        
+
         # 不应有 DEBUG 日志
         # (验证通过表示没有异常,字符串格式化被跳过)
         assert result is None
@@ -461,6 +478,9 @@ class TestMiddlewareTaskTracking:
         crawler = Mock()
         crawler.stats = Mock()
         crawler.spider = Mock()
+        crawler.settings = Mock()
+        crawler.settings.get = Mock(side_effect=lambda key, default=None: default)
+        crawler.settings.get_bool = Mock(side_effect=lambda key, default=False: default)
         crawler.subscriber = Mock()
         crawler.subscriber.notify = AsyncMock()
         

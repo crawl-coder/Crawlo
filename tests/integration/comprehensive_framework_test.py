@@ -102,7 +102,7 @@ async def test_queue_system():
     # 测试获取请求
     print("从队列获取请求...")
     for i in range(3):
-        request = await queue_manager.get(timeout=1.0)
+        request = await queue_manager.get_blocking(timeout=1.0)
         if request:
             print(f"获取请求: {request.url}")
     

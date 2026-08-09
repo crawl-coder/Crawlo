@@ -16,7 +16,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from crawlo.settings.setting_manager import SettingManager
 from crawlo.pipelines.sql.mysql import MySQLPipeline
 from crawlo.items import Item, Field
-from crawlo.utils.mysql_connection_pool import MySQLConnectionPoolManager
+from crawlo.utils.db.mysql_connection_pool import MySQLConnectionPoolManager
 import logging
 
 # 配置日志
@@ -63,109 +63,39 @@ async def test_pool_status_check():
     """测试连接池状态检查方法"""
     print("=" * 60)
     print("测试连接池状态检查方法...")
-    
+
+    from crawlo.utils.db.mysql_connection_pool import is_pool_active
+
     # 创建一个模拟的连接池对象来测试状态检查方法
     class MockPool:
-        def __init__(self, pool_type):
-            self.pool_type = pool_type
-            if pool_type == 'asyncmy':
-                self._closed = False  # asyncmy 使用 _closed
-            else:
-                self.closed = False  # aiomysql 使用 closed
-    
-    # 测试 MySQLPipeline 的状态检查方法
-    settings = {
-        'MYSQL_HOST': '127.0.0.1',
-        'MYSQL_PORT': 3306,
-        'MYSQL_USER': 'crawlo',
-        'MYSQL_PASSWORD': 'crawlo123',
-        'MYSQL_DB': 'crawlo_deployer',
-        'MYSQL_TABLE': 'test_table',
-        'MYSQL_BATCH_SIZE': 10,
-        'MYSQL_USE_BATCH': False,
-    }
-    
-    crawler = MockCrawler(settings)
-    pipeline = MySQLPipeline.from_crawler(crawler)
-    
-    # 测试 active 状态
-    mock_pool_active = MockPool('asyncmy')
-    pipeline.pool = mock_pool_active
-    pipeline._pool_initialized = True
-    
-    is_active = pipeline._is_pool_active(pipeline.pool)
-    print(f"Active asyncmy pool status check: {is_active}")
-    
-    # 测试 closed 状态
-    mock_pool_active._closed = True
-    is_active = pipeline._is_pool_active(pipeline.pool)
-    print(f"Closed asyncmy pool status check: {is_active}")
-    
-    # 测试 aiomysql 模式
-    mock_pool_active = MockPool('aiomysql')
-    pipeline.pool = mock_pool_active
-    pipeline._pool_initialized = True
-    
-    is_active = pipeline._is_pool_active(pipeline.pool)
-    print(f"Active aiomysql pool status check: {is_active}")
-    
-    # 测试 closed 状态
-    mock_pool_active.closed = True
-    is_active = pipeline._is_pool_active(pipeline.pool)
-    print(f"Closed aiomysql pool status check: {is_active}")
-    
+        def __init__(self, closed=False):
+            self._closed = closed  # asyncmy 使用 _closed
+
+    # active 状态
+    assert is_pool_active(MockPool(closed=False)) is True
+    # closed 状态
+    assert is_pool_active(MockPool(closed=True)) is False
+    # 空池
+    assert is_pool_active(None) is False
+
     print("连接池状态检查测试完成")
 
 
 async def test_connection_status_check():
-    """测试连接状态检查方法"""
+    """测试连接状态检查方法（通过 is_pool_active 覆盖，连接状态语义已并入池状态检查）"""
     print("=" * 60)
     print("测试连接状态检查方法...")
-    
-    # 创建一个模拟的连接对象来测试状态检查方法
+
+    from crawlo.utils.db.mysql_connection_pool import is_pool_active
+
     class MockConn:
-        def __init__(self, conn_type):
-            self.conn_type = conn_type
-            if conn_type == 'asyncmy':
-                self._closed = False  # asyncmy 使用 _closed
-            else:
-                self.closed = False  # aiomysql 使用 closed
-    
-    # 测试 MySQLPipeline 的连接状态检查方法
-    settings = {
-        'MYSQL_HOST': '127.0.0.1',
-        'MYSQL_PORT': 3306,
-        'MYSQL_USER': 'crawlo',
-        'MYSQL_PASSWORD': 'crawlo123',
-        'MYSQL_DB': 'crawlo_deployer',
-        'MYSQL_TABLE': 'test_table',
-        'MYSQL_BATCH_SIZE': 10,
-        'MYSQL_USE_BATCH': False,
-    }
-    
-    crawler = MockCrawler(settings)
-    pipeline = MySQLPipeline.from_crawler(crawler)
-    
-    # 测试 active 状态
-    mock_conn_active = MockConn('asyncmy')
-    is_active = pipeline._is_conn_active(mock_conn_active)
-    print(f"Active asyncmy connection status check: {is_active}")
-    
-    # 测试 closed 状态
-    mock_conn_active._closed = True
-    is_active = pipeline._is_conn_active(mock_conn_active)
-    print(f"Closed asyncmy connection status check: {is_active}")
-    
-    # 测试 aiomysql 模式
-    mock_conn_active = MockConn('aiomysql')
-    is_active = pipeline._is_conn_active(mock_conn_active)
-    print(f"Active aiomysql connection status check: {is_active}")
-    
-    # 测试 closed 状态
-    mock_conn_active.closed = True
-    is_active = pipeline._is_conn_active(mock_conn_active)
-    print(f"Closed aiomysql connection status check: {is_active}")
-    
+        def __init__(self, closed=False):
+            self._closed = closed
+
+    # 连接对象同样通过 _closed 判断活跃状态
+    assert is_pool_active(MockConn(closed=False)) is True
+    assert is_pool_active(MockConn(closed=True)) is False
+
     print("连接状态检查测试完成")
 
 

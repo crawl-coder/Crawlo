@@ -245,12 +245,20 @@ class TestSchedulerDaemon:
         """测试并发控制初始化"""
         daemon = SchedulerDaemon(mock_settings)
         assert daemon._semaphore is None
-        
-        # 模拟启动
-        asyncio.run(daemon.start())
-        
-        # 注意：start() 会进入无限循环，所以这里只测试初始化部分
-        # 在实际测试中，应该使用更复杂的 mock 来避免无限循环
+
+        async def _run():
+            task = asyncio.create_task(daemon.start())
+            await asyncio.sleep(0.3)
+            await daemon.stop()
+            try:
+                await asyncio.wait_for(task, timeout=5)
+            except asyncio.TimeoutError:
+                task.cancel()
+
+        asyncio.run(_run())
+
+        # start() 内部 init_concurrency 会把并发信号量落到 executor
+        assert daemon._executor._semaphore is not None
     
     def test_stats_tracking(self, mock_settings):
         """测试统计信息跟踪"""

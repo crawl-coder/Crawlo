@@ -49,8 +49,9 @@ class TestMedium5RedisEmpty:
         with patch.object(QueueManager, '__init__', lambda self, **kwargs: None):
             qm = QueueManager.__new__(QueueManager)
             qm._queue = MagicMock()
+            # 后端 empty() 明确返回 False（非空），避免 MagicMock 默认真值导致误判
+            qm._queue.empty = AsyncMock(return_value=False)
             qm._queue_type = QueueType.REDIS
-            qm.logger = MagicMock()
             # 非 RedisPriorityQueue/RedisStreamQueue 实例走 self.size() 路径
             qm.size = AsyncMock(return_value=5)
 

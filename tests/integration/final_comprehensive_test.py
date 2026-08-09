@@ -63,7 +63,7 @@ async def test_queue_blocking_behavior():
     async def consumer():
         retrieved = 0
         while retrieved < 6:
-            request = await queue_manager.get(timeout=2.0)
+            request = await queue_manager.get_blocking(timeout=2.0)
             if request:
                 print(f"获取请求: {request.url}")
                 retrieved += 1

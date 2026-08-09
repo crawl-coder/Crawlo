@@ -17,6 +17,9 @@ from crawlo import Request
 from crawlo.downloader.cloakbrowser_downloader import CloakBrowserDownloader
 
 
+import pytest
+
+pytestmark = pytest.mark.browser  # noqa: E402  (heavy browser / live-network tests, skipped in CI)
 class TestCloakBrowserSingleBrowserMultipleTabs:
     """测试单浏览器多 Tab 核心功能"""
 
@@ -46,6 +49,7 @@ class TestCloakBrowserSingleBrowserMultipleTabs:
             "CLOAKBROWSER_WAIT_STRATEGY": "auto",
             "CLOAKBROWSER_WAIT_FOR_ELEMENT": None,
             "CLOAKBROWSER_USER_DATA_DIR": None,
+            "CLOAKBROWSER_MAX_PAGES": max_pages,
         }.get(key, default))
         crawler.settings.get_int = Mock(side_effect=lambda key, default: {
             "CLOAKBROWSER_TIMEOUT": 30000,

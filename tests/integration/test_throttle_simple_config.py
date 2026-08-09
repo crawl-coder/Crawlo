@@ -1,23 +1,21 @@
-# BROKEN: Phase 0.0 TEMPORARY EXCLUDED from pytest collection (pre-existing bug, NOT caused by refactor). Fix then remove top comment + pyproject.toml collect_ignore entry.
-# Reason (from last pytest collect): see git log / earlier test run for details
-
 #!/usr/bin/python
 # -*- coding: UTF-8 -*-
 """
-ThrottleMiddleware Simple Configuration Test
-Test the backward compatibility with DOWNLOAD_DELAY configuration
+DownloadDelayMiddleware 简单配置测试
+覆盖 DOWNLOAD_DELAY / RANDOMNESS / DOWNLOAD_DELAY_OVERRIDES 配置路径。
+（原 ThrottleMiddleware 已在重构中移除，此文件按当前 API 重写）
 """
 
-import asyncio
 import unittest
 from unittest.mock import Mock, patch
 
-from crawlo.middleware.throttle import ThrottleMiddleware
+from crawlo.middleware.download_delay import DownloadDelayMiddleware
 from crawlo.settings.setting_manager import SettingManager
 
 
 class MockLogger:
     """Mock Logger for testing"""
+
     def __init__(self, name, level=None):
         self.name = name
         self.level = level
@@ -28,7 +26,6 @@ class MockLogger:
 
     def info(self, msg):
         self.logs.append(('info', msg))
-        print(f"[INFO] {msg}")
 
     def warning(self, msg):
         self.logs.append(('warning', msg))
@@ -37,8 +34,8 @@ class MockLogger:
         self.logs.append(('error', msg))
 
 
-class TestThrottleMiddlewareSimpleConfig(unittest.TestCase):
-    """Test ThrottleMiddleware simple configuration mode"""
+class TestDownloadDelaySimpleConfig(unittest.TestCase):
+    """Test DownloadDelayMiddleware simple configuration mode"""
 
     def setUp(self):
         """Test setup"""
@@ -46,86 +43,70 @@ class TestThrottleMiddlewareSimpleConfig(unittest.TestCase):
         self.settings = SettingManager()
         self.crawler.settings = self.settings
 
-    @patch('crawlo.middleware.throttle.get_logger')
+    @patch('crawlo.middleware.download_delay.get_logger')
     def test_simple_download_delay_config(self, mock_get_logger):
         """Test simple DOWNLOAD_DELAY configuration"""
-        mock_get_logger.return_value = MockLogger('ThrottleMiddleware')
-        
-        # Set simple configuration
+        mock_get_logger.return_value = MockLogger('DownloadDelayMiddleware')
+
         self.settings.set('DOWNLOAD_DELAY', 0.5)
-        self.settings.set('RANDOMNESS', False)  # Explicitly disable randomness
-        
-        # Create middleware instance
-        middleware = ThrottleMiddleware.create_instance(self.crawler)
-        
-        # Verify it uses DOWNLOAD_DELAY
+        self.settings.set('RANDOMNESS', False)
+
+        middleware = DownloadDelayMiddleware.create_instance(self.crawler)
+
         self.assertEqual(middleware.default_delay, 0.5)
-        self.assertFalse(middleware.auto_throttle)
-        
-    @patch('crawlo.middleware.throttle.get_logger')
+        self.assertFalse(middleware.randomness)
+
+    @patch('crawlo.middleware.download_delay.get_logger')
     def test_download_delay_with_randomness(self, mock_get_logger):
         """Test DOWNLOAD_DELAY with RANDOMNESS enabled"""
-        mock_get_logger.return_value = MockLogger('ThrottleMiddleware')
-        
-        # Set configuration with randomness
+        mock_get_logger.return_value = MockLogger('DownloadDelayMiddleware')
+
         self.settings.set('DOWNLOAD_DELAY', 2.0)
         self.settings.set('RANDOMNESS', True)
-        
-        # Create middleware instance
-        middleware = ThrottleMiddleware.create_instance(self.crawler)
-        
-        # Verify auto_throttle is enabled when RANDOMNESS=True
+
+        middleware = DownloadDelayMiddleware.create_instance(self.crawler)
+
         self.assertEqual(middleware.default_delay, 2.0)
-        self.assertTrue(middleware.auto_throttle)
-        
-    @patch('crawlo.middleware.throttle.get_logger')
-    def test_throttle_config_overrides_download_delay(self, mock_get_logger):
+        self.assertTrue(middleware.randomness)
+
+    @patch('crawlo.middleware.download_delay.get_logger')
+    def test_delay_without_explicit_randomness(self, mock_get_logger):
         """Test DOWNLOAD_DELAY is the unified configuration"""
-        mock_get_logger.return_value = MockLogger('ThrottleMiddleware')
-        
-        # Set DOWNLOAD_DELAY
+        mock_get_logger.return_value = MockLogger('DownloadDelayMiddleware')
+
         self.settings.set('DOWNLOAD_DELAY', 0.5)
-        
-        # Create middleware instance
-        middleware = ThrottleMiddleware.create_instance(self.crawler)
-        
-        # Should use DOWNLOAD_DELAY
+
+        middleware = DownloadDelayMiddleware.create_instance(self.crawler)
+
         self.assertEqual(middleware.default_delay, 0.5)
-        
-    @patch('crawlo.middleware.throttle.get_logger')
+
+    @patch('crawlo.middleware.download_delay.get_logger')
     def test_domain_specific_config(self, mock_get_logger):
         """Test domain-specific configuration"""
-        mock_get_logger.return_value = MockLogger('ThrottleMiddleware')
-        
-        # Set advanced configuration
+        mock_get_logger.return_value = MockLogger('DownloadDelayMiddleware')
+
         self.settings.set('DOWNLOAD_DELAY', 1.0)
-        self.settings.set('RANDOMNESS', False)
-        self.settings.set('THROTTLE_DOMAIN_OVERRIDES', {
-            'example.com': {'delay': 2.0},
-            'api.example.com': {'delay': 0.1, 'max_rate': 10},
+        self.settings.set('DOWNLOAD_DELAY_OVERRIDES', {
+            'example.com': 2.0,
+            'api.example.com': 0.1,
         })
-        
-        # Create middleware instance
-        middleware = ThrottleMiddleware.create_instance(self.crawler)
-        
-        # Verify domain configs are set
+
+        middleware = DownloadDelayMiddleware.create_instance(self.crawler)
+
         self.assertEqual(middleware.default_delay, 1.0)
-        self.assertIn('example.com', middleware.throttler._domain_configs)
-        self.assertIn('api.example.com', middleware.throttler._domain_configs)
-        
-    @patch('crawlo.middleware.throttle.get_logger')
-    def test_disabled_throttle(self, mock_get_logger):
-        """Test disabled throttle"""
-        mock_get_logger.return_value = MockLogger('ThrottleMiddleware')
-        
-        # Disable throttle
-        self.settings.set('THROTTLE_ENABLED', False)
-        
-        # Create middleware instance
-        middleware = ThrottleMiddleware.create_instance(self.crawler)
-        
-        # Should return None
-        self.assertIsNone(middleware)
+        self.assertEqual(middleware.domain_overrides.get('example.com'), 2.0)
+        self.assertEqual(middleware.domain_overrides.get('api.example.com'), 0.1)
+
+    @patch('crawlo.middleware.download_delay.get_logger')
+    def test_disabled_delay(self, mock_get_logger):
+        """Test disabled delay (DOWNLOAD_DELAY=0)"""
+        mock_get_logger.return_value = MockLogger('DownloadDelayMiddleware')
+
+        self.settings.set('DOWNLOAD_DELAY', 0)
+
+        middleware = DownloadDelayMiddleware.create_instance(self.crawler)
+
+        self.assertEqual(middleware.default_delay, 0)
 
 
 if __name__ == '__main__':

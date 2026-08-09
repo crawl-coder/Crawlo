@@ -27,12 +27,10 @@ sys.path.insert(0, str(project_root))
 from crawlo.logging import (
     configure_logging, 
     get_logger, 
-    LogManager,
-    get_monitor
+    LogManager
 )
+from crawlo.extensions.monitor.performance_monitor import PerformanceMonitor
 from crawlo.logging.config import LogConfig
-from crawlo.logging.sampler import get_sampler
-from crawlo.logging.async_handler import AsyncConcurrentRotatingFileHandler
 
 
 def test_all_features():
@@ -74,18 +72,13 @@ def test_all_features():
         print(f"     包含线程ID: {config.include_thread_id}")
         print(f"     包含进程ID: {config.include_process_id}")
         
-        # 2. 测试性能监控
+        # 2. 测试性能监控（旧 get_monitor API 已迁移至 extensions.monitor）
         print("2. 测试性能监控...")
-        monitor = get_monitor()
-        monitor.enable_monitoring()
+        monitor = PerformanceMonitor()
+        monitor.log_system_metrics()
         
-        # 3. 测试日志采样
-        print("3. 测试日志采样...")
-        sampler = get_sampler()
-        sampler.set_sample_rate('test.sampler', 0.3)  # 30%采样率
-        
-        # 4. 测试不同模块的日志级别
-        print("4. 测试不同模块的日志级别...")
+        # 3. 测试不同模块的日志级别（采样器已在重构中移除）
+        print("3. 测试不同模块的日志级别...")
         
         # DEBUG模块
         debug_logger = get_logger('debug.module')
@@ -111,19 +104,18 @@ def test_all_features():
         default_logger.warning("WARNING消息 - 应该显示")
         default_logger.error("ERROR消息 - 应该显示")
         
-        # 5. 测试采样功能
-        print("5. 测试采样功能...")
+        # 5. 测试批量日志
+        print("5. 测试批量日志...")
         sample_logger = get_logger('test.sampler')
         sampled_count = 0
         total_count = 100
         
         for i in range(total_count):
             message = f"采样测试消息 {i+1}"
-            if sampler.should_log('test.sampler', message):
-                sample_logger.info(message)
-                sampled_count += 1
+            sample_logger.info(message)
+            sampled_count += 1
                 
-        print(f"   采样率: {sampled_count/total_count:.2%}")
+        print(f"   已记录: {sampled_count}/{total_count}")
         
         # 等待日志写入完成
         time.sleep(0.5)
@@ -152,8 +144,8 @@ def test_all_features():
             
         # 7. 获取性能报告
         print("7. 获取性能报告...")
-        report = monitor.get_performance_report()
-        print(f"   性能报告生成完成")
+        monitor.log_system_metrics(detailed=True)
+        print("   性能报告生成完成")
         
         print("✅ 所有增强功能测试通过!")
         

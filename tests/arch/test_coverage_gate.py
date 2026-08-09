@@ -33,11 +33,11 @@ import pytest
 # 第一轮补测试后（B + C 全部完成，66 新测试）：
 #   crawler.py 21.03% (+5.42pp) / engine.py 33.73% (+13.58pp) / coordinator.py 16.40% (+2.63pp)
 #
-# 下一轮收紧（Phase 5 之后）：crawler→30% / engine→35% / coordinator→25%
+# Phase 5 已达成：crawler→30% / engine→40% / coordinator→25%
 # 每次手动上调 GATE_*_PCT 常量 2-3pp，保证"门槛只增不减"。
-GATE_CRAWLER_PCT     = 20.0
-GATE_ENGINE_PCT      = 32.0
-GATE_COORDINATOR_PCT = 15.0
+GATE_CRAWLER_PCT     = 30.0
+GATE_ENGINE_PCT      = 40.0
+GATE_COORDINATOR_PCT = 25.0
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -148,10 +148,10 @@ class TestCoverageGates:
     # ---------- 核心大文件：crawler.py (1350 行, 生命周期收敛主文件) ----------
 
     def test_crawler_py_coverage(self, report):
-        """crawlo/crawler.py 覆盖率 ≥ GATE_CRAWLER_PCT%"""
-        pct = _pick(report, "crawlo/crawler.py")
+        """crawlo/crawler/_crawler.py 覆盖率 ≥ GATE_CRAWLER_PCT%（crawler.py 扁平文件已迁移为 re-export shim）"""
+        pct = _pick(report, "crawlo/crawler/_crawler.py")
         assert pct >= GATE_CRAWLER_PCT, (
-            f"crawlo/crawler.py 覆盖率 {pct:.2f}% 低于门槛 {GATE_CRAWLER_PCT}%。\n"
+            f"crawlo/crawler/_crawler.py 覆盖率 {pct:.2f}% 低于门槛 {GATE_CRAWLER_PCT}%。\n"
             f"请补充 tests/unit/test_crawler_phase4.py 中的生命周期 / 资源注册类测试。"
         )
 

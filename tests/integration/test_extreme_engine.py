@@ -18,10 +18,14 @@ class TestExtremeEngineScenarios:
     async def test_engine_immediate_shutdown(self):
         """测试引擎启动后立即关闭"""
         from crawlo.crawler import Crawler
+        from crawlo.spider import Spider
         from crawlo.settings.setting_manager import SettingManager
-        
+
+        class DummySpider(Spider):
+            name = 'dummy'
+
         settings = SettingManager()
-        crawler = Crawler(settings=settings)
+        crawler = Crawler(spider_cls=DummySpider, settings=settings)
         
         # 启动后立即关闭
         try:
@@ -55,8 +59,8 @@ class TestExtremeEngineScenarios:
     @pytest.mark.asyncio
     async def test_middleware_exception_handling(self):
         """测试中间件异常处理"""
-        from crawlo.middleware.base import BaseMiddleware
-        
+        from crawlo.middleware import BaseMiddleware
+
         class BrokenMiddleware(BaseMiddleware):
             async def process_request(self, request, spider):
                 raise Exception("Intentional middleware error")
@@ -77,11 +81,15 @@ class TestExtremeEngineScenarios:
         """测试 Pipeline 异常时数据不丢失"""
         from crawlo.pipelines.base_pipeline import BasePipeline
         from crawlo.items.item import Item
-        
+
         class BrokenPipeline(BasePipeline):
+            @classmethod
+            def from_crawler(cls, crawler):
+                return cls()
+
             async def process_item(self, item, spider):
                 raise Exception("Intentional pipeline error")
-        
+
         pipeline = BrokenPipeline()
         item = Item()
         item['url'] = 'http://example.com'
@@ -272,8 +280,8 @@ class TestExtremeConfigScenarios:
         # 字符串转布尔
         settings.set('STRING_BOOL_TRUE', 'true')
         settings.set('STRING_BOOL_FALSE', 'false')
-        assert settings.getbool('STRING_BOOL_TRUE') is True
-        assert settings.getbool('STRING_BOOL_FALSE') is False
+        assert settings.get_bool('STRING_BOOL_TRUE') is True
+        assert settings.get_bool('STRING_BOOL_FALSE') is False
         
         # 字符串转列表
         settings.set('STRING_LIST', 'a,b,c')
@@ -359,9 +367,12 @@ class TestExtremeStatsScenarios:
         """测试海量计数器"""
         from crawlo.stats.collector import StatsCollector
         from crawlo.settings.setting_manager import SettingManager
+        from unittest.mock import Mock
         
         settings = SettingManager()
-        collector = StatsCollector(settings)
+        crawler = Mock()
+        crawler.settings = settings
+        collector = StatsCollector(crawler)
         
         # 10000 个不同计数器
         for i in range(10000):
@@ -377,9 +388,12 @@ class TestExtremeStatsScenarios:
         from crawlo.stats.collector import StatsCollector
         from crawlo.settings.setting_manager import SettingManager
         import time
+        from unittest.mock import Mock
         
         settings = SettingManager()
-        collector = StatsCollector(settings)
+        crawler = Mock()
+        crawler.settings = settings
+        collector = StatsCollector(crawler)
         
         start = time.time()
         

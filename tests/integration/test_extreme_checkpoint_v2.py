@@ -45,14 +45,18 @@ class TestCheckpointExtremeScenarios:
         class MockQueue:
             def __init__(self):
                 self._queue = []
-            
-            def qsize(self):
+
+            async def size(self):
                 return len(self._queue)
-            
-            def get_nowait(self):
+
+            async def get(self):
                 if self._queue:
                     return self._queue.pop(0)
-                raise Exception("Queue empty")
+                return None
+
+            async def put(self, item, priority=0):
+                self._queue.append(item)
+                return True
         
         class MockDupeFilter:
             def __init__(self):
@@ -60,12 +64,12 @@ class TestCheckpointExtremeScenarios:
         
         class MockScheduler:
             def __init__(self):
-                self.queue = MockQueue()
+                self.queue_manager = MockQueue()
                 self.dupe_filter = MockDupeFilter()
         
         scheduler = MockScheduler()
         for i in range(num_requests):
-            scheduler.queue._queue.append({
+            scheduler.queue_manager._queue.append({
                 'url': f'http://example.com/page/{i}',
                 'method': 'GET',
                 'priority': 0,
@@ -121,7 +125,7 @@ class TestCheckpointExtremeScenarios:
                 {'url': 'http://example.com/1', 'method': 'GET'},
                 {'url': 'http://example.com/2', 'method': 'GET'},
             ],
-            'fingerprints': {'fp1', 'fp2'},
+            'fingerprints': ['fp1', 'fp2'],
             'stats': {},
         }
 
@@ -159,7 +163,7 @@ class TestCheckpointExtremeScenarios:
         
         class MockScheduler:
             def __init__(self):
-                self.queue = MockQueue()
+                self.queue_manager = MockQueue()
                 self.dupe_filter = None
         
         class MockQueue:
@@ -171,13 +175,17 @@ class TestCheckpointExtremeScenarios:
                     {'url': 'http://example.com/page/path/../../../etc/passwd', 'method': 'GET'},
                 ]
             
-            def qsize(self):
+            async def size(self):
                 return len(self._queue)
-            
-            def get_nowait(self):
+
+            async def get(self):
                 if self._queue:
                     return self._queue.pop(0)
-                raise Exception("Queue empty")
+                return None
+
+            async def put(self, item, priority=0):
+                self._queue.append(item)
+                return True
         
         scheduler = MockScheduler()
         result = asyncio.run(manager.save(scheduler))
@@ -209,20 +217,24 @@ class TestCheckpointExtremeScenarios:
         
         class MockScheduler:
             def __init__(self):
-                self.queue = MockQueue()
+                self.queue_manager = MockQueue()
                 self.dupe_filter = None
         
         class MockQueue:
             def __init__(self):
                 self._queue = []
             
-            def qsize(self):
+            async def size(self):
                 return len(self._queue)
-            
-            def get_nowait(self):
+
+            async def get(self):
                 if self._queue:
                     return self._queue.pop(0)
-                raise Exception("Queue empty")
+                return None
+
+            async def put(self, item, priority=0):
+                self._queue.append(item)
+                return True
         
         class MockStats:
             def get_stats(self):

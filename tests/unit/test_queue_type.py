@@ -21,6 +21,12 @@ from crawlo.core.config import CrawloConfig
 
 def _reset_framework():
     """重置框架单例状态，避免测试间污染"""
+    # 先直接重置 CoreInitializer（废弃 shim 路径在部分时序下会静默失败）
+    try:
+        from crawlo.core.initialization import CoreInitializer
+        CoreInitializer().reset()
+    except Exception:
+        pass
     try:
         from crawlo.framework import reset_framework
         reset_framework()

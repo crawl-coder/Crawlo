@@ -76,7 +76,7 @@ class TestElementFingerprint(unittest.TestCase):
 
     def test_extract_domain(self):
         """测试域名提取"""
-        from crawlo.helpers.adaptive_selector.element_fingerprint import extract_domain_from_url
+        from crawlo.utils.adaptive_selector.element_fingerprint import extract_domain_from_url
 
         self.assertEqual(extract_domain_from_url('https://www.example.com/page'), 'example.com')
         self.assertEqual(extract_domain_from_url('http://sub.example.com:8080/path'), 'sub.example.com')
@@ -124,7 +124,7 @@ class TestElementFingerprint(unittest.TestCase):
 
     def test_clean_attributes_filters_empty(self):
         """测试空值属性被清理"""
-        from crawlo.helpers.adaptive_selector.element_fingerprint import _clean_attributes
+        from crawlo.utils.adaptive_selector.element_fingerprint import _clean_attributes
         from lxml.html import fromstring
 
         html = fromstring('<div class="" id="test" style="  " data-val="x"></div>')
@@ -136,7 +136,7 @@ class TestElementFingerprint(unittest.TestCase):
 
     def test_clean_attributes_filters_forbidden(self):
         """测试禁用属性被清理"""
-        from crawlo.helpers.adaptive_selector.element_fingerprint import _clean_attributes, _FORBIDDEN_ATTRS
+        from crawlo.utils.adaptive_selector.element_fingerprint import _clean_attributes, _FORBIDDEN_ATTRS
         from lxml.html import fromstring
 
         html = fromstring('<div data-reactid="abc" class="ok"></div>')
@@ -355,7 +355,7 @@ class TestSimilarityMatcher(unittest.TestCase):
 
     def test_dict_diff_identical(self):
         """相同字典的相似度应该为 1.0"""
-        from crawlo.helpers.adaptive_selector.similarity_matcher import SimilarityMatcher
+        from crawlo.utils.adaptive_selector.similarity_matcher import SimilarityMatcher
 
         d = {'class': 'test', 'id': 'main'}
         score = SimilarityMatcher._calculate_dict_diff(d, d)
@@ -363,7 +363,7 @@ class TestSimilarityMatcher(unittest.TestCase):
 
     def test_dict_diff_empty(self):
         """空字典之间的相似度应该为 1.0"""
-        from crawlo.helpers.adaptive_selector.similarity_matcher import SimilarityMatcher
+        from crawlo.utils.adaptive_selector.similarity_matcher import SimilarityMatcher
 
         score = SimilarityMatcher._calculate_dict_diff({}, {})
         self.assertEqual(score, 1.0)
@@ -484,7 +484,7 @@ class TestSqliteStorage(unittest.TestCase):
 
     def test_fingerprint_storage_redis_config(self):
         """测试 FingerprintStorage 的 Redis 配置构建"""
-        from crawlo.helpers.adaptive_selector.storage import FingerprintStorage
+        from crawlo.utils.adaptive_selector.storage import FingerprintStorage
 
         # 验证从各字段构建 Redis URL 不会抛异常（不实际连接）
         # 仅验证 backend='sqlite' 时不涉及 Redis
@@ -501,7 +501,7 @@ class TestSqliteStorage(unittest.TestCase):
 
     def test_invalid_backend(self):
         """测试无效存储后端抛异常"""
-        from crawlo.helpers.adaptive_selector.storage import FingerprintStorage
+        from crawlo.utils.adaptive_selector.storage import FingerprintStorage
 
         with self.assertRaises(ValueError):
             FingerprintStorage(backend='mongodb')

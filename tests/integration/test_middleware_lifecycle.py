@@ -56,7 +56,7 @@ class TestMiddlewareLifecycle:
         assert manager._initialized is False
         
         # 调用 open
-        asyncio.get_event_loop().run_until_complete(manager.open())
+        asyncio.run(manager.open())
         assert manager._initialized is True
     
     def test_middleware_close(self):
@@ -67,11 +67,11 @@ class TestMiddlewareLifecycle:
         manager = MiddlewareManager(crawler)
         
         # 先 open
-        asyncio.get_event_loop().run_until_complete(manager.open())
+        asyncio.run(manager.open())
         assert manager._initialized is True
         
         # 再 close
-        asyncio.get_event_loop().run_until_complete(manager.close())
+        asyncio.run(manager.close())
         assert manager._initialized is False
     
     def test_double_open_idempotent(self):
@@ -82,11 +82,11 @@ class TestMiddlewareLifecycle:
         manager = MiddlewareManager(crawler)
         
         # 第一次 open
-        asyncio.get_event_loop().run_until_complete(manager.open())
+        asyncio.run(manager.open())
         assert manager._initialized is True
         
         # 第二次 open（应该直接返回）
-        asyncio.get_event_loop().run_until_complete(manager.open())
+        asyncio.run(manager.open())
         assert manager._initialized is True
     
     def test_close_without_open(self):
@@ -98,7 +98,7 @@ class TestMiddlewareLifecycle:
         assert manager._initialized is False
         
         # 未 open 直接 close（应该安全返回）
-        asyncio.get_event_loop().run_until_complete(manager.close())
+        asyncio.run(manager.close())
         assert manager._initialized is False
 
 

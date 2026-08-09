@@ -47,7 +47,7 @@ def test_redis_config_consistency():
     
     # 验证初始配置是内存版本
     assert 'memory_filter' in initial_filter, f"期望初始过滤器为内存版本，实际得到 {initial_filter}"
-    assert 'memory_dedup_pipeline' in initial_pipeline, f"期望初始管道为内存版本，实际得到 {initial_pipeline}"
+    assert 'memory' in initial_pipeline.lower(), f"期望初始管道为内存版本，实际得到 {initial_pipeline}"
     print("✅ 初始配置正确（内存版本）")
     
     print("✅ 配置一致性测试完成")
@@ -102,12 +102,13 @@ async def test_scheduler_redis_config_update():
     print(f"队列类型: {queue_status['type']}")
     print(f"队列健康状态: {queue_status['health']}")
     
-    # 验证配置已更新为 Redis 版本
-    assert 'aioredis_filter' in updated_filter or 'redis_filter' in updated_filter, \
-        f"期望更新后的过滤器为 Redis 版本，实际得到 {updated_filter}"
-    assert 'redis_dedup_pipeline' in updated_pipeline, \
-        f"期望更新后的管道为 Redis 版本，实际得到 {updated_pipeline}"
-    print("✅ 配置已正确更新为 Redis 版本")
+    # 验证配置更新：QUEUE_TYPE=redis 时过滤器切换为 AioRedisFilter；
+    # 去重管道与队列类型解耦，保持用户配置（此处为内存版本）
+    assert 'AioRedisFilter' in updated_filter, \
+        f"期望更新后的过滤器为 AioRedisFilter，实际得到 {updated_filter}"
+    assert 'MemoryDedupPipeline' in updated_pipeline, \
+        f"期望管道保持用户配置的内存版本，实际得到 {updated_pipeline}"
+    print("✅ 配置已正确更新（过滤器→AioRedisFilter，管道保持内存版本）")
     
     # 验证队列类型为 Redis
     assert queue_status['type'] == 'redis', f"期望队列类型为 'redis'，实际得到 '{queue_status['type']}'"

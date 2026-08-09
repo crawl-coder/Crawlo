@@ -34,7 +34,7 @@ class TestBotNotificationExtremeScenarios:
             content=huge_message,
         )
 
-        with patch("crawlo.bot.channels.dingtalk.requests.post") as mock_post:
+        with patch("crawlo.extensions.notifications.channels.dingtalk._HTTP_CLIENT.post") as mock_post:
             mock_post.return_value.status_code = 200
             mock_post.return_value.json.return_value = {'errcode': 0}
 
@@ -59,7 +59,7 @@ class TestBotNotificationExtremeScenarios:
             content="Test message",
         )
 
-        with patch("crawlo.bot.channels.dingtalk.requests.post") as mock_post:
+        with patch("crawlo.extensions.notifications.channels.dingtalk._HTTP_CLIENT.post") as mock_post:
             mock_post.return_value.status_code = 200
             mock_post.return_value.json.return_value = {'errcode': 1, 'errmsg': 'rate limit'}
 
@@ -79,7 +79,7 @@ class TestBotNotificationExtremeScenarios:
             content="Test message",
         )
 
-        with patch("crawlo.bot.channels.dingtalk.requests.post") as mock_post:
+        with patch("crawlo.extensions.notifications.channels.dingtalk._HTTP_CLIENT.post") as mock_post:
             mock_post.side_effect = requests.exceptions.Timeout("Connection timed out")
 
             response = channel.send(msg)
@@ -124,7 +124,7 @@ class TestBotNotificationExtremeScenarios:
                 content=special_msg,
             )
 
-            with patch("crawlo.bot.channels.dingtalk.requests.post") as mock_post:
+            with patch("crawlo.extensions.notifications.channels.dingtalk._HTTP_CLIENT.post") as mock_post:
                 mock_post.return_value.status_code = 200
                 mock_post.return_value.json.return_value = {'errcode': 0}
 
@@ -151,7 +151,7 @@ class TestBotNotificationExtremeScenarios:
                     content=f"Notification from thread {thread_id}",
                 )
 
-                with patch("crawlo.bot.channels.dingtalk.requests.post") as mock_post:
+                with patch("crawlo.extensions.notifications.channels.dingtalk._HTTP_CLIENT.post") as mock_post:
                     mock_post.return_value.status_code = 200
                     mock_post.return_value.json.return_value = {'errcode': 0}
 
@@ -195,7 +195,7 @@ class TestBotNotificationExtremeScenarios:
             content="Test message",
         )
 
-        with patch("crawlo.bot.channels.dingtalk.requests.post") as mock_dingtalk:
+        with patch("crawlo.extensions.notifications.channels.dingtalk._HTTP_CLIENT.post") as mock_dingtalk:
             mock_dingtalk.return_value.status_code = 200
             mock_dingtalk.return_value.json.return_value = {'errcode': 0}
 
@@ -230,7 +230,7 @@ class TestBotNotificationExtremeScenarios:
             content="Test message",
         )
 
-        with patch("crawlo.bot.channels.feishu.requests.post") as mock_post:
+        with patch("crawlo.extensions.notifications.channels.feishu._HTTP_CLIENT.post") as mock_post:
             mock_post.return_value.status_code = 200
             mock_post.return_value.json.return_value = {'StatusCode': 0}
 
@@ -285,7 +285,7 @@ class TestBotNotificationExtremeScenarios:
                 content=empty_msg,
             )
 
-            with patch("crawlo.bot.channels.dingtalk.requests.post") as mock_post:
+            with patch("crawlo.extensions.notifications.channels.dingtalk._HTTP_CLIENT.post") as mock_post:
                 mock_post.return_value.status_code = 200
                 mock_post.return_value.json.return_value = {'errcode': 0}
 
@@ -308,7 +308,7 @@ class TestBotNotificationExtremeScenarios:
                 priority=priority,
             )
 
-            with patch("crawlo.bot.channels.dingtalk.requests.post") as mock_post:
+            with patch("crawlo.extensions.notifications.channels.dingtalk._HTTP_CLIENT.post") as mock_post:
                 mock_post.return_value.status_code = 200
                 mock_post.return_value.json.return_value = {'errcode': 0}
 
@@ -335,7 +335,7 @@ class TestBotNotificationExtremeScenarios:
                 content=f"This is a {notif_type.value} notification",
             )
 
-            with patch("crawlo.bot.channels.dingtalk.requests.post") as mock_post:
+            with patch("crawlo.extensions.notifications.channels.dingtalk._HTTP_CLIENT.post") as mock_post:
                 mock_post.return_value.status_code = 200
                 mock_post.return_value.json.return_value = {'errcode': 0}
 
@@ -355,7 +355,7 @@ class TestBotNotificationExtremeScenarios:
             content="Test message",
         )
 
-        with patch("crawlo.bot.channels.wecom.requests.post") as mock_post:
+        with patch("crawlo.extensions.notifications.channels.wecom._HTTP_CLIENT.post") as mock_post:
             mock_post.return_value.status_code = 200
             mock_post.return_value.json.return_value = {'errcode': 0}
 
@@ -380,7 +380,7 @@ class TestBotNotificationExtremeScenarios:
             content="Test message",
         )
 
-        with patch("crawlo.bot.channels.dingtalk.requests.post") as mock_post:
+        with patch("crawlo.extensions.notifications.channels.dingtalk._HTTP_CLIENT.post") as mock_post:
             mock_post.side_effect = requests.exceptions.ConnectionError(
                 "Name or service not known"
             )
