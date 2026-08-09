@@ -430,9 +430,9 @@ def get_settings(custom_settings: Optional[dict] = None) -> SettingManager:
     获取配置管理器实例（主入口函数）
     
     注意：这个函数现在作为向后兼容的入口，实际的初始化逻辑已经移到
-    crawlo.initialization 模块中。建议使用新的初始化方式：
-    
-    >>> from crawlo.initialization import initialize_framework
+    crawlo.core.application 模块中。建议使用新的初始化方式：
+
+    >>> from crawlo.core.application import initialize_framework
     >>> settings = initialize_framework(custom_settings)
 
     Args:

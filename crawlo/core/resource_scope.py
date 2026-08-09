@@ -528,7 +528,7 @@ _global_scheduler_scope: Optional[ResourceScope] = None
 def get_scheduler_resource_scope(
     name: str = 'scheduler',
     **kw: Any,
-) -> ResourceScope:
+) -> ResourceScope | None:
     """调度器内全局作用域单例（每轮结束都调 on_iteration_end）。"""
     global _global_scheduler_scope
     with _scheduler_scope_lock:

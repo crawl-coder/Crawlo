@@ -21,7 +21,7 @@ class TestSingletonMetaFix:
 
     def test_core_initializer_isinstance_works(self):
         """CoreInitializer 的 isinstance 检查正常工作"""
-        from crawlo.initialization.core import CoreInitializer
+        from crawlo.core.application import CoreInitializer
         # 不重置单例，避免影响其他测试的全局注册表状态
         instance = CoreInitializer()
         assert isinstance(instance, CoreInitializer), (
@@ -38,7 +38,7 @@ class TestSingletonMetaFix:
 
     def test_core_initializer_is_class_not_function(self):
         """CoreInitializer 是类而非函数"""
-        from crawlo.initialization.core import CoreInitializer
+        from crawlo.core.application import CoreInitializer
         assert isinstance(CoreInitializer, type), (
             "CoreInitializer should be a class (with SingletonMeta), not a function"
         )
@@ -83,7 +83,7 @@ class TestCoreInitializerThreadSafety:
 
     def test_initialize_with_threading_lock(self):
         """initialize 方法使用 threading.RLock 是安全的"""
-        from crawlo.initialization.core import CoreInitializer
+        from crawlo.core.application import CoreInitializer
         # 不重置单例，避免影响全局注册表
         # 只验证 initialize 可以正常调用
         instance = CoreInitializer()
@@ -97,18 +97,18 @@ class TestSingletonMetaPreservesClassAttributes:
 
     def test_class_name_preserved(self):
         """类名保留"""
-        from crawlo.initialization.core import CoreInitializer
+        from crawlo.core.application import CoreInitializer
         assert CoreInitializer.__name__ == 'CoreInitializer'
 
     def test_class_doc_preserved(self):
         """类文档保留"""
-        from crawlo.initialization.core import CoreInitializer
+        from crawlo.core.application import CoreInitializer
         assert CoreInitializer.__doc__ is not None
         assert '初始化器' in CoreInitializer.__doc__
 
     def test_class_methods_accessible(self):
         """类方法可访问"""
-        from crawlo.initialization.core import CoreInitializer
+        from crawlo.core.application import CoreInitializer
         assert hasattr(CoreInitializer, 'initialize')
         assert hasattr(CoreInitializer, 'is_ready')
         assert hasattr(CoreInitializer, 'reset')

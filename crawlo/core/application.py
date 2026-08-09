@@ -214,7 +214,7 @@ class ApplicationContext:
         regs = self.registries
         if regs.component_registry is not None:
             try:
-                from crawlo.factories.registry import ComponentRegistry  # noqa: WPS433
+                from crawlo.core.component_registry import ComponentRegistry  # noqa: WPS433
                 default_container.register_instance(ComponentRegistry, regs.component_registry)
             except Exception:  # noqa: S110
                 pass

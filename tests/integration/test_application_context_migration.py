@@ -91,7 +91,7 @@ class TestPhase1_CoreRegistries:
 
     def test_component_registry(self):
         """测试 ComponentRegistry 迁移"""
-        from crawlo.factories import get_component_registry
+        from crawlo.core.component_registry import get_component_registry
         
         reset_global_context()
         registry = get_component_registry()
@@ -100,7 +100,7 @@ class TestPhase1_CoreRegistries:
 
     def test_initializer_registry(self):
         """测试 InitializerRegistry 迁移"""
-        from crawlo.initialization.registry import get_global_registry
+        from crawlo.core.application import get_global_registry
         
         reset_global_context()
         registry = get_global_registry()
@@ -108,7 +108,7 @@ class TestPhase1_CoreRegistries:
 
     def test_job_registry(self):
         """测试 JobRegistry 迁移"""
-        from crawlo.scheduling.registry import get_job_registry
+        from crawlo.commands.registry import get_job_registry
         
         reset_global_context()
         registry = get_job_registry()
@@ -136,7 +136,7 @@ class TestPhase2_FrameworkManagers:
 
     def test_monitor_manager(self):
         """测试 MonitorManager 迁移"""
-        from crawlo.extension.monitor.monitor_manager import get_monitor_manager
+        from crawlo.extensions.monitor.monitor_manager import get_monitor_manager
         
         reset_global_context()
         manager = get_monitor_manager()
@@ -153,7 +153,7 @@ class TestPhase2_FrameworkManagers:
 
     def test_performance_monitor(self):
         """测试 PerformanceMonitor 迁移"""
-        from crawlo.extension.monitor.performance_monitor import _get_performance_monitor
+        from crawlo.extensions.monitor.performance_monitor import _get_performance_monitor
 
         reset_global_context()
         monitor = _get_performance_monitor()

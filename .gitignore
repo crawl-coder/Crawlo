@@ -12,6 +12,10 @@ listed_company_executive_crawler/
 _wechat_articles/
 wechat-articles/
 crawlo-promo/
+.import_linter_cache/
+
+# Runtime logs
+examples/ofweek_distributed/logs/
 
 # Distribution / packaging
 .Python

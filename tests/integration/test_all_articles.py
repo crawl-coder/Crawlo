@@ -275,8 +275,8 @@ def test_scheduling_extended():
     print("【文章 11】定时调度（扩展）")
     print("=" * 60)
 
-    from crawlo.scheduling.trigger import TimeTrigger
-    from crawlo.scheduling.job import ScheduledJob
+    from crawlo.commands.trigger import TimeTrigger
+    from crawlo.commands.job import ScheduledJob
     import time
 
     # 验证所有 interval 单位

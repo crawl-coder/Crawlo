@@ -38,7 +38,7 @@ async def test_framework_initialization():
     """测试框架初始化"""
     print("测试框架初始化...")
     
-    from crawlo.initialization import initialize_framework
+    from crawlo.core.application import initialize_framework
     
     # 测试默认配置
     settings = initialize_framework()
@@ -60,7 +60,7 @@ async def test_crawler_execution():
     """测试爬虫执行"""
     print("测试爬虫执行...")
     
-    from crawlo.initialization import initialize_framework
+    from crawlo.core.application import initialize_framework
     from crawlo.crawler_process import CrawlerProcess
     
     # 初始化框架

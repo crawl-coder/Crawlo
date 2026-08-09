@@ -67,8 +67,8 @@ layers = [
     "crawlo.commands | crawlo.shell | crawlo.mcp | crawlo.cli",
     "crawlo.crawler_process | crawlo.crawler | crawlo.framework",
     "crawlo.core",
-    "crawlo.downloader | crawlo.middleware | crawlo.pipelines | crawlo.spider | crawlo.extension | crawlo.checkpoint | crawlo.scheduling | crawlo.factories",
-    "crawlo.queue | crawlo.network | crawlo.filters | crawlo.items | crawlo.backpressure | crawlo.cluster | crawlo.bot | crawlo.stats | crawlo.helpers | crawlo.initialization",
+    "crawlo.downloader | crawlo.middleware | crawlo.pipelines | crawlo.spider | crawlo.extensions | crawlo.checkpoint",
+    "crawlo.queue | crawlo.network | crawlo.filters | crawlo.items | crawlo.backpressure | crawlo.cluster | crawlo.bot | crawlo.stats | crawlo.helpers",
     "crawlo.settings | crawlo.utils | crawlo.logging",
 ]
 # Phase 0 白名单：当前所有违规导入（含同层互相导入 + 反向依赖）。
@@ -106,26 +106,19 @@ ignore_imports = [
     "crawlo.crawler_process -> crawlo.crawler",
     "crawlo.downloader -> crawlo.middleware.middleware_manager",
     "crawlo.downloader.aiohttp_downloader -> crawlo.crawler",
-    "crawlo.extension.monitor.monitor_manager -> crawlo.core.application",
-    "crawlo.extension.monitor.performance_monitor -> crawlo.core.application",
-    "crawlo.factories -> crawlo.core.application",
-    "crawlo.factories.crawler -> crawlo.core.engine",
-    "crawlo.factories.crawler -> crawlo.core.task_scheduler",
-    "crawlo.factories.crawler -> crawlo.extension",
-    "crawlo.factories.registry -> crawlo.core.application",
+    "crawlo.extensions.monitor.monitor_manager -> crawlo.core.application",
+    "crawlo.extensions.monitor.performance_monitor -> crawlo.core.application",
     "crawlo.filters.aioredis_filter -> crawlo.crawler",
     "crawlo.filters.aioredis_filter -> crawlo.network.request",
     "crawlo.framework -> crawlo.crawler",
-    "crawlo.initialization.registry -> crawlo.core.application",
     "crawlo.network.response_adaptive -> crawlo.helpers.adaptive_selector",
     # v2.0: CrawloConfig 迁移到 crawlo.core.config 后的跨层引用
     #（project / bot 延迟使用配置类，合法的编排层 → core 依赖）
     "crawlo.project -> crawlo.core.config",
     "crawlo.bot.utils.config_loader -> crawlo.core.config",
     # v2.0: SingletonMeta 迁移到 crawlo.core.singleton 后的跨层引用
-    #（logging / initialization 使用单例元类，合法的工具依赖）
+    #（logging 层使用单例元类，合法的工具依赖）
     "crawlo.logging.manager -> crawlo.core.singleton",
-    "crawlo.initialization.core -> crawlo.core.singleton",
     # Phase 5: pipelines 仅类型注解用 Spider（TYPE_CHECKING 块 + from __future__ import annotations）
     "crawlo.pipelines.base_pipeline -> crawlo.spider",
     "crawlo.pipelines.console -> crawlo.spider",
@@ -137,14 +130,13 @@ ignore_imports = [
     "crawlo.middleware.interfaces -> crawlo.crawler",
     "crawlo.middleware.default_header -> crawlo.core.exceptions",
     "crawlo.downloader.interfaces -> crawlo.crawler",
-    "crawlo.extension.interfaces -> crawlo.crawler",
-    "crawlo.extension -> crawlo.core.exceptions",
-    "crawlo.extension.logging_extension -> crawlo.core.exceptions",
-    "crawlo.extension.request_recorder -> crawlo.core.exceptions",
-    "crawlo.extension.monitor.base -> crawlo.core.exceptions",
+    "crawlo.extensions.interfaces -> crawlo.crawler",
+    "crawlo.extensions -> crawlo.core.exceptions",
+    "crawlo.extensions.logging -> crawlo.core.exceptions",
+    "crawlo.extensions.request_recorder -> crawlo.core.exceptions",
+    "crawlo.extensions.monitor.base -> crawlo.core.exceptions",
     "crawlo.pipelines.sql.postgresql -> crawlo.core.exceptions",
     "crawlo.pipelines.manager -> crawlo.core.exceptions",
-    "crawlo.project -> crawlo.initialization",
     "crawlo.queue.memory_queue -> crawlo.backpressure.intelligent_calculator",
     "crawlo.queue.memory_queue -> crawlo.backpressure.metrics_collector",
     "crawlo.queue.memory_queue -> crawlo.backpressure.monitor",
@@ -187,7 +179,6 @@ ignore_imports = [
     # 根包 __getattr__ 惰性导入导致的间接依赖
     "crawlo -> crawlo.helpers",
     "crawlo -> crawlo.helpers.time_utils",
-    "crawlo -> crawlo.initialization",
     # Phase 4 Step 3：get_framework_initializer() facade 转发到 crawlo.core（lazy）
     "crawlo -> crawlo.core",
     "crawlo.utils.func_tools -> crawlo",

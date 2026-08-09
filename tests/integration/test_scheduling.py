@@ -6,10 +6,10 @@ import asyncio
 import time
 import pytest
 from unittest.mock import Mock, patch, AsyncMock
-from crawlo.scheduling import SchedulerDaemon
-from crawlo.scheduling.job import ScheduledJob
-from crawlo.scheduling.trigger import TimeTrigger
-from crawlo.scheduling.registry import JobRegistry
+from crawlo.commands.scheduler import SchedulerDaemon
+from crawlo.commands.job import ScheduledJob
+from crawlo.commands.trigger import TimeTrigger
+from crawlo.commands.registry import JobRegistry
 
 
 class TestTimeTrigger:

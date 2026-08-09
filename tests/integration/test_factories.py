@@ -17,14 +17,16 @@ from unittest.mock import Mock, patch
 # 添加项目根目录到 Python 路径
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
-from crawlo.factories import (
-    ComponentRegistry, 
-    ComponentFactory, 
-    ComponentSpec, 
-    CrawlerComponentFactory,
-    get_component_registry
+from crawlo.core.component_registry import (
+    ComponentRegistry,
+    get_component_registry,
 )
-from crawlo.factories.base import DefaultComponentFactory
+from crawlo.core.component_base import (
+    ComponentFactory,
+    ComponentSpec,
+    DefaultComponentFactory,
+)
+from crawlo.core.factories import CrawlerComponentFactory
 
 
 class TestComponent:

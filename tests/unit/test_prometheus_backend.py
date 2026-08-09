@@ -453,7 +453,7 @@ class TestInstrumentationNoop(unittest.TestCase):
 
     def test_memory_monitor_stats_write(self):
         """memory_monitor 写 stats.set_value 不抛异常"""
-        from crawlo.extension.memory_monitor import MemoryMonitorExtension
+        from crawlo.extensions.monitor.memory import MemoryMonitorExtension
 
         # 模拟 crawler 对象
         mock_stats = MagicMock()
@@ -468,7 +468,7 @@ class TestInstrumentationNoop(unittest.TestCase):
 
     def test_log_interval_queue_write(self):
         """log_interval 写 set_value('queue_size', ...) 不抛异常"""
-        from crawlo.extension.log_interval import LogIntervalExtension
+        from crawlo.extensions.log_interval import LogIntervalExtension
 
         mock_stats = MagicMock()
         mock_crawler = MagicMock()

@@ -153,7 +153,7 @@ class BaseMonitorExtension:
 
             if self._unregister_on_spider_closed:
                 mm.unregister_monitor(self.monitor_id)
-                self.logger.info(f"{self.__class__.__name__} stopped and unregistered.")
+                self.logger.debug(f"{self.__class__.__name__} stopped and unregistered.")
             else:
                 self.logger.info(f"{self.__class__.__name__} paused (scheduler mode, kept registered).")
 

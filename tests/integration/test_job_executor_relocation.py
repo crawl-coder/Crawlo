@@ -20,7 +20,7 @@ from typing import Any, Dict
 import pytest
 
 from crawlo.commands.job_executor import JobExecutor
-from crawlo.scheduling.job import ScheduledJob
+from crawlo.commands.job import ScheduledJob
 from crawlo.logging import get_logger
 
 

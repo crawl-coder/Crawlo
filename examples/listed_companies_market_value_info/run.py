@@ -13,7 +13,7 @@ def main():
         # 检查是否启动定时任务模式
         if len(sys.argv) > 1 and sys.argv[1] == '--schedule':
             # 启动定时任务模式
-            from crawlo.scheduling import start_scheduler
+            from crawlo.commands.scheduler import start_scheduler
             # 获取当前脚本所在目录作为项目根目录
             project_root = os.path.dirname(os.path.abspath(__file__))
             start_scheduler(project_root)

@@ -430,7 +430,8 @@ class TestRegistryNoDeprecationWarning(unittest.TestCase):
 
     def test_register_no_warning(self):
         """register() 不发出任何警告"""
-        from crawlo.factories import ComponentRegistry, ComponentSpec
+        from crawlo.core.component_registry import ComponentRegistry
+        from crawlo.core.component_base import ComponentSpec
 
         def factory(**kwargs):
             return object()
@@ -447,7 +448,8 @@ class TestRegistryNoDeprecationWarning(unittest.TestCase):
 
     def test_register_async_still_works(self):
         """register_async() 仍然可用"""
-        from crawlo.factories import ComponentRegistry, ComponentSpec
+        from crawlo.core.component_registry import ComponentRegistry
+        from crawlo.core.component_base import ComponentSpec
 
         def factory(**kwargs):
             return object()
@@ -464,7 +466,8 @@ class TestRegistryNoDeprecationWarning(unittest.TestCase):
 
     def test_register_stores_spec_correctly(self):
         """register() 正确存储规范"""
-        from crawlo.factories import ComponentRegistry, ComponentSpec
+        from crawlo.core.component_registry import ComponentRegistry
+        from crawlo.core.component_base import ComponentSpec
 
         def factory(**kwargs):
             return object()
@@ -487,7 +490,7 @@ class TestCrossModuleImportVerification(unittest.TestCase):
 
     def test_built_in_imports_configutils_from_misc(self):
         """built_in.py 从 crawlo.utils.misc 导入 ConfigUtils"""
-        import crawlo.initialization.built_in as bu
+        import crawlo.core.application as bu
         # 检查模块源码中的 import 语句（不实际运行，避免上下文依赖）
         source = open(bu.__file__, encoding='utf-8').read()
         self.assertNotIn('from crawlo.utils.config_manager import ConfigUtils', source)

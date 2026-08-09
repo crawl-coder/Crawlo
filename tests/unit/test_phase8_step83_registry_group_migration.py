@@ -39,7 +39,7 @@ def _clean_default_container_and_global_ctx():
 def test_component_registry_lazy_path_rebinds_to_container():
     """factories.get_component_registry() 在无全局 ctx 时懒创建并 rebind。"""
     from crawlo.container import default_container
-    from crawlo.factories.registry import ComponentRegistry, get_component_registry
+    from crawlo.core.component_registry import ComponentRegistry, get_component_registry
 
     assert not default_container.is_registered(ComponentRegistry)
     reg = get_component_registry()
@@ -52,7 +52,7 @@ def test_component_registry_lazy_path_rebinds_to_container():
 def test_initializer_registry_lazy_path_rebinds_to_container():
     """initialization.get_global_registry() lazy 创建 + rebind。"""
     from crawlo.container import default_container
-    from crawlo.initialization.registry import InitializerRegistry, get_global_registry
+    from crawlo.core.application import InitializerRegistry, get_global_registry
 
     reg = get_global_registry()
     assert isinstance(reg, InitializerRegistry)
@@ -62,7 +62,7 @@ def test_initializer_registry_lazy_path_rebinds_to_container():
 def test_job_registry_lazy_path_rebinds_to_container():
     """scheduling.get_job_registry() lazy 创建 + rebind。"""
     from crawlo.container import default_container
-    from crawlo.scheduling.registry import JobRegistry, get_job_registry
+    from crawlo.commands.registry import JobRegistry, get_job_registry
 
     reg = get_job_registry()
     assert isinstance(reg, JobRegistry)
@@ -73,9 +73,9 @@ def test_context_created_registry_served_from_container():
     """ApplicationContext 已提前构造并预填注册表后，getter 直接从容器解析、不再重复创建。"""
     from crawlo.container import default_container
     from crawlo.core.application import ApplicationContext
-    from crawlo.factories.registry import ComponentRegistry, get_component_registry
-    from crawlo.initialization.registry import InitializerRegistry, get_global_registry
-    from crawlo.scheduling.registry import JobRegistry, get_job_registry
+    from crawlo.core.component_registry import ComponentRegistry, get_component_registry
+    from crawlo.core.application import InitializerRegistry, get_global_registry
+    from crawlo.commands.registry import JobRegistry, get_job_registry
 
     ctx = ApplicationContext()
     ctx.registries.component_registry = ComponentRegistry()
@@ -249,9 +249,9 @@ def test_config_loader_bot_config_loaded_writes_to_notification_context():
 def test_registry_resolve_after_lazy_getter_returns_same_reference():
     """get_*_registry() 触发 rebind 后，容器解析值与 getter 单例完全一致（等价 @inject）。"""
     from crawlo.container import default_container
-    from crawlo.factories.registry import ComponentRegistry, get_component_registry
-    from crawlo.initialization.registry import InitializerRegistry, get_global_registry
-    from crawlo.scheduling.registry import JobRegistry, get_job_registry
+    from crawlo.core.component_registry import ComponentRegistry, get_component_registry
+    from crawlo.core.application import InitializerRegistry, get_global_registry
+    from crawlo.commands.registry import JobRegistry, get_job_registry
 
     reg1 = get_component_registry()
     reg2 = get_global_registry()

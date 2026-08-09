@@ -89,15 +89,15 @@ class TestConfigMerge(unittest.TestCase):
         extensions = settings.get('EXTENSIONS')
         
         # 检查默认扩展是否存在
-        self.assertIn('crawlo.extension.log_interval.LogIntervalExtension', extensions)
-        self.assertIn('crawlo.extension.log_stats.LogStats', extensions)
-        self.assertIn('crawlo.extension.logging_extension.CustomLoggerExtension', extensions)
+        self.assertIn('crawlo.extensions.LogIntervalExtension', extensions)
+        self.assertIn('crawlo.extensions.LogStats', extensions)
+        self.assertIn('crawlo.extensions.CustomLoggerExtension', extensions)
         
         # 检查自定义扩展是否存在
         self.assertIn('myproject.extensions.CustomExtension', extensions)
         
         # 检查合并后的顺序是否正确
-        default_index = extensions.index('crawlo.extension.log_interval.LogIntervalExtension')
+        default_index = extensions.index('crawlo.extensions.LogIntervalExtension')
         custom_index = extensions.index('myproject.extensions.CustomExtension')
         self.assertLess(default_index, custom_index)
 
@@ -120,7 +120,7 @@ class TestConfigMerge(unittest.TestCase):
         self.assertIn('crawlo.pipelines.console.ConsolePipeline', pipelines)
         
         extensions = settings.get('EXTENSIONS')
-        self.assertIn('crawlo.extension.log_interval.LogIntervalExtension', extensions)
+        self.assertIn('crawlo.extensions.LogIntervalExtension', extensions)
 
     def test_no_custom_config(self):
         """测试无自定义配置"""
@@ -139,7 +139,7 @@ class TestConfigMerge(unittest.TestCase):
         self.assertIn('crawlo.pipelines.console.ConsolePipeline', pipelines)
         
         extensions = settings.get('EXTENSIONS')
-        self.assertIn('crawlo.extension.log_interval.LogIntervalExtension', extensions)
+        self.assertIn('crawlo.extensions.LogIntervalExtension', extensions)
 
 
 def main():

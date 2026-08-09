@@ -32,7 +32,7 @@ def main():
     print("开始测试爬虫功能...")
     
     # 初始化框架
-    from crawlo.initialization import initialize_framework
+    from crawlo.core.application import initialize_framework
     settings = initialize_framework()
     
     # 创建爬虫进程

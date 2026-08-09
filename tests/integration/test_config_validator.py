@@ -69,7 +69,7 @@ class TestConfigValidator(unittest.TestCase):
                 'crawlo.pipelines.dedup.redis.RedisDedupPipeline',
             ],
             'EXTENSIONS': [
-                'crawlo.extension.memory_monitor.MemoryMonitorExtension',
+                'crawlo.extensions.monitor.memory.MemoryMonitorExtension',
             ]
         }
         

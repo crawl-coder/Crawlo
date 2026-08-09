@@ -25,7 +25,7 @@ from crawlo.crawler import CrawlerProcess
 
 def main():
     if len(sys.argv) > 1 and sys.argv[1] == '--schedule':
-        from crawlo.scheduling import start_scheduler
+        from crawlo.commands.scheduler import start_scheduler
         start_scheduler(project_root)
         return
 

@@ -90,7 +90,7 @@ def get_framework_initializer():
 
 def initialize_framework(custom_settings=None):
     """延迟导入initialize_framework以避免循环依赖"""
-    from crawlo.initialization import initialize_framework as _initialize_framework
+    from crawlo.core.application import initialize_framework as _initialize_framework
     return _initialize_framework(custom_settings)
 
 

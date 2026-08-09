@@ -23,7 +23,7 @@ def main():
     """主函数：运行爬虫"""
     try:
         if len(sys.argv) > 1 and sys.argv[1] == '--schedule':
-            from crawlo.scheduling import start_scheduler
+            from crawlo.commands.scheduler import start_scheduler
             start_scheduler(project_root)
         else:
             # TODO: 请将 'spider_name' 替换为实际要运行的爬虫名称

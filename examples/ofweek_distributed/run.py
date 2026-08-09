@@ -32,7 +32,7 @@ def main():
     """运行分布式爬虫"""
     try:
         if len(sys.argv) > 1 and sys.argv[1] == '--schedule':
-            from crawlo.scheduling import start_scheduler
+            from crawlo.commands.scheduler import start_scheduler
             start_scheduler(project_root)
         else:
             process = CrawlerProcess()
