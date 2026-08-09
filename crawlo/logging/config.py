@@ -87,7 +87,9 @@ class LogConfig:
         # Ensure type safety
         def safe_get_str(key: str, default: str = '') -> str:
             value = get_val(key, default)
-            return str(value) if value is not None else default
+            # 仅接受字符串；dict/list/对象等非字符串值不强制转换，
+            # 避免 str(dict) 被当作日志文件路径等导致创建垃圾文件
+            return value if isinstance(value, str) else default
         
         def safe_get_int(key: str, default: int) -> int:
             value = get_val(key, default)
@@ -147,8 +149,12 @@ class LogConfig:
         for k, v in config_dict.items():
             mapped_key = key_mapping.get(k, k)
             if mapped_key in cls.__annotations__:
+                # file_path 只接受字符串，dict/list 等非字符串值丢弃，
+                # 避免 str(dict) 被当作日志文件路径导致创建垃圾文件
+                if mapped_key == 'file_path' and not isinstance(v, str):
+                    continue
                 mapped_dict[mapped_key] = v
-                
+
         return cls(**mapped_dict)
     
     @classmethod

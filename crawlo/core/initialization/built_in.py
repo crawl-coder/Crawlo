@@ -84,6 +84,10 @@ class LoggingInitializer(BaseInitializer):
 
         log_level = ConfigUtils.get_config_value([config_source], 'LOG_LEVEL', 'INFO')
         log_file = ConfigUtils.get_config_value([config_source], 'LOG_FILE')
+        # LOG_FILE 仅接受字符串；dict/list 等非字符串值丢弃，
+        # 避免 str(dict) 被当作日志文件路径导致创建垃圾文件
+        if not isinstance(log_file, str):
+            log_file = None
         log_format = ConfigUtils.get_config_value([config_source], 'LOG_FORMAT', '%(asctime)s - [%(name)s] - %(levelname)s: %(message)s')
         log_encoding = ConfigUtils.get_config_value([config_source], 'LOG_ENCODING', 'utf-8')
         log_console_enabled = ConfigUtils.get_config_value([config_source], 'LOG_CONSOLE_ENABLED', True, bool)
