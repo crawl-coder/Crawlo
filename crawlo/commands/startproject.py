@@ -47,6 +47,7 @@ TEMPLATES_DIR = Path(__file__).parent.parent / 'templates'
 TEMPLATE_TYPES = {
     'default': '默认模板 - 通用配置，适合大多数项目',
     'simple': '简化模板 - 最小配置，适合快速开始',
+    'minimal': '最小化模板 - 仅保留核心配置，适合极简爬虫',
     'distributed': '分布式模板 - 针对分布式爬取优化',
     'high-performance': '高性能模板 - 针对大规模高并发优化',
     'gentle': '温和模板 - 低负载配置，对目标网站友好'
