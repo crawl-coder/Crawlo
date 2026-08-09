@@ -16,6 +16,14 @@ asyncio_default_fixture_loop_scope = "function"
 # 运行时：pytest --cov 即启用。日常本地不加 --cov 保持速度。
 # CI 中：pytest --cov --cov-report=xml --cov-report=term-missing
 addopts = ""
+markers = [
+    "browser: heavy browser / live-network integration tests (skipped in CI)",
+]
+
+[tool.ruff.lint.per-file-ignores]
+# 惰性加载（__getattr__）模式：__all__/延迟导入中的名字在运行时解析
+"crawlo/core/factories.py" = ["F822"]
+"crawlo/utils/__init__.py" = ["F401"]
 
 [tool.coverage.run]
 # 只测 crawlo 核心包，examples/scripts/tests/docs 不入覆盖率

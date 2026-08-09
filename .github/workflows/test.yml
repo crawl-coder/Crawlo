@@ -2,14 +2,24 @@ name: CI
 
 on:
   push:
-    branches: [main, master, develop_distributed]
+    branches: [main, master, develop, develop_distributed]
   pull_request:
-    branches: [main, master]
+    branches: [main, master, develop]
 
 jobs:
   test:
     name: Python ${{ matrix.python-version }}
     runs-on: ubuntu-latest
+    services:
+      redis:
+        image: redis:7
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
     strategy:
       fail-fast: false
       matrix:
@@ -35,18 +45,43 @@ jobs:
           # 不装 [all]：playwright/camoufox/cloakbrowser 等重型浏览器依赖在 CI 中
           # 需额外下载二进制，且核心单元测试不依赖它们。
           pip install -e ".[monitoring,mcp,sqlite]"
-          pip install pytest pytest-asyncio
+          pip install pytest pytest-asyncio pytest-cov ruff mypy bandit
 
-      - name: Run core unit tests
+      - name: Run full test suite with coverage
         run: |
           python -m pytest \
-            tests/test_adaptive_selector.py \
-            tests/test_adaptive_enhancements.py \
-            tests/test_adaptive_fixes.py \
-            tests/test_adaptive_find_similar.py \
-            tests/test_prometheus_backend.py \
-            tests/test_mcp_server.py \
-            tests/test_logic_fixes.py \
-            tests/test_batch_processor.py \
-            tests/test_encoding_detection.py \
-            -v --tb=short
+            tests/unit tests/arch tests/integration \
+            -m "not browser" \
+            --cov=crawlo --cov-report=xml --cov-report=term-missing \
+            -q --tb=short
+
+      - name: Upload coverage report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: coverage.xml
+
+  lint:
+    name: Lint / Type / Security
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install tools
+        run: pip install ruff mypy bandit
+      - name: Ruff (pyflakes real-bug rules)
+        run: ruff check crawlo --select F --ignore F821
+      - name: Bandit security scan
+        # skip 清单理由：
+        #   B110 清理路径的 except-pass（P2-3 跟踪）；B101 内部断言
+        #   B105/B403/B301/B608 默认配置/有意 pickle/参数化 SQL
+        #   B311 UA 随机化（非安全用途）；B324 MD5 用于指纹/去重/文件哈希（非加密用途，且需兼容 py3.8）
+        #   B404/B603/B607 crawlo CLI 有意使用 subprocess 执行用户命令
+        run: bandit -r crawlo -s B110,B112,B101,B105,B107,B301,B311,B403,B608,B324,B404,B603,B607
+      - name: Mypy incremental (core modules)
+        # 增量阶段：先跑出基线（当前 ~177 errors），随代码收口逐文件转强制（去掉 continue-on-error）
+        continue-on-error: true
+        run: mypy crawlo/core crawlo/queue crawlo/cluster --ignore-missing-imports --follow-imports=skip --no-error-summary
