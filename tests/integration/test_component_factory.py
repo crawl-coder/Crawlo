@@ -151,30 +151,45 @@ class TestComponentFactory(unittest.TestCase):
     def test_crawler_component_factory(self):
         """测试Crawler组件工厂"""
         factory = CrawlerComponentFactory()
-        
-        # 测试支持检查
+
+        # 支持检查：CrawlerComponentFactory 是专用工厂，仅白名单类型（Engine、Scheduler、
+        # StatsCollector、Subscriber、ExtensionManager）返回 True；任意 Mock 类型应返回
+        # False 并由 DefaultComponentFactory（supports 全类型）兜底承接。
         class MockEngine:
             pass
-            
-        self.assertTrue(factory.supports(MockEngine))  # 默认支持所有类型
-        
+
+        self.assertFalse(factory.supports(MockEngine))
+
+        # 正向支持检查（使用实际白名单类型）
+        from crawlo.core.engine import Engine
+        from crawlo.core.scheduling.task_scheduler import Scheduler
+        from crawlo.stats.collector import StatsCollector
+        from crawlo.event import Subscriber
+        from crawlo.extensions import ExtensionManager
+
+        for t in (Engine, Scheduler, StatsCollector, Subscriber, ExtensionManager):
+            self.assertTrue(
+                factory.supports(t),
+                f"CrawlerComponentFactory.supports({t.__name__}) should be True"
+            )
+
         # 测试创建功能（需要crawler依赖）
         def mock_engine_factory(crawler=None, **kwargs):
             if crawler is None:
                 raise ValueError("需要crawler实例")
             return "mock_engine"
-            
+
         spec = ComponentSpec(
             name="mock_engine",
             component_type=type('MockEngine', (), {}),
             factory_func=mock_engine_factory,
             dependencies=['crawler']
         )
-        
+
         # 测试缺少依赖时的错误处理
         with self.assertRaises(ValueError):
             factory.create(spec)
-            
+
         # 测试带依赖的创建
         result = factory.create(spec, crawler="mock_crawler")
         self.assertEqual(result, "mock_engine")
