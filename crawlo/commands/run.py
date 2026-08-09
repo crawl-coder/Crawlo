@@ -283,7 +283,7 @@ def main(args):
                     TextColumn("[progress.description]{task.description}"),
                     transient=True,
             ) as progress:
-                task = progress.add_task("正在运行所有爬虫...", total=None)
+                progress.add_task("正在运行所有爬虫...", total=None)
                 run_with_cleanup(process.crawl(spider_names))
 
             if show_json:
@@ -335,7 +335,7 @@ def main(args):
                 TextColumn("[progress.description]{task.description}"),
                 transient=True,
         ) as progress:
-            task = progress.add_task(f"正在运行 {spider_name}...", total=None)
+            progress.add_task(f"正在运行 {spider_name}...", total=None)
             run_with_cleanup(process.crawl(spider_name))
 
         if show_json:

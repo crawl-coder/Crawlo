@@ -355,7 +355,7 @@ class CrawloShell:
         ]
         
         if url:
-            lines.append(f"")
+            lines.append("")
             lines.append(f"Pre-fetched: {url}")
         
         lines.append("")

@@ -13,7 +13,7 @@
 import asyncio
 import time
 import traceback
-from typing import Optional, TYPE_CHECKING
+from typing import Optional, TYPE_CHECKING, Dict, Callable
 
 if TYPE_CHECKING:
     from crawlo import Request
@@ -41,6 +41,46 @@ except ImportError:
 
 from crawlo.queue.queue_status import QueueStatusMixin
 from crawlo.queue.queue_backpressure import QueueBackpressureMixin
+
+
+# ── 队列后端注册表（P3-2 统一扩展点）──
+# 第三方可通过 register_queue_backend 注册自定义后端；
+# _create_queue 优先查注册表，未命中再走内置分支。
+_QUEUE_BUILDERS: Dict[QueueType, Callable] = {}
+
+
+def register_queue_backend(queue_type, builder) -> None:
+    """注册自定义队列后端构建器。
+
+    Args:
+        queue_type: QueueType 枚举值或字符串名称（如 'my_queue'）
+        builder: async callable(queue_manager) -> queue 实例
+    """
+    if isinstance(queue_type, str):
+        try:
+            queue_type = QueueType(queue_type)
+        except ValueError:
+            # 允许自定义字符串类型：扩展 QueueType 枚举或在配置层转换
+            raise ValueError(
+                f"未知队列类型: {queue_type!r}。内置: {[t.value for t in QueueType]}"
+            )
+    if not callable(builder):
+        raise ValueError("builder 必须是可调用对象")
+    _QUEUE_BUILDERS[queue_type] = builder
+    get_logger(__name__).info(f"Registered queue backend: {queue_type.value}")
+
+
+def unregister_queue_backend(queue_type) -> bool:
+    """注销自定义队列后端。"""
+    if isinstance(queue_type, str):
+        try:
+            queue_type = QueueType(queue_type)
+        except ValueError:
+            return False
+    existed = queue_type in _QUEUE_BUILDERS
+    if existed:
+        del _QUEUE_BUILDERS[queue_type]
+    return existed
 
 
 class QueueManager(QueueStatusMixin, QueueBackpressureMixin):
@@ -98,7 +138,13 @@ class QueueManager(QueueStatusMixin, QueueBackpressureMixin):
         
         # 创建背压控制器（可选集成智能计算器增强精度）
         intelligent_calc = None
-        if safe_get_config(self.config.settings, 'MEMORY_MONITOR_ENABLED', False, bool):
+        backpressure_enabled = safe_get_config(
+            self.config.settings, 'BACKPRESSURE_ENABLED', True, bool
+        )
+        if (
+            backpressure_enabled
+            and safe_get_config(self.config.settings, 'MEMORY_MONITOR_ENABLED', False, bool)
+        ):
             try:
                 from crawlo.queue.backpressure import IntelligentBackpressureCalculator
                 intelligent_calc = IntelligentBackpressureCalculator(base_delay=0.5)
@@ -107,7 +153,7 @@ class QueueManager(QueueStatusMixin, QueueBackpressureMixin):
 
         self._backpressure_controller = BackpressureController(
             strategy=strategy,
-            enabled=True,
+            enabled=backpressure_enabled,
             intelligent_calculator=intelligent_calc,
         )
         
@@ -658,6 +704,10 @@ class QueueManager(QueueStatusMixin, QueueBackpressureMixin):
 
     async def _create_queue(self, queue_type: QueueType):
         """Create queue instance"""
+        builder = _QUEUE_BUILDERS.get(queue_type)
+        if builder is not None:
+            return await builder(self)
+
         if queue_type == QueueType.REDIS_STREAM:
             # RedisStreamQueue
             if not REDIS_AVAILABLE:
@@ -729,6 +779,14 @@ class QueueManager(QueueStatusMixin, QueueBackpressureMixin):
                     self.config.settings if hasattr(self.config, 'settings') else None,
                     'REDIS_SENTINEL_SERVICE', 'mymaster'
                 ),
+                cluster_enabled=safe_get_config(
+                    self.config.settings if hasattr(self.config, 'settings') else None,
+                    'REDIS_CLUSTER_ENABLED', False, bool
+                ),
+                cluster_nodes=safe_get_config(
+                    self.config.settings if hasattr(self.config, 'settings') else None,
+                    'REDIS_CLUSTER_NODES', []
+                ),
             )
             # Stream queue 需要立即 connect 以创建 Consumer Group
             await queue.connect()
@@ -737,7 +795,7 @@ class QueueManager(QueueStatusMixin, QueueBackpressureMixin):
         elif queue_type == QueueType.REDIS:
             # RedisPriorityQueue 已在文件顶部导入
             if not REDIS_AVAILABLE:
-                raise RuntimeError(f"Redis队列不可用：未能导入RedisPriorityQueue")
+                raise RuntimeError("Redis队列不可用：未能导入RedisPriorityQueue")
 
             # 统一使用RedisKeyManager.from_settings来解析项目名称和爬虫名称
             project_name = "default"
@@ -838,9 +896,5 @@ class QueueManager(QueueStatusMixin, QueueBackpressureMixin):
                 # 返回一个信号，表示需要更新过滤器和去重管道配置
                 return True
         return False
-
-
-
-
 
 

@@ -116,9 +116,6 @@ def _copytree_with_templates(src, dst, context, template_type='default', modules
         else:
             dst_item = dst_path / rel_path
 
-        # 检查是否应该包含此文件
-        path_str = str(rel_path).replace('\\', '/')
-        
         # 所有文件根据模块选择决定是否包含
         if not _should_include_file(rel_path, modules):
             continue

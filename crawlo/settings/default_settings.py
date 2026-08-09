@@ -71,6 +71,7 @@ REDIS_SCHEDULER_MAX_QUEUE_SIZE = 100000                 # Redis 队列最大大�
 
 # 策略选项: queue_size（推荐）| adaptive（实验性）| composite（高级）
 BACKPRESSURE_STRATEGY = 'queue_size'                    # 背压策略
+BACKPRESSURE_ENABLED = True                             # 背压总开关（False = 简化模式，跳过智能计算器与策略延迟）
 BACKPRESSURE_CHECK_INTERVAL = 0.1                # 背压检查间隔（秒）
 ADAPTIVE_BACKPRESSURE_ENABLED = False                   # 自适应背压（实验性）
 
@@ -139,6 +140,8 @@ STREAM_PRIORITY_ENABLED = True                           # 双 Stream 优先级�
 #          REDIS_SENTINEL_URLS 为空 → 走直连模式，使用 REDIS_HOST/REDIS_PORT
 REDIS_SENTINEL_URLS = []               # Sentinel 地址列表，如 ["redis://10.0.0.1:26379", "redis://10.0.0.2:26379"]
 REDIS_SENTINEL_SERVICE = "mymaster"    # Sentinel 监控的 Master 名称
+REDIS_CLUSTER_ENABLED = False          # 是否使用 Redis Cluster（Stream 读取走轮询回退）
+REDIS_CLUSTER_NODES = []               # Cluster 节点列表，如 ["10.0.0.1:7000", "10.0.0.2:7001"]
 
 # 分布式 Worker 配置
 DISTRIBUTED_WORKER_IDLE_TIMEOUT = 120                   # 连续空闲 N 秒后退出（0 = 永不退出）

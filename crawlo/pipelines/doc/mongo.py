@@ -131,7 +131,7 @@ class MongoPipeline(GenericDocumentPipeline):
         else:
             # 新行为：update_one(upsert=True)
             doc_id = self._compute_doc_id(doc)
-            result = await self.collection.update_one(
+            await self.collection.update_one(
                 {'_id': doc_id},
                 {'$set': doc},
                 upsert=True,

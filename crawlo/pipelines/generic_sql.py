@@ -309,7 +309,7 @@ class GenericSQLPipeline(ResourceManagedPipeline):
         """添加到批量缓冲区"""
         async with self._lock:
             if len(self.batch_buffer) >= self.max_buffer_size:
-                self.logger.debug(f"Buffer full, triggering flush")
+                self.logger.debug("Buffer full, triggering flush")
                 await self._flush_batch(spider)
             self.batch_buffer.append(dict(item))
             should_flush = len(self.batch_buffer) >= self.batch_size

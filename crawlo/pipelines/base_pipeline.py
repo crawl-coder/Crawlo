@@ -8,8 +8,6 @@ Pipeline体系说明：
 - ResourceManagedPipeline: 提供资源管理功能的基类（推荐）
 - DedupPipeline: 去重Pipeline基类，统一去重逻辑
 - FileBasedPipeline: 文件操作专用基类
-- DatabasePipeline: 数据库操作专用基类
-- CacheBasedPipeline: 缓存操作专用基类
 
 与 PipelineManager 的关系：
 - base_pipeline.py: 定义单个Pipeline的实现规范（本文件）
@@ -265,8 +263,8 @@ class ResourceManagedPipeline(BasePipeline):
         """
         通用的 DCL 懒初始化辅助方法。
 
-        消除 ConnectablePipeline / DatabasePipeline / CacheBasedPipeline 
-        中重复的 _ensure_xxx_initialized 样板代码。
+        消除旧 Connectable/Database/CacheBased Pipeline 基类中重复的
+        _ensure_xxx_initialized 样板代码（该类族已于 P2-5 移除）。
         """
         if getattr(self, flag_attr, False):
             return
@@ -638,119 +636,3 @@ class FileBasedPipeline(ResourceManagedPipeline):
     async def _cleanup_resources(self):
         """清理由ResourceManager管理的资源"""
         # 文件句柄由ResourceManager自动清理
-
-
-class ConnectablePipeline(ResourceManagedPipeline):
-    """
-    可连接 Pipeline 基类（@deprecated — 向后兼容保留）。
-
-    新代码推荐使用 GenericSQLPipeline 或 GenericDocumentPipeline。
-    将在 v2.0 中移除。
-
-    提供连接资源操作的通用功能：
-    - DCL 懒初始化（委托给 _ensure_lazy_init）
-    - 自动重连
-    """
-    
-    def __init__(self, crawler):
-        super().__init__(crawler)
-        self.connection = None
-        self._connection_lock = asyncio.Lock()
-        self._connection_initialized = False
-    
-    async def _ensure_connection_initialized(self):
-        """确保连接已初始化（DCL 模式）"""
-        await self._ensure_lazy_init(
-            '_connection_initialized', '_connection_lock', self._create_connection
-        )
-    
-    @abstractmethod
-    async def _create_connection(self):
-        """创建连接（子类实现）"""
-        raise NotImplementedError
-    
-    @abstractmethod
-    async def _close_connection(self, connection):
-        """关闭连接（子类实现）"""
-        raise NotImplementedError
-    
-    async def _initialize_resources(self):
-        await self._ensure_connection_initialized()
-    
-    async def _cleanup_resources(self):
-        pass
-
-
-class DatabasePipeline(ConnectablePipeline):
-    """
-    数据库 Pipeline 基类（@deprecated — 向后兼容保留）。
-
-    新代码推荐使用 GenericSQLPipeline 或 GenericDocumentPipeline。
-    将在 v2.0 中移除。
-
-    提供连接池管理 + 批量写入优化 + 事务支持。
-    """
-    
-    def __init__(self, crawler):
-        super().__init__(crawler)
-        self.pool = None
-        self._pool_lock = asyncio.Lock()
-        self._pool_initialized = False
-    
-    async def _ensure_pool_initialized(self):
-        """确保连接池已初始化（DCL 模式）"""
-        await self._ensure_lazy_init(
-            '_pool_initialized', '_pool_lock', self._create_pool
-        )
-    
-    @abstractmethod
-    async def _create_pool(self):
-        """创建数据库连接池（子类实现）"""
-        raise NotImplementedError
-    
-    @abstractmethod
-    async def _close_pool(self, pool):
-        """关闭连接池（子类实现）"""
-        raise NotImplementedError
-    
-    async def _initialize_resources(self):
-        await self._ensure_pool_initialized()
-    
-    async def _cleanup_resources(self):
-        pass
-
-
-class CacheBasedPipeline(ConnectablePipeline):
-    """
-    缓存型 Pipeline 基类。
-
-    提供 Redis/Memcached 客户端生命周期管理。
-    """
-    
-    def __init__(self, crawler):
-        super().__init__(crawler)
-        self.client = None
-        self._client_lock = asyncio.Lock()
-        self._client_initialized = False
-    
-    async def _ensure_client_initialized(self):
-        """确保缓存客户端已初始化（DCL 模式）"""
-        await self._ensure_lazy_init(
-            '_client_initialized', '_client_lock', self._create_client
-        )
-    
-    @abstractmethod
-    async def _create_client(self):
-        """创建缓存客户端（子类实现）"""
-        raise NotImplementedError
-    
-    @abstractmethod
-    async def _close_client(self, client):
-        """关闭缓存客户端（子类实现）"""
-        raise NotImplementedError
-    
-    async def _initialize_resources(self):
-        await self._ensure_client_initialized()
-    
-    async def _cleanup_resources(self):
-        pass

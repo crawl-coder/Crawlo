@@ -88,7 +88,7 @@ def main(args):
     if url:
         print(f"  Pre-fetch URL: {url}")
     if curl_cmd:
-        print(f"  Pre-fetch via: curl command")
+        print("  Pre-fetch via: curl command")
     
     print("=" * 50 + "\n")
     

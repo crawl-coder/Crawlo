@@ -75,6 +75,8 @@ class RedisStreamQueue:
         priority_enabled: bool = True,
         sentinel_urls: Optional[List[str]] = None,
         sentinel_service: str = "mymaster",
+        cluster_enabled: bool = False,
+        cluster_nodes: Optional[List[str]] = None,
     ):
         """
         初始化 Redis Stream Queue。
@@ -91,6 +93,8 @@ class RedisStreamQueue:
             serialization_format: 序列化格式（pickle | json | msgpack）
             sentinel_urls: Sentinel 地址列表（空 = 直连模式）
             sentinel_service: Sentinel 监控的 Master 名称
+            cluster_enabled: 是否使用 Redis Cluster（优先于直连）
+            cluster_nodes: Cluster 节点列表（host:port），空则从 redis_url 解析
         """
         self.redis_url = redis_url
         self.project_name = project_name
@@ -103,6 +107,11 @@ class RedisStreamQueue:
         self._stream_compact = stream_compact
         self._sentinel_urls = sentinel_urls or []
         self._sentinel_service = sentinel_service
+        self._cluster_enabled = cluster_enabled or self.redis_url.startswith(
+            ('redis-cluster://', 'rediss-cluster://')
+        )
+        self._cluster_nodes = cluster_nodes or []
+        self._is_cluster = False
 
         # Consumer 标识
         self._consumer_name = consumer_name or self._generate_consumer_name()
@@ -193,7 +202,14 @@ class RedisStreamQueue:
 
         import redis.asyncio as aioredis
 
-        if sentinel_urls:
+        if self._cluster_enabled:
+            # Cluster 模式：Redis Cluster 不支持 XREADGROUP BLOCK，读取走轮询回退
+            self._redis = await self._create_cluster_client()
+            self._is_cluster = True
+            self.logger.info(
+                f"Redis Cluster mode: {len(self._cluster_nodes) or 'url-derived'} node(s)"
+            )
+        elif sentinel_urls:
             # Sentinel 模式：自动发现 Master，故障转移时自动切换
             sentinels = []
             for url in sentinel_urls:
@@ -253,6 +269,47 @@ class RedisStreamQueue:
         self.logger.debug(
             f"Consumer '{self._consumer_name}' connected to group '{self._group_name}'"
         )
+
+    async def _create_cluster_client(self):
+        """创建 Redis Cluster 客户端（redis-py async cluster）。"""
+        from redis.asyncio.cluster import RedisCluster, ClusterNode
+
+        nodes = self._cluster_nodes or self._parse_cluster_nodes_from_url()
+        if len(nodes) == 1:
+            host, port = nodes[0]
+            return RedisCluster(
+                host=host,
+                port=port,
+                decode_responses=False,
+                socket_connect_timeout=5,
+                socket_timeout=30,
+            )
+        startup_nodes = [ClusterNode(host, port) for host, port in nodes]
+        return RedisCluster(
+            startup_nodes=startup_nodes,
+            decode_responses=False,
+            socket_connect_timeout=5,
+            socket_timeout=30,
+        )
+
+    def _parse_cluster_nodes_from_url(self) -> List[Tuple[str, int]]:
+        """从 redis-cluster:// 或 rediss-cluster:// URL 解析节点。"""
+        from urllib.parse import urlparse
+        parsed = urlparse(self.redis_url)
+        netloc = parsed.netloc
+        if '@' in netloc:
+            netloc = netloc.rsplit('@', 1)[1]
+        nodes = []
+        for item in netloc.split(','):
+            if ':' in item:
+                host, port = item.rsplit(':', 1)
+                try:
+                    nodes.append((host, int(port)))
+                except ValueError:
+                    nodes.append((host, 6379))
+            elif item:
+                nodes.append((item, 6379))
+        return nodes
 
     async def _ensure_consumer_groups(self):
         """确保 Consumer Group 存在（幂等，安全重复调用）"""
@@ -893,6 +950,7 @@ class RedisStreamQueue:
                 high_msgs = await stream_read(
                     self._redis, self._group_name, consumer,
                     self._high_stream, count=count, block=10,
+                    cluster_mode=self._is_cluster,
                 )
                 if high_msgs:
                     return high_msgs
@@ -902,6 +960,7 @@ class RedisStreamQueue:
         return await stream_read(
             self._redis, self._group_name, consumer,
             self._stream, count=count, block=block,
+            cluster_mode=self._is_cluster,
         )
 
     async def _read_with_priority(

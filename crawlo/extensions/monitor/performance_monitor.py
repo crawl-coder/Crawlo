@@ -240,7 +240,7 @@ def performance_monitor_decorator(name: str = None, log_level: str = "INFO"):
             timer_name = name or f"{func.__module__}.{func.__name__}"
             get_logger(timer_name)
             
-            with PerformanceTimer(timer_name) as timer:
+            with PerformanceTimer(timer_name):
                 if asyncio.iscoroutinefunction(func):
                     return await func(*args, **kwargs)
                 else:
@@ -251,7 +251,7 @@ def performance_monitor_decorator(name: str = None, log_level: str = "INFO"):
             timer_name = name or f"{func.__module__}.{func.__name__}"
             get_logger(timer_name)
             
-            with PerformanceTimer(timer_name) as timer:
+            with PerformanceTimer(timer_name):
                 return func(*args, **kwargs)
         
         # 根据函数是否为异步函数返回相应的包装器

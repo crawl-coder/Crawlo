@@ -70,7 +70,14 @@ class Engine(RequestGenerationMixin, ClusterMixin):
 
     CRITICAL_EXCEPTIONS = ErrorClassifier.CRITICAL_EXCEPTIONS
 
-    def __init__(self, crawler):
+    def __init__(
+        self,
+        crawler,
+        dispatcher=None,
+        distributed=None,
+        dispatcher_cls=None,
+        distributed_cls=None,
+    ):
         self.running = False
         self.normal = True
         self.crawler = crawler
@@ -100,15 +107,40 @@ class Engine(RequestGenerationMixin, ClusterMixin):
             max_queue_size=self.max_queue_size,
             backpressure_ratio=self.backpressure_ratio,
             strategy=self.backpressure_strategy,
+            enabled=safe_get_config(self.settings, 'BACKPRESSURE_ENABLED', True, bool),
         )
 
         # Logger 必须先初始化，P4 组合对象（DistributedCoordinator / RequestDispatcher）
         # __init__ 里会立即读取 self.logger
         self.logger = get_logger(name=self.__class__.__name__)
 
-        # P4 组合组件：Distributed 协调 + 请求派发
-        self._distributed = DistributedCoordinator(self)
-        self._dispatcher = RequestDispatcher(self)
+        # P4 组合组件（P3-4 可配置化）：支持注入实例、注入类，或通过
+        # ENGINE_DISPATCHER_CLASS / ENGINE_DISTRIBUTED_CLASS 配置类路径。
+        if dispatcher_cls is None:
+            dispatcher_cls = self._resolve_engine_component(
+                'ENGINE_DISPATCHER_CLASS', RequestDispatcher
+            )
+        if distributed_cls is None:
+            distributed_cls = self._resolve_engine_component(
+                'ENGINE_DISTRIBUTED_CLASS', DistributedCoordinator
+            )
+        self._distributed = distributed or distributed_cls(self)
+        self._dispatcher = dispatcher or dispatcher_cls(self)
+
+    def _resolve_engine_component(self, settings_key: str, default_cls):
+        """从 settings 解析组合组件类（完整类路径），失败回退默认。"""
+        path = safe_get_config(self.settings, settings_key, None, str)
+        if not path:
+            return default_cls
+        try:
+            from crawlo.utils.misc import load_object
+            return load_object(path)
+        except Exception as e:
+            self.logger.warning(
+                f"Failed to load engine component '{settings_key}={path}': {e}, "
+                f"falling back to {default_cls.__name__}"
+            )
+            return default_cls
 
     # ======================================================================
     # 工具方法 & 配置
@@ -316,8 +348,8 @@ class Engine(RequestGenerationMixin, ClusterMixin):
             if process is not None:
                 try:
                     reason = 'shutdown' if process._shutdown_requested else reason
-                except Exception:
-                    pass
+                except Exception as e:
+                    self.logger.debug(f"Failed to read process shutdown flag: {e}")
 
         try:
             await self.close_spider(reason=reason)
@@ -361,7 +393,7 @@ class Engine(RequestGenerationMixin, ClusterMixin):
                     self.crawler.stats.inc_value('downloader/exception_count')
                     self.crawler.stats.inc_value(f'downloader/exception_type_count/{type(e).__name__}')
                     if hasattr(request, 'url'):
-                        self.crawler.stats.inc_value(f'downloader/failed_urls_count')
+                        self.crawler.stats.inc_value('downloader/failed_urls_count')
 
                 errback = getattr(request, 'errback', None)
                 if errback and callable(errback):
@@ -564,8 +596,8 @@ class Engine(RequestGenerationMixin, ClusterMixin):
                             CrawlerEvent.SPIDER_CLOSED, reason='error'
                         )
                     )
-            except Exception:
-                pass
+            except Exception as e:
+                self.logger.debug(f"Failed to notify SPIDER_CLOSED: {e}")
             raise
 
     # ======================================================================

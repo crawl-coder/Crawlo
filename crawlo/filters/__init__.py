@@ -15,7 +15,6 @@ Core Interface:
 - requested(): Main method for checking request duplication
 """
 from abc import ABC, abstractmethod
-from typing import Optional
 
 from crawlo.utils.request.fingerprint import FingerprintGenerator
 

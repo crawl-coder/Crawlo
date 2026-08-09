@@ -214,7 +214,7 @@ async def _shutdown(project, spider, redis_url, cleanup=True):
         r = aioredis.from_url(redis_url, socket_connect_timeout=3)
         dc = DynamicConfig(r, messenger=None, namespace=f"crawlo:{project}:{spider}", enabled=False)
         await dc.shutdown_cluster(cleanup=cleanup)
-        print(f"✓ shutdown 成功：SET control:state = shutdown + PUBLISH control:shutdown 发出"
+        print("✓ shutdown 成功：SET control:state = shutdown + PUBLISH control:shutdown 发出"
               + ("（附带 cleanup 运行数据）" if cleanup else "（保留运行数据）"))
         await r.aclose()
     except Exception as e:

@@ -28,8 +28,6 @@ from .base_pipeline import (
     BasePipeline,
     ResourceManagedPipeline,
     FileBasedPipeline,
-    DatabasePipeline,
-    CacheBasedPipeline,
 )
 
 # ── 通用基类 ──
@@ -77,7 +75,6 @@ JsonPipeline = JsonLinesPipeline
 __all__ = [
     # 基类
     'BasePipeline', 'ResourceManagedPipeline', 'FileBasedPipeline',
-    'DatabasePipeline', 'CacheBasedPipeline',
     # 通用基类
     'GenericSQLPipeline', 'GenericDocumentPipeline',
     # 去重管道（Memory/Redis 无外部依赖）

@@ -175,7 +175,7 @@ class PipelineManager:
                 pipeline_cls = load_object(pipeline_path)
                 if not hasattr(pipeline_cls, 'from_crawler'):
                     raise PipelineInitError(
-                        f"Pipeline init failed, must inherit from `BasePipeline` or have a `from_crawler` method"
+                        "Pipeline init failed, must inherit from `BasePipeline` or have a `from_crawler` method"
                     )
                 # 处理同步和异步的from_crawler方法
                 result = pipeline_cls.from_crawler(self.crawler)

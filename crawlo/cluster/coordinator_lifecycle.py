@@ -91,6 +91,12 @@ class ClusterLifecycleMixin:
                     sentinel_service=safe_get_config(
                         self.settings, 'REDIS_SENTINEL_SERVICE', 'mymaster'
                     ),
+                    cluster_enabled=safe_get_config(
+                        self.settings, 'REDIS_CLUSTER_ENABLED', False, bool
+                    ),
+                    cluster_nodes=safe_get_config(
+                        self.settings, 'REDIS_CLUSTER_NODES', []
+                    ),
                 )
                 await queue.connect()
                 redis_client = queue._redis

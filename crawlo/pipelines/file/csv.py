@@ -78,7 +78,7 @@ class CsvPipeline(FileBasedPipeline):
                     self.csv_writer.writerow(list(item_dict.keys()))
                     self.file_handle.flush()
                     self.headers_written = True
-                    self.logger.debug(f"CSV headers written")
+                    self.logger.debug("CSV headers written")
 
                 # 批量模式
                 if self.buffer_enabled:

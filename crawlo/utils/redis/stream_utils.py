@@ -5,6 +5,8 @@ Redis Streams 工具函数
 
 提供版本检测、Consumer Group 管理、单 Stream 读取等辅助功能。
 """
+import asyncio
+import time as _time
 from typing import Optional, Tuple, List, Dict, Any
 
 
@@ -122,6 +124,7 @@ async def stream_read(
     stream: str,
     count: int = 1,
     block: Optional[int] = None,
+    cluster_mode: bool = False,
 ) -> Optional[List[Tuple[str, List[Tuple[str, Dict[str, Any]]]]]]:
     """
     单 Stream 读取。
@@ -140,18 +143,28 @@ async def stream_read(
     Note:
         Redis 的 BLOCK 0 表示"无限等待"而非"不等待"，
         因此非阻塞读取时不能传 block=0，应省略 block 参数。
+
+    Cluster 模式：Redis Cluster 不支持 XREADGROUP BLOCK，
+    退化为"非阻塞读取 + 短轮询"，直至达到 block 超时（P3-1）。
     """
     try:
-        if block and block > 0:
+        if block and block > 0 and not cluster_mode:
             msgs = await redis_client.xreadgroup(
-                group, consumer,
-                {stream: ">"}, count=count, block=block
+                group, consumer, {stream: ">"}, count=count, block=block
             )
         else:
-            msgs = await redis_client.xreadgroup(
-                group, consumer,
-                {stream: ">"}, count=count
-            )
+            deadline = block / 1000.0 if block and block > 0 else 0.0
+            start = _time.monotonic()
+            while True:
+                msgs = await redis_client.xreadgroup(
+                    group, consumer, {stream: ">"}, count=count
+                )
+                if msgs:
+                    return msgs
+                if deadline <= 0 or _time.monotonic() - start >= deadline:
+                    return None
+                await asyncio.sleep(0.05)
+            return None
         if msgs:
             return msgs
     except Exception:
