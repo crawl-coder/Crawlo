@@ -59,9 +59,11 @@ class TestErrorTypesTimeoutFix:
         timeout_count = sum(1 for exc in network_exceptions if exc is TimeoutError)
         assert timeout_count == 1, "TimeoutError should appear only once"
         
-        # asyncio.TimeoutError should be the same as TimeoutError in 3.11+
+        # asyncio.TimeoutError 与 TimeoutError 在 3.11+ 才是同一对象，3.10 中是不同异常
         if hasattr(asyncio, 'TimeoutError'):
-            assert asyncio.TimeoutError is TimeoutError
+            import sys
+            if sys.version_info >= (3, 11):
+                assert asyncio.TimeoutError is TimeoutError
     
     def test_retryable_exceptions_no_duplicate(self):
         """Verify RETRYABLE_EXCEPTIONS has no duplicate TimeoutError"""

@@ -400,6 +400,8 @@ class TestSchedulerIntegration:
         
         daemon = SchedulerDaemon(settings)
         
+        # 触发 executor 构造（重构后 executor 从 __init__ 下沉到 _ensure_executor_ready）
+        daemon._ensure_executor_ready()
         # 验证信号量已创建
         assert daemon._semaphore is not None
     

@@ -184,5 +184,10 @@ async def test_executor_calls_crawlerprocess_crawl(monkeypatch):
 def test_old_executor_module_deleted():
     """旧 crawlo/scheduling/daemon/executor.py 已物理删除。"""
     import importlib.util
-    spec = importlib.util.find_spec("crawlo.scheduling.daemon.executor")
+    # find_spec 对多级不存在路径会因导入父包失败抛 ModuleNotFoundError，
+    # 因此捕获异常视为"模块已删除"
+    try:
+        spec = importlib.util.find_spec("crawlo.scheduling.daemon.executor")
+    except ModuleNotFoundError:
+        spec = None
     assert spec is None, "crawlo.scheduling.daemon.executor 应已删除"

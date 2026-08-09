@@ -34,20 +34,21 @@ class TestConfigMerge(unittest.TestCase):
         
         settings = SettingManager(user_config)
         
-        # 获取合并后的中间件列表
+        # 获取合并后的中间件配置（重构后为 dict {path: priority}）
         middlewares = settings.get('MIDDLEWARES')
         
         # 检查默认中间件是否存在
-        self.assertIn('crawlo.middleware.request_ignore.RequestIgnoreMiddleware', middlewares)
-        self.assertIn('crawlo.middleware.download_delay.DownloadDelayMiddleware', middlewares)
+        self.assertIn('crawlo.middleware.RequestIgnoreMiddleware', middlewares)
+        self.assertIn('crawlo.middleware.DownloadDelayMiddleware', middlewares)
         
         # 检查自定义中间件是否存在
         self.assertIn('myproject.middlewares.CustomMiddleware', middlewares)
         
-        # 检查合并后的顺序是否正确
-        default_index = middlewares.index('crawlo.middleware.request_ignore.RequestIgnoreMiddleware')
-        custom_index = middlewares.index('myproject.middlewares.CustomMiddleware')
-        self.assertLess(default_index, custom_index)
+        # 检查合并后的顺序是否正确（priority 越小越先执行）
+        self.assertLess(
+            middlewares['crawlo.middleware.RequestIgnoreMiddleware'],
+            middlewares['myproject.middlewares.CustomMiddleware'],
+        )
 
     def test_pipeline_merge(self):
         """测试管道配置合并"""
@@ -64,15 +65,19 @@ class TestConfigMerge(unittest.TestCase):
         pipelines = settings.get('PIPELINES')
         
         # 检查默认管道是否存在
-        self.assertIn('crawlo.pipelines.console.ConsolePipeline', pipelines)
+        self.assertIn('crawlo.pipelines.ConsolePipeline', pipelines)
         
         # 检查自定义管道是否存在
         self.assertIn('myproject.pipelines.CustomPipeline', pipelines)
         
-        # 检查去重管道是否在开头
+        # 检查去重管道优先级最小（最先执行）
         dedup_pipeline = settings.get('DEFAULT_DEDUP_PIPELINE')
-        self.assertEqual(pipelines[0], dedup_pipeline)
-        self.assertEqual(dedup_pipeline, 'crawlo.pipelines.dedup.memory.MemoryDedupPipeline')
+        self.assertEqual(dedup_pipeline, 'crawlo.pipelines.MemoryDedupPipeline')
+        self.assertIn(dedup_pipeline, pipelines)
+        self.assertEqual(
+            pipelines[dedup_pipeline],
+            min(pipelines.values()),
+        )
 
     def test_extension_merge(self):
         """测试扩展配置合并"""
@@ -96,10 +101,9 @@ class TestConfigMerge(unittest.TestCase):
         # 检查自定义扩展是否存在
         self.assertIn('myproject.extensions.CustomExtension', extensions)
         
-        # 检查合并后的顺序是否正确
-        default_index = extensions.index('crawlo.extensions.LogIntervalExtension')
-        custom_index = extensions.index('myproject.extensions.CustomExtension')
-        self.assertLess(default_index, custom_index)
+        # 默认扩展与自定义扩展均为默认优先级（500），确保都存在即可
+        self.assertIn('crawlo.extensions.LogIntervalExtension', extensions)
+        self.assertIn('myproject.extensions.CustomExtension', extensions)
 
     def test_empty_custom_config(self):
         """测试空自定义配置"""
@@ -112,12 +116,12 @@ class TestConfigMerge(unittest.TestCase):
         middlewares = settings.get('MIDDLEWARES')
         
         # 检查默认中间件是否存在
-        self.assertIn('crawlo.middleware.request_ignore.RequestIgnoreMiddleware', middlewares)
-        self.assertIn('crawlo.middleware.download_delay.DownloadDelayMiddleware', middlewares)
+        self.assertIn('crawlo.middleware.RequestIgnoreMiddleware', middlewares)
+        self.assertIn('crawlo.middleware.DownloadDelayMiddleware', middlewares)
         
         # 检查管道和扩展
         pipelines = settings.get('PIPELINES')
-        self.assertIn('crawlo.pipelines.console.ConsolePipeline', pipelines)
+        self.assertIn('crawlo.pipelines.ConsolePipeline', pipelines)
         
         extensions = settings.get('EXTENSIONS')
         self.assertIn('crawlo.extensions.LogIntervalExtension', extensions)
@@ -131,12 +135,12 @@ class TestConfigMerge(unittest.TestCase):
         middlewares = settings.get('MIDDLEWARES')
         
         # 检查默认中间件是否存在
-        self.assertIn('crawlo.middleware.request_ignore.RequestIgnoreMiddleware', middlewares)
-        self.assertIn('crawlo.middleware.download_delay.DownloadDelayMiddleware', middlewares)
+        self.assertIn('crawlo.middleware.RequestIgnoreMiddleware', middlewares)
+        self.assertIn('crawlo.middleware.DownloadDelayMiddleware', middlewares)
         
         # 检查管道和扩展
         pipelines = settings.get('PIPELINES')
-        self.assertIn('crawlo.pipelines.console.ConsolePipeline', pipelines)
+        self.assertIn('crawlo.pipelines.ConsolePipeline', pipelines)
         
         extensions = settings.get('EXTENSIONS')
         self.assertIn('crawlo.extensions.LogIntervalExtension', extensions)

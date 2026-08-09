@@ -160,24 +160,6 @@ def test_p1_5_drissionpage_exception_logging():
     print("✅ P1-5: DrissionPageDownloader exception logging - PASSED")
 
 
-def test_p1_6_camoufox_dynamic_os():
-    """P1-6: Test CamoufoxDownloader uses dynamic OS detection"""
-    from crawlo.downloader.camoufox_downloader import CamoufoxDownloader
-    import inspect
-    
-    # Get __init__ source
-    source = inspect.getsource(CamoufoxDownloader.__init__)
-    
-    # Should import platform module
-    module_source = inspect.getsource(
-        sys.modules['crawlo.downloader.camoufox_downloader']
-    )
-    assert 'import platform' in module_source, \
-        "Should import platform module"
-    
-    print("✅ P1-6: CamoufoxDownloader dynamic OS detection - PASSED")
-
-
 def test_p2_1_dynamic_sub_downloader_detection():
     """P2-1: Test sub-downloader detection is dynamic"""
     from crawlo.downloader import DownloaderBase

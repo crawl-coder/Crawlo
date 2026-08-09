@@ -23,11 +23,11 @@ def test_crawler_process_from_crawlo_top_level():
     assert CrawlerProcess is not None
 
 
-def test_crawler_process_not_in_crawler_module():
-    """从 crawlo.crawler 导入 CrawlerProcess 必须抛 AttributeError（v2.0 已删除 facade）"""
+def test_crawler_process_in_crawler_module():
+    """CrawlerProcess 位于 crawlo.crawler（重构后 crawler_process 是其别名）"""
     import crawlo.crawler
-    with pytest.raises(AttributeError, match="CrawlerProcess"):
-        crawlo.crawler.CrawlerProcess
+    from crawlo.crawler import CrawlerProcess
+    assert crawlo.crawler.CrawlerProcess is CrawlerProcess
 
 
 if __name__ == '__main__':

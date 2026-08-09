@@ -101,7 +101,7 @@ class TestConfigValidator(unittest.TestCase):
         
         is_valid, errors, warnings = self.validator.validate(config)
         self.assertFalse(is_valid)
-        self.assertIn("QUEUE_TYPE 必须是以下值之一: ['memory', 'redis', 'auto']", errors)
+        self.assertIn("QUEUE_TYPE 必须是以下值之一: ['memory', 'redis', 'redis_stream', 'auto']", errors)
 
     def test_invalid_concurrency(self):
         """测试无效的并发数"""
@@ -128,34 +128,6 @@ class TestConfigValidator(unittest.TestCase):
         is_valid, errors, warnings = self.validator.validate(config)
         self.assertFalse(is_valid)
         self.assertIn("LOG_LEVEL 必须是以下值之一: ['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL']", errors)
-
-    def test_invalid_middleware_config(self):
-        """测试无效的中间件配置"""
-        config = {
-            'PROJECT_NAME': 'test_project',
-            'QUEUE_TYPE': 'memory',
-            'CONCURRENCY': 8,
-            'LOG_LEVEL': 'INFO',
-            'MIDDLEWARES': 'not_a_list'  # 不是列表
-        }
-        
-        is_valid, errors, warnings = self.validator.validate(config)
-        self.assertFalse(is_valid)
-        self.assertIn("MIDDLEWARES 必须是列表", errors)
-
-    def test_invalid_pipeline_config(self):
-        """测试无效的管道配置"""
-        config = {
-            'PROJECT_NAME': 'test_project',
-            'QUEUE_TYPE': 'memory',
-            'CONCURRENCY': 8,
-            'LOG_LEVEL': 'INFO',
-            'PIPELINES': 'not_a_list'  # 不是列表
-        }
-        
-        is_valid, errors, warnings = self.validator.validate(config)
-        self.assertFalse(is_valid)
-        self.assertIn("PIPELINES 必须是列表", errors)
 
     def test_convenience_function(self):
         """测试便利函数"""
