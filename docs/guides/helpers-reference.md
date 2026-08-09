@@ -4,12 +4,12 @@
 
 ## 概述
 
-`crawlo.helpers` 提供多个独立工具类，可在爬虫、Pipeline 或脚本中直接引入使用。
+工具类分散于 `crawlo.utils.*` 各子模块中，可在爬虫、Pipeline 或脚本中直接引入使用。
 
 ## TimeUtils — 时间格式化
 
 ```python
-from crawlo.helpers import TimeUtils
+from crawlo.utils.time_utils import TimeUtils
 
 # 格式化时间戳
 TimeUtils.format_timestamp(1718000000)                # '2024-06-10 14:13:20'
@@ -27,7 +27,7 @@ TimeUtils.time_ago(86400 * 3)                          # '3 days ago'
 ## TextCleaner — 文本清洗
 
 ```python
-from crawlo.helpers import TextCleaner
+from crawlo.utils.text.cleaner import TextCleaner
 
 text = "  商品名称：\n\tiPhone 15 Pro  （深空黑色） \r\n  "
 
@@ -50,7 +50,7 @@ TextCleaner.replace(text, old='\t', new=' ')  # Tab 替换为空格
 ## FileDownloader — 文件下载
 
 ```python
-from crawlo.helpers import FileDownloader
+from crawlo.utils.file_downloader import FileDownloader
 
 # 同步下载
 downloader = FileDownloader(save_dir='./downloads')
@@ -86,7 +86,7 @@ downloader = FileDownloader(
 在 Pipeline 中快速检查数据是否已存在，避免重复写入：
 
 ```python
-from crawlo.helpers import MySQLExistsChecker
+from crawlo.utils.db.mysql_exists_checker import MySQLExistsChecker
 
 # 初始化（复用现有 MySQL 连接配置）
 checker = MySQLExistsChecker(

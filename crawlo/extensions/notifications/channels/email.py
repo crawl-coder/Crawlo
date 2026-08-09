@@ -116,7 +116,7 @@ class EmailChannel(NotificationChannel):
 
 
 def _resolve_notification_context():
-    """Phase 8 Step 8.5：优先从容器拿 NotificationContext，否则 fallback ctx.notifications。"""
+    """优先从容器拿 NotificationContext，否则 fallback ctx.notifications。"""
     try:
         from crawlo.container import default_container
         from crawlo.core.application import NotificationContext
@@ -129,7 +129,7 @@ def _resolve_notification_context():
 
 
 def get_email_channel() -> EmailChannel:
-    """获取邮件通知渠道实例（Phase 8 Step 8.5：DI 容器优先 + NotificationContext fallback）。"""
+    """获取邮件通知渠道实例（DI 容器优先 + NotificationContext fallback）。"""
     try:
         from crawlo.container import default_container
         if default_container.is_registered(EmailChannel):

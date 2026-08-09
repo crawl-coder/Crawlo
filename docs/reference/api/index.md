@@ -96,7 +96,7 @@ raise DropItem("Duplicate item")
 错误分类器，用于判断错误类型和重试策略。
 
 ```python
-from crawlo.core.error_types import ErrorClassifier
+from crawlo.core.errors import ErrorClassifier
 ```
 
 **方法**:
@@ -453,7 +453,7 @@ crawler.crawl()
 ### 错误处理示例
 
 ```python
-from crawlo.core.error_types import ErrorClassifier
+from crawlo.core.errors import ErrorClassifier
 
 async def process_request(request):
     try:

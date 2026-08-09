@@ -79,7 +79,7 @@ def __getattr__(name):
 
 
 def get_framework_initializer():
-    """延迟导入 CoreInitializer（Phase 4 Step 3：转发到 crawlo.core 的 lazy facade）。
+    """延迟导入 CoreInitializer（转发到 crawlo.core 的 lazy facade）。
 
     保持此处为薄转发层，真正的 lazy 解析逻辑在 ``crawlo.core.get_framework_initializer``，
     避免重复实现。

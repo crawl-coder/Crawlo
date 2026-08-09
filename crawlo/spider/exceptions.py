@@ -26,7 +26,7 @@ class SpiderCreationError(SpiderException):
 class AmbiguousSpiderError(SpiderException):
     """爬虫名称歧义错误。当多个爬虫类注册了相同 name 时抛出。
 
-    Phase 1：SpiderMeta 不再在 import 阶段 raise，而是后注册覆盖先注册 + warning。
+    SpiderMeta 不再在 import 阶段 raise，而是后注册覆盖先注册 + warning。
     当通过 get_spider_by_name 解析到冲突的 name 时，抛出此异常，
     错误信息列出所有候选类的完整模块路径，供用户决策。
 

@@ -272,7 +272,7 @@ class RedisConnectionPool:
 
 
 def _resolve_runtime_context():
-    """Phase 8 Step 8.4：优先从 default_container 拿 RuntimeContext，否则 fallback ctx。"""
+    """优先从 default_container 拿 RuntimeContext，否则 fallback ctx。"""
     try:
         from crawlo.container import default_container
         from crawlo.core.application import RuntimeContext
@@ -285,7 +285,7 @@ def _resolve_runtime_context():
 
 
 def get_redis_pool(redis_url: str, is_cluster: bool = False, cluster_nodes: Optional[List[str]] = None, shared: bool = True, **kwargs) -> RedisConnectionPool:
-    """获取Redis连接池实例（Phase 8 Step 8.4：通过 RuntimeContext.connection_pools 管理）"""
+    """获取Redis连接池实例（通过 RuntimeContext.connection_pools 管理）"""
     if shared:
         runtime_ctx = _resolve_runtime_context()
         pools = runtime_ctx.connection_pools
@@ -298,7 +298,7 @@ def get_redis_pool(redis_url: str, is_cluster: bool = False, cluster_nodes: Opti
 
 
 async def close_all_pools():
-    """关闭所有共享连接池（Phase 8 Step 8.4：通过 RuntimeContext.connection_pools 清理）"""
+    """关闭所有共享连接池（通过 RuntimeContext.connection_pools 清理）"""
     runtime_ctx = _resolve_runtime_context()
     pools = runtime_ctx.connection_pools
     for pool in list(pools.values()):
@@ -406,7 +406,7 @@ class GlobalRedisManager:
 
 
 def get_redis_manager() -> GlobalRedisManager:
-    """获取全局 Redis 管理器单例（Phase 8 Step 8.8：DI 容器优先 + RuntimeContext fallback）。"""
+    """获取全局 Redis 管理器单例（DI 容器优先 + RuntimeContext fallback）。"""
     try:
         from crawlo.container import default_container
         if default_container.is_registered(GlobalRedisManager):

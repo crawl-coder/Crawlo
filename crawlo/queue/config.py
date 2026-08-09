@@ -63,7 +63,7 @@ class QueueConfig:
         self.backpressure_ratio = backpressure_ratio
         self.backpressure_delay_base = backpressure_delay_base
         self.backpressure_delay_max = backpressure_delay_max
-        # Phase 2：入队阻塞策略配置
+        # 入队阻塞策略配置
         self.enqueue_full_policy = enqueue_full_policy
         self.enqueue_block_timeout = enqueue_block_timeout
         self.enqueue_drop_timeout = enqueue_drop_timeout
@@ -132,7 +132,7 @@ class QueueConfig:
         
         backpressure_check_interval = safe_get_config(settings, 'BACKPRESSURE_CHECK_INTERVAL', 0.1)
 
-        # Phase 2：入队阻塞策略配置
+        # 入队阻塞策略配置
         enqueue_full_policy = safe_get_config(settings, 'ENQUEUE_FULL_POLICY', 'drop_with_counter', str)
         enqueue_block_timeout = safe_get_config(settings, 'ENQUEUE_BLOCK_TIMEOUT', None)
         enqueue_drop_timeout = safe_get_config(settings, 'ENQUEUE_DROP_TIMEOUT', 50.0, float)

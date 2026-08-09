@@ -3,7 +3,7 @@
 """
 Engine 请求生成 Mixin — 从 engine.py 拆分
 
-P1 A2：将 RequestGenerationMixin 物理分离到独立文件，
+将 RequestGenerationMixin 物理分离到独立文件，
 减少 engine.py 体积。Engine 仍通过继承使用，不改变运行时行为。
 
 Components:
@@ -233,7 +233,7 @@ class RequestGenerationMixin:
         )
 
     # ========================================================================
-    # Spider 输出处理（Phase 3 从 Engine 迁入，属于请求生成/输出处理职责）
+    # Spider 输出处理（从 Engine 迁入，属于请求生成/输出处理职责）
     # ========================================================================
 
     async def _handle_spider_output(self, outputs, parent_request=None):

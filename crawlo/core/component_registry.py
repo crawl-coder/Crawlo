@@ -8,7 +8,7 @@ Crawlo 组件注册表（从 factories.py 迁出）
 2. 按 component_type 路由到合适的 ComponentFactory
 3. 创建组件实例（含 singleton 缓存复用）
 4. 解析"全局注册表实例"——优先 DI 容器 default_container，其次 fallback 到
-   RegistryContext.component_registry，确保与 Phase 8.8 Application 体系一致。
+   RegistryContext.component_registry，确保与 Application 体系一致。
 """
 from __future__ import annotations
 
@@ -103,18 +103,25 @@ class ComponentRegistry:
                 return factory
         return self._default_factory
 
-    def create(self, name: str, **kwargs) -> Any:
-        """Create component instance"""
-        spec = self.get_spec(name)
+    def create(self, component_name: str, **kwargs) -> Any:
+        """Create component instance.
+
+        The first parameter is intentionally named ``component_name`` (rather
+        than ``name``) to avoid clashing with the very common component
+        constructor kwarg ``name`` — otherwise callers such as
+        ``registry.create("foo", name="my_name", value=1)`` would fail with
+        ``got multiple values for argument 'name'``.
+        """
+        spec = self.get_spec(component_name)
         if not spec:
-            raise ValueError(f"Component spec '{name}' not found")
+            raise ValueError(f"Component spec '{component_name}' not found")
 
         factory = self.get_factory(spec.component_type)
         return factory.create(spec, **kwargs)
 
-    def get(self, name: str, **kwargs) -> Any:
+    def get(self, component_name: str, **kwargs) -> Any:
         """Get component instance (alias for create)"""
-        return self.create(name, **kwargs)
+        return self.create(component_name, **kwargs)
 
     def list_components(self) -> List[str]:
         """List all registered components (synchronous method)"""
@@ -128,7 +135,7 @@ class ComponentRegistry:
 
 
 def _resolve_registry_context():
-    """Phase 8 Step 8.8 收尾：优先从容器拿 RegistryContext，否则 fallback ctx.registries。"""
+    """优先从容器拿 RegistryContext，否则 fallback ctx.registries。"""
     try:
         from crawlo.core.application import default_container
         from crawlo.core.application import RegistryContext
@@ -141,10 +148,10 @@ def _resolve_registry_context():
 
 
 def get_component_registry() -> ComponentRegistry:
-    """Get the global component registry（Phase 8 Step 8.8：DI 容器优先 + RegistryContext fallback）。
+    """Get the global component registry（DI 容器优先 + RegistryContext fallback）。
 
     迁移策略（与 InitializerRegistry / JobRegistry 保持三模块一致）：
-    1. 先从 ``default_container`` 解析（Phase 8.2 已在 ApplicationContext.__post_init__
+    1. 先从 ``default_container`` 解析（已在 ApplicationContext.__post_init__
        把非 None 的注册表单例 register 进来）——@inject 类会走这条，依赖显式。
     2. 若容器未注册则 fallback 到 ``RegistryContext.component_registry``：None 时就地构造
        并 ``register_instance`` 补充注册，确保后续 resolve 也能拿到同一引用。

@@ -3,7 +3,7 @@
 """
 Extensions 模块 — 框架扩展组件
 
-Phase 3.2+3.3：合并原 extension/（单数）和 bot/ 到统一 extensions/ 包。
+合并原 extension/（单数）和 bot/ 到统一 extensions/ 包。
 
 Subpackages:
 - extensions.monitor: 监控扩展（MemoryMonitorExtension / MySQLMonitorExtension / RedisMonitorExtension 等）

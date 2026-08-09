@@ -602,7 +602,7 @@ class QuickFetcher:
 
 
 def _resolve_runtime_context():
-    """Phase 8 Step 8.7：优先从容器拿 RuntimeContext，否则 fallback ctx.runtime。"""
+    """优先从容器拿 RuntimeContext，否则 fallback ctx.runtime。"""
     try:
         from crawlo.container import default_container
         from crawlo.core.application import RuntimeContext
@@ -615,7 +615,7 @@ def _resolve_runtime_context():
 
 
 def _cleanup_fetcher():
-    """清理全局 Fetcher 实例（Phase 8 Step 8.7：通过 RuntimeContext 写位）。"""
+    """清理全局 Fetcher 实例（通过 RuntimeContext 写位）。"""
     rctx = _resolve_runtime_context()
     fetcher = rctx.mcp_fetcher or rctx.quick_fetcher  # 共用时只需关一次
     if fetcher is not None:
@@ -636,7 +636,7 @@ atexit.register(_cleanup_fetcher)
 
 
 async def get_fetcher(custom_settings: Optional[Dict[str, Any]] = None) -> QuickFetcher:
-    """获取全局 QuickFetcher 实例（Phase 8 Step 8.7：DI 容器优先 + RuntimeContext fallback）。"""
+    """获取全局 QuickFetcher 实例（DI 容器优先 + RuntimeContext fallback）。"""
     try:
         from crawlo.container import default_container
         if default_container.is_registered(QuickFetcher):

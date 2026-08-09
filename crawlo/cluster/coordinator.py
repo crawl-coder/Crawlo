@@ -85,7 +85,7 @@ async def _ack_message(request, engine, success: bool, error: Exception = None):
 
 @dataclass
 class ClusterState:
-    """Engine 集群组件状态容器（Phase 3 Step 2）。
+    """Engine 集群组件状态容器。
 
     将 Engine 的 18 个 _cluster_*/_leader_*/_task_tracker 字段收入此 dataclass，
     减少 Engine.__init__ 顶层赋值数。
@@ -119,7 +119,7 @@ class ClusterMixin:
     """
 
     # ========================================================================
-    # 种子锁（Phase 3 从 Engine 迁入，本就属于分布式协调）
+    # 种子锁（从 Engine 迁入，本就属于分布式协调）
     # ========================================================================
 
     # 种子锁原子获取的 Lua 脚本

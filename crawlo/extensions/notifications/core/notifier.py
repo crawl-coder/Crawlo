@@ -123,7 +123,7 @@ class NotificationDispatcher:
 
 
 def _resolve_notification_context():
-    """Phase 8 Step 8.5：优先从容器拿 NotificationContext，否则 fallback ctx.notifications。"""
+    """优先从容器拿 NotificationContext，否则 fallback ctx.notifications。"""
     try:
         from crawlo.container import default_container
         from crawlo.core.application import NotificationContext
@@ -137,7 +137,7 @@ def _resolve_notification_context():
 
 def get_notifier() -> NotificationDispatcher:
     """
-    获取全局通知器实例（Phase 8 Step 8.5：DI 容器优先 + DCL NotificationContext fallback）。
+    获取全局通知器实例（DI 容器优先 + DCL NotificationContext fallback）。
     """
     try:
         from crawlo.container import default_container
@@ -176,7 +176,7 @@ def get_notifier() -> NotificationDispatcher:
 
 
 def reset_notifier() -> None:
-    """重置全局通知器（Phase 8 Step 8.5：通过 NotificationContext 属性操作）。"""
+    """重置全局通知器（通过 NotificationContext 属性操作）。"""
     nctx = _resolve_notification_context()
     nctx.notifier = None
 

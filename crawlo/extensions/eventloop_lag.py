@@ -13,7 +13,7 @@ Eventloop Lag 探针（监控 asyncio 事件循环卡顿）。
     P50/P95/P99 三个 gauge，并当 P99 > WARN_THRESHOLD_MS 连续 WARN_CONSECUTIVE_TRIGGERS
     个发布周期时打 WARN 告警。
 
-配置项（全部可选，默认值按 P4/D-8 文档规范）：
+配置项（全部可选）：
     EVENTLOOP_LAG_PROBE_ENABLED  bool  = True
     EVENTLOOP_LAG_SAMPLE_INTERVAL float = 1.0   # 秒，采样间隔
     EVENTLOOP_LAG_PUBLISH_INTERVAL float = 5.0  # 秒，推指标间隔

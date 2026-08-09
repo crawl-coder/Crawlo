@@ -265,7 +265,7 @@ def performance_monitor_decorator(name: str = None, log_level: str = "INFO"):
 
 
 def _resolve_runtime_context():
-    """Phase 8 Step 8.6：优先从容器拿 RuntimeContext，否则 fallback ctx.runtime。"""
+    """优先从容器拿 RuntimeContext，否则 fallback ctx.runtime。"""
     try:
         from crawlo.container import default_container
         from crawlo.core.application import RuntimeContext
@@ -278,7 +278,7 @@ def _resolve_runtime_context():
 
 
 def _get_performance_monitor() -> PerformanceMonitor:
-    """获取全局 PerformanceMonitor 单例（Phase 8 Step 8.6：DI 容器优先 + RuntimeContext fallback）。"""
+    """获取全局 PerformanceMonitor 单例（DI 容器优先 + RuntimeContext fallback）。"""
     try:
         from crawlo.container import default_container
         if default_container.is_registered(PerformanceMonitor):

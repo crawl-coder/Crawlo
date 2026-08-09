@@ -280,7 +280,7 @@ class CrawlerNotificationHandler:
 
 
 def _resolve_notification_context():
-    """Phase 8 Step 8.5：优先从容器拿 NotificationContext，否则 fallback ctx.notifications。"""
+    """优先从容器拿 NotificationContext，否则 fallback ctx.notifications。"""
     try:
         from crawlo.container import default_container
         from crawlo.core.application import NotificationContext
@@ -294,7 +294,7 @@ def _resolve_notification_context():
 
 def get_notification_handler() -> CrawlerNotificationHandler:
     """
-    获取全局通知处理器实例（Phase 8 Step 8.5：DI 容器优先 + DCL NotificationContext fallback）
+    获取全局通知处理器实例（DI 容器优先 + DCL NotificationContext fallback）
     """
     try:
         from crawlo.container import default_container

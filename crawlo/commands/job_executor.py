@@ -1,5 +1,5 @@
 """
-任务执行器（Phase 7：从 scheduling.daemon.executor 上提到 commands 层）
+任务执行器（从 scheduling.daemon.executor 上提到 commands 层）
 
 定位：L1（commands 层）的进程级爬虫启动器。
 语义等价于 ``crawlo run`` 的守护进程版本：负责根据 ScheduledJob 配置，

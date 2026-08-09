@@ -208,7 +208,7 @@ cron '0 */6 * * *', 0:00 开始, 8:00 完成
 ### 查看执行统计
 
 ```python
-from crawlo.scheduling.registry import get_job_registry
+from crawlo.commands.registry import get_job_registry
 
 registry = get_job_registry()
 for job in registry.get_all_jobs():

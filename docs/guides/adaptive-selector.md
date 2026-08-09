@@ -76,7 +76,7 @@ all_links = response.find_similar('nav_link', threshold=60, ignore_attributes={'
 网站改版时 `href`、`src` 等 URL 属性通常会变，跳过它们可提高匹配精度：
 
 ```python
-from crawlo.helpers.adaptive_selector import SimilarityMatcher
+from crawlo.utils.adaptive_selector.similarity_matcher import SimilarityMatcher
 
 matcher = SimilarityMatcher(ignore_attributes={'href', 'src'})
 ```
@@ -95,7 +95,7 @@ ADAPTIVE_MAX_FINGERPRINT_ELEMENTS = 10    # 每个选择器最多保存的元素
 ### 手动配置（不使用 settings）
 
 ```python
-from crawlo.network.response import Response
+from crawlo.http import Response
 
 Response.configure_adaptive(
     backend='sqlite',                     # 或 'redis'
@@ -190,7 +190,9 @@ ADAPTIVE_STORAGE_BACKEND = 'redis'
 ## 独立使用核心类
 
 ```python
-from crawlo.helpers import ElementFingerprint, SimilarityMatcher, FingerprintStorage
+from crawlo.utils.adaptive_selector.element_fingerprint import ElementFingerprint
+from crawlo.utils.adaptive_selector.similarity_matcher import SimilarityMatcher
+from crawlo.utils.adaptive_selector.storage import FingerprintStorage
 from lxml.html import fromstring
 
 # 1. 保存指纹

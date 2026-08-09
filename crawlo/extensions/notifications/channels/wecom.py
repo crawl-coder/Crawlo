@@ -188,7 +188,7 @@ class WeComChannel(NotificationChannel):
 
 
 def _resolve_notification_context():
-    """Phase 8 Step 8.5：优先从容器拿 NotificationContext，否则 fallback ctx.notifications。"""
+    """优先从容器拿 NotificationContext，否则 fallback ctx.notifications。"""
     try:
         from crawlo.container import default_container
         from crawlo.core.application import NotificationContext
@@ -201,7 +201,7 @@ def _resolve_notification_context():
 
 
 def get_wecom_channel() -> WeComChannel:
-    """获取企业微信通知渠道实例（Phase 8 Step 8.5：DI 容器优先 + NotificationContext fallback）。"""
+    """获取企业微信通知渠道实例（DI 容器优先 + NotificationContext fallback）。"""
     try:
         from crawlo.container import default_container
         if default_container.is_registered(WeComChannel):

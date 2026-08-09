@@ -1,5 +1,5 @@
 """
-调度器核心模块（Phase 3.6：从 scheduling/daemon/scheduler.py + scheduling/__init__.py 的
+调度器核心模块（从 scheduling/daemon/scheduler.py + scheduling/__init__.py 的
 start_scheduler 合并迁移到 commands/scheduler.py）
 """
 
@@ -12,7 +12,7 @@ from typing import Any, Dict, Optional
 from crawlo.logging import get_logger
 from crawlo.commands.job import ScheduledJob
 from crawlo.commands.registry import JobRegistry
-from crawlo.commands.job_executor import JobExecutor  # Phase 7：L1 commands 层上提，消除 L4→L2 反向依赖
+from crawlo.commands.job_executor import JobExecutor  # L1 commands 层上提，消除 L4→L2 反向依赖
 from crawlo.commands.cleanup import ResourceCleanup
 from crawlo.utils.parsing import format_duration
 
@@ -274,7 +274,7 @@ class SchedulerDaemon:
     def _ensure_executor_ready(self):
         """懒初始化 executor（兼容旧调用方不调用 start()，直接 running=True + _run_scheduler()）。
 
-        Phase 7 将 semaphore/executor 的构造从 __init__ 下沉到 start()，本方法补上非 start() 路径。
+        将 semaphore/executor 的构造从 __init__ 下沉到 start()，本方法补上非 start() 路径。
         如果调用方之前用 setter 显式设置了 ``daemon._semaphore = Semaphore(n)``，这里会把 shadow 值
         覆盖到新建 executor 的 _semaphore（跳过 init_concurrency 的默认值）。
         """
@@ -288,7 +288,7 @@ class SchedulerDaemon:
 
     @property
     def _semaphore(self):
-        """获取信号量（兼容性属性，Phase 7 后实际存储于 JobExecutor._semaphore）。
+        """获取信号量（兼容性属性，实际存储于 JobExecutor._semaphore）。
 
         行为：
         - 若 executor 已构造（start() 或 _ensure_executor_ready() 后）→ 返回 executor._semaphore

@@ -176,7 +176,7 @@ _components_registered_triggered: bool = False
 
 
 def _ensure_components_registered():
-    """确保 Crawler 相关组件已注册（Phase 8 Step 8.3：容器优先 + RegistryContext 兜底）。"""
+    """确保 Crawler 相关组件已注册（容器优先 + RegistryContext 兜底）。"""
     global _components_registered_triggered
     reg_ctx = None
     try:

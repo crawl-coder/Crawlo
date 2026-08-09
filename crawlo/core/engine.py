@@ -4,10 +4,10 @@
 Engine 模块 — 爬虫引擎核心（拆分后主骨架）
 
 拆分历史：
-- P1 A1：辅助组件拆分到 engine_helpers.py（GenerationStats / EngineBackpressureAdapter / …）
-- P1 A2：RequestGenerationMixin 拆分到 engine_generation.py
-- **P4 A-2**：分布式协调拆出 engine_distributed.py（DistributedCoordinator，组合持有）
-- **P4 A-3**：请求派发 / 主循环 / 退出判断 拆出 engine_dispatch.py（RequestDispatcher，组合持有）
+- 辅助组件拆分到 engine_helpers.py（GenerationStats / EngineBackpressureAdapter / …）
+- RequestGenerationMixin 拆分到 engine_generation.py
+- 分布式协调拆出 engine_distributed.py（DistributedCoordinator，组合持有）
+- 请求派发 / 主循环 / 退出判断 拆出 engine_dispatch.py（RequestDispatcher，组合持有）
 
 本模块只保留 Engine 主类（骨架），负责：
   1. __init__ / _init_configs：初始化所有组件并组合持有 _distributed / _dispatcher
@@ -48,7 +48,7 @@ from crawlo.core.engine_helpers import (
     process_callback_output,
 )
 
-# P4 A-2 / A-3：组合模式的 Coordinator / Dispatcher
+# 组合模式的 Coordinator / Dispatcher
 from crawlo.core.engine_distributed import DistributedCoordinator
 from crawlo.core.engine_dispatch import RequestDispatcher
 

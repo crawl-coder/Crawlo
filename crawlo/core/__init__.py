@@ -17,13 +17,13 @@ def __getattr__(name):
     is imported during ``crawlo.spider`` initialization.
     """
     if name in ('initialize_framework', 'is_framework_ready'):
-        from ..initialization import initialize_framework, is_framework_ready
+        from .initialization import initialize_framework, is_framework_ready
         globals()['initialize_framework'] = initialize_framework
         globals()['is_framework_ready'] = is_framework_ready
         return globals()[name]
     raise AttributeError(f"module 'crawlo.core' has no attribute {name!r}")
 
-# Phase 4 Step 3：facade 测试钩子（单元测试可注入 mock，避免触发 ctx 创建）
+# facade 测试钩子（单元测试可注入 mock，避免触发 ctx 创建）
 _FRAMEWORK_INITIALIZER_OVERRIDE = None
 
 
@@ -50,7 +50,7 @@ def get_framework_initializer():
     4. ctx 未就绪 → 抛 RuntimeError（v2.0 不再回退到全局单例）
 
     关键：本函数是 lazy 的，模块加载期不访问 ctx，调用时才解析——
-    满足 Phase 4 验收点"import crawlo 不触发 ctx 创建"。
+    满足"import crawlo 不触发 ctx 创建"的约束。
     """
     # 1. 测试 override
     if _FRAMEWORK_INITIALIZER_OVERRIDE is not None:
@@ -61,7 +61,7 @@ def get_framework_initializer():
     ctx = get_global_context(create_if_missing=False)
     if ctx is not None:
         if ctx.runtime.initializer is None:
-            from ..initialization.core import CoreInitializer
+            from .initialization.core import CoreInitializer
             ctx.runtime.initializer = CoreInitializer()
         return ctx.runtime.initializer
 

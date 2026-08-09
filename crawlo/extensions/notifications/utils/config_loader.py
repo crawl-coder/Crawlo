@@ -20,7 +20,7 @@ logger = get_logger(__name__)
 
 
 def _resolve_notification_context():
-    """Phase 8 Step 8.5：优先从容器拿 NotificationContext，否则 fallback ctx.notifications。"""
+    """优先从容器拿 NotificationContext，否则 fallback ctx.notifications。"""
     try:
         from crawlo.container import default_container
         from crawlo.core.application import NotificationContext
@@ -34,7 +34,7 @@ def _resolve_notification_context():
 
 def ensure_config_loaded():
     """
-    确保配置已加载，如果未加载则立即加载（Phase 8 Step 8.5：统一走 _resolve_notification_context()）。
+    确保配置已加载，如果未加载则立即加载（统一走 _resolve_notification_context()）。
     """
     notif_ctx = _resolve_notification_context()
 

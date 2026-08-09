@@ -23,7 +23,7 @@ locals().update(config.to_dict())
 # =================================== 爬虫配置 ===================================
 
 # 启用检查点（断点续爬）
-CHECKPOINT_ENABLED = True
+CHECKPOINT_ENABLED = False
 CHECKPOINT_DIR = '.checkpoints'  # 检查点存储目录
 CHECKPOINT_SAVE_ON_SIGNAL = True  # Ctrl+C 时保存检查点（用于演示中断续爬）
 

@@ -35,7 +35,7 @@ class JobRegistry:
 
 
 def _resolve_registry_context():
-    """Phase 8 Step 8.8 收尾：优先从容器拿 RegistryContext，否则 fallback ctx.registries。"""
+    """优先从容器拿 RegistryContext，否则 fallback ctx.registries。"""
     try:
         from crawlo.core.application import default_container
         from crawlo.core.application import RegistryContext
@@ -48,7 +48,7 @@ def _resolve_registry_context():
 
 
 def get_job_registry() -> JobRegistry:
-    """获取全局定时任务注册表（Phase 8 Step 8.8：DI 容器优先 + RegistryContext fallback）。
+    """获取全局定时任务注册表（DI 容器优先 + RegistryContext fallback）。
 
     与 ComponentRegistry / InitializerRegistry 保持统一策略：容器已注册则直接 resolve，
     否则 fallback 到 RegistryContext 懒创建并 ``register_instance`` 补充注册。

@@ -37,7 +37,7 @@ _SPIDER_CONFLICTS: Dict[str, List[str]] = {}
 
 
 class _SpiderRegistryProxy:
-    """``_DEFAULT_SPIDER_REGISTRY`` 的代理对象（Phase 4 Step 2）。
+    """``_DEFAULT_SPIDER_REGISTRY`` 的代理对象。
 
     设计目标
     --------
@@ -47,7 +47,7 @@ class _SpiderRegistryProxy:
     2. **import 期零副作用**：SpiderMeta 在类定义时即写入注册表，此时
        ``ApplicationContext`` 可能尚未创建。proxy 在 ctx 未就绪时回退到
        进程级 ``_fallback`` dict，**不触发** ``get_global_context(create_if_missing=True)``，
-       满足 Phase 4 验收点："import crawlo 不触发 ctx 自动创建"。
+       满足约束："import crawlo 不触发 ctx 自动创建"。
     3. **首次 ctx 就绪时自动同步**：proxy 检测到 ctx 已创建时，把
        ``_fallback`` 中累积的注册项合并到 ``ctx.spider_registry``（仅一次），
        之后所有访问直接转发到 ctx。
@@ -176,7 +176,7 @@ class _SpiderRegistryProxy:
         return self._target().copy()
 
 
-# 全局爬虫注册表（Phase 4 Step 2：proxy 转发到 ctx.registries.spider_registry，
+# 全局爬虫注册表（proxy 转发到 ctx.registries.spider_registry，
 # import 期回退到进程级 _fallback，避免触发 ctx 创建）
 _DEFAULT_SPIDER_REGISTRY: _SpiderRegistryProxy = _SpiderRegistryProxy()
 
@@ -786,7 +786,7 @@ def get_global_spider_registry() -> Dict[str, Type[Spider]]:
     """
     获取全局爬虫注册表（返回副本）。
 
-    Phase 4 Step 2 后：ctx 为唯一数据源，``_DEFAULT_SPIDER_REGISTRY`` 为
+    ctx 为唯一数据源，``_DEFAULT_SPIDER_REGISTRY`` 为
     proxy 转发到 ``ctx.registries.spider_registry``。本函数首次调用会触发
     ctx 创建（与旧行为一致），import 期的注册项通过 proxy 的 fallback
     自动同步到 ctx。

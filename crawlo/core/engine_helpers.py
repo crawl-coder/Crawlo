@@ -3,7 +3,7 @@
 """
 Engine 辅助组件 — 从 engine.py 拆分的独立类和函数
 
-P1 A1：将不依赖 Engine 内部状态的辅助组件物理分离，
+将不依赖 Engine 内部状态的辅助组件物理分离，
 减少 engine.py 体积，便于独立测试和维护。
 
 Components:
@@ -52,7 +52,7 @@ def safe_queue_size(scheduler) -> int:
 
 
 def has_pending_enqueues(scheduler) -> bool:
-    """Phase 2：检查 scheduler 是否有阻塞等待中的入队请求。
+    """检查 scheduler 是否有阻塞等待中的入队请求。
 
     用于 Engine idle 判定：若 > 0 表示有 put 在 block 等待，
     Engine 不应提前退出（否则消费者停了 → 入队永远等不到消费 → 死锁）。

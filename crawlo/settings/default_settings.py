@@ -96,7 +96,7 @@ BACKPRESSURE_WARNING_THRESHOLD = 0.7
 BACKPRESSURE_CRITICAL_THRESHOLD = 0.9
 
 # ---------------------------------------------------------------------------#
-# 2.2.1 入队阻塞策略（Phase 2：背压双层合并）
+# 2.2.1 入队阻塞策略（背压双层合并）
 #   QueueManager.put 队列满时阻塞等待，超时抛 QueueFullTimeout。
 #   Scheduler.enqueue_request 按 ENQUEUE_FULL_POLICY 决策：
 #     - block            : 无限等待直到有空位（受 ENQUEUE_BLOCK_TIMEOUT 上限约束）

@@ -190,7 +190,7 @@ class ErrorHandler:
 
 
 def _resolve_runtime_context():
-    """Phase 8 Step 8.8 收尾：优先从容器拿 RuntimeContext，否则 fallback ctx.runtime。"""
+    """优先从容器拿 RuntimeContext，否则 fallback ctx.runtime。"""
     try:
         from crawlo.container import default_container
         from crawlo.core.application import RuntimeContext
@@ -203,7 +203,7 @@ def _resolve_runtime_context():
 
 
 def _get_global_error_handler() -> ErrorHandler:
-    """获取全局 ErrorHandler 单例（Phase 8 Step 8.8：DI 容器优先 + RuntimeContext fallback）。"""
+    """获取全局 ErrorHandler 单例（DI 容器优先 + RuntimeContext fallback）。"""
     try:
         from crawlo.container import default_container
         if default_container.is_registered(ErrorHandler):

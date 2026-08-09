@@ -1,7 +1,7 @@
 #!/usr/bin/python
 # -*- coding: UTF-8 -*-
 """
-CheckpointCoordinator — Phase 3 抽出的检查点协调组件
+CheckpointCoordinator — 检查点协调组件
 
 职责：封装 Engine 中检查点恢复/保存/清除三段逻辑，用组合替代 mixin。
 Engine 持有 ``self._checkpoint = CheckpointCoordinator(settings, logger)``，
@@ -19,7 +19,7 @@ from crawlo.logging import get_logger
 class CheckpointCoordinator:
     """检查点协调器：封装恢复/保存/清除三段流程。
 
-    Phase 3 从 Engine 抽出，用组合方式注入 Engine，避免 Engine 承担过多职责。
+    从 Engine 抽出，用组合方式注入 Engine，避免 Engine 承担过多职责。
 
     Args:
         settings: 配置对象

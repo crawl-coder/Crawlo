@@ -473,7 +473,7 @@ class ResourceManager:
 
 
 def _resolve_runtime_context():
-    """Phase 8 Step 8.4：优先从 default_container 拿 RuntimeContext，否则 fallback ctx。"""
+    """优先从 default_container 拿 RuntimeContext，否则 fallback ctx。"""
     try:
         from crawlo.container import default_container
         from crawlo.core.application import RuntimeContext
@@ -487,7 +487,7 @@ def _resolve_runtime_context():
 
 def get_resource_manager(name: str = "default") -> ResourceManager:
     """
-    获取资源管理器实例（单例，Phase 8 Step 8.4：存储于 RuntimeContext.resource_managers）
+    获取资源管理器实例（单例，存储于 RuntimeContext.resource_managers）
 
     Args:
         name: 管理器名称
@@ -503,7 +503,7 @@ def get_resource_manager(name: str = "default") -> ResourceManager:
 
 
 async def cleanup_all_managers():
-    """清理所有资源管理器（Phase 8 Step 8.4：读 RuntimeContext.resource_managers）"""
+    """清理所有资源管理器（读 RuntimeContext.resource_managers）"""
     logger = get_logger("ResourceManager")
     runtime_ctx = _resolve_runtime_context()
     managers = runtime_ctx.resource_managers

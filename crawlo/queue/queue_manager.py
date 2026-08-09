@@ -56,10 +56,10 @@ class QueueManager(QueueStatusMixin, QueueBackpressureMixin):
         self._queue_type = None
         self._health_status = "unknown"
         self._priority_calculator = PriorityCalculator()  # 优先级计算器
-        # Phase 2：队列不满的条件变量，put 阻塞等待 / get 唤醒
+        # 队列不满的条件变量，put 阻塞等待 / get 唤醒
         # 替代原 Scheduler 层的 _queue_not_full，统一由 QueueManager 管理
         self._queue_not_full = asyncio.Condition()
-        # Phase 2：正在阻塞等待入队的请求数（防死锁：idle 判定需检查此值）
+        # 正在阻塞等待入队的请求数（防死锁：idle 判定需检查此值）
         # 若 > 0 表示有 put 在 block 等待，Engine 不应提前退出
         self._pending_enqueue_count = 0
         
@@ -173,7 +173,7 @@ class QueueManager(QueueStatusMixin, QueueBackpressureMixin):
     async def put(self, request: "Request", priority: int = 0, *, timeout: Optional[float] = None) -> bool:
         """Unified enqueue interface
 
-        Phase 2：队列满时阻塞等待，超时抛 ``QueueFullTimeout``。
+        队列满时阻塞等待，超时抛 ``QueueFullTimeout``。
         把"丢弃"从隐式 ``return False`` 变成显式异常，由调用方（Scheduler）按
         ``ENQUEUE_FULL_POLICY`` 决策。
 
@@ -213,7 +213,7 @@ class QueueManager(QueueStatusMixin, QueueBackpressureMixin):
             # 获取配置的最大队列大小
             max_size = self.config.max_queue_size if hasattr(self, 'config') else 1000
 
-            # ===== Phase 2：硬限制改为阻塞等待（替代原 return False）=====
+            # ===== 硬限制改为阻塞等待（替代原 return False）=====
             # 队列满时用 Condition 等待消费者腾出空间，超时抛 QueueFullTimeout
             if current_queue_size >= max_size:
                 if not self._backpressure_controller.active:
@@ -221,7 +221,7 @@ class QueueManager(QueueStatusMixin, QueueBackpressureMixin):
                         f"Queue full ({current_queue_size}/{max_size}), "
                         f"blocking enqueue (timeout={timeout}): {request.url}"
                     )
-                # Phase 2：标记有 put 在阻塞等待，防止 Engine 误判 idle 提前退出
+                # 标记有 put 在阻塞等待，防止 Engine 误判 idle 提前退出
                 self._pending_enqueue_count += 1
                 try:
                     waited = await self._wait_for_space(max_size, timeout)
@@ -314,7 +314,7 @@ class QueueManager(QueueStatusMixin, QueueBackpressureMixin):
     async def _wait_for_space(self, max_size: int, timeout: Optional[float]) -> bool:
         """等待队列腾出空间。
 
-        Phase 2：队列满时阻塞等待，由 ``get`` 成功取出后通过
+        队列满时阻塞等待，由 ``get`` 成功取出后通过
         ``_notify_space_available`` 唤醒。
 
         Args:
@@ -370,7 +370,7 @@ class QueueManager(QueueStatusMixin, QueueBackpressureMixin):
                     # 信号量可能已被其他路径释放，忽略下溢
                     pass
 
-            # Phase 2：成功取出元素后通知等待入队的 put（队列腾出了空间）
+            # 成功取出元素后通知等待入队的 put（队列腾出了空间）
             if result is not None:
                 await self._notify_space_available()
 
@@ -410,7 +410,7 @@ class QueueManager(QueueStatusMixin, QueueBackpressureMixin):
         if self._queue_type in (QueueType.REDIS, QueueType.REDIS_STREAM) and hasattr(self._queue, 'get_blocking'):
             result = await self._queue.get_blocking(timeout=timeout)
             if result and hasattr(result, 'url'):
-                # Phase 2：成功取出后通知等待入队的 put
+                # 成功取出后通知等待入队的 put
                 await self._notify_space_available()
                 return result
             return None
@@ -452,7 +452,7 @@ class QueueManager(QueueStatusMixin, QueueBackpressureMixin):
 
     @property
     def pending_enqueue_count(self) -> int:
-        """Phase 2：正在阻塞等待入队的请求数。
+        """正在阻塞等待入队的请求数。
 
         Engine 的 idle 判定需检查此值：若 > 0 表示有 put 在 block 等待，
         Engine 不应提前退出（否则消费者停了 → 入队永远等不到消费 → 死锁）。

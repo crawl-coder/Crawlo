@@ -108,7 +108,7 @@ class MonitorManager:
 
 
 def _resolve_runtime_context():
-    """Phase 8 Step 8.6：优先从容器拿 RuntimeContext，否则 fallback ctx.runtime。"""
+    """优先从容器拿 RuntimeContext，否则 fallback ctx.runtime。"""
     try:
         from crawlo.container import default_container
         from crawlo.core.application import RuntimeContext
@@ -121,7 +121,7 @@ def _resolve_runtime_context():
 
 
 def get_monitor_manager() -> MonitorManager:
-    """获取全局 MonitorManager 单例（Phase 8 Step 8.6：DI 容器优先 + RuntimeContext fallback）。"""
+    """获取全局 MonitorManager 单例（DI 容器优先 + RuntimeContext fallback）。"""
     try:
         from crawlo.container import default_container
         if default_container.is_registered(MonitorManager):

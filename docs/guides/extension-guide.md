@@ -123,7 +123,7 @@ PERFORMANCE_MONITOR_INTERVAL = 30              # 采集间隔（秒）
 ## ExtensionManager 架构
 
 ```python
-from crawlo.extension import ExtensionManager
+from crawlo.extensions import ExtensionManager
 
 # 内部流程：
 # 1. ExtensionManager 从 settings 加载 EXTENSIONS 列表
@@ -145,13 +145,17 @@ from crawlo.extension import ExtensionManager
 
 ## 自定义扩展
 
+扩展采用鸭子类型设计（无需继承特定基类），实现对应事件方法即可。推荐通过 `__init__(self, crawler)` 接收 crawler 实例：
+
 ```python
 # myextensions.py
-from crawlo.extension import BaseExtension
+import time
+from crawlo.logging import get_logger
 
-class CustomExtension(BaseExtension):
+class CustomExtension:
     def __init__(self, crawler):
-        super().__init__(crawler)
+        self.crawler = crawler
+        self.logger = get_logger(__name__)
         self.start_time = None
 
     async def spider_opened(self, spider):

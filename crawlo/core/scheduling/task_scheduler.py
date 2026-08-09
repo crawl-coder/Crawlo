@@ -106,7 +106,7 @@ class Scheduler:
 
     @property
     def pending_enqueue_count(self) -> int:
-        """Phase 2：正在阻塞等待入队的请求数（委托给 QueueManager）。
+        """正在阻塞等待入队的请求数（委托给 QueueManager）。
 
         Engine idle 判定通过此属性感知是否有 put 在 block 等待。
         """
@@ -323,7 +323,7 @@ class Scheduler:
             return None
         try:
             request = await self.queue_manager.get()
-            # Phase 2：notify 逻辑已下沉到 QueueManager.get（_notify_space_available）
+            # notify 逻辑已下沉到 QueueManager.get（_notify_space_available）
             if request:
                 try:
                     spider = getattr(self.crawler, 'spider', None)
@@ -343,7 +343,7 @@ class Scheduler:
         if not self.queue_manager:
             return None
         try:
-            # Phase 2：notify 逻辑已下沉到 QueueManager.get_blocking
+            # notify 逻辑已下沉到 QueueManager.get_blocking
             request = await self.queue_manager.get_blocking(timeout=timeout)
             return request
         except Exception as e:
@@ -355,7 +355,7 @@ class Scheduler:
     async def enqueue_request(self, request):
         """Add request to queue with dedup check.
 
-        Phase 2：背压双层合并后，等待策略下沉到 ``QueueManager.put``。
+        背压双层合并后，等待策略下沉到 ``QueueManager.put``。
         本方法只负责：去重 → 转发 put → 按 ``ENQUEUE_FULL_POLICY`` 处理 ``QueueFullTimeout``。
 
         策略说明（见 ``default_settings.py``）：
@@ -380,7 +380,7 @@ class Scheduler:
 
         set_request(request, self.priority)
 
-        # Phase 2：根据 ENQUEUE_FULL_POLICY 决定 put 的 timeout
+        # 根据 ENQUEUE_FULL_POLICY 决定 put 的 timeout
         policy = self._get_enqueue_full_policy()
         put_timeout = self._resolve_put_timeout(policy)
 
@@ -396,7 +396,7 @@ class Scheduler:
 
     def _get_enqueue_full_policy(self) -> str:
         """读取入队满策略配置"""
-        # 优先从 QueueConfig 读取（Phase 2 已注入），回退到 settings
+        # 优先从 QueueConfig 读取（已注入），回退到 settings
         if self.queue_manager and hasattr(self.queue_manager, 'config'):
             cfg = self.queue_manager.config
             if hasattr(cfg, 'enqueue_full_policy'):

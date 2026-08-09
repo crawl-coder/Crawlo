@@ -24,7 +24,7 @@ class QueueFullError(ScheduleException):
 class QueueFullTimeout(ScheduleException):
     """队列满且阻塞等待超时。
 
-    Phase 2：背压双层合并后，``QueueManager.put`` 在队列满时阻塞等待，
+    背压双层合并后，``QueueManager.put`` 在队列满时阻塞等待，
     超时后抛出此异常而非隐式 ``return False``，把"丢弃"决策权交给调用方。
 
     Attributes:

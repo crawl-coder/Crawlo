@@ -150,7 +150,7 @@ class MessageDeduplicator:
 
 
 def _resolve_notification_context():
-    """Phase 8 Step 8.5：优先从容器拿 NotificationContext，否则 fallback ctx.notifications。"""
+    """优先从容器拿 NotificationContext，否则 fallback ctx.notifications。"""
     try:
         from crawlo.container import default_container
         from crawlo.core.application import NotificationContext
@@ -164,7 +164,7 @@ def _resolve_notification_context():
 
 def get_deduplicator(time_window: int = 300) -> MessageDeduplicator:
     """
-    获取全局去重器实例（Phase 8 Step 8.5：DI 容器优先 + DCL NotificationContext fallback）。
+    获取全局去重器实例（DI 容器优先 + DCL NotificationContext fallback）。
     """
     try:
         from crawlo.container import default_container
@@ -189,6 +189,6 @@ def get_deduplicator(time_window: int = 300) -> MessageDeduplicator:
 
 
 def reset_deduplicator() -> None:
-    """重置全局去重器（Phase 8 Step 8.5：通过 NotificationContext 属性操作）。"""
+    """重置全局去重器（通过 NotificationContext 属性操作）。"""
     nctx = _resolve_notification_context()
     nctx.deduplicator = None

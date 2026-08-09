@@ -34,10 +34,10 @@ class _QueueErrorHandlerTag:
 
 
 def get_module_error_handler() -> ErrorHandler:
-    """获取模块级 ErrorHandler 单例（Phase 8 Step 8.4：容器优先 + ctx fallback 懒创建 + rebind）。
+    """获取模块级 ErrorHandler 单例（容器优先 + ctx fallback 懒创建 + rebind）。
 
-    注意：该函数返回的实例固定 ``module_tag == __name__``，因此不与 Phase 8.2
-    绑定的「全局 ErrorHandler 无参构造」混淆。这里使用 ``_QueueErrorHandlerTag``
+    注意：该函数返回的实例固定 ``module_tag == __name__``，因此不与
+    全局「ErrorHandler 无参构造」混淆。这里使用 ``_QueueErrorHandlerTag``
     作为单独的容器注册键来维护模块级实例。
     """
     try:

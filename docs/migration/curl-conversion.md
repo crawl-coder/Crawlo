@@ -118,7 +118,7 @@ Shell 启动后会自动执行该 curl 命令并显示结果。
 
 ```python
 from crawlo.utils.parsing import CurlParser
-from crawlo.network.request import Request
+from crawlo.http import Request
 
 # 方式1：解析为参数字典
 params = CurlParser.parse('curl https://api.com -H "Key: val"')
