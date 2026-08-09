@@ -12,6 +12,8 @@ listed_company_executive_crawler/
 _wechat_articles/
 wechat-articles/
 crawlo-promo/
+# Video production projects (HyperFrames compositions)
+video/
 .import_linter_cache/
 
 # Local dev / scratch (eval reports, notes, experiments)
