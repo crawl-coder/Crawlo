@@ -69,24 +69,37 @@ def load_object(path: str):
     从路径加载对象
     
     Args:
-        path: 对象路径，格式为 module.submodule:object_name 或 module.submodule.object_name
+        path: 对象路径，格式为 module.submodule:object_name 或 module.submodule.object_name；
+              或已注册插件短名称（P1-B1：middleware / pipeline / extension 注册表兜底）
         
     Returns:
         加载的对象
     """
-    try:
-        # 处理 module.submodule:object_name 格式
-        if ':' in path:
-            module_path, obj_name = path.split(':', 1)
+    # P1-B1 插件注册表优先：短名称 / 类型前缀（middleware:name / pipeline:name / extension:name）
+    from crawlo.plugin import resolve_plugin
+    obj = resolve_plugin(path)
+    if obj is not None:
+        return obj
+
+    if ':' in path:
+        module_path, obj_name = path.split(':', 1)
+        try:
             module = importlib.import_module(module_path)
             return getattr(module, obj_name)
-        else:
-            # 处理 module.submodule.object_name 格式
-            module_path, obj_name = path.rsplit('.', 1)
+        except (ImportError, AttributeError) as e:
+            raise ImportError(f"Could not load object from path '{path}': {e}")
+
+    if '.' in path:
+        module_path, obj_name = path.rsplit('.', 1)
+        try:
             module = importlib.import_module(module_path)
             return getattr(module, obj_name)
-    except (ImportError, AttributeError) as e:
-        raise ImportError(f"Could not load object from path '{path}': {e}")
+        except (ImportError, AttributeError):
+            pass  # 回退到插件注册表
+
+    raise ImportError(
+        f"Could not load object from path '{path}': 既不是有效路径也不是已注册插件"
+    )
 
 
 T = TypeVar('T')

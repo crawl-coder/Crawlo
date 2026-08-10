@@ -78,6 +78,13 @@ crawlo dead-letter retry <project> <spider>  # 重新入队 (--count N)
 crawlo dead-letter stats <project> <spider>  # 查看死信统计
 ```
 
+### `crawlo release`
+发布就绪检查（semver + CHANGELOG + 发布说明 + git tag 一致性）。
+```bash
+crawlo release --dry-run   # 只检查，不跑测试（CI 门禁用）
+crawlo release             # 检查 + 跑全量测试（正式发版前用）
+```
+
 ### `crawlo-mcp`
 启动 MCP Server，供 Claude/Cursor 调用。
 ```bash

@@ -398,6 +398,7 @@ MCP 工具（`crawlo-mcp` 暴露，frozen）：
 | `crawlo schedule` | `crawlo.commands.schedule` | frozen | 定时任务入口 |
 | `crawlo dead-letter` | `crawlo.commands.dead_letter` | frozen | 死信管理（list / retry / stats） |
 | `crawlo cluster` | `crawlo.commands.cluster` | frozen | 集群管理（state / reset / pause / resume / shutdown） |
+| `crawlo release` | `crawlo.commands.release` | frozen | 发布就绪检查（--dry-run；semver + CHANGELOG + 发布说明 + tag） |
 | `crawlo help` / `-h` / `--help` / `-v` / `--version` | `crawlo.cli` | frozen | 帮助与版本 |
 | `crawlo-mcp` | `crawlo.mcp.server` | frozen | MCP Server（--host / --port / --transport） |
 
@@ -455,3 +456,5 @@ CLI                      12 个命令入口
 |---|---|---|
 | 2026-08-10 | 首次盘点 | P0-A1 初稿：覆盖全部 `__all__` 导出 + CLI + MCP + settings + deprecated shims |
 | 2026-08-10 | A2 收尾 | `filterwarnings = error::DeprecationWarning` 全局生效；内部 40+ 处旧路径迁新路径；修复 bot shim 子模块身份分裂；新增 shim 契约测试 |
+| 2026-08-10 | A3 完成 | 签名守护扩展到 57 类 / 471 方法；import-path 兼容矩阵（97 路径 + 34 符号 + shim 迁移等价） |
+| 2026-08-10 | A4 完成 | `crawlo release --dry-run` 发布检查 + CHANGELOG + CI 门禁 |

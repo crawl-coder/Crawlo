@@ -26,6 +26,7 @@ _commands = {
     'shell': 'crawlo.commands.shell',
     'dead-letter': 'crawlo.commands.dead_letter',
     'cluster': 'crawlo.commands.cluster',        # P3-B-02 分布式集群管理（state/reset/pause/resume/shutdown）
+    'release': 'crawlo.commands.release',        # P0-A4 发布纪律检查（--dry-run）
 }
 
 def get_commands():

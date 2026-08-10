@@ -43,6 +43,12 @@ from .file import CsvPipeline, CsvDictPipeline, JsonLinesPipeline, JsonArrayPipe
 # ── 控制台管道 ──
 from .console import ConsolePipeline
 
+# ── 插件注册 API（P1-B1）──
+from crawlo.plugin import (
+    register_pipeline,
+    unregister_pipeline,
+)
+
 
 def __getattr__(name):
     """延迟导入有可选依赖的 Pipeline，避免强制安装 asyncmy/pymongo/aiosqlite 等"""
@@ -83,4 +89,7 @@ __all__ = [
     'CsvPipeline', 'CsvDictPipeline',
     'JsonPipeline', 'JsonLinesPipeline', 'JsonArrayPipeline',
     'ConsolePipeline',
+    # 插件注册
+    'register_pipeline',
+    'unregister_pipeline',
 ]

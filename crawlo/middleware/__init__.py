@@ -2,6 +2,11 @@
 # -*- coding:UTF-8 -*-
 from typing import TYPE_CHECKING, Optional, Union
 
+from crawlo.plugin import (
+    register_middleware,
+    unregister_middleware,
+)
+
 if TYPE_CHECKING:
     from crawlo import Request, Response
 
@@ -115,6 +120,8 @@ def __getattr__(name):
 
 __all__ = [
     'BaseMiddleware',
+    'register_middleware',
+    'unregister_middleware',
     'RequestIgnoreMiddleware',
     'DownloadDelayMiddleware',
     'DefaultHeaderMiddleware',

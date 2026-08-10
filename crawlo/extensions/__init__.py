@@ -21,6 +21,10 @@ from pprint import pformat
 from crawlo.logging import get_logger
 from crawlo.utils.misc import load_object
 from crawlo.core.errors import ExtensionInitError
+from crawlo.plugin import (
+    register_extension,
+    unregister_extension,
+)
 
 
 class ExtensionManager:
@@ -110,6 +114,8 @@ def __getattr__(name):
 
 __all__ = [
     'ExtensionManager',
+    'register_extension',
+    'unregister_extension',
     'LogIntervalExtension',
     'LogStats',
     'CustomLoggerExtension',
