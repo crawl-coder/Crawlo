@@ -4,11 +4,24 @@
 from __future__ import annotations
 
 import asyncio
+from typing import Any, TYPE_CHECKING
 from crawlo.utils.misc import safe_get_config
+
+if TYPE_CHECKING:
+    from crawlo.cluster.coordinator import ClusterState
 
 
 class ClusterLeaderMixin:
     """Leader 锁获取/释放、协调退出循环与退出条件检查。"""
+
+    _cluster_state: 'ClusterState'
+    logger: Any
+    settings: Any
+    scheduler: Any
+    running: bool
+    _background_tasks: set
+    _start_requests_source: Any
+    crawler: Any
 
     async def _leader_shutdown_loop(self):
         """Leader Worker 协调退出后台循环"""
@@ -87,8 +100,8 @@ class ClusterLeaderMixin:
             return
         try:
             await self._cluster_state.leader_lock.release()
-        except Exception:
-            pass
+        except Exception as e:
+            self.logger.debug("Suppressed exception: %s", e)
 
     # ========================================================================
     # 退出条件

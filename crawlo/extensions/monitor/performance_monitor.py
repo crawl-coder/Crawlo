@@ -271,8 +271,8 @@ def _resolve_runtime_context():
         from crawlo.core.application import RuntimeContext
         if default_container.is_registered(RuntimeContext):
             return default_container.resolve(RuntimeContext)
-    except Exception:  # noqa: S110
-        pass
+    except Exception as e:
+        get_logger(__name__).debug("Suppressed exception: %s", e)
     from crawlo.core.application import get_global_context
     return get_global_context().runtime
 
@@ -283,8 +283,8 @@ def _get_performance_monitor() -> PerformanceMonitor:
         from crawlo.container import default_container
         if default_container.is_registered(PerformanceMonitor):
             return default_container.resolve(PerformanceMonitor)
-    except Exception:  # pragma: no cover
-        pass
+    except Exception as e:
+        get_logger(__name__).debug("Suppressed exception: %s", e)
     rctx = _resolve_runtime_context()
     if rctx.performance_monitor is None:
         inst = PerformanceMonitor()
@@ -292,8 +292,8 @@ def _get_performance_monitor() -> PerformanceMonitor:
         try:
             from crawlo.container import default_container as _c
             _c.register_instance(PerformanceMonitor, inst)
-        except Exception:  # pragma: no cover
-            pass
+        except Exception as e:
+            get_logger(__name__).debug("Suppressed exception: %s", e)
     return rctx.performance_monitor
 
 

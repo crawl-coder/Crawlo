@@ -127,7 +127,7 @@ class ProxyMiddleware(BaseMiddleware):
             # Static mode: randomly select a proxy, excluding known failed ones
             available_proxies = [p for p in self.proxies if p not in self.failed_proxies]
             if available_proxies:
-                proxy = random.choice(available_proxies)
+                proxy = random.choice(available_proxies)  # nosec B311
             else:
                 self.logger.warning("All static proxies failed, will use direct connection")
         elif self.mode == "dynamic" and self.api_url:

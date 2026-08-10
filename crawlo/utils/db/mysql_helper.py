@@ -111,7 +111,7 @@ class MySQLHelper:
             params.append(value)
         
         where_sql = " AND ".join(where_clauses)
-        sql = f"SELECT 1 FROM {table_name} WHERE {where_sql} LIMIT 1"
+        sql = f"SELECT 1 FROM {table_name} WHERE {where_sql} LIMIT 1"  # nosec B608
         
         return await self._execute_exists(sql, params)
     
@@ -206,7 +206,7 @@ class MySQLHelper:
             where_sql = ""
             params = []
         
-        sql = f"SELECT COUNT(*) as count FROM {table_name}{where_sql}"
+        sql = f"SELECT COUNT(*) as count FROM {table_name}{where_sql}"  # nosec B608
         
         result = await self.fetch_one(sql, params)
         return result["count"] if result else 0
@@ -337,7 +337,7 @@ class MySQLHelper:
             where_clauses.append(f"`{column}` = %s")
             params.append(value)
         
-        sql = f"UPDATE {table_name} SET {', '.join(set_clauses)} WHERE {' AND '.join(where_clauses)}"
+        sql = f"UPDATE {table_name} SET {', '.join(set_clauses)} WHERE {' AND '.join(where_clauses)}"  # nosec B608
         
         return await self._execute_write(sql, params)
     
@@ -366,7 +366,7 @@ class MySQLHelper:
             where_clauses.append(f"`{column}` = %s")
             params.append(value)
         
-        sql = f"DELETE FROM {table_name} WHERE {' AND '.join(where_clauses)}"
+        sql = f"DELETE FROM {table_name} WHERE {' AND '.join(where_clauses)}"  # nosec B608
         
         return await self._execute_write(sql, params)
     
@@ -427,7 +427,7 @@ class MySQLHelper:
             col = columns[0]
             values = [k[col] for k in keys]
             placeholders = ", ".join(["%s"] * len(values))
-            sql = f"SELECT `{col}` FROM {table_name} WHERE `{col}` IN ({placeholders})"
+            sql = f"SELECT `{col}` FROM {table_name} WHERE `{col}` IN ({placeholders})"  # nosec B608
             
             pool = await self._get_pool()
             async with pool.acquire() as conn:

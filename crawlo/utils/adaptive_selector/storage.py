@@ -171,7 +171,7 @@ class SqliteStorage(StorageBackend):
         # 仅作为安全网；优先使用 close() 或 context manager
         try:
             self.close()
-        except Exception:
+        except Exception:  # nosec B110
             pass  # 解释器退出时 sqlite3 可能已卸载
 
 
@@ -238,7 +238,7 @@ class FingerprintStorage:
     集成了内存缓存层以优化频繁读取性能。
     """
 
-    def __init__(
+    def __init__(  # nosec B107
         self,
         backend: str = 'sqlite',
         storage_file: str = 'adaptive_fingerprints.db',

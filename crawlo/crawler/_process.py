@@ -102,8 +102,8 @@ class CrawlerProcess:
                         pass
 
                 asyncio.base_subprocess.BaseSubprocessTransport.__del__ = _patched_sub_del
-            except Exception:
-                pass
+            except Exception as e:
+                get_logger(__name__).debug("Suppressed exception: %s", e)
 
             warnings.filterwarnings('ignore', message='unclosed transport', category=ResourceWarning)
             self._logger.debug("已自动应用 Windows asyncio 传输关闭警告修复")
@@ -325,8 +325,8 @@ class CrawlerProcess:
                     if hasattr(transport, 'is_closing') and not transport.is_closing():
                         transport.close()
                         closed_count += 1
-                except Exception:
-                    pass
+                except Exception as e:
+                    get_logger(__name__).debug("Suppressed exception: %s", e)
             if closed_count:
                 self._logger.debug(f"Proactively closed {closed_count} transport(s)")
                 await asyncio.sleep(0.05)

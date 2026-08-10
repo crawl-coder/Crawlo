@@ -97,9 +97,8 @@ class HealthCheckExtension(BaseMonitorExtension):
                 await self._check_health()
             except asyncio.CancelledError:
                 pass
-            except Exception:
-                # _check_health 内部已有 safe_log，这里只兜底防 Task exception was never retrieved
-                pass
+            except Exception as e:
+                self.logger.debug("Suppressed exception: %s", e)
         self._track_task(_log())
 
     # ---- 事件回调 ----
@@ -150,8 +149,8 @@ class HealthCheckExtension(BaseMonitorExtension):
                         rps = delta / min(60.0, dt)
                         try:
                             crawler_stats.set_value('filter/duplicate_rps', float(rps))
-                        except Exception:
-                            pass
+                        except Exception as e:
+                            self.logger.debug("Suppressed exception: %s", e)
             except asyncio.CancelledError:
                 break
             except Exception as e:

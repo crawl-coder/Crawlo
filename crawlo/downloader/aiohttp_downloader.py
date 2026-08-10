@@ -243,8 +243,8 @@ class AioHttpDownloader(DownloaderBase):
                 try:
                     elapsed_ms = (time.time() - start_time) * 1000.0
                     self._rt_ringbuf.append(elapsed_ms)
-                except Exception:
-                    pass
+                except Exception as e:
+                    self.logger.debug("Suppressed exception: %s", e)
             # 释放并发槽位
             if self._semaphore:
                 self._active_requests -= 1
@@ -476,14 +476,14 @@ class AioHttpDownloader(DownloaderBase):
         try:
             self._semaphore = None
             self._tcp_connector = None
-        except Exception:
-            pass
+        except Exception as e:
+            self.logger.debug("Suppressed exception: %s", e)
         for attr in ('crawler', '_crawler', 'settings', '_settings',
                      'middleware_manager', '_stats', 'stats'):
             try:
                 object.__setattr__(self, attr, None)
-            except Exception:
-                pass
+            except Exception as e:
+                self.logger.debug("Suppressed exception: %s", e)
         self.logger = None  # type: ignore[assignment]
         self._log_interval_ext = None  # 兼容引用
     

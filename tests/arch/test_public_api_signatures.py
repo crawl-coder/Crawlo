@@ -111,7 +111,7 @@ BASELINE = {
     "Processor": {
         "__init__": "e84ddfdd330611281f9f36e93203bf7aa149f54923f0fd34da1a62bac70b9700",
         "open": "12a7f11d963dc370a43bd7300dc7140d78778bee4acde7b0d1da2645d5d7c8cb",
-        "start": "aa9e6e106bed8dc7f871eacbb6a6c05e1655800ef3ed6c0efcfeed6b548b4d9b",
+        "start": "4a6b0e18a5c370253c3416ffbdd044d5e542a4888d54f3954e2a4e4255f69a3e",  # mypy 清零：返回类型改为 Optional[Task]
         "stop": "0758f078d0b203b36a71b8d8f7166f8565be646df459eb472e9d62e9878c4856",
         "enqueue": "bd2519b022549d8a513b4ea1785f52c0097324b91e02fe9756a6b441e8eca7cb",  # Phase 2: network→http renamed, type hints updated
         "process_once": "cac1364919a927d757ae892153d2af33f341ac5dd92e8e34c9735929f11219c3",

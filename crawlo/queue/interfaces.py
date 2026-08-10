@@ -12,10 +12,13 @@
 import asyncio
 import time
 from abc import ABC, abstractmethod
-from typing import Optional, Any, AsyncIterator, Protocol, runtime_checkable
+from typing import Optional, Any, AsyncIterator, Protocol, runtime_checkable, TYPE_CHECKING
 
 from crawlo.queue.queue_types import QueueStats
 from crawlo.queue.exceptions import QueueClosedError, QueueFullError, QueueEmptyError
+
+if TYPE_CHECKING:
+    from crawlo.http.request import Request
 
 # 注意：所有 IRequestQueue 签名使用 ``'Request'`` 字符串注解。
 # 不在 TYPE_CHECKING 中 ``from crawlo.network.request import Request``，
@@ -210,15 +213,17 @@ class BackpressureableQueueMixin(ABC):
     """
     
     def __init__(self, *args, max_size: int = 0, **kwargs):
-        super().__init__(*args, max_size=max_size, **kwargs)
+        # 转发到 MRO 中的下一个基类（如 IQueue.__init__，负责 _stats/_name 等）
+        super().__init__(*args, **kwargs)  # type: ignore[call-overload]
+        self._max_size = max_size
         self._backpressure_enabled = True
         self._backpressure_threshold = 0.8  # 回退阈值
         self._backpressure_active = False
-        self._last_backpressure_check = 0
+        self._last_backpressure_check: float = 0
         self._backpressure_check_interval = 0.1
         self._bp_delegate = None  # 可由 QueueManager 注入统一的 BackpressureController
-        if not hasattr(self, '_max_size'):
-            self._max_size = max_size
+
+    size: Any  # 由具体队列后端（IQueue 等）实现
     
     @property
     def max_size(self) -> int:
@@ -397,4 +402,3 @@ class IRequestQueue(Protocol):
         清空队列
         """
         ...
-

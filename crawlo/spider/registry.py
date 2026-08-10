@@ -63,7 +63,7 @@ class _SpiderRegistryProxy:
 
             register_context_ready_callback(self._sync_to_ctx)
             object.__setattr__(self, "_callback_registered", True)
-        except Exception:
+        except Exception:  # nosec B110
             # application 模块不可用（极少见），降级为纯 fallback 模式
             pass
 

@@ -13,7 +13,7 @@ Engine 主骨架保留同名薄代理方法，对外签名 100% 兼容。
 from __future__ import annotations
 
 import asyncio
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 
 from crawlo.utils.misc import safe_get_config
 from crawlo.core.engine_helpers import has_pending_enqueues
@@ -174,7 +174,7 @@ class RequestDispatcher:
         """二次确认所有组件是否仍然空闲（用于瞬时空闲误判）"""
         return await self.exit_fast()
 
-    async def should_exit(self, last_component_states=None) -> tuple[bool, tuple]:
+    async def should_exit(self, last_component_states=None) -> tuple[bool, Optional[tuple]]:
         """检查是否应该退出（5 组件 + start_requests 判断）
 
         standalone / auto 模式：队列空 + 所有组件空闲 → 正常退出

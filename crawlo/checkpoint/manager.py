@@ -244,8 +244,8 @@ class CheckpointManager:
                     # 尝试最简序列化
                     try:
                         requests_data.append({'url': str(getattr(request, 'url', ''))})
-                    except Exception:
-                        pass
+                    except Exception as e:
+                        self.logger.debug("Suppressed exception: %s", e)
 
             # 将取出的请求放回队列
             returned_count = 0
@@ -253,8 +253,8 @@ class CheckpointManager:
                 try:
                     await queue_manager.put(request, priority=getattr(request, 'priority', 0))
                     returned_count += 1
-                except Exception:
-                    pass
+                except Exception as e:
+                    self.logger.debug("Suppressed exception: %s", e)
 
             # 验证是否全部放回
             if returned_count < actual_count:

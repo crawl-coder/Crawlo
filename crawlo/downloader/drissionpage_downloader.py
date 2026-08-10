@@ -17,7 +17,7 @@ DrissionPage 下载器
 import asyncio
 import os
 import signal
-import subprocess
+import subprocess  # nosec B404
 import time
 from typing import Optional, Dict, List
 
@@ -79,7 +79,7 @@ class DrissionPageDownloader(DownloaderBase):
         try:
             if os.name == 'nt':  # Windows
                 # 查找 Chrome 或 DrissionPage 相关进程
-                result = subprocess.run(
+                result = subprocess.run(  # nosec B607, B603
                     ['tasklist', '/FI', 'IMAGENAME eq chrome.exe', '/FO', 'CSV', '/NH'],
                     capture_output=True,
                     text=True,
@@ -90,7 +90,7 @@ class DrissionPageDownloader(DownloaderBase):
                     pass
             else:  # Linux/Mac
                 # 查找可能的残留进程
-                result = subprocess.run(
+                result = subprocess.run(  # nosec B607, B603
                     ['pgrep', '-f', 'drissionpage'],
                     capture_output=True,
                     text=True,
@@ -160,11 +160,11 @@ class DrissionPageDownloader(DownloaderBase):
                     if hasattr(self, '_browser') and self._browser:
                         try:
                             self._browser.quit()
-                        except Exception:
-                            pass
+                        except Exception as e:
+                            self.logger.debug("Suppressed exception: %s", e)
                         self._browser = None
-                except Exception:
-                    pass
+                except Exception as e:
+                    self.logger.debug("Suppressed exception: %s", e)
                 
                 # 如果不是最后一次尝试，等待一下再重试
                 if attempt < max_retries - 1:

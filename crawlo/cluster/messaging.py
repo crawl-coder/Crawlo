@@ -148,8 +148,8 @@ class ClusterMessenger:
             state = await self._redis.get(self._control_state_key)
             if state:
                 return state.decode("utf-8") if isinstance(state, bytes) else state
-        except Exception:
-            pass
+        except Exception as e:
+            self.logger.debug("Suppressed exception: %s", e)
         return "running"
 
     # ---- 内部监听循环 ----

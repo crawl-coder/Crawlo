@@ -51,12 +51,12 @@ class MySQLExistsChecker:
     # 默认配置（单一定义，消除三处重复）
     _DEFAULTS = {
         'host': 'localhost', 'port': 3306, 'user': 'root',
-        'password': '', 'db': 'crawlo', 'minsize': 2, 'maxsize': 5,
+        'password': '', 'db': 'crawlo', 'minsize': 2, 'maxsize': 5,  # nosec B105
     }
     # config key → settings key mapping
     _KEY_MAP = {
         'host': 'MYSQL_HOST', 'port': 'MYSQL_PORT', 'user': 'MYSQL_USER',
-        'password': 'MYSQL_PASSWORD', 'db': 'MYSQL_DB',
+        'password': 'MYSQL_PASSWORD', 'db': 'MYSQL_DB',  # nosec B105
         'minsize': 'MYSQL_POOL_MIN', 'maxsize': 'MYSQL_POOL_MAX',
     }
 

@@ -10,6 +10,7 @@ Components:
 - RequestGenerationMixin: 请求生成 Mixin（传统/受控两种流式生成模式 + spider 输出处理）
 """
 import asyncio
+from typing import Any
 from inspect import isasyncgen, iscoroutine, isgenerator
 
 from crawlo import Request, Item
@@ -21,6 +22,18 @@ __all__ = ['RequestGenerationMixin']
 
 class RequestGenerationMixin:
     """请求生成 Mixin，提供传统/受控两种流式生成模式"""
+
+    scheduler: Any
+    task_manager: Any
+    max_queue_size: int
+    generation_interval: float
+    _generation_stats: Any
+    _backpressure_ctrl: Any
+    logger: Any
+    running: bool
+
+    async def enqueue_request(self, request, **kwargs):  # 由 Engine 提供
+        raise NotImplementedError
 
     async def _traditional_request_generation(self):
         """流式请求生成方法（支持 sync/async 生成器，带背压控制）
@@ -84,8 +97,8 @@ class RequestGenerationMixin:
             if self._start_requests_is_async and self._start_requests_source is not None:
                 try:
                     await self._start_requests_source.aclose()
-                except Exception:
-                    pass
+                except Exception as e:
+                    self.logger.debug("Suppressed exception: %s", e)
             self._start_requests_source = None
         self.logger.debug(f"流式请求生成完成，总共处理了 {processed_count} 个请求")
 
@@ -132,8 +145,8 @@ class RequestGenerationMixin:
             if self._start_requests_is_async and self._start_requests_source is not None:
                 try:
                     await self._start_requests_source.aclose()
-                except Exception:
-                    pass
+                except Exception as e:
+                    self.logger.debug("Suppressed exception: %s", e)
             self._start_requests_source = None
             self.logger.debug(f"受控请求生成完成，总计: {total_generated}")
 

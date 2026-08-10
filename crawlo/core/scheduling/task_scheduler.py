@@ -64,6 +64,7 @@ class Scheduler:
         self.stats = stats
         self.dupe_filter = dupe_filter
         self.priority = priority
+        self._duplicate_filtered_count = 0
 
     # ============================
     # Settings helpers (消除 settings 链式访问样板)
@@ -81,8 +82,8 @@ class Scheduler:
         if self.crawler and self.crawler.settings is not None:
             try:
                 self.crawler.settings.set(key, value)
-            except Exception:
-                pass
+            except Exception as e:
+                self.logger.debug("Suppressed exception: %s", e)
 
     # ============================
     # 队列类型属性（消除对 QueueManager._queue_type 的直接访问）
@@ -167,8 +168,8 @@ class Scheduler:
             if spider_name and hasattr(self.crawler.settings, 'set'):
                 try:
                     self.crawler.settings.set('SPIDER_NAME', spider_name)
-                except Exception:
-                    pass
+                except Exception as e:
+                    self.logger.debug("Suppressed exception: %s", e)
 
     # ============================
     # 配置模式解析（从 open() 中提取，消除 140 行长方法）
@@ -258,7 +259,7 @@ class Scheduler:
         default_dedup = self._get_setting('DEFAULT_DEDUP_PIPELINE', '')
         if config['source_dedup_pattern'] in default_dedup:
             self._set_setting('DEFAULT_DEDUP_PIPELINE', config['dedup_pipeline'])
-            self._swap_dedup_in_pipelines(default_dedup, config['dedup_pipeline'])
+            self._swap_dedup_in_pipelines(default_dedup, str(config['dedup_pipeline']))
             switched = True
 
         if switched:
@@ -371,7 +372,8 @@ class Scheduler:
                 is_duplicate = await common_call(self.dupe_filter.requested, request)
             if is_duplicate:
                 self.dupe_filter.log_stats(request)
-                self.logger.info(f"Filtered duplicate request: {request.url}")
+                self._duplicate_filtered_count += 1
+                self.logger.debug(f"Filtered duplicate request: {request.url}")
                 return False
 
         if not self.queue_manager:
@@ -441,8 +443,8 @@ class Scheduler:
         if self.stats is not None:
             try:
                 self.stats.inc_value('scheduler/enqueue_dropped_count')
-            except Exception:
-                pass
+            except Exception as e:
+                self.logger.debug("Suppressed exception: %s", e)
         return False
 
     # ============================
@@ -476,6 +478,9 @@ class Scheduler:
     async def close(self):
         """Close scheduler"""
         try:
+            self.logger.info(
+                f"Filtered {self._duplicate_filtered_count} duplicate request(s) in total"
+            )
             if isinstance(closed := getattr(self.dupe_filter, 'closed', None), Callable):
                 await closed()
             if self.queue_manager:
@@ -547,6 +552,9 @@ class Scheduler:
             return
 
         if not receipt:
+            return
+
+        if not self.queue_manager:
             return
 
         if hasattr(self.queue_manager._queue, 'nack'):

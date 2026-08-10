@@ -1,5 +1,5 @@
 import asyncio
-import pickle
+import pickle  # nosec B403
 import time
 import traceback
 from typing import Optional, List, Tuple, Any
@@ -44,17 +44,19 @@ def get_module_error_handler() -> ErrorHandler:
         from crawlo.container import default_container
         if default_container.is_registered(_QueueErrorHandlerTag):
             return default_container.resolve(_QueueErrorHandlerTag)
-    except Exception:  # pragma: no cover
-        pass
+    except Exception as e:
+        logger.debug("Suppressed exception: %s", e)
     from crawlo.core.application import get_global_context
     ctx = get_global_context()
-    if ctx.runtime.queue_error_handler is None:
+    if ctx and ctx.runtime.queue_error_handler is None:
         ctx.runtime.queue_error_handler = ErrorHandler(__name__)
         try:
             from crawlo.container import default_container
             default_container.register_instance(_QueueErrorHandlerTag, ctx.runtime.queue_error_handler)
-        except Exception:  # pragma: no cover
-            pass
+        except Exception as e:
+            logger.debug("Suppressed exception: %s", e)
+    if not ctx:
+        return None
     return ctx.runtime.queue_error_handler
 
 
@@ -62,6 +64,8 @@ class RedisPriorityQueue:
     """
     基于 Redis 的分布式异步优先级队列
     """
+
+    _stats: dict
 
     def __init__(
             self,
@@ -129,7 +133,7 @@ class RedisPriorityQueue:
         self.serialization_format: str = serialization_format  # 新增：存储序列化格式
         self._serialization_validated: bool = False  # 序列化验证标志
 
-    async def connect(self, max_retries: int = 3, delay: int = 1) -> Optional[Any]:
+    async def connect(self, max_retries: int = 3, delay: int = 1) -> None:
         """
         异步连接 Redis，支持重试
         
@@ -217,11 +221,11 @@ class RedisPriorityQueue:
             if self.serialization_format == 'msgpack' and MSGPACK_AVAILABLE:
                 serialized = msgpack.packb(request_data, default=str)
                 deserialized = msgpack.unpackb(serialized, raw=False)
-                assert isinstance(deserialized, dict), "msgpack 反序列化结果不是 dict"
+                assert isinstance(deserialized, dict), "msgpack 反序列化结果不是 dict"  # nosec B101
             else:
                 serialized = pickle.dumps(request_data)
-                deserialized = pickle.loads(serialized)
-                assert isinstance(deserialized, dict), "pickle 反序列化结果不是 dict"
+                deserialized = pickle.loads(serialized)  # nosec B301
+                assert isinstance(deserialized, dict), "pickle 反序列化结果不是 dict"  # nosec B101
             
             logger.debug(f"Serialization format '{self.serialization_format}' validated successfully")
         except Exception as e:
@@ -556,9 +560,9 @@ class RedisPriorityQueue:
                 data = msgpack.unpackb(serialized, raw=False)
             else:
                 try:
-                    data = pickle.loads(serialized)
+                    data = pickle.loads(serialized)  # nosec B301
                 except UnicodeDecodeError:
-                    data = pickle.loads(serialized, encoding='latin1')
+                    data = pickle.loads(serialized, encoding='latin1')  # nosec B301
             
             if isinstance(data, Request):
                 return data

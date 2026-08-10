@@ -41,7 +41,7 @@ def _resolve_registry_context():
         from crawlo.core.application import RegistryContext
         if default_container.is_registered(RegistryContext):
             return default_container.resolve(RegistryContext)
-    except Exception:  # noqa: S110
+    except Exception:  # noqa: S110  # nosec B110
         pass
     from crawlo.core.application import get_global_context
     return get_global_context().registries
@@ -57,7 +57,7 @@ def get_job_registry() -> JobRegistry:
         from crawlo.core.application import default_container
         if default_container.is_registered(JobRegistry):
             return default_container.resolve(JobRegistry)
-    except Exception:  # pragma: no cover
+    except Exception:  # pragma: no cover  # nosec B110
         pass
 
     rctx = _resolve_registry_context()
@@ -67,6 +67,6 @@ def get_job_registry() -> JobRegistry:
         try:
             from crawlo.core.application import default_container as _c
             _c.register_instance(JobRegistry, inst)
-        except Exception:  # pragma: no cover
+        except Exception:  # pragma: no cover  # nosec B110
             pass
     return rctx.job_registry

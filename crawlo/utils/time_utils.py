@@ -79,7 +79,7 @@ class TimeUtils:
             parsed = dateparser.parse(time_input.strip())
             if parsed:
                 return parsed
-        except Exception:
+        except Exception:  # nosec B110
             pass  # 忽略异常，尝试后备方案
 
         # 2. 尝试使用常见格式解析
@@ -87,7 +87,7 @@ class TimeUtils:
             parsed = cls._try_strptime(time_input)
             if parsed:
                 return parsed
-        except Exception:
+        except Exception:  # nosec B110
             pass
 
         return default

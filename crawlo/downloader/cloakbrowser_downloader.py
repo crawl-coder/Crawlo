@@ -258,17 +258,17 @@ class CloakBrowserDownloader(DownloaderBase, SmartWaitMixin):
 
     def _kill_orphan_chromium(self):
         """清理超时后残留的 Chromium 子进程"""
-        import subprocess
+        import subprocess  # nosec B404
         import sys
 
         try:
             if sys.platform == "win32":
                 # Windows: 通过 taskkill 强制终止 chromium/chrome 子进程
-                _ = subprocess.run(
+                _ = subprocess.run(  # nosec B607, B603
                     ["taskkill", "/F", "/IM", "chrome.exe"],
                     capture_output=True, timeout=5,
                 )
-                _ = subprocess.run(
+                _ = subprocess.run(  # nosec B607, B603
                     ["taskkill", "/F", "/IM", "chromium.exe"],
                     capture_output=True, timeout=5,
                 )
@@ -276,12 +276,12 @@ class CloakBrowserDownloader(DownloaderBase, SmartWaitMixin):
                 # Linux/macOS: 通过 pkill 终止
                 for pattern in ["chrome", "chromium", "chromium-browser"]:
                     try:
-                        _ = subprocess.run(
+                        _ = subprocess.run(  # nosec B607, B603
                             ["pkill", "-f", pattern],
                             capture_output=True, timeout=5,
                         )
-                    except Exception:
-                        pass
+                    except Exception as e:
+                        self.logger.debug("Suppressed exception: %s", e)
             self.logger.warning("Cleaned up orphan Chromium processes after launch timeout")
         except Exception as e:
             self.logger.debug(f"Failed to clean up orphan processes: {e}")
@@ -368,7 +368,7 @@ class CloakBrowserDownloader(DownloaderBase, SmartWaitMixin):
                                     f"in {elapsed:.0f}s"
                                 )
                                 break
-                        except Exception:
+                        except Exception:  # nosec B112
                             # 页面正在导航，跳过本轮检查
                             continue
                     else:
@@ -437,8 +437,8 @@ class CloakBrowserDownloader(DownloaderBase, SmartWaitMixin):
                     # CF 绕过后给 3 秒窗口观察页面（之后页面池回收导航到 about:blank）
                     try:
                         await page.wait_for_timeout(3000)
-                    except Exception:
-                        pass
+                    except Exception as e:
+                        self.logger.debug("Suppressed exception: %s", e)
                 await self._release_page(page)
 
     # ---- 页面池管理 ----
@@ -530,8 +530,8 @@ class CloakBrowserDownloader(DownloaderBase, SmartWaitMixin):
         for page in self._page_pool:
             try:
                 await page.close()
-            except Exception:
-                pass
+            except Exception as e:
+                self.logger.debug("Suppressed exception: %s", e)
         self._page_pool.clear()
         self._used_pages.clear()
 
@@ -539,8 +539,8 @@ class CloakBrowserDownloader(DownloaderBase, SmartWaitMixin):
         if self._context:
             try:
                 await self._context.close()
-            except Exception:
-                pass
+            except Exception as e:
+                self.logger.debug("Suppressed exception: %s", e)
             self._context = None
 
         # 3. 创建新 Context
@@ -667,15 +667,15 @@ class CloakBrowserDownloader(DownloaderBase, SmartWaitMixin):
                 # 非池中页面，直接关闭
                 try:
                     await page.close()
-                except Exception:
-                    pass
+                except Exception as e:
+                    self.logger.debug("Suppressed exception: %s", e)
 
         # 在锁外导航到空白页，准备下次使用
         if should_navigate_to_blank:
             try:
                 await page.goto("about:blank", timeout=BROWSER_PAGE_GOTO_BLANK_TIMEOUT_MS)
-            except Exception:
-                pass
+            except Exception as e:
+                self.logger.debug("Suppressed exception: %s", e)
 
     # ---- 等待策略（覆盖 SmartWaitMixin，使用 cloakbrowser_ 前缀）----
 
@@ -999,8 +999,8 @@ class CloakBrowserDownloader(DownloaderBase, SmartWaitMixin):
         for page in self._page_pool:
             try:
                 await page.close()
-            except Exception:
-                pass
+            except Exception as e:
+                self.logger.debug("Suppressed exception: %s", e)
         self._page_pool.clear()
         self._used_pages.clear()
 
@@ -1008,8 +1008,8 @@ class CloakBrowserDownloader(DownloaderBase, SmartWaitMixin):
         if self._context:
             try:
                 await self._context.close()
-            except Exception:
-                pass
+            except Exception as e:
+                self.logger.debug("Suppressed exception: %s", e)
             finally:
                 self._context = None
 
@@ -1017,8 +1017,8 @@ class CloakBrowserDownloader(DownloaderBase, SmartWaitMixin):
         if self._browser:
             try:
                 await self._browser.close()
-            except Exception:
-                pass
+            except Exception as e:
+                self.logger.debug("Suppressed exception: %s", e)
             finally:
                 self._browser = None
 

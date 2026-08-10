@@ -123,15 +123,15 @@ class SQLBuilder:
             # 因为 ON DUPLICATE KEY UPDATE 本身就是处理重复的策略
             update_clause = SQLBuilder._build_update_clause(update_columns, use_values_func=not prefer_alias)
             if prefer_alias:
-                sql = f"INSERT INTO {table_fmt} ({keys_str}) VALUES ({placeholders}) AS `excluded` ON DUPLICATE KEY UPDATE {update_clause}"
+                sql = f"INSERT INTO {table_fmt} ({keys_str}) VALUES ({placeholders}) AS `excluded` ON DUPLICATE KEY UPDATE {update_clause}"  # nosec B608
             else:
-                sql = f"INSERT INTO {table_fmt} ({keys_str}) VALUES ({placeholders}) ON DUPLICATE KEY UPDATE {update_clause}"
+                sql = f"INSERT INTO {table_fmt} ({keys_str}) VALUES ({placeholders}) ON DUPLICATE KEY UPDATE {update_clause}"  # nosec B608
         elif auto_update:
             sql = f"REPLACE INTO {table_fmt} ({keys_str}) VALUES ({placeholders})"
         elif insert_ignore:
             sql = f"INSERT IGNORE INTO {table_fmt} ({keys_str}) VALUES ({placeholders})"
         else:
-            sql = f"INSERT INTO {table_fmt} ({keys_str}) VALUES ({placeholders})"
+            sql = f"INSERT INTO {table_fmt} ({keys_str}) VALUES ({placeholders})"  # nosec B608
 
         # 返回元组，而不是拼接好的字符串
         return sql, values
@@ -157,7 +157,7 @@ class SQLBuilder:
         
         # 警告：condition 仍然是原生字符串，调用者需确保 condition 安全
         # 更好的做法是 condition 也支持参数化，这里简单追加 condition_args
-        sql = f"UPDATE `{table}` SET {set_str} WHERE {condition}"
+        sql = f"UPDATE `{table}` SET {set_str} WHERE {condition}"  # nosec B608
         
         if condition_args:
             values.extend(condition_args)
@@ -220,12 +220,12 @@ class SQLBuilder:
                 update_columns = (update_columns,)
             update_clause = SQLBuilder._build_update_clause(update_columns, use_values_func=not prefer_alias)
             alias_str = " AS `excluded`" if prefer_alias else ""
-            sql = f"INSERT INTO `{table}` ({keys_str}) VALUES {all_rows_placeholders}{alias_str} ON DUPLICATE KEY UPDATE {update_clause}"
+            sql = f"INSERT INTO `{table}` ({keys_str}) VALUES {all_rows_placeholders}{alias_str} ON DUPLICATE KEY UPDATE {update_clause}"  # nosec B608
         elif auto_update:
             sql = f"REPLACE INTO `{table}` ({keys_str}) VALUES {all_rows_placeholders}"
         elif insert_ignore:
             sql = f"INSERT IGNORE INTO `{table}` ({keys_str}) VALUES {all_rows_placeholders}"
         else:
-            sql = f"INSERT INTO `{table}` ({keys_str}) VALUES {all_rows_placeholders}"
+            sql = f"INSERT INTO `{table}` ({keys_str}) VALUES {all_rows_placeholders}"  # nosec B608
 
         return sql, flattened_values

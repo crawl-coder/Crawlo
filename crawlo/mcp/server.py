@@ -38,7 +38,7 @@ def _resolve_runtime_context():
         from crawlo.core.application import RuntimeContext
         if default_container.is_registered(RuntimeContext):
             return default_container.resolve(RuntimeContext)
-    except Exception:  # noqa: S110
+    except Exception:  # noqa: S110  # nosec B110
         pass
     from crawlo.core.application import get_global_context
     return get_global_context().runtime
@@ -50,7 +50,7 @@ async def _get_fetcher() -> QuickFetcher:
         from crawlo.container import default_container
         if default_container.is_registered(QuickFetcher):
             return default_container.resolve(QuickFetcher)
-    except Exception:  # pragma: no cover
+    except Exception:  # pragma: no cover  # nosec B110
         pass
     rctx = _resolve_runtime_context()
     if rctx.mcp_fetcher is not None:
@@ -65,7 +65,7 @@ async def _get_fetcher() -> QuickFetcher:
             try:
                 from crawlo.container import default_container as _c
                 _c.register_instance(QuickFetcher, inst)
-            except Exception:  # pragma: no cover
+            except Exception:  # pragma: no cover  # nosec B110
                 pass
     return rctx.mcp_fetcher
 

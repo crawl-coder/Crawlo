@@ -158,7 +158,7 @@ class CoreInitializer(metaclass=SingletonMeta):
         if not phase_def:
             return True
 
-        for dependency in phase_def.dependencies:
+        for dependency in (phase_def.dependencies or []):
             if not context.is_phase_completed(dependency):
                 return False
 

@@ -44,7 +44,12 @@ def distributed_mode(redis_host: str = '127.0.0.1', redis_port: int = 6379,
                      project_name: str = 'crawlo', **kwargs) -> Dict[str, Any]:
     """分布式模式配置（向后兼容）"""
     from crawlo.core.config import CrawloConfig  # 延迟导入，避免循环
-    return CrawloConfig.distributed(redis_host, redis_port, project_name=project_name, **kwargs).to_dict()
+    return CrawloConfig.distributed(
+        project_name=project_name,
+        redis_host=redis_host,
+        redis_port=redis_port,
+        **kwargs,
+    ).to_dict()
 
 
 def auto_mode(project_name: str = 'crawlo', **kwargs) -> Dict[str, Any]:

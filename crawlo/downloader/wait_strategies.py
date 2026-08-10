@@ -104,8 +104,8 @@ class SmartWaitMixin:
         # 1. 等待 DOM 加载完成
         try:
             await page.wait_for_load_state("domcontentloaded", timeout=self.wait_timeout)
-        except Exception:
-            pass
+        except Exception as e:
+            self.logger.debug("Suppressed exception: %s", e)
 
         # 2. 检测页面是否为 SPA（单页应用）
         is_spa = await self._detect_spa(page)
@@ -119,20 +119,20 @@ class SmartWaitMixin:
                     if await element.count() > 0:
                         await element.wait_for(timeout=BROWSER_ELEMENT_WAIT_TIMEOUT_MS)
                         break
-                except Exception:
+                except Exception:  # nosec B112
                     continue
 
             # 额外等待网络稳定
             try:
                 await page.wait_for_load_state("networkidle", timeout=BROWSER_NETWORK_IDLE_TIMEOUT_MS)
-            except Exception:
-                pass
+            except Exception as e:
+                self.logger.debug("Suppressed exception: %s", e)
         else:
             # 非 SPA 页面：简单等待网络空闲
             try:
                 await page.wait_for_load_state("networkidle", timeout=BROWSER_NETWORK_IDLE_TIMEOUT_MS)
-            except Exception:
-                pass
+            except Exception as e:
+                self.logger.debug("Suppressed exception: %s", e)
 
     async def _detect_spa(self, page) -> bool:
         """检测页面是否为单页应用"""

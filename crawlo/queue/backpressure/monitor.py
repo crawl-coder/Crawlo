@@ -227,7 +227,7 @@ class BackpressureMonitor:
                 'level_counts': self._level_counts
             }
         
-        by_level = {}
+        by_level: dict = {}
         for alert in self._alert_history:
             by_level[alert.level] = by_level.get(alert.level, 0) + 1
         

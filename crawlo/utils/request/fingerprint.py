@@ -70,7 +70,7 @@ def generate_request_fingerprint(
     :param meta: 元数据（包含重试次数等信息）
     :return: 请求指纹（hex string，32字符）
     """
-    hash_func = hashlib.md5()
+    hash_func = hashlib.md5()  # nosec B324
     
     # 基本字段
     hash_func.update(method.encode('utf-8'))

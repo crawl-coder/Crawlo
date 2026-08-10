@@ -151,7 +151,7 @@ def _resolve_notification_context():
         from crawlo.core.application import NotificationContext
         if default_container.is_registered(NotificationContext):
             return default_container.resolve(NotificationContext)
-    except Exception:  # noqa: S110
+    except Exception:  # noqa: S110  # nosec B110
         pass
     from crawlo.core.application import get_global_context
     return get_global_context().notifications
@@ -163,7 +163,7 @@ def get_resource_monitor_manager() -> ResourceMonitorTemplateManager:
         from crawlo.container import default_container
         if default_container.is_registered(ResourceMonitorTemplateManager):
             return default_container.resolve(ResourceMonitorTemplateManager)
-    except Exception:  # pragma: no cover
+    except Exception:  # pragma: no cover  # nosec B110
         pass
     nctx = _resolve_notification_context()
     if nctx.resource_monitor_manager is None:
@@ -172,7 +172,7 @@ def get_resource_monitor_manager() -> ResourceMonitorTemplateManager:
         try:
             from crawlo.container import default_container as _c
             _c.register_instance(ResourceMonitorTemplateManager, inst)
-        except Exception:  # pragma: no cover
+        except Exception:  # pragma: no cover  # nosec B110
             pass
     return nctx.resource_monitor_manager
 

@@ -107,7 +107,7 @@ class HeartbeatDaemon:
                 await self._registry.heartbeat(self._worker_id, extra=extra)
 
                 # 计算下次心跳间隔（含 jitter）
-                sleep_time = self._interval * (1.0 + random.uniform(-self._jitter, self._jitter))
+                sleep_time = self._interval * (1.0 + random.uniform(-self._jitter, self._jitter))  # nosec B311
 
             except asyncio.CancelledError:
                 raise
@@ -126,7 +126,7 @@ class HeartbeatDaemon:
 
     def _collect_stats(self) -> dict:
         """收集本节点的运行统计"""
-        extra = {}
+        extra: dict = {}
         if self._stats_provider:
             try:
                 if callable(self._stats_provider):
@@ -135,8 +135,8 @@ class HeartbeatDaemon:
                     for attr in ("tasks_completed", "tasks_failed", "tasks_processing"):
                         if hasattr(self._stats_provider, attr):
                             extra[attr] = getattr(self._stats_provider, attr)
-            except Exception:
-                pass
+            except Exception as e:
+                self.logger.debug("Suppressed exception: %s", e)
         return extra
 
 

@@ -105,8 +105,8 @@ def _resolve_notification_context():
         from crawlo.core.application import NotificationContext
         if default_container.is_registered(NotificationContext):
             return default_container.resolve(NotificationContext)
-    except Exception:  # noqa: S110
-        pass
+    except Exception as e:
+        logger.debug("Suppressed exception: %s", e)
     from crawlo.core.application import get_global_context
     return get_global_context().notifications
 
@@ -117,8 +117,8 @@ def get_sms_channel() -> SmsChannel:
         from crawlo.container import default_container
         if default_container.is_registered(SmsChannel):
             return default_container.resolve(SmsChannel)
-    except Exception:  # pragma: no cover
-        pass
+    except Exception as e:
+        logger.debug("Suppressed exception: %s", e)
     nctx = _resolve_notification_context()
     if nctx.sms_channel is None:
         inst = SmsChannel()
@@ -126,6 +126,6 @@ def get_sms_channel() -> SmsChannel:
         try:
             from crawlo.container import default_container
             default_container.register_instance(SmsChannel, inst)
-        except Exception:  # pragma: no cover
-            pass
+        except Exception as e:
+            logger.debug("Suppressed exception: %s", e)
     return nctx.sms_channel

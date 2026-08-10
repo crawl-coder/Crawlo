@@ -10,7 +10,7 @@
 import threading
 from typing import Any, Callable, Dict, List, Optional
 
-from crawlo.core.initialization.phases import InitializationPhase
+from crawlo.core.initialization.phases import InitializationPhase, PhaseResult
 from crawlo.core.initialization.context import InitializationContext
 from crawlo.core.initialization.utils import create_initialization_result
 
@@ -118,7 +118,7 @@ def _resolve_registry_context():
         from crawlo.core.application import default_container, RegistryContext
         if default_container.is_registered(RegistryContext):
             return default_container.resolve(RegistryContext)
-    except Exception:  # noqa: S110
+    except Exception:  # noqa: S110  # nosec B110
         pass
     from crawlo.core.application import get_global_context
     return get_global_context().registries
@@ -130,7 +130,7 @@ def get_global_registry() -> InitializerRegistry:
         from crawlo.core.application import default_container
         if default_container.is_registered(InitializerRegistry):
             return default_container.resolve(InitializerRegistry)
-    except Exception:  # pragma: no cover
+    except Exception:  # pragma: no cover  # nosec B110
         pass
 
     rctx = _resolve_registry_context()
@@ -140,7 +140,7 @@ def get_global_registry() -> InitializerRegistry:
         try:
             from crawlo.core.application import default_container as _c
             _c.register_instance(InitializerRegistry, inst)
-        except Exception:  # pragma: no cover
+        except Exception:  # pragma: no cover  # nosec B110
             pass
     return rctx.initializer_registry
 

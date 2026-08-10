@@ -82,7 +82,7 @@ class ProgressAggregator:
 
     async def get_global_stats(self) -> Dict[str, Any]:
         """获取全局统计"""
-        stats = {
+        stats: Dict[str, Any] = {
             "total_completed": 0,
             "total_failed": 0,
             "total_items": 0,
@@ -104,8 +104,8 @@ class ProgressAggregator:
                 stats["elapsed"] = round(elapsed, 1)
                 if elapsed > 0 and stats["total_completed"] > 0:
                     stats["items_per_sec"] = round(stats["total_completed"] / elapsed, 2)
-        except Exception:
-            pass
+        except Exception as e:
+            self.logger.debug("Suppressed exception: %s", e)
 
         return stats
 

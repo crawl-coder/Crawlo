@@ -46,7 +46,7 @@ class ErrorClassifier:
     - Retry strategy determination
     """
 
-    CRITICAL_EXCEPTIONS: Tuple[Type[Exception], ...] = (
+    CRITICAL_EXCEPTIONS: Tuple[type, ...] = (
         MemoryError,
         SystemError,
         RecursionError,

@@ -55,10 +55,14 @@ class DistributedCoordinator:
         self._xclaim_batch = lambda: engine._distributed_idle_xclaim_batch
 
         # idle 状态由 Engine 持有（主循环也要读写），这里仅做 alias
-        self._idle_since_ref = lambda s=None, g=None: (
-            (engine._idle_since if s is None else setattr(engine, "_idle_since", s)),
-            (engine._idle_scan_counter if g is None else setattr(engine, "_idle_scan_counter", g)),
-        )
+        def _idle_ref(s=None, g=None):
+            if s is not None:
+                engine._idle_since = s
+            if g is not None:
+                engine._idle_scan_counter = g
+            return engine._idle_since, engine._idle_scan_counter
+
+        self._idle_since_ref = _idle_ref
 
     # ------------------------------------------------------------------
     # control state（对应旧 _check_control_state）

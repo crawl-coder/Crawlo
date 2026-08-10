@@ -83,7 +83,7 @@ class DefaultHeaderMiddleware(BaseMiddleware):
     def _get_rotated_user_agent(self):
         """Get a random User-Agent from the rotation list"""
         if self.user_agents:
-            return random.choice(self.user_agents)
+            return random.choice(self.user_agents)  # nosec B311
         return None
 
     def process_request(self, request, _spider):

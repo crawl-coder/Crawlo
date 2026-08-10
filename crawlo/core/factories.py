@@ -106,7 +106,7 @@ class CrawlerComponentFactory(_ComponentFactoryBase):
 
     def create(self, spec: _ComponentSpec, **kwargs) -> Any:
         """Create Crawler-related components"""
-        if 'crawler' in spec.dependencies and 'crawler' not in kwargs:
+        if spec.dependencies and 'crawler' in spec.dependencies and 'crawler' not in kwargs:
             raise ValueError(f"Crawler instance required for component {spec.name}")
 
         return spec.factory_func(**kwargs)

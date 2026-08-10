@@ -322,7 +322,7 @@ class FileDownloader:
         
         # Generate filename from URL hash
         # hashlib 已在顶部导入
-        url_hash = hashlib.md5(url.encode()).hexdigest()[:8]
+        url_hash = hashlib.md5(url.encode()).hexdigest()[:8]  # nosec B324
         
         # Try to infer extension from Content-Type
         content_type = response.headers.get('Content-Type', '')

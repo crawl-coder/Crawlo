@@ -18,7 +18,9 @@ class RunMode(Enum):
 
 
 # 基础配置默认值（保持与 crawlo.settings.default_settings 一致，避免两处产生不同默认值导致覆盖异常）
-BASE_CONFIG = {
+from typing import Any, Dict
+
+BASE_CONFIG: Dict[str, Any] = {
     'PROJECT_NAME': 'crawlo',
     'CONCURRENCY': 8,
     'MAX_RUNNING_SPIDERS': 3,
@@ -30,7 +32,7 @@ BASE_CONFIG = {
 }
 
 # 运行模式配置映射
-MODE_CONFIG_MAP = {
+MODE_CONFIG_MAP: Dict[str, Dict[str, Any]] = {
     'standalone': {
         'RUN_MODE': 'standalone',
         'QUEUE_TYPE': 'memory',

@@ -267,8 +267,8 @@ def _resolve_notification_context():
         from crawlo.core.application import NotificationContext
         if default_container.is_registered(NotificationContext):
             return default_container.resolve(NotificationContext)
-    except Exception:  # noqa: S110
-        pass
+    except Exception as e:
+        logger.debug("Suppressed exception: %s", e)
     from crawlo.core.application import get_global_context
     return get_global_context().notifications
 
@@ -281,8 +281,8 @@ def get_template_manager(custom_templates: Optional[Dict] = None) -> MessageTemp
         from crawlo.container import default_container
         if default_container.is_registered(MessageTemplateManager):
             return default_container.resolve(MessageTemplateManager)
-    except Exception:  # pragma: no cover
-        pass
+    except Exception as e:
+        logger.debug("Suppressed exception: %s", e)
     nctx = _resolve_notification_context()
     if nctx.template_manager is None:
         inst = MessageTemplateManager(custom_templates)
@@ -290,8 +290,8 @@ def get_template_manager(custom_templates: Optional[Dict] = None) -> MessageTemp
         try:
             from crawlo.container import default_container as _c
             _c.register_instance(MessageTemplateManager, inst)
-        except Exception:  # pragma: no cover
-            pass
+        except Exception as e:
+            logger.debug("Suppressed exception: %s", e)
     return nctx.template_manager
 
 

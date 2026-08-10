@@ -148,7 +148,7 @@ class GenericDocumentPipeline(ResourceManagedPipeline):
 
     def _compute_doc_id(self, doc: dict) -> str:
         """计算文档确定性 ID（MD5 指纹），子类可重写"""
-        return hashlib.md5(
+        return hashlib.md5(  # nosec B324
             json.dumps(doc, sort_keys=True, ensure_ascii=False).encode('utf-8')
         ).hexdigest()
 

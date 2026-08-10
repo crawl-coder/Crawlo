@@ -91,8 +91,8 @@ class JsonStorage(BaseStorage):
                 # 如果失败，清理临时文件
                 try:
                     os.unlink(tmp_path)
-                except Exception:
-                    pass
+                except Exception as e:
+                    self.logger.debug("Suppressed exception: %s", e)
                 raise
 
             self.logger.debug(f"Checkpoint saved to {self._path}")

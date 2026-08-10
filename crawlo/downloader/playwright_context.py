@@ -99,8 +99,8 @@ class ContextProxyMixin:
             for page in self._page_pool:
                 try:
                     await page.close()
-                except Exception:
-                    pass
+                except Exception as e:
+                    self.logger.debug("Suppressed exception: %s", e)
             self._page_pool.clear()
             self._used_pages.clear()
 
@@ -108,8 +108,8 @@ class ContextProxyMixin:
         if self.context:
             try:
                 await self.context.close()
-            except Exception:
-                pass
+            except Exception as e:
+                self.logger.debug("Suppressed exception: %s", e)
             self.context = None
 
         # 3. 创建新 Context

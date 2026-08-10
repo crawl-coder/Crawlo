@@ -432,17 +432,17 @@ class ResourceManager:
         """
         try:
             self._resources.clear()
-        except Exception:
-            pass
+        except Exception as e:
+            get_logger(__name__).debug("Suppressed exception: %s", e)
         try:
             self._cleanup_errors.clear()
-        except Exception:
-            pass
+        except Exception as e:
+            get_logger(__name__).debug("Suppressed exception: %s", e)
         try:
             for k in list(self._stats.keys()):
                 self._stats[k] = 0
-        except Exception:
-            pass
+        except Exception as e:
+            get_logger(__name__).debug("Suppressed exception: %s", e)
     
     def _get_active_by_type(self) -> Dict[str, int]:
         """按类型统计活跃资源"""
@@ -479,8 +479,8 @@ def _resolve_runtime_context():
         from crawlo.core.application import RuntimeContext
         if default_container.is_registered(RuntimeContext):
             return default_container.resolve(RuntimeContext)
-    except Exception:  # noqa: S110
-        pass
+    except Exception as e:
+        get_logger(__name__).debug("Suppressed exception: %s", e)
     from crawlo.core.application import get_global_context
     return get_global_context().runtime
 

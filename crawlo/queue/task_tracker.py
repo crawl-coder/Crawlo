@@ -147,13 +147,14 @@ class TaskTracker:
 
     def get_processing_tasks(self) -> Dict[str, Any]:
         """获取当前处理中的任务列表（用于优雅关闭时的排查）"""
-        return {
-            msg_id: {
-                "url": info.get("request").url if info.get("request") else "unknown",
+        result: Dict[str, Any] = {}
+        for msg_id, info in self._processing.items():
+            request = info.get("request")
+            result[msg_id] = {
+                "url": request.url if request else "unknown",
                 "dispatched_at": info.get("dispatched_at"),
             }
-            for msg_id, info in self._processing.items()
-        }
+        return result
 
 
 __all__ = [

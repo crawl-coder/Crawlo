@@ -19,8 +19,8 @@ class TestSpiderMetaFix(unittest.TestCase):
         # 获取 __new__ 方法的源代码
         source = inspect.getsource(SpiderMeta.__new__)
         
-        # 检查应该使用 except Exception 而不是 except:
-        self.assertIn('except Exception:', source)
+        # 检查应该使用 except Exception as e（带异常绑定）而不是裸 except:
+        self.assertIn('except Exception as e:', source)
         self.assertNotRegex(source, r'except\s*:')
 
 

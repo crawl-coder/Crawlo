@@ -161,21 +161,21 @@ def capture_pool_snapshot() -> PoolSnapshot:
         snap.mysql_pools = stats.get('total_pools', 0)
         for info in stats.get('pools', {}).values():
             snap.mysql_conns += info.get('size', 0)
-    except Exception:
-        pass
+    except Exception as e:
+        get_logger(__name__).debug("Suppressed exception: %s", e)
     try:
         from crawlo.utils.redis.pool import _resolve_runtime_context
         ctx = _resolve_runtime_context()
         snap.redis_pools = len(ctx.connection_pools)
-    except Exception:
-        pass
+    except Exception as e:
+        get_logger(__name__).debug("Suppressed exception: %s", e)
     try:
         from crawlo.utils.db.mongo_connection_pool import MongoConnectionPoolManager
         m_stats = MongoConnectionPoolManager.get_pool_stats()
         snap.mongo_pools = m_stats.get('total_clients', 0)
         snap.mongo_clients = m_stats.get('total_clients', 0)
-    except Exception:
-        pass
+    except Exception as e:
+        get_logger(__name__).debug("Suppressed exception: %s", e)
     return snap
 
 
@@ -239,7 +239,7 @@ class ResourceScope:
         iteration_warn_slope: Optional[Dict[str, float]] = None,
         logger: Optional[logging.Logger] = None,
     ) -> None:
-        assert mode in ('concurrent', 'scheduler'), "mode ∈ {'concurrent','scheduler'}"
+        assert mode in ('concurrent', 'scheduler'), "mode ∈ {'concurrent','scheduler'}"  # nosec B101
         self.mode = mode
         self.name = name
         self._closed = False
@@ -435,7 +435,7 @@ class ResourceScope:
             try:
                 r = fn(self, tag)
                 if hasattr(r, '__await__'):
-                    await r
+                    await r  # type: ignore[misc]  # hook 返回 Optional[Awaitable]
             except Exception as e:
                 self.logger.warning(f"iteration hook {fn!r} failed: {e}")
         return report

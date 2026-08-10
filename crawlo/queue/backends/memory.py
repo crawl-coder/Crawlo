@@ -16,6 +16,8 @@ from typing import Optional, Any, Dict, List
 from crawlo.queue.queue_types import QueueType
 from crawlo.queue.interfaces import IQueue, BackpressureableQueueMixin
 
+logger = logging.getLogger(__name__)
+
 # 智能背压组件（可选导入）
 try:
     from crawlo.queue.backpressure.metrics_collector import BackpressureMetricsCollector
@@ -25,8 +27,6 @@ try:
 except ImportError:
     INTELLIGENT_BP_AVAILABLE = False
     logger.debug("Intelligent backpressure not available: crawlo.queue.backpressure module not found")
-
-logger = logging.getLogger(__name__)
 
 
 class QueueItem:
@@ -212,6 +212,7 @@ class MemoryQueue(BackpressureableQueueMixin, IQueue):
         
         if self._queue is None:
             await self.open()
+        assert self._queue is not None  # nosec B101
         
         # 检查队列大小限制
         if self._max_size > 0:
@@ -285,6 +286,7 @@ class MemoryQueue(BackpressureableQueueMixin, IQueue):
         
         if self._queue is None:
             await self.open()
+        assert self._queue is not None  # nosec B101
         
         timeout_value = timeout if timeout is not None else 0
 

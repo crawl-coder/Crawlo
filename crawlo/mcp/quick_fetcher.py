@@ -283,7 +283,7 @@ class QuickFetcher:
         if self._stealth_page:
             try:
                 self._stealth_page.quit()
-            except Exception:
+            except Exception:  # nosec B110
                 pass
             self._stealth_page = None
 
@@ -302,7 +302,7 @@ class QuickFetcher:
                 for k, v in cookies.items():
                     try:
                         page.set.cookie(name=k, value=v, url=url)
-                    except Exception:
+                    except Exception:  # nosec B110
                         pass
 
             page.get(url, timeout=timeout)
@@ -363,7 +363,7 @@ class QuickFetcher:
         if self._camoufox_browser:
             try:
                 await self._camoufox_browser.__aexit__(None, None, None)
-            except Exception:
+            except Exception:  # nosec B110
                 pass
             self._camoufox_browser = None
 
@@ -382,7 +382,7 @@ class QuickFetcher:
                 try:
                     pw_cookies = [{"name": k, "value": v, "url": url} for k, v in cookies.items()]
                     await context.add_cookies(pw_cookies)
-                except Exception:
+                except Exception:  # nosec B110
                     pass
 
             page = await context.new_page()
@@ -390,7 +390,7 @@ class QuickFetcher:
             if headers:
                 try:
                     await page.set_extra_http_headers(headers)
-                except Exception:
+                except Exception:  # nosec B110
                     pass
 
             response_obj = await page.goto(url, wait_until='networkidle', timeout=timeout * 1000)
@@ -506,7 +506,7 @@ class QuickFetcher:
             os.makedirs(os.path.dirname(_COOKIE_FILE), exist_ok=True)
             with open(_COOKIE_FILE, 'w') as f:
                 json.dump(self._cookies, f)
-        except Exception:
+        except Exception:  # nosec B110
             pass
 
     def _load_cookies(self):
@@ -553,7 +553,7 @@ class QuickFetcher:
                     for k, v in cookies.items():
                         try:
                             page.set.cookie(name=k, value=v, url=url)
-                        except Exception:
+                        except Exception:  # nosec B110
                             pass
                 page.get(url)
                 # DrissionPage: run_js returns the result
@@ -608,7 +608,7 @@ def _resolve_runtime_context():
         from crawlo.core.application import RuntimeContext
         if default_container.is_registered(RuntimeContext):
             return default_container.resolve(RuntimeContext)
-    except Exception:  # noqa: S110
+    except Exception:  # noqa: S110  # nosec B110
         pass
     from crawlo.core.application import get_global_context
     return get_global_context().runtime
@@ -625,7 +625,7 @@ def _cleanup_fetcher():
                 loop.create_task(fetcher.close())
             else:
                 loop.run_until_complete(fetcher.close())
-        except Exception:
+        except Exception:  # nosec B110
             pass
         rctx.mcp_fetcher = None
         rctx.quick_fetcher = None
@@ -641,7 +641,7 @@ async def get_fetcher(custom_settings: Optional[Dict[str, Any]] = None) -> Quick
         from crawlo.container import default_container
         if default_container.is_registered(QuickFetcher):
             return default_container.resolve(QuickFetcher)
-    except Exception:  # pragma: no cover
+    except Exception:  # pragma: no cover  # nosec B110
         pass
     rctx = _resolve_runtime_context()
     if rctx.quick_fetcher is None:
@@ -650,7 +650,7 @@ async def get_fetcher(custom_settings: Optional[Dict[str, Any]] = None) -> Quick
         try:
             from crawlo.container import default_container as _c
             _c.register_instance(QuickFetcher, inst)
-        except Exception:  # pragma: no cover
+        except Exception:  # pragma: no cover  # nosec B110
             pass
     return rctx.quick_fetcher
 

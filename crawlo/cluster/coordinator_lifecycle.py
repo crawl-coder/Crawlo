@@ -4,7 +4,11 @@
 from __future__ import annotations
 
 import asyncio
+from typing import Any, TYPE_CHECKING
 from crawlo.utils.misc import safe_get_config
+
+if TYPE_CHECKING:
+    from crawlo.cluster.coordinator import ClusterState
 
 
 try:
@@ -15,14 +19,27 @@ try:
     CLUSTER_AVAILABLE = True
 except ImportError:
     CLUSTER_AVAILABLE = False
-    WorkerRegistry = HeartbeatDaemon = DistributedLock = FailoverManager = None
-    ProgressAggregator = DistributedRateLimiter = ClusterMonitor = None
-    DynamicConfig = ClusterMessenger = None
-    TaskTracker = None
+    WorkerRegistry: Any = None  # type: ignore[no-redef]
+    HeartbeatDaemon: Any = None  # type: ignore[no-redef]
+    DistributedLock: Any = None  # type: ignore[no-redef]
+    FailoverManager: Any = None  # type: ignore[no-redef]
+    ProgressAggregator: Any = None  # type: ignore[no-redef]
+    DistributedRateLimiter: Any = None  # type: ignore[no-redef]
+    ClusterMonitor: Any = None  # type: ignore[no-redef]
+    DynamicConfig: Any = None  # type: ignore[no-redef]
+    ClusterMessenger: Any = None  # type: ignore[no-redef]
+    TaskTracker: Any = None  # type: ignore[no-redef]
 
 
 class ClusterLifecycleMixin:
     """集群组件初始化、后台任务启停与优雅关闭。"""
+
+    _cluster_state: 'ClusterState'
+    logger: Any
+    settings: Any
+    scheduler: Any
+    crawler: Any
+    _background_tasks: set
 
     async def _init_cluster(self):
         """
@@ -224,8 +241,8 @@ class ClusterLifecycleMixin:
             if self._cluster_state.redis:
                 try:
                     await self._cluster_state.redis.close()
-                except Exception:
-                    pass
+                except Exception as e:
+                    self.logger.debug("Suppressed exception: %s", e)
                 self._cluster_state.redis = None
 
     # ========================================================================

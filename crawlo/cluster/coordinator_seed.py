@@ -4,10 +4,43 @@
 from __future__ import annotations
 
 import asyncio
+from typing import Any, Optional, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from crawlo.cluster.coordinator import ClusterState
 
 
 class ClusterSeedMixin:
     """种子 URL 生成互斥（种子锁获取/续期/原子守卫）。"""
+
+    _cluster_state: 'ClusterState'
+    logger: Any
+    running: bool
+    _seed_lock_key: Optional[str]
+
+    # 原子种子锁 Lua：返回 1=新获取，2=清除陈旧锁后获取，0=被活跃 worker 持有
+    _SEED_LOCK_LUA = (
+        "local key = KEYS[1] "
+        "local my_id = ARGV[1] "
+        "local ttl_ms = tonumber(ARGV[2]) * 1000 "
+        "local active_count = tonumber(ARGV[3]) "
+        "local current = redis.call('GET', key) "
+        "if current == my_id then "
+        "  redis.call('PEXPIRE', key, ttl_ms) "
+        "  return 1 "
+        "end "
+        "if current then "
+        "  for i = 4, #ARGV do "
+        "    if ARGV[i] == current then return 0 end "
+        "  end "
+        "  if active_count == 0 then return 0 end "
+        "  redis.call('DEL', key) "
+        "  redis.call('SET', key, my_id, 'PX', ttl_ms) "
+        "  return 2 "
+        "end "
+        "redis.call('SET', key, my_id, 'PX', ttl_ms) "
+        "return 1"
+    )
 
     async def _renew_seed_lock(self):
         """种子锁续期任务：每 60 秒延长锁 TTL，防止长时种子生成期间锁过期"""
@@ -97,8 +130,8 @@ class ClusterSeedMixin:
                                 f"Seed lock held by active worker {holder}, skipping"
                             )
                             return False
-                    except Exception:
-                        pass
+                    except Exception as e:
+                        self.logger.debug("Suppressed exception: %s", e)
                 if attempt < max_attempts:
                     await asyncio.sleep(0.25 * attempt)
                     continue
@@ -127,4 +160,3 @@ class ClusterSeedMixin:
     # ========================================================================
     # 组件初始化
     # ========================================================================
-

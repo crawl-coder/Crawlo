@@ -101,7 +101,7 @@ class ClusterMonitor:
 
     async def worker_detail(self, worker_id: str) -> Dict[str, Any]:
         """获取 Worker 详细信息（含统计）"""
-        info = {}
+        info: Dict[str, Any] = {}
         if self._registry:
             info = await self._registry.get_worker_info(worker_id) or {}
         if self._progress:
@@ -114,7 +114,7 @@ class ClusterMonitor:
 
     async def queue_info(self) -> Dict[str, Any]:
         """获取队列详情"""
-        info = {
+        info: Dict[str, Any] = {
             "pending": await self._stream_queue.size() if self._stream_queue else 0,
             "processing": 0,
             "failed": 0,
@@ -134,7 +134,7 @@ class ClusterMonitor:
 
     async def pending_tasks(self, count: int = 50) -> List[Dict[str, Any]]:
         """获取未确认的任务列表"""
-        tasks = []
+        tasks: List[Dict[str, Any]] = []
         if not self._stream_queue:
             return tasks
 
@@ -154,8 +154,8 @@ class ClusterMonitor:
                         "delivery_count": entry.get("delivery_count", 0),
                         "stream": self._stream_queue.stream,
                     })
-        except Exception:
-            pass
+        except Exception as e:
+            self.logger.debug("Suppressed exception: %s", e)
 
         return tasks[:count]
 

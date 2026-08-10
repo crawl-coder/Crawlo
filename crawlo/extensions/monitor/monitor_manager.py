@@ -103,8 +103,8 @@ class MonitorManager:
             if hasattr(monitor, 'task') and monitor.task:
                 try:
                     monitor.task.cancel()
-                except Exception:
-                    pass
+                except Exception as e:
+                    get_logger(__name__).debug("Suppressed exception: %s", e)
 
 
 def _resolve_runtime_context():
@@ -114,8 +114,8 @@ def _resolve_runtime_context():
         from crawlo.core.application import RuntimeContext
         if default_container.is_registered(RuntimeContext):
             return default_container.resolve(RuntimeContext)
-    except Exception:  # noqa: S110
-        pass
+    except Exception as e:
+        get_logger(__name__).debug("Suppressed exception: %s", e)
     from crawlo.core.application import get_global_context
     return get_global_context().runtime
 
@@ -126,8 +126,8 @@ def get_monitor_manager() -> MonitorManager:
         from crawlo.container import default_container
         if default_container.is_registered(MonitorManager):
             return default_container.resolve(MonitorManager)
-    except Exception:  # pragma: no cover
-        pass
+    except Exception as e:
+        get_logger(__name__).debug("Suppressed exception: %s", e)
     rctx = _resolve_runtime_context()
     if rctx._monitor_manager is None:
         inst = MonitorManager()
@@ -135,8 +135,8 @@ def get_monitor_manager() -> MonitorManager:
         try:
             from crawlo.container import default_container as _c
             _c.register_instance(MonitorManager, inst)
-        except Exception:  # pragma: no cover
-            pass
+        except Exception as e:
+            get_logger(__name__).debug("Suppressed exception: %s", e)
     return rctx._monitor_manager
 
 

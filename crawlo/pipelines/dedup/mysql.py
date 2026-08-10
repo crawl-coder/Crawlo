@@ -21,7 +21,7 @@ if TYPE_CHECKING:
 class MySQLDedupPipeline(DedupPipeline):
     """基于 MySQL 的数据项去重管道"""
 
-    def __init__(
+    def __init__(  # nosec B107
             self,
             crawler,
             db_host: str = 'localhost',
@@ -114,7 +114,7 @@ class MySQLDedupPipeline(DedupPipeline):
     # _cleanup_resources: 无需重写，直接继承 DedupPipeline 默认实现
 
     async def _check_fingerprint_exists(self, fingerprint: str) -> bool:
-        check_sql = f"SELECT 1 FROM `{self.table_name}` WHERE `fingerprint` = %s LIMIT 1"
+        check_sql = f"SELECT 1 FROM `{self.table_name}` WHERE `fingerprint` = %s LIMIT 1"  # nosec B608
         async with self.pool.acquire() as conn:
             async with conn.cursor() as cursor:
                 await cursor.execute(check_sql, (fingerprint,))

@@ -134,7 +134,7 @@ class DownloadDelayMiddleware(BaseMiddleware):
         
         # Apply randomness
         if self.randomness:
-            delay = uniform(delay * self.random_range[0], delay * self.random_range[1])
+            delay = uniform(delay * self.random_range[0], delay * self.random_range[1])  # nosec B311
         
         # Calculate actual wait time
         last_time = self._last_request_time.get(domain, 0)

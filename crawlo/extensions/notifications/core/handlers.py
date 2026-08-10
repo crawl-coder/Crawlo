@@ -286,8 +286,8 @@ def _resolve_notification_context():
         from crawlo.core.application import NotificationContext
         if default_container.is_registered(NotificationContext):
             return default_container.resolve(NotificationContext)
-    except Exception:  # noqa: S110
-        pass
+    except Exception as e:
+        logger.debug("Suppressed exception: %s", e)
     from crawlo.core.application import get_global_context
     return get_global_context().notifications
 
@@ -300,8 +300,8 @@ def get_notification_handler() -> CrawlerNotificationHandler:
         from crawlo.container import default_container
         if default_container.is_registered(CrawlerNotificationHandler):
             return default_container.resolve(CrawlerNotificationHandler)
-    except Exception:  # pragma: no cover
-        pass
+    except Exception as e:
+        logger.debug("Suppressed exception: %s", e)
     nctx = _resolve_notification_context()
 
     if nctx.notification_handler is None:
@@ -312,8 +312,8 @@ def get_notification_handler() -> CrawlerNotificationHandler:
                 try:
                     from crawlo.container import default_container as _c
                     _c.register_instance(CrawlerNotificationHandler, inst)
-                except Exception:  # pragma: no cover
-                    pass
+                except Exception as e:
+                    logger.debug("Suppressed exception: %s", e)
 
     return nctx.notification_handler
 

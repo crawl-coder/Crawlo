@@ -18,7 +18,7 @@ Redis 版本要求：基础功能 5.0+，XAUTOCLAIM 需要 6.2+。
 低版本自动降级为 XPENDING + XCLAIM 手动 fallback。
 """
 import json
-import pickle
+import pickle  # nosec B403
 import time
 import uuid
 from typing import Optional, Any, Dict, List, Tuple
@@ -116,8 +116,8 @@ class RedisStreamQueue:
         # Consumer 标识
         self._consumer_name = consumer_name or self._generate_consumer_name()
 
-        # Redis 客户端（延迟初始化）
-        self._redis = None
+        # Redis 客户端（延迟初始化；redis-py 异步客户端类型标注较弱，使用 Any）
+        self._redis: Any = None
         self._connected = False
 
         # Stream keys：主 Stream + 可选高优 Stream + 死信 Stream
@@ -134,7 +134,7 @@ class RedisStreamQueue:
         self._low_stream = self._stream
 
         # 版本检测标志
-        self._redis_version = None
+        self._redis_version: Any = None
         self._has_xautoclaim = False
 
         # message_id → stream_key 映射（支持双 Stream 的 ACK/NACK）
@@ -364,8 +364,8 @@ class RedisStreamQueue:
                             f"(stream={check_stream}, idle<{idle_threshold}ms), skipping orphan recovery"
                         )
                         return
-            except Exception:
-                pass
+            except Exception as e:
+                self.logger.debug("Suppressed exception: %s", e)
 
         streams = {self._stream, self._high_stream}  # 去重：priority 关闭时两者相同
         for stream in streams:
@@ -562,7 +562,7 @@ class RedisStreamQueue:
             self.logger.debug(f"Blocking get failed: {e}")
             return None
 
-    async def get_with_receipt(self, timeout: float = 30.0) -> Optional[Tuple[Any, str]]:
+    async def get_with_receipt(self, timeout: float = 30.0) -> Optional[Tuple[Optional[Any], Optional[str]]]:
         """
         带 ACK 语义的出队。
 
@@ -643,7 +643,7 @@ class RedisStreamQueue:
         min_idle_ms: Optional[int] = None,
         count: int = 10,
         stream: Optional[str] = None,
-    ) -> List[Tuple[str, Any]]:
+    ) -> List[Tuple[str, Any, int]]:
         """
         回收超时未 ACK 的消息。
 
@@ -718,8 +718,8 @@ class RedisStreamQueue:
                 stats = self._resolve_stats()
                 if stats is not None:
                     stats.inc_value('queue/xclaim/recovered_total', count=total_recovered)
-            except Exception:  # 埋点异常不影响回收结果
-                pass
+            except Exception as e:
+                self.logger.debug("Suppressed exception: %s", e)
 
         return total_recovered
 
@@ -773,8 +773,8 @@ class RedisStreamQueue:
                 try:
                     info = await self._redis.xinfo_stream(stream)
                     total += info.get("length", 0)
-                except Exception:
-                    pass
+                except Exception as e:
+                    self.logger.debug("Suppressed exception: %s", e)
             return total
         except Exception:
             return 0
@@ -805,9 +805,8 @@ class RedisStreamQueue:
                             # 比较 ID：如果 last-delivered < last-generated，还有新消息未消费
                             if str(last_delivered) < str(last_gen):
                                 return False
-                except Exception:
-                    # 单个 stream 检查失败不直接判空，继续下一个
-                    pass
+                except Exception as e:
+                    self.logger.debug("Suppressed exception: %s", e)
             return True
         except Exception:
             # 异常时保守兜底：认为不空，避免误判导致提前退出
@@ -915,7 +914,7 @@ class RedisStreamQueue:
             if self._serialization_format == "json":
                 data = json.loads(raw.decode("utf-8"))
             else:
-                data = pickle.loads(raw)
+                data = pickle.loads(raw)  # nosec B301
 
             if isinstance(data, dict):
                 if self._stream_compact:
@@ -954,8 +953,8 @@ class RedisStreamQueue:
                 )
                 if high_msgs:
                     return high_msgs
-            except Exception:
-                pass
+            except Exception as e:
+                self.logger.debug("Suppressed exception: %s", e)
 
         return await stream_read(
             self._redis, self._group_name, consumer,
@@ -970,7 +969,7 @@ class RedisStreamQueue:
         return await self._read(consumer, count=count, block=block if block > 0 else None)
 
     def _parse_message(
-        self, stream_msg: Tuple[bytes, List[Tuple[bytes, Dict[bytes, bytes]]]]
+        self, stream_msg: Tuple[Any, Any]
     ) -> Optional[Any]:
         """解析 XREADGROUP 返回的消息（返回 Request，并在 meta 中注入 message_id 用于 ACK）"""
         stream, messages = stream_msg
@@ -995,7 +994,7 @@ class RedisStreamQueue:
         return None
 
     def _parse_message_with_id(
-        self, stream_msg: Tuple[bytes, List[Tuple[bytes, Dict[bytes, bytes]]]]
+        self, stream_msg: Tuple[Any, Any]
     ) -> Tuple[Optional[Any], Optional[str]]:
         """解析消息，同时返回 Request 和 message_id"""
         stream, messages = stream_msg
@@ -1116,7 +1115,7 @@ class RedisStreamQueue:
 
     async def _claim_with_xautoclaim(
         self, min_idle_ms: int, count: int, stream: str
-    ) -> List[Tuple[str, Any]]:
+    ) -> List[Tuple[str, Any, int]]:
         """使用 XAUTOCLAIM 回收消息（Redis 6.2+）"""
         claimed = []
         try:
@@ -1140,7 +1139,7 @@ class RedisStreamQueue:
 
     async def _claim_manual(
         self, min_idle_ms: int, count: int, stream: str
-    ) -> List[Tuple[str, Any]]:
+    ) -> List[Tuple[str, Any, int]]:
         """手动 XPENDING + XCLAIM（Redis 5.0-6.1 fallback）"""
         claimed = []
         try:

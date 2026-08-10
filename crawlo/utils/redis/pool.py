@@ -24,6 +24,7 @@ except ImportError:
 if TYPE_CHECKING:
     pass
 
+from crawlo.logging import get_logger
 from crawlo.utils.errors import ErrorHandler, ErrorContext
 
 
@@ -278,8 +279,8 @@ def _resolve_runtime_context():
         from crawlo.core.application import RuntimeContext
         if default_container.is_registered(RuntimeContext):
             return default_container.resolve(RuntimeContext)
-    except Exception:  # noqa: S110
-        pass
+    except Exception as e:
+        get_logger(__name__).debug("Suppressed exception: %s", e)
     from crawlo.core.application import get_global_context
     return get_global_context().runtime
 
@@ -411,8 +412,8 @@ def get_redis_manager() -> GlobalRedisManager:
         from crawlo.container import default_container
         if default_container.is_registered(GlobalRedisManager):
             return default_container.resolve(GlobalRedisManager)
-    except Exception:  # pragma: no cover
-        pass
+    except Exception as e:
+        get_logger(__name__).debug("Suppressed exception: %s", e)
     rctx = _resolve_runtime_context()
     if rctx.redis_manager is None:
         inst = GlobalRedisManager()
@@ -420,6 +421,6 @@ def get_redis_manager() -> GlobalRedisManager:
         try:
             from crawlo.container import default_container as _c
             _c.register_instance(GlobalRedisManager, inst)
-        except Exception:  # pragma: no cover
-            pass
+        except Exception as e:
+            get_logger(__name__).debug("Suppressed exception: %s", e)
     return rctx.redis_manager

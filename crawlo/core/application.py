@@ -27,9 +27,32 @@ import threading
 import traceback
 import uuid
 from dataclasses import dataclass, field
-from typing import Any, Callable, Dict, Iterable, List, Optional, Set, Type, TypeVar, get_type_hints
+from typing import Any, Callable, Dict, Iterable, List, Optional, Set, Type, TypeVar, TYPE_CHECKING, get_type_hints
 
 from crawlo.logging import get_logger
+
+if TYPE_CHECKING:
+    from crawlo.spider.spider import Spider
+    from crawlo.core.component_registry import ComponentRegistry
+    from crawlo.core.initialization.registry import InitializerRegistry
+    from crawlo.commands.registry import JobRegistry
+    from crawlo.crawler._framework import CrawloFramework
+    from crawlo.extensions.notifications.core.notifier import NotificationDispatcher
+    from crawlo.extensions.notifications.core.handlers import CrawlerNotificationHandler
+    from crawlo.extensions.notifications.templates.manager import MessageTemplateManager
+    from crawlo.extensions.notifications.monitoring.templates import ResourceMonitorTemplateManager
+    from crawlo.extensions.notifications.utils.deduplicator import MessageDeduplicator
+    from crawlo.extensions.notifications.channels.dingtalk import DingTalkChannel
+    from crawlo.extensions.notifications.channels.feishu import FeishuChannel
+    from crawlo.extensions.notifications.channels.wecom import WeComChannel
+    from crawlo.extensions.notifications.channels.email import EmailChannel
+    from crawlo.extensions.notifications.channels.sms import SmsChannel
+    from crawlo.extensions.monitor.monitor_manager import MonitorManager
+    from crawlo.extensions.monitor.performance_monitor import PerformanceMonitor
+    from crawlo.mcp.quick_fetcher import QuickFetcher
+    from crawlo.utils.errors.error_handler import ErrorHandler
+    from crawlo.utils.redis.pool import GlobalRedisManager
+    from crawlo.core.initialization.core import CoreInitializer
 
 
 __all__ = [
@@ -195,20 +218,20 @@ class ApplicationContext:
             try:
                 from crawlo.extensions.notifications.core.notifier import NotificationDispatcher  # noqa: WPS433
                 default_container.register_instance(NotificationDispatcher, n.notifier)
-            except Exception:  # noqa: S110  Bot 模块未安装时跳过
-                pass
+            except Exception as e:
+                get_logger(__name__).debug("Suppressed exception: %s", e)
         if n.template_manager is not None:
             try:
                 from crawlo.extensions.notifications.templates.manager import MessageTemplateManager  # noqa: WPS433
                 default_container.register_instance(MessageTemplateManager, n.template_manager)
-            except Exception:  # noqa: S110
-                pass
+            except Exception as e:
+                get_logger(__name__).debug("Suppressed exception: %s", e)
         if n.deduplicator is not None:
             try:
                 from crawlo.extensions.notifications.utils.deduplicator import MessageDeduplicator  # noqa: WPS433
                 default_container.register_instance(MessageDeduplicator, n.deduplicator)
-            except Exception:  # noqa: S110
-                pass
+            except Exception as e:
+                get_logger(__name__).debug("Suppressed exception: %s", e)
         # 5 个 channel 类非 None → 注册
         self._rebind_channel("dingtalk", n.dingtalk_channel)
         self._rebind_channel("feishu", n.feishu_channel)
@@ -221,31 +244,31 @@ class ApplicationContext:
             try:
                 from crawlo.utils.errors import ErrorHandler  # noqa: WPS433
                 default_container.register_instance(ErrorHandler, r.error_handler_instance)
-            except Exception:  # noqa: S110
-                pass
+            except Exception as e:
+                get_logger(__name__).debug("Suppressed exception: %s", e)
         if r.performance_monitor is not None:
             try:
                 from crawlo.extensions.monitor.performance_monitor import PerformanceMonitor  # noqa: WPS433
                 default_container.register_instance(PerformanceMonitor, r.performance_monitor)
-            except Exception:  # noqa: S110
-                pass
+            except Exception as e:
+                get_logger(__name__).debug("Suppressed exception: %s", e)
         if r._monitor_manager is not None:  # noqa: SLF001
             try:
                 from crawlo.extensions.monitor.monitor_manager import MonitorManager  # noqa: WPS433
                 default_container.register_instance(MonitorManager, r._monitor_manager)  # type: ignore[arg-type]  # noqa: SLF001
-            except Exception:  # noqa: S110
-                pass
+            except Exception as e:
+                get_logger(__name__).debug("Suppressed exception: %s", e)
         if r.redis_manager is not None:
             try:
                 from crawlo.utils.redis.pool import GlobalRedisManager  # noqa: WPS433
                 default_container.register_instance(GlobalRedisManager, r.redis_manager)
-            except Exception:  # noqa: S110
-                pass
+            except Exception as e:
+                get_logger(__name__).debug("Suppressed exception: %s", e)
         if r.initializer is not None:
             try:
                 default_container.register_instance(CoreInitializer, r.initializer)
-            except Exception:  # noqa: S110
-                pass
+            except Exception as e:
+                get_logger(__name__).debug("Suppressed exception: %s", e)
 
         # registries 侧：已提前创建的核心注册表
         regs = self.registries
@@ -253,19 +276,19 @@ class ApplicationContext:
             try:
                 from crawlo.core.component_registry import ComponentRegistry  # noqa: WPS433
                 default_container.register_instance(ComponentRegistry, regs.component_registry)
-            except Exception:  # noqa: S110
-                pass
+            except Exception as e:
+                get_logger(__name__).debug("Suppressed exception: %s", e)
         if regs.initializer_registry is not None:
             try:
                 default_container.register_instance(InitializerRegistry, regs.initializer_registry)
-            except Exception:  # noqa: S110
-                pass
+            except Exception as e:
+                get_logger(__name__).debug("Suppressed exception: %s", e)
         if regs.job_registry is not None:
             try:
                 from crawlo.commands.registry import JobRegistry  # noqa: WPS433
                 default_container.register_instance(JobRegistry, regs.job_registry)
-            except Exception:  # noqa: S110
-                pass
+            except Exception as e:
+                get_logger(__name__).debug("Suppressed exception: %s", e)
 
     # ------------------------------
     # 延迟组件的补充绑定 / 清理
@@ -288,8 +311,8 @@ class ApplicationContext:
             mod = _il.import_module(mod_name)
             cls = getattr(mod, cls_name)
             default_container.register_instance(cls, instance)
-        except Exception:  # noqa: S110 Bot 子模块缺失时静默跳过（允许渐进迁移）
-            pass
+        except Exception as e:
+            get_logger(__name__).debug("Suppressed exception: %s", e)
 
     def _unbind_from_container(self) -> None:
         """ApplicationContext cleanup 后：从 default_container 移除以 self.id 为 scope_id 的 request bucket。"""
@@ -732,11 +755,10 @@ def _safe_type_hints(func: Callable[..., Any]) -> Dict[str, Any]:
     """
     try:
         return get_type_hints(func, include_extras=False)
-    except Exception:
-        pass
+    except Exception as e:
+        get_logger(__name__).debug("Suppressed exception: %s", e)
     try:
         return dict(getattr(func, "__annotations__", {}) or {})
     except Exception:
         return {}
-
 

@@ -13,12 +13,9 @@ Crawlo 配置中心
     locals().update(config.to_dict())
 """
 import os
-from typing import Dict, Any, Optional, List, Tuple, Type, TYPE_CHECKING
+from typing import Dict, Any, Optional, List, Tuple, Type
 
 from crawlo.logging import get_logger
-
-if TYPE_CHECKING:
-    from crawlo.core.config.factories import CrawloConfig  # noqa: F401
 
 # ==================== 工厂实现（原 crawlo.core.config_factories） ====================
 
@@ -50,7 +47,7 @@ def _make_distributed(cls: Type['CrawloConfig'],
     redis_password = kwargs.pop('redis_password', redis_password)
     redis_username = kwargs.pop('redis_username', redis_username)
     redis_db = kwargs.pop('redis_db', redis_db)
-    if redis_password == '':
+    if redis_password == '':  # nosec B105
         redis_password = None
     if redis_username == '':
         redis_username = None

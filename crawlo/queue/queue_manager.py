@@ -13,7 +13,7 @@
 import asyncio
 import time
 import traceback
-from typing import Optional, TYPE_CHECKING, Dict, Callable
+from typing import Optional, TYPE_CHECKING, Dict, Callable, Any
 
 if TYPE_CHECKING:
     from crawlo import Request
@@ -34,8 +34,8 @@ try:
 
     REDIS_AVAILABLE = True
 except ImportError:
-    RedisPriorityQueue = None
-    RedisStreamQueue = None
+    RedisPriorityQueue: Any = None  # type: ignore[no-redef]
+    RedisStreamQueue: Any = None  # type: ignore[no-redef]
     REDIS_AVAILABLE = False
 
 
@@ -91,9 +91,9 @@ class QueueManager(QueueStatusMixin, QueueBackpressureMixin):
         # 延迟初始化logger和error_handler避免循环依赖
         self._logger = None
         self._error_handler = None
-        self._queue = None
-        self._queue_semaphore = None
-        self._queue_type = None
+        self._queue: Any = None
+        self._queue_semaphore: Optional[asyncio.Semaphore] = None
+        self._queue_type: Optional[QueueType] = None
         self._health_status = "unknown"
         self._priority_calculator = PriorityCalculator()  # 优先级计算器
         # 队列不满的条件变量，put 阻塞等待 / get 唤醒
@@ -125,6 +125,7 @@ class QueueManager(QueueStatusMixin, QueueBackpressureMixin):
         )
         
         # 根据配置创建对应策略
+        strategy: Any = None
         if strategy_type == 'adaptive':
             from crawlo.queue.backpressure import AdaptiveStrategy
             strategy = AdaptiveStrategy(config=bp_config)
@@ -519,8 +520,8 @@ class QueueManager(QueueStatusMixin, QueueBackpressureMixin):
                     if hasattr(res, '__await__'):
                         return await res
                     return bool(res)
-                except Exception:
-                    pass  # 后端 empty() 出错，fallback 到 size 判断
+                except Exception as e:
+                    self.logger.debug("Suppressed exception: %s", e)
 
             # 对于内存队列
             if self._queue and self._queue_type == QueueType.MEMORY:
@@ -704,6 +705,7 @@ class QueueManager(QueueStatusMixin, QueueBackpressureMixin):
 
     async def _create_queue(self, queue_type: QueueType):
         """Create queue instance"""
+        queue: Any = None
         builder = _QUEUE_BUILDERS.get(queue_type)
         if builder is not None:
             return await builder(self)
@@ -730,8 +732,8 @@ class QueueManager(QueueStatusMixin, QueueBackpressureMixin):
             if not spider_name and hasattr(self.config, 'settings') and self.config.settings:
                 try:
                     spider_name = self.config.settings.get('SPIDER_NAME', None)
-                except Exception:
-                    pass
+                except Exception as e:
+                    self.logger.debug("Suppressed exception: %s", e)
 
             # 读取 Stream 配置
             stream_max_length = safe_get_config(
@@ -817,8 +819,8 @@ class QueueManager(QueueStatusMixin, QueueBackpressureMixin):
             if not spider_name and hasattr(self.config, 'settings') and self.config.settings:
                 try:
                     spider_name = self.config.settings.get('SPIDER_NAME', None)
-                except Exception:
-                    pass
+                except Exception as e:
+                    self.logger.debug("Suppressed exception: %s", e)
 
             queue = RedisPriorityQueue(
                 redis_url=self.config.redis_url,
@@ -882,8 +884,8 @@ class QueueManager(QueueStatusMixin, QueueBackpressureMixin):
                 try:
                     if self._queue:
                         await self._queue.close()
-                except Exception:
-                    pass
+                except Exception as e:
+                    self.logger.debug("Suppressed exception: %s", e)
                 self._queue = None
                 # 重新创建内存队列
                 self._queue = await self._create_queue(QueueType.MEMORY)
@@ -896,5 +898,4 @@ class QueueManager(QueueStatusMixin, QueueBackpressureMixin):
                 # 返回一个信号，表示需要更新过滤器和去重管道配置
                 return True
         return False
-
 

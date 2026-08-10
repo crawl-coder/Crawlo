@@ -15,7 +15,7 @@ Components:
 import time
 from dataclasses import dataclass
 from inspect import isasyncgen, iscoroutine, isgenerator
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Callable, Dict, Optional, Tuple
 
 from crawlo import Request, Item
 from crawlo.utils.func_tools import transform
@@ -245,7 +245,7 @@ class EngineBackpressureAdapter:
         except Exception:
             return False
         # Use unified controller's strategy threshold for consistency with QueueManager
-        threshold = self.max_queue_size * self._unified.strategy._config.threshold
+        threshold = self.max_queue_size * self._unified.strategy._config.threshold  # type: ignore[attr-defined]
         return queue_size >= threshold
 
     def is_overloaded(self, task_manager) -> bool:
@@ -298,7 +298,7 @@ class EngineBackpressureAdapter:
         self,
         scheduler,
         task_manager=None,
-        running_check: callable = None
+        running_check: Optional[Callable] = None
     ) -> bool:
         """
         Wait for system to have enough capacity

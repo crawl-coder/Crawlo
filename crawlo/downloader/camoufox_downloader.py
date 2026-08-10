@@ -216,13 +216,13 @@ class CamoufoxDownloader(DownloaderBase):
             if self._page:
                 try:
                     self._page.close()
-                except Exception:
-                    pass
+                except Exception as e:
+                    self.logger.debug("Suppressed exception: %s", e)
             if self._browser:
                 try:
                     self._browser.__exit__(None, None, None)
-                except Exception:
-                    pass
+                except Exception as e:
+                    self.logger.debug("Suppressed exception: %s", e)
 
         if self._browser or self._page:
             await asyncio.to_thread(_close)

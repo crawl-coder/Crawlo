@@ -134,6 +134,8 @@ nav:
     - 概览: reference/index.md
     - 命令行参考: reference/cli-reference.md
     - 核心 API: reference/api/index.md
+    - API 面（冻结清单）: reference/api-surface.md
+    - Deprecation 周期: reference/DEPRECATION.md
   - 💡 实战案例:
     - 概览: examples/index.md
     - 基础示例: examples/basic-examples.md

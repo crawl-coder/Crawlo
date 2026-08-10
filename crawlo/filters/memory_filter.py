@@ -125,7 +125,7 @@ class MemoryFilter(BaseFilter):
             # Random cleanup some fingerprints (simple strategy)
             fingerprints_list = list(self.fingerprints)
             # random 已在顶部导入
-            to_remove = random.sample(fingerprints_list, cleanup_count)
+            to_remove = random.sample(fingerprints_list, cleanup_count)  # nosec B311
             self.fingerprints.difference_update(to_remove)
             self.logger.info(f"Cleaned {cleanup_count} old fingerprints")
 

@@ -45,7 +45,7 @@ def _make_distributed(cls: Type['CrawloConfig'],
     redis_username = kwargs.pop('redis_username', redis_username)
     redis_db = kwargs.pop('redis_db', redis_db)
 
-    if redis_password == '':
+    if redis_password == '':  # nosec B105
         redis_password = None
     if redis_username == '':
         redis_username = None

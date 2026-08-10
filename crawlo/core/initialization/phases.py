@@ -35,7 +35,7 @@ class PhaseResult:
     success: bool
     duration: float = 0.0
     error: Optional[Exception] = None
-    artifacts: dict = None
+    artifacts: Optional[dict] = None
 
     def __post_init__(self):
         if self.artifacts is None:
@@ -48,7 +48,7 @@ class PhaseDefinition:
     phase: InitializationPhase
     name: str
     description: str
-    dependencies: List[InitializationPhase] = None
+    dependencies: Optional[List[InitializationPhase]] = None
     optional: bool = False
     timeout: float = 30.0
 
@@ -132,7 +132,7 @@ def validate_dependencies() -> bool:
     phases = {definition.phase for definition in PHASE_DEFINITIONS}
 
     for definition in PHASE_DEFINITIONS:
-        for dependency in definition.dependencies:
+        for dependency in (definition.dependencies or []):
             if dependency not in phases:
                 return False
 
@@ -143,7 +143,7 @@ def detect_circular_dependencies() -> Optional[List[InitializationPhase]]:
     """检测循环依赖（DFS三色标记法）"""
     dependency_graph: Dict[InitializationPhase, List[InitializationPhase]] = {}
     for definition in PHASE_DEFINITIONS:
-        dependency_graph[definition.phase] = definition.dependencies.copy()
+        dependency_graph[definition.phase] = (definition.dependencies or []).copy()
 
     color: Dict[InitializationPhase, int] = {phase: 0 for phase in dependency_graph}
     parent: Dict[InitializationPhase, Optional[InitializationPhase]] = {phase: None for phase in dependency_graph}

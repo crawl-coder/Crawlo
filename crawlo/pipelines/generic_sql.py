@@ -272,8 +272,8 @@ class GenericSQLPipeline(ResourceManagedPipeline):
                 # 单条成功记录单 item 延迟（毫秒）
                 try:
                     self._latency_ringbuf.append(elapsed * 1000.0)
-                except Exception:
-                    pass
+                except Exception as e:
+                    self.logger.debug("Suppressed exception: %s", e)
                 self._record_success(item, rowcount, elapsed)
                 await self._after_insert(item, rowcount)
                 return item
@@ -344,8 +344,8 @@ class GenericSQLPipeline(ResourceManagedPipeline):
                 n_samples = min(batch_size, 50)
                 for _ in range(n_samples):
                     self._latency_ringbuf.append(per_item_ms)
-            except Exception:
-                pass
+            except Exception as e:
+                self.logger.debug("Suppressed exception: %s", e)
 
             self.crawler.stats.inc_value(f'{self._PREFIX.lower()}/batch_success')
             self.crawler.stats.inc_value(f'{self._PREFIX.lower()}/batch_items', batch_size)

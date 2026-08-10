@@ -114,9 +114,9 @@ def main(args):
         # 清理资源
         try:
             asyncio.run(shell.close())
-        except Exception:
-            pass
-    
+        except Exception as e:
+            logger().debug("Suppressed exception: %s", e)
+
     return 0
 
 

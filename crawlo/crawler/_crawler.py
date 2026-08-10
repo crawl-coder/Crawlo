@@ -319,8 +319,8 @@ class Crawler:
             try:
                 # 注意：此处为异步方法，同步代码无需 await
                 self._cleanup_engine_sync(reason)
-            except Exception:
-                pass
+            except Exception as e:
+                get_logger(__name__).debug("Suppressed exception: %s", e)
             self._spider = None
             self._engine = None
             self._stats = None
@@ -333,8 +333,8 @@ class Crawler:
             if rm is not None and hasattr(rm, 'clear'):
                 try:
                     rm.clear()
-                except Exception:
-                    pass
+                except Exception as e:
+                    get_logger(__name__).debug("Suppressed exception: %s", e)
             self._resource_manager = None  # type: ignore[assignment]
             self._settings = None
             # logger 最后再清，确保上面日志都可用
@@ -346,19 +346,19 @@ class Crawler:
             try:
                 if safe_log is not None:
                     safe_log.error(f"Cleanup error: {e}")
-            except Exception:
-                pass
+            except Exception as e:
+                get_logger(__name__).debug("Suppressed exception: %s", e)
             try:
                 self._close_logger_handlers()
-            except Exception:
-                pass
+            except Exception as e:
+                get_logger(__name__).debug("Suppressed exception: %s", e)
             # 即使异常也尽最大努力破环
             for attr in ('_spider', '_engine', '_stats', '_subscriber', '_extension',
                          '_metrics', '_resource_manager', '_settings', '_logger'):
                 try:
                     object.__setattr__(self, attr, None)
-                except Exception:
-                    pass
+                except Exception as e:
+                    get_logger(__name__).debug("Suppressed exception: %s", e)
 
     def _cleanup_engine_sync(self, reason: str) -> None:
         """同步版本 _cleanup_engine（破环专用，忽略失败）"""
@@ -404,10 +404,10 @@ class Crawler:
                     try:
                         handler.close()
                         self._logger.removeHandler(handler)
-                    except Exception:
-                        pass
-        except Exception:
-            pass
+                    except Exception as e:
+                        get_logger(__name__).debug("Suppressed exception: %s", e)
+        except Exception as e:
+            get_logger(__name__).debug("Suppressed exception: %s", e)
 
 
 __all__ = [

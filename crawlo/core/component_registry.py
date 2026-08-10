@@ -141,7 +141,7 @@ def _resolve_registry_context():
         from crawlo.core.application import RegistryContext
         if default_container.is_registered(RegistryContext):
             return default_container.resolve(RegistryContext)
-    except Exception:  # noqa: S110
+    except Exception:  # noqa: S110  # nosec B110
         pass
     from crawlo.core.application import get_global_context
     return get_global_context().registries
@@ -162,7 +162,7 @@ def get_component_registry() -> ComponentRegistry:
         from crawlo.core.application import default_container
         if default_container.is_registered(ComponentRegistry):
             return default_container.resolve(ComponentRegistry)
-    except Exception:  # pragma: no cover - 容器初始化异常不应破坏调用链
+    except Exception:  # pragma: no cover - 容器初始化异常不应破坏调用链  # nosec B110
         pass
 
     # Fallback：通过 RegistryContext 写位（ApplicationContext 顶层 property 会同步到子对象）
@@ -173,6 +173,6 @@ def get_component_registry() -> ComponentRegistry:
         try:
             from crawlo.core.application import default_container as _c
             _c.register_instance(ComponentRegistry, inst)
-        except Exception:  # pragma: no cover
+        except Exception:  # pragma: no cover  # nosec B110
             pass
     return rctx.component_registry

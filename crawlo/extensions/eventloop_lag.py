@@ -153,8 +153,8 @@ class EventloopLagProbe(BaseMonitorExtension):
                 lag_ms = max(0.0, loop_lag * 1000.0)
                 try:
                     self._lag_samples.append(lag_ms)
-                except Exception:
-                    pass
+                except Exception as e:
+                    self.logger.debug("Suppressed exception: %s", e)
             except asyncio.CancelledError:
                 break
             except Exception as e:

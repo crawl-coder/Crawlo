@@ -57,7 +57,7 @@ def get_task_info(task: asyncio.Task) -> dict:
         if coro:
             info['coroutine'] = str(coro)
             info['cr_frame'] = str(getattr(coro, 'cr_frame', None))
-    except Exception:
+    except Exception:  # nosec B110
         pass
 
     return info

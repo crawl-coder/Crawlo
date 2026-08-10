@@ -4,6 +4,10 @@
 from __future__ import annotations
 
 import asyncio
+from typing import Any, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from crawlo.cluster.coordinator import ClusterState
 
 
 try:
@@ -17,6 +21,13 @@ except ImportError:
 
 class ClusterMessagingMixin:
     """控制/配置消息处理与故障检测循环。"""
+
+    _cluster_state: 'ClusterState'
+    logger: Any
+    _logger: Any
+    scheduler: Any
+    running: bool
+    crawler: Any
 
     async def _on_control_message(self, message: dict):
         """处理控制消息（暂停/恢复/停止）"""
@@ -94,6 +105,5 @@ class ClusterMessagingMixin:
             if stats is None:
                 return
             stats.inc_value(key, count=count)
-        except Exception:
-            pass
-
+        except Exception as e:
+            self.logger.debug("Suppressed exception: %s", e)

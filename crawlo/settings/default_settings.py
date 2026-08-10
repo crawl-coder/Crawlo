@@ -372,7 +372,7 @@ PIPELINES = {
 
 REDIS_HOST = '127.0.0.1'                                # Redis 主机地址
 REDIS_PORT = 6379                                       # Redis 端口
-REDIS_PASSWORD = ''                                     # Redis 密码
+REDIS_PASSWORD = ''                                     # Redis 密码  # nosec B105
 REDIS_USER = ''                                         # Redis 用户名（Redis 6.0+ ACL）
 REDIS_DB = 0                                            # Redis 数据库编号
 REDIS_TTL = 0                                           # 指纹过期时间（0 = 永不过期）
@@ -387,7 +387,7 @@ FILTER_DEBUG = True                                     # 是否开启去重调�
 MYSQL_HOST = 'localhost'                                # MySQL 主机地址
 MYSQL_PORT = 3306                                       # MySQL 端口
 MYSQL_USER = 'root'                                     # MySQL 用户名
-MYSQL_PASSWORD = ''                                     # MySQL 密码
+MYSQL_PASSWORD = ''                                     # MySQL 密码  # nosec B105
 MYSQL_DB = 'crawlo_db'                                  # 数据库名
 MYSQL_TABLE = None                                # 表名（默认 {spider_name}_items）
 
@@ -440,7 +440,7 @@ SQLITE_EXECUTE_RETRY_DELAY = 0.5                 # 重试延迟
 PG_HOST = '127.0.0.1'                                   # PostgreSQL 主机地址
 PG_PORT = 5432                                          # PostgreSQL 端口
 PG_USER = 'postgres'                                    # PostgreSQL 用户名
-PG_PASSWORD = ''                                        # PostgreSQL 密码
+PG_PASSWORD = ''                                        # PostgreSQL 密码  # nosec B105
 PG_DB = 'crawlo'                                        # 数据库名
 PG_TABLE = None                                   # 表名（默认 {spider_name}_items）
 
@@ -463,7 +463,7 @@ PG_POOL_MAX = 10                                        # 最大连接数
 CLICKHOUSE_HOST = '127.0.0.1'                           # ClickHouse 地址
 CLICKHOUSE_PORT = 8123                                  # HTTP 端口
 CLICKHOUSE_USER = 'default'                             # 用户名
-CLICKHOUSE_PASSWORD = ''                                # 密码
+CLICKHOUSE_PASSWORD = ''                                # 密码  # nosec B105
 CLICKHOUSE_DB = 'crawlo'                                # 数据库名
 CLICKHOUSE_TABLE = None                           # 表名（默认 {spider_name}_items）
 
@@ -552,7 +552,7 @@ DB_DEDUP_TABLE = 'item_fingerprints'                    # 去重表名
 DB_HOST = 'localhost'                                   # 去重数据库地址
 DB_PORT = 3306                                          # 去重数据库端口
 DB_USER = 'root'                                        # 去重数据库用户
-DB_PASSWORD = ''                                        # 去重数据库密码
+DB_PASSWORD = ''                                        # 去重数据库密码  # nosec B105
 DB_NAME = 'crawlo'                                      # 去重数据库名
 
 
@@ -711,7 +711,7 @@ NOTIFICATION_CHANNELS = []                   # 启用的通知渠道列表
 # ---------------------------------------------------------------------------#
 
 DINGTALK_WEBHOOK = ""                                   # 钉钉机器人 Webhook 地址
-DINGTALK_SECRET = ""                                    # 钉钉机器人密钥（加签验证）
+DINGTALK_SECRET = ""                                    # 钉钉机器人密钥（加签验证）  # nosec B105
 DINGTALK_KEYWORDS = []                       # 钉钉机器人关键词列表
 DINGTALK_AT_MOBILES = []                     # 需要 @ 的手机号列表
 DINGTALK_AT_USERIDS = []                     # 需要 @ 的用户 ID 列表
@@ -722,7 +722,7 @@ DINGTALK_IS_AT_ALL = False                              # 是否 @ 所有人
 # ---------------------------------------------------------------------------#
 
 FEISHU_WEBHOOK = ""                                     # 飞书机器人 Webhook 地址
-FEISHU_SECRET = ""                                      # 飞书机器人密钥（验证）
+FEISHU_SECRET = ""                                      # 飞书机器人密钥（验证）  # nosec B105
 FEISHU_AT_USERS = []                         # 需要 @ 的用户 ID 列表
 FEISHU_AT_MOBILE = []                        # 需要 @ 的手机号列表
 FEISHU_IS_AT_ALL = False                                # 是否 @ 所有人
@@ -732,7 +732,7 @@ FEISHU_IS_AT_ALL = False                                # 是否 @ 所有人
 # ---------------------------------------------------------------------------#
 
 WECOM_WEBHOOK = ""                                      # 企业微信机器人 Webhook 地址
-WECOM_SECRET = ""                                       # 企业微信机器人密钥（验证）
+WECOM_SECRET = ""                                       # 企业微信机器人密钥（验证）  # nosec B105
 WECOM_AGENT_ID = ""                                     # 企业微信应用 AgentId
 WECOM_AT_USERS = []                          # 需要 @ 的用户 ID 列表
 WECOM_AT_MOBILE = []                         # 需要 @ 的手机号列表

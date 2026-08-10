@@ -95,8 +95,8 @@ class MemoryMonitorExtension(BaseMonitorExtension):
                         'memory_percent', round(process_percent, 2)
                     )
                     self.crawler.stats.set_value('thread_count', thread_count)
-                except Exception:
-                    pass
+                except Exception as e:
+                    self.logger.debug("Suppressed exception: %s", e)
 
                 if system_percent > 0 or process_percent > 0:
                     issues = self._detect_issues(process_percent, process_rss, is_increasing, trend_slope, thread_count)

@@ -273,8 +273,8 @@ class PipelineManager:
             for attr in ('crawler', '_crawler', 'spider', '_spider'):
                 try:
                     setattr(p, attr, None)
-                except Exception:
-                    pass
+                except Exception as e:
+                    self.logger.debug("Suppressed exception: %s", e)
             # 断开通向 ResourceManager / helper / pool 的显式引用（有则清）
             for attr in ('_resource_manager', '_helper', 'pool', '_pool',
                          '_redis_pool', 'redis', '_redis_client',
@@ -289,8 +289,8 @@ class PipelineManager:
                         val.clear()
                     # 断开引用
                     object.__setattr__(p, attr, None)
-                except Exception:
-                    pass
+                except Exception as e:
+                    self.logger.debug("Suppressed exception: %s", e)
         self.pipelines.clear()
         self.crawler = None  # type: ignore[assignment]
         # logger 最后清（如果此时还有后续 log 调用，不要报错）

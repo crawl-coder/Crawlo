@@ -264,7 +264,7 @@ def get_random_user_agent(device_type: str = "all") -> str:
         'Mozilla/5.0 (iPhone; CPU iPhone OS 18_3_1...'
     """
     user_agents = get_user_agents(device_type)
-    return random.choice(user_agents) if user_agents else ""
+    return random.choice(user_agents) if user_agents else ""  # nosec B311
 
 
 def parse_user_agent(ua_string: str) -> dict:

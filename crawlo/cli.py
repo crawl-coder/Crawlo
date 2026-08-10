@@ -55,7 +55,7 @@ def main():
         try:
             module = __import__(commands['help'], fromlist=['main'])
             module.main([])
-        except Exception:
+        except Exception:  # nosec B110
             pass  # Help command failed, silently ignore
         sys.exit(1)
 

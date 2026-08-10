@@ -102,9 +102,8 @@ class SpiderMeta(type):
         try:
             from crawlo.logging import get_logger
             get_logger(__name__).debug(f"自动注册爬虫: {spider_name} -> {cls.__name__}")
-        except Exception:
-            # 日志系统未就绪，静默失败不影响注册
-            pass
+        except Exception as e:
+            get_logger(__name__).debug("Suppressed exception: %s", e)
 
         return cls
 

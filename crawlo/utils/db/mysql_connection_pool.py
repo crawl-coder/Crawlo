@@ -188,8 +188,8 @@ class MySQLConnectionPoolManager:
                         try:
                             self.pool.close()
                             await self.pool.wait_closed()
-                        except Exception:
-                            pass
+                        except Exception as e:
+                            self.logger.debug("Suppressed exception: %s", e)
                         finally:
                             self.pool = None
                     self.pool = await self._create_pool()

@@ -167,7 +167,7 @@ class HBasePipeline(ResourceManagedPipeline):
         import json
 
         data = dict(item)
-        return hashlib.md5(
+        return hashlib.md5(  # nosec B324
             json.dumps(data, sort_keys=True, ensure_ascii=False).encode('utf-8')
         ).hexdigest().encode()
 

@@ -97,8 +97,8 @@ def read_crawlo_cfg(cfg_path: str) -> Optional[str]:
             module_path = config.get('settings', 'default').strip()
             if module_path:
                 return module_path
-    except Exception:
-        pass
+    except Exception as e:
+        get_logger(__name__).debug("Suppressed exception: %s", e)
     
     return None
 
@@ -204,8 +204,8 @@ def _find_project_root(start_path: str = ".") -> Optional[str]:
             result = _search_project_in_path(script_path, set())
             if result:
                 return result
-    except Exception:
-        pass
+    except Exception as e:
+        get_logger(__name__).debug("Suppressed exception: %s", e)
     
     # 最后尝试从当前工作目录查找
     try:
@@ -214,8 +214,8 @@ def _find_project_root(start_path: str = ".") -> Optional[str]:
             result = _search_project_in_path(cwd, set())
             if result:
                 return result
-    except Exception:
-        pass
+    except Exception as e:
+        get_logger(__name__).debug("Suppressed exception: %s", e)
     
     _logger.warning("Crawlo project root directory not found. Ensure you're running in a directory containing 'crawlo.cfg' or 'settings.py'.")
     return None

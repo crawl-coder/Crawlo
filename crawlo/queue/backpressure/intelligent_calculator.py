@@ -107,6 +107,7 @@ class IntelligentBackpressureCalculator:
         if current_time - self._cache_timestamp < self._cache_ttl:
             return self._cached_delay
         
+        assert self.metrics_collector is not None  # nosec B101
         metrics = self.metrics_collector.get_current_metrics()
         
         if not metrics:
@@ -206,6 +207,7 @@ class IntelligentBackpressureCalculator:
         Returns:
             float: Predictive compensation delay
         """
+        assert self.metrics_collector is not None  # nosec B101
         metrics = self.metrics_collector.get_current_metrics()
         
         if not metrics or metrics.queue_growth_rate <= 0:
@@ -249,7 +251,7 @@ class IntelligentBackpressureCalculator:
     
     def get_delay_history(self) -> list:
         """Get delay history"""
-        return self._delay_history.copy()
+        return list(self._delay_history)
     
     def reset_history(self) -> None:
         """Reset history"""

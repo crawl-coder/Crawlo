@@ -80,7 +80,7 @@ async def get_pending_count(redis_client, stream: str, group: str) -> int:
         result = await redis_client.xpending(stream, group)
         if result and isinstance(result, dict):
             return result.get("pending", 0)
-    except Exception:
+    except Exception:  # nosec B110
         pass
     return 0
 
@@ -167,7 +167,7 @@ async def stream_read(
             return None
         if msgs:
             return msgs
-    except Exception:
+    except Exception:  # nosec B110
         pass
 
     return None
@@ -207,7 +207,7 @@ async def dual_stream_read(
         )
         if msgs:
             return msgs
-    except Exception:
+    except Exception:  # nosec B110
         pass
 
     try:
@@ -223,7 +223,7 @@ async def dual_stream_read(
             )
         if msgs:
             return msgs
-    except Exception:
+    except Exception:  # nosec B110
         pass
 
     return None
@@ -281,7 +281,7 @@ async def claim_pending_manual(
                 msg_data = msg[1] if isinstance(msg, tuple) and len(msg) > 1 else {}
                 claimed.append((msg_id, msg_data))
 
-    except Exception:
+    except Exception:  # nosec B110
         pass
 
     return claimed

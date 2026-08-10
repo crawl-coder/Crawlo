@@ -19,7 +19,7 @@ from dataclasses import dataclass
 from typing import Any, Optional
 
 
-async def _ack_message(request, engine, success: bool, error: Exception = None):
+async def _ack_message(request, engine, success: bool, error: Optional[Exception] = None):
     """
     Distributed ACK helper.
 
@@ -57,7 +57,7 @@ async def _ack_message(request, engine, success: bool, error: Exception = None):
         if hasattr(engine.crawler, 'stats') and engine.crawler.stats is not None:
             try:
                 engine.crawler.stats.inc_value('scheduler/ack_failure_count')
-            except Exception:
+            except Exception:  # nosec B110
                 pass
 
 

@@ -58,8 +58,8 @@ class MySQLPipeline(GenericSQLPipeline):
                 if pool:
                     pool.close()
                     await pool.wait_closed()
-            except Exception:
-                pass
+            except Exception as e:
+                self.logger.debug("Suppressed exception: %s", e)
             return
         try:
             await MySQLConnectionPoolManager.release_pool(**cfg)

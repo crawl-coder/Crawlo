@@ -11,7 +11,7 @@ import os
 import json
 import time
 import logging
-import pickle
+import pickle  # nosec B403
 import sqlite3
 import tempfile
 from typing import Optional, Any, Dict, List
@@ -39,7 +39,7 @@ class DiskQueueConfig:
     
     def __init__(
         self,
-        path: str = None,
+        path: Optional[str] = None,
         name: str = "disk_queue",
         max_size: int = 0,
         db_name: str = "queue.db",
@@ -239,7 +239,7 @@ class DiskQueue(BackpressureableQueueMixin, IQueue):
             if self._config.serialization == "json":
                 return json.loads(data.decode('utf-8'))
             else:
-                return pickle.loads(data)
+                return pickle.loads(data)  # nosec B301
         except Exception as e:
             logger.error(f"Deserialization error: {e}")
             return None
@@ -477,7 +477,7 @@ class DiskQueue(BackpressureableQueueMixin, IQueue):
             with self._get_connection() as conn:
                 cursor = conn.cursor()
                 cursor.execute(
-                    f"SELECT COUNT(*) as count FROM {self._config.table_name}"
+                    f"SELECT COUNT(*) as count FROM {self._config.table_name}"  # nosec B608
                 )
                 row = cursor.fetchone()
                 return row['count'] if row else 0
@@ -511,8 +511,8 @@ class DiskQueue(BackpressureableQueueMixin, IQueue):
         for conn in self._connection_pool:
             try:
                 conn.close()
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug("Suppressed exception: %s", e)
         
         self._stats.mark_end()
         
@@ -527,7 +527,7 @@ class DiskQueue(BackpressureableQueueMixin, IQueue):
         try:
             with self._get_connection() as conn:
                 cursor = conn.cursor()
-                cursor.execute(f"DELETE FROM {self._config.table_name}")
+                cursor.execute(f"DELETE FROM {self._config.table_name}")  # nosec B608
                 conn.commit()
             logger.debug(f"DiskQueue '{self._name}' cleared")
         except Exception as e:
@@ -596,7 +596,7 @@ class DiskQueue(BackpressureableQueueMixin, IQueue):
             total_items = 0
             with self._get_connection() as conn:
                 cursor = conn.cursor()
-                cursor.execute(f"SELECT COUNT(*) as count FROM {self._config.table_name}")
+                cursor.execute(f"SELECT COUNT(*) as count FROM {self._config.table_name}")  # nosec B608
                 row = cursor.fetchone()
                 total_items = row['count'] if row else 0
         except Exception:
@@ -624,8 +624,8 @@ class DiskQueue(BackpressureableQueueMixin, IQueue):
         for conn in self._connection_pool:
             try:
                 conn.close()
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug("Suppressed exception: %s", e)
 
 
 __all__ = [

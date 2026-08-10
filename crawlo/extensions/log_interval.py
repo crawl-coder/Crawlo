@@ -405,8 +405,8 @@ class LogIntervalExtension:
             if isinstance(p99, (int, float)):
                 try:
                     self.stats.set_value('downloader/p99_response_ms', float(p99))
-                except Exception:
-                    pass
+                except Exception as e:
+                    self.logger.debug("Suppressed exception: %s", e)
         # pipeline p99（取所有 pipeline 的最大值）
         # 注意：Processor 有 __len__，必须用 is None 判断
         proc = getattr(engine, 'processor', None)
@@ -428,5 +428,5 @@ class LogIntervalExtension:
                     max_p99 = float(v)
             if max_p99 > 0:
                 self.stats.set_value('pipeline/item/p99_latency_ms', max_p99)
-        except Exception:
-            pass
+        except Exception as e:
+            self.logger.debug("Suppressed exception: %s", e)

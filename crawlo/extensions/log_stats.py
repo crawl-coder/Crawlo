@@ -39,17 +39,15 @@ class LogStats:
     async def item_successful(self, _item: Any, _spider: Any) -> None:
         try:
             self._stats.inc_value('item_successful_count')
-        except Exception:
-            # Silently handle to avoid affecting crawler
-            pass
+        except Exception as e:
+            self.logger.debug("Suppressed exception: %s", e)
 
     async def item_discard(self, _item: Any, exc: Any, _spider: Any) -> None:
         try:
             # Only increment total discard count, don't record details for each discarded item
             self._stats.inc_value('item_discard_count')
-        except Exception:
-            # Silently handle to avoid affecting crawler
-            pass
+        except Exception as e:
+            self.logger.debug("Suppressed exception: %s", e)
 
     async def response_received(self, _response: Any, _spider: Any) -> None:
         # Remove duplicate counting: response_received_count already counted in middleware_manager.py
@@ -61,6 +59,5 @@ class LogStats:
             # Check if it's a retry request, if so don't count it
             if not _request.meta.get('is_retry', False):
                 self._stats.inc_value('request_scheduler_count')
-        except Exception:
-            # Silently handle to avoid affecting crawler
-            pass
+        except Exception as e:
+            self.logger.debug("Suppressed exception: %s", e)

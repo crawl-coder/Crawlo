@@ -75,13 +75,11 @@ jobs:
       - name: Ruff (pyflakes real-bug rules)
         run: ruff check crawlo --select F --ignore F821
       - name: Bandit security scan
-        # skip 清单理由：
-        #   B110 清理路径的 except-pass（P2-3 跟踪）；B101 内部断言
-        #   B105/B403/B301/B608 默认配置/有意 pickle/参数化 SQL
-        #   B311 UA 随机化（非安全用途）；B324 MD5 用于指纹/去重/文件哈希（非加密用途，且需兼容 py3.8）
-        #   B404/B603/B607 crawlo CLI 有意使用 subprocess 执行用户命令
-        run: bandit -r crawlo -s B110,B112,B101,B105,B107,B301,B311,B403,B608,B324,B404,B603,B607
+        # skip 清单（已从 13 类缩减到 2 类）：
+        #   B608 参数化 SQL f-string（6 处，字符串行无法加 nosec，表/列名来自配置无注入面）
+        #   B105 默认密码/密钥字面量（1 处 Lua 脚本字符串误报）
+        # B110（188 处 except-pass）已全部转为 debug 日志，不再需要 skip。
+        run: bandit -r crawlo -s B608,B105
       - name: Mypy incremental (core modules)
-        # 增量阶段：先跑出基线（当前 ~177 errors），随代码收口逐文件转强制（去掉 continue-on-error）
-        continue-on-error: true
+        # 已清零（crawlo/core + queue + cluster 0 errors），转强制守护
         run: mypy crawlo/core crawlo/queue crawlo/cluster --ignore-missing-imports --follow-imports=skip --no-error-summary

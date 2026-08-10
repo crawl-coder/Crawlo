@@ -187,7 +187,7 @@ class FileMiddleware(BaseMiddleware):
         
         # 使用 URL hash 作为文件名
         import hashlib
-        url_hash = hashlib.md5(request.url.encode()).hexdigest()[:8]
+        url_hash = hashlib.md5(request.url.encode()).hexdigest()[:8]  # nosec B324
         
         # 尝试从 Content-Type 推测扩展名
         content_type = response.headers.get('Content-Type', b'').decode('utf-8')

@@ -120,7 +120,7 @@ class Processor:
         
         self.logger.debug("Processor initialized")
     
-    async def start(self) -> asyncio.Task:
+    async def start(self) -> Optional[asyncio.Task]:
         """
         启动处理器（后台运行）
         

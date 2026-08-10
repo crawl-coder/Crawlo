@@ -52,6 +52,5 @@ class CustomLoggerExtension:
                 f"LOG_FILE={safe_get_path(self.settings, 'LOG_FILE')}, "
                 f"LOG_LEVEL={self.settings.get('LOG_LEVEL')}"
             )
-        except Exception:
-            # Even if logging initialization info cannot be printed, should not affect program execution
-            pass
+        except Exception as e:
+            _logger.debug("Suppressed exception: %s", e)

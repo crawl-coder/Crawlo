@@ -169,8 +169,8 @@ def get_framework(settings=None, **kwargs) -> CrawloFramework:
         from crawlo.core.application import default_container
         if default_container.is_registered(CrawloFramework):
             return default_container.resolve(CrawloFramework)
-    except Exception:  # pragma: no cover
-        pass
+    except Exception as e:
+        get_logger(__name__).debug("Suppressed exception: %s", e)
     reg_ctx = _resolve_registry_context()
     if reg_ctx.framework is None:
         with _framework_lock:
@@ -180,8 +180,8 @@ def get_framework(settings=None, **kwargs) -> CrawloFramework:
                 try:
                     from crawlo.core.application import default_container as _c
                     _c.register_instance(CrawloFramework, inst)
-                except Exception:  # pragma: no cover
-                    pass
+                except Exception as e:
+                    get_logger(__name__).debug("Suppressed exception: %s", e)
     return reg_ctx.framework
 
 
@@ -192,8 +192,8 @@ def _resolve_registry_context():
         from crawlo.core.application import RegistryContext
         if default_container.is_registered(RegistryContext):
             return default_container.resolve(RegistryContext)
-    except Exception:  # noqa: S110
-        pass
+    except Exception as e:
+        get_logger(__name__).debug("Suppressed exception: %s", e)
     from crawlo.core.application import get_global_context
     return get_global_context().registries
 
@@ -205,13 +205,13 @@ def reset_framework():
     try:
         from crawlo.core.application import default_container
         default_container._registrations.pop(CrawloFramework, None)
-    except Exception:  # pragma: no cover
-        pass
+    except Exception as e:
+        get_logger(__name__).debug("Suppressed exception: %s", e)
     try:
         from crawlo.core.application import CoreInitializer
         CoreInitializer().reset()
-    except Exception:  # pragma: no cover
-        pass
+    except Exception as e:
+        get_logger(__name__).debug("Suppressed exception: %s", e)
 
 
 # ------------------------------------------------------------------

@@ -48,7 +48,7 @@ def _patch_proactor_pipe_transport():
                 pass
 
         _cls.__del__ = _patched_del
-    except Exception:
+    except Exception:  # nosec B110
         pass
 
 
@@ -66,7 +66,7 @@ def _patch_base_subprocess_transport():
                 pass
 
         _cls.__del__ = _patched_del
-    except Exception:
+    except Exception:  # nosec B110
         pass
 
 

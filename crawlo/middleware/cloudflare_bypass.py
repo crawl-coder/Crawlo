@@ -379,8 +379,8 @@ class CloudflareBypassMiddleware:
             if existing_cookies != request.cookies:
                 request.cookies = existing_cookies
                 self.logger.debug(f"Injected CF cookies for {domain}")
-        except Exception:
-            pass
+        except Exception as e:
+            self.logger.debug("Suppressed exception: %s", e)
 
     # ── Private: Domain Cache ──
 
@@ -398,5 +398,5 @@ class CloudflareBypassMiddleware:
             domain = urlparse(url).netloc.lower()
             self._cloudflare_domains.add(domain)
             self.logger.debug(f"Marked {domain} as Cloudflare-protected domain")
-        except Exception:
-            pass
+        except Exception as e:
+            self.logger.debug("Suppressed exception: %s", e)
