@@ -141,6 +141,19 @@
 | `unregister_downloader(name)` | frozen | 注销 API |
 | `get_downloader_class(name)` / `DOWNLOADER_MAP` | frozen | 名称→类解析 |
 
+### 5.2 插件注册表（`crawlo.plugin`，P1-B1）
+
+| 符号 | 状态 | 说明 |
+|---|---|---|
+| `register_middleware(name, cls)` / `unregister_middleware(name)` | frozen | 中间件注册 API（`crawlo.middleware` 同步导出） |
+| `register_pipeline(name, cls)` / `unregister_pipeline(name)` | frozen | 管道注册 API（`crawlo.pipelines` 同步导出） |
+| `register_extension(name, cls)` / `unregister_extension(name)` | frozen | 扩展注册 API（`crawlo.extensions` 同步导出） |
+| `resolve_plugin(name)` / `get_registered_names()` | frozen | 注册表查询 |
+| `PREFIX_MIDDLEWARE` / `PREFIX_PIPELINE` / `PREFIX_EXTENSION` | frozen | 类型前缀常量 |
+
+双通道：注册表短名称 + 完整字符串路径（`load_object` 统一解析，路径优先）。
+插件开发见 `docs/guides/plugin-development.md`，示例见 `examples/plugin_hello_world/`。
+
 ### 5.2 内置下载器
 
 | 符号 | 状态 | 依赖 |

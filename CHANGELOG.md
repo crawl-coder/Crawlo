@@ -17,6 +17,9 @@
   新增 import-path 兼容矩阵测试（97 个模块路径 + 34 组顶层符号 + shim 迁移等价）
 - 发布纪律：新增 `crawlo release --dry-run` 发布就绪检查（semver + CHANGELOG +
   发布说明 + git tag）+ CHANGELOG.md + CI release-check 门禁
+- 插件机制（P1）：`crawlo.plugin` 统一注册表——`register_middleware` /
+  `register_pipeline` / `register_extension` + 双通道配置（短名称 / 字符串路径）；
+  官方示例 `examples/plugin_hello_world/` + 开发指南
 - 修复 redis-py 5.x 废弃 `close()` → `aclose()` 迁移（stream/priority/filter/pool/cluster/pipeline）
 
 ### 修复

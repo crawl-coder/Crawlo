@@ -109,6 +109,7 @@ nav:
     - Request & Response: guides/request-response-usage.md
     - 扩展系统: guides/extension-guide.md
     - MCP 集成: guides/mcp-guide.md
+    - 插件开发: guides/plugin-development.md
     - 通知系统: guides/notification-guide.md
     - 中间件参考: concepts/middleware-reference.md
     - 代理配置: guides/proxy-guide.md
