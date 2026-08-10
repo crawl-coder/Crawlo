@@ -22,6 +22,8 @@
   官方示例 `examples/plugin_hello_world/` + 开发指南
 - 生产示例（P2）：`examples/real_world_catalog/` 整站抓取 cookbook
   （分页→详情→去重→JSONL/MySQL 存储→监控→分布式）+ 教程 + CI 冒烟测试
+- 默认配置友好（P3）：`examples/simple_quickstart/`（23 行 spider +
+  12 行管道，与全部示例同网站 ee.ofweek.com）+ `when-to-use.md` 场景决策树
 
 ### 修复
 

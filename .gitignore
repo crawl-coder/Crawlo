@@ -21,6 +21,9 @@ dev/
 
 # Runtime logs
 examples/ofweek_distributed/logs/
+examples/*/logs/
+examples/*/output/
+examples/*/adaptive_fingerprints.db
 
 # Distribution / packaging
 .Python
@@ -199,4 +202,3 @@ local_config.py
 *.db
 .data
 .data/
-
