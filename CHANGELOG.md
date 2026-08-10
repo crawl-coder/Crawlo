@@ -36,6 +36,8 @@
   （故障注入）、`docs/deployment/redis-ha.md`（部署与演练指南）
 - 可观测性改进：`queue/pending_count` 暴露为 Prometheus 指标
   （`crawlo_queue_pending_count` Gauge），消费积压不再因闲置而消失
+- 分布式投递语义文档化：新增 at-least-once 章节
+  （重复投递场景 + 幂等保障建议）
 
 ### 修复
 

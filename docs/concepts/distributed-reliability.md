@@ -156,6 +156,66 @@ FailoverManager.check_and_recover()
 
 ---
 
+## 投递语义：at-least-once（至少一次）
+
+### 语义定义
+
+Crawlo 分布式队列的投递语义为 **at-least-once（至少一次）**：
+
+- 每条消息**至少被处理一次**（可能被处理多次）；
+- 不会丢消息（Worker 崩溃后由 XCLAIM 回收重投）；
+- 但**不保证恰好一次**——重复处理是可能发生的，需由业务侧幂等兜底。
+
+> 这与多数消息队列（Kafka / Redis Stream / RabbitMQ 默认）一致。
+> 恰好一次（exactly-once）需要分布式事务或幂等写入配合，框架层不提供。
+
+### 重复投递的场景
+
+| 场景 | 发生原因 | 结果 |
+|---|---|---|
+| **ACK 前崩溃** | Worker 处理完但未执行 ACK 就退出 | XCLAIM 回收 → 任务被重投 → 重复处理 |
+| **网络分区** | Worker 与 Redis 短暂断开，任务被判定 stale | 其他 Worker XAUTOCLAIM 领取 → 原 Worker 恢复后可能仍在处理 |
+| **重试** | NACK(RETRY) 重新入队 | 同一 URL 被处理多次（retry_count 递增） |
+| **孤儿回收竞态** | 启动时回收与运行中回收并发 | 依赖 XAUTOCLAIM 原子性，同一任务只被一个 Worker claim，但处理后仍可能重复 |
+
+### 幂等保障建议
+
+业务侧按以下优先级组合使用：
+
+1. **框架去重管道**（推荐）：
+
+```python
+PIPELINES = {
+    'crawlo.pipelines.RedisDedupPipeline': 1,   # 基于 URL/指纹去重
+    'my_project.pipelines.MyPipeline': 300,
+}
+```
+
+2. **数据库唯一键约束**（强兜底）：
+
+```python
+# MySQL 管道配合唯一键
+MYSQL_UPDATE_COLUMNS = ('url',)      # 或业务唯一键
+MYSQL_INSERT_IGNORE = True
+```
+
+3. **自定义管道幂等写入**（最可靠）：
+
+```python
+class IdempotentPipeline(BasePipeline):
+    async def process_item(self, item, spider):
+        # 以业务唯一键（如 url + sku）做 upsert，而非盲目 insert
+        await self._upsert_by_key(dict(item))
+        return item
+```
+
+### 判断要点
+
+- 只读抓取 + 覆盖式存储 → 天然幂等，无需额外处理；
+- 追加式存储（日志/计数）→ 必须用唯一键或去重管道；
+- 强一致场景（支付/订单）→ 爬虫不适用，需业务侧幂等 + 对账。
+
+---
 
 ## 附录 D：网络分区与脑裂处理
 
@@ -201,4 +261,3 @@ Worker B 网络恢复后：
 | Redis 自身分区 | 全集群暂停 | Sentinel 自动故障转移 |
 
 ---
-
