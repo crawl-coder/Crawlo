@@ -134,7 +134,7 @@ def test_bind_to_container_errors_do_not_break_ctx():
     通过 monkeypatch default_container.register_instance 抛异常验证。
     """
     from crawlo.core.application import ApplicationContext, RegistryContext
-    from crawlo import container as container_mod
+    from crawlo.core import application as container_mod
 
     real = container_mod.default_container
     old_register = real.register_instance

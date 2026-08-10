@@ -50,6 +50,16 @@ class CoreInitializer(metaclass=SingletonMeta):
             if self._is_ready and self._context and self._context.settings:
                 return self._context.settings
 
+            # 防御：全局注册表可能被测试替换为空实例（InitializerRegistry()），
+            # 此时确保内置 initializer 已注册，否则阶段执行静默跳过 → 返回空 settings。
+            from crawlo.core.initialization.registry import get_global_registry
+            from crawlo.core.initialization.phases import InitializationPhase
+            if not get_global_registry().has_initializer(InitializationPhase.SETTINGS):
+                from crawlo.core.initialization.built_in import (
+                    register_built_in_initializers,
+                )
+                register_built_in_initializers()
+
             context = InitializationContext()
             context.custom_settings = kwargs
             context.settings = settings

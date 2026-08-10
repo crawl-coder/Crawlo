@@ -464,6 +464,14 @@ def reset_global_context() -> None:
     with _context_lock:
         ctx = ApplicationContext()
         _global_context = ctx
+    # 同时重置初始化器单例，避免 settings 缓存跨测试/跨项目泄漏
+    # （否则 reset 后 CrawlerProcess() 会拿到上一个项目的 SPIDER_MODULES 等配置）。
+    try:
+        from crawlo.core.initialization.core import CoreInitializer
+        CoreInitializer().reset()
+    except Exception as exc:
+        # 初始化器尚未就绪时无需重置
+        get_logger(__name__).debug("CoreInitializer reset skipped: %s", exc)
     # 锁外触发回调，避免回调中再次获取锁导致死锁
     _notify_context_ready(ctx)
 
@@ -761,4 +769,3 @@ def _safe_type_hints(func: Callable[..., Any]) -> Dict[str, Any]:
         return dict(getattr(func, "__annotations__", {}) or {})
     except Exception:
         return {}
-

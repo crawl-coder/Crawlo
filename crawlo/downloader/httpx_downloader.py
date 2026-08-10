@@ -142,9 +142,22 @@ class HttpXDownloader(DownloaderBase):
                 "method": request.method,
                 "url": request.url,
                 "headers": request.headers,
-                "cookies": request.cookies,
                 "follow_redirects": request.allow_redirects,
             }
+
+            # httpx 0.28+ 废弃 per-request cookies kwarg（DeprecationWarning）。
+            # 把 request 级 cookies 合并进 Cookie header，行为等价且无警告。
+            if request.cookies:
+                cookie_header = "; ".join(
+                    f"{k}={v}" for k, v in request.cookies.items()
+                )
+                existing = request.headers.get("Cookie")
+                if existing:
+                    cookie_header = f"{existing}; {cookie_header}"
+                kwargs["headers"] = {
+                    **(request.headers or {}),
+                    "Cookie": cookie_header,
+                }
 
             # Per-request auth: HTTP Basic Auth / Bearer token
             if request.auth:

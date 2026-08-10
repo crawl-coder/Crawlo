@@ -29,6 +29,10 @@ class TestResponseAdaptiveCacheCleanup:
         Response._cleanup_registered = False
         Response._adaptive_initialized = False
         Response._adaptive_enabled_global = None
+        # 完整重置：config_key / storage 不重置会在全量序下命中早退路径，
+        # 导致 _cleanup_registered 不会被设置（测试隔离缺陷）。
+        Response._adaptive_config_key = None
+        Response._adaptive_storage = None
         
         # 触发初始化
         Response._adaptive_initialized = False
