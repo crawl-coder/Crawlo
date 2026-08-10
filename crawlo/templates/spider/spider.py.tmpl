@@ -53,8 +53,7 @@ class {{class_name}}(Spider):
 
         # ==============================
 
-        yield {
-            'title': response.xpath('//title/text()').get(default=''),
-            'url': response.url,
-            'status': response.status,
-        }
+        yield {{item_class}}(
+            title=response.xpath('//title/text()').get(default=''),
+            url=response.url,
+        )

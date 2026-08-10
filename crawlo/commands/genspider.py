@@ -116,7 +116,9 @@ def main(args):
         # 获取模块中所有大写开头的类
         item_classes = [
             cls for cls in items_module.__dict__.values()
-            if isinstance(cls, type) and cls.__name__[0].isupper()  # 首字母大写
+            if isinstance(cls, type)
+            and cls.__name__[0].isupper()  # 首字母大写
+            and cls.__module__ == items_module.__name__  # 仅本项目定义的类
         ]
 
         if item_classes:
