@@ -401,7 +401,7 @@ MCP 工具（`crawlo-mcp` 暴露，frozen）：
 | `crawlo help` / `-h` / `--help` / `-v` / `--version` | `crawlo.cli` | frozen | 帮助与版本 |
 | `crawlo-mcp` | `crawlo.mcp.server` | frozen | MCP Server（--host / --port / --transport） |
 
-CLI 模块内部公共函数：`get_commands()`（frozen，命令注册表，插件可读取）。
+`crawlo.commands` 模块（frozen，命令注册表）：`get_commands()`（插件可读取）。
 
 ## 19. 废弃兼容路径（deprecated shims）
 
