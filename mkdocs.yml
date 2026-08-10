@@ -150,6 +150,7 @@ nav:
     - API 面（冻结清单）: reference/api-surface.md
     - Deprecation 周期: reference/DEPRECATION.md
   - 📦 发布记录:
+    - v1.7.4: releases/v1.7.4.md
     - v1.7.3: releases/v1.7.3.md
   - 💡 实战案例:
     - 概览: examples/index.md

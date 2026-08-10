@@ -5,7 +5,7 @@
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)：
 每个版本必须包含 `## [x.y.z] - YYYY-MM-DD` 条目；未发布的变更放在 `## [Unreleased]`。
 
-## [Unreleased]
+## [1.7.4] - 2026-08-10
 
 ### Breaking Changes
 
@@ -34,6 +34,8 @@
 - 稳定性与生产验证（P4）：`scripts/stress_run.py`（长跑压测 + 泄漏斜率）、
   `scripts/redis_ha/`（Sentinel 故障切换演练）、`scripts/failure_inject.py`
   （故障注入）、`docs/deployment/redis-ha.md`（部署与演练指南）
+- 可观测性改进：`queue/pending_count` 暴露为 Prometheus 指标
+  （`crawlo_queue_pending_count` Gauge），消费积压不再因闲置而消失
 
 ### 修复
 
@@ -45,13 +47,12 @@
   （如测试替换为空实例）时自动注册内置 initializer，避免阶段执行静默跳过
   导致返回空 settings
 - 修复 redis-py 5.x 废弃 `close()` → `aclose()` 迁移（stream/priority/filter/pool/cluster/pipeline）
-
-### 修复
-
 - `BackpressureableQueueMixin.__init__` 正确初始化 `_stats/_name/_max_size`
   （修复 DiskQueue 实例化报错）
 - 调度日志：`Filtered duplicate request` 降为 debug，关闭时打印汇总条数
 - Redis Stream 死信升级时不再丢失已投递消息；补回 `_SEED_LOCK_LUA`
+- `genspider` 模板修复：item_class 解析过滤导入类、parse 改为 yield Item 对象
+  （生成的爬虫可直接运行）
 
 ## [1.7.3] - 2026-08-09
 

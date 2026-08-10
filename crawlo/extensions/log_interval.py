@@ -290,10 +290,14 @@ class LogIntervalExtension:
                 response_rate = last_response_count - self.response_count
 
                 queue_size = await self._get_queue_size()
+                # 分布式 Stream pending（已读未 ACK）——必须在"闲置跳过"之前获取，
+                # 否则 pending > 0（有 Worker 崩溃/消息积压）时指标会因闲置而消失。
+                pending_count = await self._get_pending_count()
                 # 写入 StatsCollector，供 Prometheus 等后端暴露
                 try:
                     self.stats.set_value('queue_size', queue_size)
                     self.stats.set_value('queue/backlog', queue_size)
+                    self.stats.set_value('queue/pending_count', pending_count)
                     self._write_p99_metrics()
                 except Exception as _e:
                     self.logger.debug(f"write D-direction gauges skipped: {_e}")
@@ -319,12 +323,11 @@ class LogIntervalExtension:
                         self._backlog_alert_sent = False  # 积压缓解后重置
 
                 # 智能检测：爬虫闲置时静默跳过
-                if item_rate == 0 and response_rate == 0 and queue_size == 0:
+                if item_rate == 0 and response_rate == 0 and queue_size == 0 and pending_count == 0:
                     await asyncio.sleep(self.seconds)
                     continue
 
                 bp_active, bp_delay, bp_util, bp_score, bp_level = await self._get_backpressure_info()
-                pending_count = await self._get_pending_count()
                 self.item_count, self.response_count = last_item_count, last_response_count
 
                 self._log_interval_stats(last_item_count, last_response_count,
