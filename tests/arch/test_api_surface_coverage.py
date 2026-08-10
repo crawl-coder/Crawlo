@@ -154,7 +154,7 @@ def test_api_surface_coverage():
 
     assert not failures, (
         "api-surface.md 覆盖率不足。新增/变更公共 API 时必须同步更新 "
-        f"docs/reference/api-surface.md。\n" + "\n".join(failures)
+        "docs/reference/api-surface.md。\n" + "\n".join(failures)
     )
     assert public_total > 0, "未收集到任何公共符号，审计失败"
 

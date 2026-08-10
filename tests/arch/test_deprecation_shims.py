@@ -12,7 +12,6 @@ Deprecation shim 契约测试（P0-A2）
 3. 顶层推荐路径（crawlo.* / crawlo.crawler / crawlo.core.application）不受影响。
 """
 
-import importlib
 import subprocess
 import sys
 import textwrap
