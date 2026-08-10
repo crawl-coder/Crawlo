@@ -8,8 +8,8 @@ ofweek_standalone 项目钉钉通知使用示例
 """
 
 import asyncio
-# 修正：从 crawlo.bot 统一导入
-from crawlo.bot import (
+# 从 crawlo.extensions.notifications 统一导入（crawlo.bot 已于 1.7.4 移除）
+from crawlo.extensions.notifications import (
     send_crawler_status, 
     send_crawler_alert, 
     send_crawler_progress,

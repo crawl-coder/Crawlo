@@ -7,6 +7,13 @@
 
 ## [Unreleased]
 
+### Breaking Changes
+
+- 移除 `crawlo.bot` 兼容存根包（含 channels/core/monitoring/templates/utils
+  子包）：旧路径 `from crawlo.bot import ...` 将抛 ModuleNotFoundError，
+  请迁移到 `crawlo.extensions.notifications.*`。属刻意提前的 breaking change
+  （原计划 v2.0 移除）。
+
 ### 工程化（P0 稳定化路线图）
 
 - API 面冻结：新增 `docs/reference/api-surface.md`（454 个公共符号 100% 覆盖审计）

@@ -52,12 +52,6 @@ INTERNAL_MODULES = {
 # 已废弃兼容 shim：模块内容与新版模块完全一致（sys.modules 重定向），
 # 覆盖情况以新模块为准，无需单独维护文档。
 DEPRECATED_SHIM_MODULES = {
-    "crawlo.bot",
-    "crawlo.bot.channels",
-    "crawlo.bot.core",
-    "crawlo.bot.monitoring",
-    "crawlo.bot.templates",
-    "crawlo.bot.utils",
     "crawlo.crawler_process",
     "crawlo.framework",
     "crawlo.container",
@@ -172,7 +166,7 @@ def test_documented_symbols_exist():
     for path in sorted(paths):
         try:
             with warnings.catch_warnings():
-                # 废弃 shim 路径（crawlo.bot/container/crawler_process/framework）
+                # 废弃 shim 路径（container/crawler_process/framework）
                 # 本身会发 DeprecationWarning，这里是路径存在性校验，属预期。
                 warnings.simplefilter("ignore", DeprecationWarning)
                 importlib.import_module(path)

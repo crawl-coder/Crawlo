@@ -12,7 +12,6 @@
 
 | 旧路径/符号 | 新路径/符号 | 宣布版本 | 计划移除版本 | 现状 |
 |---|---|---|---|---|
-| `crawlo.bot`（含 channels/core/monitoring/templates/utils 子包） | `crawlo.extensions.notifications.*` | 1.7.x | ≥ 2.0 | sys.modules 重定向 + DeprecationWarning |
 | `crawlo.crawler_process` | `crawlo.crawler.CrawlerProcess` | 1.7.x | ≥ 2.0 | sys.modules 重定向 |
 | `crawlo.framework` | `crawlo.crawler.CrawloFramework` | 1.7.x | ≥ 2.0 | sys.modules 重定向 |
 | `crawlo.container` | `crawlo.core.application.ApplicationContext` | 1.7.x | ≥ 2.0 | sys.modules 重定向 |
@@ -20,7 +19,9 @@
 
 ### 2026-08-10 修复：bot shim 子模块身份一致性
 
-发现并修复旧路径子模块导入产生重复类对象的问题：
+> **2026-08-10 后续**：`crawlo.bot` 已在 1.7.4 提前移除（项目决策），本节历史留档。
+
+当时发现并修复旧路径子模块导入产生重复类对象的问题：
 
 - **问题**：`from crawlo.bot.utils.deduplicator import MessageDeduplicator` 与
   `from crawlo.extensions.notifications.utils.deduplicator import MessageDeduplicator`
@@ -35,7 +36,7 @@
 
 | 符号 | 移除版本 | 替代方案 | 备注 |
 |---|---|---|---|
-| （暂无） | — | — | 1.0 之前不新增移除项 |
+| `crawlo.bot`（含 channels/core/monitoring/templates/utils 子包） | **1.7.4（提前）** | `crawlo.extensions.notifications.*` | 项目决策：不再等待 v2.0，直接移除。属刻意 breaking change，所有旧路径导入将抛 ModuleNotFoundError |
 
 ## 评审待办（1.0 前）
 

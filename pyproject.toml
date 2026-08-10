@@ -81,7 +81,7 @@ layers = [
     "crawlo.crawler_process | crawlo.crawler | crawlo.framework",
     "crawlo.core",
     "crawlo.downloader | crawlo.middleware | crawlo.pipelines | crawlo.spider | crawlo.extensions | crawlo.checkpoint",
-    "crawlo.queue | crawlo.network | crawlo.filters | crawlo.items | crawlo.backpressure | crawlo.cluster | crawlo.bot | crawlo.stats | crawlo.helpers",
+    "crawlo.queue | crawlo.network | crawlo.filters | crawlo.items | crawlo.backpressure | crawlo.cluster | crawlo.stats | crawlo.helpers",
     "crawlo.settings | crawlo.utils | crawlo.logging",
 ]
 # Phase 0 白名单：当前所有违规导入（含同层互相导入 + 反向依赖）。
@@ -102,18 +102,6 @@ ignore_imports = [
     # Phase 9.5: middleware 延迟使用 core 异常与 crawlo.config（应用编排层的合法共享）。
     # 这些延迟导入仅在 ``MiddlewareManager`` 初始化时触发，不影响架构分层。
     "crawlo.middleware.middleware_manager -> crawlo.core.exceptions",
-    "crawlo.bot.channels.dingtalk -> crawlo.core.application",
-    "crawlo.bot.channels.email -> crawlo.core.application",
-    "crawlo.bot.channels.feishu -> crawlo.core.application",
-    "crawlo.bot.channels.sms -> crawlo.core.application",
-    "crawlo.bot.channels.wecom -> crawlo.core.application",
-    "crawlo.bot.core.handlers -> crawlo.core.application",
-    "crawlo.bot.core.notifier -> crawlo.core.application",
-    "crawlo.bot.monitoring.templates -> crawlo.core.application",
-    "crawlo.bot.templates.manager -> crawlo.core.application",
-    "crawlo.bot.utils.config_loader -> crawlo.core.application",
-    "crawlo.bot.utils.config_loader -> crawlo.project",
-    "crawlo.bot.utils.deduplicator -> crawlo.core.application",
     "crawlo.cli -> crawlo.commands",
     "crawlo.commands.shell -> crawlo.shell.core",
     "crawlo.crawler_process -> crawlo.crawler",
@@ -128,7 +116,6 @@ ignore_imports = [
     # v2.0: CrawloConfig 迁移到 crawlo.core.config 后的跨层引用
     #（project / bot 延迟使用配置类，合法的编排层 → core 依赖）
     "crawlo.project -> crawlo.core.config",
-    "crawlo.bot.utils.config_loader -> crawlo.core.config",
     # v2.0: SingletonMeta 迁移到 crawlo.core.singleton 后的跨层引用
     #（logging 层使用单例元类，合法的工具依赖）
     "crawlo.logging.manager -> crawlo.core.singleton",

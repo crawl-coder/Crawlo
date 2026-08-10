@@ -1,5 +1,5 @@
 """
-Phase 8 Step 8.3 验收：注册表组 + bot 组迁移（DI 容器优先模式 + ctx fallback 等价）
+Phase 8 Step 8.3 验收：注册表组 + 通知组件迁移（DI 容器优先模式 + ctx fallback 等价）
 =====================================================================
 
 断言：
@@ -9,7 +9,7 @@ Phase 8 Step 8.3 验收：注册表组 + bot 组迁移（DI 容器优先模式 +
    getter 返回的实例与 default_container.resolve(...) 返回同一引用
 3. 子上下文属性：factories 的 components_registered 写入 RegistryContext；notifier /
    deduplicator reset 写入 NotificationContext 对应字段；config_loader 的
-   bot_config_loaded 写入 NotificationContext。
+   config_loaded 写入 NotificationContext。
 4. 首次 getter 触发 rebind 后，后续 @inject 自动装配能拿到同一引用。
 """
 
@@ -19,14 +19,10 @@ from typing import Dict
 
 import pytest
 
-# 本文件是 bot/container 旧路径 → 新路径的迁移桥验收测试，旧路径是测试对象本身，
-# 允许其 DeprecationWarning 出现（其余测试仍强制 error）。
-pytestmark = pytest.mark.filterwarnings("ignore::DeprecationWarning")
-
 
 @pytest.fixture(autouse=True)
 def _clean_default_container_and_global_ctx():
-    from crawlo.container import default_container
+    from crawlo.core.application import default_container
     from crawlo.core import application as app_mod
 
     # Before
@@ -42,7 +38,7 @@ def _clean_default_container_and_global_ctx():
 
 def test_component_registry_lazy_path_rebinds_to_container():
     """factories.get_component_registry() 在无全局 ctx 时懒创建并 rebind。"""
-    from crawlo.container import default_container
+    from crawlo.core.application import default_container
     from crawlo.core.component_registry import ComponentRegistry, get_component_registry
 
     assert not default_container.is_registered(ComponentRegistry)
@@ -55,7 +51,7 @@ def test_component_registry_lazy_path_rebinds_to_container():
 
 def test_initializer_registry_lazy_path_rebinds_to_container():
     """initialization.get_global_registry() lazy 创建 + rebind。"""
-    from crawlo.container import default_container
+    from crawlo.core.application import default_container
     from crawlo.core.application import InitializerRegistry, get_global_registry
 
     reg = get_global_registry()
@@ -65,7 +61,7 @@ def test_initializer_registry_lazy_path_rebinds_to_container():
 
 def test_job_registry_lazy_path_rebinds_to_container():
     """scheduling.get_job_registry() lazy 创建 + rebind。"""
-    from crawlo.container import default_container
+    from crawlo.core.application import default_container
     from crawlo.commands.registry import JobRegistry, get_job_registry
 
     reg = get_job_registry()
@@ -75,7 +71,7 @@ def test_job_registry_lazy_path_rebinds_to_container():
 
 def test_context_created_registry_served_from_container():
     """ApplicationContext 已提前构造并预填注册表后，getter 直接从容器解析、不再重复创建。"""
-    from crawlo.container import default_container
+    from crawlo.core.application import default_container
     from crawlo.core.application import ApplicationContext
     from crawlo.core.component_registry import ComponentRegistry, get_component_registry
     from crawlo.core.application import InitializerRegistry, get_global_registry
@@ -104,7 +100,7 @@ def test_factories_ensure_components_registered_writes_to_registry_context():
 
     这里只断言：RegistryContext.components_registered 先 False → 调用后 True。
     """
-    from crawlo.container import default_container
+    from crawlo.core.application import default_container
     from crawlo.core.application import ApplicationContext
     from crawlo.core.factories import _ensure_components_registered
 
@@ -122,12 +118,12 @@ def test_factories_ensure_components_registered_writes_to_registry_context():
 
 def test_all_five_channels_lazy_rebind_and_container_prefers():
     """5 个通知渠道 getter 都走「懒创建→rebind」；ApplicationContext 建后仍从容器拿同一引用。"""
-    from crawlo.container import default_container
-    from crawlo.bot.channels.dingtalk import DingTalkChannel, get_dingtalk_channel
-    from crawlo.bot.channels.email import EmailChannel, get_email_channel
-    from crawlo.bot.channels.feishu import FeishuChannel, get_feishu_channel
-    from crawlo.bot.channels.sms import SmsChannel, get_sms_channel
-    from crawlo.bot.channels.wecom import WeComChannel, get_wecom_channel
+    from crawlo.core.application import default_container
+    from crawlo.extensions.notifications.channels.dingtalk import DingTalkChannel, get_dingtalk_channel
+    from crawlo.extensions.notifications.channels.email import EmailChannel, get_email_channel
+    from crawlo.extensions.notifications.channels.feishu import FeishuChannel, get_feishu_channel
+    from crawlo.extensions.notifications.channels.sms import SmsChannel, get_sms_channel
+    from crawlo.extensions.notifications.channels.wecom import WeComChannel, get_wecom_channel
 
     chs = [
         (DingTalkChannel, get_dingtalk_channel()),
@@ -143,12 +139,12 @@ def test_all_five_channels_lazy_rebind_and_container_prefers():
 
 def test_template_manager_and_resource_monitor_lazy_rebind():
     """templates.manager.get_template_manager + monitoring.templates.get_resource_monitor_manager。"""
-    from crawlo.container import default_container
-    from crawlo.bot.templates.manager import (
+    from crawlo.core.application import default_container
+    from crawlo.extensions.notifications.templates.manager import (
         MessageTemplateManager,
         get_template_manager,
     )
-    from crawlo.bot.monitoring.templates import (
+    from crawlo.extensions.notifications.monitoring.templates import (
         ResourceMonitorTemplateManager,
         get_resource_monitor_manager,
     )
@@ -164,9 +160,9 @@ def test_template_manager_and_resource_monitor_lazy_rebind():
 
 def test_notification_handler_and_deduplicator_lazy_dcl_and_rebind():
     """handlers.get_notification_handler + deduplicator.get_deduplicator 懒创建 + rebind。"""
-    from crawlo.container import default_container
-    from crawlo.bot.core.handlers import CrawlerNotificationHandler, get_notification_handler
-    from crawlo.bot.utils.deduplicator import MessageDeduplicator, get_deduplicator
+    from crawlo.core.application import default_container
+    from crawlo.extensions.notifications.core.handlers import CrawlerNotificationHandler, get_notification_handler
+    from crawlo.extensions.notifications.utils.deduplicator import MessageDeduplicator, get_deduplicator
 
     h = get_notification_handler()
     assert isinstance(h, CrawlerNotificationHandler)
@@ -179,9 +175,9 @@ def test_notification_handler_and_deduplicator_lazy_dcl_and_rebind():
 
 def test_notifier_built_lazy_dcl_registers_five_channels_and_rebinds():
     """notifier 懒构造时：注册 5 个 channels；自身 rebind 进容器。"""
-    from crawlo.container import default_container
-    from crawlo.bot.core.notifier import NotificationDispatcher, get_notifier
-    from crawlo.bot.channels import (
+    from crawlo.core.application import default_container
+    from crawlo.extensions.notifications.core.notifier import NotificationDispatcher, get_notifier
+    from crawlo.extensions.notifications.channels import (
         get_dingtalk_channel,
         get_feishu_channel,
         get_wecom_channel,
@@ -212,8 +208,8 @@ def test_reset_notifier_and_deduplicator_via_notification_context():
     """
     from crawlo.core import application as app_mod
     from crawlo.core.application import ApplicationContext
-    from crawlo.bot.core.notifier import get_notifier, reset_notifier
-    from crawlo.bot.utils.deduplicator import get_deduplicator, reset_deduplicator
+    from crawlo.extensions.notifications.core.notifier import get_notifier, reset_notifier
+    from crawlo.extensions.notifications.utils.deduplicator import get_deduplicator, reset_deduplicator
 
     ctx = ApplicationContext()
     app_mod.set_global_context(ctx)
@@ -233,7 +229,7 @@ def test_reset_notifier_and_deduplicator_via_notification_context():
 def test_config_loader_bot_config_loaded_writes_to_notification_context():
     """config_loader.ensure_config_loaded 通过 NotificationContext 读写 bot_config_loaded。"""
     from crawlo.core.application import ApplicationContext
-    from crawlo.bot.utils.config_loader import ensure_config_loaded
+    from crawlo.extensions.notifications.utils.config_loader import ensure_config_loaded
 
     ctx = ApplicationContext()
     assert ctx.notifications.bot_config_loaded is False
@@ -252,7 +248,7 @@ def test_config_loader_bot_config_loaded_writes_to_notification_context():
 
 def test_registry_resolve_after_lazy_getter_returns_same_reference():
     """get_*_registry() 触发 rebind 后，容器解析值与 getter 单例完全一致（等价 @inject）。"""
-    from crawlo.container import default_container
+    from crawlo.core.application import default_container
     from crawlo.core.component_registry import ComponentRegistry, get_component_registry
     from crawlo.core.application import InitializerRegistry, get_global_registry
     from crawlo.commands.registry import JobRegistry, get_job_registry

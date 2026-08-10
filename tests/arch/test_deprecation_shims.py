@@ -52,12 +52,6 @@ def _import_old_path(path):
 
 
 @pytest.mark.parametrize("old_path", [
-    "crawlo.bot",
-    "crawlo.bot.channels",
-    "crawlo.bot.core",
-    "crawlo.bot.monitoring",
-    "crawlo.bot.templates",
-    "crawlo.bot.utils",
     "crawlo.crawler_process",
     "crawlo.framework",
     "crawlo.container",
@@ -65,37 +59,6 @@ def _import_old_path(path):
 def test_old_path_emits_deprecation_warning(old_path):
     """所有废弃路径导入必须发出 DeprecationWarning 且不报错。"""
     _import_old_path(old_path)
-
-
-def test_bot_submodule_identity():
-    """crawlo.bot.* 子模块/类对象与新路径完全一致（防止重复类副本）。"""
-    with warnings.catch_warnings():
-        warnings.simplefilter("ignore", DeprecationWarning)
-        import crawlo.bot.channels.dingtalk as old_dingtalk
-        import crawlo.bot.core.models as old_models
-        import crawlo.bot.core.notifier as old_notifier
-        import crawlo.bot.templates.manager as old_templates
-        import crawlo.bot.utils.deduplicator as old_dedup
-
-    import crawlo.extensions.notifications.channels.dingtalk as new_dingtalk
-    import crawlo.extensions.notifications.core.models as new_models
-    import crawlo.extensions.notifications.core.notifier as new_notifier
-    import crawlo.extensions.notifications.templates.manager as new_templates
-    import crawlo.extensions.notifications.utils.deduplicator as new_dedup
-
-    assert old_dingtalk is new_dingtalk
-    assert old_models is new_models
-    assert old_notifier is new_notifier
-    assert old_templates is new_templates
-    assert old_dedup is new_dedup
-
-    # 类对象身份一致（isinstance 不失效）
-    from crawlo.bot.channels.dingtalk import DingTalkChannel as OldChannel
-    from crawlo.extensions.notifications.channels.dingtalk import DingTalkChannel as NewChannel
-    from crawlo.bot.utils.deduplicator import MessageDeduplicator as OldDedup
-    from crawlo.extensions.notifications.utils.deduplicator import MessageDeduplicator as NewDedup
-    assert OldChannel is NewChannel
-    assert OldDedup is NewDedup
 
 
 def test_crawler_process_identity():

@@ -279,7 +279,7 @@
 | `LogIntervalExtension` / `LogStats` / `CustomLoggerExtension` / `HealthCheckExtension` / `RequestRecorderExtension` / `EventloopLagProbe` | frozen | 内置扩展 |
 | `MemoryMonitorExtension` / `MySQLMonitorExtension` / `RedisMonitorExtension` | frozen | 监控扩展 |
 
-### 11.1 通知系统（`crawlo.extensions.notifications`，原 `crawlo.bot`）
+### 11.1 通知系统（`crawlo.extensions.notifications`）
 
 | 符号 | 状态 | 说明 |
 |---|---|---|
@@ -423,7 +423,6 @@ MCP 工具（`crawlo-mcp` 暴露，frozen）：
 
 | 旧路径 | 新路径 | 状态 |
 |---|---|---|
-| `crawlo.bot` 及其子包（channels / core / monitoring / templates / utils） | `crawlo.extensions.notifications.*` | deprecated，v2.0 前保留 |
 | `crawlo.crawler_process` | `crawlo.crawler.CrawlerProcess` | deprecated |
 | `crawlo.framework` | `crawlo.crawler.CrawloFramework` | deprecated |
 | `crawlo.container` | `crawlo.core.application.ApplicationContext` | deprecated |
@@ -431,7 +430,7 @@ MCP 工具（`crawlo-mcp` 暴露，frozen）：
 
 > 兼容性保证（2026-08-10 起，由 `tests/arch/test_deprecation_shims.py` 守护）：
 > 旧路径导入必须 ① 发出 DeprecationWarning；② 返回的对象与新路径**同一对象**
-> （`crawlo.bot.*` 子模块身份一致性已修复，`isinstance` / `is` 不失效）。
+> （`isinstance` / `is` 不失效）。
 
 ## 20. 覆盖统计（盘点基线 2026-08-10）
 

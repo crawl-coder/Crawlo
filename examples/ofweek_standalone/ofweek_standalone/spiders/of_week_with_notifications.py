@@ -12,9 +12,9 @@ import random
 from crawlo.spider import Spider
 from crawlo import Request, Response
 from ..items import OfWeekStandaloneItem
-# 正确的导入路径：通过 crawlo.bot 导入
-from crawlo.bot import ChannelType, send_crawler_status
-from crawlo.bot import (
+# 正确的导入路径：crawlo.extensions.notifications（crawlo.bot 已于 1.7.4 移除）
+from crawlo.extensions.notifications import ChannelType, send_crawler_status
+from crawlo.extensions.notifications import (
     send_template_notification, 
     Template,
     get_template_parameters,
@@ -111,7 +111,7 @@ class OfWeekSpiderWithNotifications(Spider):
         
         # 测试资源监控模板 - 使用专用资源监控模板
         try:
-            from crawlo.bot import render_resource_monitor_template, ResourceTemplate
+            from crawlo.extensions.notifications import render_resource_monitor_template, ResourceTemplate
             mysql_monitor_result = render_resource_monitor_template(
                 ResourceTemplate.MYSQL_CONNECTION_POOL_MONITOR.value,
                 pool_status="正常",

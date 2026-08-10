@@ -7,7 +7,7 @@ Import 路径兼容矩阵测试（P0-A3）
 覆盖 api-surface.md 中全部模块路径：
 1. 文档记录的模块路径必须真实存在且可导入；
 2. 文档记录的类/函数符号必须能在对应模块上解析（类型正确）；
-3. 废弃 shim 路径（crawlo.bot / crawlo.container / crawlo.crawler_process /
+3. 废弃 shim 路径（crawlo.container / crawlo.crawler_process /
    crawlo.framework）必须解析到与新路径相同的模块对象（迁移等价性）。
 
 与 test_deprecation_shims.py 的分工：后者守警告行为 + 类对象身份；
@@ -63,11 +63,6 @@ def test_documented_paths_are_complete():
 
 
 @pytest.mark.parametrize("old_path,new_path", [
-    ("crawlo.bot.channels", "crawlo.extensions.notifications.channels"),
-    ("crawlo.bot.core", "crawlo.extensions.notifications.core"),
-    ("crawlo.bot.monitoring", "crawlo.extensions.notifications.monitoring"),
-    ("crawlo.bot.templates", "crawlo.extensions.notifications.templates"),
-    ("crawlo.bot.utils", "crawlo.extensions.notifications.utils"),
     ("crawlo.container", "crawlo.core.application"),
     ("crawlo.crawler_process", "crawlo.crawler"),
     ("crawlo.framework", "crawlo.crawler"),
@@ -81,19 +76,6 @@ def test_deprecated_shim_resolves_to_same_module(old_path, new_path):
     assert old_mod is new_mod, (
         f"{old_path} 解析到 {old_mod!r}，新路径是 {new_mod!r}，对象不一致"
     )
-
-
-def test_bot_package_is_forwarding_shim():
-    """crawlo.bot 顶层保持真实包身份，但属性转发到新路径。"""
-    with warnings.catch_warnings():
-        warnings.simplefilter("ignore", DeprecationWarning)
-        import crawlo.bot as bot
-    import crawlo.extensions.notifications as new
-    # 顶层模块对象不同（转发 shim），但子模块/符号必须同对象
-    assert bot is not new
-    assert bot.channels is new.channels
-    assert bot.core is new.core
-    assert bot.NotificationDispatcher is new.NotificationDispatcher
 
 
 @pytest.mark.parametrize("module_path,symbol", [

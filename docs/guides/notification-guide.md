@@ -133,7 +133,7 @@ NOTIFICATION_TEMPLATES_CUSTOM = {
 在爬虫中手动触发：
 
 ```python
-from crawlo.bot import get_notifier
+from crawlo.extensions.notifications import get_notifier
 
 notifier = get_notifier()
 await notifier.send('price_alert', {
