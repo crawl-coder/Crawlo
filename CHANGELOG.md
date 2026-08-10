@@ -24,6 +24,9 @@
   （分页→详情→去重→JSONL/MySQL 存储→监控→分布式）+ 教程 + CI 冒烟测试
 - 默认配置友好（P3）：`examples/simple_quickstart/`（23 行 spider +
   12 行管道，与全部示例同网站 ee.ofweek.com）+ `when-to-use.md` 场景决策树
+- 稳定性与生产验证（P4）：`scripts/stress_run.py`（长跑压测 + 泄漏斜率）、
+  `scripts/redis_ha/`（Sentinel 故障切换演练）、`scripts/failure_inject.py`
+  （故障注入）、`docs/deployment/redis-ha.md`（部署与演练指南）
 
 ### 修复
 
