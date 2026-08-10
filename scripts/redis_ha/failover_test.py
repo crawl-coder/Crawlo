@@ -47,8 +47,8 @@ def _sentinel_master() -> str:
     return f"{out[0]}:{out[1]}" if len(out) >= 2 else "unknown"
 
 
-async def _crawl_forever(base_url: str, results: dict):
-    """分布式爬虫持续抓取，观测故障切换期间是否中断。"""
+async def _crawl_forever(base_url: str, results: dict, rounds: int = 5, interval: float = 3.0):
+    """分布式爬虫持续多轮抓取，跨越故障切换窗口。"""
     sys.path.insert(0, str(ROOT / "examples"))
     os_env = {
         "CRAWLO_MODE": "distributed",
@@ -69,12 +69,28 @@ async def _crawl_forever(base_url: str, results: dict):
 
     t0 = time.monotonic()
     results["crawl_started"] = time.strftime("%H:%M:%S")
-    await CrawlerProcess().crawl("catalog")
+    results["rounds"] = []
+    for i in range(1, rounds + 1):
+        r0 = time.monotonic()
+        try:
+            await CrawlerProcess().crawl("catalog")
+            status = "ok"
+        except Exception as exc:
+            status = f"error:{type(exc).__name__}"
+        results["rounds"].append({
+            "round": i,
+            "status": status,
+            "duration_s": round(time.monotonic() - r0, 2),
+            "at": time.strftime("%H:%M:%S"),
+        })
+        print(f"   [crawl R{i}] {status} ({round(time.monotonic() - r0, 2)}s)", flush=True)
+        if i < rounds:
+            await asyncio.sleep(interval)
     results["crawl_finished"] = time.strftime("%H:%M:%S")
     results["crawl_duration_s"] = round(time.monotonic() - t0, 1)
 
 
-def main():
+async def main():
     parser = argparse.ArgumentParser(description="Redis Sentinel 故障切换实测")
     parser.add_argument("--base-url", default="http://127.0.0.1:9300")
     parser.add_argument("--failover-after", type=float, default=8.0, help="启动爬虫后多久杀 master")
@@ -93,22 +109,21 @@ def main():
 
     print("2. 启动分布式爬虫...")
     crawler_task = asyncio.create_task(_crawl_forever(args.base_url, results))
-    time.sleep(args.failover_after)
+    await asyncio.sleep(args.failover_after)
 
     print("3. 杀掉 redis-master 触发故障切换...")
     t_kill = time.monotonic()
-    _docker("stop", "redis-master")
-    time.sleep(15)  # Sentinel 探测 + 选举 + 提升
+    _docker("stop", "crawlo-redis-master")
+    await asyncio.sleep(15)  # Sentinel 探测 + 选举 + 提升
     results["new_master"] = _sentinel_master()
     results["failover_detected_s"] = round(time.monotonic() - t_kill, 1)
     print(f"   新 master: {results['new_master']}（{results['failover_detected_s']}s 内完成切换）")
 
     print("4. 等待爬虫完成...")
-    loop = asyncio.get_event_loop()
-    loop.run_until_complete(crawler_task)
+    await crawler_task
 
     print("5. 恢复 master 并输出报告")
-    _docker("start", "redis-master")
+    _docker("start", "crawlo-redis-master")
     report_path = Path(args.report)
     report_path.write_text(json.dumps(results, indent=2, ensure_ascii=False), encoding="utf-8")
     print(json.dumps(results, indent=2, ensure_ascii=False))
@@ -116,4 +131,4 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())

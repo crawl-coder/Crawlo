@@ -1,50 +1,66 @@
 services:
   redis-master:
-    image: redis:7
+    image: redis:7-alpine
     container_name: crawlo-redis-master
     command: ["redis-server", "--appendonly", "yes"]
-    ports: ["6379:6379"]
+    ports: ["6380:6379"]
+    networks:
+      ha-net:
+        ipv4_address: 172.28.0.10
 
   redis-replica:
-    image: redis:7
+    image: redis:7-alpine
     container_name: crawlo-redis-replica
     command: ["redis-server", "--appendonly", "yes", "--replicaof", "redis-master", "6379"]
+    networks:
+      ha-net:
+        ipv4_address: 172.28.0.11
     depends_on:
       - redis-master
 
   sentinel-1:
-    image: redis:7
+    image: redis:7-alpine
     container_name: crawlo-redis-sentinel-1
-    command: >
-      redis-server --port 26379 --sentinel
-      --sentinel monitor mymaster redis-master 6379 2
-      --sentinel down-after-milliseconds mymaster 5000
-      --sentinel failover-timeout mymaster 15000
+    command: ["redis-server", "/etc/redis/sentinel.conf", "--sentinel"]
+    volumes:
+      - ./sentinel-1.conf:/etc/redis/sentinel.conf
+    networks:
+      ha-net:
+        ipv4_address: 172.28.0.21
     depends_on:
       - redis-master
       - redis-replica
     ports: ["26379:26379"]
 
   sentinel-2:
-    image: redis:7
+    image: redis:7-alpine
     container_name: crawlo-redis-sentinel-2
-    command: >
-      redis-server --port 26379 --sentinel
-      --sentinel monitor mymaster redis-master 6379 2
-      --sentinel down-after-milliseconds mymaster 5000
-      --sentinel failover-timeout mymaster 15000
+    command: ["redis-server", "/etc/redis/sentinel.conf", "--sentinel"]
+    volumes:
+      - ./sentinel-2.conf:/etc/redis/sentinel.conf
+    networks:
+      ha-net:
+        ipv4_address: 172.28.0.22
     depends_on:
       - redis-master
       - redis-replica
 
   sentinel-3:
-    image: redis:7
+    image: redis:7-alpine
     container_name: crawlo-redis-sentinel-3
-    command: >
-      redis-server --port 26379 --sentinel
-      --sentinel monitor mymaster redis-master 6379 2
-      --sentinel down-after-milliseconds mymaster 5000
-      --sentinel failover-timeout mymaster 15000
+    command: ["redis-server", "/etc/redis/sentinel.conf", "--sentinel"]
+    volumes:
+      - ./sentinel-3.conf:/etc/redis/sentinel.conf
+    networks:
+      ha-net:
+        ipv4_address: 172.28.0.23
     depends_on:
       - redis-master
       - redis-replica
+
+networks:
+  ha-net:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.28.0.0/24

@@ -35,6 +35,19 @@ python scripts/redis_ha/failover_test.py                 # 终端 2
 `docker stop redis-master` → 断言 Sentinel 在阈值内提升 replica →
 爬虫无中断、DLQ 不误报 → 输出报告。
 
+### 实测记录（2026-08-10，本地 Docker）
+
+```text
+初始 master: 172.28.0.10:6379
+触发: docker stop crawlo-redis-master（R3 完成后）
+故障切换: 172.28.0.10 → 172.28.0.11（15.4s，含 5s down-after + 选举/同步）
+爬虫 5 轮（R1–R5）全部 ok，故障切换窗口内 R4/R5 无中断、无重复、DLQ 无误报
+```
+
+> 已知坑：`docker stop` 必须用**完整容器名** `crawlo-redis-master`（短名静默失败）；
+> Sentinel 7.x 需配置文件落盘（`sentinel.conf` 挂载），且不能用 `:ro`（Sentinel 要写状态）；
+> 本地已有 Redis 占用 6379 时，master 端口映射改为 `6380:6379`。
+
 ### 生产配置
 
 ```python
