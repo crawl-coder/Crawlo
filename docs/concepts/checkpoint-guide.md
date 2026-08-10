@@ -8,7 +8,7 @@
 
 ```
 爬虫运行中 ──Ctrl+C──> 保存检查点 ──重启──> 加载检查点 ──> 从断点续爬
-                     (请求+指纹+统计)     (恢复队列)
+ (请求+指纹+统计) (恢复队列)
 ```
 
 ### 保存时机
@@ -112,8 +112,8 @@ CHECKPOINT_ENABLED = False
 ```
 .checkpoints/
 └── {project_name}/
-    └── {spider_name}.json    # JSON 后端
-    └── {spider_name}.db      # SQLite 后端
+ └── {spider_name}.json # JSON 后端
+ └── {spider_name}.db # SQLite 后端
 ```
 
 示例：
@@ -121,7 +121,7 @@ CHECKPOINT_ENABLED = False
 ```
 .checkpoints/
 └── myproject/
-    └── news_spider.json
+ └── news_spider.json
 ```
 
 > **注意**：检查点存储在**项目根目录**下，方便管理和版本控制（建议将 `.checkpoints/` 加入 `.gitignore`）。
@@ -145,24 +145,23 @@ CHECKPOINT_ENABLED = False
    - 使用 `--fresh` 参数可忽略检查点
 
 3. **内部流程**：
-   ```
-   Engine 初始化
-       ↓
-   创建 CheckpointManager
-       ↓
-   检查是否存在检查点
-       ↓
-   如果存在 → 加载并恢复
-       ↓
-   爬虫运行
-       ↓
-   Ctrl+C 或关闭 → 自动保存
-   ```
+ ```
+ Engine 初始化
+ ↓
+ 创建 CheckpointManager
+ ↓
+ 检查是否存在检查点
+ ↓
+ 如果存在 → 加载并恢复
+ ↓
+ 爬虫运行
+ ↓
+ Ctrl+C 或关闭 → 自动保存
+ ```
 
 ### 底层实现（仅供了解）
 
-> 💡 **普通用户无需关心**，以下是框架内部实现细节。
-
+> **普通用户无需关心**，以下是框架内部实现细节。 
 框架内部使用 `CheckpointManager` 类管理检查点：
 
 ```python
@@ -174,9 +173,9 @@ checkpoint_mgr = CheckpointManager(spider.name, settings)
 
 # 检查是否存在检查点
 if await checkpoint_mgr.has_checkpoint():
-    # 加载并恢复
-    data = await checkpoint_mgr.load()
-    
+ # 加载并恢复
+ data = await checkpoint_mgr.load()
+ 
 # Ctrl+C 时保存
 await checkpoint_mgr.save(scheduler=scheduler, stats=stats)
 ```
@@ -192,8 +191,7 @@ await checkpoint_mgr.save(scheduler=scheduler, stats=stats)
 
 ### 内存队列 vs Redis 队列
 
-- **Memory 队列**：检查点是唯一的持久化手段，如需断点续爬**必须启用**
-- **Redis 队列**：请求已在 Redis 中持久化，检查点只保存指纹和统计信息
+- **Memory 队列**：检查点是唯一的持久化手段，如需断点续爬**必须启用**- **Redis 队列**：请求已在 Redis 中持久化，检查点只保存指纹和统计信息
 
 ### 检查点一致性
 
@@ -209,9 +207,7 @@ await checkpoint_mgr.save(scheduler=scheduler, stats=stats)
 
 - JSON 后端：保存/加载时间与请求数成正比（10000 请求约 1-2 秒）
 - SQLite 后端：几乎恒定时间（数据库索引优化）
-- 正常完成时不保存检查点，**无性能影响**
-
----
+- 正常完成时不保存检查点，**无性能影响**---
 
 ## 7. 故障排查
 

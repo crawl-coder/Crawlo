@@ -11,23 +11,23 @@
 我要抓取一个网站…
 │
 ├─ 只是抓几十个页面、打印/存个文件？
-│   └─ ▶ examples/simple_quickstart（23 行，无配置）
+│ └─ ▶ examples/simple_quickstart（23 行，无配置）
 │
 ├─ 整站抓取：分页 + 详情 + 去重 + 结构化存储？
-│   ├─ 先跑通：▶ examples/real_world_catalog（JSONL + 可选 MySQL）
-│   └─ 要通知/健康检查：加 EXTENSIONS + NOTIFICATION_*（教程第 6 节）
+│ ├─ 先跑通：▶ examples/real_world_catalog（JSONL + 可选 MySQL）
+│ └─ 要通知/健康检查：加 EXTENSIONS + NOTIFICATION_*（教程第 6 节）
 │
 ├─ 网站反爬较强（动态渲染 / Cloudflare）？
-│   └─ ▶ examples/infoq_dynamic_test（Playwright / CloakBrowser / Camoufox）
+│ └─ ▶ examples/infoq_dynamic_test（Playwright / CloakBrowser / Camoufox）
 │
 ├─ 数据量大、需要多机横向扩展？
-│   └─ ▶ examples/ofweek_distributed（Redis Stream + Worker 集群）
+│ └─ ▶ examples/ofweek_distributed（Redis Stream + Worker 集群）
 │
 ├─ 想复用功能给多个爬虫？
-│   └─ ▶ examples/plugin_hello_world（注册中间件/管道/扩展）
+│ └─ ▶ examples/plugin_hello_world（注册中间件/管道/扩展）
 │
 └─ 让 AI 工具直接调爬虫？
-    └─ ▶ examples/mcp_quickstart（MCP Server）
+ └─ ▶ examples/mcp_quickstart（MCP Server）
 ```
 
 ## 每个高级概念：什么时候需要 / 不需要
@@ -38,10 +38,10 @@
 | **分布式**（redis_stream） | 单机并发不够 / 需要多机容错 | 单机几万页以内，分布式反而增加运维成本 |
 | **浏览器渲染**（Playwright/Camoufox） | 目标站是 SPA / 有 JS 反爬 | 纯 HTML 站（如 ee.ofweek.com 列表页），httpx 就够 |
 | **自适应选择器**（adaptive=True） | 长期运行的抓取，网站会改版 | 一次性任务、改版不频繁 |
-| **MySQL/Mongo 管道** | 需要跨进程查询 / 长期存储 | 只要落盘分析，JSONL/CSV 足够 |
-| **通知告警** | 生产环境长驻任务 | 本地开发调试 |
-| **插件系统** | 多个项目共享组件 | 单个爬虫内直接用类 |
-| **MCP** | 想让 Claude/Cursor 直接操作爬虫 | 纯代码工作流 |
+| **MySQL/Mongo 管道**| 需要跨进程查询 / 长期存储 | 只要落盘分析，JSONL/CSV 足够 |
+| **通知告警**| 生产环境长驻任务 | 本地开发调试 |
+| **插件系统**| 多个项目共享组件 | 单个爬虫内直接用类 |
+| **MCP**| 想让 Claude/Cursor 直接操作爬虫 | 纯代码工作流 |
 
 ## 复杂度阶梯（同一网站）
 

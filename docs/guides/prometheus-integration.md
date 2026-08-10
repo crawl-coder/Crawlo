@@ -18,8 +18,8 @@ pip install crawlo[monitoring]
 在 `settings.py` 中设置：
 
 ```python
-STATS_BACKEND = 'prometheus'          # 启用 Prometheus 统计后端
-PROMETHEUS_METRICS_PORT = 9100        # 指标暴露端口
+STATS_BACKEND = 'prometheus' # 启用 Prometheus 统计后端
+PROMETHEUS_METRICS_PORT = 9100 # 指标暴露端口
 ```
 
 ### 3. 运行爬虫
@@ -141,17 +141,13 @@ MEMORY_MONITOR_INTERVAL = 60
 
 以下 11 个指标在 P4 Week2 D 方向补齐，覆盖队列、XCLAIM、集群心跳、去重 RPS、响应/管道 P99 延迟、事件循环 Lag：
 
-**Counter（累计型，`inc_value` 写入）：**
-
-| Prometheus 指标名 | 框架统计 key | 说明 | 写入位置 |
+**Counter（累计型，`inc_value` 写入）：**| Prometheus 指标名 | 框架统计 key | 说明 | 写入位置 |
 |-------------------|-------------|------|---------|
 | `crawlo_queue_xclaim_recovered_total` | `queue/xclaim/recovered_total` | XCLAIM 主动回收的 stale pending 消息累计数 | `RedisStreamQueue.claim_stale_pending()` + `DistributedCoordinator.try_claim_stale_pending()` |
 | `crawlo_queue_xclaim_scan_runs_total` | `queue/xclaim/scan_runs` | XCLAIM 主动扫描触发次数 | `DistributedCoordinator.handle_distributed_idle()` |
 | `crawlo_cluster_worker_heartbeat_lost_total` | `cluster/worker/heartbeat_lost` | 心跳过期被移除的 Worker 累计数 | `FailoverManager.check_and_recover()` |
 
-**Gauge（瞬时值，`set_value` 写入）：**
-
-| Prometheus 指标名 | 框架统计 key | 说明 | 写入位置 |
+**Gauge（瞬时值，`set_value` 写入）：**| Prometheus 指标名 | 框架统计 key | 说明 | 写入位置 |
 |-------------------|-------------|------|---------|
 | `crawlo_queue_backlog` | `queue/backlog` | 当前队列积压大小（每 tick 更新） | `LogIntervalExtension.interval_log()` |
 | `crawlo_filter_duplicate_rps` | `filter/duplicate_rps` | 最近 60s 窗口去重 RPS | `HealthCheckExtension._dedup_rps_loop()` |
@@ -161,9 +157,9 @@ MEMORY_MONITOR_INTERVAL = 60
 | `crawlo_resource_eventloop_lag_ms_p95` | `resource/eventloop_lag_ms_p95` | 事件循环 Lag P95 | 同上 |
 | `crawlo_resource_eventloop_lag_ms_p99` | `resource/eventloop_lag_ms_p99` | 事件循环 Lag P99 | 同上 |
 
-> **EventloopLagProbe** 默认启用（`EVENTLOOP_LAG_PROBE_ENABLED=True`），每 1s 采样事件循环延迟，每 5s 计算 P50/P95/P99 写入 stats。
+> **EventloopLagProbe**默认启用（`EVENTLOOP_LAG_PROBE_ENABLED=True`），每 1s 采样事件循环延迟，每 5s 计算 P50/P95/P99 写入 stats。
 > 当 P99 >= `EVENTLOOP_LAG_WARN_THRESHOLD_MS`（默认 200ms）持续 `EVENTLOOP_LAG_WARN_CONSECUTIVE`（默认 3）个周期时打 WARN 日志。
-> **RingBuffer** 容量：Downloader/Pipeline = 1000 样本，EventloopLag = 60 样本（1 分钟窗口）。
+> **RingBuffer**容量：Downloader/Pipeline = 1000 样本，EventloopLag = 60 样本（1 分钟窗口）。
 
 ---
 
@@ -173,28 +169,28 @@ MEMORY_MONITOR_INTERVAL = 60
 version: '3.8'
 
 services:
-  crawlo-worker:
-    build: .
-    command: crawlo run myspider
-    ports:
+ crawlo-worker:
+ build: .
+ command: crawlo run myspider
+ ports:
       - "9100:9100"
-    environment:
+ environment:
       - STATS_BACKEND=prometheus
       - PROMETHEUS_METRICS_PORT=9100
       - MEMORY_MONITOR_ENABLED=true
 
-  prometheus:
-    image: prom/prometheus:latest
-    volumes:
+ prometheus:
+ image: prom/prometheus:latest
+ volumes:
       - ./prometheus.yml:/etc/prometheus/prometheus.yml
-    ports:
+ ports:
       - "9090:9090"
 
-  grafana:
-    image: grafana/grafana:latest
-    ports:
+ grafana:
+ image: grafana/grafana:latest
+ ports:
       - "3000:3000"
-    depends_on:
+ depends_on:
       - prometheus
 ```
 
@@ -203,8 +199,8 @@ services:
 ```yaml
 scrape_configs:
   - job_name: 'crawlo'
-    scrape_interval: 15s
-    static_configs:
+ scrape_interval: 15s
+ static_configs:
       - targets: ['crawlo-worker:9100']
 ```
 
@@ -229,8 +225,8 @@ PROMETHEUS_METRICS_PORT = 9102
 ```yaml
 scrape_configs:
   - job_name: 'crawlo'
-    scrape_interval: 15s
-    static_configs:
+ scrape_interval: 15s
+ static_configs:
       - targets:
         - 'worker1-host:9101'
         - 'worker2-host:9102'
@@ -287,57 +283,57 @@ scrape_configs:
 ```yaml
 groups:
   - name: crawlo_alerts
-    rules:
+ rules:
       - alert: HighErrorRate
-        expr: rate(crawlo_response_status_code_4xx_total[5m]) / rate(crawlo_response_received_count_total[5m]) > 0.1
-        for: 5m
-        labels:
-          severity: warning
-        annotations:
-          summary: "爬虫 {{ $labels.spider }} 错误率超过 10%"
+ expr: rate(crawlo_response_status_code_4xx_total[5m]) / rate(crawlo_response_received_count_total[5m]) > 0.1
+ for: 5m
+ labels:
+ severity: warning
+ annotations:
+ summary: "爬虫 {{ $labels.spider }} 错误率超过 10%"
 
       - alert: MemoryLeak
-        expr: crawlo_memory_rss_mb > 1024
-        for: 10m
-        labels:
-          severity: critical
-        annotations:
-          summary: "Worker {{ $labels.worker_id }} 内存超过 1GB"
+ expr: crawlo_memory_rss_mb > 1024
+ for: 10m
+ labels:
+ severity: critical
+ annotations:
+ summary: "Worker {{ $labels.worker_id }} 内存超过 1GB"
 
       - alert: QueueBacklog
-        expr: crawlo_queue_size > 10000
-        for: 5m
-        labels:
-          severity: warning
-        annotations:
-          summary: "队列积压 {{ $value }} 条"
+ expr: crawlo_queue_size > 10000
+ for: 5m
+ labels:
+ severity: warning
+ annotations:
+ summary: "队列积压 {{ $value }} 条"
 
-      # P4 D 方向新增告警规则（v1.7.3+）
+ # P4 D 方向新增告警规则（v1.7.3+）
       - alert: EventloopLagHigh
-        expr: crawlo_resource_eventloop_lag_ms_p99 > 200
-        for: 15s
-        labels:
-          severity: warning
-        annotations:
-          summary: "事件循环 Lag P99={{ $value }}ms (>200ms, 15s)"
-          description: "Worker {{ $labels.worker_id }} 事件循环卡顿，可能存在 GC 压力/阻塞 IO/大同步函数"
+ expr: crawlo_resource_eventloop_lag_ms_p99 > 200
+ for: 15s
+ labels:
+ severity: warning
+ annotations:
+ summary: "事件循环 Lag P99={{ $value }}ms (>200ms, 15s)"
+ description: "Worker {{ $labels.worker_id }} 事件循环卡顿，可能存在 GC 压力/阻塞 IO/大同步函数"
 
       - alert: QueueBacklogHigh
-        expr: crawlo_queue_backlog > 8000
-        for: 5m
-        labels:
-          severity: warning
-        annotations:
-          summary: "队列积压 {{ $value }} 条（>80% MaxQueueSize）"
-          description: "检查下游 Pipeline 是否阻塞或并发不足"
+ expr: crawlo_queue_backlog > 8000
+ for: 5m
+ labels:
+ severity: warning
+ annotations:
+ summary: "队列积压 {{ $value }} 条（>80% MaxQueueSize）"
+ description: "检查下游 Pipeline 是否阻塞或并发不足"
 
       - alert: HeartbeatLost
-        expr: increase(crawlo_cluster_worker_heartbeat_lost_total[15m]) > 3
-        labels:
-          severity: critical
-        annotations:
-          summary: "15 分钟内 {{ $value }} 个 Worker 心跳丢失"
-          description: "集群可能存在 Worker 崩溃或网络分区，检查 FailoverManager 和 XCLAIM 回收"
+ expr: increase(crawlo_cluster_worker_heartbeat_lost_total[15m]) > 3
+ labels:
+ severity: critical
+ annotations:
+ summary: "15 分钟内 {{ $value }} 个 Worker 心跳丢失"
+ description: "集群可能存在 Worker 崩溃或网络分区，检查 FailoverManager 和 XCLAIM 回收"
 ```
 
 ### scrape interval 调优

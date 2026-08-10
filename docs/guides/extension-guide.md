@@ -19,8 +19,8 @@
 ```python
 # settings.py
 EXTENSIONS = [
-    'crawlo.extension.LogIntervalExtension',
-    'crawlo.extension.HealthCheckExtension',
+ 'crawlo.extension.LogIntervalExtension',
+ 'crawlo.extension.HealthCheckExtension',
 ]
 ```
 
@@ -31,7 +31,7 @@ EXTENSIONS = [
 定时输出爬取进度，显示：已抓取页面数、每分钟速率、Item 数、队列 pending 数。
 
 ```python
-LOG_INTERVAL = 60                  # 输出间隔（秒，默认 60）
+LOG_INTERVAL = 60 # 输出间隔（秒，默认 60）
 ```
 
 输出示例：
@@ -46,10 +46,10 @@ Crawled 239 pages (at 239 pages/min), Got 179 items, Queue: 0 pending
 ```python
 # 自动激活，无需额外配置
 # 统计项包括：
-#   - request_scheduler_count
-#   - response_received_count
-#   - item_successful_count
-#   - item_discard_count
+# - request_scheduler_count
+# - response_received_count
+# - item_successful_count
+# - item_discard_count
 ```
 
 运行结束时输出完整统计摘要。
@@ -59,8 +59,8 @@ Crawled 239 pages (at 239 pages/min), Got 179 items, Queue: 0 pending
 定期上报 Worker 健康状态：
 
 ```python
-HEALTH_CHECK_INTERVAL = 60                    # 检查间隔（秒）
-HEALTH_CHECK_CRITICAL_TASKS_THRESHOLD = 100   # 任务堆积告警阈值
+HEALTH_CHECK_INTERVAL = 60 # 检查间隔（秒）
+HEALTH_CHECK_CRITICAL_TASKS_THRESHOLD = 100 # 任务堆积告警阈值
 ```
 
 检测项：
@@ -74,8 +74,8 @@ HEALTH_CHECK_CRITICAL_TASKS_THRESHOLD = 100   # 任务堆积告警阈值
 自动监控进程内存使用情况：
 
 ```python
-MEMORY_MONITOR_THRESHOLD_MB = 1024            # 内存告警阈值（MB）
-MEMORY_MONITOR_CHECK_INTERVAL = 30            # 检查间隔（秒）
+MEMORY_MONITOR_THRESHOLD_MB = 1024 # 内存告警阈值（MB）
+MEMORY_MONITOR_CHECK_INTERVAL = 30 # 检查间隔（秒）
 ```
 
 超阈值时自动记录告警日志，并可选执行垃圾回收。
@@ -85,7 +85,7 @@ MEMORY_MONITOR_CHECK_INTERVAL = 30            # 检查间隔（秒）
 监控 MySQLPipeline 的连接池状态：
 
 ```python
-MYSQL_MONITOR_INTERVAL = 60                   # 监控间隔（秒）
+MYSQL_MONITOR_INTERVAL = 60 # 监控间隔（秒）
 ```
 
 监控指标：活跃连接数、空闲连接数、等待队列长度、执行耗时分布。
@@ -95,7 +95,7 @@ MYSQL_MONITOR_INTERVAL = 60                   # 监控间隔（秒）
 监控 Redis 连接状态和去重集合大小：
 
 ```python
-REDIS_MONITOR_INTERVAL = 60                   # 监控间隔（秒）
+REDIS_MONITOR_INTERVAL = 60 # 监控间隔（秒）
 ```
 
 监控指标：去重集合大小、内存使用、命中率、连接数。
@@ -105,9 +105,9 @@ REDIS_MONITOR_INTERVAL = 60                   # 监控间隔（秒）
 记录所有发出的请求，便于事后分析：
 
 ```python
-REQUEST_RECORDER_ENABLED = True                # 启用录制
-REQUEST_RECORDER_DIR = 'requests_record'       # 存储目录
-REQUEST_RECORDER_FORMAT = 'json'               # 输出格式: json / csv
+REQUEST_RECORDER_ENABLED = True # 启用录制
+REQUEST_RECORDER_DIR = 'requests_record' # 存储目录
+REQUEST_RECORDER_FORMAT = 'json' # 输出格式: json / csv
 ```
 
 每条记录包含：URL、方法、请求头、状态码、响应时间、重试次数。
@@ -117,7 +117,7 @@ REQUEST_RECORDER_FORMAT = 'json'               # 输出格式: json / csv
 实时监控爬虫整体的 CPU、内存、网络 I/O 性能指标：
 
 ```python
-PERFORMANCE_MONITOR_INTERVAL = 30              # 采集间隔（秒）
+PERFORMANCE_MONITOR_INTERVAL = 30 # 采集间隔（秒）
 ```
 
 ## ExtensionManager 架构
@@ -153,18 +153,18 @@ import time
 from crawlo.logging import get_logger
 
 class CustomExtension:
-    def __init__(self, crawler):
-        self.crawler = crawler
-        self.logger = get_logger(__name__)
-        self.start_time = None
+ def __init__(self, crawler):
+ self.crawler = crawler
+ self.logger = get_logger(__name__)
+ self.start_time = None
 
-    async def spider_opened(self, spider):
-        self.start_time = time.time()
-        self.logger.info(f"爬虫 {spider.name} 启动")
+ async def spider_opened(self, spider):
+ self.start_time = time.time()
+ self.logger.info(f"爬虫 {spider.name} 启动")
 
-    async def spider_closed(self, spider):
-        elapsed = time.time() - self.start_time
-        self.logger.info(f"爬虫 {spider.name} 结束，耗时 {elapsed:.0f}s")
+ async def spider_closed(self, spider):
+ elapsed = time.time() - self.start_time
+ self.logger.info(f"爬虫 {spider.name} 结束，耗时 {elapsed:.0f}s")
 ```
 
 ```python

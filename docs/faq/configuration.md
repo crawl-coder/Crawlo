@@ -38,7 +38,7 @@ QUEUE_TYPE = 'redis'
 CONCURRENCY = 16
 ```
 
-### 分布式系统模式 ⭐
+### 分布式系统模式 
 
 对应配置：`RUN_MODE='distributed'`，`QUEUE_TYPE='redis_stream'`
 
@@ -59,7 +59,7 @@ CONCURRENCY = 16
 
 ## Redis 是必需的吗？
 
-**不是！** 取决于部署模式：
+**不是！**取决于部署模式：
 
 | 模式 | Redis 要求 |
 |------|-----------|
@@ -79,10 +79,10 @@ CONCURRENCY = 16
 # settings.py
 PROXY_ENABLED = True
 PROXY_LIST = [
-    'http://proxy1.example.com:8080',
-    'http://proxy2.example.com:8080',
+ 'http://proxy1.example.com:8080',
+ 'http://proxy2.example.com:8080',
 ]
-PROXY_MODE = 'round-robin'  # 轮询
+PROXY_MODE = 'round-robin' # 轮询
 ```
 
 ### 动态代理
@@ -98,8 +98,8 @@ PROXY_API_PARAMS = {'key': 'your_api_key'}
 
 ```python
 yield Request(
-    url='https://example.com',
-    meta={'proxy': 'http://proxy:8080'}
+ url='https://example.com',
+ meta={'proxy': 'http://proxy:8080'}
 )
 ```
 
@@ -109,7 +109,7 @@ yield Request(
 
 ```python
 # settings.py
-CONCURRENCY = 16  # 同时请求数
+CONCURRENCY = 16 # 同时请求数
 ```
 
 **建议值**：
@@ -127,8 +127,8 @@ CONCURRENCY = 16  # 同时请求数
 
 ```python
 # settings.py
-DOWNLOAD_DELAY = 1.0  # 基础延迟（秒）
-RANDOMNESS = True     # 启用随机抖动
+DOWNLOAD_DELAY = 1.0 # 基础延迟（秒）
+RANDOMNESS = True # 启用随机抖动
 ```
 
 **实际延迟**：`DOWNLOAD_DELAY * (0.5 ~ 1.5)`
@@ -141,8 +141,8 @@ RANDOMNESS = True     # 启用随机抖动
 
 ```python
 yield Request(
-    url='https://example.com',
-    meta={'use_dynamic_loader': True}
+ url='https://example.com',
+ meta={'use_dynamic_loader': True}
 )
 ```
 
@@ -158,7 +158,7 @@ DEFAULT_USE_DYNAMIC_LOADER = True
 ```python
 # settings.py
 DYNAMIC_LOADER_URL_PATTERNS = [
-    r'.*\.example\.com/.*',  # example.com 使用浏览器
+ r'.*\.example\.com/.*', # example.com 使用浏览器
 ]
 ```
 
@@ -182,12 +182,12 @@ MYSQL_DATABASE = 'mydb'
 
 # 方式1：短路径（推荐，需 v1.6.0+）
 PIPELINES = {
-    'crawlo.pipelines.MySQLPipeline': 300,
+ 'crawlo.pipelines.MySQLPipeline': 300,
 }
 
 # 方式2：完整路径（v2.0 新目录结构）
 # PIPELINES = {
-#     'crawlo.pipelines.sql.mysql.MySQLPipeline': 300,
+# 'crawlo.pipelines.sql.mysql.MySQLPipeline': 300,
 # }
 ```
 
@@ -200,12 +200,12 @@ MONGO_DATABASE = 'mydb'
 
 # 方式1：短路径（推荐）
 PIPELINES = {
-    'crawlo.pipelines.MongoPipeline': 300,
+ 'crawlo.pipelines.MongoPipeline': 300,
 }
 
 # 方式2：完整路径
 # PIPELINES = {
-#     'crawlo.pipelines.doc.mongo.MongoPipeline': 300,
+# 'crawlo.pipelines.doc.mongo.MongoPipeline': 300,
 # }
 ```
 
@@ -213,8 +213,8 @@ PIPELINES = {
 
 ```python
 # settings.py
-LOG_LEVEL = 'INFO'  # DEBUG/INFO/WARNING/ERROR
-LOG_FILE = 'spider.log'  # 日志文件
+LOG_LEVEL = 'INFO' # DEBUG/INFO/WARNING/ERROR
+LOG_FILE = 'spider.log' # 日志文件
 LOG_FORMAT = '%(asctime)s - [%(name)s] - %(levelname)s: %(message)s'
 ```
 
@@ -229,7 +229,7 @@ LOG_FORMAT = '%(asctime)s - [%(name)s] - %(levelname)s: %(message)s'
 ```python
 # settings.py
 RETRY_ENABLED = True
-RETRY_TIMES = 3  # 最大重试次数
+RETRY_TIMES = 3 # 最大重试次数
 RETRY_HTTP_CODES = [500, 502, 503, 504, 408]
 ```
 
@@ -261,9 +261,9 @@ CONCURRENCY = 8
 
 # 爬虫代码中（优先级高）
 class MySpider(Spider):
-    custom_settings = {
-        'CONCURRENCY': 16,  # 覆盖 settings.py
-    }
+ custom_settings = {
+ 'CONCURRENCY': 16, # 覆盖 settings.py
+ }
 ```
 
 ## 如何实现深度优先/广度优先？
@@ -274,7 +274,7 @@ class MySpider(Spider):
 
 ```python
 # settings.py
-DEPTH_PRIORITY = 1  # 默认值
+DEPTH_PRIORITY = 1 # 默认值
 ```
 
 **效果**：列表页解析后，详情页立即被消费，不会等所有列表页处理完。
@@ -306,11 +306,11 @@ DEPTH_PRIORITY = -1
 
 ```python
 # settings.py
-DEPTH_PRIORITY = 0  # 仅按用户设置的 priority 排序
+DEPTH_PRIORITY = 0 # 仅按用户设置的 priority 排序
 ```
 
 > **注意**：`depth` 由框架自动传播（Engine 层面），无需在 Spider 中手动设置。`start_requests` 的 depth 默认为 1，Spider 回调产生的子请求 depth 自动为 `parent.depth + 1`。
 
 ---
 
-**还有其他配置问题？** 查看 [配置指南](../guides/configuration/) 或提交 [GitHub Issue](https://github.com/crawl-coder/Crawlo/issues)。
+**还有其他配置问题？**查看 [配置指南](../guides/configuration/) 或提交 [GitHub Issue](https://github.com/crawl-coder/Crawlo/issues)。

@@ -11,22 +11,22 @@ Crawlo 通过 `CloudflareBypassMiddleware` 自动检测 Cloudflare 的 JS Challe
 ```python
 # settings.py
 CLOUDFLARE_BYPASS_ENABLED = True
-CLOUDFLARE_BYPASS_DOWNLOADER = 'cloakbrowser'   # 推荐
+CLOUDFLARE_BYPASS_DOWNLOADER = 'cloakbrowser' # 推荐
 ```
 
 ## 原理
 
 ```
 普通请求 → AioHttp/HttpX 下载器
-    ↓
+ ↓
 Cloudflare 挑战页面被检测到
-    ↓
+ ↓
 CloudflareBypassMiddleware 拦截
-    ↓
+ ↓
 切换请求到隐身浏览器（CloakBrowser/Camoufox/Playwright）
-    ↓
+ ↓
 浏览器完成 JS Challenge / Turnstile 验证
-    ↓
+ ↓
 获取 cookies，后续请求携带 cookies，回到普通下载器
 ```
 
@@ -42,18 +42,18 @@ CloudflareBypassMiddleware 拦截
 ```python
 # settings.py
 CLOUDFLARE_BYPASS_ENABLED = True
-CLOUDFLARE_BYPASS_MAX_RETRIES = 2       # 单 URL 最多绕过尝试次数
-CLOUDFLARE_BYPASS_DOWNLOADER = 'cloakbrowser'  # 或: camoufox / playwright
-CLOUDFLARE_BYPASS_TIMEOUT = 60000       # 绕过等待超时（毫秒）
+CLOUDFLARE_BYPASS_MAX_RETRIES = 2 # 单 URL 最多绕过尝试次数
+CLOUDFLARE_BYPASS_DOWNLOADER = 'cloakbrowser' # 或: camoufox / playwright
+CLOUDFLARE_BYPASS_TIMEOUT = 60000 # 绕过等待超时（毫秒）
 ```
 
 ## 支持的隐身浏览器
 
 | 下载器 | 特点 | 推荐场景 |
 |--------|------|---------|
-| **CloakBrowser** | 57 项 C++ 补丁，深度反检测 | 强对抗 Cloudflare reCAPTCHA/Turnstile |
-| **Camoufox** | Firefox 内核，指纹随机化 | JS Challenge、中等防护 |
-| **Playwright** | Chromium 内核，stealth 模式 | 轻量防护、快速绕过 |
+| **CloakBrowser**| 57 项 C++ 补丁，深度反检测 | 强对抗 Cloudflare reCAPTCHA/Turnstile |
+| **Camoufox**| Firefox 内核，指纹随机化 | JS Challenge、中等防护 |
+| **Playwright**| Chromium 内核，stealth 模式 | 轻量防护、快速绕过 |
 
 ## 使用示例
 
@@ -69,8 +69,8 @@ CLOUDFLARE_BYPASS_DOWNLOADER = 'cloakbrowser'
 
 ```python
 CLOUDFLARE_BYPASS_DOMAIN_PATTERNS = [
-    'cloudflare-protected-site.com',
-    '*.cdn.example.com',
+ 'cloudflare-protected-site.com',
+ '*.cdn.example.com',
 ]
 # 仅匹配这些域名的请求启用绕过
 ```
@@ -80,9 +80,9 @@ CLOUDFLARE_BYPASS_DOMAIN_PATTERNS = [
 ```python
 # spider.py
 yield Request(
-    url='https://protected-site.com',
-    meta={'cloudflare_bypass': True},   # 强制绕过
-    callback=self.parse,
+ url='https://protected-site.com',
+ meta={'cloudflare_bypass': True}, # 强制绕过
+ callback=self.parse,
 )
 ```
 
@@ -108,8 +108,8 @@ CLOUDFLARE_BYPASS_DOWNLOADER = 'cloakbrowser'
 - 对静态资源（image/font/css）请求设置 `dont_filter=True` 但跳过绕过
 
 ```python
-BROWSER_MAX_PAGES = 10                  # 浏览器最大页面数，复用实例
-CLOUDFLARE_BYPASS_MAX_RETRIES = 2      # 减少无效等待
+BROWSER_MAX_PAGES = 10 # 浏览器最大页面数，复用实例
+CLOUDFLARE_BYPASS_MAX_RETRIES = 2 # 减少无效等待
 ```
 
 ## 故障排查

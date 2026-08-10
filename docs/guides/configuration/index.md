@@ -1,4 +1,4 @@
-# ⚙️ 参数配置详解
+# 参数配置详解
 
 Crawlo 所有的全局配置都在项目的 `settings.py` 中进行管理。
 
@@ -12,9 +12,9 @@ Crawlo 支持根据业务场景灵活选择部署模式，从单机开发测试�
 
 | 场景 | 部署模式 | 爬虫数量 | CONCURRENCY | 特点 |
 | :--- | :--- | :--- | :--- | :--- |
-| **开发测试** | 内存模式 | 1 个 | 8 | 简单快速，无需 Redis |
-| **小规模生产** | 内存模式 | 3-5 个 | 16 | 单机资源充分利用 |
-| **大规模生产** | 分布式系统 | 10+ 个 | 32 | 需要 Redis，水平扩展 |
+| **开发测试**| 内存模式 | 1 个 | 8 | 简单快速，无需 Redis |
+| **小规模生产**| 内存模式 | 3-5 个 | 16 | 单机资源充分利用 |
+| **大规模生产**| 分布式系统 | 10+ 个 | 32 | 需要 Redis，水平扩展 |
 
 ### 1.2 配置示例
 
@@ -23,32 +23,32 @@ Crawlo 支持根据业务场景灵活选择部署模式，从单机开发测试�
 from crawlo.core.config import CrawloConfig
 
 config = CrawloConfig.auto(
-    project_name='myproject',
-    concurrency=8,              # 单个爬虫并发请求数
-    download_delay=1.0,         # 下载延迟（秒）
-    max_running_spiders=1       # 最大同时运行爬虫数
+ project_name='myproject',
+ concurrency=8, # 单个爬虫并发请求数
+ download_delay=1.0, # 下载延迟（秒）
+ max_running_spiders=1 # 最大同时运行爬虫数
 )
 ```
 
 #### 小规模生产配置
 ```python
 config = CrawloConfig.auto(
-    project_name='myproject',
-    concurrency=16,             # 提高单个爬虫并发
-    download_delay=0.5,         # 适当降低延迟
-    max_running_spiders=5       # 允许同时运行5个爬虫
+ project_name='myproject',
+ concurrency=16, # 提高单个爬虫并发
+ download_delay=0.5, # 适当降低延迟
+ max_running_spiders=5 # 允许同时运行5个爬虫
 )
 ```
 
 #### 大规模生产配置（分布式）
 ```python
 config = CrawloConfig.distributed(
-    redis_host='127.0.0.1',     # Redis主机地址
-    redis_port=6379,            # Redis端口
-    project_name='myproject',
-    concurrency=32,             # 高并发
-    download_delay=0.1,         # 低延迟
-    max_running_spiders=20      # 大量爬虫并发
+ redis_host='127.0.0.1', # Redis主机地址
+ redis_port=6379, # Redis端口
+ project_name='myproject',
+ concurrency=32, # 高并发
+ download_delay=0.1, # 低延迟
+ max_running_spiders=20 # 大量爬虫并发
 )
 ```
 
@@ -92,8 +92,7 @@ RANDOM_RANGE = [0.5, 1.5]
 | :--- | :--- | :--- |
 | `DOWNLOAD_DELAY_OVERRIDES` | `{}` | 域名级特定配置，支持不同域名不同延迟。 |
 
-> ⚠️ **注意**：早期版本的 `THROTTLE_*` 参数已移除，统一使用 `DOWNLOAD_DELAY` 相关参数。
-
+> **注意**：早期版本的 `THROTTLE_*` 参数已移除，统一使用 `DOWNLOAD_DELAY` 相关参数。 
 **示例**：
 ```python
 # 全局默认
@@ -101,8 +100,8 @@ DOWNLOAD_DELAY = 1.0
 
 # 域名级控制
 DOWNLOAD_DELAY_OVERRIDES = {
-    'example.com': {'delay': 2.0},  # 慢速网站
-    'api.example.com': {'delay': 0.1},  # API 快速
+ 'example.com': {'delay': 2.0}, # 慢速网站
+ 'api.example.com': {'delay': 0.1}, # API 快速
 }
 ```
 
@@ -157,9 +156,9 @@ CLOAKBROWSER_BLOCK_RESOURCES = ['image', 'font', 'media']
 
 **高对抗站点**（Cloudflare / reCAPTCHA）：
 ```python
-CLOAKBROWSER_HEADLESS = False       # 有头模式
-CLOAKBROWSER_HUMANIZE = True        # 类人行为
-CLOAKBROWSER_GEOIP = True           # 时区自动匹配
+CLOAKBROWSER_HEADLESS = False # 有头模式
+CLOAKBROWSER_HUMANIZE = True # 类人行为
+CLOAKBROWSER_GEOIP = True # 时区自动匹配
 CLOAKBROWSER_PROXY = 'socks5://user:pass@proxy:1080'
 ```
 
@@ -192,9 +191,7 @@ CLOAKBROWSER_PROXY = 'socks5://user:pass@proxy:1080'
 | :--- | :--- | :--- |
 | `PIPELINES` | `{}` | 启用的管道列表。键为管道类路径，值为优先级（0-1000）。 |
 
-**MySQL 配置（MySQLPipeline，依赖 `pip install crawlo[database]`）：**
-
-| 参数 | 默认值 | 说明 |
+**MySQL 配置（MySQLPipeline，依赖 `pip install crawlo[database]`）：**| 参数 | 默认值 | 说明 |
 | :--- | :--- | :--- |
 | `MYSQL_HOST` | `"127.0.0.1"` | 数据库地址。 |
 | `MYSQL_PORT` | `3306` | 端口。 |
@@ -202,17 +199,13 @@ CLOAKBROWSER_PROXY = 'socks5://user:pass@proxy:1080'
 | `MYSQL_TABLE` | `"{spider_name}_items"` | 表名。 |
 | `MYSQL_BATCH_SIZE` | `200` | 批量插入数据量。 |
 
-**SQLite 配置（SQLitePipeline，依赖 `pip install crawlo[sqlite]`）：**
-
-| 参数 | 默认值 | 说明 |
+**SQLite 配置（SQLitePipeline，依赖 `pip install crawlo[sqlite]`）：**| 参数 | 默认值 | 说明 |
 | :--- | :--- | :--- |
 | `SQLITE_PATH` | `"data"` | 数据库文件目录。 |
 | `SQLITE_DB` | `"crawlo"` | 数据库文件名（不含 .db）。 |
 | `SQLITE_AUTO_UPDATE` | `False` | 启用 `INSERT OR REPLACE`（默认 `INSERT OR IGNORE`）。 |
 
-**PostgreSQL 配置（PostgreSQLPipeline，依赖 `pip install crawlo[postgresql]`）：**
-
-| 参数 | 默认值 | 说明 |
+**PostgreSQL 配置（PostgreSQLPipeline，依赖 `pip install crawlo[postgresql]`）：**| 参数 | 默认值 | 说明 |
 | :--- | :--- | :--- |
 | `PG_HOST` | `"127.0.0.1"` | 数据库地址。 |
 | `PG_PORT` | `5432` | 端口。 |
@@ -220,9 +213,7 @@ CLOAKBROWSER_PROXY = 'socks5://user:pass@proxy:1080'
 | `PG_TABLE` | `"{spider_name}_items"` | 表名。 |
 | `PG_CONFLICT_COLUMNS` | — | **必需**：ON CONFLICT 的冲突列（如 `('id',)`）。 |
 
-**ClickHouse 配置（ClickHousePipeline，依赖 `pip install crawlo[clickhouse]`）：**
-
-| 参数 | 默认值 | 说明 |
+**ClickHouse 配置（ClickHousePipeline，依赖 `pip install crawlo[clickhouse]`）：**| 参数 | 默认值 | 说明 |
 | :--- | :--- | :--- |
 | `CLICKHOUSE_HOST` | `"127.0.0.1"` | 地址。 |
 | `CLICKHOUSE_PORT` | `8123` | HTTP 端口。 |
@@ -231,36 +222,28 @@ CLOAKBROWSER_PROXY = 'socks5://user:pass@proxy:1080'
 | `CLICKHOUSE_USE_BATCH` | `True` | 默认启用批量模式。 |
 | `CLICKHOUSE_BATCH_SIZE` | `10000` | 批量大小。 |
 
-**MongoDB 配置（MongoPipeline，依赖 `pip install crawlo[database]`）：**
-
-| 参数 | 默认值 | 说明 |
+**MongoDB 配置（MongoPipeline，依赖 `pip install crawlo[database]`）：**| 参数 | 默认值 | 说明 |
 | :--- | :--- | :--- |
 | `MONGO_URI` | `"mongodb://localhost:27017"` | 连接字符串。 |
 | `MONGO_DB` | `"crawlo_db"` | 数据库名。 |
 | `MONGO_COLLECTION` | `"{spider_name}"` | 集合名。 |
 | `MONGO_DEDUPLICATE_MODE` | `"upsert"` | `"upsert"`（覆盖）或 `"insert"`（跳过重复）。 |
 
-**Elasticsearch 配置（ElasticsearchPipeline，依赖 `pip install crawlo[elasticsearch]`）：**
-
-| 参数 | 默认值 | 说明 |
+**Elasticsearch 配置（ElasticsearchPipeline，依赖 `pip install crawlo[elasticsearch]`）：**| 参数 | 默认值 | 说明 |
 | :--- | :--- | :--- |
 | `ELASTICSEARCH_HOSTS` | `['http://127.0.0.1:9200']` | ES 节点列表。 |
 | `ELASTICSEARCH_INDEX` | `"{spider_name}"` | 索引名。 |
 | `ELASTICSEARCH_USE_BATCH` | `True` | 默认启用批量模式。 |
 | `ELASTICSEARCH_BATCH_SIZE` | `500` | 批量大小。 |
 
-**HBase 配置（HBasePipeline，依赖 `pip install crawlo[hbase]`）：**
-
-| 参数 | 默认值 | 说明 |
+**HBase 配置（HBasePipeline，依赖 `pip install crawlo[hbase]`）：**| 参数 | 默认值 | 说明 |
 | :--- | :--- | :--- |
 | `HBASE_HOST` | `"127.0.0.1"` | Thrift 服务地址。 |
 | `HBASE_PORT` | `9090` | Thrift 端口。 |
 | `HBASE_TABLE` | `"{spider_name}_data"` | 表名。 |
 | `HBASE_COLUMN_FAMILY` | `"cf"` | 列族名。 |
 
-**通用冲突策略（SQL 类型 Pipeline 共享）：**
-
-| 参数 | 默认值 | 说明 |
+**通用冲突策略（SQL 类型 Pipeline 共享）：**| 参数 | 默认值 | 说明 |
 | :--- | :--- | :--- |
 | `{PREFIX}_UPDATE_COLUMNS` | `()` | UPSERT 时指定更新字段。 |
 | `{PREFIX}_AUTO_UPDATE` | `False` | 是否覆盖整行（REPLACE INTO）。 |
@@ -327,10 +310,9 @@ Crawlo 使用优先级队列（min-heap），内部 priority 值越小越先出�
 优先级计算公式：内部 priority = -用户priority - depth × DEPTH_PRIORITY
 
 示例（DEPTH_PRIORITY = 1，用户 priority = 0）：
-  列表页 (depth=1) → 内部 priority = 0 - 1×1 = -1
-  详情页 (depth=2) → 内部 priority = 0 - 2×1 = -2
-  -2 < -1 → 详情页先出队 ✅ 深度优先
-```
+ 列表页 (depth=1) → 内部 priority = 0 - 1×1 = -1
+ 详情页 (depth=2) → 内部 priority = 0 - 2×1 = -2
+ -2 < -1 → 详情页先出队 深度优先 ```
 
 > **注意**：`depth` 由框架自动传播，无需在 Spider 中手动设置。`start_requests` 的 depth 默认为 1，Spider 回调产生的子请求 depth 自动为 `parent.depth + 1`。
 
@@ -349,10 +331,10 @@ Crawlo 默认启用间隔日志监控，每 60 秒输出一次爬虫运行状态
 **示例**：
 ```python
 # 生产环境（默认）
-INTERVAL = 60  # 每分钟输出一次监控日志
+INTERVAL = 60 # 每分钟输出一次监控日志
 
 # 调试环境
-INTERVAL = 10  # 每 10 秒输出一次监控日志
+INTERVAL = 10 # 每 10 秒输出一次监控日志
 ```
 
 **日志输出示例**：
@@ -377,6 +359,6 @@ INTERVAL = 10  # 每 10 秒输出一次监控日志
 
 ---
 
-## 📖 小贴士
+## 小贴士
 - **优先加载顺序**：项目中的 `settings.py` 会覆盖框架默认配置。
 - **命令行覆盖**：可以使用 `crawlo run myspider -s CONCURRENCY=20` 这种方式临时修改配置。

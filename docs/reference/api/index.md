@@ -35,10 +35,10 @@ from crawlo.core.errors import CrawloException
 **示例**:
 ```python
 try:
-    # 爬虫代码
-    pass
+ # 爬虫代码
+ pass
 except CrawloException as e:
-    print(f"框架异常: {e.message}")
+ print(f"框架异常: {e.message}")
 ```
 
 ### 异常分类
@@ -64,9 +64,9 @@ except CrawloException as e:
 from crawlo.http.exceptions import DownloadError
 
 raise DownloadError(
-    message="Connection timeout",
-    url="https://example.com",
-    status_code=504
+ message="Connection timeout",
+ url="https://example.com",
+ status_code=504
 )
 ```
 
@@ -113,8 +113,8 @@ from crawlo.core.errors import ErrorClassifier
 
 ```python
 if ErrorClassifier.is_critical(error):
-    self.logger.critical("关键错误，停止爬虫")
-    raise
+ self.logger.critical("关键错误，停止爬虫")
+ raise
 ```
 
 #### is_network_error(error: Exception) -> bool
@@ -123,7 +123,7 @@ if ErrorClassifier.is_critical(error):
 
 ```python
 if ErrorClassifier.is_network_error(error):
-    return await self.retry_request(request)
+ return await self.retry_request(request)
 ```
 
 #### should_retry(error: Exception) -> bool
@@ -132,7 +132,7 @@ if ErrorClassifier.is_network_error(error):
 
 ```python
 if ErrorClassifier.should_retry(error):
-    return await self.retry(request)
+ return await self.retry(request)
 ```
 
 #### get_error_category(error: Exception) -> str
@@ -209,10 +209,10 @@ Engine 在关闭时会自动输出并发统计：
 
 ```python
 {
-    'concurrency_limit': 12,           # 配置并发
-    'max_concurrent_seen': 12,         # 峰值并发
-    'concurrency_utilization': 100.0,  # 利用率 %
-    'avg_response_time_ms': 1000.0,    # 平均响应时间
+ 'concurrency_limit': 12, # 配置并发
+ 'max_concurrent_seen': 12, # 峰值并发
+ 'concurrency_utilization': 100.0, # 利用率 %
+ 'avg_response_time_ms': 1000.0, # 平均响应时间
 }
 ```
 
@@ -241,8 +241,8 @@ task_manager = TaskManager(total_concurrency=8)
 
 ```python
 task = await task_manager.create_task(
-    coroutine=my_coroutine(),
-    timeout=30.0  # 可选超时时间
+ coroutine=my_coroutine(),
+ timeout=30.0 # 可选超时时间
 )
 ```
 
@@ -259,7 +259,7 @@ task = await task_manager.create_task(
 
 ```python
 if task_manager.all_done():
-    print("所有任务已完成")
+ print("所有任务已完成")
 ```
 
 #### record_response_time(response_time: float)
@@ -278,12 +278,12 @@ task_manager.record_response_time(response_time=1.5)
 stats = task_manager.get_stats()
 print(stats)
 # {
-#     'concurrency_limit': 8,
-#     'max_concurrent_seen': 6,
-#     'concurrency_utilization': 75.0,
-#     'avg_response_time': 1.2,
-#     'total_tasks': 100,
-#     'active_tasks': 6,
+# 'concurrency_limit': 8,
+# 'max_concurrent_seen': 6,
+# 'concurrency_utilization': 75.0,
+# 'avg_response_time': 1.2,
+# 'total_tasks': 100,
+# 'active_tasks': 6,
 # }
 ```
 
@@ -335,26 +335,26 @@ await middleware_manager.close()
 from crawlo.middleware import BaseMiddleware
 
 class MyMiddleware(BaseMiddleware):
-    @classmethod
-    def create_instance(cls, crawler):
-        return cls(crawler)
-    
-    async def open(self):
-        """初始化资源"""
-        self.connection = await create_connection()
-    
-    async def process_request(self, request):
-        """处理请求"""
-        request.headers['X-Custom'] = 'value'
-        return request
-    
-    async def process_response(self, request, response):
-        """处理响应"""
-        return response
-    
-    async def close(self):
-        """清理资源"""
-        await self.connection.close()
+ @classmethod
+ def create_instance(cls, crawler):
+ return cls(crawler)
+ 
+ async def open(self):
+ """初始化资源"""
+ self.connection = await create_connection()
+ 
+ async def process_request(self, request):
+ """处理请求"""
+ request.headers['X-Custom'] = 'value'
+ return request
+ 
+ async def process_response(self, request, response):
+ """处理响应"""
+ return response
+ 
+ async def close(self):
+ """清理资源"""
+ await self.connection.close()
 ```
 
 ---
@@ -438,18 +438,18 @@ from crawlo.spider import Spider
 from crawlo import Request, Item
 
 class MySpider(Spider):
-    name = 'my_spider'
-    start_urls = ['https://example.com']
-    
-    def start_requests(self):
-        for url in self.start_urls:
-            yield Request(url)
-    
-    def parse(self, response):
-        # 解析数据
-        item = MyItem()
-        item['title'] = response.css('h1::text').get()
-        yield item
+ name = 'my_spider'
+ start_urls = ['https://example.com']
+ 
+ def start_requests(self):
+ for url in self.start_urls:
+ yield Request(url)
+ 
+ def parse(self, response):
+ # 解析数据
+ item = MyItem()
+ item['title'] = response.css('h1::text').get()
+ yield item
 
 # 运行爬虫
 crawler = Crawler(MySpider)
@@ -462,20 +462,20 @@ crawler.crawl()
 from crawlo.core.errors import ErrorClassifier
 
 async def process_request(request):
-    try:
-        response = await download(request)
-        return response
-    except Exception as e:
-        if ErrorClassifier.is_critical(e):
-            # 关键错误，停止爬虫
-            raise
-        elif ErrorClassifier.should_retry(e):
-            # 网络错误，重试
-            return await retry(request)
-        else:
-            # 其他错误，记录日志
-            logger.error(f"Request failed: {e}")
-            return None
+ try:
+ response = await download(request)
+ return response
+ except Exception as e:
+ if ErrorClassifier.is_critical(e):
+ # 关键错误，停止爬虫
+ raise
+ elif ErrorClassifier.should_retry(e):
+ # 网络错误，重试
+ return await retry(request)
+ else:
+ # 其他错误，记录日志
+ logger.error(f"Request failed: {e}")
+ return None
 ```
 
 ### 中间件示例
@@ -484,22 +484,22 @@ async def process_request(request):
 from crawlo.middleware import BaseMiddleware
 
 class CustomMiddleware(BaseMiddleware):
-    @classmethod
-    def create_instance(cls, crawler):
-        return cls(crawler)
-    
-    async def open(self):
-        # 初始化
-        self.cache = {}
-    
-    async def process_request(self, request):
-        # 添加自定义头
-        request.headers['X-API-Key'] = 'xxx'
-        return request
-    
-    async def close(self):
-        # 清理
-        self.cache.clear()
+ @classmethod
+ def create_instance(cls, crawler):
+ return cls(crawler)
+ 
+ async def open(self):
+ # 初始化
+ self.cache = {}
+ 
+ async def process_request(self, request):
+ # 添加自定义头
+ request.headers['X-API-Key'] = 'xxx'
+ return request
+ 
+ async def close(self):
+ # 清理
+ self.cache.clear()
 ```
 
 ---
@@ -533,7 +533,7 @@ from crawlo.downloader import DownloaderBase
 | `CloakBrowserDownloader` / `CamoufoxDownloader` / `DrissionPageDownloader` | 隐身浏览器引擎 |
 | `HybridDownloader` | 5 级检测路由（meta → URL 正则 → 域名 → 扩展名 → 默认） |
 
-**扩展点（P3-2）**：
+**扩展点**：
 
 ```python
 from crawlo.downloader import register_downloader, unregister_downloader
@@ -567,15 +567,15 @@ request = await manager.get_blocking(timeout=30)
 | Redis Stream | `RedisStreamQueue` | 消费组 + ACK/NACK + 心跳 + 故障转移 + DLQ |
 | 磁盘 | `DiskQueue` | 磁盘持久化队列 |
 
-**扩展点（P3-2）**：
+**扩展点**：
 
 ```python
 from crawlo.queue import register_queue_backend
 
 async def build_my_queue(manager):
-    return MyQueue(manager)
+ return MyQueue(manager)
 
-register_queue_backend(QueueType.MEMORY, build_my_queue)  # 覆盖内置后端
+register_queue_backend(QueueType.MEMORY, build_my_queue) # 覆盖内置后端
 ```
 
 **任务追踪**：`crawlo.queue.task_tracker.TaskTracker` / `TaskResult`（RETRY / DEAD_LETTER / ACK）。
@@ -651,7 +651,7 @@ from crawlo.extensions.notifications.core.models import NotificationMessage
 
 notifier = get_notifier()
 resp = notifier.send_notification(
-    NotificationMessage(title='爬虫完成', content='抓取 100 条数据')
+ NotificationMessage(title='爬虫完成', content='抓取 100 条数据')
 )
 ```
 
@@ -663,7 +663,7 @@ resp = notifier.send_notification(
 
 - **当前版本**: v1.7.3
 - **发布日期**: 2026-08-10
-- **Python 版本**: >= 3.8
+- **Python 版本**: >= 3.10
 
 ## 更多信息
 

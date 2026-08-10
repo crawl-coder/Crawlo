@@ -13,9 +13,9 @@ Crawlo 通过 `ProxyMiddleware` 实现自动代理管理，支持静态代理列
 ```python
 # settings.py
 PROXY_LIST = [
-    "http://user:pass@proxy1.example.com:8080",
-    "http://user:pass@proxy2.example.com:8080",
-    "socks5://user:pass@proxy3.example.com:1080",
+ "http://user:pass@proxy1.example.com:8080",
+ "http://user:pass@proxy2.example.com:8080",
+ "socks5://user:pass@proxy3.example.com:1080",
 ]
 ```
 
@@ -29,15 +29,15 @@ PROXY_LIST = [
 
 ```python
 PROXY_API_URL = "http://proxy-pool.example.com/api/get"
-PROXY_EXTRACTOR = "proxy"              # 从 JSON 响应的 'proxy' 字段提取
+PROXY_EXTRACTOR = "proxy" # 从 JSON 响应的 'proxy' 字段提取
 ```
 
 API 响应格式：
 
 ```json
 {
-    "proxy": "http://1.2.3.4:8080",
-    "expire": 300
+ "proxy": "http://1.2.3.4:8080",
+ "expire": 300
 }
 ```
 
@@ -46,10 +46,10 @@ API 响应格式：
 ```python
 # extractors.py
 def extract_proxy(data):
-    # data['data']['ip'] = '1.2.3.4', data['data']['port'] = 8080
-    ip = data['data']['ip']
-    port = data['data']['port']
-    return f"http://{ip}:{port}"
+ # data['data']['ip'] = '1.2.3.4', data['data']['port'] = 8080
+ ip = data['data']['ip']
+ port = data['data']['port']
+ return f"http://{ip}:{port}"
 
 # settings.py
 PROXY_API_URL = "http://api.example.com/proxy"
@@ -67,9 +67,9 @@ PROXY_EXTRACTOR = "myproject.extractors.extract_proxy"
 ```
 
 ```python
-MAX_RETRY_TIMES = 3                    # 代理切换也是重试逻辑的一部分
-RETRY_PRIORITY = 10                    # 代理切换重试的优先级
-PROXY_SWITCH_THRESHOLD = 2             # 重试超过此阈值切换代理
+MAX_RETRY_TIMES = 3 # 代理切换也是重试逻辑的一部分
+RETRY_PRIORITY = 10 # 代理切换重试的优先级
+PROXY_SWITCH_THRESHOLD = 2 # 重试超过此阈值切换代理
 ```
 
 ## 免代理（白名单）
@@ -87,20 +87,20 @@ PROXY_ENABLED = True
 
 # 静态代理
 PROXY_LIST = [
-    "http://proxy1:8080",
-    "http://proxy2:8080",
+ "http://proxy1:8080",
+ "http://proxy2:8080",
 ]
 
 # 动态代理
 PROXY_API_URL = "http://proxy-api.com/get-proxy"
-PROXY_EXTRACTOR = "proxy"              # JSON 字段名或自定义函数路径
+PROXY_EXTRACTOR = "proxy" # JSON 字段名或自定义函数路径
 
 # 重试时的代理切换
-PROXY_SWITCH_THRESHOLD = 2             # 网络失败 >N 次切换代理
+PROXY_SWITCH_THRESHOLD = 2 # 网络失败 >N 次切换代理
 
 # 白名单
 PROXY_WHITELIST = ['localhost', '127.0.0.1']
 
 # 浏览器代理（Playwright/Camoufox/CloakBrowser）
-BROWSER_PROXY = None                   # 或: "http://proxy:8080"
+BROWSER_PROXY = None # 或: "http://proxy:8080"
 ```

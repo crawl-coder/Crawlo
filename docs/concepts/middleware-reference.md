@@ -21,11 +21,11 @@ Response ← Retry ← Proxy ← Header ← DynamicRender ← Downloader
 
 ```python
 # settings.py
-MAX_RETRY_TIMES = 3                   # 最大重试次数
-RETRY_HTTP_CODES = [500, 502, 503]    # 触发热重试的状态码
-IGNORE_HTTP_CODES = [404]             # 跳过不重试的状态码
-RETRY_PRIORITY = 10                   # 重试请求的优先级增量
-RETRY_EXCEPTIONS = []                 # 自定义异常类型
+MAX_RETRY_TIMES = 3 # 最大重试次数
+RETRY_HTTP_CODES = [500, 502, 503] # 触发热重试的状态码
+IGNORE_HTTP_CODES = [404] # 跳过不重试的状态码
+RETRY_PRIORITY = 10 # 重试请求的优先级增量
+RETRY_EXCEPTIONS = [] # 自定义异常类型
 ```
 
 重试退避：第 1 次等 1s，第 2 次等 2s，第 3 次等 4s（`2^(n-1)`）。
@@ -50,8 +50,8 @@ PROXY_API_URL = "http://proxy-api.com/get-proxy"
 
 ```python
 USER_AGENT_LIST = [
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/...",
-    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) ...",
+ "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/...",
+ "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) ...",
 ]
 ```
 
@@ -61,8 +61,8 @@ USER_AGENT_LIST = [
 
 ```python
 DEFAULT_REQUEST_HEADERS = {
-    'Accept': 'text/html,application/xhtml+xml',
-    'Accept-Language': 'zh-CN,zh;q=0.9',
+ 'Accept': 'text/html,application/xhtml+xml',
+ 'Accept-Language': 'zh-CN,zh;q=0.9',
 }
 ```
 
@@ -71,8 +71,8 @@ DEFAULT_REQUEST_HEADERS = {
 控制请求之间的最小间隔：
 
 ```python
-DOWNLOAD_DELAY = 1.0                  # 请求间隔（秒）
-RANDOMNESS = True                     # 是否加随机抖动（±50%）
+DOWNLOAD_DELAY = 1.0 # 请求间隔（秒）
+RANDOMNESS = True # 是否加随机抖动（±50%）
 ```
 
 ### 6. DynamicRenderMiddleware — 动态渲染
@@ -92,7 +92,7 @@ DYNAMIC_RENDER_URL_PATTERNS = [r'/app/', r'/#/']
 ```python
 CLOUDFLARE_BYPASS_ENABLED = True
 CLOUDFLARE_BYPASS_MAX_RETRIES = 2
-CLOUDFLARE_BYPASS_DOWNLOADER = 'cloakbrowser'   # 或 camoufox / playwright
+CLOUDFLARE_BYPASS_DOWNLOADER = 'cloakbrowser' # 或 camoufox / playwright
 ```
 
 详见 [Cloudflare 绕过指南](../guides/cloudflare-bypass.md)。
@@ -113,9 +113,9 @@ allowed_domains = ['example.com']
 按配置调整请求优先级：
 
 ```python
-DEPTH_PRIORITY = 1                    # 深度越深优先级越高（列表页优先）
+DEPTH_PRIORITY = 1 # 深度越深优先级越高（列表页优先）
 # 或
-DEPTH_PRIORITY = -1                   # 深度越浅优先级越高（详情页优先）
+DEPTH_PRIORITY = -1 # 深度越浅优先级越高（详情页优先）
 ```
 
 ### 10. RequestIgnoreMiddleware — 请求忽略
@@ -124,8 +124,8 @@ DEPTH_PRIORITY = -1                   # 深度越浅优先级越高（详情页�
 
 ```python
 REQUEST_IGNORE_PATTERNS = [
-    r'/logout',                        # 忽略登出链接
-    r'/print',                         # 忽略打印页面
+ r'/logout', # 忽略登出链接
+ r'/print', # 忽略打印页面
 ]
 ```
 
@@ -135,7 +135,7 @@ REQUEST_IGNORE_PATTERNS = [
 
 ```python
 RESPONSE_CODE_ENABLED = True
-RESPONSE_CODE_IGNORE = [404, 403]     # 忽略的状态码
+RESPONSE_CODE_IGNORE = [404, 403] # 忽略的状态码
 RESPONSE_CODE_RETRY = [429, 500, 503] # 触发热重试的状态码
 ```
 
@@ -144,8 +144,8 @@ RESPONSE_CODE_RETRY = [429, 500, 503] # 触发热重试的状态码
 按内容类型过滤响应（例如只处理 HTML，跳过图片/JS）：
 
 ```python
-RESPONSE_FILTER_TYPES = ['text/html']          # 只处理 HTML
-RESPONSE_FILTER_MAX_SIZE = 10 * 1024 * 1024    # 最大响应体 10MB
+RESPONSE_FILTER_TYPES = ['text/html'] # 只处理 HTML
+RESPONSE_FILTER_MAX_SIZE = 10 * 1024 * 1024 # 最大响应体 10MB
 ```
 
 ### 13. FileMiddleware — 文件下载
@@ -153,7 +153,7 @@ RESPONSE_FILTER_MAX_SIZE = 10 * 1024 * 1024    # 最大响应体 10MB
 处理文件下载请求（`file://` 协议或本地文件路径）：
 
 ```python
-FILES_STORE = './downloads'            # 文件存储目录
+FILES_STORE = './downloads' # 文件存储目录
 ```
 
 ---
@@ -181,26 +181,26 @@ FILES_STORE = './downloads'            # 文件存储目录
 ```python
 # middlewares.py
 class CustomMiddleware:
-    def __init__(self, crawler):
-        self.crawler = crawler
+ def __init__(self, crawler):
+ self.crawler = crawler
 
-    def process_request(self, request, spider):
-        # 修改请求
-        request.headers['X-Custom'] = 'value'
-        return request
+ def process_request(self, request, spider):
+ # 修改请求
+ request.headers['X-Custom'] = 'value'
+ return request
 
-    def process_response(self, request, response, spider):
-        # 修改响应
-        return response
+ def process_response(self, request, response, spider):
+ # 修改响应
+ return response
 
-    def process_exception(self, request, exception, spider):
-        # 处理异常
-        return None  # 继续抛给下一个中间件
+ def process_exception(self, request, exception, spider):
+ # 处理异常
+ return None # 继续抛给下一个中间件
 ```
 
 ```python
 # settings.py
 MIDDLEWARES = {
-    'myproject.middlewares.CustomMiddleware': 500,
+ 'myproject.middlewares.CustomMiddleware': 500,
 }
 ```

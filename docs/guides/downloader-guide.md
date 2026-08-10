@@ -8,14 +8,14 @@ Crawlo 提供了多种下载器，覆盖从简单静态页面到高强度反爬�
 
 | 下载器 | 类型 | 反检测能力 | 速度 | 内存占用 | 适用场景 |
 |--------|------|-----------|------|---------|---------|
-| **AioHttpDownloader** | 协议 | 无 | 最快 | 极低 | 静态页面、API 接口 |
-| **HttpXDownloader** | 协议 | HTTP/2 支持 | 最快 | 极低 | 需要 HTTP/2 的 API |
-| **CurlCffiDownloader** | 协议 | TLS 指纹模拟 | 快 | 低 | Cloudflare 5 秒盾、TLS 检测 |
-| **PlaywrightDownloader** | 浏览器 | JS 注入（基础） | 中 | 中 | 需要 JS 渲染的 SPA 页面 |
-| **CamoufoxDownloader** | 浏览器 | 浏览器指纹伪装（Firefox） | 中慢 | 中高 | 浏览器指纹检测、Akamai |
-| **CloakBrowserDownloader** | 浏览器 | C++ 补丁（Chromium） | 中慢 | 高 | 高强度反爬、Cloudflare |
-| **DrissionPageDownloader** | 浏览器 | JS 注入（基础） | 中 | 中 | 国产环境、简单动态页面 |
-| **HybridDownloader** | 混合 | 协议+动态自动切换 | 动态 | 低→动态 | 复杂场景，推荐默认使用 |
+| **AioHttpDownloader**| 协议 | 无 | 最快 | 极低 | 静态页面、API 接口 |
+| **HttpXDownloader**| 协议 | HTTP/2 支持 | 最快 | 极低 | 需要 HTTP/2 的 API |
+| **CurlCffiDownloader**| 协议 | TLS 指纹模拟 | 快 | 低 | Cloudflare 5 秒盾、TLS 检测 |
+| **PlaywrightDownloader**| 浏览器 | JS 注入（基础） | 中 | 中 | 需要 JS 渲染的 SPA 页面 |
+| **CamoufoxDownloader**| 浏览器 | 浏览器指纹伪装（Firefox） | 中慢 | 中高 | 浏览器指纹检测、Akamai |
+| **CloakBrowserDownloader**| 浏览器 | C++ 补丁（Chromium） | 中慢 | 高 | 高强度反爬、Cloudflare |
+| **DrissionPageDownloader**| 浏览器 | JS 注入（基础） | 中 | 中 | 国产环境、简单动态页面 |
+| **HybridDownloader**| 混合 | 协议+动态自动切换 | 动态 | 低→动态 | 复杂场景，推荐默认使用 |
 
 ---
 
@@ -28,15 +28,15 @@ Crawlo 提供了多种下载器，覆盖从简单静态页面到高强度反爬�
 ```
 目标页面需要 JS 渲染吗？
 ├── 否 → 使用协议下载器
-│         ├── 普通 API → AioHttpDownloader
-│         ├── 需要 HTTP/2 → HttpXDownloader
-│         └── Cluodflare / TLS 检测 → CurlCffiDownloader
+│ ├── 普通 API → AioHttpDownloader
+│ ├── 需要 HTTP/2 → HttpXDownloader
+│ └── Cluodflare / TLS 检测 → CurlCffiDownloader
 │
 └── 是 → 站点有反爬检测吗？
-          ├── 无 → PlaywrightDownloader（最轻量）
-          ├── 中文生态 → DrissionPageDownloader
-          ├── 浏览器指纹检测 → CamoufoxDownloader（Firefox）
-          └── 高强度反爬 → CloakBrowserDownloader（Chromium）
+ ├── 无 → PlaywrightDownloader（最轻量）
+ ├── 中文生态 → DrissionPageDownloader
+ ├── 浏览器指纹检测 → CamoufoxDownloader（Firefox）
+ └── 高强度反爬 → CloakBrowserDownloader（Chromium）
 
 也可以直接用 HybridDownloader，让它按规则自动选择。
 ```
@@ -49,7 +49,7 @@ Crawlo 提供了多种下载器，覆盖从简单静态页面到高强度反爬�
 
 ```python
 # settings.py
-DOWNLOADER = 'hybrid'   # 短名称（推荐），或 'crawlo.downloader.HybridDownloader'
+DOWNLOADER = 'hybrid' # 短名称（推荐），或 'crawlo.downloader.HybridDownloader'
 ```
 
 **框架默认使用的就是 HybridDownloader**，不配置 DOWNLOADER 即可。
@@ -77,7 +77,7 @@ HybridDownloader 维护两类下载器：
 HYBRID_DEFAULT_PROTOCOL_DOWNLOADER = 'httpx'
 
 # 默认动态下载器
-HYBRID_DEFAULT_DYNAMIC_DOWNLOADER = 'playwright'  # 或 'camoufox' / 'cloakbrowser'
+HYBRID_DEFAULT_DYNAMIC_DOWNLOADER = 'playwright' # 或 'camoufox' / 'cloakbrowser'
 
 # 特定域名自动走浏览器
 HYBRID_DYNAMIC_DOMAINS = ['www.cloudflare-site.com', 'spa.example.com']
@@ -93,17 +93,17 @@ from crawlo import Request
 
 # 强制使用浏览器
 yield Request(
-    url='https://example.com/spa-page',
-    meta={'use_dynamic_loader': True}
+ url='https://example.com/spa-page',
+ meta={'use_dynamic_loader': True}
 )
 
 # 强制使用特定动态下载器
 yield Request(
-    url='https://high-protection-site.com',
-    meta={
-        'use_dynamic_loader': True,
-        'dynamic_downloader': 'cloakbrowser',  # 指定下载器
-    }
+ url='https://high-protection-site.com',
+ meta={
+ 'use_dynamic_loader': True,
+ 'dynamic_downloader': 'cloakbrowser', # 指定下载器
+ }
 )
 ```
 
@@ -117,7 +117,7 @@ yield Request(
 
 ```python
 # settings.py — 默认已启用，无需额外配置
-DOWNLOADER = 'crawlo.downloader.aiohttp_downloader.AioHttpDownloader'
+DOWNLOADER = 'crawlo.downloader.AioHttpDownloader'
 ```
 
 ### HttpXDownloader
@@ -125,7 +125,7 @@ DOWNLOADER = 'crawlo.downloader.aiohttp_downloader.AioHttpDownloader'
 与 aiohttp 类似，额外支持 HTTP/2。
 
 ```python
-DOWNLOADER = 'crawlo.downloader.httpx_downloader.HttpXDownloader'
+DOWNLOADER = 'crawlo.downloader.HttpXDownloader'
 ```
 
 ### CurlCffiDownloader
@@ -137,7 +137,7 @@ pip install crawlo[curl]
 ```
 
 ```python
-DOWNLOADER = 'crawlo.downloader.curl_cffi_downloader.CurlCffiDownloader'
+DOWNLOADER = 'crawlo.downloader.CurlCffiDownloader'
 ```
 
 ---
@@ -158,24 +158,24 @@ playwright install chromium
 DOWNLOADER = 'crawlo.downloader.playwright_downloader.PlaywrightDownloader'
 
 PLAYWRIGHT_HEADLESS = True
-PLAYWRIGHT_BLOCK_RESOURCES = ['image', 'font', 'media']  # 加速加载
-PLAYWRIGHT_STEALTH_LEVEL = 'basic'  # 基础反检测
+PLAYWRIGHT_BLOCK_RESOURCES = ['image', 'font', 'media'] # 加速加载
+PLAYWRIGHT_STEALTH_LEVEL = 'basic' # 基础反检测
 ```
 
 **请求级控制**：
 
 ```python
 yield Request(
-    url='https://spa-site.com/page',
-    meta={
-        'use_dynamic_loader': True,
-        'playwright_headless': False,
-        'playwright_wait_strategy': 'networkidle',
-        'dynamic_actions': [
-            {'type': 'click', 'selector': '#load-more'},
-            {'type': 'scroll_to_bottom', 'params': {'max_no_content': 3}},
-        ]
-    }
+ url='https://spa-site.com/page',
+ meta={
+ 'use_dynamic_loader': True,
+ 'playwright_headless': False,
+ 'playwright_wait_strategy': 'networkidle',
+ 'dynamic_actions': [
+ {'type': 'click', 'selector': '#load-more'},
+ {'type': 'scroll_to_bottom', 'params': {'max_no_content': 3}},
+ ]
+ }
 )
 ```
 
@@ -193,7 +193,7 @@ DOWNLOADER = 'crawlo.downloader.camoufox_downloader.CamoufoxDownloader'
 
 ### CloakBrowserDownloader
 
-基于 Chromium C++ 补丁的顶级反检测浏览器。适合 Cloudflare、reCAPTCHA v3 等高强度反爬站点。
+基于 Chromium C++ 补丁的反检测浏览器。适合 Cloudflare、reCAPTCHA v3 等高强度反爬站点。
 
 详见 → [CloakBrowser 使用指南](cloakbrowser-guide.md)
 
@@ -212,8 +212,8 @@ DOWNLOADER = 'crawlo.downloader.camoufox_downloader.CamoufoxDownloader'
 | `domcontentloaded` | DOM 加载完成即返回 |
 
 ```python
-meta={'cloakbrowser_wait_strategy': 'networkidle'}  # CloakBrowser
-meta={'playwright_wait_strategy': 'networkidle'}     # Playwright
+meta={'cloakbrowser_wait_strategy': 'networkidle'} # CloakBrowser
+meta={'playwright_wait_strategy': 'networkidle'} # Playwright
 ```
 
 ### 资源屏蔽
@@ -230,22 +230,22 @@ meta={'cloakbrowser_block_resources': ['image', 'font', 'media', 'stylesheet']}
 
 ```python
 meta={
-    'dynamic_actions': [
-        # 等待
-        {'type': 'wait', 'params': {'timeout': 3000}},
-        # 点击
-        {'type': 'click', 'selector': '#accept-cookies'},
-        # 点击后等待网络空闲
-        {'type': 'click_and_wait', 'selector': '#load-more', 'params': {'wait_for': 'networkidle'}},
-        # 填写表单
-        {'type': 'fill', 'selector': '#search-input', 'params': {'value': '关键词'}},
-        # 滚动到底部
-        {'type': 'scroll_to_bottom', 'params': {'scroll_delay': 500, 'max_no_content': 3}},
-        # 滚动到指定位置
-        {'type': 'scroll', 'params': {'position': 'bottom'}},
-        # 执行 JavaScript
-        {'type': 'evaluate', 'params': {'script': 'window.scrollTo(0, document.body.scrollHeight)'}},
-    ]
+ 'dynamic_actions': [
+ # 等待
+ {'type': 'wait', 'params': {'timeout': 3000}},
+ # 点击
+ {'type': 'click', 'selector': '#accept-cookies'},
+ # 点击后等待网络空闲
+ {'type': 'click_and_wait', 'selector': '#load-more', 'params': {'wait_for': 'networkidle'}},
+ # 填写表单
+ {'type': 'fill', 'selector': '#search-input', 'params': {'value': '关键词'}},
+ # 滚动到底部
+ {'type': 'scroll_to_bottom', 'params': {'scroll_delay': 500, 'max_no_content': 3}},
+ # 滚动到指定位置
+ {'type': 'scroll', 'params': {'position': 'bottom'}},
+ # 执行 JavaScript
+ {'type': 'evaluate', 'params': {'script': 'window.scrollTo(0, document.body.scrollHeight)'}},
+ ]
 }
 ```
 
@@ -253,11 +253,11 @@ meta={
 
 ```python
 meta={
-    'pagination_actions': [
-        {'type': 'scroll', 'params': {'count': 3, 'distance': 500, 'delay': 1000}},
-        {'type': 'click', 'params': {'selector': '.next-page', 'count': 2, 'delay': 2000}},
-        {'type': 'evaluate', 'params': {'script': 'loadNextPage()'}},
-    ]
+ 'pagination_actions': [
+ {'type': 'scroll', 'params': {'count': 3, 'distance': 500, 'delay': 1000}},
+ {'type': 'click', 'params': {'selector': '.next-page', 'count': 2, 'delay': 2000}},
+ {'type': 'evaluate', 'params': {'script': 'loadNextPage()'}},
+ ]
 }
 ```
 

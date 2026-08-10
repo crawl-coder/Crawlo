@@ -3,8 +3,8 @@
 > 适用：Linux 服务器（CentOS 7+ / Ubuntu 20.04+ / Debian 11+）
 
 !!! tip "部署模式概览"
-    本文档聚焦**服务器环境部署**（安装、systemd 守护、监控运维）。  
-    三种运行模式（内存/多节点协作/分布式系统）的**配置差异**与**运行机制**详见 [部署模式详解](guides/configuration/run-modes.md)。
+ 本文档聚焦**服务器环境部署**（安装、systemd 守护、监控运维）。 
+ 三种运行模式（内存/多节点协作/分布式系统）的**配置差异**与**运行机制**详见 [部署模式详解](guides/configuration/run-modes.md)。
 
 ---
 
@@ -12,6 +12,10 @@
 
 - [Docker 部署](deployment/docker-deployment.md) — 容器化构建与编排
 - [Redis 高可用与验证](deployment/redis-ha.md) — Sentinel 故障切换与生产验证
+- [监控与告警](deployment/monitoring-alerting.md) — Prometheus + Grafana + 通知
+- [代理池与轮换](deployment/proxy-rotation.md) — 代理池接线与成本控制
+- [升级与回滚](deployment/upgrade-rollback.md) — 发版检查、升级步骤、回滚方案
+- [Kubernetes 部署](deployment/kubernetes-deployment.md) — 规模化 Worker 集群
 - [部署模式详解](guides/configuration/run-modes.md) — 三种运行模式的配置与工作机制
 - [分布式架构设计](distributed_architecture.md) — 集群架构、任务生命周期、故障恢复、协调退出
 - [配置指南](guides/configuration/) — 全部配置项说明
@@ -23,7 +27,7 @@
 
 | 组件 | 单机版 | 多节点协作 | 分布式系统 |
 |------|--------|-----------|-----------|
-| Python | ≥ 3.8 | ≥ 3.8 | ≥ 3.8 |
+| Python | ≥ 3.10 | ≥ 3.10 | ≥ 3.10 |
 | Redis | — | ≥ 6.0 | ≥ 7.0 |
 | MySQL | 可选 | 可选 | 推荐 |
 | 内存 | ≥ 512MB | ≥ 1GB | ≥ 2GB / 节点 |
@@ -73,20 +77,20 @@ crawlo genspider news example.com
 
 ```
 myproject/
-├── crawlo.cfg                      # 项目配置（指向 settings 模块）
-├── run.py                          # 入口脚本
+├── crawlo.cfg # 项目配置（指向 settings 模块）
+├── run.py # 入口脚本
 └── myproject/
-    ├── __init__.py
-    ├── items.py                    # Item 定义
-    ├── middlewares.py              # 自定义中间件
-    ├── pipelines.py                # 数据管道
-    ├── settings.py                 # 主配置（CrawloConfig.auto()）
-    ├── settings_distributed.py     # 分布式配置模板
-    ├── settings_gentle.py          # 温和模式配置模板
-    ├── settings_high_performance.py # 高性能配置模板
-    └── spiders/
-        ├── __init__.py
-        └── news.py                 # 爬虫
+ ├── __init__.py
+ ├── items.py # Item 定义
+ ├── middlewares.py # 自定义中间件
+ ├── pipelines.py # 数据管道
+ ├── settings.py # 主配置（CrawloConfig.auto()）
+ ├── settings_distributed.py # 分布式配置模板
+ ├── settings_gentle.py # 温和模式配置模板
+ ├── settings_high_performance.py # 高性能配置模板
+ └── spiders/
+ ├── __init__.py
+ └── news.py # 爬虫
 ```
 
 > **提示**：`crawlo startproject` 会自动生成多套 settings 模板，可根据场景选择或修改。`settings_distributed.py` 已预配置分布式参数。
@@ -106,14 +110,14 @@ crawlo run schedule
 crawlo schedule
 
 # 常用参数
-crawlo run news --concurrency 32        # 覆盖并发数
-crawlo run news --log-level DEBUG       # 覆盖日志级别
-crawlo run news --fresh                 # 忽略检查点，从头开始
-crawlo run news --clean-checkpoint      # 清除检查点后运行
+crawlo run news --concurrency 32 # 覆盖并发数
+crawlo run news --log-level DEBUG # 覆盖日志级别
+crawlo run news --fresh # 忽略检查点，从头开始
+crawlo run news --clean-checkpoint # 清除检查点后运行
 
 # 调试命令
-crawlo list                             # 列出所有已注册爬虫
-crawlo check                            # 检查项目配置
+crawlo list # 列出所有已注册爬虫
+crawlo check # 检查项目配置
 ```
 
 ### 5. 使用 run.py
@@ -121,8 +125,8 @@ crawlo check                            # 检查项目配置
 项目模板自带 `run.py`，支持普通和定时两种模式：
 
 ```bash
-python run.py               # 运行默认爬虫
-python run.py --schedule    # 启动定时调度
+python run.py # 运行默认爬虫
+python run.py --schedule # 启动定时调度
 ```
 
 ---
@@ -142,9 +146,9 @@ python run.py --schedule    # 启动定时调度
 from crawlo.core.config import CrawloConfig
 
 config = CrawloConfig.standalone(
-    project_name='myproject',
-    concurrency=16,
-    download_delay=0.5,
+ project_name='myproject',
+ concurrency=16,
+ download_delay=0.5,
 )
 locals().update(config.to_dict())
 
@@ -155,30 +159,30 @@ CHECKPOINT_ENABLED = True
 # 可选项：启用定时调度
 SCHEDULER_ENABLED = True
 SCHEDULER_JOBS = [
-    {
-        'spider': 'news',
-        'cron': '0 2 * * *',   # 每天凌晨 2 点
-        'enabled': True,
-        'priority': 5,
-        'max_retries': 3,
-    },
+ {
+ 'spider': 'news',
+ 'cron': '0 2 * * *', # 每天凌晨 2 点
+ 'enabled': True,
+ 'priority': 5,
+ 'max_retries': 3,
+ },
 ]
 
 # 可选项：MySQL 入库（需 pip install asyncmy）
 ITEM_PIPELINES = {
-    'crawlo.pipelines.MySQLPipeline': 300,
+ 'crawlo.pipelines.MySQLPipeline': 300,
 }
 MYSQL_HOST = '127.0.0.1'
 MYSQL_PORT = 3306
 MYSQL_USER = 'crawlo'
 MYSQL_PASSWORD = 'your_password'
 MYSQL_DB = 'crawlo_db'
-MYSQL_TABLE = 'news'          # 默认为 {spider_name}_items
-MYSQL_BATCH_SIZE = 500         # 批量入库条数，默认 500
+MYSQL_TABLE = 'news' # 默认为 {spider_name}_items
+MYSQL_BATCH_SIZE = 500 # 批量入库条数，默认 500
 MYSQL_USE_BATCH = True
 
 # 可选项：生产日志
-LOG_FILE = 'logs/crawlo.log'   # 日志目录自动创建
+LOG_FILE = 'logs/crawlo.log' # 日志目录自动创建
 LOG_FILE_ENABLED = True
 LOG_RETENTION_DAYS = 7
 ```
@@ -239,17 +243,17 @@ tail -f /opt/crawlo/projects/myproject/logs/crawlo.log
 ### 架构
 
 ```
-┌──────────────┐  ┌──────────────┐  ┌──────────────┐
-│   节点 A      │  │   节点 B      │  │   节点 C      │
-│  Crawlo Auto  │  │  Crawlo Auto  │  │  Crawlo Auto  │
-└──────┬───────┘  └──────┬───────┘  └──────┬───────┘
-       │                 │                 │
-       └─────────────────┼─────────────────┘
-                         │
-                   ┌─────▼─────┐
-                   │   Redis    │  ← ZSET 队列 + SET 去重
-                   │  BZPOPMIN  │
-                   └───────────┘
+┌──────────────┐ ┌──────────────┐ ┌──────────────┐
+│ 节点 A │ │ 节点 B │ │ 节点 C │
+│ Crawlo Auto │ │ Crawlo Auto │ │ Crawlo Auto │
+└──────┬───────┘ └──────┬───────┘ └──────┬───────┘
+ │ │ │
+ └─────────────────┼─────────────────┘
+ │
+ ┌─────▼─────┐
+ │ Redis │ ← ZSET 队列 + SET 去重
+ │ BZPOPMIN │
+ └───────────┘
 ```
 
 ### 1. 安装 Redis
@@ -276,9 +280,9 @@ REDISCLI_AUTH=your_redis_password redis-cli -h 127.0.0.1 ping
 from crawlo.core.config import CrawloConfig
 
 config = CrawloConfig.auto(
-    project_name='myproject',
-    concurrency=16,
-    download_delay=1.0,
+ project_name='myproject',
+ concurrency=16,
+ download_delay=1.0,
 )
 locals().update(config.to_dict())
 
@@ -355,25 +359,25 @@ WantedBy=multi-user.target
 ### 架构
 
 ```
-┌──────────────┐  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐
-│  Worker 1     │  │  Worker 2     │  │  Worker 3     │  │  Worker N     │
-│  conc=12      │  │  conc=12      │  │  conc=12      │  │  conc=12      │
-│  Heartbeat    │  │  Heartbeat    │  │  Heartbeat    │  │  Heartbeat    │
-│  Failover     │  │  Failover     │  │  Failover     │  │  Failover     │
-└──────┬───────┘  └──────┬───────┘  └──────┬───────┘  └──────┬───────┘
-       │                 │                 │                 │
-       └─────────────────┼─────────────────┼─────────────────┘
-                         │
-        ┌────────────────┼────────────────┐
-        │                                 │
-   ┌────▼─────┐  ┌──────────┐  ┌─────────▼──┐
-   │  Redis    │  │  MySQL   │  │  Monitoring │
-   │  Stream   │  │ （存储）  │  │  Cluster    │
-   │  HASH     │  └──────────┘  │  Monitor    │
-   │  ZSET     │                └────────────┘
-   │  SET      │
-   │  PubSub   │
-   └──────────┘
+┌──────────────┐ ┌──────────────┐ ┌──────────────┐ ┌──────────────┐
+│ Worker 1 │ │ Worker 2 │ │ Worker 3 │ │ Worker N │
+│ conc=12 │ │ conc=12 │ │ conc=12 │ │ conc=12 │
+│ Heartbeat │ │ Heartbeat │ │ Heartbeat │ │ Heartbeat │
+│ Failover │ │ Failover │ │ Failover │ │ Failover │
+└──────┬───────┘ └──────┬───────┘ └──────┬───────┘ └──────┬───────┘
+ │ │ │ │
+ └─────────────────┼─────────────────┼─────────────────┘
+ │
+ ┌────────────────┼────────────────┐
+ │ │
+ ┌────▼─────┐ ┌──────────┐ ┌─────────▼──┐
+ │ Redis │ │ MySQL │ │ Monitoring │
+ │ Stream │ │ （存储） │ │ Cluster │
+ │ HASH │ └──────────┘ │ Monitor │
+ │ ZSET │ └────────────┘
+ │ SET │
+ │ PubSub │
+ └──────────┘
 ```
 
 > **说明**：分布式模式无独立 Master 进程，所有 Worker 对等运行。协调机制通过 Redis Stream（任务分发）+ HASH（Worker 注册/心跳）+ PubSub（控制指令）实现，故障转移由每个 Worker 的 `FailoverManager` 自主执行。
@@ -383,9 +387,9 @@ WantedBy=multi-user.target
 ```bash
 # 方式一：Docker（推荐）
 docker run -d --name redis \
-  --restart=always \
-  -p 6379:6379 \
-  redis:7-alpine redis-server --requirepass your_password
+ --restart=always \
+ -p 6379:6379 \
+ redis:7-alpine redis-server --requirepass your_password
 
 # 方式二：官方 APT 源
 curl -fsSL https://packages.redis.io/gpg | sudo gpg --dearmor -o /usr/share/keyrings/redis-archive-keyring.gpg
@@ -398,27 +402,27 @@ sudo apt update && sudo apt install -y redis
 ```bash
 # Docker 方式
 docker run -d --name mysql \
-  --restart=always \
-  -p 3306:3306 \
-  -e MYSQL_ROOT_PASSWORD=root123 \
-  -e MYSQL_DATABASE=crawlo_db \
-  -e MYSQL_USER=crawlo \
-  -e MYSQL_PASSWORD=crawlo123 \
-  mysql:8.0
+ --restart=always \
+ -p 3306:3306 \
+ -e MYSQL_ROOT_PASSWORD=root123 \
+ -e MYSQL_DATABASE=crawlo_db \
+ -e MYSQL_USER=crawlo \
+ -e MYSQL_PASSWORD=crawlo123 \
+ mysql:8.0
 
 # 创建表
 docker exec -i mysql mysql -ucrawlo -pcrawlo123 crawlo_db <<'SQL'
 CREATE TABLE IF NOT EXISTS news (
-    id BIGINT AUTO_INCREMENT PRIMARY KEY,
-    title VARCHAR(512),
-    publish_time VARCHAR(64),
-    url VARCHAR(1024) NOT NULL UNIQUE,
-    source VARCHAR(128),
-    content LONGTEXT,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    INDEX idx_url (url),
-    INDEX idx_publish_time (publish_time)
+ id BIGINT AUTO_INCREMENT PRIMARY KEY,
+ title VARCHAR(512),
+ publish_time VARCHAR(64),
+ url VARCHAR(1024) NOT NULL UNIQUE,
+ source VARCHAR(128),
+ content LONGTEXT,
+ created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+ updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+ INDEX idx_url (url),
+ INDEX idx_publish_time (publish_time)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 SQL
 ```
@@ -430,13 +434,13 @@ SQL
 from crawlo.core.config import CrawloConfig
 
 config = CrawloConfig.distributed(
-    project_name='myproject',
-    redis_host='10.0.0.1',
-    redis_port=6379,
-    redis_password='your_password',
-    redis_db=0,
-    concurrency=12,
-    download_delay=1.0,
+ project_name='myproject',
+ redis_host='10.0.0.1',
+ redis_port=6379,
+ redis_password='your_password',
+ redis_db=0,
+ concurrency=12,
+ download_delay=1.0,
 )
 locals().update(config.to_dict())
 
@@ -446,7 +450,7 @@ CHECKPOINT_ENABLED = True
 
 # MySQL 入库
 ITEM_PIPELINES = {
-    'crawlo.pipelines.MySQLPipeline': 300,
+ 'crawlo.pipelines.MySQLPipeline': 300,
 }
 MYSQL_HOST = '10.0.0.1'
 MYSQL_PORT = 3306
@@ -459,8 +463,8 @@ MYSQL_USE_BATCH = True
 
 # 背压控制
 ENABLE_CONTROLLED_REQUEST_GENERATION = True
-REDIS_BACKPRESSURE_RATIO = 0.6       # Redis 队列背压阈值（推荐 0.5~0.8）
-BACKPRESSURE_STRATEGY = 'queue_size'  # queue_size | adaptive
+REDIS_BACKPRESSURE_RATIO = 0.6 # Redis 队列背压阈值（推荐 0.5~0.8）
+BACKPRESSURE_STRATEGY = 'queue_size' # queue_size | adaptive
 
 # 生产日志
 LOG_FILE = 'logs/crawlo.log'
@@ -493,13 +497,13 @@ import time
 NUM_WORKERS = 10
 
 for i in range(NUM_WORKERS):
-    p = subprocess.Popen(
-        [sys.executable, 'run.py'],
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
-    )
-    print(f"Worker {i+1}/{NUM_WORKERS} started PID={p.pid}")
-    time.sleep(2)
+ p = subprocess.Popen(
+ [sys.executable, 'run.py'],
+ stdout=subprocess.DEVNULL,
+ stderr=subprocess.DEVNULL,
+ )
+ print(f"Worker {i+1}/{NUM_WORKERS} started PID={p.pid}")
+ time.sleep(2)
 
 print(f"\nAll {NUM_WORKERS} workers started.")
 print("Use 'ps aux | grep run.py' to monitor.")
@@ -533,7 +537,7 @@ WantedBy=multi-user.target
 # 启动 10 个 Worker
 sudo systemctl daemon-reload
 for i in $(seq 1 10); do
-    sudo systemctl enable --now crawlo-worker@$i
+ sudo systemctl enable --now crawlo-worker@$i
 done
 
 # 查看状态
@@ -541,7 +545,7 @@ sudo systemctl status crawlo-worker@{1..10}
 
 # 停止所有 Worker
 for i in $(seq 1 10); do
-    sudo systemctl stop crawlo-worker@$i
+ sudo systemctl stop crawlo-worker@$i
 done
 ```
 
@@ -549,76 +553,22 @@ done
 
 ## 五、监控与运维
 
-### CLI 运维命令
+Crawlo 提供三套生产运维能力：
+
+| 能力 | 文档 | 说明 |
+|------|------|------|
+| **指标与告警** | [监控与告警](deployment/monitoring-alerting.md) | Prometheus 指标、Grafana 面板、告警规则、钉钉/飞书通知 |
+| **Redis 高可用** | [Redis 高可用与验证](deployment/redis-ha.md) | Sentinel 故障切换、长跑稳定性、故障注入 |
+| **代理轮换** | [代理池与轮换](deployment/proxy-rotation.md) | 代理池接线、健康检查、成本控制 |
+
+常用 CLI 命令：
 
 ```bash
-# 列出已注册爬虫
-crawlo list
-
-# 检查项目配置
-crawlo check
-
-# 查看统计信息
-crawlo stats
+crawlo list              # 列出已注册爬虫
+crawlo stats             # 查看统计信息
+crawlo dead-letter list <project> <spider>   # 查看死信
+crawlo check             # 校验项目配置与依赖
 ```
-
-### Redis 监控
-
-```bash
-# 设置密码环境变量（避免密码暴露在命令历史）
-export REDISCLI_AUTH=your_password
-
-# Worker 注册表
-redis-cli HGETALL crawlo:myproject:news:registry:workers
-
-# Consumer Group 状态
-redis-cli XINFO GROUPS crawlo:myproject:news:queue:requests
-
-# 待处理任务数
-redis-cli XPENDING crawlo:myproject:news:queue:requests crawlo:myproject:news:group:workers
-
-# 队列长度
-redis-cli ZCARD crawlo:myproject:news:queue:requests
-
-# 去重指纹数量
-redis-cli SCARD crawlo:myproject:news:filter:fingerprint
-
-# Worker 心跳
-redis-cli ZRANGE crawlo:myproject:news:registry:heartbeats 0 -1 WITHSCORES
-```
-
-> **键名规则**：`crawlo:{project}:{spider}:{category}:{name}`，若未指定 spider 则为 `crawlo:{project}:{category}:{name}`。实际键名以项目配置为准。
-
-### 日志检查
-
-```bash
-# 框架日志（推荐）
-tail -f /opt/crawlo/projects/myproject/logs/crawlo.log
-
-# systemd 日志
-journalctl -u crawlo-worker@1 -f
-
-# 统计错误数
-grep -c "ERROR" /opt/crawlo/projects/myproject/logs/crawlo.log
-
-# 统计完成情况
-grep "reason.*finished" /opt/crawlo/projects/myproject/logs/crawlo.log | wc -l
-```
-
-### MySQL 监控
-
-```sql
--- 入库量
-SELECT COUNT(*) FROM news;
-
--- 最近入库
-SELECT title, publish_time, created_at FROM news ORDER BY created_at DESC LIMIT 10;
-
--- 检查连接
-SHOW PROCESSLIST;
-```
-
----
 
 ## 六、性能调优
 
@@ -654,8 +604,8 @@ requirepass your_strong_password
 bind 10.0.0.1
 
 # 3. 防火墙规则
-sudo ufw allow from 10.0.0.0/24 to any port 6379  # 仅内网访问 Redis
-sudo ufw allow from 10.0.0.0/24 to any port 3306  # 仅内网访问 MySQL
+sudo ufw allow from 10.0.0.0/24 to any port 6379 # 仅内网访问 Redis
+sudo ufw allow from 10.0.0.0/24 to any port 3306 # 仅内网访问 MySQL
 
 # 4. 文件权限
 chmod 600 /opt/crawlo/projects/myproject/settings.py

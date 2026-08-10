@@ -20,8 +20,8 @@ cd examples/ofweek_districted
 项目已提供 `run_5_workers.py`，自动启动 5 个子进程，每个子进程运行 `run.py`。
 
 ```python
-WORKER_COUNT = 5          # Worker 数量
-time.sleep(5)              # 每个 Worker 间隔 5 秒启动
+WORKER_COUNT = 5 # Worker 数量
+time.sleep(5) # 每个 Worker 间隔 5 秒启动
 ```
 
 ### 运行
@@ -35,23 +35,23 @@ python run_5_workers.py
 
 ```
 ============================================================
-  5 Worker Distributed Test
-  max_page=200, ~4000 Requests
-  RUN_MODE=distributed, QUEUE_TYPE=redis_stream
+ 5 Worker Distributed Test
+ max_page=200, ~4000 Requests
+ RUN_MODE=distributed, QUEUE_TYPE=redis_stream
 ============================================================
 
-  Worker 1 started (PID=26428)
-  Waiting 5s before next worker...
-  Worker 2 started (PID=7284)
-  Waiting 5s before next worker...
-  Worker 3 started (PID=3372)
-  ...
-  All 5 workers started
+ Worker 1 started (PID=26428)
+ Waiting 5s before next worker...
+ Worker 2 started (PID=7284)
+ Waiting 5s before next worker...
+ Worker 3 started (PID=3372)
+ ...
+ All 5 workers started
 
-  Worker 1 (PID=26428) exited with code 0
-  Worker 2 (PID=7284) exited with code 0
-  ...
-  Test complete
+ Worker 1 (PID=26428) exited with code 0
+ Worker 2 (PID=7284) exited with code 0
+ ...
+ Test complete
 ```
 
 ### 手动启动（不依赖启动脚本）
@@ -81,18 +81,15 @@ python run.py
 | Worker 3 | 313s | 780 | 159 | +10s |
 | Worker 4 | 308s | 790 | 160 | +15s |
 | Worker 5 | 303s | 810 | 161 | +20s |
-| **合计** | **~5.3min** | **3,994** | **avg 161** | |
+| **合计**| **~5.3min**| **3,994**| **avg 161**| |
 
 ### 去重验证
 
 5 个 Worker 共处理 **3,994 条 Item**，跨 Worker 检查 URL 唯一性：
 
 ```
-Worker 1: 814 items, 814 unique  ✅
-Worker 2: 800 items, 800 unique  ✅
-...
-Total:    3994 items, 3994 unique  ✅  零重复
-```
+Worker 1: 814 items, 814 unique Worker 2: 800 items, 800 unique ...
+Total: 3994 items, 3994 unique 零重复 ```
 
 > 分布式去重（`RedisDedupPipeline` + `AioRedisFilter`）确保同一个 URL
 > 不会被多个 Worker 重复处理。
@@ -104,7 +101,7 @@ Leader Worker（启动最早的 Worker 通过 SETNX 选举产生）
 
 ```
 [Engine] WARNING: Coordinated shutdown: all tasks complete,
-                  all workers idle, broadcasting shutdown signal
+ all workers idle, broadcasting shutdown signal
 [DynamicConfig] WARNING: Cluster shutdown signal sent
 [WorkerRegistry] INFO: Worker deregistered: ...
 [Engine] INFO: Cluster shutdown complete: ...
@@ -152,9 +149,9 @@ redis-cli get crawlo:ofweek_distributed:of_week_distributed:cluster:leader
 
 ```python
 # run_5_workers.py
-WORKER_COUNT = 10     # 增加到 10 个 Worker
-time.sleep(3)          # 间隔改为 3 秒
+WORKER_COUNT = 10 # 增加到 10 个 Worker
+time.sleep(3) # 间隔改为 3 秒
 
 # 蜘蛛本中调整任务量（of_week_distriduted.py）
-max_page = 500        # 增加到 500 页
+max_page = 500 # 增加到 500 页
 ```

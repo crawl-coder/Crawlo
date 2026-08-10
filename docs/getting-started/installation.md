@@ -2,16 +2,16 @@
 
 本指南介绍如何安装 Crawlo 框架及其依赖。
 
-## 📋 系统要求
+## 系统要求
 
-- **Python**: 3.8+（推荐 3.11+）
+- **Python**: 3.10+（推荐 3.11+）
 - **操作系统**: Windows / macOS / Linux
 - **内存**: 至少 512MB（推荐 2GB+）
 - **磁盘空间**: 50MB+
 
 ---
 
-## 🚀 快速安装
+## 快速安装
 
 ### 方式1: 使用 pip（推荐）
 
@@ -38,7 +38,7 @@ pip install -e .
 
 ---
 
-## 📦 可选依赖
+## 可选依赖
 
 ### 浏览器渲染支持
 
@@ -51,8 +51,7 @@ pip install crawlo[render]
 playwright install
 ```
 
-> 💡 **说明**：`render` 包含 Playwright 浏览器自动化库。
-
+> **说明**：`render` 包含 Playwright 浏览器自动化库。 
 ### MCP Server 支持
 
 如果你需要使用 AI 集成（MCP Server）：
@@ -61,10 +60,8 @@ playwright install
 pip install crawlo[mcp]
 ```
 
-> ⚠️ **版本兼容**：MCP Server 依赖 `mcp>=1.0,<2.0`（mcp 2.x 移除了 `mcp.server.fastmcp`，安装最新版会导致启动即崩溃）。Crawlo 已锁定该范围，无需手动干预。
->
-> ⚠️ **max-stealth 模式预下载**：首次使用 Camoufox 浏览器（max-stealth 模式）时需下载约 300MB 二进制。在 Claude/Cursor 中首次触发下载时，进度条会打到 stdout，可能干扰 stdio 协议的 JSON-RPC 消息流。建议提前手动预下载：
->
+> **版本兼容**：MCP Server 依赖 `mcp>=1.0,<2.0`（mcp 2.x 移除了 `mcp.server.fastmcp`，安装最新版会导致启动即崩溃）。Crawlo 已锁定该范围，无需手动干预。 >
+> **max-stealth 模式预下载**：首次使用 Camoufox 浏览器（max-stealth 模式）时需下载约 300MB 二进制。在 Claude/Cursor 中首次触发下载时，进度条会打到 stdout，可能干扰 stdio 协议的 JSON-RPC 消息流。建议提前手动预下载： >
 > ```bash
 > pip install camoufox
 > python -m camoufox fetch
@@ -78,11 +75,10 @@ pip install crawlo[mcp]
 pip install crawlo[all]
 ```
 
-> 💡 **注意**：Redis、MySQL、MongoDB 等数据库支持已包含在基础安装中，无需额外安装。
-
+> **注意**：Redis、MySQL、MongoDB 等数据库支持已包含在基础安装中，无需额外安装。 
 ---
 
-## ✅ 验证安装
+## 验证安装
 
 安装完成后，验证是否成功：
 
@@ -105,7 +101,7 @@ crawlo run test
 
 ---
 
-## 🔧 常见问题
+## 常见问题
 
 ### 问题1: pip 安装失败
 
@@ -156,7 +152,7 @@ sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
 
 ---
 
-## 📚 下一步
+## 下一步
 
 - 🚀 [5分钟快速上手](../getting-started/5min-quickstart.md) - 创建你的第一个爬虫
 - 📖 [三种部署模式详解](../guides/configuration/run-modes.md) - 了解三种部署模式
@@ -164,4 +160,4 @@ sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
 
 ---
 
-**遇到问题？** 查看 [FAQ](../faq/) 或提交 [GitHub Issue](https://github.com/crawl-coder/Crawlo/issues)
+**遇到问题？**查看 [FAQ](../faq/) 或提交 [GitHub Issue](https://github.com/crawl-coder/Crawlo/issues)

@@ -26,18 +26,15 @@ crawlo shell
 
 ### 完整示例：从浏览器复制
 
-1. **浏览器 DevTools 复制 curl**
-   - 打开 DevTools → Network 面板
+1. **浏览器 DevTools 复制 curl**- 打开 DevTools → Network 面板
    - 右键请求 → Copy → Copy as cURL (bash)
 
-2. **粘贴到 Shell**
-
-```python
+2. **粘贴到 Shell**```python
 >>> cmd = '''curl 'https://api.example.com/v1/items?page=1' \\
-      -H 'accept: application/json' \\
-      -H 'authorization: Bearer eyJhbGciOiJIUzI1NiJ9.x' \\
-      -H 'cookie: session=abc123; user=john' \\
-      --compressed'''
+ -H 'accept: application/json' \\
+ -H 'authorization: Bearer eyJhbGciOiJIUzI1NiJ9.x' \\
+ -H 'cookie: session=abc123; user=john' \\
+ --compressed'''
 
 >>> resp = from_curl(cmd)
 <Response [200]>
@@ -131,9 +128,9 @@ print(request.url, request.method, request.body)
 
 # 方式3：覆盖额外参数
 request = CurlParser.to_request(
-    'curl https://api.com',
-    meta={'retry': 2},
-    timeout=30
+ 'curl https://api.com',
+ meta={'retry': 2},
+ timeout=30
 )
 ```
 
@@ -156,9 +153,9 @@ request = Request(**params)
 
 ```python
 cmd = '''curl 'https://api.github.com/user' \\
-  -H 'Accept: application/vnd.github.v3+json' \\
-  -H 'Authorization: token ghp_xxxxx' \\
-  -H 'User-Agent: MyBot/1.0' '''
+ -H 'Accept: application/vnd.github.v3+json' \\
+ -H 'Authorization: token ghp_xxxxx' \\
+ -H 'User-Agent: MyBot/1.0' '''
 
 resp = from_curl(cmd)
 data = resp.json()
@@ -169,9 +166,9 @@ print(data['login'])
 
 ```python
 cmd = '''curl 'https://api.example.com/login' \\
-  -X POST \\
-  -H 'Content-Type: application/json' \\
-  -d '{"username":"admin","password":"secret"}' '''
+ -X POST \\
+ -H 'Content-Type: application/json' \\
+ -d '{"username":"admin","password":"secret"}' '''
 
 resp = from_curl(cmd)
 print(resp.json())
@@ -181,9 +178,9 @@ print(resp.json())
 
 ```python
 cmd = '''curl 'https://example.com/submit' \\
-  -X POST \\
-  -H 'Content-Type: application/x-www-form-urlencoded' \\
-  -d 'name=John&age=30&email=john@example.com' '''
+ -X POST \\
+ -H 'Content-Type: application/x-www-form-urlencoded' \\
+ -d 'name=John&age=30&email=john@example.com' '''
 
 resp = from_curl(cmd)
 ```
@@ -192,9 +189,9 @@ resp = from_curl(cmd)
 
 ```python
 cmd = '''curl 'https://shop.example.com/cart' \\
-  -H 'Cookie: session=abc123; user_id=12345; csrf_token=xyz' \\
-  -H 'Accept: text/html' \\
-  -H 'Referer: https://shop.example.com/' '''
+ -H 'Cookie: session=abc123; user_id=12345; csrf_token=xyz' \\
+ -H 'Accept: text/html' \\
+ -H 'Referer: https://shop.example.com/' '''
 
 resp = from_curl(cmd)
 # Cookie 自动提取为字典
@@ -206,8 +203,8 @@ print(resp.request.cookies)
 
 ```python
 cmd = '''curl 'https://api.ipify.org' \\
-  --proxy http://127.0.0.1:8080 \\
-  --connect-timeout 10'''
+ --proxy http://127.0.0.1:8080 \\
+ --connect-timeout 10'''
 
 resp = from_curl(cmd)
 print(resp.text)
@@ -224,11 +221,11 @@ print(resp.text)
 - **Shell 中**：建议使用三引号字符串
 
 ```python
-# ✅ 推荐：三引号
+# 推荐：三引号
 cmd = '''curl https://example.com \\
-  -H "Key: val"'''
+ -H "Key: val"'''
 
-# ⚠️ 单行命令（注意转义）
+# 单行命令（注意转义）
 cmd = 'curl https://example.com -H "Key: val"'
 ```
 
@@ -238,10 +235,10 @@ cmd = 'curl https://example.com -H "Key: val"'
 - Shell 中建议使用三引号避免转义冲突
 
 ```python
-# ✅ 正确
+# 正确
 cmd = '''curl https://api.com -d '{"key":"val"}' '''
 
-# ❌ 错误：引号冲突
+# 错误：引号冲突
 cmd = 'curl https://api.com -d '{"key":"val"}' '
 ```
 
@@ -274,10 +271,10 @@ cmd = 'curl https://api.com -d '{"key":"val"}' '
 **解决**：确保 URL 位置正确
 
 ```python
-# ✅ 正确
+# 正确
 CurlParser.parse('curl https://example.com')
 
-# ❌ 错误
+# 错误
 CurlParser.parse('curl -H "Key: val"')
 ```
 
@@ -288,10 +285,10 @@ CurlParser.parse('curl -H "Key: val"')
 **解决**：检查 curl 命令格式
 
 ```python
-# ✅ 正确
+# 正确
 CurlParser.parse('curl -X POST https://example.com')
 
-# ❌ 错误
+# 错误
 CurlParser.parse('curl -X')
 ```
 
@@ -301,10 +298,10 @@ CurlParser.parse('curl -X')
 - JSON 数据需确保格式正确
 
 ```python
-# ✅ 正确：JSON 会被解析
+# 正确：JSON 会被解析
 cmd = 'curl https://api.com -H "Content-Type: application/json" -d \'{"key":"val"}\''
 
-# ⚠️ JSON 格式错误时会降级为 body 字符串
+# JSON 格式错误时会降级为 body 字符串
 cmd = 'curl https://api.com -d \'{"key":val}\''
 ```
 

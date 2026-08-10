@@ -2,10 +2,10 @@
 
 欢迎使用 Crawlo！本教程将带你从零开始，在5分钟内完成第一个爬虫的开发和运行。
 
-## ⏱️ 学习时长
+## 学习时长
 
-**预计时间**：5分钟  
-**前置要求**：Python 3.8+
+**预计时间**：5分钟 
+**前置要求**：Python 3.10+
 
 ---
 
@@ -18,10 +18,9 @@
 pip install crawlo
 ```
 
-> 💡 **提示**：如果需要浏览器渲染支持（处理动态网页），可以安装完整版：
-> ```bash
+> **提示**：如果需要浏览器渲染支持（处理动态网页），可以安装完整版： > ```bash
 > pip install crawlo[render]
-> playwright install  # 安装浏览器内核
+> playwright install # 安装浏览器内核
 > ```
 
 **验证安装**：
@@ -30,8 +29,7 @@ pip install crawlo
 crawlo --version
 ```
 
-如果看到版本号，说明安装成功！✅
-
+如果看到版本号，说明安装成功！ 
 ---
 
 ## 第2步：创建第一个项目（1分钟）
@@ -50,15 +48,15 @@ cd myproject
 
 ```
 myproject/
-├── crawlo.cfg              # 框架配置文件
+├── crawlo.cfg # 框架配置文件
 ├── myproject/
-│   ├── spiders/            # 爬虫代码目录
-│   │   └── __init__.py
-│   ├── items.py            # 数据模型
-│   ├── middlewares.py      # 中间件
-│   ├── pipelines.py        # 数据管道
-│   └── settings.py         # 项目设置
-└── run.py                  # 运行入口
+│ ├── spiders/ # 爬虫代码目录
+│ │ └── __init__.py
+│ ├── items.py # 数据模型
+│ ├── middlewares.py # 中间件
+│ ├── pipelines.py # 数据管道
+│ └── settings.py # 项目设置
+└── run.py # 运行入口
 ```
 
 ---
@@ -85,26 +83,26 @@ from crawlo import Request
 
 
 class QuotesSpider(Spider):
-    """名言爬虫"""
-    
-    name = 'quotes'  # 爬虫名称
-    start_urls = ['https://quotes.toscrape.com/']  # 起始URL
-    
-    async def parse(self, response):
-        """解析页面数据"""
-        
-        # 提取所有名言
-        for quote in response.css('div.quote'):
-            yield {
-                'text': quote.css('span.text::text').get(),
-                'author': quote.css('small.author::text').get(),
-                'tags': quote.css('div.tags a.tag::text').getall(),
-            }
-        
-        # 跟进下一页
-        next_page = response.css('li.next a::attr(href)').get()
-        if next_page:
-            yield response.follow(next_page, callback=self.parse)
+ """名言爬虫"""
+ 
+ name = 'quotes' # 爬虫名称
+ start_urls = ['https://quotes.toscrape.com/'] # 起始URL
+ 
+ async def parse(self, response):
+ """解析页面数据"""
+ 
+ # 提取所有名言
+ for quote in response.css('div.quote'):
+ yield {
+ 'text': quote.css('span.text::text').get(),
+ 'author': quote.css('small.author::text').get(),
+ 'tags': quote.css('div.tags a.tag::text').getall(),
+ }
+ 
+ # 跟进下一页
+ next_page = response.css('li.next a::attr(href)').get()
+ if next_page:
+ yield response.follow(next_page, callback=self.parse)
 ```
 
 **代码说明**：
@@ -140,7 +138,7 @@ crawlo run quotes
 
 ## 第6步：保存数据（30秒）
 
-Crawlo 使用 **Pipeline** 来处理和保存数据。在项目根目录创建或修改 `pipelines.py`：
+Crawlo 使用 **Pipeline**来处理和保存数据。在项目根目录创建或修改 `pipelines.py`：
 
 ```python
 import json
@@ -148,34 +146,34 @@ from crawlo import Item
 
 
 class JsonPipeline:
-    """JSON文件导出管道"""
-    
-    def __init__(self):
-        self.file = None
-        self.items = []
-    
-    async def open_spider(self, spider):
-        """爬虫启动时打开文件"""
-        self.file = open('quotes.json', 'w', encoding='utf-8')
-        self.items = []
-    
-    async def process_item(self, item, spider):
-        """处理每个item"""
-        self.items.append(dict(item))
-        return item
-    
-    async def close_spider(self, spider):
-        """爬虫关闭时保存文件"""
-        json.dump(self.items, self.file, ensure_ascii=False, indent=2)
-        self.file.close()
-        spider.logger.info(f"已保存 {len(self.items)} 条数据到 quotes.json")
+ """JSON文件导出管道"""
+ 
+ def __init__(self):
+ self.file = None
+ self.items = []
+ 
+ async def open_spider(self, spider):
+ """爬虫启动时打开文件"""
+ self.file = open('quotes.json', 'w', encoding='utf-8')
+ self.items = []
+ 
+ async def process_item(self, item, spider):
+ """处理每个item"""
+ self.items.append(dict(item))
+ return item
+ 
+ async def close_spider(self, spider):
+ """爬虫关闭时保存文件"""
+ json.dump(self.items, self.file, ensure_ascii=False, indent=2)
+ self.file.close()
+ spider.logger.info(f"已保存 {len(self.items)} 条数据到 quotes.json")
 ```
 
 在 `settings.py` 中启用 Pipeline：
 
 ```python
 PIPELINES = {
-    'myproject.pipelines.JsonPipeline': 300,
+ 'myproject.pipelines.JsonPipeline': 300,
 }
 ```
 
@@ -189,7 +187,7 @@ crawlo run quotes
 
 ---
 
-## 🎉 恭喜！
+## 恭喜！
 
 你已经完成了第一个 Crawlo 爬虫！
 
@@ -203,13 +201,13 @@ crawlo run quotes
 
 ---
 
-## 🚀 下一步
+## 下一步
 
 ### 继续学习
 
-1. **[安装指南](installation.md)** - 了解不同安装方式
-2. **[创建第一个爬虫](first-spider.md)** - 深入学习爬虫开发
-3. **[运行和调试](../guides/shell-guide.md)** - 交互式调试与运行
+1. **[安装指南](installation.md)**- 了解不同安装方式
+2. **[创建第一个爬虫](first-spider.md)**- 深入学习爬虫开发
+3. **[运行和调试](../guides/shell-guide.md)**- 交互式调试与运行
 
 ### 进阶教程
 
@@ -222,14 +220,14 @@ crawlo run quotes
 **调整并发数**（在 `settings.py` 中）：
 
 ```python
-CONCURRENCY = 16  # 同时请求数
+CONCURRENCY = 16 # 同时请求数
 ```
 
 **添加下载延迟**：
 
 ```python
-DOWNLOAD_DELAY = 1.0  # 每个请求间隔1秒
-RANDOMNESS = True     # 随机抖动
+DOWNLOAD_DELAY = 1.0 # 每个请求间隔1秒
+RANDOMNESS = True # 随机抖动
 ```
 
 **使用代理**：
@@ -237,31 +235,28 @@ RANDOMNESS = True     # 随机抖动
 ```python
 # 启用代理中间件
 DOWNLOADER_MIDDLEWARES = {
-    'crawlo.middleware.proxy.ProxyMiddleware': 350,
+ 'crawlo.middleware.proxy.ProxyMiddleware': 350,
 }
 
 # 配置代理列表
 PROXY_LIST = [
-    'http://proxy1:8080',
-    'http://proxy2:8080',
+ 'http://proxy1:8080',
+ 'http://proxy2:8080',
 ]
 
 ---
 
-## 💡 常见问题
+## 常见问题
 
-**Q: 爬虫没有数据输出？**  
-A: 检查 CSS 选择器是否正确，可以使用 `response.css('selector').getall()` 调试。
+**Q: 爬虫没有数据输出？**A: 检查 CSS 选择器是否正确，可以使用 `response.css('selector').getall()` 调试。
 
-**Q: 如何查看详细信息？**  
-A: 添加 `--log-level DEBUG` 参数：
+**Q: 如何查看详细信息？**A: 添加 `--log-level DEBUG` 参数：
 ```bash
 crawlo run quotes --log-level DEBUG
 ```
 
-**Q: 网站有反爬怎么办？**  
-A: 查看 [反检测中间件](../../crawlo/middleware/) 学习绕过技巧，或启用 `CloudflareBypassMiddleware`。
+**Q: 网站有反爬怎么办？**A: 查看 [反检测中间件](../../crawlo/middleware/) 学习绕过技巧，或启用 `CloudflareBypassMiddleware`。
 
 ---
 
-**遇到问题？** 查看 [常见问题 FAQ](../faq/) 获取帮助。
+**遇到问题？**查看 [常见问题 FAQ](../faq/) 获取帮助。

@@ -24,19 +24,19 @@
 当时发现并修复旧路径子模块导入产生重复类对象的问题：
 
 - **问题**：`from crawlo.bot.utils.deduplicator import MessageDeduplicator` 与
-  `from crawlo.extensions.notifications.utils.deduplicator import MessageDeduplicator`
-  不是同一个类（`isinstance` 静默失效）。
+ `from crawlo.extensions.notifications.utils.deduplicator import MessageDeduplicator`
+ 不是同一个类（`isinstance` 静默失效）。
 - **根因**：父包 `sys.modules` alias 后，子模块导入走父包 `__path__` 路径查找，
-  重新执行源文件产生第二份类对象。
+ 重新执行源文件产生第二份类对象。
 - **修复**：`crawlo/bot/__init__.py` 保持真实包身份，walk 新包全部子模块并
-  预注册到旧路径 `sys.modules`；子包/符号经 `__getattr__` 转发。
+ 预注册到旧路径 `sys.modules`；子包/符号经 `__getattr__` 转发。
 - **守护**：`tests/arch/test_deprecation_shims.py::test_bot_submodule_identity`。
 
 ## 历史移除记录
 
 | 符号 | 移除版本 | 替代方案 | 备注 |
 |---|---|---|---|
-| `crawlo.bot`（含 channels/core/monitoring/templates/utils 子包） | **1.7.4（提前）** | `crawlo.extensions.notifications.*` | 项目决策：不再等待 v2.0，直接移除。属刻意 breaking change，所有旧路径导入将抛 ModuleNotFoundError |
+| `crawlo.bot`（含 channels/core/monitoring/templates/utils 子包） | **1.7.4（提前）**| `crawlo.extensions.notifications.*` | 项目决策：不再等待 v2.0，直接移除。属刻意 breaking change，所有旧路径导入将抛 ModuleNotFoundError |
 
 ## 评审待办（1.0 前）
 

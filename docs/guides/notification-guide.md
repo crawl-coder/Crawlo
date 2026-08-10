@@ -21,7 +21,7 @@ Crawlo 内置多渠道通知系统，支持将爬虫的运行状态、异常告�
 ```python
 # settings.py
 NOTIFICATION_ENABLED = True
-NOTIFICATION_CHANNELS = ['dingtalk', 'feishu']  # 启用钉钉 + 飞书
+NOTIFICATION_CHANNELS = ['dingtalk', 'feishu'] # 启用钉钉 + 飞书
 
 # 钉钉
 DINGTALK_WEBHOOK = "https://oapi.dingtalk.com/robot/send?access_token=YOUR_TOKEN"
@@ -38,22 +38,22 @@ FEISHU_SECRET = "YOUR_SECRET"
 
 ```python
 DINGTALK_WEBHOOK = "https://oapi.dingtalk.com/robot/send?access_token=xxx"
-DINGTALK_SECRET = "your_secret"          # 签名密钥（可选）
-DINGTALK_KEYWORDS = ["爬虫", "告警"]     # 自定义关键词（可选）
+DINGTALK_SECRET = "your_secret" # 签名密钥（可选）
+DINGTALK_KEYWORDS = ["爬虫", "告警"] # 自定义关键词（可选）
 ```
 
 ### 飞书
 
 ```python
 FEISHU_WEBHOOK = "https://open.feishu.cn/open-apis/bot/v2/hook/xxx"
-FEISHU_SECRET = "your_secret"            # 签名校验（可选）
+FEISHU_SECRET = "your_secret" # 签名校验（可选）
 ```
 
 ### 企业微信
 
 ```python
 WECOM_WEBHOOK = "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=xxx"
-WECOM_MENTIONED_LIST = ["@all"]          # @指定成员
+WECOM_MENTIONED_LIST = ["@all"] # @指定成员
 ```
 
 ### 邮件
@@ -122,11 +122,11 @@ Crawlo 内置 30+ 消息模板，覆盖爬虫全生命周期。
 
 ```python
 NOTIFICATION_TEMPLATES_CUSTOM = {
-    'price_alert': {
-        'title': '价格异常告警',
-        'content': '商品 {product_name} 价格从 {old_price} 变为 {new_price}',
-        'channels': ['dingtalk', 'feishu'],
-    }
+ 'price_alert': {
+ 'title': '价格异常告警',
+ 'content': '商品 {product_name} 价格从 {old_price} 变为 {new_price}',
+ 'channels': ['dingtalk', 'feishu'],
+ }
 }
 ```
 
@@ -137,9 +137,9 @@ from crawlo.extensions.notifications import get_notifier
 
 notifier = get_notifier()
 await notifier.send('price_alert', {
-    'product_name': 'iPhone 15',
-    'old_price': '¥6999',
-    'new_price': '¥5999',
+ 'product_name': 'iPhone 15',
+ 'old_price': '¥6999',
+ 'new_price': '¥5999',
 })
 ```
 
@@ -147,8 +147,8 @@ await notifier.send('price_alert', {
 
 ```python
 # 同一消息类型的最小间隔（秒），防止消息风暴
-NOTIFICATION_DEDUP_WINDOW = 300     # 5 分钟内同类型只发一次
-NOTIFICATION_RATE_LIMIT = 10         # 每分钟最大消息数
+NOTIFICATION_DEDUP_WINDOW = 300 # 5 分钟内同类型只发一次
+NOTIFICATION_RATE_LIMIT = 10 # 每分钟最大消息数
 ```
 
 ## 配置总览

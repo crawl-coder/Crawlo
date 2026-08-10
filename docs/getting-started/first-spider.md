@@ -2,7 +2,7 @@
 
 本教程将带你从零开始，创建并运行你的第一个 Crawlo 爬虫。
 
-## 🎯 学习目标
+## 学习目标
 
 完成本教程后，你将能够：
 - 创建 Crawlo 项目
@@ -28,12 +28,12 @@ cd myfirstspider
 
 ```
 myfirstspider/
-├── spiders/              # 爬虫目录
-│   └── __init__.py
-├── settings.py           # 配置文件
-├── items.py              # 数据模型（可选）
-├── pipelines.py          # 数据管道（可选）
-└── middlewares.py        # 中间件（可选）
+├── spiders/ # 爬虫目录
+│ └── __init__.py
+├── settings.py # 配置文件
+├── items.py # 数据模型（可选）
+├── pipelines.py # 数据管道（可选）
+└── middlewares.py # 中间件（可选）
 ```
 
 ---
@@ -61,25 +61,25 @@ from crawlo import Request
 
 
 class QuotesSpider(Spider):
-    """名言爬虫"""
-    
-    name = 'quotes'
-    start_urls = ['https://quotes.toscrape.com/']
-    
-    async def parse(self, response):
-        """解析名言列表页"""
-        # 提取所有名言
-        for quote in response.css('div.quote'):
-            yield {
-                'text': quote.css('span.text::text').get(),
-                'author': quote.css('small.author::text').get(),
-                'tags': quote.css('a.tag::text').getall(),
-            }
-        
-        # 翻页
-        next_page = response.css('li.next a::attr(href)').get()
-        if next_page:
-            yield response.follow(next_page, callback=self.parse)
+ """名言爬虫"""
+ 
+ name = 'quotes'
+ start_urls = ['https://quotes.toscrape.com/']
+ 
+ async def parse(self, response):
+ """解析名言列表页"""
+ # 提取所有名言
+ for quote in response.css('div.quote'):
+ yield {
+ 'text': quote.css('span.text::text').get(),
+ 'author': quote.css('small.author::text').get(),
+ 'tags': quote.css('a.tag::text').getall(),
+ }
+ 
+ # 翻页
+ next_page = response.css('li.next a::attr(href)').get()
+ if next_page:
+ yield response.follow(next_page, callback=self.parse)
 ```
 
 **代码说明**：
@@ -115,41 +115,40 @@ crawlo run quotes --log-level DEBUG
 
 ```json
 [
-  {
-    "text": ""The world as we have created it is a process of our thinking. It cannot be changed without changing our thinking."",
-    "author": "Albert Einstein",
-    "tags": ["change", "deep-thoughts", "thinking", "world"]
-  },
-  {
-    "text": ""It is our choices, Harry, that show what we truly are, far more than our abilities."",
-    "author": "J.K. Rowling",
-    "tags": ["abilities", "choices"]
-  }
+ {
+ "text": ""The world as we have created it is a process of our thinking. It cannot be changed without changing our thinking."",
+ "author": "Albert Einstein",
+ "tags": ["change", "deep-thoughts", "thinking", "world"]
+ },
+ {
+ "text": ""It is our choices, Harry, that show what we truly are, far more than our abilities."",
+ "author": "J.K. Rowling",
+ "tags": ["abilities", "choices"]
+ }
 ]
 ```
 
-恭喜！你已经成功创建了第一个爬虫！🎉
-
+恭喜！你已经成功创建了第一个爬虫！ 
 ---
 
-## 🔍 进阶技巧
+## 进阶技巧
 
 ### 技巧1: 添加请求头
 
 ```python
 class QuotesSpider(Spider):
-    name = 'quotes'
-    start_urls = ['https://quotes.toscrape.com/']
-    custom_settings = {
-        'DEFAULT_REQUEST_HEADERS': {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
-            'Accept': 'text/html,application/xhtml+xml',
-        }
-    }
-    
-    async def parse(self, response):
-        # 你的代码
-        pass
+ name = 'quotes'
+ start_urls = ['https://quotes.toscrape.com/']
+ custom_settings = {
+ 'DEFAULT_REQUEST_HEADERS': {
+ 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
+ 'Accept': 'text/html,application/xhtml+xml',
+ }
+ }
+ 
+ async def parse(self, response):
+ # 你的代码
+ pass
 ```
 
 ### 技巧2: 使用 Item 类
@@ -161,10 +160,10 @@ from crawlo import Item
 
 
 class QuoteItem(Item):
-    """名言数据模型"""
-    text: str
-    author: str
-    tags: list
+ """名言数据模型"""
+ text: str
+ author: str
+ tags: list
 ```
 
 在爬虫中使用：
@@ -173,45 +172,45 @@ class QuoteItem(Item):
 from items import QuoteItem
 
 async def parse(self, response):
-    for quote in response.css('div.quote'):
-        item = QuoteItem()
-        item['text'] = quote.css('span.text::text').get()
-        item['author'] = quote.css('small.author::text').get()
-        item['tags'] = quote.css('a.tag::text').getall()
-        yield item
+ for quote in response.css('div.quote'):
+ item = QuoteItem()
+ item['text'] = quote.css('span.text::text').get()
+ item['author'] = quote.css('small.author::text').get()
+ item['tags'] = quote.css('a.tag::text').getall()
+ yield item
 ```
 
 ### 技巧3: 添加下载延迟
 
 ```python
 class QuotesSpider(Spider):
-    name = 'quotes'
-    start_urls = ['https://quotes.toscrape.com/']
-    custom_settings = {
-        'DOWNLOAD_DELAY': 1.0,  # 1秒延迟
-    }
+ name = 'quotes'
+ start_urls = ['https://quotes.toscrape.com/']
+ custom_settings = {
+ 'DOWNLOAD_DELAY': 1.0, # 1秒延迟
+ }
 ```
 
 ### 技巧4: 限制爬取深度
 
 ```python
 async def parse(self, response):
-    # 提取数据
-    # ...
-    
-    # 翻页（限制最多5页）
-    next_page = response.css('li.next a::attr(href)').get()
-    if next_page and response.request.meta.get('depth', 0) < 5:
-        yield response.follow(
-            next_page,
-            callback=self.parse,
-            meta={'depth': response.request.meta.get('depth', 0) + 1}
-        )
+ # 提取数据
+ # ...
+ 
+ # 翻页（限制最多5页）
+ next_page = response.css('li.next a::attr(href)').get()
+ if next_page and response.request.meta.get('depth', 0) < 5:
+ yield response.follow(
+ next_page,
+ callback=self.parse,
+ meta={'depth': response.request.meta.get('depth', 0) + 1}
+ )
 ```
 
 ---
 
-## 📚 下一步
+## 下一步
 
 - 📖 [5分钟快速上手](5min-quickstart.md) - 完整的快速入门教程
 - 🎯 [实战案例](../examples/) - 学习更多爬虫技巧
@@ -220,4 +219,4 @@ async def parse(self, response):
 
 ---
 
-**遇到问题？** 查看 [FAQ](../faq/) 或提交 [GitHub Issue](https://github.com/crawl-coder/Crawlo/issues)
+**遇到问题？**查看 [FAQ](../faq/) 或提交 [GitHub Issue](https://github.com/crawl-coder/Crawlo/issues)

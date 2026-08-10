@@ -13,17 +13,17 @@ ERROR: Spider not found: myspider
 
 1. 检查爬虫名称是否正确
 ```bash
-crawlo list  # 列出所有可用爬虫
+crawlo list # 列出所有可用爬虫
 ```
 
 2. 检查爬虫文件是否在 `spiders/` 目录下
 
 3. 检查爬虫类是否继承自 `Spider`
 ```python
-from crawlo import Spider  # 确保导入正确
+from crawlo import Spider # 确保导入正确
 
-class MySpider(Spider):  # 确保继承
-    name = 'myspider'
+class MySpider(Spider): # 确保继承
+ name = 'myspider'
 ```
 
 ### 问题 2: 导入错误
@@ -82,7 +82,7 @@ ping example.com
 2. 增加超时时间
 ```python
 # settings.py
-DOWNLOAD_TIMEOUT = 30  # 30秒
+DOWNLOAD_TIMEOUT = 30 # 30秒
 ```
 
 3. 使用代理
@@ -102,8 +102,8 @@ TimeoutError: Read timed out
 1. 目标网站响应慢
 ```python
 # settings.py
-DOWNLOAD_TIMEOUT = 60  # 增加到60秒
-CONCURRENCY = 8  # 降低并发
+DOWNLOAD_TIMEOUT = 60 # 增加到60秒
+CONCURRENCY = 8 # 降低并发
 ```
 
 2. 使用浏览器渲染
@@ -126,19 +126,19 @@ yield Request(url, meta={'use_dynamic_loader': True})
 1. 调试选择器
 ```python
 async def parse(self, response):
-    # 打印 HTML 查看结构
-    print(response.text[:1000])
-    
-    # 测试选择器
-    items = response.css('div.item').getall()
-    print(f"找到 {len(items)} 个元素")
+ # 打印 HTML 查看结构
+ print(response.text[:1000])
+ 
+ # 测试选择器
+ items = response.css('div.item').getall()
+ print(f"找到 {len(items)} 个元素")
 ```
 
 2. 检查 yield 语句
 ```python
 # 确保有 yield
 async def parse(self, response):
-    yield {'title': 'test'}  # 测试是否能输出
+ yield {'title': 'test'} # 测试是否能输出
 ```
 
 ### 问题 2: 数据库未写入
@@ -161,7 +161,7 @@ MYSQL_DATABASE = 'mydb'
 ```python
 # settings.py
 PIPELINES = {
-    'crawlo.pipelines.MySQLPipeline': 300,
+ 'crawlo.pipelines.MySQLPipeline': 300,
 }
 ```
 
@@ -183,7 +183,7 @@ redis.exceptions.ConnectionError: Error connecting to Redis
 
 1. 检查 Redis 是否运行
 ```bash
-redis-cli ping  # 应返回 PONG
+redis-cli ping # 应返回 PONG
 ```
 
 2. 检查连接配置
@@ -191,7 +191,7 @@ redis-cli ping  # 应返回 PONG
 # settings.py
 REDIS_HOST = 'localhost'
 REDIS_PORT = 6379
-REDIS_PASSWORD = ''  # 如果有密码
+REDIS_PASSWORD = '' # 如果有密码
 ```
 
 3. 启动 Redis
@@ -214,7 +214,7 @@ pymysql.err.OperationalError: (2003, "Can't connect to MySQL server")
 
 1. 检查 MySQL 是否运行
 ```bash
-mysql -u root -p  # 尝试登录
+mysql -u root -p # 尝试登录
 ```
 
 2. 检查连接配置
@@ -243,7 +243,7 @@ pymongo.errors.ServerSelectionTimeoutError
 
 1. 检查 MongoDB 是否运行
 ```bash
-mongosh  # 尝试连接
+mongosh # 尝试连接
 ```
 
 2. 检查连接配置
@@ -351,8 +351,8 @@ crawlo run myspider --log-level DEBUG
 ```python
 # 在爬虫中
 async def parse(self, response):
-    queue_size = await self.crawler.scheduler.queue.size()
-    self.logger.info(f"队列: {queue_size}")
+ queue_size = await self.crawler.scheduler.queue.size()
+ self.logger.info(f"队列: {queue_size}")
 ```
 
 3. 检查是否有请求在等待
@@ -366,10 +366,10 @@ STATS_INTERVAL = 10
 
 | 原因 | 症状 | 解决方案 |
 |------|------|---------|
-| **队列空了** | 无错误，爬虫退出 | 检查 start_urls |
-| **所有请求失败** | 大量错误日志 | 检查代理、UA |
-| **死锁** | 卡住不动 | 降低并发、增加超时 |
-| **等待响应** | 日志停止更新 | 检查网络、增加超时 |
+| **队列空了**| 无错误，爬虫退出 | 检查 start_urls |
+| **所有请求失败**| 大量错误日志 | 检查代理、UA |
+| **死锁**| 卡住不动 | 降低并发、增加超时 |
+| **等待响应**| 日志停止更新 | 检查网络、增加超时 |
 
 ## 深度优先调度不生效
 
@@ -394,14 +394,14 @@ LOG_LEVEL = 'DEBUG'
 
 2. 在日志中搜索关键信息：
 ```
-[产出] 子请求 depth=1    ← 如果子请求 depth 与父请求相同，说明 depth 传播失效
-[set_request] had_depth=True → depth=1    ← depth 已存在但值错误
+[产出] 子请求 depth=1 ← 如果子请求 depth 与父请求相同，说明 depth 传播失效
+[set_request] had_depth=True → depth=1 ← depth 已存在但值错误
 ```
 
 3. 正确的日志应显示：
 ```
-[产出] 子请求 depth=2    ← 子请求 depth = parent_depth + 1
-[set_request] had_depth=True → depth=2, priority: 0 → -2    ← 深度优先生效
+[产出] 子请求 depth=2 ← 子请求 depth = parent_depth + 1
+[set_request] had_depth=True → depth=2, priority: 0 → -2 ← 深度优先生效
 ```
 
 **解决方案**：
@@ -409,14 +409,14 @@ LOG_LEVEL = 'DEBUG'
 检查是否有中间件或工具函数提前设置了 `request.meta['depth']`，确保 `depth` 仅由 Engine 传播：
 
 ```python
-# ❌ 错误：中间件或工具函数不应提前注入 depth
+# 错误：中间件或工具函数不应提前注入 depth
 def some_middleware(request, spider):
-    request.meta.setdefault('depth', response.meta.get('depth', 0))  # 会导致 depth 传播失效
+ request.meta.setdefault('depth', response.meta.get('depth', 0)) # 会导致 depth 传播失效
 
-# ✅ 正确：让 Engine 自动传播 depth
+# 正确：让 Engine 自动传播 depth
 def some_middleware(request, spider):
-    # 不要设置 depth，Engine 会自动处理
-    pass
+ # 不要设置 depth，Engine 会自动处理
+ pass
 ```
 
 > 提示：Engine 层 `_handle_spider_output` 统一管理 depth 传播，中间件或工具函数不应提前注入 depth。
@@ -445,16 +445,16 @@ CLOSE_SPIDER_ON_SIGNAL = True
 1. 检查日志级别
 ```python
 # settings.py
-LOG_LEVEL = 'DEBUG'  # 最详细
+LOG_LEVEL = 'DEBUG' # 最详细
 ```
 
 2. 检查日志输出
 ```python
 # settings.py
-LOG_FILE = 'spider.log'  # 输出到文件
-LOG_TO_CONSOLE = True    # 同时输出到控制台
+LOG_FILE = 'spider.log' # 输出到文件
+LOG_TO_CONSOLE = True # 同时输出到控制台
 ```
 
 ---
 
-**还有其他问题？** 查看 [使用指南](../guides/) 或提交 [GitHub Issue](https://github.com/crawl-coder/Crawlo/issues)。
+**还有其他问题？**查看 [使用指南](../guides/) 或提交 [GitHub Issue](https://github.com/crawl-coder/Crawlo/issues)。

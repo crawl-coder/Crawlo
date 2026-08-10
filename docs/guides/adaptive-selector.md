@@ -9,8 +9,8 @@
 ### 核心原理
 
 ```
-首次抓取:  选择器命中 → 提取元素指纹 → 保存到 SQLite/Redis
-网站改版:  选择器失效 → 加载保存的指纹 → 遍历页面匹配 → 返回最相似元素
+首次抓取: 选择器命中 → 提取元素指纹 → 保存到 SQLite/Redis
+网站改版: 选择器失效 → 加载保存的指纹 → 遍历页面匹配 → 返回最相似元素
 ```
 
 ### 适用场景
@@ -32,14 +32,14 @@
 
 ```python
 class MySpider(Spider):
-    def parse(self, response):
-        # 自适应模式：首次命中时保存指纹，失效时自动匹配恢复
-        items = response.css('.product-list li', adaptive=True, identifier='products')
+ def parse(self, response):
+ # 自适应模式：首次命中时保存指纹，失效时自动匹配恢复
+ items = response.css('.product-list li', adaptive=True, identifier='products')
 
-        for item in items:
-            title = item.xpath('.//h2/a/text()', adaptive=True, identifier='title').get()
-            price = item.css('.price', adaptive=True, identifier='price').get()
-            yield {'title': title, 'price': price}
+ for item in items:
+ title = item.xpath('.//h2/a/text()', adaptive=True, identifier='title').get()
+ price = item.css('.price', adaptive=True, identifier='price').get()
+ yield {'title': title, 'price': price}
 ```
 
 ### 参数说明
@@ -86,10 +86,10 @@ matcher = SimilarityMatcher(ignore_attributes={'href', 'src'})
 ```python
 # settings.py — 无需额外配置即可使用（默认 SQLite 存储）
 # 高级配置（可选）：
-ADAPTIVE_STORAGE_BACKEND = 'sqlite'       # 'sqlite'（单机）或 'redis'（分布式）
+ADAPTIVE_STORAGE_BACKEND = 'sqlite' # 'sqlite'（单机）或 'redis'（分布式）
 ADAPTIVE_SQLITE_PATH = 'adaptive_fingerprints.db'
-ADAPTIVE_SIMILARITY_THRESHOLD = 30.0      # 全局最低相似度阈值（0-100，与查询 percentage 取大值）
-ADAPTIVE_MAX_FINGERPRINT_ELEMENTS = 10    # 每个选择器最多保存的元素指纹数
+ADAPTIVE_SIMILARITY_THRESHOLD = 30.0 # 全局最低相似度阈值（0-100，与查询 percentage 取大值）
+ADAPTIVE_MAX_FINGERPRINT_ELEMENTS = 10 # 每个选择器最多保存的元素指纹数
 ```
 
 ### 手动配置（不使用 settings）
@@ -98,9 +98,9 @@ ADAPTIVE_MAX_FINGERPRINT_ELEMENTS = 10    # 每个选择器最多保存的元素
 from crawlo.http import Response
 
 Response.configure_adaptive(
-    backend='sqlite',                     # 或 'redis'
-    storage_file='my_fingerprints.db',    # SQLite 路径
-    threshold=30.0,                       # 相似度阈值
+ backend='sqlite', # 或 'redis'
+ storage_file='my_fingerprints.db', # SQLite 路径
+ threshold=30.0, # 相似度阈值
 )
 ```
 
@@ -126,12 +126,12 @@ Response.configure_adaptive(
 总分 = Σ(维度分数 × 权重) / Σ权重 × 100
 
 各维度分数:
-  tag:     精确匹配 → 1 或 0
-  text:    SequenceMatcher 模糊匹配 → 0.0~1.0
-  attrs:   key 用 Jaccard(交集/并集) + value 用 SequenceMatcher → 0.0~1.0
-  path:    SequenceMatcher 比较标签路径元组
-  parent:  SequenceMatcher 比较父标签名/属性/文本
-  siblings: SequenceMatcher 比较兄弟元组
+ tag: 精确匹配 → 1 或 0
+ text: SequenceMatcher 模糊匹配 → 0.0~1.0
+ attrs: key 用 Jaccard(交集/并集) + value 用 SequenceMatcher → 0.0~1.0
+ path: SequenceMatcher 比较标签路径元组
+ parent: SequenceMatcher 比较父标签名/属性/文本
+ siblings: SequenceMatcher 比较兄弟元组
 ```
 
 ### 3. 性能优化
@@ -207,8 +207,8 @@ storage.save(response.url, 'product_list', fp)
 matcher = SimilarityMatcher(threshold=30)
 data = storage.retrieve(response.url, 'product_list')
 if data:
-    target = ElementFingerprint.from_dict(data)
-    matches = matcher.find_best_matches(target, modified_html)
+ target = ElementFingerprint.from_dict(data)
+ matches = matcher.find_best_matches(target, modified_html)
 ```
 
 ## 调试
@@ -222,9 +222,9 @@ LOG_LEVEL = 'DEBUG'
 输出示例：
 ```
 [SimilarityMatcher] DEBUG: Best match score: 87.5% (3 element(s))
-[SimilarityMatcher] DEBUG:   87.5% -> 3 element(s)
-[SimilarityMatcher] DEBUG:   72.3% -> 1 element(s)
-[SimilarityMatcher] DEBUG:   45.1% -> 2 element(s)
+[SimilarityMatcher] DEBUG: 87.5% -> 3 element(s)
+[SimilarityMatcher] DEBUG: 72.3% -> 1 element(s)
+[SimilarityMatcher] DEBUG: 45.1% -> 2 element(s)
 ```
 
 ## 限制与建议

@@ -10,20 +10,20 @@ Crawlo 内置定时任务调度器，支持周期性执行爬虫任务。调度�
 
 ```
 ┌──────────────────────────────────────────────┐
-│                SchedulerDaemon                 │
-│                                               │
-│  ┌──────────┐   ┌──────────┐   ┌──────────┐  │
-│  │ TimeTrigger│   │ JobRegistry│  │ JobExecutor│  │
-│  │ ─ Cron    │   │ ─ 注册   │   │ ─ 信号量 │  │
-│  │ ─ Interval│   │ ─ 查询   │   │ ─ 超时   │  │
-│  │ ─ 下次时间│   │ ─ 排序   │   │ ─ 重试   │  │
-│  └──────────┘   └──────────┘   └──────────┘  │
-│        │              │              │        │
-│        ▼              ▼              ▼        │
-│  ┌──────────────────────────────────────────┐ │
-│  │          Resource Manager                 │ │
-│  │  资源监控 + 内存泄漏检测 + 连接池管理     │ │
-│  └──────────────────────────────────────────┘ │
+│ SchedulerDaemon │
+│ │
+│ ┌──────────┐ ┌──────────┐ ┌──────────┐ │
+│ │ TimeTrigger│ │ JobRegistry│ │ JobExecutor│ │
+│ │ ─ Cron │ │ ─ 注册 │ │ ─ 信号量 │ │
+│ │ ─ Interval│ │ ─ 查询 │ │ ─ 超时 │ │
+│ │ ─ 下次时间│ │ ─ 排序 │ │ ─ 重试 │ │
+│ └──────────┘ └──────────┘ └──────────┘ │
+│ │ │ │ │
+│ ▼ ▼ ▼ │
+│ ┌──────────────────────────────────────────┐ │
+│ │ Resource Manager │ │
+│ │ 资源监控 + 内存泄漏检测 + 连接池管理 │ │
+│ └──────────────────────────────────────────┘ │
 └──────────────────────────────────────────────┘
 ```
 
@@ -38,32 +38,28 @@ SCHEDULER_ENABLED = True
 
 ### 2. 配置定时任务
 
-**Cron 表达式（精确到秒）：**
-
-```python
+**Cron 表达式（精确到秒）：**```python
 SCHEDULER_JOBS = [
-    {
-        'spider': 'news_spider',
-        'cron': '0 0 * * * *',       # 每小时整点
-        'enabled': True,
-        'priority': 10,
-        'timeout': 3600,              # 单次超时（秒）
-        'max_retries': 3,
-        'retry_delay': 60,
-        'args': {'keyword': 'AI'},
-    },
+ {
+ 'spider': 'news_spider',
+ 'cron': '0 0 * * * *', # 每小时整点
+ 'enabled': True,
+ 'priority': 10,
+ 'timeout': 3600, # 单次超时（秒）
+ 'max_retries': 3,
+ 'retry_delay': 60,
+ 'args': {'keyword': 'AI'},
+ },
 ]
 ```
 
-**时间间隔（更直观）：**
-
-```python
+**时间间隔（更直观）：**```python
 SCHEDULER_JOBS = [
-    {'spider': 'heartbeat', 'interval': {'seconds': 30}},                    # 每 30 秒
-    {'spider': 'checker',   'interval': {'minutes': 15}},                    # 每 15 分钟
-    {'spider': 'monitor',   'interval': {'hours': 1}},                       # 每 1 小时
-    {'spider': 'crawler',   'interval': {'days': 1}},                        # 每 24 小时
-    {'spider': 'report',    'interval': {'hours': 1, 'minutes': 30}},        # 每 1.5 小时（组合）
+ {'spider': 'heartbeat', 'interval': {'seconds': 30}}, # 每 30 秒
+ {'spider': 'checker', 'interval': {'minutes': 15}}, # 每 15 分钟
+ {'spider': 'monitor', 'interval': {'hours': 1}}, # 每 1 小时
+ {'spider': 'crawler', 'interval': {'days': 1}}, # 每 24 小时
+ {'spider': 'report', 'interval': {'hours': 1, 'minutes': 30}}, # 每 1.5 小时（组合）
 ]
 ```
 
@@ -82,8 +78,8 @@ python run.py --schedule
 Crawlo 支持标准的 5 位和 6 位 Cron 表达式：
 
 ```
-秒 分 时 日 月 星期     （6位，完整）
-   分 时 日 月 星期     （5位，秒字段默认为 0）
+秒 分 时 日 月 星期 （6位，完整）
+ 分 时 日 月 星期 （5位，秒字段默认为 0）
 ```
 
 ### 字段语法
@@ -144,10 +140,10 @@ Crawlo 支持标准的 5 位和 6 位 Cron 表达式：
 ```python
 # daemon/scheduler.py
 while self.running:
-    min_next = min(job.next_execution_time for job in jobs)
-    sleep_sec = min(min_next - now, check_interval)
-    await asyncio.sleep(sleep_sec)
-    await self._check_and_execute_jobs()
+ min_next = min(job.next_execution_time for job in jobs)
+ sleep_sec = min(min_next - now, check_interval)
+ await asyncio.sleep(sleep_sec)
+ await self._check_and_execute_jobs()
 ```
 
 ### 并发控制
@@ -157,8 +153,8 @@ while self.running:
 ```python
 # daemon/executor.py
 async def execute_with_semaphore(self, job):
-    async with self._semaphore:     # 默认 max_concurrent=3
-        await self.execute_job(job)
+ async with self._semaphore: # 默认 max_concurrent=3
+ await self.execute_job(job)
 ```
 
 ### 任务超时与重叠处理
@@ -168,18 +164,18 @@ async def execute_with_semaphore(self, job):
 ```python
 # job.py
 def should_execute(self, current_time):
-    if current_time >= self.next_execution_time and not self.is_executing:
-        return True
-    return False
+ if current_time >= self.next_execution_time and not self.is_executing:
+ return True
+ return False
 ```
 
 当超时触发后：
 
 ```
-t=0     任务开始，is_executing=True
-t=timeout  超时 → cancel → 可选重试（带退避延迟）
-           → is_executing=False
-t=next_cron  → 正常执行（不丢失）
+t=0 任务开始，is_executing=True
+t=timeout 超时 → cancel → 可选重试（带退避延迟）
+ → is_executing=False
+t=next_cron → 正常执行（不丢失）
 ```
 
 ### 时间漂移防止
@@ -212,7 +208,7 @@ from crawlo.commands.registry import get_job_registry
 
 registry = get_job_registry()
 for job in registry.get_all_jobs():
-    print(f"{job.spider_name}: next at {job.get_next_execution_time()}")
+ print(f"{job.spider_name}: next at {job.get_next_execution_time()}")
 ```
 
 ### 日志

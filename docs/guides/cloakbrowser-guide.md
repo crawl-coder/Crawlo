@@ -2,7 +2,7 @@
 
 CloakBrowser 是源码级修补的 Chromium 浏览器，通过 57 项 C++ 补丁修改指纹特征，可绕过 Cloudflare Turnstile、reCAPTCHA v3（0.9+ 评分）、FingerprintJS 等主流反爬系统。
 
-> **何时选用 CloakBrowser？** 当 Playwright 或 Camoufox 被站点检测拦截时，升级到 CloakBrowser。详见 [下载器选择指南](downloader-guide.md)。
+> **何时选用 CloakBrowser？**当 Playwright 或 Camoufox 被站点检测拦截时，升级到 CloakBrowser。详见 [下载器选择指南](downloader-guide.md)。
 
 ---
 
@@ -39,17 +39,17 @@ HYBRID_DEFAULT_DYNAMIC_DOWNLOADER = 'cloakbrowser'
 from crawlo import Spider, Request
 
 class MySpider(Spider):
-    name = 'my_spider'
+ name = 'my_spider'
 
-    def start_requests(self):
-        yield Request(
-            url='https://protected-site.com/page',
-            meta={'use_dynamic_loader': True}
-        )
+ def start_requests(self):
+ yield Request(
+ url='https://protected-site.com/page',
+ meta={'use_dynamic_loader': True}
+ )
 
-    def parse(self, response):
-        title = response.xpath('//title/text()').get()
-        yield {'url': response.url, 'title': title}
+ def parse(self, response):
+ title = response.xpath('//title/text()').get()
+ yield {'url': response.url, 'title': title}
 ```
 
 ---
@@ -61,10 +61,10 @@ class MySpider(Spider):
 ### 基础场景
 
 ```python
-CLOAKBROWSER_HEADLESS = True          # 无头模式
-CLOAKBROWSER_TIMEOUT = 30000          # 总超时（毫秒）
-CLOAKBROWSER_MAX_PAGES = 10           # 最大标签页数
-CLOAKBROWSER_BLOCK_RESOURCES = ['image', 'font', 'media']  # 加速加载
+CLOAKBROWSER_HEADLESS = True # 无头模式
+CLOAKBROWSER_TIMEOUT = 30000 # 总超时（毫秒）
+CLOAKBROWSER_MAX_PAGES = 10 # 最大标签页数
+CLOAKBROWSER_BLOCK_RESOURCES = ['image', 'font', 'media'] # 加速加载
 ```
 
 ### 高对抗场景
@@ -72,12 +72,12 @@ CLOAKBROWSER_BLOCK_RESOURCES = ['image', 'font', 'media']  # 加速加载
 Cloudflare / reCAPTCHA / DataDome 等强反爬站点：
 
 ```python
-CLOAKBROWSER_HEADLESS = False         # 有头模式（高强度站点建议开启）
-CLOAKBROWSER_HUMANIZE = True          # 类人鼠标/键盘/滚动行为
+CLOAKBROWSER_HEADLESS = False # 有头模式（高强度站点建议开启）
+CLOAKBROWSER_HUMANIZE = True # 类人鼠标/键盘/滚动行为
 CLOAKBROWSER_HUMAN_PRESET = 'careful' # 审慎模式（更慢但更安全）
-CLOAKBROWSER_GEOIP = True             # 根据代理 IP 自动匹配时区
-CLOAKBROWSER_PROXY = 'socks5://user:pass@proxy:1080'  # 住宅代理
-CLOAKBROWSER_FINGERPRINT = 42069      # 固定指纹种子（跨运行保持一致）
+CLOAKBROWSER_GEOIP = True # 根据代理 IP 自动匹配时区
+CLOAKBROWSER_PROXY = 'socks5://user:pass@proxy:1080' # 住宅代理
+CLOAKBROWSER_FINGERPRINT = 42069 # 固定指纹种子（跨运行保持一致）
 ```
 
 ### 性能优化场景
@@ -88,7 +88,7 @@ CLOAKBROWSER_FINGERPRINT = 42069      # 固定指纹种子（跨运行保持一�
 CLOAKBROWSER_HEADLESS = True
 CLOAKBROWSER_HUMANIZE = False
 CLOAKBROWSER_BLOCK_RESOURCES = ['image', 'font', 'media', 'stylesheet']
-CLOAKBROWSER_WAIT_STRATEGY = 'domcontentloaded'  # 更快返回
+CLOAKBROWSER_WAIT_STRATEGY = 'domcontentloaded' # 更快返回
 CLOAKBROWSER_TIMEOUT = 15000
 ```
 
@@ -99,7 +99,7 @@ CLOAKBROWSER_TIMEOUT = 15000
 ```python
 CLOAKBROWSER_PERSISTENT_CONTEXT = True
 CLOAKBROWSER_USER_DATA_DIR = './browser_data/my_session'
-CLOAKBROWSER_FINGERPRINT = 12345      # 固定指纹保持身份一致
+CLOAKBROWSER_FINGERPRINT = 12345 # 固定指纹保持身份一致
 ```
 
 ---
@@ -170,24 +170,24 @@ CLOAKBROWSER_FINGERPRINT = 12345      # 固定指纹保持身份一致
 
 ```python
 yield Request(
-    url='https://high-protection-site.com/page',
-    meta={
-        'use_dynamic_loader': True,
+ url='https://high-protection-site.com/page',
+ meta={
+ 'use_dynamic_loader': True,
 
-        # 覆盖全局配置
-        'cloakbrowser_headless': False,
-        'cloakbrowser_humanize': True,
-        'cloakbrowser_wait_strategy': 'networkidle',
-        'cloakbrowser_auto_scroll': True,
-        'cloakbrowser_block_resources': ['image', 'font'],
+ # 覆盖全局配置
+ 'cloakbrowser_headless': False,
+ 'cloakbrowser_humanize': True,
+ 'cloakbrowser_wait_strategy': 'networkidle',
+ 'cloakbrowser_auto_scroll': True,
+ 'cloakbrowser_block_resources': ['image', 'font'],
 
-        # 页面操作
-        'dynamic_actions': [
-            {'type': 'wait', 'params': {'timeout': 3000}},
-            {'type': 'click', 'selector': '#accept-cookies'},
-            {'type': 'scroll_to_bottom', 'params': {'max_no_content': 3}},
-        ]
-    }
+ # 页面操作
+ 'dynamic_actions': [
+ {'type': 'wait', 'params': {'timeout': 3000}},
+ {'type': 'click', 'selector': '#accept-cookies'},
+ {'type': 'scroll_to_bottom', 'params': {'max_no_content': 3}},
+ ]
+ }
 )
 ```
 
@@ -195,11 +195,11 @@ yield Request(
 
 ```python
 yield Request(
-    url='https://example.com',
-    meta={
-        'use_dynamic_loader': True,
-        'cloakbrowser_proxy': 'http://user:pass@ip:port',
-    }
+ url='https://example.com',
+ meta={
+ 'use_dynamic_loader': True,
+ 'cloakbrowser_proxy': 'http://user:pass@ip:port',
+ }
 )
 ```
 
@@ -211,17 +211,17 @@ yield Request(
 
 ```python
 class CloudflareSpider(Spider):
-    name = 'cf_spider'
+ name = 'cf_spider'
 
-    def start_requests(self):
-        yield Request(
-            url='https://cloudflare-protected.com/data',
-            meta={'use_dynamic_loader': True}
-        )
+ def start_requests(self):
+ yield Request(
+ url='https://cloudflare-protected.com/data',
+ meta={'use_dynamic_loader': True}
+ )
 
-    def parse(self, response):
-        for item in response.css('.data-item'):
-            yield {'text': item.css('::text').get()}
+ def parse(self, response):
+ for item in response.css('.data-item'):
+ yield {'text': item.css('::text').get()}
 ```
 
 配合 settings.py：
@@ -236,20 +236,20 @@ CLOAKBROWSER_PROXY = 'socks5://user:pass@residential-proxy:1080'
 
 ```python
 class InfiniteScrollSpider(Spider):
-    name = 'scroll_spider'
+ name = 'scroll_spider'
 
-    def start_requests(self):
-        yield Request(
-            url='https://example.com/infinite-scroll',
-            meta={
-                'use_dynamic_loader': True,
-                'cloakbrowser_auto_scroll': True,
-                'dynamic_actions': [
-                    {'type': 'click', 'selector': '#load-more'},
-                    {'type': 'scroll_to_bottom', 'params': {'max_no_content': 3}},
-                ]
-            }
-        )
+ def start_requests(self):
+ yield Request(
+ url='https://example.com/infinite-scroll',
+ meta={
+ 'use_dynamic_loader': True,
+ 'cloakbrowser_auto_scroll': True,
+ 'dynamic_actions': [
+ {'type': 'click', 'selector': '#load-more'},
+ {'type': 'scroll_to_bottom', 'params': {'max_no_content': 3}},
+ ]
+ }
+ )
 ```
 
 ### 示例 3：保持登录状态
@@ -268,32 +268,32 @@ CLOAKBROWSER_FINGERPRINT = 12345
 
 ```python
 class BatchSpider(Spider):
-    name = 'batch_spider'
+ name = 'batch_spider'
 
-    def start_requests(self):
-        targets = ['小米科技', '华为技术', '阿里巴巴']
-        for name in targets:
-            yield Request(
-                url=f'https://baike.baidu.com/item/{name}',
-                meta={
-                    'use_dynamic_loader': True,
-                    'cloakbrowser_block_resources': ['image', 'font'],
-                }
-            )
+ def start_requests(self):
+ targets = ['小米科技', '华为技术', '阿里巴巴']
+ for name in targets:
+ yield Request(
+ url=f'https://baike.baidu.com/item/{name}',
+ meta={
+ 'use_dynamic_loader': True,
+ 'cloakbrowser_block_resources': ['image', 'font'],
+ }
+ )
 ```
 
 ---
 
 ## 与其他下载器对比
 
-| 特性 | Playwright | Camoufox | **CloakBrowser** |
+| 特性 | Playwright | Camoufox | **CloakBrowser**|
 |------|-----------|----------|-----------------|
-| 反检测层级 | JS 注入 | Firefox C++ 补丁 | **Chromium C++ 补丁** |
-| reCAPTCHA v3 分数 | 0.3-0.5 | 中高 | **0.9+** |
-| Cloudflare 绕过 | 不稳定 | 支持 | **原生支持** |
-| 类人行为 | 无 | 内置 | **内置（更成熟）** |
-| GeoIP 时区匹配 | 手动 | 无 | **自动检测** |
-| 指纹持久化 | 不支持 | 不支持 | **种子固定** |
+| 反检测层级 | JS 注入 | Firefox C++ 补丁 | **Chromium C++ 补丁**|
+| reCAPTCHA v3 分数 | 0.3-0.5 | 中高 | **0.9+**|
+| Cloudflare 绕过 | 不稳定 | 支持 | **原生支持**|
+| 类人行为 | 无 | 内置 | **内置（更成熟）**|
+| GeoIP 时区匹配 | 手动 | 无 | **自动检测**|
+| 指纹持久化 | 不支持 | 不支持 | **种子固定**|
 | 安装体积 | ~200MB | ~150MB | ~200MB |
 | 内存占用 | ~200MB | ~250MB | ~280MB |
 
@@ -397,9 +397,9 @@ CLOAKBROWSER_TIMEOUT = 20000
 
 逐步增强反检测配置：
 ```python
-CLOAKBROWSER_HUMANIZE = True        # 启用类人行为
-CLOAKBROWSER_GEOIP = True           # 时区自动匹配
-CLOAKBROWSER_HEADLESS = False       # 有头模式
+CLOAKBROWSER_HUMANIZE = True # 启用类人行为
+CLOAKBROWSER_GEOIP = True # 时区自动匹配
+CLOAKBROWSER_HEADLESS = False # 有头模式
 CLOAKBROWSER_PROXY = 'socks5://...' # 使用住宅代理
 ```
 

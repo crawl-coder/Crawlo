@@ -1,8 +1,8 @@
 # v{MAJOR.MINOR.PATCH}
 
-**Tag:** `v{MAJOR.MINOR.PATCH}`
-**Date:** YYYY-MM-DD
-**Previous:** `v{上一版本}`
+**Tag:**`v{MAJOR.MINOR.PATCH}`
+**Date:**YYYY-MM-DD
+**Previous:**`v{上一版本}`
 
 ---
 

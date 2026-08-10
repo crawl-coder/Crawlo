@@ -2,7 +2,7 @@
 
 本系列教程将带你从基础到高级，全面掌握 Crawlo 框架的使用技巧。
 
-## 📚 学习资源
+## 学习资源
 
 ### 快速开始
 - [5分钟快速上手](../getting-started/5min-quickstart.md) - 最快速入门
@@ -33,7 +33,7 @@
 - [性能问题](../faq/performance.md) - 性能优化
 - [配置问题](../faq/configuration.md) - 配置答疑
 
-## 🎯 学习路径建议
+## 学习路径建议
 
 ### 新手路径
 1. [5分钟快速上手](../getting-started/5min-quickstart.md) - 5分钟上手
@@ -45,7 +45,7 @@
 2. [核心概念](../concepts/) - 理解架构设计
 3. [实战案例](../examples/) - 学习真实项目
 
-## 💡 学习建议
+## 学习建议
 
 - ✅ 动手实践：每个教程都有示例代码，建议跟着练习
 - ✅ 循序渐进：不要跳过基础教程，打好基础很重要
@@ -54,4 +54,4 @@
 
 ---
 
-**准备好开始了？** → [5分钟快速上手](../getting-started/5min-quickstart.md)
+**准备好开始了？**→ [5分钟快速上手](../getting-started/5min-quickstart.md)

@@ -21,9 +21,7 @@
 
 Crawlo 的核心设计原则只有一条：
 
-> **同一份爬虫代码，能跑在单机上，也能跑在集群上。**
-
-这意味着：
+> **同一份爬虫代码，能跑在单机上，也能跑在集群上。**这意味着：
 
 - 爬虫的 `parse()` 逻辑不需要关心自己跑在哪
 - 队列、去重、调度等基础设施根据配置自动切换
@@ -33,11 +31,11 @@ Crawlo 的核心设计原则只有一条：
 
 ```
 ┌─────────────────────────────────────────┐
-│           业务层（不变）                  │
-│  Spider.parse() / Item / Pipeline       │
+│ 业务层（不变） │
+│ Spider.parse() / Item / Pipeline │
 ├─────────────────────────────────────────┤
-│           基础设施层（可切换）             │
-│  Queue / Filter / Coordinator / Lock    │
+│ 基础设施层（可切换） │
+│ Queue / Filter / Coordinator / Lock │
 └─────────────────────────────────────────┘
 ```
 
@@ -49,15 +47,15 @@ Crawlo 的核心设计原则只有一条：
 
 | 维度 | 单机模式 | 多节点协作 | 分布式系统 |
 |------|---------|-----------|-----------|
-| **配置** | `standalone` + `memory` | `auto` + `redis` | `distributed` + `redis_stream` |
-| **队列** | 内存 PriorityQueue | Redis ZSET | Redis Streams + Consumer Groups |
-| **去重** | 内存 Set | Redis SET | Redis SET |
-| **任务确认** | 无需（进程内） | 无 ACK | XACK 确认 |
-| **崩溃恢复** | 进程重启 → 从头开始 | 任务丢失 | XAUTOCLAIM 自动回收 |
-| **节点协调** | 无 | 竞争消费 | Leader 选举 + 心跳 + 故障转移 |
-| **外部依赖** | 无 | Redis | Redis 5.0+ |
-| **适用场景** | 开发调试 | 多机分摊压力 | 生产环境 |
-| **任务可靠性** | N/A | 最多一次 | 至少一次 |
+| **配置**| `standalone` + `memory` | `auto` + `redis` | `distributed` + `redis_stream` |
+| **队列**| 内存 PriorityQueue | Redis ZSET | Redis Streams + Consumer Groups |
+| **去重**| 内存 Set | Redis SET | Redis SET |
+| **任务确认**| 无需（进程内） | 无 ACK | XACK 确认 |
+| **崩溃恢复**| 进程重启 → 从头开始 | 任务丢失 | XAUTOCLAIM 自动回收 |
+| **节点协调**| 无 | 竞争消费 | Leader 选举 + 心跳 + 故障转移 |
+| **外部依赖**| 无 | Redis | Redis 5.0+ |
+| **适用场景**| 开发调试 | 多机分摊压力 | 生产环境 |
+| **任务可靠性**| N/A | 最多一次 | 至少一次 |
 
 ---
 
@@ -71,17 +69,17 @@ Crawlo 的核心设计原则只有一条：
 
 ```
 ┌──────────────────────────────────────────────┐
-│                  单进程                        │
-│                                               │
-│  Spider → Scheduler(memory) → Engine          │
-│               ↓                               │
-│          Downloader(aiohttp)                   │
-│               ↓                               │
-│          Processor → Pipeline(MySQL/CSV/...)  │
-│                                               │
-│  去重：MemoryFilter (Python set)              │
-│  队列：PriorityQueue (heapq)                   │
-│  检查点：本地 JSON/SQLite 文件                  │
+│ 单进程 │
+│ │
+│ Spider → Scheduler(memory) → Engine │
+│ ↓ │
+│ Downloader(aiohttp) │
+│ ↓ │
+│ Processor → Pipeline(MySQL/CSV/...) │
+│ │
+│ 去重：MemoryFilter (Python set) │
+│ 队列：PriorityQueue (heapq) │
+│ 检查点：本地 JSON/SQLite 文件 │
 └──────────────────────────────────────────────┘
 ```
 
@@ -91,7 +89,7 @@ Crawlo 的核心设计原则只有一条：
 
 **内存去重**：`MemoryFilter` 使用 Python `set` 存储请求指纹（URL + method 的 SHA1），进程结束即释放。适合一次性采集，不适合需要跨运行去重的场景。
 
-**退出条件**：当队列为空 **且** 所有组件空闲（无在途请求、无 Pipeline 写入）时，引擎自动退出。这是三种模式中唯一会自动退出的模式。
+**退出条件**：当队列为空 **且**所有组件空闲（无在途请求、无 Pipeline 写入）时，引擎自动退出。这是三种模式中唯一会自动退出的模式。
 
 **检查点**：可选启用（`CHECKPOINT_ENABLED=True`），将请求队列序列化到本地文件（JSON 或 SQLite）。重启时 `resume=True` 自动恢复。
 
@@ -120,19 +118,19 @@ FILTER_CLASS = "crawlo.filters.MemoryFilter"
 ### 架构图
 
 ```
-        ┌──────────────────────────┐
-        │        Redis              │
-        │                          │
-        │  ZSET (任务队列)           │
-        │  SET  (全局去重)           │
-        └──────────────────────────┘
-             ▲            ▲
-        BZPOPMIN      BZPOPMIN
-             │            │
-     ┌───────┴──┐   ┌─────┴────┐
-     │ Worker 1 │   │ Worker N │
-     │ (独立进程) │   │ (独立进程) │
-     └──────────┘   └──────────┘
+ ┌──────────────────────────┐
+ │ Redis │
+ │ │
+ │ ZSET (任务队列) │
+ │ SET (全局去重) │
+ └──────────────────────────┘
+ ▲ ▲
+ BZPOPMIN BZPOPMIN
+ │ │
+ ┌───────┴──┐ ┌─────┴────┐
+ │ Worker 1 │ │ Worker N │
+ │ (独立进程) │ │ (独立进程) │
+ └──────────┘ └──────────┘
 ```
 
 ### 核心设计
@@ -182,22 +180,22 @@ REDIS_PORT = 6379
 
 ```
 ┌─────────────────────────────────────────────────────┐
-│                   Redis (5.0+)                       │
-│                                                      │
-│  Streams (任务队列)     Registry (Worker 注册表)      │
-│  Consumer Groups       Heartbeats (心跳)              │
-│  Locks (分布式锁)       Config (动态配置)              │
-│  Filters (去重 SET)     Control (控制状态)            │
+│ Redis (5.0+) │
+│ │
+│ Streams (任务队列) Registry (Worker 注册表) │
+│ Consumer Groups Heartbeats (心跳) │
+│ Locks (分布式锁) Config (动态配置) │
+│ Filters (去重 SET) Control (控制状态) │
 └─────────────────────────────────────────────────────┘
-     ▲              ▲              ▲
-     │              │              │
-┌────┴────┐   ┌────┴────┐   ┌────┴────┐
-│Worker 1 │   │Worker 2 │   │Worker N │
-│         │   │         │   │         │
-│Coordinator│  │Coordinator│  │Coordinator│
-│Engine    │   │Engine   │   │Engine   │
-│Spider    │   │Spider   │   │Spider   │
-└─────────┘   └─────────┘   └─────────┘
+ ▲ ▲ ▲
+ │ │ │
+┌────┴────┐ ┌────┴────┐ ┌────┴────┐
+│Worker 1 │ │Worker 2 │ │Worker N │
+│ │ │ │ │ │
+│Coordinator│ │Coordinator│ │Coordinator│
+│Engine │ │Engine │ │Engine │
+│Spider │ │Spider │ │Spider │
+└─────────┘ └─────────┘ └─────────┘
 ```
 
 > 每个 Worker 内嵌一组集群组件（WorkerRegistry、HeartbeatDaemon、FailoverManager、DistributedLock、ClusterMessenger、DynamicConfig），通过 Engine 的 ClusterMixin 组合使用，而非单一 Coordinator 类。
@@ -210,10 +208,10 @@ REDIS_PORT = 6379
 
 ```
 XADD → Stream → XREADGROUP → PROCESSING → XACK → DONE
-                                    ↓ (未 ACK)
-                              PENDING 列表
-                                    ↓ (超时)
-                              XAUTOCLAIM → 重新分配
+ ↓ (未 ACK)
+ PENDING 列表
+ ↓ (超时)
+ XAUTOCLAIM → 重新分配
 ```
 
 这是与多节点协作模式最本质的区别：**任务有状态**。不是弹出就消失，而是要确认才完成。ACK 通过 Lua 脚本在 Redis 服务端原子执行 XACK+XDEL，消除进程崩溃窗口。
@@ -224,11 +222,11 @@ XADD → Stream → XREADGROUP → PROCESSING → XACK → DONE
 
 ```
 Worker 心跳超时（90s 未更新）
-  → 标记为 suspect（怀疑）
-  → 等待 30 秒二次确认
-  → 仍无心跳 → 确认死亡
-  → XAUTOCLAIM 回收其 PENDING 任务
-  → 重新分配给其他 Worker
+ → 标记为 suspect（怀疑）
+ → 等待 30 秒二次确认
+ → 仍无心跳 → 确认死亡
+ → XAUTOCLAIM 回收其 PENDING 任务
+ → 重新分配给其他 Worker
 ```
 
 两阶段设计避免了网络抖动导致的误判。
@@ -242,8 +240,8 @@ Worker 心跳超时（90s 未更新）
 **双 Stream 优先级路由**：
 
 ```
-Stream:tasks:high  ← 优先级 < 0 的任务（CRITICAL/HIGH）
-Stream:tasks       ← 优先级 >= 0 的任务（NORMAL/LOW/BACKGROUND）
+Stream:tasks:high ← 优先级 < 0 的任务（CRITICAL/HIGH）
+Stream:tasks ← 优先级 >= 0 的任务（NORMAL/LOW/BACKGROUND）
 ```
 
 Worker 先读 high Stream，无任务时再读 normal Stream，保证高优先级任务优先处理。
@@ -269,9 +267,9 @@ REDIS_PORT = 6379
 ```python
 from crawlo.core.config import CrawloConfig
 config = CrawloConfig.distributed(
-    redis_host="10.0.0.1",
-    redis_port=6379,
-    concurrency=16,
+ redis_host="10.0.0.1",
+ redis_port=6379,
+ concurrency=16,
 )
 ```
 
@@ -282,7 +280,7 @@ config = CrawloConfig.distributed(
 - 需要动态扩缩容（白天加机器、晚上减机器）
 - 需要运行时管理（暂停、限速调整、紧急停止）
 
-> **详细设计文档**：[分布式架构设计文档](distributed_architecture.md)（覆盖 10 大章节 + 8 个附录）
+> **详细设计文档**：[分布式架构设计文档](distributed_architecture.md)（架构概览 / 任务生命周期 / 协调退出 / 配置参考）
 
 ---
 
@@ -345,11 +343,11 @@ QUEUE_TYPE = "redis_stream"
 
 ```python
 class MySpider(Spider):
-    name = "my_spider"
+ name = "my_spider"
 
-    async def parse(self, response):
-        yield Item(title=response.css("h1::text").get())
-        yield response.follow(response.css(".next::attr(href)").get())
+ async def parse(self, response):
+ yield Item(title=response.css("h1::text").get())
+ yield response.follow(response.css(".next::attr(href)").get())
 ```
 
 框架根据配置自动选择对应的队列实现、去重过滤器、协调器。业务层完全无感知。
@@ -357,15 +355,15 @@ class MySpider(Spider):
 ### 切换路径建议
 
 ```
-开发阶段                生产阶段                大规模阶段
-  │                      │                      │
-  ▼                      ▼                      ▼
-standalone          auto + redis          distributed + redis_stream
-(memory)            (ZSET)                (Streams + CG)
-  │                      │                      │
-  └── 验证逻辑 ──────────┘                      │
-                         └── 多机分摊 ──────────┘
-                                                 └── 集群管理
+开发阶段 生产阶段 大规模阶段
+ │ │ │
+ ▼ ▼ ▼
+standalone auto + redis distributed + redis_stream
+(memory) (ZSET) (Streams + CG)
+ │ │ │
+ └── 验证逻辑 ──────────┘ │
+ └── 多机分摊 ──────────┘
+ └── 集群管理
 ```
 
 ---
@@ -376,21 +374,21 @@ standalone          auto + redis          distributed + redis_stream
 
 ```
 Spider.start_requests()
-    ↓
+ ↓
 Scheduler (去重 + 入队)
-    ↓
+ ↓
 Engine (调度循环)
-    ↓
+ ↓
 Middleware (process_request)
-    ↓
+ ↓
 Downloader (aiohttp / Playwright / Camoufox)
-    ↓
+ ↓
 Middleware (process_response)
-    ↓
+ ↓
 Spider.parse()
-    ↓
+ ↓
 Pipeline (清洗 → 入库)
-    ↓
+ ↓
 新的 Request → 回到 Scheduler
 ```
 

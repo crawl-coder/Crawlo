@@ -2,7 +2,7 @@
 
 ## 安装 Crawlo 的最低要求是什么？
 
-- **Python**: 3.8+
+- **Python**: 3.10+
 - **操作系统**: Windows/Linux/macOS
 - **内存**: 最少 512MB
 - **磁盘**: 最少 100MB
@@ -20,8 +20,8 @@ pip install crawlo
 ### 完整安装（推荐）
 
 ```bash
-pip install crawlo[render]  # 浏览器渲染
-playwright install  # 安装浏览器内核
+pip install crawlo[render] # 浏览器渲染
+playwright install # 安装浏览器内核
 
 # 或者安装全部依赖
 pip install crawlo[all]
@@ -56,14 +56,14 @@ pip install crawlo
 
 **错误信息**：
 ```
-ERROR: Package 'crawlo' requires a different Python: 3.7.x not in '>=3.8'
+ERROR: Package 'crawlo' requires a different Python: 3.9.x not in '>=3.10'
 ```
 
 **解决方案**：
-升级到 Python 3.8+：
+升级到 Python 3.10+：
 ```bash
 # 使用 conda
-conda create -n crawlo python=3.8
+conda create -n crawlo python=3.10
 conda activate crawlo
 pip install crawlo
 ```
@@ -82,8 +82,8 @@ pip install --user crawlo
 
 # 方式2: 使用虚拟环境（推荐）
 python -m venv venv
-source venv/bin/activate  # Linux/Mac
-venv\Scripts\activate     # Windows
+source venv/bin/activate # Linux/Mac
+venv\Scripts\activate # Windows
 pip install crawlo
 ```
 
@@ -149,14 +149,13 @@ crawlo genspider test example.com
 crawlo run test
 ```
 
-如果能看到爬虫运行日志，说明安装成功！✅
-
+如果能看到爬虫运行日志，说明安装成功！ 
 ## Crawlo 可以和其他爬虫框架共存吗？
 
 可以！Crawlo 使用独立的命名空间，不会与 Scrapy 等框架冲突。
 
 ```bash
-pip install crawlo scrapy  # 可以同时安装
+pip install crawlo scrapy # 可以同时安装
 ```
 
 ## 如何升级 Crawlo？
@@ -189,8 +188,8 @@ ModuleNotFoundError: No module named 'crawlo'
 **解决方案**：
 ```bash
 # 检查 Python 路径
-which python  # Linux/Mac
-where python  # Windows
+which python # Linux/Mac
+where python # Windows
 
 # 检查 crawlo 安装位置
 pip show crawlo
@@ -205,14 +204,12 @@ pip install --force-reinstall crawlo
 
 | 依赖 | 功能 | 安装命令 |
 |------|------|---------|
-| **render** | 浏览器渲染 | `pip install crawlo[render]` |
-| **mcp** | AI 集成 | `pip install crawlo[mcp]` |
-| **all** | 全部依赖 | `pip install crawlo[all]` |
+| **render**| 浏览器渲染 | `pip install crawlo[render]` |
+| **mcp**| AI 集成 | `pip install crawlo[mcp]` |
+| **all**| 全部依赖 | `pip install crawlo[all]` |
 
-> 💡 **说明**：Redis、MySQL、MongoDB 等数据库支持已包含在基础安装中，无需额外安装。
-
-> ⚠️ **MCP 场景（max-stealth 模式）**：首次使用 Camoufox 浏览器时，需要下载约 300MB 的浏览器二进制。在 MCP（Claude Desktop / Cursor）中触发下载时，进度条会直接打到 stdout，可能干扰 stdio 协议的 JSON-RPC 消息流。**建议提前手动预下载**：
->
+> **说明**：Redis、MySQL、MongoDB 等数据库支持已包含在基础安装中，无需额外安装。 
+> **MCP 场景（max-stealth 模式）**：首次使用 Camoufox 浏览器时，需要下载约 300MB 的浏览器二进制。在 MCP（Claude Desktop / Cursor）中触发下载时，进度条会直接打到 stdout，可能干扰 stdio 协议的 JSON-RPC 消息流。**建议提前手动预下载**： >
 > ```bash
 > pip install camoufox
 > python -m camoufox fetch
@@ -243,4 +240,4 @@ docker run crawlo-spider
 
 ---
 
-**还有其他安装问题？** 查看 [一般问题](general.md) 或提交 [GitHub Issue](https://github.com/crawl-coder/Crawlo/issues)。
+**还有其他安装问题？**查看 [一般问题](general.md) 或提交 [GitHub Issue](https://github.com/crawl-coder/Crawlo/issues)。

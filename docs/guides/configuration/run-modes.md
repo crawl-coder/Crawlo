@@ -6,13 +6,13 @@ Crawlo 提供三种部署模式，覆盖从单机调试到生产级大规模分�
 
 | 特性 | 内存模式 | 多节点协作 | 分布式系统 ⭐ |
 |------|---------|-----------|-------------|
-| **配置** | `RUN_MODE='standalone'` `QUEUE_TYPE='memory'` | `RUN_MODE='auto'` `QUEUE_TYPE='redis'` | `RUN_MODE='distributed'` `QUEUE_TYPE='redis_stream'` |
-| **队列** | in-memory PriorityQueue | Redis ZSET | Redis Stream + Consumer Group |
-| **去重** | 内存 SET | Redis SET | Redis SET |
-| **协调机制** | 无（单进程） | 竞争消费（BZPOPMIN） | ACK + 心跳 + 故障转移 + Leader 协调退出 |
-| **Redis 要求** | ❌ 不需要 | ✅ 必需 | ✅ 必需 |
-| **退出方式** | 队列空 + 组件空闲，自动退出 | 队列空 + 组件空闲，自动退出 | Leader 检测全空闲后 broadcast shutdown |
-| **适用场景** | 开发调试、小规模单机 | 多机并发，可接受任务丢失 | 生产环境，任务可靠性要求高 |
+| **配置**| `RUN_MODE='standalone'` `QUEUE_TYPE='memory'` | `RUN_MODE='auto'` `QUEUE_TYPE='redis'` | `RUN_MODE='distributed'` `QUEUE_TYPE='redis_stream'` |
+| **队列**| in-memory PriorityQueue | Redis ZSET | Redis Stream + Consumer Group |
+| **去重**| 内存 SET | Redis SET | Redis SET |
+| **协调机制**| 无（单进程） | 竞争消费（BZPOPMIN） | ACK + 心跳 + 故障转移 + Leader 协调退出 |
+| **Redis 要求**| ❌ 不需要 | ✅ 必需 | ✅ 必需 |
+| **退出方式**| 队列空 + 组件空闲，自动退出 | 队列空 + 组件空闲，自动退出 | Leader 检测全空闲后 broadcast shutdown |
+| **适用场景**| 开发调试、小规模单机 | 多机并发，可接受任务丢失 | 生产环境，任务可靠性要求高 |
 
 > 三种模式的优先级模型完全一致（数值越小越优先），切换模式无需修改爬虫代码。
 
@@ -92,14 +92,14 @@ REDIS_PORT = 6379
 ### 运行机制
 
 ```
-                ┌──────────────────────┐
-                │    Redis              │
-                │  ZSET + SET 去重      │
-                └──────────────────────┘
-                    ▲            ▲
-              竞争消费        共享去重
-              ┌──┴──┐       ┌──┴──┐
-           Worker 1  ...  Worker N
+ ┌──────────────────────┐
+ │ Redis │
+ │ ZSET + SET 去重 │
+ └──────────────────────┘
+ ▲ ▲
+ 竞争消费 共享去重
+ ┌──┴──┐ ┌──┴──┐
+ Worker 1 ... Worker N
 ```
 
 多个 Worker 通过共享 Redis 实现并行爬取，Worker 之间通过 `BZPOPMIN` 竞争消费，无直接通信。
@@ -132,7 +132,7 @@ REDIS_PORT = 6379
 
 ---
 
-## 3. 分布式系统模式 ⭐
+## 3. 分布式系统模式 
 
 ### 适用场景
 
@@ -157,52 +157,52 @@ CONCURRENCY = 16
 DOWNLOAD_DELAY = 0.5
 
 # 集群配置（可选，默认启用）
-CLUSTER_HEARTBEAT_INTERVAL = 15      # 心跳间隔（秒）
-CLUSTER_WORKER_TIMEOUT = 90          # Worker 超时（秒）
-CLUSTER_FAILOVER_CHECK_INTERVAL = 30  # 故障检测间隔（秒）
-DISTRIBUTED_COORDINATED_SHUTDOWN_ENABLED = True  # Leader 协调退出
+CLUSTER_HEARTBEAT_INTERVAL = 15 # 心跳间隔（秒）
+CLUSTER_WORKER_TIMEOUT = 90 # Worker 超时（秒）
+CLUSTER_FAILOVER_CHECK_INTERVAL = 30 # 故障检测间隔（秒）
+DISTRIBUTED_COORDINATED_SHUTDOWN_ENABLED = True # Leader 协调退出
 ```
 
 ### 运行机制
 
 ```
 ┌─────────────────────────────────────────────────────┐
-│                   Redis Cluster                      │
-│  Streams | Registry | Locks | Filters | Config      │
+│ Redis Cluster │
+│ Streams | Registry | Locks | Filters | Config │
 └─────────────────────────────────────────────────────┘
-        ▲          ▲          ▲
-   Worker 1    Worker 2    Worker N   (各内嵌 Coordinator)
+ ▲ ▲ ▲
+ Worker 1 Worker 2 Worker N (各内嵌 Coordinator)
 ```
 
 #### 任务状态流转
 
 ```
 XADD → PENDING → XREADGROUP → PROCESSING → XACK → DONE
-                              ↘ 崩溃/超时
-                                XCLAIM → 其他 Worker 回收
-                                  ↘ 重试耗尽 → 死信队列
+ ↘ 崩溃/超时
+ XCLAIM → 其他 Worker 回收
+ ↘ 重试耗尽 → 死信队列
 ```
 
 #### 核心能力
 
 | 能力 | 实现方式 |
 |------|---------|
-| **ACK 确认** | XACK 确认完成，NACK 重试或进死信 |
-| **节点注册** | Redis HASH 注册表，ZSET 心跳 |
-| **故障转移** | 心跳超时 → suspect 二次确认（30s）→ XCLAIM 回收任务 |
-| **Leader 协调退出** | SETNX 选举，检测全空闲后 broadcast shutdown |
-| **分布式限流** | Lua 令牌桶，跨 Worker 共享配额 |
-| **动态配置** | Pub/Sub + 持久化 Key 双通道 |
+| **ACK 确认**| XACK 确认完成，NACK 重试或进死信 |
+| **节点注册**| Redis HASH 注册表，ZSET 心跳 |
+| **故障转移**| 心跳超时 → suspect 二次确认（30s）→ XCLAIM 回收任务 |
+| **Leader 协调退出**| SETNX 选举，检测全空闲后 broadcast shutdown |
+| **分布式限流**| Lua 令牌桶，跨 Worker 共享配额 |
+| **动态配置**| Pub/Sub + 持久化 Key 双通道 |
 
 ### 退出方式
 
 ```
 Leader 每 10s 检查:
-  种子已全部生成完毕
-  + Stream 队列为空
-  + 所有 Worker 空闲 (tasks_processing == 0)
-  + 2s 后重检（防瞬态误判）
-  → 全部满足 → broadcast shutdown → 所有 Worker 优雅退出
+ 种子已全部生成完毕
+ + Stream 队列为空
+ + 所有 Worker 空闲 (tasks_processing == 0)
+ + 2s 后重检（防瞬态误判）
+ → 全部满足 → broadcast shutdown → 所有 Worker 优雅退出
 ```
 
 兜底：`DISTRIBUTED_WORKER_IDLE_TIMEOUT`（默认 120s，设为 0 禁用）。
@@ -233,7 +233,7 @@ Leader 每 10s 检查:
 | Worker 3 | 313s | 780 | 159 |
 | Worker 4 | 308s | 790 | 160 |
 | Worker 5 | 303s | 810 | 161 |
-| **合计** | **~5.3min** | **3,994** | **avg 161** |
+| **合计**| **~5.3min**| **3,994**| **avg 161**|
 
 跨 5 个 Worker 零重复，Leader 自动协调退出。
 
@@ -258,13 +258,13 @@ Leader 每 10s 检查:
 你的需求是什么？
 │
 ├─ 本地开发调试、快速验证
-│   └─> 内存模式
+│ └─> 内存模式
 │
 ├─ 多机并发，可接受任务丢失
-│   └─> 多节点协作模式
+│ └─> 多节点协作模式
 │
 └─ 生产环境，任务可靠性要求高
-    └─> 分布式系统模式 ⭐
+ └─> 分布式系统模式 
 ```
 
 ### 快速选择表

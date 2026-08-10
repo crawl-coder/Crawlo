@@ -1,14 +1,14 @@
 # Crawlo 公共 API 面（API Surface）
 
 > 本文档是 1.0 稳定化的**唯一权威 API 清单**（Single Source of Truth）。
-> 基线日期：2026-08-10（P0-A1 首次盘点）。后续 PR 触碰本清单内任何 frozen 符号，
+> 基线日期：2026-08-10。后续 PR 触碰本清单内任何 frozen 符号，
 > 必须同步更新本文档，否则 CI 兼容性测试会拦截。
 
 ## 1. 状态定义
 
 | 状态 | 含义 | 变更规则 |
 |---|---|---|
-| `frozen` | 1.0 之前**不可改名、不可删除、不可改签名** | 必须走 Deprecation 周期（见 DEPRECATION.md），至少 2 个 minor |
+| `frozen` | 1.0 之前**不可改名、不可删除、不可改签名**| 必须走 Deprecation 周期（见 DEPRECATION.md），至少 2 个 minor |
 | `experimental` | 可小幅调整，但需 DeprecationWarning | 调整前更新本文档并记录 |
 | `internal` | 下划线开头或仅供框架内部使用 | 不承诺兼容性，用户不应依赖 |
 | `optional` | 依赖可选库（Playwright / asyncmy / pymongo 等）才可用 | 缺依赖时导入返回 `None` 或抛 ImportError，行为本身 frozen |
@@ -141,7 +141,7 @@
 | `unregister_downloader(name)` | frozen | 注销 API |
 | `get_downloader_class(name)` / `DOWNLOADER_MAP` | frozen | 名称→类解析 |
 
-### 5.2 插件注册表（`crawlo.plugin`，P1-B1）
+### 5.2 插件注册表（`crawlo.plugin`）
 
 | 符号 | 状态 | 说明 |
 |---|---|---|
@@ -177,7 +177,6 @@
 - `MiddlewareManager`（frozen）：`create_instance` / `download`（中间件链入口）
 - `MiddlewarePriority` / `MiddlewarePriorityGroup` / `BUILTIN_MIDDLEWARE_PRIORITIES` / `get_default_middleware_priority`（frozen，经 `crawlo.utils` 亦可导入）
 
-> **P1-B1 待办**：`register_middleware` 尚未落地（2026-08-10 盘点时缺失），见 ROADMAP P1。
 
 ### 6.2 内置中间件
 
@@ -429,31 +428,30 @@ MCP 工具（`crawlo-mcp` 暴露，frozen）：
 | `crawlo.crawler` 扁平模块（`crawlo/crawler.py`） | `crawlo.crawler` 子包 | deprecated（re-export，调用方无感） |
 
 > 兼容性保证（2026-08-10 起，由 `tests/arch/test_deprecation_shims.py` 守护）：
-> 旧路径导入必须 ① 发出 DeprecationWarning；② 返回的对象与新路径**同一对象**
-> （`isinstance` / `is` 不失效）。
+> 旧路径导入必须 ① 发出 DeprecationWarning；② 返回的对象与新路径**同一对象**> （`isinstance` / `is` 不失效）。
 
 ## 20. 覆盖统计（盘点基线 2026-08-10）
 
 ```text
-顶层 crawlo.*            31 个符号
-crawlo.crawler           14 个符号
-核心组件（engine/context/processor/scheduler/init/config）  ≈ 60 个符号
-下载器                   12 个符号（含 8 个实现 + 注册 API）
-中间件                   13 个符号
-管道                     13 个符号（直接导出）+ 10 个 optional
-队列 + 背压 + 任务追踪   23 个符号
-过滤 / 统计 / 日志       16 个符号
-扩展 + 通知              58 个符号
-集群                     12 个符号
-检查点                    1 个符号
-MCP                       5 个符号 + 6 个工具
-工具库                   ≈ 90 个符号
-设置键                  344 个
-CLI                      12 个命令入口
+顶层 crawlo.* 31 个符号
+crawlo.crawler 14 个符号
+核心组件（engine/context/processor/scheduler/init/config） ≈ 60 个符号
+下载器 12 个符号（含 8 个实现 + 注册 API）
+中间件 13 个符号
+管道 13 个符号（直接导出）+ 10 个 optional
+队列 + 背压 + 任务追踪 23 个符号
+过滤 / 统计 / 日志 16 个符号
+扩展 + 通知 58 个符号
+集群 12 个符号
+检查点 1 个符号
+MCP 5 个符号 + 6 个工具
+工具库 ≈ 90 个符号
+设置键 344 个
+CLI 12 个命令入口
 ```
 
 > 覆盖目标：本文档应覆盖 ≥ 95% 公开符号（以各模块 `__all__` 为准）。
-> 验收脚本（P0-A3）将遍历所有 `crawlo.*` 公共导出并与本文档比对。
+> 验收脚本将遍历所有 `crawlo.*` 公共导出并与本文档比对。
 
 ## 21. 变更流程（frozen 符号触碰规则）
 
@@ -466,7 +464,7 @@ CLI                      12 个命令入口
 
 | 日期 | 变更 | 说明 |
 |---|---|---|
-| 2026-08-10 | 首次盘点 | P0-A1 初稿：覆盖全部 `__all__` 导出 + CLI + MCP + settings + deprecated shims |
+| 2026-08-10 | 首次盘点 | 初稿：覆盖全部 `__all__` 导出 + CLI + MCP + settings + deprecated shims |
 | 2026-08-10 | A2 收尾 | `filterwarnings = error::DeprecationWarning` 全局生效；内部 40+ 处旧路径迁新路径；修复 bot shim 子模块身份分裂；新增 shim 契约测试 |
 | 2026-08-10 | A3 完成 | 签名守护扩展到 57 类 / 471 方法；import-path 兼容矩阵（97 路径 + 34 符号 + shim 迁移等价） |
 | 2026-08-10 | A4 完成 | `crawlo release --dry-run` 发布检查 + CHANGELOG + CI 门禁 |

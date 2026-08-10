@@ -14,15 +14,15 @@ WORKDIR /build
 
 # 系统依赖：lxml/curl-cffi 编译所需
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    build-essential curl \
-    && rm -rf /var/lib/apt/lists/*
+ build-essential curl \
+ && rm -rf /var/lib/apt/lists/*
 
 # 先装 crawlo（含常用 extras），利用层缓存
 COPY requirements.txt .
 RUN pip install --prefix=/install \
-    "crawlo[monitoring,mcp]" \
-    asyncmy aiosqlite \
-    -r requirements.txt
+ "crawlo[monitoring,mcp]" \
+ asyncmy aiosqlite \
+ -r requirements.txt
 
 # ── 运行阶段：瘦身 ──
 FROM python:3.12-slim
@@ -54,57 +54,57 @@ docker build -t my-crawler:1.7.3 .
 
 ```yaml
 services:
-  crawler:
-    build: .
-    image: my-crawler:1.7.3
-    environment:
-      CRAWLO_MODE: standalone          # standalone | distributed
-      LOG_LEVEL: INFO
-      REDIS_HOST: redis
-      # 分布式模式：
-      # QUEUE_TYPE: redis_stream
-      # REDIS_SENTINEL_URLS: redis://sentinel-1:26379,redis://sentinel-2:26379
-      # REDIS_SENTINEL_SERVICE: mymaster
-    volumes:
+ crawler:
+ build: .
+ image: my-crawler:1.7.3
+ environment:
+ CRAWLO_MODE: standalone # standalone | distributed
+ LOG_LEVEL: INFO
+ REDIS_HOST: redis
+ # 分布式模式：
+ # QUEUE_TYPE: redis_stream
+ # REDIS_SENTINEL_URLS: redis://sentinel-1:26379,redis://sentinel-2:26379
+ # REDIS_SENTINEL_SERVICE: mymaster
+ volumes:
       - ./output:/app/output           # 抓取结果
       - ./logs:/app/logs               # 日志
       - ./jobs:/app/jobs               # 检查点/断点续爬
-    depends_on:
-      redis:
-        condition: service_healthy
-    restart: unless-stopped
+ depends_on:
+ redis:
+ condition: service_healthy
+ restart: unless-stopped
 
-  redis:
-    image: redis:7-alpine
-    command: ["redis-server", "--appendonly", "yes"]
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 5s
-      timeout: 3s
-      retries: 10
-    volumes:
+ redis:
+ image: redis:7-alpine
+ command: ["redis-server", "--appendonly", "yes"]
+ healthcheck:
+ test: ["CMD", "redis-cli", "ping"]
+ interval: 5s
+ timeout: 3s
+ retries: 10
+ volumes:
       - redis-data:/data
 
-  # 可选：MySQL 存储管道
-  mysql:
-    image: mysql:8.0
-    environment:
-      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-change-me}
-      MYSQL_DATABASE: crawlo
-    volumes:
+ # 可选：MySQL 存储管道
+ mysql:
+ image: mysql:8.0
+ environment:
+ MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-change-me}
+ MYSQL_DATABASE: crawlo
+ volumes:
       - mysql-data:/var/lib/mysql
 
-  # 可选：Prometheus 指标采集
-  prometheus:
-    image: prom/prometheus
-    volumes:
+ # 可选：Prometheus 指标采集
+ prometheus:
+ image: prom/prometheus
+ volumes:
       - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
-    ports:
+ ports:
       - "9090:9090"
 
 volumes:
-  redis-data:
-  mysql-data:
+ redis-data:
+ mysql-data:
 ```
 
 启动：
@@ -120,11 +120,11 @@ Crawlo 支持 Ctrl+C 优雅保存检查点（`CHECKPOINT_ENABLED=True`）：
 
 ```yaml
 services:
-  crawler:
-    stop_grace_period: 60s   # 给在途请求排空时间
-    environment:
-      CHECKPOINT_ENABLED: "True"
-      CHECKPOINT_DIR: /app/jobs
+ crawler:
+ stop_grace_period: 60s # 给在途请求排空时间
+ environment:
+ CHECKPOINT_ENABLED: "True"
+ CHECKPOINT_DIR: /app/jobs
 ```
 
 `docker stop` 会发 SIGTERM → 爬虫排空在途请求并保存检查点 → 下次启动
@@ -139,11 +139,11 @@ services:
 
 ```yaml
 services:
-  crawler:
-    environment:
-      QUEUE_TYPE: redis_stream
-      REDIS_SENTINEL_URLS: redis://sentinel-1:26379,redis://sentinel-2:26379,redis://sentinel-3:26379
-      REDIS_SENTINEL_SERVICE: mymaster
+ crawler:
+ environment:
+ QUEUE_TYPE: redis_stream
+ REDIS_SENTINEL_URLS: redis://sentinel-1:26379,redis://sentinel-2:26379,redis://sentinel-3:26379
+ REDIS_SENTINEL_SERVICE: mymaster
 ```
 
 Sentinel 集群容器可直接复用 `scripts/redis_ha/docker-compose.yml`
@@ -154,12 +154,12 @@ Sentinel 集群容器可直接复用 `scripts/redis_ha/docker-compose.yml`
 
 | 事项 | 建议 |
 |---|---|
-| **非 root 运行** | Dockerfile 已用 `USER crawler`；文件卷属主需 `--chown` |
-| **日志** | `LOG_FILE` 指向 `/app/logs`，配合 `docker logs` 或日志采集 |
-| **密钥** | webhook / DB 密码用环境变量或 Docker Secrets，勿写进镜像 |
-| **资源限制** | `deploy.resources.limits.memory` 与 `CONCURRENCY` 匹配，防止 OOM |
-| **健康检查** | 给 crawler 加 `HEALTHCHECK`（`crawlo check` 或自定义探活） |
-| **多 Worker** | 分布式模式起 N 个 crawler 副本（`docker compose up --scale crawler=5`） |
+| **非 root 运行**| Dockerfile 已用 `USER crawler`；文件卷属主需 `--chown` |
+| **日志**| `LOG_FILE` 指向 `/app/logs`，配合 `docker logs` 或日志采集 |
+| **密钥**| webhook / DB 密码用环境变量或 Docker Secrets，勿写进镜像 |
+| **资源限制**| `deploy.resources.limits.memory` 与 `CONCURRENCY` 匹配，防止 OOM |
+| **健康检查**| 给 crawler 加 `HEALTHCHECK`（`crawlo check` 或自定义探活） |
+| **多 Worker**| 分布式模式起 N 个 crawler 副本（`docker compose up --scale crawler=5`） |
 
 ## 6. 进阶：多 Worker + 调度
 

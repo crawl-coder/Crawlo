@@ -10,10 +10,10 @@
 
 | 类型 | 下载器 | 适用场景 |
 |------|--------|---------|
-| **协议** | AioHttp / HttpX / CurlCffi | 静态页面、API 接口 |
-| **浏览器** | Playwright | JS 渲染页面 |
-| **浏览器** | Camoufox | 中度反爬站点（Firefox 补丁） |
-| **浏览器** | **CloakBrowser** | 高强度反爬站点（Chromium 补丁） |
+| **协议**| AioHttp / HttpX / CurlCffi | 静态页面、API 接口 |
+| **浏览器**| Playwright | JS 渲染页面 |
+| **浏览器**| Camoufox | 中度反爬站点（Firefox 补丁） |
+| **浏览器**| **CloakBrowser**| 高强度反爬站点（Chromium 补丁） |
 
 ### 混合模式 (Hybrid)
 
@@ -94,24 +94,20 @@
 ### 数据存储
 Crawlo 内置了多种持久化管道，按类型分为以下几类：
 
-**SQL 存储管道：**
-- **MySQL**: 异步连接池支持（`asyncmy`），配置前缀 `MYSQL_`
+**SQL 存储管道：**- **MySQL**: 异步连接池支持（`asyncmy`），配置前缀 `MYSQL_`
 - **SQLite**: 单连接复用（`aiosqlite`），配置前缀 `SQLITE_`
 - **PostgreSQL**: asyncpg 连接池，配置前缀 `PG_`
 - **ClickHouse**: clickhouse-connect 客户端，批量优先，配置前缀 `CLICKHOUSE_`
 
-**文档型存储管道：**
-- **MongoDB**: motor 异步驱动，支持 upsert/insert 双模式，配置前缀 `MONGO_`
+**文档型存储管道：**- **MongoDB**: motor 异步驱动，支持 upsert/insert 双模式，配置前缀 `MONGO_`
 - **Elasticsearch**: 异步客户端，MD5 指纹 ID，配置前缀 `ELASTICSEARCH_`
 
-**文件型输出管道：**
-- **CSV**: 同步写入，支持批量缓冲，配置前缀 `CSV_`
+**文件型输出管道：**- **CSV**: 同步写入，支持批量缓冲，配置前缀 `CSV_`
 - **CSV Dict**: 支持字段映射的 `DictWriter`，配置前缀 `CSV_DICT_`
 - **JSON Lines**: 紧凑格式逐行写入，可选元数据，配置前缀 `JSON_`
 - **JSON Array**: 所有 Item 组成 JSON 数组，异步 I/O，配置前缀 `JSON_ARRAY_`
 
-**宽列式存储管道：**
-- **HBase**: happybase 同步客户端（通过 `run_in_executor` 异步化）
+**宽列式存储管道：**- **HBase**: happybase 同步客户端（通过 `run_in_executor` 异步化）
 
 ### 去重管道
 支持在存储层执行 Item 去重，防止数据库出现重复记录：
@@ -126,12 +122,12 @@ Crawlo 内置了多种持久化管道，按类型分为以下几类：
 各管道对应可选依赖：
 
 ```bash
-pip install crawlo[sqlite]          # SQLite
-pip install crawlo[postgresql]      # PostgreSQL
-pip install crawlo[clickhouse]      # ClickHouse
-pip install crawlo[elasticsearch]   # Elasticsearch
-pip install crawlo[hbase]           # HBase
-pip install crawlo[db-all]          # 全部数据库管道
+pip install crawlo[sqlite] # SQLite
+pip install crawlo[postgresql] # PostgreSQL
+pip install crawlo[clickhouse] # ClickHouse
+pip install crawlo[elasticsearch] # Elasticsearch
+pip install crawlo[hbase] # HBase
+pip install crawlo[db-all] # 全部数据库管道
 ```
 
 ---

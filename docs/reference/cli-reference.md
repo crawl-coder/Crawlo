@@ -35,9 +35,9 @@ crawlo run <spider_name> [options]
 
 **检查点相关**:
 ```bash
-crawlo run myspider              # 默认：检查点未启用
-crawlo run myspider --fresh      # 忽略检查点，从头开始
-crawlo run myspider --clean-checkpoint  # 清除检查点并从头开始
+crawlo run myspider # 默认：检查点未启用
+crawlo run myspider --fresh # 忽略检查点，从头开始
+crawlo run myspider --clean-checkpoint # 清除检查点并从头开始
 ```
 
 > 注意：检查点功能默认关闭，需在 `settings.py` 中设置 `CHECKPOINT_ENABLED = True` 启用。
@@ -73,16 +73,16 @@ crawlo stats [spider_name]
 ### `crawlo dead-letter`
 管理分布式模式下的死信队列。
 ```bash
-crawlo dead-letter list <project> <spider>    # 查看死信列表
-crawlo dead-letter retry <project> <spider>  # 重新入队 (--count N)
-crawlo dead-letter stats <project> <spider>  # 查看死信统计
+crawlo dead-letter list <project> <spider> # 查看死信列表
+crawlo dead-letter retry <project> <spider> # 重新入队 (--count N)
+crawlo dead-letter stats <project> <spider> # 查看死信统计
 ```
 
 ### `crawlo release`
 发布就绪检查（semver + CHANGELOG + 发布说明 + git tag 一致性）。
 ```bash
-crawlo release --dry-run   # 只检查，不跑测试（CI 门禁用）
-crawlo release             # 检查 + 跑全量测试（正式发版前用）
+crawlo release --dry-run # 只检查，不跑测试（CI 门禁用）
+crawlo release # 检查 + 跑全量测试（正式发版前用）
 ```
 
 ### `crawlo-mcp`
@@ -107,9 +107,9 @@ crawlo shell [url]
 
 **示例**:
 ```bash
-crawlo shell                       # 启动空 Shell
-crawlo shell https://example.com   # 启动并预抓取 URL
-crawlo shell --curl 'curl https://api.com -H "Key: val"'  # 使用 curl 命令
+crawlo shell # 启动空 Shell
+crawlo shell https://example.com # 启动并预抓取 URL
+crawlo shell --curl 'curl https://api.com -H "Key: val"' # 使用 curl 命令
 crawlo shell --curl "curl https://httpbin.org/post -X POST -d 'key=val'"
 ```
 

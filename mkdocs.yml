@@ -101,6 +101,10 @@ nav:
     - 概览: deployment.md
     - Docker 部署: deployment/docker-deployment.md
     - Redis 高可用与验证: deployment/redis-ha.md
+    - 监控与告警: deployment/monitoring-alerting.md
+    - 代理池与轮换: deployment/proxy-rotation.md
+    - 升级与回滚: deployment/upgrade-rollback.md
+    - Kubernetes 部署: deployment/kubernetes-deployment.md
   - 🎯 使用指南:
     - 概览: guides/index.md
     - 配置指南:
@@ -130,6 +134,8 @@ nav:
     - 三种部署模式详解: architecture-overview.md
     - 架构设计: concepts/architecture.md
     - 分布式架构: distributed_architecture.md
+    - 分布式 Worker 生命周期: concepts/distributed-worker-lifecycle.md
+    - 分布式可靠性与故障恢复: concepts/distributed-reliability.md
     - 核心组件: concepts/core-components.md
     - 请求生命周期: concepts/request-lifecycle.md
     - 爬虫生命周期: concepts/spider-lifecycle.md
@@ -148,6 +154,9 @@ nav:
   - 💡 实战案例:
     - 概览: examples/index.md
     - 基础示例: examples/basic-examples.md
+    - 基础爬虫示例: examples/basic-spiders.md
+    - 进阶爬虫示例: examples/advanced-spiders.md
+    - 生产级爬虫示例: examples/production-spiders.md
   - ❓ 常见问题:
     - 概览: faq/index.md
     - 一般问题: faq/general.md

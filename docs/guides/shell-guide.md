@@ -96,33 +96,33 @@ response.text[:500]
 ```python
 # GET 请求带参数
 fetch('https://www.baidu.com/s',
-      params={'wd': 'python', 'pn': 10})
+ params={'wd': 'python', 'pn': 10})
 
 # POST 请求
 fetch('https://www.baidu.com',
-      method='POST',
-      json_body={'key': 'value'})
+ method='POST',
+ json_body={'key': 'value'})
 
 # 表单提交
 fetch('https://www.baidu.com',
-      method='POST',
-      form_data={'key': 'value'})
+ method='POST',
+ form_data={'key': 'value'})
 
 # 自定义请求头
 fetch('https://www.baidu.com',
-      headers={'User-Agent': 'Mozilla/5.0'})
+ headers={'User-Agent': 'Mozilla/5.0'})
 
 # 设置 Cookie
 fetch('https://www.baidu.com',
-      cookies={'BAIDUID': 'abc123'})
+ cookies={'BAIDUID': 'abc123'})
 
 # 使用代理
 fetch('https://www.baidu.com',
-      proxy='http://127.0.0.1:8080')
+ proxy='http://127.0.0.1:8080')
 
 # 动态渲染（JS 页面）
 fetch('https://www.baidu.com',
-      meta={'use_dynamic_loader': True})
+ meta={'use_dynamic_loader': True})
 ```
 
 ### 4. 从 curl 命令抓取
@@ -131,8 +131,8 @@ fetch('https://www.baidu.com',
 
 ```python
 from_curl("curl 'https://www.baidu.com' \
-  -H 'User-Agent: Mozilla/5.0' \
-  -H 'Cookie: BAIDUID=abc123'")
+ -H 'User-Agent: Mozilla/5.0' \
+ -H 'Cookie: BAIDUID=abc123'")
 ```
 
 自动解析 URL、Headers、Cookie 等。
@@ -164,7 +164,7 @@ response.find_similar('price', threshold=60)
 
 # 自定义相似度匹配（跳过某些属性）
 response.css('.item', adaptive=True, identifier='item',
-             percentage=70.0, timeout=10.0).getall()
+ percentage=70.0, timeout=10.0).getall()
 ```
 
 自适应模式支持参数：
@@ -183,10 +183,10 @@ response.css('.item', adaptive=True, identifier='item',
 ### 状态检查
 
 ```python
-response.is_success       # → True (2xx)
-response.is_redirect      # → False (3xx)
-response.is_client_error  # → False (4xx)
-response.is_server_error  # → False (5xx)
+response.is_success # → True (2xx)
+response.is_redirect # → False (3xx)
+response.is_client_error # → False (4xx)
+response.is_server_error # → False (5xx)
 ```
 
 ### 数据提取
@@ -225,20 +225,20 @@ response.follow('/more')
 ```python
 # 手动构造 Request
 req = Request('https://www.baidu.com',
-              method='GET',
-              headers={'User-Agent': 'Mozilla/5.0'},
-              cookies={'BAIDUID': 'abc'},
-              meta={'retry_times': 0})
+ method='GET',
+ headers={'User-Agent': 'Mozilla/5.0'},
+ cookies={'BAIDUID': 'abc'},
+ meta={'retry_times': 0})
 
 # 链式 API
 req = Request.get('https://www.baidu.com')
-    .add_header('User-Agent', 'Mozilla/5.0')
-    .set_proxy('http://127.0.0.1:8080')
-    .set_timeout(30)
-    .add_flag('important')
+ .add_header('User-Agent', 'Mozilla/5.0')
+ .set_proxy('http://127.0.0.1:8080')
+ .set_timeout(30)
+ .add_flag('important')
 
-req.to_dict()  # 序列化为字典
-req.copy()     # 深拷贝
+req.to_dict() # 序列化为字典
+req.copy() # 深拷贝
 ```
 
 ---
@@ -270,11 +270,11 @@ print(prices[:5])
 
 # Spider 中：
 def parse(self, response):
-    for item in response.css('.product'):
-        yield {
-            'price': item.css('.price::text').re_first(r'\d+\.\d+'),
-            'title': item.css('.title::text').get(),
-        }
+ for item in response.css('.product'):
+ yield {
+ 'price': item.css('.price::text').re_first(r'\d+\.\d+'),
+ 'title': item.css('.title::text').get(),
+ }
 ```
 
 ### 调试中间件效果
@@ -287,7 +287,7 @@ response.status
 
 # 验证请求头是否正确传递
 fetch('https://www.baidu.com',
-      headers={'User-Agent': 'Mozilla/5.0'})
+ headers={'User-Agent': 'Mozilla/5.0'})
 response.status
 # → 200
 ```
@@ -296,14 +296,8 @@ response.status
 
 ## 常见问题
 
-**Q: Shell 如何加载项目配置？**
+**Q: Shell 如何加载项目配置？**Shell 从当前目录向上查找 `crawlo.cfg` 或 `settings.py`，找到后自动加载项目配置。如果未找到，以 standalone 模式启动。
 
-Shell 从当前目录向上查找 `crawlo.cfg` 或 `settings.py`，找到后自动加载项目配置。如果未找到，以 standalone 模式启动。
+**Q: 如何在 Shell 中使用自定义中间件？**Shell 默认绕过中间件链直接调用下载器。如需测试中间件效果，建议运行完整的 Crawler。
 
-**Q: 如何在 Shell 中使用自定义中间件？**
-
-Shell 默认绕过中间件链直接调用下载器。如需测试中间件效果，建议运行完整的 Crawler。
-
-**Q: Shell 支持异步操作吗？**
-
-在标准 Python 控制台中，`fetch()` 和 `from_curl()` 是同步阻塞的。安装 IPython 后可使用 `await fetch_async()` 异步执行。
+**Q: Shell 支持异步操作吗？**在标准 Python 控制台中，`fetch()` 和 `from_curl()` 是同步阻塞的。安装 IPython 后可使用 `await fetch_async()` 异步执行。

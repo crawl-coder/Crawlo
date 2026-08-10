@@ -22,7 +22,7 @@ python -m crawlo.mcp.server
 验证是否可用：
 
 ```bash
-crawlo-mcp --help  # 若正常输出帮助即安装成功
+crawlo-mcp --help # 若正常输出帮助即安装成功
 ```
 
 > 说明：`crawlo-mcp` 需要浏览器依赖时（`stealth` / `max-stealth` 模式），请额外安装对应扩展：
@@ -53,12 +53,12 @@ crawlo-mcp --help  # 若正常输出帮助即安装成功
 
 ```json
 {
-  "mcpServers": {
-    "crawlo": {
-      "command": "crawlo-mcp",
-      "args": []
-    }
-  }
+ "mcpServers": {
+ "crawlo": {
+ "command": "crawlo-mcp",
+ "args": []
+ }
+ }
 }
 ```
 
@@ -77,18 +77,18 @@ from mcp.client.stdio import stdio_client
 
 
 async def main():
-    params = StdioServerParameters(command="crawlo-mcp", args=[])
-    async with stdio_client(params) as (read, write):
-        async with ClientSession(read, write) as session:
-            await session.initialize()
-            tools = await session.list_tools()
-            print("可用工具:", [t.name for t in tools.tools])
+ params = StdioServerParameters(command="crawlo-mcp", args=[])
+ async with stdio_client(params) as (read, write):
+ async with ClientSession(read, write) as session:
+ await session.initialize()
+ tools = await session.list_tools()
+ print("可用工具:", [t.name for t in tools.tools])
 
-            result = await session.call_tool(
-                "fetch",
-                {"url": "https://example.com", "mode": "basic", "format": "markdown"},
-            )
-            print(result.content[0].text[:300])
+ result = await session.call_tool(
+ "fetch",
+ {"url": "https://example.com", "mode": "basic", "format": "markdown"},
+ )
+ print(result.content[0].text[:300])
 
 
 asyncio.run(main())
@@ -114,11 +114,8 @@ asyncio.run(main())
 
 ## 常见问题
 
-**Q: `crawlo-mcp` 启动后没有任何输出？**
-A: stdio 服务器正常，等待客户端连接时不输出内容属正常现象。
+**Q: `crawlo-mcp` 启动后没有任何输出？**A: stdio 服务器正常，等待客户端连接时不输出内容属正常现象。
 
-**Q: `fetch` 在 stealth 模式下报浏览器未安装？**
-A: 安装 `pip install "crawlo[render,stealth]"` 并确认浏览器二进制可用（`playwright install chromium` 等）。
+**Q: `fetch` 在 stealth 模式下报浏览器未安装？**A: 安装 `pip install "crawlo[render,stealth]"` 并确认浏览器二进制可用（`playwright install chromium` 等）。
 
-**Q: 如何让 AI 只抓取特定域名？**
-A: 在配置中加入白名单中间件或代理层；`crawlo-mcp` 本身不限制 URL。
+**Q: 如何让 AI 只抓取特定域名？**A: 在配置中加入白名单中间件或代理层；`crawlo-mcp` 本身不限制 URL。
