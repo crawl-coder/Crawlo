@@ -209,7 +209,7 @@ crawlo run quotes
 
 1. **[安装指南](installation.md)** - 了解不同安装方式
 2. **[创建第一个爬虫](first-spider.md)** - 深入学习爬虫开发
-3. **[运行和调试](run-your-spider.md)** - 掌握调试技巧
+3. **[运行和调试](../guides/shell-guide.md)** - 交互式调试与运行
 
 ### 进阶教程
 

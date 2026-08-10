@@ -3,7 +3,7 @@
 > 本文档回答一个问题：**为什么 Crawlo 的分布式模块会设计成今天这个样子，而不是 Scrapy Redis Queue / Celery / RQ 那种经典做法？**
 >
 > 配套技术细节见 [distributed_architecture.md](../distributed_architecture.md)。
-> 代码入口见 [cluster/coordinator.py](file:///Users/oscar/projects/Crawlo/crawlo/cluster/coordinator.py)、[queue/backends/redis_stream.py](file:///Users/oscar/projects/Crawlo/crawlo/queue/backends/redis_stream.py)、[commands/cluster.py](file:///Users/oscar/projects/Crawlo/crawlo/commands/cluster.py)。
+> 代码入口见 [cluster/coordinator.py](../../crawlo/cluster/coordinator.py)、[queue/backends/redis_stream.py](../../crawlo/queue/backends/redis_stream.py)、[commands/cluster.py](../../crawlo/commands/cluster.py)。
 
 ---
 
@@ -102,7 +102,7 @@ Crawlo 的选择：**只有一种节点——Worker，所有 Worker 对等**。R
 | 只有 Redis 一个依赖 | 公司的 Redis 实例已经有 SRE 维护；再部署 ZooKeeper/Consul 成本是 **N×** 倍 |
 | 只在协调退出场景自选举临时 Leader | SET NX PX 就能做，不需要 Raft/zk |
 
-代码体现：[cluster/coordinator.py](file:///Users/oscar/projects/Crawlo/crawlo/cluster/coordinator.py#L390) — 每个 Worker 都初始化 9 个相同的集群组件；[commands/cluster.py](file:///Users/oscar/projects/Crawlo/crawlo/commands/cluster.py) 里 state/reset/pause/resume/shutdown 都是直接写 Redis key，不经过任何 master。
+代码体现：[cluster/coordinator.py](../../crawlo/cluster/coordinator.py#L390) — 每个 Worker 都初始化 9 个相同的集群组件；[commands/cluster.py](../../crawlo/commands/cluster.py) 里 state/reset/pause/resume/shutdown 都是直接写 Redis key，不经过任何 master。
 
 ### 2.3 原则 3：**配置就是三段式。不要让用户猜**
 
@@ -122,14 +122,14 @@ task_track_started = …
 
 Crawlo 的配置原则：**用户只说一句"我要分布式"，剩下的一切默认值都自洽。**
 
-配置映射在 [config/base.py](file:///Users/oscar/projects/Crawlo/crawlo/core/config/base.py#L33-L53)：
+配置映射在 [config/base.py](../../crawlo/core/config/base.py#L33-L53)：
 
 | RUN_MODE 一行设置 | 自动生效的隐含配置 |
 |---|---|
 | `standalone`（默认） | `QUEUE_TYPE=memory` + MemoryFilter + MemoryDedupPipeline |
 | `distributed` | `QUEUE_TYPE=redis_stream` + AioRedisFilter + RedisDedupPipeline + `CONCURRENCY=16` + `MAX_RUNNING_SPIDERS=10` + `DISTRIBUTED_WORKER_IDLE_TIMEOUT=120` + `STREAM_DELIVERY_COUNT_LIMIT=5` + `STREAM_CONSUMER_IDLE_TIMEOUT=90s` + `CLUSTER_FAILOVER_CHECK_INTERVAL=15s` + `CLUSTER_AUTO_CLEAR_SHUTDOWN_ON_START=True` |
 
-一个"用户改了 QUEUE_TYPE=redis 但忘了 RUN_MODE=distributed"的坑？直接在 [queue_manager.py](file:///Users/oscar/projects/Crawlo/crawlo/queue/queue_manager.py#L584) 里自动升级：`Distributed mode: upgrading QUEUE_TYPE=redis → redis_stream`。
+一个"用户改了 QUEUE_TYPE=redis 但忘了 RUN_MODE=distributed"的坑？直接在 [queue_manager.py](../../crawlo/queue/queue_manager.py#L584) 里自动升级：`Distributed mode: upgrading QUEUE_TYPE=redis → redis_stream`。
 
 **用户不需要理解 Redis List vs Stream 的区别。**
 
@@ -149,7 +149,7 @@ Phase 2 (suspect 已挂 30s) →  DistributedLock 持锁 → XAUTOCLAIM 回收 +
                                同一时刻只有 1 个 Worker 做回收，避免惊群
 ```
 
-代码位置：[cluster/coordinator.py](file:///Users/oscar/projects/Crawlo/crawlo/cluster/coordinator.py) → FailoverManager。
+代码位置：[cluster/coordinator.py](../../crawlo/cluster/coordinator.py) → FailoverManager。
 
 同时 STATUS_STOPPING 的 Worker（正在优雅退出 drain）**被豁免回收**，否则你 Ctrl+C 停一个 Worker 会触发 failover 抢它正在清理的任务。
 
@@ -196,7 +196,7 @@ Phase 2 (suspect 已挂 30s) →  DistributedLock 持锁 → XAUTOCLAIM 回收 +
 - `XAUTOCLAIM`（6.2+）一条命令回收超时消息
 - Stream 天然支持 MAXLEN 修剪，List 要自己做 LTrim 计数
 
-代码：[RedisStreamQueue](file:///Users/oscar/projects/Crawlo/crawlo/queue/backends/redis_stream.py#L38)。
+代码：[RedisStreamQueue](../../crawlo/queue/backends/redis_stream.py#L38)。
 
 ### Layer 2 Dedup：分布式爬虫不产生重复，比快 20% 重要 10 倍
 
@@ -219,7 +219,7 @@ Queue + Dedup 解决"**能不能跑**"。Coordination 解决"**跑完后能不�
 - **Leader 选举（仅协调退出）**：所有 Worker idle 时需要一个 Worker 决定"是不是大家都没事了，可以一起关了"。只有这里用到 Leader，其他场景一律无中心
 - **`crawlo cluster reset`**：生产级兜底。空集群下 shutdown 状态遗留 → 0 Worker 能解除，CLI 直接一次 reset 即可救活
 
-代码：[commands/cluster.py](file:///Users/oscar/projects/Crawlo/crawlo/commands/cluster.py)（5 个子命令：state/reset/pause/resume/shutdown）。
+代码：[commands/cluster.py](../../crawlo/commands/cluster.py)（5 个子命令：state/reset/pause/resume/shutdown）。
 
 ---
 
@@ -241,7 +241,7 @@ Queue + Dedup 解决"**能不能跑**"。Coordination 解决"**跑完后能不�
 
 这种情况下不需要跳级进入 `distributed`。
 
-代码实现：`RUN_MODE` → [MODE_CONFIG_MAP](file:///Users/oscar/projects/Crawlo/crawlo/core/config/base.py#L33-L53)。
+代码实现：`RUN_MODE` → [MODE_CONFIG_MAP](../../crawlo/core/config/base.py#L33-L53)。
 
 ---
 

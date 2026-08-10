@@ -222,7 +222,7 @@ Leader 每 10s 检查:
 | `{ns}:control:state` | String | 控制状态 |
 | `{ns}:cluster:leader` | String | Leader 选举锁 |
 
-> 详细说明见：[Redis Key 说明](../concepts/redis-keys.md)
+> 详细说明见：[Redis Key 说明](../../concepts/redis-keys.md)
 
 ### 5 Worker 测试结果
 
@@ -237,7 +237,7 @@ Leader 每 10s 检查:
 
 跨 5 个 Worker 零重复，Leader 自动协调退出。
 
-> 详细测试步骤见：[5 Worker 分布式测试](../guides/distributed-test.md)
+> 详细测试步骤见：[5 Worker 分布式测试](../../guides/distributed-test.md)
 
 ### 注意事项
 

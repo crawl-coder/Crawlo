@@ -26,7 +26,7 @@
 框架基础异常类，所有框架异常的基类。
 
 ```python
-from crawlo.exceptions import CrawloException
+from crawlo.core.errors import CrawloException
 ```
 
 **属性**:
@@ -61,7 +61,7 @@ except CrawloException as e:
 下载错误，包含 URL 和状态码信息。
 
 ```python
-from crawlo.exceptions import DownloadError
+from crawlo.http.exceptions import DownloadError
 
 raise DownloadError(
     message="Connection timeout",
@@ -75,7 +75,7 @@ raise DownloadError(
 请求被忽略，用于流程控制。
 
 ```python
-from crawlo.exceptions import IgnoreRequestError
+from crawlo.http.exceptions import IgnoreRequestError
 
 raise IgnoreRequestError("Offsite request filtered")
 ```
@@ -85,11 +85,11 @@ raise IgnoreRequestError("Offsite request filtered")
 Item 被丢弃，用于去重等场景。
 
 ```python
-from crawlo.exceptions import ItemDiscard
+from crawlo.items.exceptions import ItemDiscard
 
 raise ItemDiscard("Duplicate item")
 # 或使用别名
-from crawlo.exceptions import DropItem
+from crawlo.items.exceptions import DropItem
 raise DropItem("Duplicate item")
 ```
 
@@ -225,7 +225,7 @@ TaskManager 统一管理异步任务的创建、执行和监控。
 ### 初始化
 
 ```python
-from crawlo.core.task_manager import TaskManager
+from crawlo.core.scheduling.task_manager import TaskManager
 
 task_manager = TaskManager(total_concurrency=8)
 ```

@@ -427,7 +427,7 @@ async def schedule_next_request():
 - [调度指南概览](../index.md)
 - [配置指南](../configuration/index.md)
 - [核心概念](../../concepts/index.md)
-- [限速策略](rate-limiting.md)
+- [分布式限流](../configuration/run-modes.md)
 - [性能优化 FAQ](../../faq/performance.md)
 
 ---

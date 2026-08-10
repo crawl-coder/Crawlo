@@ -1030,7 +1030,7 @@ REDIS_URL = "redis+sentinel://10.0.0.1:26379,10.0.0.2:26379/0"
 
 ```python
 # Sentinel 模式（代码层已支持）
-from crawlo.queue.redis_stream_queue import RedisStreamQueue
+from crawlo.queue.backends.redis_stream import RedisStreamQueue
 queue = RedisStreamQueue(redis_url="", ...)
 await queue.connect(sentinel_urls=[
     "redis://10.0.0.1:26379",

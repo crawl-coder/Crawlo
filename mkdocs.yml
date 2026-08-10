@@ -99,6 +99,7 @@ nav:
     - 整站抓取 Cookbook: tutorials/real-world-catalog.md
   - 🖥 生产部署:
     - 概览: deployment.md
+    - Docker 部署: deployment/docker-deployment.md
     - Redis 高可用与验证: deployment/redis-ha.md
   - 🎯 使用指南:
     - 概览: guides/index.md
@@ -119,6 +120,8 @@ nav:
     - Cloudflare 绕过: guides/cloudflare-bypass.md
     - Helpers 工具集: guides/helpers-reference.md
     - 分布式测试: guides/distributed-test.md
+    - CloakBrowser: guides/cloakbrowser-guide.md
+    - Prometheus 集成: guides/prometheus-integration.md
     - 调度指南:
       - 定时任务调度器: guides/scheduling/scheduler.md
       - 背压系统: guides/scheduling/backpressure.md
@@ -140,6 +143,8 @@ nav:
     - 核心 API: reference/api/index.md
     - API 面（冻结清单）: reference/api-surface.md
     - Deprecation 周期: reference/DEPRECATION.md
+  - 📦 发布记录:
+    - v1.7.3: releases/v1.7.3.md
   - 💡 实战案例:
     - 概览: examples/index.md
     - 基础示例: examples/basic-examples.md
@@ -210,9 +215,6 @@ markdown_extensions:
       repo: Crawlo
   - pymdownx.mark
   - pymdownx.smartsymbols
-  - pymdownx.snippets:
-      auto_append:
-        - includes/mkdocs.md
   - pymdownx.superfences:
       custom_fences:
         - name: mermaid

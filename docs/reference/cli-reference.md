@@ -42,7 +42,7 @@ crawlo run myspider --clean-checkpoint  # 清除检查点并从头开始
 
 > 注意：检查点功能默认关闭，需在 `settings.py` 中设置 `CHECKPOINT_ENABLED = True` 启用。
 
-详细用法请参阅 [检查点持久化](checkpoint-guide.md)。
+详细用法请参阅 [检查点持久化](../concepts/checkpoint-guide.md)。
 
 ---
 
@@ -122,4 +122,4 @@ Shell 支持直接将浏览器的 curl 命令转换为 Request 并执行：
 crawlo shell --curl 'curl https://api.example.com -H "Authorization: Bearer xxx"'
 ```
 
-详细用法请参阅 [curl 命令转换](migration/curl-conversion.md) 和 [Shell 交互式终端](shell-guide.md)。
+详细用法请参阅 [curl 命令转换](../migration/curl-conversion.md) 和 [Shell 交互式终端](../guides/shell-guide.md)。

@@ -10,6 +10,8 @@
 
 ## 相关文档
 
+- [Docker 部署](deployment/docker-deployment.md) — 容器化构建与编排
+- [Redis 高可用与验证](deployment/redis-ha.md) — Sentinel 故障切换与生产验证
 - [部署模式详解](guides/configuration/run-modes.md) — 三种运行模式的配置与工作机制
 - [分布式架构设计](distributed_architecture.md) — 集群架构、任务生命周期、故障恢复、协调退出
 - [配置指南](guides/configuration/) — 全部配置项说明
@@ -137,7 +139,7 @@ python run.py --schedule    # 启动定时调度
 
 ```python
 # myproject/settings.py
-from crawlo.config import CrawloConfig
+from crawlo.core.config import CrawloConfig
 
 config = CrawloConfig.standalone(
     project_name='myproject',
@@ -271,7 +273,7 @@ REDISCLI_AUTH=your_redis_password redis-cli -h 127.0.0.1 ping
 
 ```python
 # myproject/settings.py
-from crawlo.config import CrawloConfig
+from crawlo.core.config import CrawloConfig
 
 config = CrawloConfig.auto(
     project_name='myproject',
@@ -425,7 +427,7 @@ SQL
 
 ```python
 # myproject/settings.py
-from crawlo.config import CrawloConfig
+from crawlo.core.config import CrawloConfig
 
 config = CrawloConfig.distributed(
     project_name='myproject',

@@ -5,7 +5,7 @@
 ### 基础用法
 
 ```python
-from crawlo.network import Request, RequestPriority
+from crawlo.http import Request, RequestPriority
 
 # 基础请求
 request = Request(url="http://example.com")
@@ -163,7 +163,7 @@ requests = [Request.from_dict(d) for d in requests_data]
 - **中间件**：修改响应内容后重新创建
 
 ```python
-from crawlo.network import Response
+from crawlo.http import Response
 
 # 从 HTML 文本创建
 response = Response.from_text(
@@ -206,7 +206,7 @@ print(response.headers["Content-Type"])  # application/json
 
 ```python
 # 主节点：创建请求并序列化
-from crawlo.network import Request
+from crawlo.http import Request
 import json
 import redis
 
@@ -237,7 +237,7 @@ while True:
 ```python
 import json
 import os
-from crawlo.network import Request
+from crawlo.http import Request
 
 STATE_FILE = "crawl_state.json"
 
@@ -271,7 +271,7 @@ for request in pending:
 ```python
 import json
 import logging
-from crawlo.network import Request
+from crawlo.http import Request
 
 logger = logging.getLogger(__name__)
 
@@ -301,7 +301,7 @@ log_request(request)
 
 ```python
 import pytest
-from crawlo.network import Response
+from crawlo.http import Response
 
 def test_parse_user_data():
     # 创建模拟响应
@@ -357,7 +357,7 @@ Crawlo 提供了语义化的优先级常量，用户设置时数值越大越优�
 | `RequestPriority.BACKGROUND` | -200 | 200 | 最后出队 |
 
 ```python
-from crawlo.network import Request, RequestPriority
+from crawlo.http import Request, RequestPriority
 
 # 紧急请求（最先处理）
 request = Request(url="http://example.com/urgent", priority=RequestPriority.URGENT)

@@ -20,7 +20,7 @@ Crawlo 支持根据业务场景灵活选择部署模式，从单机开发测试�
 
 #### 开发测试配置（默认）
 ```python
-from crawlo.config import CrawloConfig
+from crawlo.core.config import CrawloConfig
 
 config = CrawloConfig.auto(
     project_name='myproject',

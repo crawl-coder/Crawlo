@@ -267,7 +267,7 @@ REDIS_PORT = 6379
 或使用工厂方法：
 
 ```python
-from crawlo.config import CrawloConfig
+from crawlo.core.config import CrawloConfig
 config = CrawloConfig.distributed(
     redis_host="10.0.0.1",
     redis_port=6379,
