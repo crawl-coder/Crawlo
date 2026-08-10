@@ -478,9 +478,10 @@ class Scheduler:
     async def close(self):
         """Close scheduler"""
         try:
-            self.logger.info(
-                f"Filtered {self._duplicate_filtered_count} duplicate request(s) in total"
-            )
+            if self._duplicate_filtered_count > 0:
+                self.logger.info(
+                    f"Filtered {self._duplicate_filtered_count} duplicate request(s) in total"
+                )
             if isinstance(closed := getattr(self.dupe_filter, 'closed', None), Callable):
                 await closed()
             if self.queue_manager:
