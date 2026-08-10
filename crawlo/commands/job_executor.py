@@ -111,7 +111,7 @@ class JobExecutor:
         LoggerFactory.clear_cache()
 
         # 导入 CrawlerProcess（L1 commands → L2 crawler_process，合法向下依赖）
-        from crawlo.crawler_process import CrawlerProcess
+        from crawlo.crawler import CrawlerProcess
 
         process = CrawlerProcess()
 

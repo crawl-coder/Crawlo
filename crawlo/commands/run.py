@@ -17,7 +17,7 @@ from rich.panel import Panel
 from rich.progress import Progress, SpinnerColumn, TextColumn
 from rich.text import Text
 
-from crawlo.crawler_process import CrawlerProcess
+from crawlo.crawler import CrawlerProcess
 from crawlo.project import _find_project_root
 # 使用新的统一初始化系统
 from crawlo.core.application import initialize_framework

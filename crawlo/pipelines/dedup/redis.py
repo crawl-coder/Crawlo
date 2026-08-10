@@ -95,7 +95,7 @@ class RedisDedupPipeline(DedupPipeline):
     async def _close_redis_client(self, client):
         """关闭 Redis 客户端"""
         try:
-            client.close()
+            await client.aclose()
             self.logger.info("Redis client closed")
         except Exception as e:
             self.logger.error(f"Error closing Redis client: {e}")

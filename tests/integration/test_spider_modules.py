@@ -18,7 +18,7 @@ sys.path.insert(0, os.path.dirname(__file__))
 # 添加ofweek_standalone到Python路径
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'examples', 'ofweek_standalone'))
 
-from crawlo.crawler_process import CrawlerProcess
+from crawlo.crawler import CrawlerProcess
 from crawlo.spider import get_spider_names
 
 

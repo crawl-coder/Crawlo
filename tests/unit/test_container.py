@@ -26,7 +26,7 @@ from typing import List
 
 import pytest
 
-from crawlo.container import (
+from crawlo.core.application import (
     Container,
     ContainerResolutionError,
     Scope,
@@ -145,9 +145,9 @@ class _INotifier:
 def test_inject_decorator_autowires_registered_type():
     c = Container()
     # 替换 default_container 为临时容器？——太侵入；用独立方法验证：
-    from crawlo import container as container_mod
-    old = container_mod.default_container
-    container_mod.default_container = c
+    from crawlo.core import application as app_mod
+    old = app_mod.default_container
+    app_mod.default_container = c
     try:
         notifier_inst = _INotifier()
         c.register_instance(_INotifier, notifier_inst)
@@ -168,15 +168,15 @@ def test_inject_decorator_autowires_registered_type():
         assert ch2.notifier is another
         assert ch2.name == "x"
     finally:
-        container_mod.default_container = old
+        app_mod.default_container = old
 
 
 def test_inject_skips_unregistered_type_to_let_original_func_raise():
     """未注册的类型：@inject 不传参，由原函数抛 TypeError（用户可手动传）。"""
     c = Container()
-    from crawlo import container as container_mod
-    old = container_mod.default_container
-    container_mod.default_container = c
+    from crawlo.core import application as app_mod
+    old = app_mod.default_container
+    app_mod.default_container = c
     try:
         class Email:
             @inject
@@ -190,7 +190,7 @@ def test_inject_skips_unregistered_type_to_let_original_func_raise():
         obj = Email(notifier=notifier_inst)  # 手动传 OK
         assert obj.notifier is notifier_inst
     finally:
-        container_mod.default_container = old
+        app_mod.default_container = old
 
 
 # -------------------------------------------------------------------
@@ -294,6 +294,9 @@ def test_container_isolated_instances_do_not_share_state():
 # -------------------------------------------------------------------
 _CHECK_MODULES_CODE = textwrap.dedent(
     """
+    import warnings
+    # 废弃 shim 的薄壳性质是断言对象，DeprecationWarning 是预期行为
+    warnings.simplefilter('ignore', DeprecationWarning)
     import crawlo.container as _c
     from crawlo.container import default_container, inject, Container, ContainerResolutionError, Scope
     # 只验证 container 模块本身被 import 后，ApplicationContext 仍是 None

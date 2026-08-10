@@ -12,7 +12,7 @@ import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
 from crawlo.core.config import CrawloConfig
-from crawlo.framework import CrawloFramework
+from crawlo.crawler import CrawloFramework
 
 
 def test_log_format():

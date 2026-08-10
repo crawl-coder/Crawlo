@@ -16,17 +16,17 @@ class TestFrameworkThreadSafety:
 
     def setup_method(self):
         """Reset framework before each test"""
-        from crawlo.framework import reset_framework
+        from crawlo.crawler import reset_framework
         reset_framework()
 
     def teardown_method(self):
         """Clean up after each test"""
-        from crawlo.framework import reset_framework
+        from crawlo.crawler import reset_framework
         reset_framework()
 
     def test_singleton_thread_safety(self):
         """Test that singleton creates only one instance under concurrent access"""
-        from crawlo.framework import get_framework, reset_framework
+        from crawlo.crawler import get_framework, reset_framework
         reset_framework()
 
         instances = []
@@ -60,7 +60,7 @@ class TestFrameworkThreadSafety:
 
     def test_singleton_returns_same_instance(self):
         """Test that multiple calls return the same instance"""
-        from crawlo.framework import get_framework
+        from crawlo.crawler import get_framework
         
         fw1 = get_framework()
         fw2 = get_framework()
@@ -69,7 +69,7 @@ class TestFrameworkThreadSafety:
 
     def test_reset_framework_creates_new_instance(self):
         """Test that reset_framework allows creating new instance"""
-        from crawlo.framework import get_framework, reset_framework
+        from crawlo.crawler import get_framework, reset_framework
 
         fw1 = get_framework()
         reset_framework()
@@ -126,7 +126,7 @@ class TestIntegration:
 
     def test_framework_with_logger(self):
         """Test framework initialization works with logger changes"""
-        from crawlo.framework import get_framework, reset_framework
+        from crawlo.crawler import get_framework, reset_framework
         reset_framework()
         
         # Should not raise any exceptions

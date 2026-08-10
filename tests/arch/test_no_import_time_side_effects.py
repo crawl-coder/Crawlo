@@ -26,6 +26,9 @@ import textwrap
 
 import pytest
 
+# 本测试的导入序列特意包含废弃 shim（验证其无副作用），DeprecationWarning 为预期。
+pytestmark = pytest.mark.filterwarnings("ignore::DeprecationWarning")
+
 
 def _run_isolated_check(code: str) -> subprocess.CompletedProcess:
     """在全新子进程中执行 code，返回 CompletedProcess。

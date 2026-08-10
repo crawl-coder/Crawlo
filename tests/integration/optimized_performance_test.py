@@ -15,7 +15,7 @@ from pathlib import Path
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
-from crawlo.crawler_process import CrawlerProcess
+from crawlo.crawler import CrawlerProcess
 from crawlo.spider import Spider
 from crawlo import Request, Item
 

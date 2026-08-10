@@ -24,7 +24,7 @@ from rich import box
 from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler
 
-from crawlo.crawler_process import CrawlerProcess
+from crawlo.crawler import CrawlerProcess
 from crawlo.logging import get_logger
 
 # Maximum directory levels to search upward for project root

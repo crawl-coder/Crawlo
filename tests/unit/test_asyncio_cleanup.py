@@ -87,13 +87,13 @@ class TestCrawlerProcessCleanup:
 
     def test_has_shutdown_loop_transports(self):
         """测试 CrawlerProcess 包含 _shutdown_loop_transports 方法"""
-        from crawlo.crawler_process import CrawlerProcess
+        from crawlo.crawler import CrawlerProcess
         assert hasattr(CrawlerProcess, '_shutdown_loop_transports')
 
     def test_crawl_has_finally_cleanup(self):
         """测试 crawl 方法在 finally 中调用 _shutdown_loop_transports"""
         import inspect
-        from crawlo.crawler_process import CrawlerProcess
+        from crawlo.crawler import CrawlerProcess
 
         source = inspect.getsource(CrawlerProcess.crawl)
         assert '_shutdown_loop_transports' in source

@@ -137,9 +137,10 @@ async def test_executor_calls_crawlerprocess_crawl(monkeypatch):
     # Patch _run_spider_job 内部 import 的 CrawlerProcess：直接 patch 命令级变量引用
     original_import = executor_mod.CrawlerProcess.__class__.__bases__ if False else None
 
-    # Patch 方式：monkeypatch crawlo.crawler_process 模块里的 CrawlerProcess 类
-    import crawlo.crawler_process as cp_mod
-    monkeypatch.setattr(cp_mod, "CrawlerProcess", FakeCrawlerProcess)
+    # Patch 方式：monkeypatch crawlo.crawler.CrawlerProcess
+    # （job_executor 在函数内 from crawlo.crawler import CrawlerProcess，运行期解析模块属性）
+    import crawlo.crawler as crawler_mod
+    monkeypatch.setattr(crawler_mod, "CrawlerProcess", FakeCrawlerProcess)
 
     # CrawlerProcess.crawl 还会 import 其他组件，模拟空的 logger configure
     # executor 内部会调 configure_logging；我们 monkeypatch 它为 no-op

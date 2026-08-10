@@ -147,7 +147,7 @@ class ResourceMonitorTemplateManager:
 def _resolve_notification_context():
     """优先从容器拿 NotificationContext，否则 fallback ctx.notifications。"""
     try:
-        from crawlo.container import default_container
+        from crawlo.core.application import default_container
         from crawlo.core.application import NotificationContext
         if default_container.is_registered(NotificationContext):
             return default_container.resolve(NotificationContext)
@@ -160,7 +160,7 @@ def _resolve_notification_context():
 def get_resource_monitor_manager() -> ResourceMonitorTemplateManager:
     """获取全局资源监控模板管理器实例（DI 容器优先 + NotificationContext fallback）。"""
     try:
-        from crawlo.container import default_container
+        from crawlo.core.application import default_container
         if default_container.is_registered(ResourceMonitorTemplateManager):
             return default_container.resolve(ResourceMonitorTemplateManager)
     except Exception:  # pragma: no cover  # nosec B110
@@ -170,7 +170,7 @@ def get_resource_monitor_manager() -> ResourceMonitorTemplateManager:
         inst = ResourceMonitorTemplateManager()
         nctx.resource_monitor_manager = inst
         try:
-            from crawlo.container import default_container as _c
+            from crawlo.core.application import default_container as _c
             _c.register_instance(ResourceMonitorTemplateManager, inst)
         except Exception:  # pragma: no cover  # nosec B110
             pass

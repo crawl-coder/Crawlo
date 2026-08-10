@@ -9,12 +9,12 @@ import pytest
 from unittest.mock import Mock, patch, MagicMock, AsyncMock
 from unittest.mock import call as mock_call
 
-from crawlo.bot.core.models import NotificationMessage, NotificationResponse, NotificationType, ChannelType
-from crawlo.bot.core.notifier import NotificationDispatcher
-from crawlo.bot.channels.dingtalk import DingTalkChannel
-from crawlo.bot.channels.feishu import FeishuChannel
-from crawlo.bot.channels.wecom import WeComChannel
-from crawlo.bot.channels.email import EmailChannel
+from crawlo.extensions.notifications.core.models import NotificationMessage, NotificationResponse, NotificationType, ChannelType
+from crawlo.extensions.notifications.core.notifier import NotificationDispatcher
+from crawlo.extensions.notifications.channels.dingtalk import DingTalkChannel
+from crawlo.extensions.notifications.channels.feishu import FeishuChannel
+from crawlo.extensions.notifications.channels.wecom import WeComChannel
+from crawlo.extensions.notifications.channels.email import EmailChannel
 
 
 class TestBotNotificationExtremeScenarios:
@@ -212,7 +212,7 @@ class TestBotNotificationExtremeScenarios:
             recipients=[],
         )
 
-        with patch("crawlo.bot.channels.email.smtplib.SMTP"):
+        with patch("crawlo.extensions.notifications.channels.email.smtplib.SMTP"):
             response = channel.send(msg)
             # 空收件人使用默认值,发送应成功(模拟SMTP)
             assert response.success
@@ -557,7 +557,7 @@ class TestBotNotificationManager:
 
     def test_notification_manager_empty_list(self):
         """测试: 空通知渠道列表"""
-        from crawlo.bot import NotificationDispatcher
+        from crawlo.extensions.notifications import NotificationDispatcher
 
         dispatcher = NotificationDispatcher()
 
@@ -574,7 +574,7 @@ class TestBotNotificationManager:
 
     def test_notification_manager_multiple_notifiers(self):
         """测试: 多个渠道分发路由"""
-        from crawlo.bot import NotificationDispatcher
+        from crawlo.extensions.notifications import NotificationDispatcher
 
         dingtalk = DingTalkChannel()
         dingtalk.webhook_url = "http://example.com/dingtalk"
@@ -609,7 +609,7 @@ class TestBotNotificationManager:
 
     def test_notification_manager_partial_failure(self):
         """测试: 渠道发送失败处理"""
-        from crawlo.bot import NotificationDispatcher
+        from crawlo.extensions.notifications import NotificationDispatcher
 
         dingtalk = DingTalkChannel()
         dingtalk.webhook_url = "http://example.com/dingtalk"

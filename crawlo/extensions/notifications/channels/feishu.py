@@ -214,7 +214,7 @@ class FeishuChannel(NotificationChannel):
 def _resolve_notification_context():
     """优先从容器拿 NotificationContext，否则 fallback ctx.notifications。"""
     try:
-        from crawlo.container import default_container
+        from crawlo.core.application import default_container
         from crawlo.core.application import NotificationContext
         if default_container.is_registered(NotificationContext):
             return default_container.resolve(NotificationContext)
@@ -227,7 +227,7 @@ def _resolve_notification_context():
 def get_feishu_channel() -> FeishuChannel:
     """获取飞书通知渠道实例（DI 容器优先 + NotificationContext fallback）。"""
     try:
-        from crawlo.container import default_container
+        from crawlo.core.application import default_container
         if default_container.is_registered(FeishuChannel):
             return default_container.resolve(FeishuChannel)
     except Exception as e:
@@ -237,7 +237,7 @@ def get_feishu_channel() -> FeishuChannel:
         inst = FeishuChannel()
         nctx.feishu_channel = inst
         try:
-            from crawlo.container import default_container
+            from crawlo.core.application import default_container
             default_container.register_instance(FeishuChannel, inst)
         except Exception as e:
             logger.debug("Suppressed exception: %s", e)

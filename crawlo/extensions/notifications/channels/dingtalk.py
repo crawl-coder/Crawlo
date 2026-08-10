@@ -197,7 +197,7 @@ class DingTalkChannel(NotificationChannel):
 def _resolve_notification_context():
     """优先从容器拿 NotificationContext，否则 fallback ctx.notifications。"""
     try:
-        from crawlo.container import default_container
+        from crawlo.core.application import default_container
         from crawlo.core.application import NotificationContext
         if default_container.is_registered(NotificationContext):
             return default_container.resolve(NotificationContext)
@@ -210,7 +210,7 @@ def _resolve_notification_context():
 def get_dingtalk_channel() -> DingTalkChannel:
     """获取钉钉通知渠道实例（DI 容器优先 + NotificationContext fallback）。"""
     try:
-        from crawlo.container import default_container
+        from crawlo.core.application import default_container
         if default_container.is_registered(DingTalkChannel):
             return default_container.resolve(DingTalkChannel)
     except Exception as e:
@@ -220,7 +220,7 @@ def get_dingtalk_channel() -> DingTalkChannel:
         inst = DingTalkChannel()
         nctx.dingtalk_channel = inst
         try:
-            from crawlo.container import default_container
+            from crawlo.core.application import default_container
             default_container.register_instance(DingTalkChannel, inst)
         except Exception as e:
             logger.debug("Suppressed exception: %s", e)

@@ -192,7 +192,7 @@ class ErrorHandler:
 def _resolve_runtime_context():
     """优先从容器拿 RuntimeContext，否则 fallback ctx.runtime。"""
     try:
-        from crawlo.container import default_container
+        from crawlo.core.application import default_container
         from crawlo.core.application import RuntimeContext
         if default_container.is_registered(RuntimeContext):
             return default_container.resolve(RuntimeContext)
@@ -205,7 +205,7 @@ def _resolve_runtime_context():
 def _get_global_error_handler() -> ErrorHandler:
     """获取全局 ErrorHandler 单例（DI 容器优先 + RuntimeContext fallback）。"""
     try:
-        from crawlo.container import default_container
+        from crawlo.core.application import default_container
         if default_container.is_registered(ErrorHandler):
             return default_container.resolve(ErrorHandler)
     except Exception as e:
@@ -215,7 +215,7 @@ def _get_global_error_handler() -> ErrorHandler:
         inst = ErrorHandler()
         rctx.error_handler_instance = inst
         try:
-            from crawlo.container import default_container as _c
+            from crawlo.core.application import default_container as _c
             _c.register_instance(ErrorHandler, inst)
         except Exception as e:
             get_logger(__name__).debug("Suppressed exception: %s", e)

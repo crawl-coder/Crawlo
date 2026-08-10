@@ -16,6 +16,11 @@ asyncio_default_fixture_loop_scope = "function"
 # 运行时：pytest --cov 即启用。日常本地不加 --cov 保持速度。
 # CI 中：pytest --cov --cov-report=xml --cov-report=term-missing
 addopts = ""
+filterwarnings = [
+    # P0-A2：crawlo 命名空间的 DeprecationWarning 一律视为错误。
+    # 仅兼容 shim 验收测试（测试对象就是旧路径本身）可用 pytestmark 显式豁免。
+    "error::DeprecationWarning",
+]
 markers = [
     "browser: heavy browser / live-network integration tests (skipped in CI)",
 ]

@@ -14,24 +14,24 @@ from unittest.mock import Mock, patch, MagicMock
 from datetime import datetime
 
 # 导入被测试模块
-from crawlo.bot.core.models import (
+from crawlo.extensions.notifications.core.models import (
     NotificationMessage,
     NotificationResponse,
     ChannelResponse,
     ChannelType,
     NotificationType,
 )
-from crawlo.bot.core.notifier import NotificationDispatcher, get_notifier, reset_notifier
-from crawlo.bot.core.handlers import (
+from crawlo.extensions.notifications.core.notifier import NotificationDispatcher, get_notifier, reset_notifier
+from crawlo.extensions.notifications.core.handlers import (
     CrawlerNotificationHandler,
     get_notification_handler,
     send_crawler_status,
     send_crawler_alert,
     send_crawler_progress,
 )
-from crawlo.bot.channels.base import NotificationChannel
-from crawlo.bot.utils.deduplicator import MessageDeduplicator, get_deduplicator, reset_deduplicator
-from crawlo.bot.templates.manager import MessageTemplateManager, get_template_manager, render_message
+from crawlo.extensions.notifications.channels.base import NotificationChannel
+from crawlo.extensions.notifications.utils.deduplicator import MessageDeduplicator, get_deduplicator, reset_deduplicator
+from crawlo.extensions.notifications.templates.manager import MessageTemplateManager, get_template_manager, render_message
 
 
 class TestNotificationModels(unittest.TestCase):
@@ -356,7 +356,7 @@ class TestMessageTemplateManager(unittest.TestCase):
     def setUp(self):
         """测试前重置模板管理器"""
         from crawlo.core.application import get_global_context
-        from crawlo.bot.templates.manager import get_template_manager
+        from crawlo.extensions.notifications.templates.manager import get_template_manager
         get_global_context().template_manager = None
 
     def test_get_default_template(self):
@@ -474,7 +474,7 @@ class TestNotificationHandler(unittest.TestCase):
         mock_get_settings.return_value = mock_settings
 
         # 重置全局处理器
-        import crawlo.bot.core.handlers as handlers_module
+        import crawlo.extensions.notifications.core.handlers as handlers_module
         handlers_module._notification_handler = None
 
     @patch('crawlo.project.get_settings')
@@ -487,7 +487,7 @@ class TestNotificationHandler(unittest.TestCase):
         mock_get_settings.return_value = mock_settings
 
         # 重新创建处理器
-        import crawlo.bot.core.handlers as handlers_module
+        import crawlo.extensions.notifications.core.handlers as handlers_module
         handlers_module._notification_handler = None
 
         handler = get_notification_handler()
@@ -496,8 +496,8 @@ class TestNotificationHandler(unittest.TestCase):
         self.assertIn("禁用", response.message)
 
     @patch('crawlo.project.get_settings')
-    @patch('crawlo.bot.core.handlers.ensure_config_loaded')
-    @patch('crawlo.bot.core.handlers.get_notifier')
+    @patch('crawlo.extensions.notifications.core.handlers.ensure_config_loaded')
+    @patch('crawlo.extensions.notifications.core.handlers.get_notifier')
     def test_send_status_notification(self, mock_get_notifier, mock_ensure_config, mock_get_settings):
         """测试发送状态通知"""
         mock_notifier = Mock()
@@ -510,8 +510,8 @@ class TestNotificationHandler(unittest.TestCase):
         self.assertTrue(response.success)
 
     @patch('crawlo.project.get_settings')
-    @patch('crawlo.bot.core.handlers.ensure_config_loaded')
-    @patch('crawlo.bot.core.handlers.get_notifier')
+    @patch('crawlo.extensions.notifications.core.handlers.ensure_config_loaded')
+    @patch('crawlo.extensions.notifications.core.handlers.get_notifier')
     def test_send_alert_notification(self, mock_get_notifier, mock_ensure_config, mock_get_settings):
         """测试发送告警通知"""
         mock_notifier = Mock()

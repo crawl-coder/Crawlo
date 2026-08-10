@@ -324,7 +324,7 @@ class RedisStreamQueue:
     async def close(self):
         """关闭连接"""
         if self._redis:
-            await self._redis.close()
+            await self._redis.aclose()
             self._redis = None
             self._connected = False
         self.logger.debug("Stream queue connection closed")

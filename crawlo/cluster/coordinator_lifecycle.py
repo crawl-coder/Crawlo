@@ -240,7 +240,7 @@ class ClusterLifecycleMixin:
             # 清理已初始化的部分资源
             if self._cluster_state.redis:
                 try:
-                    await self._cluster_state.redis.close()
+                    await self._cluster_state.redis.aclose()
                 except Exception as e:
                     self.logger.debug("Suppressed exception: %s", e)
                 self._cluster_state.redis = None

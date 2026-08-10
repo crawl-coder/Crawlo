@@ -30,3 +30,6 @@ _commands = {
 
 def get_commands():
     return _commands
+
+
+__all__ = ['get_commands']

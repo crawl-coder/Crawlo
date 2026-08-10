@@ -34,7 +34,7 @@ def test_multiple_spider_directories():
     print(f"SPIDER_MODULES配置: {spider_modules}")
     
     # 创建CrawlerProcess实例
-    from crawlo.crawler_process import CrawlerProcess
+    from crawlo.crawler import CrawlerProcess
     process = CrawlerProcess(settings=settings)
     
     # 检查是否注册了爬虫

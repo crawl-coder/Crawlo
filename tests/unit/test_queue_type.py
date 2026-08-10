@@ -15,7 +15,7 @@ import os
 # 添加项目根目录到路径
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
-from crawlo.framework import CrawloFramework
+from crawlo.crawler import CrawloFramework
 from crawlo.core.config import CrawloConfig
 
 
@@ -28,7 +28,7 @@ def _reset_framework():
     except Exception:
         pass
     try:
-        from crawlo.framework import reset_framework
+        from crawlo.crawler import reset_framework
         reset_framework()
     except Exception:
         pass

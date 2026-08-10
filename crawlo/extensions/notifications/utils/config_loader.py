@@ -22,7 +22,7 @@ logger = get_logger(__name__)
 def _resolve_notification_context():
     """优先从容器拿 NotificationContext，否则 fallback ctx.notifications。"""
     try:
-        from crawlo.container import default_container
+        from crawlo.core.application import default_container
         from crawlo.core.application import NotificationContext
         if default_container.is_registered(NotificationContext):
             return default_container.resolve(NotificationContext)

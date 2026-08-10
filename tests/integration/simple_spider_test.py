@@ -36,7 +36,7 @@ def main():
     settings = initialize_framework()
     
     # 创建爬虫进程
-    from crawlo.crawler_process import CrawlerProcess
+    from crawlo.crawler import CrawlerProcess
     process = CrawlerProcess(settings=settings)
     
     # 运行爬虫

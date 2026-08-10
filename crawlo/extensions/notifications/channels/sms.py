@@ -101,7 +101,7 @@ class SmsChannel(NotificationChannel):
 def _resolve_notification_context():
     """优先从容器拿 NotificationContext，否则 fallback ctx.notifications。"""
     try:
-        from crawlo.container import default_container
+        from crawlo.core.application import default_container
         from crawlo.core.application import NotificationContext
         if default_container.is_registered(NotificationContext):
             return default_container.resolve(NotificationContext)
@@ -114,7 +114,7 @@ def _resolve_notification_context():
 def get_sms_channel() -> SmsChannel:
     """获取短信通知渠道实例（DI 容器优先 + NotificationContext fallback）。"""
     try:
-        from crawlo.container import default_container
+        from crawlo.core.application import default_container
         if default_container.is_registered(SmsChannel):
             return default_container.resolve(SmsChannel)
     except Exception as e:
@@ -124,7 +124,7 @@ def get_sms_channel() -> SmsChannel:
         inst = SmsChannel()
         nctx.sms_channel = inst
         try:
-            from crawlo.container import default_container
+            from crawlo.core.application import default_container
             default_container.register_instance(SmsChannel, inst)
         except Exception as e:
             logger.debug("Suppressed exception: %s", e)

@@ -22,7 +22,7 @@ import pytest
 
 @pytest.fixture(autouse=True)
 def _clean_container_and_global_ctx():
-    from crawlo.container import default_container
+    from crawlo.core.application import default_container
     from crawlo.core import application as app_mod
 
     app_mod.reset_global_context()
@@ -77,7 +77,7 @@ async def test_close_all_pools_clears_runtime_connection_pools():
 
 def test_get_redis_manager_lazy_rebind_singleton():
     """get_redis_manager() 懒创建 → rebind，后续 resolve 拿到同一引用。"""
-    from crawlo.container import default_container
+    from crawlo.core.application import default_container
     from crawlo.core import application as app_mod
     from crawlo.core.application import ApplicationContext
     from crawlo.utils.redis.pool import GlobalRedisManager, get_redis_manager
@@ -141,7 +141,7 @@ async def test_cleanup_all_managers_operates_on_runtime_resource_managers():
 
 def test_global_error_handler_lazy_rebind_singleton():
     """_get_global_error_handler() 懒创建 ErrorHandler 并 rebind。"""
-    from crawlo.container import default_container
+    from crawlo.core.application import default_container
     from crawlo.core import application as app_mod
     from crawlo.core.application import ApplicationContext
     from crawlo.utils.errors import ErrorHandler, _get_global_error_handler
@@ -163,7 +163,7 @@ def test_global_error_handler_lazy_rebind_singleton():
 
 def test_module_error_handler_uses_queue_tag_and_does_not_conflict_global():
     """get_module_error_handler() 用 _QueueErrorHandlerTag 注册，与全局 ErrorHandler 类不冲突。"""
-    from crawlo.container import default_container
+    from crawlo.core.application import default_container
     from crawlo.core import application as app_mod
     from crawlo.core.application import ApplicationContext
     from crawlo.queue.backends.redis_priority import (
@@ -195,7 +195,7 @@ def test_module_error_handler_uses_queue_tag_and_does_not_conflict_global():
 
 def test_runtime_context_resolve_same_as_ctx_runtime():
     """Phase 8.2 注册 RuntimeContext 进容器；所有 C 组函数取的 RuntimeContext 与 ctx.runtime 一致。"""
-    from crawlo.container import default_container
+    from crawlo.core.application import default_container
     from crawlo.core.application import ApplicationContext, RuntimeContext
     from crawlo.utils.redis.pool import _resolve_runtime_context as _pool_ctx
     from crawlo.utils.resource_manager import (

@@ -155,7 +155,7 @@ class MessageDeduplicator:
 def _resolve_notification_context():
     """优先从容器拿 NotificationContext，否则 fallback ctx.notifications。"""
     try:
-        from crawlo.container import default_container
+        from crawlo.core.application import default_container
         from crawlo.core.application import NotificationContext
         if default_container.is_registered(NotificationContext):
             return default_container.resolve(NotificationContext)
@@ -170,7 +170,7 @@ def get_deduplicator(time_window: int = 300) -> MessageDeduplicator:
     获取全局去重器实例（DI 容器优先 + DCL NotificationContext fallback）。
     """
     try:
-        from crawlo.container import default_container
+        from crawlo.core.application import default_container
         if default_container.is_registered(MessageDeduplicator):
             return default_container.resolve(MessageDeduplicator)
     except Exception as e:
@@ -183,7 +183,7 @@ def get_deduplicator(time_window: int = 300) -> MessageDeduplicator:
                 inst = MessageDeduplicator(time_window)
                 nctx.deduplicator = inst
                 try:
-                    from crawlo.container import default_container as _c
+                    from crawlo.core.application import default_container as _c
                     _c.register_instance(MessageDeduplicator, inst)
                 except Exception as e:
                     get_logger(__name__).debug("Suppressed exception: %s", e)

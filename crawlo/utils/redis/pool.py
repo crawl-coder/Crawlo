@@ -238,7 +238,7 @@ class RedisConnectionPool:
         """关闭连接池"""
         try:
             if self._redis_client:
-                await self._redis_client.close()
+                await self._redis_client.aclose()
                 self._redis_client = None
 
             if self._connection_pool:
@@ -275,7 +275,7 @@ class RedisConnectionPool:
 def _resolve_runtime_context():
     """优先从 default_container 拿 RuntimeContext，否则 fallback ctx。"""
     try:
-        from crawlo.container import default_container
+        from crawlo.core.application import default_container
         from crawlo.core.application import RuntimeContext
         if default_container.is_registered(RuntimeContext):
             return default_container.resolve(RuntimeContext)
@@ -409,7 +409,7 @@ class GlobalRedisManager:
 def get_redis_manager() -> GlobalRedisManager:
     """获取全局 Redis 管理器单例（DI 容器优先 + RuntimeContext fallback）。"""
     try:
-        from crawlo.container import default_container
+        from crawlo.core.application import default_container
         if default_container.is_registered(GlobalRedisManager):
             return default_container.resolve(GlobalRedisManager)
     except Exception as e:
@@ -419,7 +419,7 @@ def get_redis_manager() -> GlobalRedisManager:
         inst = GlobalRedisManager()
         rctx.redis_manager = inst
         try:
-            from crawlo.container import default_container as _c
+            from crawlo.core.application import default_container as _c
             _c.register_instance(GlobalRedisManager, inst)
         except Exception as e:
             get_logger(__name__).debug("Suppressed exception: %s", e)

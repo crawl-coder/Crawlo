@@ -29,7 +29,7 @@ def _restore_global_ctx(monkeypatch):
     app_mod.reset_global_context()
     yield
     # After：清 default_container 非构造器状态
-    from crawlo.container import default_container
+    from crawlo.core.application import default_container
     default_container.clear()
     # 恢复原来的全局 ctx 哨兵（若有）
     if original is None:
@@ -40,7 +40,7 @@ def _restore_global_ctx(monkeypatch):
 
 def test_new_ctx_binds_three_contexts_to_default_container():
     """新建 ctx 后，4 个核心类型可从 default_container resolve，并返回同一引用。"""
-    from crawlo.container import default_container
+    from crawlo.core.application import default_container
     from crawlo.core.application import (
         ApplicationContext,
         NotificationContext,
@@ -60,7 +60,7 @@ def test_new_ctx_binds_three_contexts_to_default_container():
 
 def test_rebind_to_container_for_lazy_component():
     """default_container.register_instance(cls, inst) 后，新类型可解析为同一引用。"""
-    from crawlo.container import default_container
+    from crawlo.core.application import default_container
     from crawlo.core.application import ApplicationContext
 
     ctx = ApplicationContext()
@@ -77,7 +77,7 @@ def test_rebind_to_container_for_lazy_component():
 @pytest.mark.asyncio
 async def test_cleanup_unbinds_request_scope_bucket():
     """cleanup() 后，容器内以 self.id 为 scope_id 的 REQUEST 缓存被清。"""
-    from crawlo.container import default_container
+    from crawlo.core.application import default_container
     from crawlo.core.application import ApplicationContext
 
     ctx = ApplicationContext()
@@ -102,7 +102,7 @@ async def test_cleanup_unbinds_request_scope_bucket():
 
 def test_recreate_ctx_does_not_conflict():
     """reset_global_context() → 再新建 ctx，容器里仍是新 ctx 的引用。"""
-    from crawlo.container import default_container
+    from crawlo.core.application import default_container
     from crawlo.core.application import (
         ApplicationContext,
     )

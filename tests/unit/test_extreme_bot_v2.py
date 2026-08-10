@@ -9,12 +9,12 @@ import pytest
 from unittest.mock import Mock, patch, MagicMock
 import requests.exceptions
 
-from crawlo.bot.core.models import NotificationMessage, NotificationResponse, NotificationType, ChannelType
-from crawlo.bot.core.notifier import NotificationDispatcher
-from crawlo.bot.channels.dingtalk import DingTalkChannel
-from crawlo.bot.channels.feishu import FeishuChannel
-from crawlo.bot.channels.wecom import WeComChannel
-from crawlo.bot.channels.email import EmailChannel
+from crawlo.extensions.notifications.core.models import NotificationMessage, NotificationResponse, NotificationType, ChannelType
+from crawlo.extensions.notifications.core.notifier import NotificationDispatcher
+from crawlo.extensions.notifications.channels.dingtalk import DingTalkChannel
+from crawlo.extensions.notifications.channels.feishu import FeishuChannel
+from crawlo.extensions.notifications.channels.wecom import WeComChannel
+from crawlo.extensions.notifications.channels.email import EmailChannel
 
 
 class TestBotNotificationExtremeScenarios:
@@ -406,7 +406,7 @@ class TestNotificationHandler:
 
     def test_send_status_notification(self):
         """测试: 发送状态通知"""
-        from crawlo.bot.core.handlers import CrawlerNotificationHandler
+        from crawlo.extensions.notifications.core.handlers import CrawlerNotificationHandler
 
         handler = CrawlerNotificationHandler()
 
@@ -426,7 +426,7 @@ class TestNotificationHandler:
 
     def test_send_alert_notification(self):
         """测试: 发送告警通知"""
-        from crawlo.bot.core.handlers import CrawlerNotificationHandler
+        from crawlo.extensions.notifications.core.handlers import CrawlerNotificationHandler
 
         handler = CrawlerNotificationHandler()
 

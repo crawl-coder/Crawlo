@@ -15,7 +15,7 @@ import os
 import asyncio
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
-from crawlo.crawler_process import CrawlerProcess
+from crawlo.crawler import CrawlerProcess
 from crawlo.settings.setting_manager import SettingManager
 
 

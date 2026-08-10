@@ -41,7 +41,7 @@ def get_module_error_handler() -> ErrorHandler:
     作为单独的容器注册键来维护模块级实例。
     """
     try:
-        from crawlo.container import default_container
+        from crawlo.core.application import default_container
         if default_container.is_registered(_QueueErrorHandlerTag):
             return default_container.resolve(_QueueErrorHandlerTag)
     except Exception as e:
@@ -51,7 +51,7 @@ def get_module_error_handler() -> ErrorHandler:
     if ctx and ctx.runtime.queue_error_handler is None:
         ctx.runtime.queue_error_handler = ErrorHandler(__name__)
         try:
-            from crawlo.container import default_container
+            from crawlo.core.application import default_container
             default_container.register_instance(_QueueErrorHandlerTag, ctx.runtime.queue_error_handler)
         except Exception as e:
             logger.debug("Suppressed exception: %s", e)
@@ -778,11 +778,9 @@ class RedisPriorityQueue:
                     # 不再自动清理Redis数据，保留数据以支持断点续爬
                     logger.debug(f"保留Redis数据以支持断点续爬 (Project: {self.key_manager.project_name}, Spider: {self.key_manager.spider_name})")
                     
-                    # 尝试关闭连接
-                    if hasattr(self._redis, 'close'):
-                        close_result = self._redis.close()
-                        if asyncio.iscoroutine(close_result):
-                            await close_result
+                    # 尝试关闭连接（redis-py 5.x 起 async client 使用 aclose）
+                    if hasattr(self._redis, 'aclose'):
+                        await self._redis.aclose()
                     
                     # 等待连接关闭完成
                     if hasattr(self._redis, 'wait_closed'):

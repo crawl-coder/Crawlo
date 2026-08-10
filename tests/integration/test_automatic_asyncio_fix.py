@@ -17,7 +17,7 @@ class TestAutomaticAsyncioFix:
 
     def test_crawler_process_has_fix_method(self):
         """测试 CrawlerProcess 包含 _apply_windows_asyncio_fix 方法"""
-        from crawlo.crawler_process import CrawlerProcess
+        from crawlo.crawler import CrawlerProcess
         assert hasattr(CrawlerProcess, '_apply_windows_asyncio_fix')
 
     @pytest.mark.skipif(sys.platform != 'win32', reason="仅在 Windows 平台测试")
@@ -29,7 +29,7 @@ class TestAutomaticAsyncioFix:
         original_del = asyncio.proactor_events._ProactorBasePipeTransport.__del__
         
         # 初始化 CrawlerProcess (应该自动应用修复)
-        from crawlo.crawler_process import CrawlerProcess
+        from crawlo.crawler import CrawlerProcess
         process = CrawlerProcess()
         
         # 验证 __del__ 已被修补
@@ -48,7 +48,7 @@ class TestAutomaticAsyncioFix:
     @pytest.mark.skipif(sys.platform == 'win32', reason="非 Windows 平台测试")
     def test_fix_is_noop_on_non_windows(self):
         """测试非 Windows 平台修复函数为空操作"""
-        from crawlo.crawler_process import CrawlerProcess
+        from crawlo.crawler import CrawlerProcess
         # 初始化不应抛出异常
         process = CrawlerProcess()
 
@@ -60,7 +60,7 @@ class TestAutomaticAsyncioFix:
         不需要 from crawlo.utils.concurrency import ...
         """
         # 模拟用户代码: 只导入 CrawlerProcess
-        from crawlo.crawler_process import CrawlerProcess
+        from crawlo.crawler import CrawlerProcess
         
         # 不应该需要导入这些
         # from crawlo.utils.concurrency import run_with_cleanup

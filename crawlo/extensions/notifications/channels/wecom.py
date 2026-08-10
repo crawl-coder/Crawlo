@@ -186,7 +186,7 @@ class WeComChannel(NotificationChannel):
 def _resolve_notification_context():
     """优先从容器拿 NotificationContext，否则 fallback ctx.notifications。"""
     try:
-        from crawlo.container import default_container
+        from crawlo.core.application import default_container
         from crawlo.core.application import NotificationContext
         if default_container.is_registered(NotificationContext):
             return default_container.resolve(NotificationContext)
@@ -199,7 +199,7 @@ def _resolve_notification_context():
 def get_wecom_channel() -> WeComChannel:
     """获取企业微信通知渠道实例（DI 容器优先 + NotificationContext fallback）。"""
     try:
-        from crawlo.container import default_container
+        from crawlo.core.application import default_container
         if default_container.is_registered(WeComChannel):
             return default_container.resolve(WeComChannel)
     except Exception as e:
@@ -209,7 +209,7 @@ def get_wecom_channel() -> WeComChannel:
         inst = WeComChannel()
         nctx.wecom_channel = inst
         try:
-            from crawlo.container import default_container
+            from crawlo.core.application import default_container
             default_container.register_instance(WeComChannel, inst)
         except Exception as e:
             logger.debug("Suppressed exception: %s", e)

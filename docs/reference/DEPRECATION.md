@@ -18,6 +18,19 @@
 | `crawlo.container` | `crawlo.core.application.ApplicationContext` | 1.7.x | ≥ 2.0 | sys.modules 重定向 |
 | `crawlo/crawler.py` 扁平模块 | `crawlo.crawler` 子包 | 1.7.x | ≥ 1.9 | re-export + DeprecationWarning |
 
+### 2026-08-10 修复：bot shim 子模块身份一致性
+
+发现并修复旧路径子模块导入产生重复类对象的问题：
+
+- **问题**：`from crawlo.bot.utils.deduplicator import MessageDeduplicator` 与
+  `from crawlo.extensions.notifications.utils.deduplicator import MessageDeduplicator`
+  不是同一个类（`isinstance` 静默失效）。
+- **根因**：父包 `sys.modules` alias 后，子模块导入走父包 `__path__` 路径查找，
+  重新执行源文件产生第二份类对象。
+- **修复**：`crawlo/bot/__init__.py` 保持真实包身份，walk 新包全部子模块并
+  预注册到旧路径 `sys.modules`；子包/符号经 `__getattr__` 转发。
+- **守护**：`tests/arch/test_deprecation_shims.py::test_bot_submodule_identity`。
+
 ## 历史移除记录
 
 | 符号 | 移除版本 | 替代方案 | 备注 |
@@ -35,6 +48,9 @@
 
 ## 强制规则（P0-A2 验收）
 
-- [ ] CI 增加 `pytest -W error::DeprecationWarning`（仅 crawlo 命名空间）全量通过；
-- [ ] 上述"进行中"条目全部有测试守护（import 路径 + 警告行为）；
+- [x] `pyproject.toml` 增加 `filterwarnings = ["error::DeprecationWarning"]`（全量生效）；
+- [x] 上述"进行中"条目全部有测试守护（`tests/arch/test_deprecation_shims.py`：警告 + 对象身份）；
+- [x] 框架内部 40+ 处旧路径引用迁移到新路径（container→core.application、crawler_process→crawler）；
+- [x] 全量测试（2491 passed）在全局 DeprecationWarning=error 下通过；
+- [x] 顺带修复：redis-py 5.x `close()`→`aclose()` 废弃迁移（stream/priority/filter/pool/cluster/pipeline 共 6 处）；
 - [ ] 本文件不允许出现"过期条目"（移除版本已过但仍未移除）。

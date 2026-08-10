@@ -161,6 +161,8 @@ def test_api_surface_coverage():
 
 def test_documented_symbols_exist():
     """文档记录的模块路径真实存在（防文档漂移）。"""
+    import warnings
+
     text = SURFACE_DOC.read_text(encoding="utf-8")
     # 形如 crawlo.xxx.yyy 的模块路径（排除文档中形如 `crawlo/crawler.py` 的文件引用）
     paths = set(
@@ -169,7 +171,11 @@ def test_documented_symbols_exist():
     missing = []
     for path in sorted(paths):
         try:
-            importlib.import_module(path)
+            with warnings.catch_warnings():
+                # 废弃 shim 路径（crawlo.bot/container/crawler_process/framework）
+                # 本身会发 DeprecationWarning，这里是路径存在性校验，属预期。
+                warnings.simplefilter("ignore", DeprecationWarning)
+                importlib.import_module(path)
         except Exception:
             missing.append(path)
     assert not missing, f"api-surface.md 引用了不存在的模块: {missing}"

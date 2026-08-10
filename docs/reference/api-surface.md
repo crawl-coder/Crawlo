@@ -415,6 +415,10 @@ CLI 模块内部公共函数：`get_commands()`（frozen，命令注册表，插
 | `crawlo.container` | `crawlo.core.application.ApplicationContext` | deprecated |
 | `crawlo.crawler` 扁平模块（`crawlo/crawler.py`） | `crawlo.crawler` 子包 | deprecated（re-export，调用方无感） |
 
+> 兼容性保证（2026-08-10 起，由 `tests/arch/test_deprecation_shims.py` 守护）：
+> 旧路径导入必须 ① 发出 DeprecationWarning；② 返回的对象与新路径**同一对象**
+> （`crawlo.bot.*` 子模块身份一致性已修复，`isinstance` / `is` 不失效）。
+
 ## 20. 覆盖统计（盘点基线 2026-08-10）
 
 ```text
@@ -450,3 +454,4 @@ CLI                      12 个命令入口
 | 日期 | 变更 | 说明 |
 |---|---|---|
 | 2026-08-10 | 首次盘点 | P0-A1 初稿：覆盖全部 `__all__` 导出 + CLI + MCP + settings + deprecated shims |
+| 2026-08-10 | A2 收尾 | `filterwarnings = error::DeprecationWarning` 全局生效；内部 40+ 处旧路径迁新路径；修复 bot shim 子模块身份分裂；新增 shim 契约测试 |

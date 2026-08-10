@@ -116,7 +116,7 @@ class TestPhase1_CoreRegistries:
 
     def test_framework(self):
         """测试 CrawloFramework 迁移"""
-        from crawlo.framework import get_framework
+        from crawlo.crawler import get_framework
         
         reset_global_context()
         framework = get_framework()
@@ -165,7 +165,7 @@ class TestPhase3_BotNotification:
 
     def test_notifier(self):
         """测试 NotificationDispatcher 迁移"""
-        from crawlo.bot.core.notifier import get_notifier
+        from crawlo.extensions.notifications.core.notifier import get_notifier
         
         reset_global_context()
         notifier = get_notifier()
@@ -173,7 +173,7 @@ class TestPhase3_BotNotification:
 
     def test_deduplicator(self):
         """测试 MessageDeduplicator 迁移"""
-        from crawlo.bot.utils.deduplicator import get_deduplicator
+        from crawlo.extensions.notifications.utils.deduplicator import get_deduplicator
         
         reset_global_context()
         dedup = get_deduplicator()
@@ -181,7 +181,7 @@ class TestPhase3_BotNotification:
 
     def test_template_manager(self):
         """测试 MessageTemplateManager 迁移"""
-        from crawlo.bot.templates.manager import get_template_manager
+        from crawlo.extensions.notifications.templates.manager import get_template_manager
         
         reset_global_context()
         manager = get_template_manager()
@@ -189,7 +189,7 @@ class TestPhase3_BotNotification:
 
     def test_notification_handler(self):
         """测试 CrawlerNotificationHandler 迁移"""
-        from crawlo.bot.core.handlers import get_notification_handler
+        from crawlo.extensions.notifications.core.handlers import get_notification_handler
         
         reset_global_context()
         handler = get_notification_handler()

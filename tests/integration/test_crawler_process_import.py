@@ -10,6 +10,8 @@ v2.0 已删除 crawlo.crawler.__getattr__('CrawlerProcess') facade，
 
 import pytest
 
+pytestmark = pytest.mark.filterwarnings("ignore::DeprecationWarning")
+
 
 def test_crawler_process_from_crawler_process_module():
     """从 crawlo.crawler_process 导入 CrawlerProcess 正常"""

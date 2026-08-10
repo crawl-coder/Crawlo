@@ -475,7 +475,7 @@ class ResourceManager:
 def _resolve_runtime_context():
     """优先从 default_container 拿 RuntimeContext，否则 fallback ctx。"""
     try:
-        from crawlo.container import default_container
+        from crawlo.core.application import default_container
         from crawlo.core.application import RuntimeContext
         if default_container.is_registered(RuntimeContext):
             return default_container.resolve(RuntimeContext)

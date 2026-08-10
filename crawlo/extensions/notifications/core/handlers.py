@@ -282,7 +282,7 @@ class CrawlerNotificationHandler:
 def _resolve_notification_context():
     """优先从容器拿 NotificationContext，否则 fallback ctx.notifications。"""
     try:
-        from crawlo.container import default_container
+        from crawlo.core.application import default_container
         from crawlo.core.application import NotificationContext
         if default_container.is_registered(NotificationContext):
             return default_container.resolve(NotificationContext)
@@ -297,7 +297,7 @@ def get_notification_handler() -> CrawlerNotificationHandler:
     获取全局通知处理器实例（DI 容器优先 + DCL NotificationContext fallback）
     """
     try:
-        from crawlo.container import default_container
+        from crawlo.core.application import default_container
         if default_container.is_registered(CrawlerNotificationHandler):
             return default_container.resolve(CrawlerNotificationHandler)
     except Exception as e:
@@ -310,7 +310,7 @@ def get_notification_handler() -> CrawlerNotificationHandler:
                 inst = CrawlerNotificationHandler()
                 nctx.notification_handler = inst
                 try:
-                    from crawlo.container import default_container as _c
+                    from crawlo.core.application import default_container as _c
                     _c.register_instance(CrawlerNotificationHandler, inst)
                 except Exception as e:
                     logger.debug("Suppressed exception: %s", e)

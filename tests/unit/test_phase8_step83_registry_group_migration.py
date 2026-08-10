@@ -19,6 +19,10 @@ from typing import Dict
 
 import pytest
 
+# 本文件是 bot/container 旧路径 → 新路径的迁移桥验收测试，旧路径是测试对象本身，
+# 允许其 DeprecationWarning 出现（其余测试仍强制 error）。
+pytestmark = pytest.mark.filterwarnings("ignore::DeprecationWarning")
+
 
 @pytest.fixture(autouse=True)
 def _clean_default_container_and_global_ctx():
@@ -161,8 +165,8 @@ def test_template_manager_and_resource_monitor_lazy_rebind():
 def test_notification_handler_and_deduplicator_lazy_dcl_and_rebind():
     """handlers.get_notification_handler + deduplicator.get_deduplicator 懒创建 + rebind。"""
     from crawlo.container import default_container
-    from crawlo.extensions.notifications.core.handlers import CrawlerNotificationHandler, get_notification_handler
-    from crawlo.extensions.notifications.utils.deduplicator import MessageDeduplicator, get_deduplicator
+    from crawlo.bot.core.handlers import CrawlerNotificationHandler, get_notification_handler
+    from crawlo.bot.utils.deduplicator import MessageDeduplicator, get_deduplicator
 
     h = get_notification_handler()
     assert isinstance(h, CrawlerNotificationHandler)

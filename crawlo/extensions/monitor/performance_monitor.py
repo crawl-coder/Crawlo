@@ -267,7 +267,7 @@ def performance_monitor_decorator(name: str = None, log_level: str = "INFO"):
 def _resolve_runtime_context():
     """优先从容器拿 RuntimeContext，否则 fallback ctx.runtime。"""
     try:
-        from crawlo.container import default_container
+        from crawlo.core.application import default_container
         from crawlo.core.application import RuntimeContext
         if default_container.is_registered(RuntimeContext):
             return default_container.resolve(RuntimeContext)
@@ -280,7 +280,7 @@ def _resolve_runtime_context():
 def _get_performance_monitor() -> PerformanceMonitor:
     """获取全局 PerformanceMonitor 单例（DI 容器优先 + RuntimeContext fallback）。"""
     try:
-        from crawlo.container import default_container
+        from crawlo.core.application import default_container
         if default_container.is_registered(PerformanceMonitor):
             return default_container.resolve(PerformanceMonitor)
     except Exception as e:
@@ -290,7 +290,7 @@ def _get_performance_monitor() -> PerformanceMonitor:
         inst = PerformanceMonitor()
         rctx.performance_monitor = inst
         try:
-            from crawlo.container import default_container as _c
+            from crawlo.core.application import default_container as _c
             _c.register_instance(PerformanceMonitor, inst)
         except Exception as e:
             get_logger(__name__).debug("Suppressed exception: %s", e)

@@ -263,7 +263,7 @@ class MessageTemplateManager:
 def _resolve_notification_context():
     """优先从容器拿 NotificationContext，否则 fallback ctx.notifications。"""
     try:
-        from crawlo.container import default_container
+        from crawlo.core.application import default_container
         from crawlo.core.application import NotificationContext
         if default_container.is_registered(NotificationContext):
             return default_container.resolve(NotificationContext)
@@ -278,7 +278,7 @@ def get_template_manager(custom_templates: Optional[Dict] = None) -> MessageTemp
     获取全局模板管理器实例（DI 容器优先 + NotificationContext fallback）。
     """
     try:
-        from crawlo.container import default_container
+        from crawlo.core.application import default_container
         if default_container.is_registered(MessageTemplateManager):
             return default_container.resolve(MessageTemplateManager)
     except Exception as e:
@@ -288,7 +288,7 @@ def get_template_manager(custom_templates: Optional[Dict] = None) -> MessageTemp
         inst = MessageTemplateManager(custom_templates)
         nctx.template_manager = inst
         try:
-            from crawlo.container import default_container as _c
+            from crawlo.core.application import default_container as _c
             _c.register_instance(MessageTemplateManager, inst)
         except Exception as e:
             logger.debug("Suppressed exception: %s", e)

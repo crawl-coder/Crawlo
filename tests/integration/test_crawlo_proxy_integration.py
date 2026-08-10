@@ -19,7 +19,7 @@ from unittest.mock import Mock, patch
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
 from crawlo.core.config import CrawloConfig
-from crawlo.crawler_process import CrawlerProcess
+from crawlo.crawler import CrawlerProcess
 from crawlo import Spider, Request, Item
 from crawlo.middleware.proxy import ProxyMiddleware
 

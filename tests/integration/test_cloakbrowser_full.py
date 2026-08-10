@@ -24,7 +24,7 @@ if example_project not in sys.path:
     sys.path.insert(0, example_project)
 
 from crawlo import Spider, Request, Item
-from crawlo.crawler_process import CrawlerProcess
+from crawlo.crawler import CrawlerProcess
 from crawlo.items import ItemMeta
 
 # 定义测试 Item

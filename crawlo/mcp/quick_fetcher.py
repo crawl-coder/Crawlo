@@ -604,7 +604,7 @@ class QuickFetcher:
 def _resolve_runtime_context():
     """优先从容器拿 RuntimeContext，否则 fallback ctx.runtime。"""
     try:
-        from crawlo.container import default_container
+        from crawlo.core.application import default_container
         from crawlo.core.application import RuntimeContext
         if default_container.is_registered(RuntimeContext):
             return default_container.resolve(RuntimeContext)
@@ -638,7 +638,7 @@ atexit.register(_cleanup_fetcher)
 async def get_fetcher(custom_settings: Optional[Dict[str, Any]] = None) -> QuickFetcher:
     """获取全局 QuickFetcher 实例（DI 容器优先 + RuntimeContext fallback）。"""
     try:
-        from crawlo.container import default_container
+        from crawlo.core.application import default_container
         if default_container.is_registered(QuickFetcher):
             return default_container.resolve(QuickFetcher)
     except Exception:  # pragma: no cover  # nosec B110
@@ -648,7 +648,7 @@ async def get_fetcher(custom_settings: Optional[Dict[str, Any]] = None) -> Quick
         inst = QuickFetcher(custom_settings)
         rctx.quick_fetcher = inst
         try:
-            from crawlo.container import default_container as _c
+            from crawlo.core.application import default_container as _c
             _c.register_instance(QuickFetcher, inst)
         except Exception:  # pragma: no cover  # nosec B110
             pass

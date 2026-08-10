@@ -106,7 +106,7 @@ async def test_crawler_execution():
     print("测试爬虫执行...")
     
     from crawlo.core.application import initialize_framework
-    from crawlo.crawler_process import CrawlerProcess
+    from crawlo.crawler import CrawlerProcess
     
     # 初始化框架
     settings = initialize_framework({

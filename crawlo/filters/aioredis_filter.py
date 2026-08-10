@@ -440,8 +440,17 @@ class AioRedisFilter(BaseFilter):
             # Close Redis connection
             if self.redis is not None:
                 try:
-                    if hasattr(self.redis, 'close'):
-                        self.redis.close()
+                    # redis-py 5.x async client 的 close() 已废弃（会发 DeprecationWarning），
+                    # 且 close() 是同步契约（BaseFilter），不能 await → 用运行中 loop 调度 aclose。
+                    if hasattr(self.redis, 'aclose'):
+                        try:
+                            loop = asyncio.get_running_loop()
+                        except RuntimeError:
+                            loop = None
+                        if loop is not None:
+                            loop.create_task(self.redis.aclose())
+                        else:
+                            asyncio.ensure_future(self.redis.aclose())
                 except Exception as e:
                     self.logger.warning(f"Error closing Redis connection: {e}")
                 finally:
