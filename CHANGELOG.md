@@ -20,6 +20,18 @@
 - 插件机制（P1）：`crawlo.plugin` 统一注册表——`register_middleware` /
   `register_pipeline` / `register_extension` + 双通道配置（短名称 / 字符串路径）；
   官方示例 `examples/plugin_hello_world/` + 开发指南
+- 生产示例（P2）：`examples/real_world_catalog/` 整站抓取 cookbook
+  （分页→详情→去重→JSONL/MySQL 存储→监控→分布式）+ 教程 + CI 冒烟测试
+
+### 修复
+
+- `HttpXDownloader` 改用 Cookie header 合并，消除 httpx 0.28+ per-request
+  cookies 废弃警告（DeprecationWarning 全局 error 下会中断爬取）
+- `reset_global_context()` 同步重置 CoreInitializer 单例：修复 settings
+  缓存跨测试/跨项目泄漏（上一个项目的 SPIDER_MODULES 等配置被后续项目继承）
+- `CoreInitializer.initialize()` 增加防御：全局 initializer 注册表被清空
+  （如测试替换为空实例）时自动注册内置 initializer，避免阶段执行静默跳过
+  导致返回空 settings
 - 修复 redis-py 5.x 废弃 `close()` → `aclose()` 迁移（stream/priority/filter/pool/cluster/pipeline）
 
 ### 修复

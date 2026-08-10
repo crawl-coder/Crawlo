@@ -96,6 +96,7 @@ nav:
     - 创建第一个爬虫: getting-started/first-spider.md
   - 📚 教程系列:
     - 概览: tutorials/index.md
+    - 整站抓取 Cookbook: tutorials/real-world-catalog.md
   - 🖥 生产部署:
     - 概览: deployment.md
   - 🎯 使用指南:

@@ -1,0 +1,2 @@
+# MySQL 存储管道可选依赖（启用 MYSQL_ENABLED=1 时安装）
+asyncmy>=0.2.9
