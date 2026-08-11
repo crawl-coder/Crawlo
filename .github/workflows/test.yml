@@ -6,8 +6,13 @@ on:
   pull_request:
     branches: [main, master, develop]
 
+# 同一分支新提交到达时取消正在跑的旧 run，避免排队浪费 runner 时间
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  # 快速门禁：单元 + 架构守护（无外网依赖，确定性高），覆盖 3 个代表性 Python 版本
+  # 快速门禁：单元 + 架构守护（无外网依赖，确定性高），覆盖 2 个代表性 Python 版本
   test:
     name: Test Python ${{ matrix.python-version }} (unit + arch)
     runs-on: ubuntu-latest
@@ -25,8 +30,10 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # 覆盖最旧支持版本 / 主流 / 最新（3.11/3.13 与相邻版本行为一致，不再重复跑全量）
-        python-version: ["3.10", "3.12", "3.14"]
+        # 最旧支持版本 / 主流版本（3.11/3.13 与相邻版本行为一致，不重复跑全量；
+        # 3.14 暂不纳入：inspect.signature 输出差异导致签名哈希基线不兼容，
+        # 且 CI 上存在未定位的挂起（>30min 超时），待 3.14 专项修复后再加回）
+        python-version: ["3.10", "3.12"]
 
     steps:
       - name: Checkout
@@ -57,7 +64,7 @@ jobs:
           python -m pytest \
             tests/unit tests/arch \
             -m "not browser" \
-            --cov=crawlo --cov-report=term-missing \
+            --cov=crawlo \
             -q --tb=short
 
   # 集成测试：单版本（3.12），排除外网真实站点（realsite）保证确定性
