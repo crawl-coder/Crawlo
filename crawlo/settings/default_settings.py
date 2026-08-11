@@ -636,6 +636,12 @@ HEALTH_CHECK_INTERVAL = 60                              # 健康检查间隔（�
 
 LOG_LEVEL = 'INFO'                                        # 日志级别：DEBUG | INFO | WARNING | ERROR
 LOG_FILE = None                                         # 日志文件路径
+LOG_FILE_WHEN = 'midnight'                              # 日志轮转周期：midnight/S/M/H/D/W0-W6（TimedRotatingFileHandler）
+LOG_FILE_BACKUP_COUNT = 7                               # 保留的轮转日志文件数（0=不限制）
+LOG_FILE_UTF8_BACKUP = True                             # 日志文件与轮转备份统一 UTF-8（中文日志不乱码；False 时跟随 LOG_ENCODING）
+# 分布式：日志文件名自动追加 worker_id（仅分布式进集群时生效，单机无副作用）。
+# 切换 CrawloConfig.distributed() 即自动开启，无需手动设置；显式设 False 可关闭。
+LOG_FILE_WORKER_ID = True
 LOG_FORMAT = '%(asctime)s - [%(name)s] - %(levelname)s: %(message)s'
 LOG_ENCODING = 'utf-8'
 STATS_DUMP = True                                       # 是否周期性输出统计信息
@@ -647,7 +653,7 @@ PROMETHEUS_METRICS_PORT = 9100                          # 指标暴露端口，�
 PROMETHEUS_LABELS = {}                                  # 额外标签，如 {'env': 'production'}
 
 INTERVAL = 60                                           # 日志输出间隔（秒）
-LOG_RETENTION_DAYS = 1                                  # 日志文件保留天数（爬虫关闭时自动清理）
+LOG_RETENTION_DAYS = 7                                  # 日志文件保留天数（爬虫关闭时自动清理兜底；轮转已按 LOG_FILE_BACKUP_COUNT 限制）
 
 # ---------------------------------------------------------------------------#
 # 9.3 内存监控

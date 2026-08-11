@@ -54,12 +54,13 @@ SPIDER_MODULES = ['eastmoney_fin_report_crawler.spiders']
 
 # 日志配置
 LOG_LEVEL = 'INFO'
-LOG_FILE = 'logs/eastmoney_fin_report_crawler1.log'
-LOG_ENCODING = 'utf-8'  # 明确指定日志文件编码
-LOG_MAX_BYTES = 0  # 20MB，推荐值
-LOG_BACKUP_COUNT = 0  # 10个备份文件，推荐值
-# 如果不想要日志轮转，可以设置 LOG_MAX_BYTES = 0
-# 当LOG_MAX_BYTES或LOG_BACKUP_COUNT为0时，日志轮转将被禁用，文件会持续增长
+# 固定日志文件名（按天轮转，保留 LOG_FILE_BACKUP_COUNT 份），便于日志采集与排查。
+# 如需每次启动独立文件，可改为带时间戳：f'logs/eastmoney_fin_report_crawler_{timestamp}.log'
+LOG_FILE = 'logs/eastmoney_fin_report_crawler.log'
+LOG_FILE_WHEN = 'midnight'            # 轮转周期：每天 0 点（可改 S/M/H/D）
+LOG_FILE_BACKUP_COUNT = 7             # 保留 7 份轮转文件
+LOG_FILE_UTF8_BACKUP = True           # 日志与轮转备份统一 UTF-8（中文不乱码）
+LOG_ENCODING = 'utf-8'  # 明确指定日志文件编码（LOG_FILE_UTF8_BACKUP=True 时恒为 UTF-8）
 
 
 # 输出配置

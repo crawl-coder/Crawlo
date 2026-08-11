@@ -51,6 +51,11 @@ class LogConfig:
     
     # File configuration
     file_path: Optional[str] = None
+    # 轮转配置（TimedRotatingFileHandler）
+    file_when: str = 'midnight'        # 轮转周期: midnight / S / M / H / D / W0-W6
+    file_backup_count: int = 7         # 保留的轮转文件数
+    file_utf8_backup: bool = True      # 日志文件与轮转备份统一 UTF-8（中文日志不乱码）
+    file_worker_id: bool = True        # 分布式：日志文件名追加 worker_id（跟随模式默认开启）
     
     # Console configuration
     console_enabled: bool = True
@@ -115,6 +120,10 @@ class LogConfig:
             format=safe_get_str('LOG_FORMAT', format_default_value),
             encoding=safe_get_str('LOG_ENCODING', 'utf-8'),
             file_path=safe_get_str('LOG_FILE'),
+            file_when=safe_get_str('LOG_FILE_WHEN', 'midnight'),
+            file_backup_count=safe_get_int('LOG_FILE_BACKUP_COUNT', 7),
+            file_utf8_backup=safe_get_bool('LOG_FILE_UTF8_BACKUP', True),
+            file_worker_id=safe_get_bool('LOG_FILE_WORKER_ID', True),
             console_enabled=safe_get_bool('LOG_CONSOLE_ENABLED', True),
             file_enabled=safe_get_bool('LOG_FILE_ENABLED', True),
             console_level=safe_get_str('LOG_CONSOLE_LEVEL'),  # 允许单独设置控制台级别
@@ -134,6 +143,10 @@ class LogConfig:
             'LOG_FORMAT': 'format',
             'LOG_ENCODING': 'encoding',
             'LOG_FILE': 'file_path',
+            'LOG_FILE_WHEN': 'file_when',
+            'LOG_FILE_BACKUP_COUNT': 'file_backup_count',
+            'LOG_FILE_UTF8_BACKUP': 'file_utf8_backup',
+            'LOG_FILE_WORKER_ID': 'file_worker_id',
             'LOG_CONSOLE_ENABLED': 'console_enabled',
             'LOG_FILE_ENABLED': 'file_enabled',
             'LOG_CONSOLE_LEVEL': 'console_level',
@@ -248,6 +261,7 @@ class LogConfig:
             Tuple[bool, str]: (is_valid, error_message)
         """
         valid_levels = {'DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'}
+        valid_when = {'S', 'M', 'H', 'D', 'MIDNIGHT'} | {f'W{i}' for i in range(7)}
         
         # Validate main level
         if self.level.upper() not in valid_levels:
@@ -260,6 +274,13 @@ class LogConfig:
         # Validate file level
         if self.file_level and self.file_level.upper() not in valid_levels:
             return False, f"Invalid file log level: {self.file_level}, valid levels are: {', '.join(valid_levels)}"
+
+        # Validate rotation interval (TimedRotatingFileHandler 支持的范围)
+        if self.file_when.upper() not in valid_when:
+            return False, (
+                f"Invalid LOG_FILE_WHEN: {self.file_when}, "
+                "valid values are: midnight/S/M/H/D/W0-W6"
+            )
         
         # Ensure log directory exists
         if self.file_path and self.file_enabled:

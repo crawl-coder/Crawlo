@@ -38,6 +38,16 @@
   （`crawlo_queue_pending_count` Gauge），消费积压不再因闲置而消失
 - 分布式投递语义文档化：新增 at-least-once 章节
   （重复投递场景 + 幂等保障建议）
+- 日志轮转：`LOG_FILE` 默认改为固定文件名（模板），底层切换为
+  `TimedRotatingFileHandler`（按天轮转 + `LOG_FILE_BACKUP_COUNT` 限制），
+  `LOG_RETENTION_DAYS` 1 → 7；新增 `LOG_FILE_WHEN` / `LOG_FILE_BACKUP_COUNT` /
+  `LOG_FILE_UTF8_BACKUP` 配置项；新增 `SafeTimedRotatingFileHandler`
+  解决 Windows 下轮转重命名静默失败（告警 + 不崩溃 + flush 不丢日志）；
+  新增 `LOG_FILE_WORKER_ID`：分布式集群初始化后自动把 worker_id 追加进
+  日志文件名（`LogManager.set_file_path` 动态重建 handler），
+  多机/多进程场景各 Worker 日志可区分；**默认开启并跟随运行模式**
+  （切 `CrawloConfig.distributed()` 即自动生效，单机无副作用，显式设
+  False 可关闭）
 
 ### 修复
 

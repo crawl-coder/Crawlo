@@ -64,10 +64,16 @@ PIPELINES = {
 # }
 
 # 日志配置
-from datetime import datetime
 LOG_LEVEL = 'INFO'
-LOG_FILE = f'logs/ofweek_distributed_{datetime.now().strftime("%Y%m%d_%H%M%S")}.log'
-LOG_ENCODING = 'utf-8'  # 明确指定日志文件编码
+# 固定日志文件名（按天轮转，保留 LOG_FILE_BACKUP_COUNT 份），便于日志采集与排查。
+# 分布式模式：日志文件名自动追加 worker_id（多 Worker 各自独立日志），
+# 切换 CrawloConfig.distributed() 即自动开启，无需手动设置；如需关闭：
+# LOG_FILE_WORKER_ID = False
+LOG_FILE = 'logs/ofweek_distributed.log'
+LOG_FILE_WHEN = 'midnight'            # 轮转周期：每天 0 点（可改 S/M/H/D）
+LOG_FILE_BACKUP_COUNT = 7             # 保留 7 份轮转文件
+LOG_FILE_UTF8_BACKUP = True           # 日志与轮转备份统一 UTF-8（中文不乱码）
+LOG_ENCODING = 'utf-8'  # 明确指定日志文件编码（LOG_FILE_UTF8_BACKUP=True 时恒为 UTF-8）
 
 # 输出配置
 OUTPUT_DIR = 'output'

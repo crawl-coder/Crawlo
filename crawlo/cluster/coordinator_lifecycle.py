@@ -6,6 +6,7 @@ from __future__ import annotations
 import asyncio
 from typing import Any, TYPE_CHECKING
 from crawlo.utils.misc import safe_get_config
+from crawlo.logging.manager import worker_log_path
 
 if TYPE_CHECKING:
     from crawlo.cluster.coordinator import ClusterState
@@ -154,6 +155,8 @@ class ClusterLifecycleMixin:
             }
             self._cluster_state.worker_id = await self._cluster_state.registry.register(worker_info)
 
+            self._apply_worker_id_to_log_file()
+
             # 2. HeartbeatDaemon
             self._cluster_state.heartbeat = HeartbeatDaemon(
                 self._cluster_state.registry,
@@ -244,6 +247,31 @@ class ClusterLifecycleMixin:
                 except Exception as e:
                     self.logger.debug("Suppressed exception: %s", e)
                 self._cluster_state.redis = None
+
+    def _apply_worker_id_to_log_file(self) -> None:
+        """分布式进集群后，把 worker_id 追加进日志文件名。
+
+        使多机/多进程分布式场景下各 Worker 日志可区分
+        （settings 阶段拿不到运行期 worker_id，故在注册后动态更新）。
+        默认跟随模式开启；显式设 LOG_FILE_WORKER_ID=False 可关闭。
+        """
+        try:
+            if not safe_get_config(self.settings, 'LOG_FILE_WORKER_ID', True):
+                return
+            from crawlo.logging.manager import LogManager
+            log_config = LogManager().config
+            if not (log_config and log_config.file_path and log_config.file_enabled):
+                return
+            worker_id = getattr(self._cluster_state, 'worker_id', None)
+            if not worker_id:
+                return
+            new_path = worker_log_path(log_config.file_path, str(worker_id))
+            if new_path != log_config.file_path:
+                LogManager().set_file_path(new_path)
+        except Exception as exc:
+            self.logger.debug(
+                "LOG_FILE_WORKER_ID 动态更新跳过（不影响运行）: %s", exc
+            )
 
     # ========================================================================
     # 后台任务

@@ -11,7 +11,7 @@ ofweek_standalone 项目配置文件
 from crawlo.core.config import CrawloConfig
 
 # 使用自动检测模式配置工厂创建配置
-config = CrawloConfig.auto(
+config = CrawloConfig.standalone(
     project_name='ofweek_standalone',
     concurrency=12,  # 降低并发以便测试中断
     download_delay=1.0,  # 增加延时，方便测试检查点
@@ -74,13 +74,16 @@ PIPELINES = [
 #     'ofweek_standalone.middlewares.OfweekStandaloneMiddleware': 40,  # 用户自定义中间件示例
 # }
 
-# 日志配置（单一定义，避免多处覆盖）
-# 如需 DEBUG 级背压 / 检查点日志，把 LOG_LEVEL 改成 'DEBUG'
 LOG_LEVEL = 'INFO'
-# 日志文件路径（带时间戳，每次运行创建新文件）
-from datetime import datetime
-LOG_FILE = f'logs/ofweek_standalone_{datetime.now().strftime("%Y%m%d_%H%M%S")}.log'
-LOG_ENCODING = 'utf-8'  # 明确指定日志文件编码
+# 固定日志文件名（按天轮转，保留 LOG_FILE_BACKUP_COUNT 份），便于日志采集与排查。
+# 如需每次启动独立文件，可改为带时间戳：f'logs/{{project_name}}_{{timestamp}}.log'
+LOG_FILE = f'logs/ofweek_standalone.log'
+LOG_FILE_WHEN = 'midnight'            # 轮转周期：每天 0 点（可改 S/M/H/D）
+LOG_FILE_BACKUP_COUNT = 7             # 保留 7 份轮转文件
+# 分布式模式：日志文件名自动追加 worker_id（多 Worker 各自独立日志）。
+# 切换 CrawloConfig.distributed() 即自动开启，无需手动设置；如需关闭取消注释设为 False：
+# LOG_FILE_WORKER_ID = False
+LOG_ENCODING = 'utf-8'
 
 
 # 输出配置

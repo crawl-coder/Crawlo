@@ -9,7 +9,6 @@ InfoQ AI 快讯动态下载器测试项目配置文件
 2. dynamic_actions 实现"加载更多"点击
 3. XPath 提取 Vue/Nuxt 动态渲染内容
 """
-from datetime import datetime
 from crawlo.core.config import CrawloConfig
 
 # 使用单机模式配置
@@ -42,7 +41,12 @@ HYBRID_VERBOSE_LOGGING = True
 # =================================== 日志配置 ===================================
 
 LOG_LEVEL = 'INFO'
-LOG_FILE = f'logs/infoq_dynamic_test_{datetime.now().strftime("%Y%m%d_%H%M%S")}.log'
+# 固定日志文件名（按天轮转，保留 LOG_FILE_BACKUP_COUNT 份），便于日志采集与排查。
+# 如需每次启动独立文件，可改为带时间戳：f'logs/infoq_dynamic_test_{timestamp}.log'
+LOG_FILE = 'logs/infoq_dynamic_test.log'
+LOG_FILE_WHEN = 'midnight'            # 轮转周期：每天 0 点（可改 S/M/H/D）
+LOG_FILE_BACKUP_COUNT = 7             # 保留 7 份轮转文件
+LOG_FILE_UTF8_BACKUP = True           # 日志与轮转备份统一 UTF-8（中文不乱码）
 LOG_ENCODING = 'utf-8'
 
 # =================================== 管道配置（使用 CrawloConfig 默认）===================================

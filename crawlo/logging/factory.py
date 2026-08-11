@@ -11,6 +11,7 @@ from weakref import WeakValueDictionary
 
 from .manager import get_config, is_configured, configure
 from .config import LogConfig
+from .rotation import SafeTimedRotatingFileHandler
 
 
 class LoggerFactory:
@@ -98,11 +99,7 @@ class LoggerFactory:
                 if log_dir and not os.path.exists(log_dir):
                     os.makedirs(log_dir, exist_ok=True)
                 
-                # Use basic FileHandler (rotation not supported)
-                file_handler = logging.FileHandler(
-                    filename=config.file_path,
-                    encoding=config.encoding
-                )
+                file_handler = _create_file_handler(config)
                 
                 file_handler.setFormatter(formatter)
                 # Use dedicated file level or module level
@@ -141,3 +138,27 @@ class LoggerFactory:
 def get_logger(name: str = 'crawlo') -> logging.Logger:
     """Convenience function to get Logger instance"""
     return LoggerFactory.get_logger(name)
+
+
+def _create_file_handler(config: 'LogConfig') -> 'SafeTimedRotatingFileHandler':
+    """创建（轮转安全的）文件日志 handler，供初次配置与动态换路径复用。
+
+    - 按时间轮转（默认 midnight 每天一个文件，保留 file_backup_count 份）；
+    - 使用 SafeTimedRotatingFileHandler：Windows 等平台轮转重命名失败时
+      告警而非静默失效（见 crawlo/logging/rotation.py）。
+    - 编码：轮转备份由重命名产生、编码与当前文件一致，因此
+      file_utf8_backup=True（默认）时整个文件族强制 UTF-8，中文日志不乱码；
+      显式设为 False 时才跟随 LOG_ENCODING。
+    """
+    log_dir = os.path.dirname(config.file_path)
+    if log_dir and not os.path.exists(log_dir):
+        os.makedirs(log_dir, exist_ok=True)
+
+    encoding = 'utf-8' if config.file_utf8_backup else (config.encoding or 'utf-8')
+    return SafeTimedRotatingFileHandler(
+        filename=config.file_path,
+        when=config.file_when,
+        backupCount=config.file_backup_count,
+        encoding=encoding,
+        utc=False,
+    )

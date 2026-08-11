@@ -8,7 +8,6 @@
 适用场景：对反爬不敏感或已配置代理的方案。
 """
 
-from datetime import datetime
 from crawlo.core.config import CrawloConfig
 
 config = CrawloConfig.standalone(
@@ -51,7 +50,11 @@ MIDDLEWARES = {
 
 # =================================== 日志配置 ===================================
 LOG_LEVEL = 'INFO'
-LOG_FILE = f'logs/infoq_dynamic_no_limit_{datetime.now():%Y%m%d_%H%M%S}.log'
+# 固定日志文件名（按天轮转，保留 LOG_FILE_BACKUP_COUNT 份），便于日志采集与排查。
+LOG_FILE = 'logs/infoq_dynamic_no_limit.log'
+LOG_FILE_WHEN = 'midnight'            # 轮转周期：每天 0 点（可改 S/M/H/D）
+LOG_FILE_BACKUP_COUNT = 7             # 保留 7 份轮转文件
+LOG_FILE_UTF8_BACKUP = True           # 日志与轮转备份统一 UTF-8（中文不乱码）
 LOG_ENCODING = 'utf-8'
 
 # =================================== 数据库配置（禁用）===================================
