@@ -46,6 +46,8 @@ share/python-wheels/
 .installed.cfg
 *.egg
 *.json
+# 例外：API 签名基线是架构守护测试的受控数据文件，必须入库
+!tests/arch/api_signatures_baseline.json
 MANIFEST
 
 # PyInstaller
