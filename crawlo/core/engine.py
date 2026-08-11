@@ -20,6 +20,7 @@ Engine 模块 — 爬虫引擎核心（拆分后主骨架）
   5. _crawl / _fetch：请求级处理（与 Engine 生命周期深度耦合，不拆）
 """
 import asyncio
+import inspect
 import time
 from typing import Any, Dict, Optional, Union
 
@@ -230,7 +231,7 @@ class Engine(RequestGenerationMixin, ClusterMixin):
 
         self.scheduler = Scheduler.create_instance(self.crawler)
         if hasattr(self.scheduler, 'open'):
-            if asyncio.iscoroutinefunction(self.scheduler.open):
+            if inspect.iscoroutinefunction(self.scheduler.open):
                 await self.scheduler.open()
             else:
                 result = self.scheduler.open()

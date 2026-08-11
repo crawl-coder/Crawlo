@@ -338,7 +338,7 @@ class Subscriber:
         Returns:
             执行结果
         """
-        if asyncio.iscoroutinefunction(receiver):
+        if iscoroutinefunction(receiver):
             return await receiver(*args, **kwargs)
         else:
             return receiver(*args, **kwargs)

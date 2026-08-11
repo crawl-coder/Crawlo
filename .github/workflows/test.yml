@@ -12,11 +12,11 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  # 快速门禁：单元 + 架构守护（无外网依赖，确定性高），覆盖 2 个代表性 Python 版本
+  # 快速门禁：单元 + 架构守护（无外网依赖，确定性高），覆盖 3 个代表性 Python 版本
   test:
     name: Test Python ${{ matrix.python-version }} (unit + arch)
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
     services:
       redis:
         image: redis:7
@@ -30,10 +30,9 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # 最旧支持版本 / 主流版本（3.11/3.13 与相邻版本行为一致，不重复跑全量；
-        # 3.14 暂不纳入：inspect.signature 输出差异导致签名哈希基线不兼容，
-        # 且 CI 上存在未定位的挂起（>30min 超时），待 3.14 专项修复后再加回）
-        python-version: ["3.10", "3.12"]
+        # 最旧支持版本 / 主流版本 / 最新版本（3.11/3.13 与相邻版本行为一致，不重复跑全量）
+        # 3.14 已修复：签名哈希跨版本归一化 + asyncio.iscoroutinefunction 弃用替换
+        python-version: ["3.10", "3.12", "3.14"]
 
     steps:
       - name: Checkout
@@ -56,7 +55,8 @@ jobs:
           # 需额外下载二进制，且核心单元测试不依赖它们。
           pip install -e ".[monitoring,mcp,sqlite]"
           # ruff/mypy/bandit 在独立的 lint job 运行，test job 不需要
-          pip install pytest pytest-asyncio pytest-cov
+          # pytest-timeout：单用例超时保护，防止个别环境导致的挂起拖死整个 job
+          pip install pytest pytest-asyncio pytest-cov pytest-timeout
 
       - name: Run unit + arch tests with coverage
         run: |
@@ -65,13 +65,14 @@ jobs:
             tests/unit tests/arch \
             -m "not browser" \
             --cov=crawlo \
+            --timeout=300 \
             -q --tb=short
 
   # 集成测试：单版本（3.12），排除外网真实站点（realsite）保证确定性
   integration:
     name: Integration (Python 3.12)
     runs-on: ubuntu-latest
-    timeout-minutes: 40
+    timeout-minutes: 45
     services:
       redis:
         image: redis:7
@@ -97,13 +98,14 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -e ".[monitoring,mcp,sqlite]"
-          pip install pytest pytest-asyncio
+          pip install pytest pytest-asyncio pytest-timeout
 
       - name: Run integration tests (no external-site dependency)
         run: |
           python -m pytest \
             tests/integration \
             -m "not browser and not realsite" \
+            --timeout=300 \
             -q --tb=short
 
   lint:

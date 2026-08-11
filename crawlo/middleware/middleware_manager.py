@@ -3,6 +3,7 @@
 from types import MethodType
 from asyncio import create_task
 import asyncio
+import inspect
 from collections import defaultdict
 from typing import List, Dict, Callable, Optional, TYPE_CHECKING
 
@@ -108,7 +109,7 @@ class MiddlewareManager:
                 # 调用中间件的 open 生命周期方法（如果存在）
                 if hasattr(middleware, 'open'):
                     open_method = middleware.open
-                    if asyncio.iscoroutinefunction(open_method):
+                    if inspect.iscoroutinefunction(open_method):
                         await open_method()
                     else:
                         result = open_method()
@@ -144,7 +145,7 @@ class MiddlewareManager:
                 # 调用中间件的 close 生命周期方法（如果存在）
                 if hasattr(middleware, 'close'):
                     close_method = middleware.close
-                    if asyncio.iscoroutinefunction(close_method):
+                    if inspect.iscoroutinefunction(close_method):
                         await close_method()
                     else:
                         result = close_method()

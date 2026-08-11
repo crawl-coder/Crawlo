@@ -5,6 +5,7 @@ Log Interval Extension
 Periodic crawling statistics with backpressure monitoring
 """
 import asyncio
+import inspect
 from typing import Any, Optional, Tuple
 
 from crawlo.logging import get_logger
@@ -96,7 +97,7 @@ class LogIntervalExtension:
                         if hasattr(scheduler, 'queue_manager') and scheduler.queue_manager:
                             qm = scheduler.queue_manager
                             if hasattr(qm, 'size'):
-                                if asyncio.iscoroutinefunction(qm.size):
+                                if inspect.iscoroutinefunction(qm.size):
                                     return await qm.size()
                                 else:
                                     return qm.size()
@@ -118,7 +119,7 @@ class LogIntervalExtension:
             inner = getattr(qm, '_queue', None)
             if inner is None or not hasattr(inner, 'pending_info'):
                 return 0
-            if not asyncio.iscoroutinefunction(inner.pending_info):
+            if not inspect.iscoroutinefunction(inner.pending_info):
                 return 0
             info = await inner.pending_info()
             return info.get('pending', 0) if info else 0
@@ -171,7 +172,7 @@ class LogIntervalExtension:
         queue_size = 0
         max_size = 0
         if hasattr(qm, 'size'):
-            queue_size = await qm.size() if asyncio.iscoroutinefunction(qm.size) else qm.size()
+            queue_size = await qm.size() if inspect.iscoroutinefunction(qm.size) else qm.size()
 
         for attr in ('max_queue_size', 'max_size', '_max_size'):
             if hasattr(qm, attr):
@@ -218,7 +219,7 @@ class LogIntervalExtension:
                 try:
                     is_active = (
                         await strategy.should_apply(qm)
-                        if asyncio.iscoroutinefunction(strategy.should_apply)
+                        if inspect.iscoroutinefunction(strategy.should_apply)
                         else strategy.should_apply(qm)
                     )
                 except Exception as e:
@@ -227,7 +228,7 @@ class LogIntervalExtension:
                 try:
                     delay = (
                         await strategy.calculate_delay(qm)
-                        if asyncio.iscoroutinefunction(strategy.calculate_delay)
+                        if inspect.iscoroutinefunction(strategy.calculate_delay)
                         else strategy.calculate_delay(qm)
                     )
                 except Exception as e:

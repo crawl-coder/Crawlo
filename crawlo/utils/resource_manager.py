@@ -11,6 +11,7 @@
 - 清理顺序保证（LIFO）
 """
 import asyncio
+import inspect
 import time
 from typing import Any, Callable, List, Tuple, Optional, Dict
 from enum import Enum
@@ -68,7 +69,7 @@ class ManagedResource:
         self.status = ResourceStatus.CLOSING
         try:
             # 检查cleanup_func是否为异步函数
-            if asyncio.iscoroutinefunction(self.cleanup_func):
+            if inspect.iscoroutinefunction(self.cleanup_func):
                 await self.cleanup_func(self.resource)
             else:
                 # 同步函数，直接调用

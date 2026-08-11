@@ -32,10 +32,11 @@ import hashlib
 import importlib
 import inspect
 import json
-import re
 from pathlib import Path
 
 import pytest
+
+from _sig_normalize import normalize_signature_str
 
 BASELINE_FILE = Path(__file__).resolve().parent / "api_signatures_baseline.json"
 
@@ -120,10 +121,9 @@ def _signature_string(name, attr):
         sig = inspect.signature(func)
     except (ValueError, TypeError):
         return None
-    sig_str = str(sig)
-    # 归一化 object() 哨兵默认值（repr 含内存地址，跨进程不稳定）：
-    # (self, key, default=<object object at 0x...>) → (self, key, default=<object>)
-    sig_str = re.sub(r"<object object at 0x[0-9a-fA-F]+>", "<object>", sig_str)
+    # 跨版本归一化：3.14 把字符串注解求值为 PEP 604（X | None），
+    # 3.10-3.13 保留 Optional[X]/Union[A, B] 原样，统一后再哈希。
+    sig_str = normalize_signature_str(str(sig))
     return f"{name}{sig_str}"
 
 

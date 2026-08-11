@@ -11,6 +11,7 @@
 - 统一的接口设计
 """
 import asyncio
+import inspect
 import time
 import traceback
 from typing import Optional, TYPE_CHECKING, Dict, Callable, Any
@@ -473,7 +474,7 @@ class QueueManager(QueueStatusMixin, QueueBackpressureMixin):
         try:
             if hasattr(self._queue, 'qsize'):
                 qsize_func = self._queue.qsize
-                if asyncio.iscoroutinefunction(qsize_func):
+                if inspect.iscoroutinefunction(qsize_func):
                     result = await qsize_func()  # type: ignore
                     # 确保结果是整数
                     if isinstance(result, int):

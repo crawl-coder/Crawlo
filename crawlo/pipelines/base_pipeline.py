@@ -42,6 +42,7 @@ Pipeline体系说明：
 from __future__ import annotations
 
 import asyncio
+import inspect
 import time
 from abc import ABC, abstractmethod
 from pathlib import Path
@@ -621,7 +622,7 @@ class FileBasedPipeline(ResourceManagedPipeline):
         """关闭文件句柄"""
         if file_handle:
             # 如果是aiofiles文件对象，异步关闭
-            if AIOFILES_AVAILABLE and hasattr(file_handle, 'close') and asyncio.iscoroutinefunction(file_handle.close):
+            if AIOFILES_AVAILABLE and hasattr(file_handle, 'close') and inspect.iscoroutinefunction(file_handle.close):
                 await file_handle.close()
                 self.logger.info(f"文件已异步关闭: {self.file_path}")
             # 否则使用同步关闭

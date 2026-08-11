@@ -357,13 +357,13 @@ class ApplicationContext:
             try:
                 if hasattr(resource, 'close'):
                     close_method = resource.close
-                    if asyncio.iscoroutinefunction(close_method):
+                    if inspect.iscoroutinefunction(close_method):
                         await close_method()
                     else:
                         close_method()
                 elif hasattr(resource, 'cleanup'):
                     cleanup_method = resource.cleanup
-                    if asyncio.iscoroutinefunction(cleanup_method):
+                    if inspect.iscoroutinefunction(cleanup_method):
                         await cleanup_method()
                     else:
                         cleanup_method()

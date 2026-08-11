@@ -5,6 +5,7 @@
 提供系统性能监控和资源使用情况跟踪
 """
 import asyncio
+import inspect
 import time
 from functools import wraps
 from typing import Dict, Any
@@ -241,7 +242,7 @@ def performance_monitor_decorator(name: str = None, log_level: str = "INFO"):
             get_logger(timer_name)
             
             with PerformanceTimer(timer_name):
-                if asyncio.iscoroutinefunction(func):
+                if inspect.iscoroutinefunction(func):
                     return await func(*args, **kwargs)
                 else:
                     return func(*args, **kwargs)
@@ -255,7 +256,6 @@ def performance_monitor_decorator(name: str = None, log_level: str = "INFO"):
                 return func(*args, **kwargs)
         
         # 根据函数是否为异步函数返回相应的包装器
-        import inspect
         if inspect.iscoroutinefunction(func):
             return async_wrapper
         else:

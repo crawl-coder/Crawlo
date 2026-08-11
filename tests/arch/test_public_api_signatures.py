@@ -50,6 +50,8 @@ import inspect
 
 import pytest
 
+from _sig_normalize import normalize_signature_str
+
 from crawlo.core.engine import Engine
 from crawlo.core.application import ApplicationContext
 from crawlo.core.scheduling.task_scheduler import Scheduler
@@ -71,7 +73,7 @@ BASELINE = {
     },
     "ApplicationContext": {
         "register_spider": "5209587c4dede7e30c7f454f72c8faeb9bd6a5587d40200d669329c418a90c52",
-        "get_spider": "c5fee40e2237de9a68729e5b88f31eb634c6a0e31bc45032dbd97615b9c043a0",
+        "get_spider": "4217a8e35337f761e6a780520029da7ea5ef93c6e4a8bc0b8285aeb9ea881cb1",
         "unregister_spider": "1fa18b85ab663a04c443d79a6eb472942ad19663181125c709c1e3730e0f9a8e",
         "add_resource": "9b324660dddae84ff13afd946eda078278fb8feed80925e60c3eca5a02025a64",
         "remove_resource": "44d4d471c9cc0731f4285c435ed960f37456af16072706b3f4b5cc744605e177",
@@ -80,7 +82,7 @@ BASELINE = {
     },
     "Scheduler": {
         "__init__": "e22069f369ca4a3e1d364101060d13fc068ea71b160acf136d1232c39fbe6dc7",
-        "queue_type": "4b0d5100f864457a4e1c97b4e407a9220e7a1303b8847466cc352379caf52852",
+        "queue_type": "a566f119403d039905afa56ed463ed45110e71180f73ec26664421c5fc183ae2",
         "create_instance": "a141372e386c1b3ca3b5a5b19270e5783efe3410816de68564511b70a6fd207c",
         "open": "00ce6c9990e8fe906af6f0eb06820eabc5f529133eab9c6e9507ba1253a88ee4",
         "next_request": "5bf8d17cda1ee20d7827689e6c2d0f442c109cff9357397a6a2d72f1942ee6f7",
@@ -98,9 +100,9 @@ BASELINE = {
         "logger": "f923b55ab4e0d7eb76312282cfa803ec0175990ad65ce17fd4e51132f954f6e4",
         "error_handler": "a4f806b6fbd62522a24c5a1397c328ad1652bded11f1b8b8f4e173b4aed4b642",
         "initialize": "d092f53af6b06bc6dc2074c21e9f17c9b7ddc3dcdce308df1ea3ca34aff18a31",
-        "put": "230295d9ac6e488c403f4ff3a6e41bcbb65d01babade3dd4babe4433c768a1cb",
-        "get": "92d70d5483ec3395fb18056c2993463e0bf860e21ab705ddb1f02a42d6112e04",
-        "get_blocking": "a90a0ced02b0df983c0dc0d06bb17e2bb684762a6bca3db034620ed29a130ba8",
+        "put": "1fd777e790da20674035859089b13d05cea6356bac5d673afa015d9bd73a9922",
+        "get": "6f2af02559ff67930013b8e6cad6b8142a44f2cdbf036866cf5b3b884faeaed5",
+        "get_blocking": "c7179841501393049f6932000d2b922788f86479d65d42f016179a1b5738566c",
         "size": "6880a6dc0ea1cfb23464576c2c04d0cf94f48a3910f90440bd2c823b0e7a6dc0",
         "max_size": "8858d2835ce143962699221851f72afe2cc167de51fbf97305b2538ad9caec01",
         "async_empty": "3959594f2cacd0bc2f933842023cca11a42172a1d81dbf6167b1dee9823ff5ec",
@@ -111,9 +113,9 @@ BASELINE = {
     "Processor": {
         "__init__": "e84ddfdd330611281f9f36e93203bf7aa149f54923f0fd34da1a62bac70b9700",
         "open": "12a7f11d963dc370a43bd7300dc7140d78778bee4acde7b0d1da2645d5d7c8cb",
-        "start": "4a6b0e18a5c370253c3416ffbdd044d5e542a4888d54f3954e2a4e4255f69a3e",  # mypy 清零：返回类型改为 Optional[Task]
+        "start": "49a53320202a05d994663556fd31f0374ffc0b8cd27afe1625eee980d1a1095d",  # mypy 清零：返回类型改为 Optional[Task]
         "stop": "0758f078d0b203b36a71b8d8f7166f8565be646df459eb472e9d62e9878c4856",
-        "enqueue": "bd2519b022549d8a513b4ea1785f52c0097324b91e02fe9756a6b441e8eca7cb",  # Phase 2: network→http renamed, type hints updated
+        "enqueue": "9ccb79be2172ba3bf6951f251995d8fc147172a1fa497dd40b6ef802f23915e7",  # Phase 2: network→http renamed, type hints updated
         "process_once": "cac1364919a927d757ae892153d2af33f341ac5dd92e8e34c9735929f11219c3",
         "idle_async": "adfe4d9dd4ef79a5b63a1d00a3d9017bc26db81e4d343776fb9b9764481fcfff",
         "close": "57595719c388c9e1859af92ca830a3a26f611820a328e6428de2fae25de39280",
@@ -145,7 +147,8 @@ def _signature_string(name, attr):
         sig = inspect.signature(func)
     except (ValueError, TypeError):
         return None
-    return f"{name}{sig}"
+    # 跨版本归一化（3.14 求值注解后渲染为 PEP 604，见 _sig_normalize）
+    return f"{name}{normalize_signature_str(str(sig))}"
 
 
 def _public_members(cls):

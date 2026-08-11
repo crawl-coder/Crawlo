@@ -5,6 +5,7 @@
 整合所有批处理相关功能
 """
 import asyncio
+import inspect
 import concurrent.futures
 from functools import wraps
 from typing import List, Callable, Any, Optional, Dict
@@ -52,7 +53,7 @@ class BatchProcessor:
         async def process_item(item):
             async with semaphore:
                 try:
-                    if asyncio.iscoroutinefunction(processor_func):
+                    if inspect.iscoroutinefunction(processor_func):
                         return await processor_func(item, *args, **kwargs)
                     else:
                         return processor_func(item, *args, **kwargs)
