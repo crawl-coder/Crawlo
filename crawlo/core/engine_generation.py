@@ -16,6 +16,7 @@ from inspect import isasyncgen, iscoroutine, isgenerator
 from crawlo import Request, Item
 from crawlo.event import CrawlerEvent
 from crawlo.core.errors import OutputError
+from crawlo.core.engine_helpers import _as_item
 
 __all__ = ['RequestGenerationMixin']
 
@@ -301,9 +302,15 @@ class RequestGenerationMixin:
             async def _gen():
                 yield result
             await self._handle_spider_output(_gen(), parent_request)
+        elif isinstance(result, dict):
+            # 兼容 errback 返回 dict：包装为 Item 后交由引擎处理
+            async def _gen():
+                yield _as_item(result)
+            await self._handle_spider_output(_gen(), parent_request)
         elif isinstance(result, (list, tuple)):
             async def _gen():
                 for item in result:
+                    item = _as_item(item)
                     if isinstance(item, (Request, Item)):
                         yield item
             await self._handle_spider_output(_gen(), parent_request)
@@ -312,6 +319,7 @@ class RequestGenerationMixin:
         elif isgenerator(result):
             async def _wrap_sync_gen():
                 for item in result:
+                    item = _as_item(item)
                     if isinstance(item, (Request, Item)):
                         yield item
             await self._handle_spider_output(_wrap_sync_gen(), parent_request)

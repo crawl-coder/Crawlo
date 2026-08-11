@@ -16,7 +16,7 @@ Core Interface:
 """
 from abc import ABC, abstractmethod
 
-from crawlo.utils.request.fingerprint import FingerprintGenerator
+from crawlo.utils.request.fingerprint import generate_request_fingerprint
 
 
 class BaseFilter(ABC):
@@ -48,19 +48,33 @@ class BaseFilter(ABC):
     def _get_fingerprint(self, request) -> str:
         """
         Get request fingerprint (internal helper method)
-        
-        Uses unified FingerprintGenerator to generate request fingerprints.
+
+        默认仅 method + 规范化 URL + body 参与指纹（与 Scrapy 一致），
+        headers/meta 不参与——避免随机 UA、按请求变化的 Cookie、
+        download_slot 等导致同一 URL 去重失效。
+
+        需要把特定 header/meta 纳入指纹时，由子类从 settings 读取
+        ``DUPEFILTER_INCLUDE_HEADERS`` / ``DUPEFILTER_INCLUDE_META``
+        并写入 ``self._dupe_include_headers`` / ``self._dupe_include_meta``。
+
         Subclasses can call this method directly to avoid duplicate implementation.
-        
+
         :param request: Request object
         :return: Request fingerprint string
         """
-        return FingerprintGenerator.request_fingerprint(
+        include_headers = getattr(self, '_dupe_include_headers', None)
+        include_meta = getattr(self, '_dupe_include_meta', None) or []
+        headers = dict(request.headers) if hasattr(request, 'headers') else {}
+        meta = {}
+        if include_meta and hasattr(request, 'meta') and request.meta:
+            meta = {k: request.meta[k] for k in include_meta if k in request.meta}
+        return generate_request_fingerprint(
             request.method,
             request.url,
             request.body or b'',
-            dict(request.headers) if hasattr(request, 'headers') else {},
-            request.meta if hasattr(request, 'meta') else {}
+            headers,
+            meta,
+            include_headers,
         )
 
     def requested(self, request) -> bool:

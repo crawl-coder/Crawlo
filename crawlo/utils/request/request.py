@@ -110,7 +110,7 @@ def request_fingerprint(
         DeprecationWarning,
         stacklevel=2
     )
-    from crawlo.utils.request.fingerprint import FingerprintGenerator
+    from crawlo.utils.request.fingerprint import generate_request_fingerprint
     
     # 准备请求数据
     method = request.method
@@ -130,23 +130,23 @@ def request_fingerprint(
                 # 如 get_all 方法
                 values = request.headers.get_all(name_str)
                 value = ';'.join(str(v) for v in values) if values else ''
-            elif hasattr(request.headers, '__getitem__'):
-                # 如普通 dict
-                try:
-                    raw_value = request.headers[name_str]
-                    if isinstance(raw_value, list):
-                        value = ';'.join(str(v) for v in raw_value)
-                    else:
-                        value = str(raw_value)
-                except (KeyError, TypeError):
-                    value = ''
             else:
-                value = ''
+                # 普通 dict（大小写不敏感匹配，避免 'User-Agent' 键查 'user-agent' 落空）
+                lower_map = {
+                    str(k).lower(): v for k, v in dict(request.headers).items()
+                }
+                raw_value = lower_map.get(name_str, '')
+                if isinstance(raw_value, list):
+                    value = ';'.join(str(v) for v in raw_value)
+                else:
+                    value = str(raw_value)
             
             headers[name_str] = value
     
     # 使用统一的指纹生成器
-    return FingerprintGenerator.request_fingerprint(method, url, body, headers)
+    return generate_request_fingerprint(
+        method, url, body, headers, include_headers=include_headers
+    )
 
 
 def set_request(request: Request, priority: int) -> None:
@@ -307,4 +307,3 @@ def _get_function_from_path(path: str, spider=None) -> Optional[callable]:
         return func
     except Exception as e:
         raise ValueError(f"无法从路径 '{path}' 加载函数: {e}")
-

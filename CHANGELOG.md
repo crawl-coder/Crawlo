@@ -51,6 +51,12 @@
 
 ### 修复
 
+- 请求去重指纹默认仅 method + 规范化 URL + body（headers/meta 不再参与）：
+  修复随机 UA、按请求变化的 Cookie 或 download_slot 不同导致同一 URL
+  去重失效（重复抓取 / 翻页死循环）；新增 `DUPEFILTER_INCLUDE_HEADERS` /
+  `DUPEFILTER_INCLUDE_META` 可显式纳入指定字段
+- Spider 回调直接 `return {...}` / `yield {...}` 统一包装为 `Item`：
+  修复 dict 输出被静默丢弃（仅 WARNING）或抛 `OutputError` 的数据丢失问题
 - `HttpXDownloader` 改用 Cookie header 合并，消除 httpx 0.28+ per-request
   cookies 废弃警告（DeprecationWarning 全局 error 下会中断爬取）
 - `reset_global_context()` 同步重置 CoreInitializer 单例：修复 settings

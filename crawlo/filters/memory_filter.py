@@ -68,6 +68,14 @@ class MemoryFilter(BaseFilter):
         self._max_capacity = max_capacity
         self._cleanup_threshold = cleanup_threshold
 
+        # 去重指纹可配置纳入的 header / meta（默认空 = 不参与，见 BaseFilter._get_fingerprint）
+        self._dupe_include_headers = safe_get_config(
+            crawler.settings, 'DUPEFILTER_INCLUDE_HEADERS', [], list
+        ) if crawler and crawler.settings is not None else []
+        self._dupe_include_meta = safe_get_config(
+            crawler.settings, 'DUPEFILTER_INCLUDE_META', [], list
+        ) if crawler and crawler.settings is not None else []
+
     def add_fingerprint(self, fp: str) -> None:
         """
         Add request fingerprint (sync method, for backward compatibility only)

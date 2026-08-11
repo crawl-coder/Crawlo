@@ -433,26 +433,31 @@ async def process_callback_output(spider, callback, cb_kwargs, response, logger)
         return None
 
     if isasyncgen(_outputs):
-        return transform(_outputs, response)
+        return transform(_coerce_async(_outputs), response)
 
     if isgenerator(_outputs):
-        return transform(_outputs, response)
+        return transform(_coerce_sync(_outputs), response)
 
     if iscoroutine(_outputs):
         result = await _outputs
         if result is None:
             return None
         if isasyncgen(result):
-            return transform(result, response)
+            return transform(_coerce_async(result), response)
         if isgenerator(result):
-            return transform(result, response)
+            return transform(_coerce_sync(result), response)
         if isinstance(result, (Request, Item)):
             async def _single_output():
                 yield result
             return transform(_single_output(), response)
+        if isinstance(result, dict):
+            async def _dict_output():
+                yield _as_item(result)
+            return transform(_dict_output(), response)
         if isinstance(result, (list, tuple)):
             async def _list_output():
                 for item in result:
+                    item = _as_item(item)
                     if isinstance(item, (Request, Item)):
                         yield item
             return transform(_list_output(), response)
@@ -463,6 +468,7 @@ async def process_callback_output(spider, callback, cb_kwargs, response, logger)
         )
         return None
 
+    _outputs = _as_item(_outputs)
     if isinstance(_outputs, (Request, Item)):
         async def _sync_single_output():
             yield _outputs
@@ -471,6 +477,7 @@ async def process_callback_output(spider, callback, cb_kwargs, response, logger)
     if isinstance(_outputs, (list, tuple)):
         async def _sync_list_output():
             for item in _outputs:
+                item = _as_item(item)
                 if isinstance(item, (Request, Item)):
                     yield item
         return transform(_sync_list_output(), response)
@@ -481,3 +488,31 @@ async def process_callback_output(spider, callback, cb_kwargs, response, logger)
         f"Request, Item, or list/tuple of them."
     )
     return None
+
+
+def _as_item(value: Any) -> Any:
+    """把 dict 输出统一包装为 Item（保留字段内容），其余类型原样返回。
+
+    Spider 回调直接 ``return {...}`` / ``yield {...}`` 是常见写法，
+    裸 dict 无法被 processor 消费（历史上会被静默丢弃或抛 OutputError）。
+    此处统一转换为 ``Item``，字段内容不变；非 dict 类型不受影响。
+    """
+    if isinstance(value, dict) and not isinstance(value, Item):
+        try:
+            return Item(**value)
+        except TypeError:
+            # 极端情况：key 不是合法 kwargs（如非字符串），保持原样交由下游处理
+            return value
+    return value
+
+
+async def _coerce_async(items):
+    """异步生成器包装：每个产出统一经 _as_item 规范化（dict → Item）。"""
+    async for item in items:
+        yield _as_item(item)
+
+
+def _coerce_sync(items):
+    """同步生成器包装：每个产出统一经 _as_item 规范化（dict → Item）。"""
+    for item in items:
+        yield _as_item(item)

@@ -543,6 +543,8 @@ JSON_ARRAY_MAX_ITEMS = 100000                           # 内存限流阈值
 
 DEFAULT_DEDUP_PIPELINE = 'crawlo.pipelines.MemoryDedupPipeline'
 FILTER_CLASS = 'crawlo.filters.MemoryFilter'
+DUPEFILTER_INCLUDE_HEADERS = []                        # 纳入请求去重指纹的 header 列表（默认空=不参与，与 Scrapy 一致）
+DUPEFILTER_INCLUDE_META = []                           # 纳入请求去重指纹的 meta key 列表（默认空=不参与）
 BLOOM_FILTER_CAPACITY = 1000000                         # Bloom 过滤器容量
 BLOOM_FILTER_ERROR_RATE = 0.001                  # Bloom 过滤器错误率
 

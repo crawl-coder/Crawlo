@@ -135,6 +135,14 @@ class AioRedisFilter(BaseFilter):
             debug=debug,
             log_level=log_level
         )
+
+        # 去重指纹可配置纳入的 header / meta（默认空 = 不参与，见 BaseFilter._get_fingerprint）
+        instance._dupe_include_headers = safe_get_config(
+            settings, 'DUPEFILTER_INCLUDE_HEADERS', [], list
+        )
+        instance._dupe_include_meta = safe_get_config(
+            settings, 'DUPEFILTER_INCLUDE_META', [], list
+        )
         
         # Get Redis connection pool
         try:
