@@ -22,15 +22,6 @@ from typing import Set
 from crawlo.checkpoint.manager import CheckpointManager
 from crawlo.checkpoint.storage import BaseStorage, JsonStorage, SqliteStorage
 
-# 确保主线程有可用事件循环：
-# 其他测试（如 test_backpressure_fixes 的 asyncio.run）可能在 pytest 进程内清空
-# 主线程循环，而本模块用 get_event_loop()，无 loop 时在 Python 3.10+ 会抛 RuntimeError。
-try:
-    asyncio.get_event_loop()
-except RuntimeError:
-    asyncio.set_event_loop(asyncio.new_event_loop())
-
-
 class TestJsonStorage(unittest.TestCase):
     """测试 JSON 存储后端"""
 
@@ -299,12 +290,6 @@ class TestCheckpointManager(unittest.TestCase):
             spider_name='test_spider',
             settings=self.settings
         )
-        # 确保本测试有可用事件循环（前面测试可能用 asyncio.run 清空主线程循环）
-        try:
-            asyncio.get_event_loop()
-        except RuntimeError:
-            asyncio.set_event_loop(asyncio.new_event_loop())
-
     def tearDown(self):
         """测试后清理临时目录"""
         if os.path.exists(self.test_dir):
@@ -340,8 +325,7 @@ class TestCheckpointManager(unittest.TestCase):
         mock_stats.get_stats.return_value = {'scraped': 100, 'failed': 5}
 
         # 保存
-        import asyncio
-        result = asyncio.get_event_loop().run_until_complete(
+        result = asyncio.run(
             self.manager.save(scheduler=mock_scheduler, stats=mock_stats)
         )
         self.assertTrue(result)
@@ -350,7 +334,7 @@ class TestCheckpointManager(unittest.TestCase):
         self.assertTrue(self.manager.storage.exists())
 
         # 加载
-        loaded = asyncio.get_event_loop().run_until_complete(
+        loaded = asyncio.run(
             self.manager.load()
         )
         self.assertIsNotNone(loaded)
@@ -363,7 +347,7 @@ class TestCheckpointManager(unittest.TestCase):
         import asyncio
 
         # 初始状态：不存在
-        result = asyncio.get_event_loop().run_until_complete(
+        result = asyncio.run(
             self.manager.has_checkpoint()
         )
         self.assertFalse(result)
@@ -378,7 +362,7 @@ class TestCheckpointManager(unittest.TestCase):
             'stats': {}
         })
 
-        result = asyncio.get_event_loop().run_until_complete(
+        result = asyncio.run(
             self.manager.has_checkpoint()
         )
         self.assertTrue(result)
@@ -398,7 +382,7 @@ class TestCheckpointManager(unittest.TestCase):
         })
 
         # 清除
-        result = asyncio.get_event_loop().run_until_complete(
+        result = asyncio.run(
             self.manager.clear()
         )
         self.assertTrue(result)
@@ -413,7 +397,7 @@ class TestCheckpointManager(unittest.TestCase):
         mock_queue_manager.size.return_value = 0
         mock_scheduler.queue_manager = mock_queue_manager
 
-        result = asyncio.get_event_loop().run_until_complete(
+        result = asyncio.run(
             self.manager._extract_pending_requests(mock_scheduler)
         )
         self.assertEqual(result, [])
@@ -439,7 +423,7 @@ class TestCheckpointManager(unittest.TestCase):
         mock_scheduler.queue_manager = mock_queue_manager
         mock_scheduler.request_serializer = None
 
-        result = asyncio.get_event_loop().run_until_complete(
+        result = asyncio.run(
             self.manager._extract_pending_requests(mock_scheduler)
         )
 

@@ -87,6 +87,20 @@ class MemoryProfiler:
         if len(self.snapshots) < 2:
             return 0.0
         return self.snapshots[-1]['memory_mb'] - self.snapshots[0]['memory_mb']
+
+    def get_tracemalloc_growth(self) -> float:
+        """获取 Python 堆内存增长 (MB, tracemalloc)。
+
+        RSS 受分配器/OS 影响（Python 3.12+ 释放的 arena 不归还 OS，RSS 虚高），
+        泄漏判断应使用 tracemalloc 的精确堆度量。
+        """
+        if len(self.snapshots) < 2:
+            return 0.0
+        first = self.snapshots[0].get('tracemalloc_current_mb')
+        last = self.snapshots[-1].get('tracemalloc_current_mb')
+        if first is None or last is None:
+            return 0.0
+        return last - first
     
     def get_gc_object_growth(self) -> int:
         """获取 GC 对象增长"""
@@ -103,6 +117,7 @@ class MemoryProfiler:
             'initial_memory_mb': self.snapshots[0]['memory_mb'],
             'final_memory_mb': self.snapshots[-1]['memory_mb'],
             'memory_growth_mb': self.get_memory_growth(),
+            'tracemalloc_growth_mb': self.get_tracemalloc_growth(),
             'initial_gc_objects': self.snapshots[0]['gc_count'],
             'final_gc_objects': self.snapshots[-1]['gc_count'],
             'gc_object_growth': self.get_gc_object_growth(),
@@ -335,9 +350,10 @@ class TestItemMemoryLeak:
         self.profiler.take_snapshot("after_deletion")
         
         report = self.profiler.report()
-        memory_growth = report['memory_growth_mb']
+        # tracemalloc 精确堆度量优先（RSS 在 3.12+ 不归还 OS，虚高）
+        memory_growth = report.get('tracemalloc_growth_mb', report['memory_growth_mb'])
         
-        assert memory_growth < 30, f"动态字段泄漏: 增长 {memory_growth:.2f} MB"
+        assert memory_growth < 30, f"动态字段泄漏: 增长 {memory_growth:.2f} MB (tracemalloc)"
 
 
 class TestQueueMemoryLeak:

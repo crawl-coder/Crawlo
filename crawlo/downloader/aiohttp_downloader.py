@@ -23,7 +23,7 @@ except ImportError:
     except ImportError:
         import base64 as _base64
 
-        def encode_basic_auth(username: str, password: str = "") -> str:
+        def encode_basic_auth(username: str, password: str) -> str:
             """兼容旧版 aiohttp：手动构造 Basic Auth header 值。"""
             token = _base64.b64encode(
                 f"{username}:{password}".encode("utf-8")
