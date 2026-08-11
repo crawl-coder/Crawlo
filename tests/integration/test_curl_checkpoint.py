@@ -414,8 +414,9 @@ def test_checkpoint_manager_sqlite_backend():
         shutil.rmtree(tmpdir, ignore_errors=True)
 
 
+@pytest.mark.realsite
 def test_shell_from_curl():
-    """测试 Shell 的 from_curl 方法"""
+    """测试 Shell 的 from_curl 方法（真实抓取 example.com，CI 跳过）"""
     from crawlo.commands.shell_core import CrawloShell
     
     shell = CrawloShell()
