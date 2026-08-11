@@ -9,6 +9,7 @@ import os
 import sys
 import shutil
 import tempfile
+import pytest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -984,8 +985,9 @@ def test_shell_from_curl_updates_namespace():
     print("✅ Shell from_curl 命名空间更新测试通过")
 
 
+@pytest.mark.realsite
 def test_shell_from_curl_with_network():
-    """测试 from_curl 真实网络请求"""
+    """依赖外网 httpbin.org 的真实抓取"""
     from crawlo.commands.shell_core import CrawloShell
     
     shell = CrawloShell()
@@ -1064,6 +1066,7 @@ def test_cli_shell_url_arg():
 # ==================== 端到端集成测试 ====================
 
 
+@pytest.mark.realsite
 def test_e2e_curl_to_request_to_checkpoint():
     """端到端：curl 命令 -> Request -> 序列化 -> 检查点保存 -> 加载 -> 恢复"""
     from crawlo.utils.parsing import CurlParser
@@ -1123,6 +1126,7 @@ def test_e2e_curl_to_request_to_checkpoint():
         shutil.rmtree(tmpdir, ignore_errors=True)
 
 
+@pytest.mark.realsite
 def test_e2e_curl_to_shell_fetch():
     """端到端：curl 命令 -> Shell from_curl -> 抓取 -> 选择器"""
     from crawlo.commands.shell_core import CrawloShell
@@ -1150,6 +1154,7 @@ def test_e2e_curl_to_shell_fetch():
             pass
 
 
+@pytest.mark.realsite
 def test_e2e_curl_post_json_to_shell():
     """端到端：POST JSON curl -> Shell from_curl"""
     from crawlo.commands.shell_core import CrawloShell

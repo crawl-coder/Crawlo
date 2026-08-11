@@ -2,7 +2,8 @@
 # -*- coding: UTF-8 -*-
 import sys
 import os
-sys.path.insert(0, "/Users/oscar/projects/Crawlo")
+import pytest
+pytestmark = pytest.mark.realsite  # 依赖外网真实站点（CI 跳过，本地可跑）
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """

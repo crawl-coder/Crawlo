@@ -9,6 +9,8 @@ import sys
 import os
 import asyncio
 import time
+import pytest
+pytestmark = pytest.mark.realsite  # 依赖外网真实站点（CI 跳过，本地可跑）
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
 from crawlo.spider import Spider

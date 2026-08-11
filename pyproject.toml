@@ -23,6 +23,7 @@ filterwarnings = [
 ]
 markers = [
     "browser: heavy browser / live-network integration tests (skipped in CI)",
+    "realsite: 依赖外网真实站点的测试（CI 跳过，本地可跑）",
 ]
 
 [tool.ruff.lint.per-file-ignores]

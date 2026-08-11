@@ -10,6 +10,8 @@ import time
 import sys
 import os
 from pathlib import Path
+import pytest
+pytestmark = pytest.mark.realsite  # 依赖外网真实站点（CI 跳过，本地可跑）
 
 # 添加项目根目录到 Python 路径
 project_root = Path(__file__).parent.parent

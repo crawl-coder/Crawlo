@@ -16,6 +16,7 @@ import sys
 import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
+import pytest
 import unittest
 import re
 from w3lib.encoding import html_to_unicode
@@ -238,6 +239,7 @@ class TestCrawloVsScrapy(unittest.TestCase):
             print(f"    Crawlo: enc={crawlo_enc:12s} mojibake={crawlo_moji}")
 
 
+@pytest.mark.realsite
 class TestRealWorldOFWeek(unittest.TestCase):
     """真实 OFWeek 页面对比测试"""
 
