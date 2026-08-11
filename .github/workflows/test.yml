@@ -33,13 +33,17 @@ jobs:
         # 最旧支持版本 / 主流版本 / 最新版本（3.11/3.13 与相邻版本行为一致，不重复跑全量）
         # 3.14 已修复：签名哈希跨版本归一化 + asyncio.iscoroutinefunction 弃用替换
         python-version: ["3.10", "3.12", "3.14"]
+        include:
+          # coverage 门槛与版本无关，只在 3.12 一份即可（省去 3.10/3.14 的重复采集开销）
+          - python-version: "3.12"
+            coverage: true
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v7
         with:
           python-version: ${{ matrix.python-version }}
           cache: pip
@@ -58,13 +62,18 @@ jobs:
           # pytest-timeout：单用例超时保护，防止个别环境导致的挂起拖死整个 job
           pip install pytest pytest-asyncio pytest-cov pytest-timeout
 
-      - name: Run unit + arch tests with coverage
+      - name: Run unit + arch tests
+        env:
+          COVERAGE: ${{ matrix.coverage }}
         run: |
-          # coverage 门槛（tests/arch/test_coverage_gate.py）依赖本 job 的实时覆盖率
+          # coverage 门槛（tests/arch/test_coverage_gate.py）依赖实时覆盖率，
+          # 仅 3.12 开启（matrix.coverage=true），其余版本跳过以节省时间
+          COV_FLAG=""
+          if [ "$COVERAGE" = "true" ]; then COV_FLAG="--cov=crawlo"; fi
           python -m pytest \
             tests/unit tests/arch \
             -m "not browser" \
-            --cov=crawlo \
+            $COV_FLAG \
             --timeout=300 \
             -q --tb=short
 
@@ -86,10 +95,10 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Set up Python 3.12
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v7
         with:
           python-version: "3.12"
           cache: pip
@@ -113,8 +122,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
       - name: Install tools
@@ -138,8 +147,8 @@ jobs:
     # PR 合入 main + 版本 tag 推送时强制发布纪律检查
     if: github.event_name == 'pull_request' || startsWith(github.ref, 'refs/tags/v')
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
       - name: Install package
