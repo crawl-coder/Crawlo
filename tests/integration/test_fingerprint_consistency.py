@@ -1,19 +1,12 @@
-# BROKEN: Phase 0.0 TEMPORARY EXCLUDED from pytest collection (pre-existing bug, NOT caused by refactor). Fix then remove top comment + pyproject.toml collect_ignore entry.
-# Reason (from last pytest collect): see git log / earlier test run for details
-
 #!/usr/bin/python
 # -*- coding: UTF-8 -*-
-import sys
-import os
-sys.path.insert(0, "/Users/oscar/projects/Crawlo")
-#!/usr/bin/python
-# -*- coding:UTF-8 -*-
 """
 指纹一致性测试
 ==============
 验证框架中各组件对相同数据生成一致的指纹
 """
 
+import pytest
 import unittest
 from unittest.mock import Mock
 
@@ -21,6 +14,8 @@ from crawlo import Item
 from crawlo.pipelines.dedup.memory import MemoryDedupPipeline
 from crawlo.pipelines.dedup.redis import RedisDedupPipeline
 from crawlo.pipelines.dedup.bloom import BloomDedupPipeline
+# MySQL 去重管道依赖 asyncmy（database extra，CI 基础安装不含）；缺失时跳过本模块
+pytest.importorskip("asyncmy")
 from crawlo.pipelines.dedup.mysql import DatabaseDedupPipeline
 from crawlo.utils.request.fingerprint import FingerprintGenerator
 

@@ -45,7 +45,8 @@ jobs:
           # 不装 [all]：playwright/camoufox/cloakbrowser 等重型浏览器依赖在 CI 中
           # 需额外下载二进制，且核心单元测试不依赖它们。
           pip install -e ".[monitoring,mcp,sqlite]"
-          pip install pytest pytest-asyncio pytest-cov ruff mypy bandit
+          # ruff/mypy/bandit 在独立的 lint job 运行，test job 不需要
+          pip install pytest pytest-asyncio pytest-cov
 
       - name: Run full test suite with coverage
         run: |
@@ -56,7 +57,7 @@ jobs:
             -q --tb=short
 
       - name: Upload coverage report
-        if: always()
+        if: success()
         uses: actions/upload-artifact@v4
         with:
           name: coverage-report

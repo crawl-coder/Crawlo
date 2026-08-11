@@ -15,6 +15,7 @@
 import sys
 import os
 import unittest
+import pytest
 from unittest.mock import Mock, MagicMock, AsyncMock, patch
 
 # 添加项目根目录到路径
@@ -212,6 +213,7 @@ class TestDownloaderStealthConfig(unittest.TestCase):
     
     def test_playwright_stealth_level_config(self):
         """测试 Playwright stealth_level 配置"""
+        pytest.importorskip("playwright")
         from crawlo.downloader.playwright_downloader import PlaywrightDownloader
         
         # 测试 stealth_level 为 none
@@ -257,6 +259,7 @@ class TestDownloaderStealthConfig(unittest.TestCase):
     
     def test_drissionpage_stealth_level_config(self):
         """测试 DrissionPage stealth_level 配置"""
+        pytest.importorskip("DrissionPage")
         from crawlo.downloader.drissionpage_downloader import DrissionPageDownloader
         
         mock_crawler = Mock()

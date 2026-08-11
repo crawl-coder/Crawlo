@@ -9,6 +9,7 @@ import pytest
 import asyncio
 import json
 import csv
+import importlib.util
 import types
 from pathlib import Path
 from unittest.mock import Mock, AsyncMock, patch, MagicMock
@@ -463,6 +464,10 @@ class TestBloomDedupPipeline:
 # 8. MySQLDedupPipeline
 # ═══════════════════════════════════════════════════
 
+@pytest.mark.skipif(
+    importlib.util.find_spec("asyncmy") is None,
+    reason="requires asyncmy（database extra，CI 基础安装不含）",
+)
 class TestMySQLDedupPipeline:
     """MySQL 去重管道"""
 

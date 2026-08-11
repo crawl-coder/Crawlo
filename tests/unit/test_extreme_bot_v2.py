@@ -7,6 +7,9 @@ import json
 import time
 import pytest
 from unittest.mock import Mock, patch, MagicMock
+# 可选依赖守卫：通知通道运行时使用 httpx（框架核心依赖），requests 仅本测试
+# 用作异常类型来源；CI 基础安装不含 requests，缺失时跳过本模块而非收集报错。
+pytest.importorskip("requests")
 import requests.exceptions
 
 from crawlo.extensions.notifications.core.models import NotificationMessage, NotificationResponse, NotificationType, ChannelType

@@ -88,7 +88,7 @@ class TestBotNotificationExtremeScenarios:
 
     def test_api_timeout_retry(self):
         """测试: API 超时处理 (渠道不重试,直接返回错误)"""
-        import requests.exceptions
+        import httpx
 
         channel = DingTalkChannel()
         channel.webhook_url = "http://example.com/webhook"
@@ -102,7 +102,7 @@ class TestBotNotificationExtremeScenarios:
 
         with patch(
             "crawlo.extensions.notifications.channels.dingtalk._HTTP_CLIENT.post",
-            side_effect=requests.exceptions.Timeout("Connection timed out"),
+            side_effect=httpx.TimeoutException("Connection timed out"),
         ):
             response = channel.send(msg)
             # 渠道不重试,捕获异常并返回错误响应
@@ -156,7 +156,7 @@ class TestBotNotificationExtremeScenarios:
 
     def test_webhook_ssl_certificate_error(self):
         """测试: SSL 证书错误"""
-        import requests.exceptions
+        import httpx
 
         channel = DingTalkChannel()
         channel.webhook_url = "https://expired.badssl.com/webhook"
@@ -169,7 +169,7 @@ class TestBotNotificationExtremeScenarios:
         )
 
         with patch("crawlo.extensions.notifications.channels.dingtalk._HTTP_CLIENT.post") as mock_post:
-            mock_post.side_effect = requests.exceptions.SSLError(
+            mock_post.side_effect = httpx.ConnectError(
                 "SSL: CERTIFICATE_VERIFY_FAILED"
             )
 
@@ -326,13 +326,13 @@ class TestBotNotificationExtremeScenarios:
 
     def test_notification_circuit_breaker(self):
         """测试: 连续失败处理 (无熔断器,每次都尝试发送)"""
-        import requests.exceptions
+        import httpx
 
         channel = DingTalkChannel()
         channel.webhook_url = "http://example.com/webhook"
 
         with patch("crawlo.extensions.notifications.channels.dingtalk._HTTP_CLIENT.post") as mock_post:
-            mock_post.side_effect = requests.exceptions.ConnectionError("Connection refused")
+            mock_post.side_effect = httpx.ConnectError("Connection refused")
 
             # 连续发送 10 次
             failed_count = 0
@@ -462,7 +462,7 @@ class TestBotNotificationExtremeScenarios:
 
     def test_notification_network_partition(self):
         """测试: 网络分区 (DNS 解析失败)"""
-        import requests.exceptions
+        import httpx
 
         channel = DingTalkChannel()
         channel.webhook_url = "http://nonexistent.invalid.domain.webhook/webhook"
@@ -475,7 +475,7 @@ class TestBotNotificationExtremeScenarios:
         )
 
         with patch("crawlo.extensions.notifications.channels.dingtalk._HTTP_CLIENT.post") as mock_post:
-            mock_post.side_effect = requests.exceptions.ConnectionError(
+            mock_post.side_effect = httpx.ConnectError(
                 "Name or service not known"
             )
 

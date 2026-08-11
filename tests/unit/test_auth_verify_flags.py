@@ -14,6 +14,7 @@ from crawlo import Request
 from crawlo.items import Item, Field
 from crawlo.http.response import Response
 from crawlo.core.engine import Engine
+from crawlo.downloader.aiohttp_downloader import AioHttpDownloader, encode_basic_auth
 
 
 # ============================================================
@@ -176,25 +177,23 @@ async def test_httpx_verify_default():
 # 4. aiohttp_downloader auth/verify kwargs
 # ============================================================
 async def test_aiohttp_auth_kwargs():
-    """aiohttp 下载器传递 request.auth 到 kwargs（BasicAuth 包装）"""
-    print("\n[TEST 6] aiohttp 下载器 — auth 传递（BasicAuth 适配）")
+    """aiohttp 下载器：request.auth(tuple) 转为 Authorization header（不用已弃用的 BasicAuth）"""
+    print("\n[TEST 6] aiohttp 下载器 — auth 传递（Authorization header 适配）")
 
     request = Request(url="http://api.example.com", auth=("api_user", "api_key"))
-    kwargs: dict = {"headers": {}, "cookies": {}, "allow_redirects": True}
+    captured: dict = {}
 
-    # aiohttp 中新增的 auth 逻辑
-    if request.auth:
-        from aiohttp import BasicAuth as AioBasicAuth
-        if isinstance(request.auth, (list, tuple)) and len(request.auth) == 2:
-            kwargs["auth"] = AioBasicAuth(*request.auth)
-        else:
-            kwargs["auth"] = request.auth
+    class _FakeSession:
+        async def get(self, url, **kwargs):
+            captured["kwargs"] = kwargs
+            return "ok"
 
-    from aiohttp import BasicAuth
-    assert isinstance(kwargs["auth"], BasicAuth), f"Expected BasicAuth, got {type(kwargs['auth'])}"
-    assert kwargs["auth"].login == "api_user"
-    assert kwargs["auth"].password == "api_key"
-    print("  ✅ aiohttp auth 正确转换为 BasicAuth")
+    await AioHttpDownloader._send_request(_FakeSession(), request)
+
+    headers = captured["kwargs"]["headers"]
+    assert headers["Authorization"] == encode_basic_auth("api_user", "api_key")
+    assert "auth" not in captured["kwargs"], "aiohttp 3.14+ 不应再传已弃用的 auth 参数"
+    print("  ✅ aiohttp auth 正确转为 Authorization header")
 
 
 async def test_aiohttp_verify_kwargs():
@@ -280,17 +279,17 @@ async def test_auth_verify_flags_combined_request():
     assert httpx_kwargs["auth"] == ("admin", "s3cret")
     assert httpx_kwargs["verify"] is False
 
-    # 验证 aiohttp kwargs（模拟）
-    aiohttp_kwargs: dict = {"headers": {}, "cookies": {}, "allow_redirects": True}
-    if req.auth:
-        from aiohttp import BasicAuth as AioBasicAuth
-        if isinstance(req.auth, (list, tuple)) and len(req.auth) == 2:
-            aiohttp_kwargs["auth"] = AioBasicAuth(*req.auth)
-    if not req.verify:
-        aiohttp_kwargs["ssl"] = False
+    # 验证 aiohttp kwargs（真实 _send_request 行为）
+    aiohttp_captured: dict = {}
 
-    assert aiohttp_kwargs["auth"].login == "admin"
-    assert aiohttp_kwargs["auth"].password == "s3cret"
+    class _FakeAiohttpSession:
+        async def get(self, url, **kwargs):
+            aiohttp_captured["kwargs"] = kwargs
+            return "ok"
+
+    await AioHttpDownloader._send_request(_FakeAiohttpSession(), req)
+    aiohttp_kwargs = aiohttp_captured["kwargs"]
+    assert aiohttp_kwargs["headers"]["Authorization"] == encode_basic_auth("admin", "s3cret")
     assert aiohttp_kwargs["ssl"] is False
 
     print("  ✅ 组合请求全部正确")

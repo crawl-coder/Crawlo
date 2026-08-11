@@ -44,7 +44,9 @@ omit = [
     "crawlo/cli.py",
 ]
 dynamic_context = "test_function"
-concurrency = ["thread", "greenlet", "multiprocessing"]
+# crawlo/tests 均未使用 greenlet/gevent；greenlet 曾导致 CI 在缺模块时
+# 启动即 ConfigError（Couldn't trace with concurrency=greenlet），已移除。
+concurrency = ["thread", "multiprocessing"]
 
 [tool.coverage.report]
 # 百分号整数 + 未覆盖行号，便于从终端日志看到缺口

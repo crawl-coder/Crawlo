@@ -12,8 +12,23 @@ from aiohttp import (
     ClientTimeout,
     ClientResponse,
     ClientError,
-    BasicAuth,
 )
+
+try:
+    # aiohttp >= 3.14 提供顶层 encode_basic_auth（BasicAuth 已弃用）
+    from aiohttp import encode_basic_auth
+except ImportError:
+    try:
+        from aiohttp.helpers import encode_basic_auth  # type: ignore[no-redef]
+    except ImportError:
+        import base64 as _base64
+
+        def encode_basic_auth(username: str, password: str = "") -> str:
+            """兼容旧版 aiohttp：手动构造 Basic Auth header 值。"""
+            token = _base64.b64encode(
+                f"{username}:{password}".encode("utf-8")
+            ).decode("ascii")
+            return f"Basic {token}"
 
 from crawlo.http.response import Response
 from crawlo.logging import get_logger
@@ -358,7 +373,10 @@ class AioHttpDownloader(DownloaderBase):
         # Per-request auth: HTTP Basic Auth
         if request.auth:
             if isinstance(request.auth, (list, tuple)) and len(request.auth) == 2:
-                kwargs["auth"] = BasicAuth(*request.auth)
+                # aiohttp 3.14+ 弃用 BasicAuth：直接构造 Authorization header
+                headers = dict(kwargs.get("headers") or {})
+                headers["Authorization"] = encode_basic_auth(*request.auth)
+                kwargs["headers"] = headers
             else:
                 kwargs["auth"] = request.auth
 
@@ -368,7 +386,6 @@ class AioHttpDownloader(DownloaderBase):
 
         # 处理代理（由 ProxyMiddleware 分配）
         proxy = getattr(request, "proxy", None)
-        proxy_auth = None
 
         if proxy:
             # 兼容字典格式：{"http": "...", "https": "..."}
@@ -385,14 +402,16 @@ class AioHttpDownloader(DownloaderBase):
 
                 # 提取认证信息
                 if proxy_url.user and proxy_url.password:
-                    proxy_auth = BasicAuth(proxy_url.user, proxy_url.password)
                     proxy = str(proxy_url.with_user(None))
+                    headers = dict(kwargs.get("headers") or {})
+                    headers["Proxy-Authorization"] = encode_basic_auth(
+                        proxy_url.user, proxy_url.password
+                    )
+                    kwargs["headers"] = headers
                 else:
                     proxy = str(proxy_url)
 
                 kwargs["proxy"] = proxy
-                if proxy_auth:
-                    kwargs["proxy_auth"] = proxy_auth
 
             except Exception as e:
                 raise ValueError(f"Invalid proxy URL: {proxy}") from e
@@ -403,7 +422,9 @@ class AioHttpDownloader(DownloaderBase):
             username = meta_proxy_auth.get("username")
             password = meta_proxy_auth.get("password")
             if username and password:
-                kwargs["proxy_auth"] = BasicAuth(username, password)
+                headers = dict(kwargs.get("headers") or {})
+                headers["Proxy-Authorization"] = encode_basic_auth(username, password)
+                kwargs["headers"] = headers
 
         # 处理请求体
         if hasattr(request, "_json_body") and request._json_body is not None:

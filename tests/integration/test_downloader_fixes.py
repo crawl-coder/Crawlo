@@ -8,12 +8,9 @@ Tests for all P0-P2 fixes in the downloader module.
 import asyncio
 import platform
 import sys
+import pytest
 from typing import Any, Dict
 from unittest.mock import Mock, MagicMock, AsyncMock
-
-# Add project root to path
-sys.path.insert(0, '/Users/dowell/others/Crawlo')
-
 
 def test_p0_1_activate_request_manager_type_annotation():
     """P0-1: Test ActivateRequestManager._active has correct type annotation"""
@@ -145,6 +142,7 @@ def test_p1_4_happy_eyeballs_function():
 
 def test_p1_5_drissionpage_exception_logging():
     """P1-5: Test DrissionPageDownloader exception handler has debug log"""
+    pytest.importorskip("DrissionPage")
     from crawlo.downloader.drissionpage_downloader import DrissionPageDownloader
     import inspect
     
