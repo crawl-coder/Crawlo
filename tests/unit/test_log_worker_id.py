@@ -20,7 +20,7 @@ LOG_FILE_WORKER_ID 动态更新测试
 
 import logging
 import os
-import time
+from datetime import datetime, timedelta
 from logging.handlers import TimedRotatingFileHandler
 from unittest.mock import MagicMock
 
@@ -274,12 +274,14 @@ def test_log_manager_api_integrity():
 
 def test_cleanup_old_logs_removes_expired_only(tmp_path):
     """cleanup_old_logs 只清理过期文件，保留新文件（引擎关闭路径）。"""
-    old = tmp_path / "old_20260505_171709.log"
-    recent = tmp_path / "recent_20260811_120000.log"
+    # 相对当前时间生成文件名，避免硬编码日期在跨天后变成"过期文件"
+    now = datetime.now()
+    old_name = f"old_{(now - timedelta(days=30)).strftime('%Y%m%d_%H%M%S')}.log"
+    recent_name = f"recent_{(now - timedelta(hours=1)).strftime('%Y%m%d_%H%M%S')}.log"
+    old = tmp_path / old_name
+    recent = tmp_path / recent_name
     old.write_text("old", encoding="utf-8")
     recent.write_text("recent", encoding="utf-8")
-    old_mtime = time.time() - 3 * 86400
-    os.utime(old, (old_mtime, old_mtime))
 
     deleted = LogManager().cleanup_old_logs(log_dir=str(tmp_path), days=1)
     assert deleted == 1

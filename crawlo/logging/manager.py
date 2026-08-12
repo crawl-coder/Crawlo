@@ -167,7 +167,8 @@ class LogManager(metaclass=SingletonMeta):
         deleted_count = 0
 
         # Match timestamp in filename: ofweek_standalone_20260505_171709.log
-        time_pattern = re.compile(r'_(\d{8})_\d{6}\.log$')
+        # 解析完整日期+时间，避免把"昨天 23:59"的日志在零点后误判为过期
+        time_pattern = re.compile(r'_(\d{8})_(\d{6})\.log$')
 
         try:
             for filename in os.listdir(log_dir):
@@ -183,7 +184,9 @@ class LogManager(metaclass=SingletonMeta):
                 if match:
                     try:
                         # Use local timezone to parse filename timestamp
-                        file_date = datetime.strptime(match.group(1), '%Y%m%d')
+                        file_date = datetime.strptime(
+                            match.group(1) + match.group(2), '%Y%m%d%H%M%S'
+                        )
                         local_tz = datetime.now().astimezone().tzinfo
                         file_date = file_date.replace(tzinfo=local_tz)
                         file_mtime = file_date.timestamp()
