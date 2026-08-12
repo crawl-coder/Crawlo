@@ -1,0 +1,7 @@
+# CI 测试工具固定版本（可复现门禁）
+# 升级策略：显式修改版本号 → 本地验证 → 合入，避免"最新版突发破坏 CI"。
+# 库依赖（aiohttp/httpx 等）保持不锁，故意用最新版提前暴露兼容问题。
+pytest==9.1.1
+pytest-asyncio==1.4.0
+pytest-cov==7.1.0
+pytest-timeout==2.4.0
