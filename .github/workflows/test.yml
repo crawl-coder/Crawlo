@@ -118,7 +118,8 @@ jobs:
         with:
           python-version: "3.12"
       - name: Install tools
-        run: pip install -r requirements-ci-lint.txt
+        # lint 工具用法窄且 job 仅 20s，保持最新版即可（破坏成本低）
+        run: pip install ruff mypy bandit
       - name: Ruff (pyflakes real-bug rules)
         run: ruff check crawlo --select F --ignore F821
       - name: Bandit security scan
