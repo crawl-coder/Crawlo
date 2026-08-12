@@ -162,7 +162,7 @@ class TestRequestMemoryLeak:
         
         # 检查内存是否回收
         report = self.profiler.report()
-        memory_growth = report['memory_growth_mb']
+        memory_growth = report.get('tracemalloc_growth_mb', report['memory_growth_mb'])
         
         # 内存增长应该小于 200MB (允许一定的 GC 延迟，macOS 下 RSS 不会立即释放)
         assert memory_growth < 200, f"内存泄漏: 增长 {memory_growth:.2f} MB"
@@ -195,7 +195,7 @@ class TestRequestMemoryLeak:
         self.profiler.take_snapshot("after_deletion")
         
         report = self.profiler.report()
-        memory_growth = report['memory_growth_mb']
+        memory_growth = report.get('tracemalloc_growth_mb', report['memory_growth_mb'])
         
         # 应该完全回收
         assert memory_growth < 10, f"内存泄漏: 增长 {memory_growth:.2f} MB"
@@ -261,7 +261,7 @@ class TestRequestMemoryLeak:
         self.profiler.take_snapshot("after_deletion")
         
         report = self.profiler.report()
-        memory_growth = report['memory_growth_mb']
+        memory_growth = report.get('tracemalloc_growth_mb', report['memory_growth_mb'])
         
         assert memory_growth < 20, f"深拷贝泄漏: 增长 {memory_growth:.2f} MB"
 
@@ -300,7 +300,7 @@ class TestItemMemoryLeak:
         self.profiler.take_snapshot("after_deletion")
         
         report = self.profiler.report()
-        memory_growth = report['memory_growth_mb']
+        memory_growth = report.get('tracemalloc_growth_mb', report['memory_growth_mb'])
         
         assert memory_growth < 50, f"内存泄漏: 增长 {memory_growth:.2f} MB"
     
@@ -324,7 +324,7 @@ class TestItemMemoryLeak:
         self.profiler.take_snapshot("after_deletion")
         
         report = self.profiler.report()
-        memory_growth = report['memory_growth_mb']
+        memory_growth = report.get('tracemalloc_growth_mb', report['memory_growth_mb'])
         
         assert memory_growth < 150, f"大字段泄漏: 增长 {memory_growth:.2f} MB"
     
@@ -392,7 +392,7 @@ class TestQueueMemoryLeak:
         self.profiler.take_snapshot("after_get")
         
         report = self.profiler.report()
-        memory_growth = report['memory_growth_mb']
+        memory_growth = report.get('tracemalloc_growth_mb', report['memory_growth_mb'])
         
         # 队列应该回到初始状态
         # Windows 内存管理可能不会立即释放,阈值放宽到 200MB
@@ -428,7 +428,7 @@ class TestQueueMemoryLeak:
         self.profiler.take_snapshot("after_get")
         
         report = self.profiler.report()
-        memory_growth = report['memory_growth_mb']
+        memory_growth = report.get('tracemalloc_growth_mb', report['memory_growth_mb'])
         
         # Windows 阈值放宽
         assert memory_growth < 150, f"优先级队列泄漏: 增长 {memory_growth:.2f} MB"
@@ -463,7 +463,7 @@ class TestQueueMemoryLeak:
         self.profiler.take_snapshot("after_concurrent")
         
         report = self.profiler.report()
-        memory_growth = report['memory_growth_mb']
+        memory_growth = report.get('tracemalloc_growth_mb', report['memory_growth_mb'])
         
         # Windows 阈值放宽
         assert memory_growth < 150, f"并发队列泄漏: 增长 {memory_growth:.2f} MB"
@@ -513,7 +513,7 @@ class TestMiddlewareMemoryLeak:
         self.profiler.take_snapshot("after_cleanup")
         
         report = self.profiler.report()
-        memory_growth = report['memory_growth_mb']
+        memory_growth = report.get('tracemalloc_growth_mb', report['memory_growth_mb'])
         
         assert memory_growth < 50, f"重试中间件泄漏: 增长 {memory_growth:.2f} MB"
 
@@ -566,7 +566,7 @@ class TestPipelineMemoryLeak:
         self.profiler.take_snapshot("after_cleanup")
 
         report = self.profiler.report()
-        memory_growth = report['memory_growth_mb']
+        memory_growth = report.get('tracemalloc_growth_mb', report['memory_growth_mb'])
 
         assert memory_growth < 50, f"CSV Pipeline 泄漏: 增长 {memory_growth:.2f} MB"
     
@@ -603,7 +603,7 @@ class TestPipelineMemoryLeak:
         self.profiler.take_snapshot("after_cleanup")
 
         report = self.profiler.report()
-        memory_growth = report['memory_growth_mb']
+        memory_growth = report.get('tracemalloc_growth_mb', report['memory_growth_mb'])
 
         assert memory_growth < 50, f"JSON Pipeline 泄漏: 增长 {memory_growth:.2f} MB"
 
@@ -664,7 +664,7 @@ class TestConcurrentMemoryLeak:
         self.profiler.take_snapshot("after_processing")
         
         report = self.profiler.report()
-        memory_growth = report['memory_growth_mb']
+        memory_growth = report.get('tracemalloc_growth_mb', report['memory_growth_mb'])
         
         assert processed_count == 5000, f"处理数量不匹配: {processed_count}"
         assert memory_growth < 100, f"并发处理泄漏: 增长 {memory_growth:.2f} MB"
