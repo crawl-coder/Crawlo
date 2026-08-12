@@ -1,0 +1,32 @@
+version: 2
+updates:
+  # CI 测试工具锁定文件：只升 pytest 生态，库依赖（requirements.txt / setup.cfg）
+  # 保持最新不锁，故意留给 CI 用最新版提前暴露兼容问题，不在此处自动升级。
+  - package-ecosystem: pip
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "09:00"
+      timezone: Asia/Shanghai
+    allow:
+      - dependency-name: pytest
+      - dependency-name: pytest-asyncio
+      - dependency-name: pytest-cov
+      - dependency-name: pytest-timeout
+    open-pull-requests-limit: 3
+    labels:
+      - dependencies
+      - ci
+
+  # GitHub Actions 版本：跟随上游，避免再次出现 Node 20 弃用这类告警
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "09:00"
+      timezone: Asia/Shanghai
+    labels:
+      - dependencies
+      - ci
