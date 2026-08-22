@@ -1,3 +1,5 @@
+
+
 <p align="center">
   <img src="assets/logo.svg" alt="Crawlo Logo" width="150"/>
 </p>
@@ -45,7 +47,7 @@
 pip install crawlo
 ```
 
-### 2. 创建爬虫
+### 2. 创建项目与爬虫
 ```bash
 crawlo startproject myproject
 cd myproject
