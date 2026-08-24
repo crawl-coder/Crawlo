@@ -131,7 +131,7 @@ class ProxyMiddleware:
                 else:
                     self.stats.inc_value(key, count)
             except Exception:  # pragma: no cover - stats 故障不应影响代理主流程
-                pass
+                self.logger.debug(f"stats inc_value failed: {key}", exc_info=True)
 
     def _is_failed(self, proxy: str) -> bool:
         """是否处于拉黑状态（含 TTL 判定，惰性恢复，B2）"""

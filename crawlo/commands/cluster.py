@@ -13,7 +13,6 @@
 默认连接 redis://127.0.0.1:6379/0，如需自定义用环境变量 REDIS_URL 或 --redis-url：
     crawlo cluster reset map_project map_spider --redis-url redis://user:pass@host:6379/2
 """
-import os
 import sys
 import asyncio
 
