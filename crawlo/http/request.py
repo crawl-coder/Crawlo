@@ -43,6 +43,12 @@ class RequestPriority(IntEnum):
     注意：
         内部存储使用负值是为了兼容 Python 的 heapq（最小堆）。
         用户只需关注传入的正值，框架会自动处理取反逻辑。
+    
+    分布式双档映射（Redis Stream 模式）：
+        URGENT(200) / HIGH(100)   → 高优 Stream（tasks:high）
+        NORMAL / LOW / BACKGROUND → 普通 Stream（tasks）
+        单机模式下五档全部生效；分布式下仅两档物理隔离，
+        同一 Stream 内部仍按优先级顺序出队。
     """
     URGENT = 200       # 紧急任务（最高优先级）
     HIGH = 100         # 高优先级  
@@ -125,7 +131,7 @@ class Request:
             cb_kwargs: 传递给 callback 的额外参数
             cookies: Cookies 字典
             meta: 元数据（跨中间件传递数据）
-            priority: 优先级（数值越小越优先）
+            priority: 优先级（数值越大越优先；内部自动取反存储，见 RequestPriority）
             dont_filter: 是否跳过去重
             timeout: 超时时间（秒）
             proxy: 代理地址，如 http://127.0.0.1:8080

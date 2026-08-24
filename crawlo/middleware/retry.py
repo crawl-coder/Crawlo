@@ -165,7 +165,13 @@ class RetryMiddleware(BaseMiddleware):
             backoff_time = min(2 ** (retry_times - 1), 2 ** (self.max_retry_times - 1))  # Max wait based on max_retry_times
             request_copy.meta['retry_backoff'] = backoff_time
                 
-            request_copy.priority = request.priority + self.retry_priority
+            # 优先级调整：作用于"用户优先级"标度（正值更高；内部存储已取反，
+            # 故此处对内部值做减法 = 对用户值加 retry_priority）。
+            # 负数 = 降低重试优先级（与配置注释一致）。
+            # 注意：当前架构下重试请求由 MiddlewareManager 内存递归重新下载、
+            # 不重新入队，该值仅在副本被再次调度时（如第三方中间件入队、
+            # 检查点恢复）才会被队列消费。
+            request_copy.priority = request.priority - self.retry_priority
             self.stats.inc_value("retry_count")
             # Add retry flag for statistics identification
             request_copy.meta['is_retry'] = True

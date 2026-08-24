@@ -11,7 +11,7 @@ Request → Retry → Proxy → Header → DynamicRender → Downloader
 Response ← Retry ← Proxy ← Header ← DynamicRender ← Downloader
 ```
 
-优先级数值越小，越靠外层（越先处理请求、越后处理响应）。
+优先级数值越大，越靠外层（越先处理请求、越后处理响应）。
 
 ## 内置中间件
 
@@ -24,7 +24,7 @@ Response ← Retry ← Proxy ← Header ← DynamicRender ← Downloader
 MAX_RETRY_TIMES = 3 # 最大重试次数
 RETRY_HTTP_CODES = [500, 502, 503] # 触发热重试的状态码
 IGNORE_HTTP_CODES = [404] # 跳过不重试的状态码
-RETRY_PRIORITY = 10 # 重试请求的优先级增量
+RETRY_PRIORITY = -100 # 重试优先级调整（作用于用户优先级：负数=降低；重试默认内存递归执行，不重新排队）
 RETRY_EXCEPTIONS = [] # 自定义异常类型
 ```
 
@@ -34,10 +34,13 @@ RETRY_EXCEPTIONS = [] # 自定义异常类型
 
 ### 2. ProxyMiddleware — 代理处理
 
-自动为请求分配代理，支持静态列表和动态 API。
+自动为请求分配代理，支持静态列表和动态 API。**不在默认装配中**，
+需手动注册后代理配置才生效。
 
 ```python
-PROXY_ENABLED = True
+MIDDLEWARES = {
+    'crawlo.middleware.ProxyMiddleware': 500,
+}
 PROXY_LIST = ["http://proxy1:8080", "http://proxy2:8080"]
 PROXY_API_URL = "http://proxy-api.com/get-proxy"
 ```

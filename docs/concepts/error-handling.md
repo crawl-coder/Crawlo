@@ -369,8 +369,11 @@ TimeoutError: Connection timed out
 # 增加超时时间
 DOWNLOAD_TIMEOUT = 60
 
-# 使用代理
-PROXY_ENABLED = True
+# 启用代理：注册中间件 + 配置代理池
+MIDDLEWARES = {
+    'crawlo.middleware.ProxyMiddleware': 500,
+}
+PROXY_LIST = ['http://proxy1:8080', 'http://proxy2:8080']
 
 # 降低并发
 CONCURRENCY = 4
