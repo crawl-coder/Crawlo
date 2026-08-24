@@ -2,6 +2,9 @@
 
 > 面向生产：代理池怎么接、怎么保持健康、怎么控制成本。
 > 中间件基础配置见 [代理配置](../guides/proxy-guide.md)，本文是运维视角的配套。
+>
+> **前置条件**：需在 `MIDDLEWARES` 中注册 `'crawlo.middleware.ProxyMiddleware'`
+> 后，本文所有行为才生效（该中间件不在默认装配中）。
 
 ## 1. 两种代理模式
 
@@ -24,7 +27,7 @@ PROXY_LIST = [
 
 ```python
 PROXY_API_URL = "https://api.proxy-supplier.com/get"
-PROXY_EXTRACTOR = {"type": "jsonpath", "value": "$.data[0].proxy"}
+PROXY_EXTRACTOR = "proxy"   # 仅支持 JSON 顶层字段名（复杂结构请在网关聚合）
 PROXY_MAX_FAILED_ATTEMPTS = 3
 ```
 
@@ -40,15 +43,17 @@ PROXY_MAX_FAILED_ATTEMPTS = 3
 
 | 行为 | 说明 |
 |---|---|
-| **失败记录**| 请求失败后代理进入 `failed_proxies`，避免立即复用 |
-| **阈值剔除**| 失败 ≥ `PROXY_MAX_FAILED_ATTEMPTS` 后不再选用 |
-| **自动降级**| 全部代理失败 → 直连（不中断任务） |
-| **恢复机制**| 某代理后续请求成功 → 从失败列表移除 |
+| **失败记录** | 连接类异常（超时/连接错误）及 `403/407/429` 响应计入该代理失败次数 |
+| **阈值剔除** | 失败 ≥ `PROXY_MAX_FAILED_ATTEMPTS` 后不再选用 |
+| **自动恢复** | 拉黑超过 `PROXY_FAILED_TTL`（默认 300 秒）后自动恢复可选 |
+| **自动降级** | 全部代理不可用 → 直连（不中断任务），并记录 stats 指标
+`proxy/direct_downgrade`（建议对该指标配置告警，见下） |
 
 生产建议：
 
 ```python
 PROXY_MAX_FAILED_ATTEMPTS = 3 # 网络抖动容忍度
+PROXY_FAILED_TTL = 300 # 拉黑恢复时间（秒）
 RETRY_HTTP_CODES = [500, 502, 503, 504, 408, 429] # 代理常见错误码走重试
 ```
 
@@ -88,13 +93,26 @@ RETRY_HTTP_CODES = [500, 502, 503, 504, 408, 429] # 代理常见错误码走重�
 | 代理复用 | 对无状态页面可让网关返回同一代理直到失败（会话粘滞） |
 | 监控成本 | 网关记录每次发放/命中/失败，按天汇总费用 |
 
+**框架内建缓存（1.7.5+）**：没有网关时，可让框架直接承担"缓存 + 并发合并"：
+
+```python
+# PROXY_API_TTL > 0 时：TTL 窗口内复用同一次 API 结果，
+# 同一时刻的并发请求合并为一次真实调用（单飞，防惊群）
+PROXY_API_TTL = 60
+```
+
+- 默认 `PROXY_API_TTL = 0`：逐请求实时拉取——**按次轮换供应商保持默认**，
+  否则并发请求会拿到同一出口 IP、失去轮换意义；
+- 包时/固定出口供应商建议 30~60s：显著降低 API 调用量；
+- 失败结果不缓存，下一个请求自动重试；缓存的代理若被拉黑仍走直连降级兜底。
+
 ## 5. 与反爬/动态渲染配合
 
 代理与浏览器下载器组合时注意：
 
 ```python
-# 浏览器下载器同样支持代理
-BROWSER_PROXY = "http://127.0.0.1:7890" # 浏览器走本地代理
+# 浏览器下载器走独立配置键
+CLOAKBROWSER_PROXY = "http://127.0.0.1:7890"       # 浏览器走本地代理
 PROXY_API_URL = "https://api.proxy-supplier.com/get" # HTTP 下载器走代理池
 ```
 
