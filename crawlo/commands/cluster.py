@@ -69,14 +69,12 @@ def _print_usage():
     print("  crawlo cluster shutdown <project> <spider> [--no-cleanup]   通知集群结束（默认清运行数据）")
     print()
     print("公共选项（任一位置可加）:")
-    print("  --redis-url redis://host:port/db                            目标 Redis（默认环境变量 REDIS_URL 或 127.0.0.1:6379/0）")
+    print("  --redis-url redis://host:port/db                            目标 Redis（--redis-url > CRAWLO_REDIS_URL > REDIS_URL > 默认值）")
 
 
 def _extract_redis_url(args):
-    for i, arg in enumerate(args):
-        if arg == "--redis-url" and i + 1 < len(args):
-            return args[i + 1]
-    return os.environ.get("REDIS_URL", "redis://127.0.0.1:6379/0")
+    from crawlo.utils.redis_cli import resolve_redis_url
+    return resolve_redis_url(args)
 
 
 # ----------------------------------------------------------------------

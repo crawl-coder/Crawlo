@@ -49,7 +49,7 @@ def check_redis_connection(settings):
 
         if run_mode == 'distributed' or queue_type == 'redis':
             import redis.asyncio as redis
-            redis_url = settings.get('REDIS_URL', 'redis://127.0.0.1:6379/0')
+            redis_url = os.environ.get("CRAWLO_REDIS_URL") or settings.get('REDIS_URL', 'redis://127.0.0.1:6379/0')
             redis_host = settings.get('REDIS_HOST', '127.0.0.1')
             redis_port = settings.get('REDIS_PORT', 6379)
 

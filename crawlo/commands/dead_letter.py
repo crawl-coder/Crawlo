@@ -14,6 +14,10 @@
                                                                         后台自动化建议用户 cron）
     crawlo dead-letter stats <project> <spider>     查看统计
 
+    全部子命令通用：
+    [--redis-url URL]   目标 Redis（优先级：--redis-url > CRAWLO_REDIS_URL >
+                        REDIS_URL > 默认 redis://127.0.0.1:6379/0）
+
 重放语义：把死信 XADD 回主 Stream（retry_count 归零、剥离死信元数据字段）、
 再从死信 Stream 移除——与 Worker 端死信升级互为逆操作，不重复入队。
 """
@@ -21,6 +25,7 @@ import asyncio
 import sys
 
 from crawlo.logging import get_logger
+from crawlo.utils.redis_cli import resolve_redis_url
 
 logger = get_logger(__name__)
 
@@ -33,21 +38,22 @@ def main(args):
     action = args[1]
     project = args[2] if len(args) > 2 else "default"
     spider = args[3] if len(args) > 3 else "default"
+    redis_url = resolve_redis_url(args)
 
     if action == "list":
-        asyncio.run(_list_dead_letters(project, spider, args))
+        asyncio.run(_list_dead_letters(project, spider, args, redis_url))
     elif action == "retry":
-        asyncio.run(_retry_dead_letters(project, spider, _arg_int(args, "--count", 100)))
+        asyncio.run(_retry_dead_letters(project, spider, _arg_int(args, "--count", 100), redis_url))
     elif action == "replay":
         asyncio.run(_replay_dead_letters(
-            project,
-            spider,
+            project, spider,
             max_per_round=_arg_int(args, "--max-per-round", 100),
             interval=_arg_float(args, "--interval", 0),
             rounds=_arg_int(args, "--rounds", 0),
+            redis_url=redis_url,
         ))
     elif action == "stats":
-        asyncio.run(_show_stats(project, spider))
+        asyncio.run(_show_stats(project, spider, redis_url))
     else:
         _print_usage()
 
@@ -84,6 +90,7 @@ def _print_usage():
     print("      [--max-per-round N] [--interval S] [--rounds N]")
     print("                                                定时重放（默认单轮）")
     print("  crawlo dead-letter stats <project> <spider>   查看统计")
+    print("  [--redis-url URL]  目标 Redis（优先级：--redis-url > CRAWLO_REDIS_URL > REDIS_URL > 默认值）")
 
 
 def _dead_keys(project, spider):
@@ -111,7 +118,7 @@ async def _replay_round(r, project, spider, limit):
     return moved
 
 
-async def _replay_dead_letters(project, spider, max_per_round=100, interval=0, rounds=0):
+async def _replay_dead_letters(project, spider, max_per_round=100, interval=0, rounds=0, redis_url=None):
     """定时重放死信。
 
     - interval<=0：单轮模式（等价旧 retry 行为，参数名更直观）；
@@ -120,7 +127,7 @@ async def _replay_dead_letters(project, spider, max_per_round=100, interval=0, r
     """
     try:
         import redis.asyncio as aioredis
-        r = aioredis.from_url("redis://127.0.0.1:6379/0")
+        r = aioredis.from_url(redis_url or resolve_redis_url())
 
         total = 0
         round_no = 0
@@ -154,7 +161,7 @@ async def _replay_dead_letters(project, spider, max_per_round=100, interval=0, r
         sys.exit(1)
 
 
-async def _list_dead_letters(project, spider, args):
+async def _list_dead_letters(project, spider, args, redis_url=None):
     """查看死信内容"""
     limit = 20
     for i, arg in enumerate(args):
@@ -163,7 +170,7 @@ async def _list_dead_letters(project, spider, args):
 
     try:
         import redis.asyncio as aioredis
-        r = aioredis.from_url("redis://127.0.0.1:6379/0")
+        r = aioredis.from_url(redis_url or resolve_redis_url())
 
         key = f"crawlo:{project}:{spider}:stream:failed"
         length = await r.xlen(key)
@@ -193,11 +200,11 @@ async def _list_dead_letters(project, spider, args):
         sys.exit(1)
 
 
-async def _retry_dead_letters(project, spider, count):
+async def _retry_dead_letters(project, spider, count, redis_url=None):
     """重新入队死信"""
     try:
         import redis.asyncio as aioredis
-        r = aioredis.from_url("redis://127.0.0.1:6379/0")
+        r = aioredis.from_url(redis_url or resolve_redis_url())
 
         dead_key = f"crawlo:{project}:{spider}:stream:failed"
         stream_key = f"crawlo:{project}:{spider}:stream:tasks"
@@ -229,11 +236,11 @@ async def _retry_dead_letters(project, spider, count):
         sys.exit(1)
 
 
-async def _show_stats(project, spider):
+async def _show_stats(project, spider, redis_url=None):
     """显示死信统计"""
     try:
         import redis.asyncio as aioredis
-        r = aioredis.from_url("redis://127.0.0.1:6379/0")
+        r = aioredis.from_url(redis_url or resolve_redis_url())
 
         dead_key = f"crawlo:{project}:{spider}:stream:failed"
         stream_key = f"crawlo:{project}:{spider}:stream:tasks"
