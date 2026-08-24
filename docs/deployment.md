@@ -567,6 +567,8 @@ Crawlo 提供三套生产运维能力：
 crawlo list              # 列出已注册爬虫
 crawlo stats             # 查看统计信息
 crawlo dead-letter list <project> <spider>   # 查看死信
+crawlo dead-letter replay <project> <spider> --max-per-round 100 --interval 300 --rounds 10
+                         # 定时重放死信（回主 Stream、计数归零；默认单轮）
 crawlo check             # 校验项目配置与依赖
 ```
 

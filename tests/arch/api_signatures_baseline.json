@@ -347,7 +347,7 @@
     "process_request": "49a834fc76af8088ace3375a92dbbeb878cffada71d4996c84e7304a89334970"
   },
   "crawlo.middleware.proxy.ProxyMiddleware": {
-    "__init__": "134327eb436eeee2b5ac60c89eb7c2adb37b175c0163a2b40af92765eb19ddb1",
+    "__init__": "37ffee12bf7fe20afddf6459bec38798184f26f07c7e1dffbe433ff7c6cda788",
     "create_instance": "a141372e386c1b3ca3b5a5b19270e5783efe3410816de68564511b70a6fd207c",
     "process_exception": "15431c0e95c8bef91f5172b6773a798a1a5bc18d0a54e0440e5bebcb99471a4e",
     "process_request": "64421e21780dcdfb934aa8294127d80589393ea57b35171ce58dd383ad48f556",

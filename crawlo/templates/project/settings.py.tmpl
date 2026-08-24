@@ -126,7 +126,7 @@ MYSQL_TABLE = '{{project_name}}_data'
 # BROWSER_VIEWPORT_WIDTH = 1280        # 视口宽度
 # BROWSER_VIEWPORT_HEIGHT = 720        # 视口高度
 # BROWSER_MAX_PAGES = 10               # 单浏览器最大页面数
-# BROWSER_PROXY = None                 # 代理设置
+# CLOAKBROWSER_PROXY = None            # 浏览器下载器代理
 # BROWSER_BLOCK_RESOURCES = ["image", "font", "media"]
 # BROWSER_AUTO_SCROLL = False          # 自动滚动
 # BROWSER_SCROLL_DELAY = 500           # 滚动延迟（毫秒）
@@ -175,6 +175,11 @@ MYSQL_TABLE = '{{project_name}}_data'
 # #############################################################################
 # 7. 代理配置
 # #############################################################################
+
+# 前置条件：注册 ProxyMiddleware 后代理配置才生效（见 docs/guides/proxy-guide.md）
+# MIDDLEWARES = {
+#     'crawlo.middleware.ProxyMiddleware': 500,
+# }
 
 # 静态代理
 # PROXY_LIST = ["http://proxy1:8080", "http://proxy2:8080"]

@@ -35,6 +35,7 @@ MEMORY_MONITOR_ENABLED = True # 内存/线程指标（memory_rss_mb 等）
 | | `crawlo_retry_count_total` | 重试次数 | 突增 = 网络/反爬 |
 | **错误**| `crawlo_downloader_exception_count_total` | 下载异常 | 突增 = 站点变化/代理故障 |
 | | `crawlo_response_status_code_5xx_total` | 5xx 计数 | 站点异常 |
+| **代理** | `crawlo_proxy_direct_downgrade_total` | 代理不可用降级直连次数（ProxyMiddleware） | **真实 IP 暴露风险：>0 即应告警并检查代理池** |
 | **资源**| `crawlo_memory_rss_mb` | 进程 RSS | 泄漏检测（配合长跑压测） |
 | | `crawlo_queue_size` | 队列深度 | 背压是否生效 |
 | | `crawlo_queue_pending_count` | Stream 已读未 ACK 消息数（分布式） | **消费积压：持续 >0 说明有 Worker 崩溃或回收未触发** |

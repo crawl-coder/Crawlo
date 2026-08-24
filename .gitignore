@@ -204,3 +204,6 @@ local_config.py
 *.db
 .data
 .data/
+
+# 副业相关内容（接单/数据产品/内容营销素材），不入库
+side-business/

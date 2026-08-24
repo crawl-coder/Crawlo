@@ -16,6 +16,15 @@
 | `crawlo.framework` | `crawlo.crawler.CrawloFramework` | 1.7.x | ≥ 2.0 | sys.modules 重定向 |
 | `crawlo.container` | `crawlo.core.application.ApplicationContext` | 1.7.x | ≥ 2.0 | sys.modules 重定向 |
 | `crawlo/crawler.py` 扁平模块 | `crawlo.crawler` 子包 | 1.7.x | ≥ 1.9 | re-export + DeprecationWarning |
+| `RETRY_PRIORITY` 配置语义（对内部值加法） | 1.7.5 起作用于**用户优先级标度**；1.8.0 引入 `RETRY_QUEUE_MODE=requeue` 后该值被队列真实消费 | 1.7.5 | —（语义修正非移除） | 已修符号 + 注释如实声明"重试默认内存递归不重新入队"，见 `docs/reference/DEPRECATION.md` 本行与 `crawlo/middleware/retry.py` |
+
+> **2026-08-24 RETRY_PRIORITY 说明**：历史实现对已取反的内部优先级做加法，
+> 默认 -100 实际把 NORMAL 重试升级为等效 HIGH（方向与注释相反）——1.7.4
+> 复查发现，1.7.5 修正为作用于用户标度（负数=降低）。因重试请求当前由
+> MiddlewareManager 内存递归重新下载、不重新入队，该配置在 legacy 模式下
+> 不产生队列效果；其完整生效路径（真正重新排队）计划于 **1.8.0**
+> `RETRY_QUEUE_MODE=requeue` 提供。此为语义修正 + 能力补全，不涉及符号移除，
+> 故无"计划移除版本"。
 
 ### 2026-08-10 修复：bot shim 子模块身份一致性
 

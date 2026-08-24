@@ -119,7 +119,7 @@ MYSQL_USE_BATCH = True
 # BROWSER_VIEWPORT_WIDTH = 1280        # 视口宽度
 # BROWSER_VIEWPORT_HEIGHT = 720        # 视口高度
 # BROWSER_MAX_PAGES = 10               # 单浏览器最大页面数
-# BROWSER_PROXY = None                 # 代理设置
+# CLOAKBROWSER_PROXY = None            # 浏览器下载器代理
 # BROWSER_BLOCK_RESOURCES = ["image", "font", "media"]
 # BROWSER_AUTO_SCROLL = False          # 自动滚动
 # BROWSER_SCROLL_DELAY = 500           # 滚动延迟（毫秒）
@@ -184,7 +184,10 @@ HEALTH_CHECK_INTERVAL = 60                              # 每 60 秒上报 Worke
 # 7. 代理配置
 # #############################################################################
 
-# 静态代理
+# 静态代理（需注册中间件后才生效，见 docs/guides/proxy-guide.md）
+# MIDDLEWARES = {
+#     'crawlo.middleware.ProxyMiddleware': 500,
+# }
 # PROXY_LIST = ["http://proxy1:8080", "http://proxy2:8080"]
 
 # 动态代理 API

@@ -273,7 +273,9 @@ USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) ...'
 2. 使用代理
 ```python
 # settings.py
-PROXY_ENABLED = True
+MIDDLEWARES = {
+    'crawlo.middleware.ProxyMiddleware': 500,
+}
 PROXY_LIST = ['http://proxy1:8080']
 ```
 

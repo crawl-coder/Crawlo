@@ -86,8 +86,10 @@ CURL_BROWSER_VERSION_MAP = {
 # 健康检查
 HEALTH_CHECK_INTERVAL = 60
 
-# 代理
-PROXY_ENABLED = False
+# 代理（需注册中间件后才生效，见 docs/guides/proxy-guide.md）
+# MIDDLEWARES = {
+#     'crawlo.middleware.ProxyMiddleware': 500,
+# }
 PROXY_LIST = []
 PROXY_API_URL = ""
 

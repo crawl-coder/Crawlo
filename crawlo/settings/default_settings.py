@@ -202,7 +202,7 @@ DOWNLOAD_RETRY_TIMES = 3                                # 下载重试次数
 # ---------------------------------------------------------------------------#
 
 MAX_RETRY_TIMES = 3                                     # 最大重试次数
-RETRY_PRIORITY = -100                                   # 重试请求优先级调整（负数降低优先级）
+RETRY_PRIORITY = -100                                   # 重试优先级调整（作用于用户优先级：负数=降低；重试默认内存递归不重新排队，详见 retry.py）
 RETRY_HTTP_CODES = [500, 502, 503, 504, 408, 429]       # 需要重试的 HTTP 状态码
 IGNORE_HTTP_CODES = [400, 401, 403, 404, 410]           # 不需要重试的 HTTP 状态码
 RETRY_EXCEPTIONS = []                                   # 额外的自定义重试异常类型列表
@@ -250,7 +250,7 @@ BROWSER_LOAD_TIMEOUT = 10000                            # 页面加载超时（�
 BROWSER_VIEWPORT_WIDTH = 1280                           # 视口宽度
 BROWSER_VIEWPORT_HEIGHT = 720                           # 视口高度
 BROWSER_MAX_PAGES = 10                                  # 单浏览器最大页面数
-BROWSER_PROXY = None                              # 代理设置
+CLOAKBROWSER_PROXY = None                               # 浏览器下载器代理（CloakBrowser/Camoufox/Playwright）
 BROWSER_BLOCK_RESOURCES = ["image", "font", "media"]    # 屏蔽的资源类型
 BROWSER_AUTO_SCROLL = False                             # 是否自动滚动加载更多内容
 BROWSER_SCROLL_DELAY = 500                              # 滚动延迟（毫秒）
@@ -329,7 +329,7 @@ CLOAKBROWSER_USER_DATA_DIR = None                 # 持久化上下文的用户�
 # 4. 中间件配置
 # #############################################################################
 
-# 优先级规则：数值越小，请求阶段越先执行；数值越大，响应阶段越先执行
+# 优先级规则（实际执行序，与洋葱层次一致）：数值越大，请求阶段越先执行；数值越小，响应阶段越先执行
 MIDDLEWARES = {
     # ===== 请求预处理阶段 =====
     'crawlo.middleware.RequestIgnoreMiddleware':               100,
@@ -340,6 +340,11 @@ MIDDLEWARES = {
     'crawlo.middleware.OffsiteMiddleware':                     400,
 
     # ===== 响应处理阶段 =====
+    # ⚠ 响应阶段按优先级【升序】执行（数值小者先处理响应）。以下三者的相对顺序是功能互锁：
+    #   Retry(600) 必须先于 ResponseCode(650) / ResponseFilter(700)——
+    #   可重试状态码（502/503 等）需先被 Retry 截获转重试，
+    #   否则会被"默认仅放行 2xx"的 ResponseFilter 直接丢弃、重试机制失效。
+    #   调整前先阅读 tests/arch/test_middleware_order_contract.py 与 docs/concepts/middleware-chain.md。
     'crawlo.middleware.RetryMiddleware':                       600,
     'crawlo.middleware.ResponseCodeMiddleware':                650,
     'crawlo.middleware.ResponseFilterMiddleware':              700,
@@ -583,8 +588,10 @@ USER_AGENT = (
 
 PROXY_LIST = []                              # 静态代理列表
 PROXY_API_URL = ""                                      # 动态代理 API
-PROXY_EXTRACTOR = "proxy"                               # 代理提取方式：字段名 或 {"type": "jsonpath", "value": "$.data[0].proxy"}
+PROXY_EXTRACTOR = "proxy"                               # 代理提取方式：JSON 响应的顶层字段名（不支持 jsonpath/自定义函数）
 PROXY_MAX_FAILED_ATTEMPTS = 3                           # 代理最大失败尝试次数
+PROXY_FAILED_TTL = 300                                  # 拉黑代理的恢复时间（秒）
+PROXY_API_TTL = 0                                       # 动态代理 API 结果缓存秒数（0=每次请求实时拉取；>0 启用缓存+并发单飞）
 
 # ---------------------------------------------------------------------------#
 # 7.3 域名过滤

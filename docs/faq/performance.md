@@ -220,7 +220,9 @@ RETRY_TIMES = 3
 
 ```python
 # settings.py
-PROXY_ENABLED = True
+MIDDLEWARES = {
+    'crawlo.middleware.ProxyMiddleware': 500,
+}
 PROXY_LIST = ['http://proxy1:8080', 'http://proxy2:8080']
 ```
 

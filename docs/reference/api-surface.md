@@ -396,6 +396,13 @@ MCP 工具（`crawlo-mcp` 暴露，frozen）：
 | 调度器 | `SCHEDULER_*` | 定时任务 |
 | 自适应/检查点 | `ADAPTIVE_*` / `CHECKPOINT_*` | 高级能力 |
 
+> 语义变更注记（详见 [DEPRECATION.md](DEPRECATION.md)）：
+> - **1.7.5**：`RETRY_PRIORITY`（重试组）修正为作用于用户优先级标度
+>   （负数=降低）；legacy 模式下重试内存递归不重新入队，该值暂不被队列消费，
+>   完整生效路径计划于 1.8.0 `RETRY_QUEUE_MODE=requeue`。
+> - **1.7.5**：新增 `PROXY_API_TTL`（组件装配组，PROXY_* 前缀族）——
+>   动态代理 API 结果缓存秒数，默认 0 关闭；>0 启用缓存 + 并发单飞。
+
 ## 18. CLI（`crawlo <command>`）
 
 | 命令 | 模块 | 状态 | 说明 |

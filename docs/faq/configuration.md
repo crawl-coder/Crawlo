@@ -73,33 +73,39 @@ CONCURRENCY = 16
 
 ## 如何配置代理？
 
-### 简单代理
+> 前置条件：代理由 `ProxyMiddleware` 提供，该中间件**不在默认装配中**，
+> 必须在 `MIDDLEWARES` 注册后以下配置才生效。
+
+### 静态代理
 
 ```python
 # settings.py
-PROXY_ENABLED = True
+MIDDLEWARES = {
+    'crawlo.middleware.ProxyMiddleware': 500,
+}
 PROXY_LIST = [
- 'http://proxy1.example.com:8080',
- 'http://proxy2.example.com:8080',
+    'http://proxy1.example.com:8080',
+    'http://proxy2.example.com:8080',
 ]
-PROXY_MODE = 'round-robin' # 轮询
 ```
 
 ### 动态代理
 
 ```python
 # settings.py
-PROXY_ENABLED = True
+MIDDLEWARES = {
+    'crawlo.middleware.ProxyMiddleware': 500,
+}
 PROXY_API_URL = 'https://proxy-api.example.com/get'
-PROXY_API_PARAMS = {'key': 'your_api_key'}
+PROXY_EXTRACTOR = 'proxy' # 从 JSON 响应的 proxy 字段提取
 ```
 
 ### 在请求中使用代理
 
 ```python
 yield Request(
- url='https://example.com',
- meta={'proxy': 'http://proxy:8080'}
+    url='https://example.com',
+    proxy='http://proxy:8080' # 构造参数（非 meta）
 )
 ```
 
