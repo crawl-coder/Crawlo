@@ -116,6 +116,41 @@ yield Request(
 
 ---
 
+## 路由验证矩阵
+
+上述路由行为由四场景端到端测试覆盖
+（`tests/integration/test_hybrid_static_dynamic_matrix.py`），
+每种"列表页/详情页动静组合"都实跑验证：
+
+| 场景 | 列表页 | 详情页 | 实际路由 | 验证点 |
+|------|--------|--------|----------|--------|
+| 1 | 静态 | 动态 | httpx → Playwright | 最常见组合：列表直出链接，详情需 JS 渲染 |
+| 2 | 动态 | 静态 | Playwright → httpx | SPA 列表 + 接口化详情，反向组合 |
+| 3 | 动态 | 动态 | Playwright → Playwright | 懒加载动态下载器复用，全浏览器链路 |
+| 4 | 静态 | 静态 | 纯协议（不触发浏览器） | 确认无动态规则时不初始化浏览器 |
+
+**测试的真实性保证**：mock 站点的动态页内容由页面内同步 JavaScript 注入
+（`<script>` 写入 title），协议下载器抓到的只有空壳——断言 title 前缀
+（`DYN-n` / `STATIC-n`）能真实区分请求走了哪条通道，而非仅"跑通"。
+
+**运行方式**：测试标记为 `browser`（CI 自动跳过），本地需真实浏览器：
+
+```bash
+# 复用系统 Chrome（无需 playwright install）
+PLAYWRIGHT_REAL_CHROME=True python -m pytest \
+    tests/integration/test_hybrid_static_dynamic_matrix.py -k scenario -v
+
+# 单独跑某个场景
+python -m pytest \
+    "tests/integration/test_hybrid_static_dynamic_matrix.py::test_scenario_1_static_list_dynamic_detail" -v
+```
+
+> 场景间通过唯一 spider name 隔离去重指纹：AioRedisFilter 的指纹 key
+> 含 spider name 且持久于 Redis，同 spider 重爬同 URL 会被去重拦截——
+> 这是分布式去重的正确语义，测试与生产同构。
+
+---
+
 ## 协议下载器
 
 ### AioHttpDownloader（默认）
