@@ -145,6 +145,21 @@ python -m pytest \
     "tests/integration/test_hybrid_static_dynamic_matrix.py::test_scenario_1_static_list_dynamic_detail" -v
 ```
 
+**队列正交性**：四场景另以 `test_hybrid_matrix_on_queue` 在内存队列与
+Redis 队列下各跑一遍（4 场景 × 2 队列 = 8 组），全部通过且耗时一致
+（差异由浏览器渲染主导，队列后端不构成可观测影响）——下载层路由决策
+与调度层队列后端完全解耦：
+
+| 场景 | 内存队列 | Redis 队列 |
+|------|---------|-----------|
+| s1 静列动详 | ✅ 1.90s | ✅ 1.95s |
+| s2 动列静详 | ✅ 1.96s | ✅ 1.38s |
+| s3 全动     | ✅ 5.08s | ✅ 5.09s |
+| s4 全静     | ✅ 0.07s | ✅ 0.07s |
+
+> 通过 `CrawlerProcess().crawl(spider, settings={...})` 显式指定的
+> `QUEUE_TYPE` 等框架启动键同样生效（以最高优先级参与框架初始化）。
+
 > 场景间通过唯一 spider name 隔离去重指纹：AioRedisFilter 的指纹 key
 > 含 spider name 且持久于 Redis，同 spider 重爬同 URL 会被去重拦截——
 > 这是分布式去重的正确语义，测试与生产同构。

@@ -31,6 +31,10 @@
 
 ### Fixed
 
+- **`crawl(settings=dict)` 显式键现在对框架启动配置生效**：原先传入的
+  SettingManager 会被项目默认配置整体覆盖，`QUEUE_TYPE` / `RUN_MODE` 等
+  框架启动键在 `crawl()` 里显式指定后仍回落默认值（如显式 `memory` 实际
+  走 auto 探测）。现以"运行时自定义配置"（最高优先级）参与框架初始化
 - **DynamicRenderMiddleware 不再短路 HybridDownloader 自身路由**：原先零配置
   时也无条件给请求打 `use_protocol_loader` 标记，而该标记在 hybrid 路由中
   优先级最高，导致仅配置 `HYBRID_DYNAMIC_URL_PATTERNS` /

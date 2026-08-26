@@ -271,6 +271,8 @@ def _run_scenario(tmp_path, monkeypatch, base_url, scenario: dict) -> list:
         "CONCURRENCY": scenario.get("concurrency", 4),
         "DOWNLOAD_DELAY": 0,
         "HYBRID_DYNAMIC_URL_PATTERNS": scenario["patterns"],
+        # 队列类型：memory / redis（显式指定；不传则走框架 auto 探测）
+        **({"QUEUE_TYPE": scenario["queue_type"]} if scenario.get("queue_type") else {}),
         "PIPELINES": {"matrix_pipeline.CollectPipeline": 100},
     }
     asyncio.run(
@@ -332,3 +334,33 @@ def test_scenario_4_both_static(matrix_site, tmp_path, monkeypatch):
     for r in recs:
         assert r["title"].startswith("STATIC-"), f"title={r['title']!r}"
         assert "/s-detail/" in r["url"]
+
+
+# ---------------------------------------------------------------------------
+# 队列维度矩阵：4 场景 × {memory, redis} 队列 = 8 组
+# 验证路由行为与队列后端正交（调度层不应影响下载层路由决策）
+# ---------------------------------------------------------------------------
+_QUEUE_TYPES = ["memory", "redis"]
+
+
+@pytest.mark.parametrize("queue_type", _QUEUE_TYPES, ids=["memq", "redq"])
+@pytest.mark.parametrize(
+    "scenario_key",
+    [1, 2, 3, 4],
+    ids=["s1_static_dyn", "s2_dyn_static", "s3_both_dyn", "s4_both_static"],
+)
+def test_hybrid_matrix_on_queue(scenario_key, queue_type, matrix_site, tmp_path, monkeypatch):
+    """同一场景分别在内存队列与 Redis 队列下跑，结果与耗时均记录。"""
+    import time
+
+    scenario = dict(SCENARIOS[scenario_key])
+    scenario["queue_type"] = queue_type
+    t0 = time.perf_counter()
+    recs = _run_scenario(tmp_path, monkeypatch, matrix_site, scenario)
+    elapsed = time.perf_counter() - t0
+    print(f"[matrix] s{scenario_key} queue={queue_type} "
+          f"elapsed={elapsed:.2f}s items={len(recs)}", flush=True)
+    assert len(recs) == 3, f"期望 3 条 item，实际 {len(recs)}: {recs}"
+    for r in recs:
+        assert r["title"].startswith(scenario["expect_prefix"]), \
+            f"title={r['title']!r} expect_prefix={scenario['expect_prefix']}"

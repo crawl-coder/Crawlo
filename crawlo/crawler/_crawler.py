@@ -103,7 +103,17 @@ class Crawler:
         """Ensure framework is ready"""
         if not is_framework_ready():
             try:
-                self._settings = initialize_framework(self._settings)
+                # crawl(settings=...) 传入的键必须以"运行时自定义配置"身份
+                # （最高优先级）参与框架级初始化：QUEUE_TYPE / RUN_MODE 等
+                # 框架启动键在 SettingsInitializer 阶段读取，若只传 settings
+                # 对象，会被 project 默认配置整体覆盖回默认值（例如
+                # QUEUE_TYPE='auto'），导致用户显式指定失效。
+                custom: Optional[dict] = None
+                if isinstance(self._settings, SettingManager):
+                    custom = dict(self._settings.attributes)
+                elif isinstance(self._settings, dict):
+                    custom = self._settings
+                self._settings = initialize_framework(self._settings, **(custom or {}))
             except Exception:
                 if not self._settings:
                     self._settings = SettingManager()
