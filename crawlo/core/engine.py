@@ -541,6 +541,15 @@ class Engine(RequestGenerationMixin, ClusterMixin):
             if reason == 'finished':
                 await self._checkpoint.clear_checkpoint(self.spider)
 
+            # 调用用户爬虫的关闭钩子（Spider.spider_closed 文档承诺
+            # "爬虫关闭时调用"，此前框架并无调用点）
+            if self.spider is not None and callable(
+                    getattr(self.spider, 'spider_closed', None)):
+                try:
+                    await self.spider.spider_closed()
+                except Exception as e:
+                    self.logger.warning(f"spider_closed hook failed: {e}")
+
             if self.processor is not None and hasattr(self.processor, 'pipelines'):
                 await self.processor.pipelines.close()
 

@@ -31,6 +31,9 @@
 
 ### Fixed
 
+- **补接 `Spider.spider_closed()` 关闭钩子**：文档承诺"爬虫关闭时调用"，
+  但引擎从未实现调用点，用户实现的钩子静默失效。现于 `close_spider`
+  中在管道关闭前调用（异常仅告警不中断清理流程）
 - **`crawl(settings=dict)` 显式键现在对框架启动配置生效**：原先传入的
   SettingManager 会被项目默认配置整体覆盖，`QUEUE_TYPE` / `RUN_MODE` 等
   框架启动键在 `crawl()` 里显式指定后仍回落默认值（如显式 `memory` 实际
