@@ -153,7 +153,7 @@ class PlaywrightDownloader(
 
             # ===== 应用反检测脚本（在导航前注入，必须保持）=====
             if self.stealth_level != 'none':
-                await self._inject_stealth_scripts(page)
+                await self._inject_stealth_scripts(page, request)
 
             # 应用请求特定的设置
             await self._apply_request_settings(page, request)

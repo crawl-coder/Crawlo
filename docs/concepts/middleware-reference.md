@@ -80,12 +80,20 @@ RANDOMNESS = True # 是否加随机抖动（±50%）
 
 ### 6. DynamicRenderMiddleware — 动态渲染
 
-检测页面是否需要浏览器渲染（SPA、动态加载内容），自动触发 HybridDownloader 切换。
+按显式配置判定请求是否需要浏览器渲染（SPA、动态加载内容），
+命中时给请求打 `use_dynamic_loader` / `use_protocol_loader` 标记，
+由 HybridDownloader 据此切换下载器。**仅在配置显式命中时打标**：
+未配置任何 DYNAMIC_RENDER_* 规则时不干预请求，HYBRID_* 路由规则
+照常生效（详见 downloader-guide 的路由优先级说明）。
 
 ```python
 DYNAMIC_RENDER_ENABLED = True
-DYNAMIC_RENDER_DOMAIN_PATTERNS = ['spa.example.com']
-DYNAMIC_RENDER_URL_PATTERNS = [r'/app/', r'/#/']
+DYNAMIC_RENDER_DOMAINS = ['spa.example.com']        # 动态域名
+DYNAMIC_RENDER_STATIC_DOMAINS = []                  # 强制静态域名
+DYNAMIC_RENDER_URL_PATTERNS = [r'/app/', r'/#/']    # 动态 URL 模式
+DYNAMIC_RENDER_STATIC_PATTERNS = [r'\.json$']       # 强制静态 URL 模式
+DYNAMIC_RENDER_DEFAULT_DYNAMIC = False              # 默认回退视为动态
+DYNAMIC_RENDER_CACHE_ENABLED = True                 # 域名判定结果缓存
 ```
 
 ### 7. CloudflareBypassMiddleware — Cloudflare 绕过

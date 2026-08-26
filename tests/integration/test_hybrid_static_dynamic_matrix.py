@@ -258,11 +258,10 @@ def _run_scenario(tmp_path, monkeypatch, base_url, scenario: dict) -> list:
 
     settings = {
         "DOWNLOADER_TYPE": "hybrid",          # 短名走 DOWNLOADER_MAP
-        # 关闭 DynamicRenderMiddleware：它默认开启并以 DYNAMIC_RENDER_* 配置
-        # 判定后给请求打 use_protocol_loader/use_dynamic_loader 标记，
-        # 该标记在 hybrid 路由中优先级最高，会短路掉本测试要验证的
-        # HYBRID_DYNAMIC_URL_PATTERNS 路径（详见计划文件 B10 后续待办）
-        "DYNAMIC_RENDER_ENABLED": False,
+        # 注意：不关闭 DynamicRenderMiddleware（保持默认 enabled=True）。
+        # 它只在 DYNAMIC_RENDER_* 显式配置命中时才打 meta 标记，未配置时
+        # 不打标、交由本测试要验证的 HYBRID_DYNAMIC_URL_PATTERNS 生效
+        # （修复前它会无条件打 use_protocol_loader 短路 HYBRID 规则）。
         "HYBRID_DEFAULT_PROTOCOL_DOWNLOADER": "httpx",
         "HYBRID_DEFAULT_DYNAMIC_DOWNLOADER": "playwright",
         "PLAYWRIGHT_REAL_CHROME": True,       # 复用系统 Chrome，免下载二进制

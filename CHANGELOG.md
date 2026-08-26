@@ -29,6 +29,19 @@
 - 新增符号语义回归测试（5 项）与 DLQ 重放集成测试（7 项）、
   代理缓存单测（7 项）
 
+### Fixed
+
+- **DynamicRenderMiddleware 不再短路 HybridDownloader 自身路由**：原先零配置
+  时也无条件给请求打 `use_protocol_loader` 标记，而该标记在 hybrid 路由中
+  优先级最高，导致仅配置 `HYBRID_DYNAMIC_URL_PATTERNS` /
+  `HYBRID_DYNAMIC_DOMAINS` 的用户规则完全不生效。现改为三态判定：仅
+  `DYNAMIC_RENDER_*` 显式配置（patterns/domains 及其缓存）命中才打标；
+  默认回退不打标交由 hybrid 路由（默认同为协议下载，纯协议用户行为不变）；
+  `DYNAMIC_RENDER_DEFAULT_DYNAMIC=True` 时回退仍视为动态（语义保持）
+- Playwright 反检测脚本注入误用 `page.request.meta`（Playwright
+  APIRequestContext 无此属性，每次注入报 WARNING）；改为接收 crawlo
+  Request，`meta['playwright_stealth_level']` 按请求覆盖 stealth 级别
+
 ## [1.7.4] - 2026-08-10
 
 ### Breaking Changes

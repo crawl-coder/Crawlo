@@ -69,6 +69,13 @@ HybridDownloader 维护两类下载器：
 3. **域名匹配**：`HYBRID_DYNAMIC_DOMAINS` → 匹配的域名自动走动态层
 4. **默认**：其余走协议下载器
 
+> **与 DynamicRenderMiddleware 的分工**：请求标记之所以优先级最高，
+> 是因为它代表"用户显式指定"。DynamicRenderMiddleware 只在自身
+> `DYNAMIC_RENDER_URL_PATTERNS / STATIC_PATTERNS / DOMAINS /
+> STATIC_DOMAINS` 显式配置命中时才替你打标记；未配置时不打标，
+> 上述 HYBRID_* 规则照常生效。两套配置可独立使用，也可组合：
+> DYNAMIC_RENDER_* 负责页面级智能判定，HYBRID_* 负责下载层路由兜底。
+
 ### 配置示例
 
 ```python
